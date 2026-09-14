@@ -13,6 +13,7 @@ import pytest
 from imas_ambix.agent.profile import SiteConfig, load_profile
 from imas_ambix.agent.registry import (
     ServeRegistration,
+    build_endpoint_document,
     read_registrations,
     remove_registration,
     write_registration,
@@ -168,3 +169,75 @@ except OSError, TypeError:
             invalid_source,
             feature_version=_serving_python_feature_version(),
         )
+
+
+def test_a_dead_registration_sharing_a_port_does_not_empty_the_document():
+    """A superseded job must not take the whole routing lane down with it.
+
+    When a serve is replaced, the new job takes the port the old one released,
+    so both registrations resolve to the same origin and both probe the one
+    live serve. Refusing the ambiguity published an empty catalog while a
+    healthy serve answered, which reads to every consumer as no endpoint at
+    all -- observed three times in one day. Resolve to the later job instead.
+    """
+    superseded = _registration(job_id="1270620", model_id="deepseek-v4-flash")
+    live = ServeRegistration(
+        model_id="deepseek-v4-flash",
+        host="98dci4-gpu-0003",
+        port=18800,
+        job_id="1270628",
+        accelerator_count=4,
+        checkpoint_precision="int4",
+        accelerator_family="H200",
+    )
+
+    def catalog(_origin: str) -> object:
+        return {
+            "data": [
+                {
+                    "id": "deepseek-v4-flash",
+                    "max_model_len": 1048576,
+                    "ambix": {
+                        "accelerator_family": "H200",
+                        "accelerator_count": 4,
+                        "checkpoint_precision": "int4",
+                    },
+                }
+            ]
+        }
+
+    endpoints = build_endpoint_document(
+        (superseded, live), fetch_catalog=catalog
+    )
+
+    assert len(endpoints) == 1, "one model id must publish exactly one endpoint"
+    assert endpoints[0].port == 18800, "the later job's endpoint must win"
+
+
+def test_a_second_model_survives_a_duplicate_on_the_first():
+    """The document must lose at most the ambiguous entry, never every entry."""
+    first = _registration(job_id="100", model_id="model-a")
+    duplicate = _registration(job_id="101", model_id="model-a")
+    other = _registration(job_id="102", model_id="model-b")
+
+    def catalog(_origin: str) -> object:
+        return {
+            "data": [
+                {
+                    "id": model_id,
+                    "max_model_len": 1048576,
+                    "ambix": {
+                        "accelerator_family": "H200",
+                        "accelerator_count": 4,
+                        "checkpoint_precision": "int4",
+                    },
+                }
+                for model_id in ("model-a", "model-b")
+            ]
+        }
+
+    endpoints = build_endpoint_document(
+        (first, duplicate, other), fetch_catalog=catalog
+    )
+
+    assert {endpoint.model_id for endpoint in endpoints} == {"model-a", "model-b"}

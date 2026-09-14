@@ -302,7 +302,8 @@ def build_endpoint_document(
 ) -> tuple[PublishedEndpoint, ...]:
     """Probe registrations anonymously and retain complete live endpoints."""
     endpoints: list[PublishedEndpoint] = []
-    seen_models: set[str] = set()
+    # model id -> (endpoint, the job id that registered it)
+    seen_models: dict[str, tuple[PublishedEndpoint, str]] = {}
     for registration in registrations:
         try:
             endpoint = _endpoint_from_catalog(
@@ -323,10 +324,30 @@ def build_endpoint_document(
                 error,
             )
             continue
-        if endpoint.model_id in seen_models:
-            raise ValueError(f"multiple live endpoints publish {endpoint.model_id!r}")
+        prior = seen_models.get(endpoint.model_id)
+        if prior is not None:
+            previous, previous_job = prior
+            # Two registrations claiming one model id is almost always a dead
+            # job whose successor took the port it released: both probe the one
+            # live serve, so both look current. Resolve to the later job rather
+            # than refusing, and never abort the build -- raising here empties
+            # the document for EVERY model, so one stale file takes the whole
+            # routing lane down while the serve it names is answering.
+            newer = registration.job_id > previous_job
+            keep = endpoint if newer else previous
+            keep_job = registration.job_id if newer else previous_job
+            _LOGGER.warning(
+                "duplicate registrations publish %s at %s and %s; keeping job %s",
+                endpoint.model_id,
+                previous.origin,
+                endpoint.origin,
+                keep_job,
+            )
+            endpoints[endpoints.index(previous)] = keep
+            seen_models[endpoint.model_id] = (keep, keep_job)
+            continue
         endpoints.append(endpoint)
-        seen_models.add(endpoint.model_id)
+        seen_models[endpoint.model_id] = (endpoint, registration.job_id)
     return tuple(sorted(endpoints, key=lambda endpoint: endpoint.model_id))
 
 
@@ -533,8 +554,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         site = SiteConfig.from_env()
         directory = args.directory or registration_directory(site.base_dir)
         output = args.output or site.endpoint_document
+        # Ask the scheduler which jobs are alive rather than assuming all of
+        # them are. A registration outliving its job is how the published
+        # catalog comes to name a serve that is gone, or to collide with the
+        # successor that took its port. If the query itself fails it returns
+        # nothing, which must not be read as "every job is dead" -- that would
+        # publish an empty document over a healthy lane, so fall back to
+        # retaining the records and let the origin probe decide.
+        live = {job["jobid"] for job in _running_jobs(site)}
+        job_is_running = (lambda job_id: job_id in live) if live else (lambda _: True)
         registrations = read_registrations(
-            directory, job_is_running=lambda _job_id: True
+            directory, job_is_running=job_is_running
         ).current
         endpoints = build_endpoint_document(
             registrations, fetch_catalog=_fetch_anonymous_catalog
