@@ -23,7 +23,8 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-14">
-<meta name="plan-version" content="1">
+<meta name="plan-version" content="3">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;deferred&quot;}">
 </head>
 <body>
   <main class="plan-doc">
@@ -73,6 +74,26 @@
     <code>max_running_requests=256</code> and
     <code>chunked_prefill_size=32768</code>; the sweep should reach far enough to
     show whether the ceiling is the scheduler, the KV pool, or the GPUs.</p>
+
+    <p>Run the benchmark from a SLURM compute node, not the login node &mdash;
+    <code>srun --partition=all_debug --time=00:59:00</code>. It drives sustained
+    concurrent HTTP load, which the repository's compute-placement rule puts off
+    the login node regardless of how little CPU it appears to use.</p>
+
+    <p>Do not run the sweep from a <code>clive</code>-backed worker. That backend
+    serves from this same endpoint, so the worker's own traffic would become part
+    of the load it is measuring. Dogfooding belongs in &sect;4, deliberately
+    after the clean numbers exist.</p>
+
+    <p>An order-of-magnitude roofline says what to expect. At roughly 16B active
+    parameters in about one byte each, TP4 has every card read on the order of
+    4&nbsp;GB per token, and H200 HBM3e runs near 4.8&nbsp;TB/s &mdash; a ceiling
+    in the high hundreds of tokens per second. The measured 34.4 is far enough
+    below that to say the serve is bound by per-token overhead rather than by
+    bandwidth or arithmetic: 29&nbsp;ms per token over 40 layers is about
+    0.7&nbsp;ms per layer, which is the shape of fixed per-step cost. The Engram
+    gather reaches host memory twice per token and is the first suspect. Treat
+    this as a direction to test, not a target.</p>
 
     <p><strong>Done when:</strong> a table of concurrency against per-stream and
     aggregate tok/s exists in the evidence record, the saturation point is named,
@@ -154,17 +175,17 @@ hint: Wheels are available for `kt-kernel` (v0.7.0.post4) with ABI tag: `cp312`<
 <h2><span class="sec">§</span> Followups</h2>
 <article class="r-fu" data-id="f-dsc-001" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-09-14" data-recommends-skill="/reckon-ship dsv41-flash-serve-characterisation §2" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Sweep concurrency and settle DSpark</h4>
-    <div class="r-fu-body"><p>&sect;2 and &sect;3 together, because they share an instrument and each answers the other's question: the sweep is meaningless without knowing whether speculative decoding is on, and DSpark cannot be judged from a single-stream figure alone. Run <code>imas-ambix agent bench --category concurrency</code> against the live endpoint, then repeat with DSpark enabled, and keep whichever configuration wins at the concurrency the lane actually sees.</p><p>The single-stream baseline to beat is 34.4 tok/s at 131 ms TTFT.</p></div>
+    <div class="r-fu-body"><p>§2 and §3 together, because they share an instrument and each answers the other's question: the sweep is meaningless without knowing whether speculative decoding is on, and DSpark cannot be judged from a single-stream figure alone. Run <code>imas-ambix agent bench --category concurrency</code> against the live endpoint, then repeat with DSpark enabled, and keep whichever configuration wins at the concurrency the lane actually sees.</p><p>The single-stream baseline to beat is 34.4 tok/s at 131 ms TTFT.</p></div>
     <pre class="r-fu-prompt">/reckon-ship dsv41-flash-serve-characterisation §2</pre>
     </article>
 <article class="r-fu" data-id="f-dsc-002" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-tool-autonomy="autonomous" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-09-14" data-recommends-skill="/reckon-ship dsv41-flash-serve-characterisation §4" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Dogfood the endpoint with clive workers</h4>
-    <div class="r-fu-body"><p>&sect;4. Drive real agent tasks through <code>clive</code> against this endpoint rather than synthetic prompts, and record what breaks: context growth, tool-call reliability across many turns, structured output, and behaviour under bursty concurrency. The tool path is verified once by hand and never under sustained load.</p></div>
+    <div class="r-fu-body"><p>§4. Drive real agent tasks through <code>clive</code> against this endpoint rather than synthetic prompts, and record what breaks: context growth, tool-call reliability across many turns, structured output, and behaviour under bursty concurrency. The tool path is verified once by hand and never under sustained load.</p></div>
     <pre class="r-fu-prompt">/reckon-ship dsv41-flash-serve-characterisation §4</pre>
     </article>
 <article class="r-fu" data-id="f-dsc-003" data-status="open" data-capability-version="1.0" data-capability-class="general" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-09-14" data-recommends-skill="/reckon-ship dsv41-flash-serve-characterisation §5" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Split kt-kernel out and move the serving venv to 3.14</h4>
-    <div class="r-fu-body"><p>&sect;5, gated on the <code>kt-kernel-split</code> decision. A 3.14 sync fails today because kt-kernel ships cp312 wheels only and the ktransformers engine shares the sglang venv. Upstream allows 3.14 across PyTorch, SGLang and vLLM, so the constraint is local.</p><p>This removes a defect class rather than a defect: the repository formats to py314 syntax that the 3.12 serving interpreter cannot parse, which has now bitten four times.</p></div>
+    <div class="r-fu-body"><p>§5, gated on the <code>kt-kernel-split</code> decision. A 3.14 sync fails today because kt-kernel ships cp312 wheels only and the ktransformers engine shares the sglang venv. Upstream allows 3.14 across PyTorch, SGLang and vLLM, so the constraint is local.</p><p>This removes a defect class rather than a defect: the repository formats to py314 syntax that the 3.12 serving interpreter cannot parse, which has now bitten four times.</p></div>
     <pre class="r-fu-prompt">/reckon-ship dsv41-flash-serve-characterisation §5</pre>
     </article>
 </section>
