@@ -18,7 +18,12 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from imas_ambix.agent.profile import SiteConfig, list_profiles, load_profile
+from imas_ambix.agent.profile import (
+    ModelProfile,
+    SiteConfig,
+    list_profiles,
+    load_profile,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -491,6 +496,8 @@ def serve(
         console.print(script, markup=False, highlight=False, soft_wrap=True)
         return
 
+    _require_engine_environment(profile, site)
+
     holder = _running_ambix_job_on_port(site, resolved_port)
     if holder is not None:
         raise click.ClickException(
@@ -708,9 +715,7 @@ def _same_node(first: str, second: str) -> bool:
     accept both orders of one being a suffix of the other.
     """
     return (
-        first == second
-        or first.endswith("." + second)
-        or second.endswith("." + first)
+        first == second or first.endswith("." + second) or second.endswith("." + first)
     )
 
 
@@ -816,8 +821,7 @@ def _resolve_log_job(selector: str | None, site: SiteConfig) -> dict[str, str]:
     matches = [
         job
         for job in _running_jobs(site)
-        if job["name"] == slug
-        and _serve_port(job.get("comment", "")) is not None
+        if job["name"] == slug and _serve_port(job.get("comment", "")) is not None
     ]
     if not matches:
         raise click.ClickException(
@@ -1041,21 +1045,16 @@ def _republish_endpoint_document(site: SiteConfig) -> Path | None:
         return write_endpoint_document(
             endpoints,
             site.endpoint_document,
-            routing_origins=discover_routing_origins(
-                endpoints, _running_jobs(site)
-            ),
+            routing_origins=discover_routing_origins(endpoints, _running_jobs(site)),
         )
     except (OSError, ValueError, click.ClickException) as error:
         console.print(
-            f"[yellow]warning: could not republish the endpoint document: "
-            f"{error}[/]"
+            f"[yellow]warning: could not republish the endpoint document: {error}[/]"
         )
         return None
 
 
-def _remove_cancelled_registrations(
-    site: SiteConfig, job_ids: Sequence[str]
-) -> None:
+def _remove_cancelled_registrations(site: SiteConfig, job_ids: Sequence[str]) -> None:
     """Delete the shared registration records of the cancelled serve jobs.
 
     A cancelled job's own EXIT trap removes its record when it runs, but a
@@ -1243,9 +1242,20 @@ def _router_port(comment: str) -> int | None:
     return _comment_port(comment, _ROUTER_COMMENT_PREFIX)
 
 
-def _running_ambix_job_on_port(
-    site: SiteConfig, port: int
-) -> dict[str, str] | None:
+def _require_engine_environment(profile: ModelProfile, site: SiteConfig) -> None:
+    """Refuse to submit a serve whose engine environment or image is missing.
+
+    Called at submit rather than at render, so ``--dry-run`` still prints a
+    script on a machine that has neither.
+    """
+    from imas_ambix.agent.slurm import engine_environment_problems
+
+    problems = engine_environment_problems(profile, site)
+    if problems:
+        raise click.ClickException("\n".join(problems))
+
+
+def _running_ambix_job_on_port(site: SiteConfig, port: int) -> dict[str, str] | None:
     """Return the running Ambix job that owns *port*, if one exists."""
     for job in _running_jobs(site):
         if job.get("state") != "RUNNING":
@@ -1826,6 +1836,10 @@ def key_command(reveal: bool, rotate: bool, yes: bool) -> None:
     port = site.default_port
     user = os.environ.get("USER") or getpass.getuser()
 
+    # Before cancelling anything: a rotation that tears the serve down and then
+    # cannot bring it back leaves no endpoint at all.
+    _require_engine_environment(profile, site)
+
     # Cancel active serve jobs
     result = subprocess.run(
         ["squeue", "-h", "-u", user, "-A", site.account, "-o", "%i|%j", "-t", "R,PD"],
@@ -2124,6 +2138,11 @@ def restart(
     resolved_port = port if port is not None else site.default_port
     resolved_key = _resolve_serve_auth(auth, api_key, site)
 
+    # Before cancelling anything: a restart that stops the running serve and
+    # then cannot start the replacement leaves no endpoint at all.
+    if not dry_run:
+        _require_engine_environment(profile, site)
+
     # Find active serve jobs for this profile
     user = os.environ.get("USER") or getpass.getuser()
     result = subprocess.run(
@@ -2376,9 +2395,7 @@ def bench(
     default=None,
     help="API key for authenticated endpoints (or set AMBIX_AGENT_API_KEY).",
 )
-@click.option(
-    "--interval", type=float, default=5.0, help="Seconds between samples."
-)
+@click.option("--interval", type=float, default=5.0, help="Seconds between samples.")
 @click.option(
     "--duration",
     "duration_s",

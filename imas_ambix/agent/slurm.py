@@ -198,6 +198,42 @@ def _build_sglang_args(profile: ModelProfile, site: SiteConfig) -> list[str]:
     return args
 
 
+def engine_environment_problems(
+    profile: ModelProfile,
+    site: SiteConfig,
+) -> list[str]:
+    """Return the reasons a serve for *profile* cannot start, or an empty list.
+
+    Rendering a script does not need the environment to exist; submitting a job
+    does. Every serve runs the registry publish/write steps against the engine
+    venv's interpreter, so that interpreter is required even when the engine
+    itself runs from a container, and a container serve additionally needs its
+    image on disk because the GPU node has no egress to pull one.
+
+    Checking here turns a missing environment into a refusal at submit naming
+    the command that fixes it. Left unchecked it surfaces as a job that dies on
+    the compute node after the allocation is granted -- burning a queue slot and
+    reading as a serve fault rather than an unprovisioned environment.
+    """
+    problems: list[str] = []
+    python = site.python_path(profile.engine.type)
+    if not python.is_file():
+        problems.append(
+            f"Engine environment for {profile.engine.type!r} is not provisioned: "
+            f"no interpreter at {python}.\n"
+            f"  Provision it with: imas-ambix agent setup {profile.engine.type}"
+        )
+    container = profile.engine.container
+    if container is not None and not Path(container.sif_path).is_file():
+        problems.append(
+            f"Container image for {profile.slug!r} is missing: "
+            f"no file at {container.sif_path}.\n"
+            f"  Build it on a network-enabled partition with: "
+            f"apptainer pull {container.sif_path} docker://{container.image}"
+        )
+    return problems
+
+
 def _build_serve_command(profile: ModelProfile, site: SiteConfig) -> str:
     engine = profile.engine
 
@@ -586,6 +622,31 @@ def generate_serve_script(
         str(site.venv_path(profile.engine.type) / "lib/python3.12/site-packages")
     )
 
+    # The engine venv's vendored CUDA and torch libraries belong on
+    # LD_LIBRARY_PATH only when the engine runs against that venv. Apptainer
+    # passes the host environment into the container, so exporting them for a
+    # container serve puts host torch and CUDA libraries ahead of the image's
+    # own on the loader path, where they are the wrong build for it. The
+    # registry steps still run outside the container against the host
+    # interpreter, so that path is resolved separately and stays.
+    host_engine_lib_block = ""
+    if profile.engine.container is None:
+        host_engine_lib_block = dedent(
+            f"""
+            # Expose vendored nvidia libs (cuDNN, cuSPARSELt, NCCL, etc.)
+            # installed by pip/uv into per-package subdirs under nvidia/.
+            _SITE={site_packages}
+            for _nv_lib in "$_SITE"/nvidia/*/lib; do
+                if [[ -d "$_nv_lib" ]]; then
+                    export LD_LIBRARY_PATH="${{_nv_lib}}:${{LD_LIBRARY_PATH:-}}"
+                fi
+            done
+            # PyTorch shared libs (libtorch.so, libc10.so, etc.) for engine
+            # C extensions
+            export LD_LIBRARY_PATH="${{_SITE}}/torch/lib:${{LD_LIBRARY_PATH:-}}"
+            """
+        ).strip()
+
     script_body = dedent(
         f"""
         set -euo pipefail
@@ -601,16 +662,7 @@ def generate_serve_script(
 
         {catalog_env_block}
 
-        # Expose vendored nvidia libs (cuDNN, cuSPARSELt, NCCL, etc.)
-        # installed by pip/uv into per-package subdirs under nvidia/.
-        _SITE={site_packages}
-        for _nv_lib in "$_SITE"/nvidia/*/lib; do
-            if [[ -d "$_nv_lib" ]]; then
-                export LD_LIBRARY_PATH="${{_nv_lib}}:${{LD_LIBRARY_PATH:-}}"
-            fi
-        done
-        # PyTorch shared libs (libtorch.so, libc10.so, etc.) for vLLM C extensions
-        export LD_LIBRARY_PATH="${{_SITE}}/torch/lib:${{LD_LIBRARY_PATH:-}}"
+        {host_engine_lib_block}
 
         # TensorRT-LLM DeepGEMM kernel cache: use scratch-local to avoid GPFS
         # rename races when multiple TP workers compile cubins concurrently.
