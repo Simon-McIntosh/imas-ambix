@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="dsv41-flash-serve-characterisation-landed">
+  <meta name="plan-title" content="DSv4.1-Flash Serve Characterisation — Landed Record">
+  <meta name="plan-summary" content="Measured throughput envelope of the four-card V4.1-Flash serve, and why DSpark is not viable on it">
+  <meta name="plan-evidence-for" content="dsv41-flash-serve-characterisation">
+  <meta name="plan-verifies" content="dsv41-flash-serve-characterisation#s2,dsv41-flash-serve-characterisation#s3">
+  <meta name="plan-tags" content="agent-serving,gpu-deployment">
+  <title>DSv4.1-Flash Serve Characterisation — Landed Record | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+  <h2 id="s2">§2 — Concurrency sweep</h2>
+
+  <p>Measured 2026-09-14 against serve job 1270323: DeepSeek-V4.1-Flash on
+  4&times;H200, TP4/EP4, MXFP4 experts through FlashInfer, Engram tables host
+  resident, KV pool 14,999,808 tokens, no speculative decoding. Each level runs
+  <em>N</em> concurrent completions of 300 max tokens from a compute node.</p>
+
+  <table>
+    <thead><tr>
+      <th>Concurrency</th><th>Per-stream tok/s</th><th>Aggregate tok/s</th><th>Mean latency (s)</th>
+    </tr></thead>
+    <tbody>
+      <tr><td>1</td><td>33.5</td><td>33.5</td><td>8.95</td></tr>
+      <tr><td>2</td><td>36.0</td><td>71.9</td><td>8.33</td></tr>
+      <tr><td>4</td><td>33.6</td><td>134.1</td><td>8.94</td></tr>
+      <tr><td>8</td><td>24.7</td><td>197.7</td><td>12.14</td></tr>
+      <tr><td>16</td><td>17.0</td><td>270.7</td><td>17.66</td></tr>
+      <tr><td>32</td><td>11.0</td><td>350.8</td><td>27.33</td></tr>
+    </tbody>
+  </table>
+
+  <p><strong>The knee is at 4.</strong> Up to four concurrent streams the
+  per-stream rate is unchanged &mdash; 33.5 to 33.6 &mdash; while aggregate
+  scales linearly to 4&times;, so the first four workers are free. From eight
+  upward per-stream falls roughly as 1/concurrency while aggregate keeps rising,
+  which is a saturated device time-slicing rather than added capacity: past the
+  knee, concurrency buys throughput by spending latency one for one.</p>
+
+  <p>Aggregate had <strong>not</strong> saturated at 32 (270.7 to 350.8 for a
+  doubling), so the ceiling is above the range measured.</p>
+
+  <p><strong>Sizing guidance that follows:</strong> run a worker fleet at 4&ndash;8
+  concurrent. Below 4 the deployment is idle; above 8 worker wall-clock stretches
+  without the fleet finishing sooner.</p>
+
+  <p>The single-stream figure is the one that disappoints against the vendor's
+  300&ndash;507 tok/s per-client claim, and the gap is not closed by anything
+  available here &mdash; see &sect;3 and the note on quantisation below.</p>
+
+  <h2 id="s3">§3 — DSpark is not viable on this topology</h2>
+
+  <p>Speculative decoding was enabled, measured, and withdrawn. It never
+  produced a throughput number, because it could not start: DSpark wants a
+  <strong>~12 GiB per-card workspace</strong> on top of weights, host-table
+  structures, KV pool and the TensorRT-LLM autotuner.</p>
+
+  <table>
+    <thead><tr><th>KV pool</th><th>Outcome with DSpark</th></tr></thead>
+    <tbody>
+      <tr><td>14,999,808</td><td>OOM at startup &mdash; asked 12.00 GiB, 1.3 GiB free</td></tr>
+      <tr><td>3,485,952 (smallest load-proven)</td><td>OOM at startup &mdash; asked 12.00 GiB, 7.6 GiB free</td></tr>
+    </tbody>
+  </table>
+
+  <p>Shrinking the pool cannot close the remaining 4.4 GiB, because the pool
+  costs roughly 16 GiB of fixed base plus only ~1.6 KiB per token &mdash; there
+  is almost nothing left to sell. This is consistent with prior experience on
+  V4-Flash, where DSpark did not change throughput materially; here it cannot
+  run at all. <strong>Do not re-enable without more cards, or a checkpoint whose
+  experts are small enough to leave the Engram tables in HBM.</strong></p>
+
+  <h2 id="s2a">Pool sizing — starting is not the test</h2>
+
+  <p>The most expensive lesson of the session. A 20,000,000-token pool started
+  cleanly, reported its pool, answered single-stream requests and showed 14.64
+  GiB free per card &mdash; then died under a real request with <code>SIGKILL
+  137</code>, FlashInfer's MXFP4 fused-MoE workspace asking 7.52 GiB against
+  6.91 GiB free. That workspace is allocated lazily at generation, so
+  free-memory-after-startup is not the margin; it is the margin before the
+  largest allocation the serve will ever make.</p>
+
+  <p>A ladder that tested whether the engine printed
+  <code>max_total_num_tokens</code> therefore recorded a pass for a
+  configuration that could not carry load, and the failure looked healthy until
+  something used it. Every pool figure here is now load-tested.</p>
+
+  <table>
+    <thead><tr><th>Pool</th><th>Starts</th><th>Serves under load</th></tr></thead>
+    <tbody>
+      <tr><td>3,485,952</td><td>yes</td><td>yes</td></tr>
+      <tr><td>14,999,808</td><td>yes</td><td><strong>yes &mdash; 32-way sweep, 0 OOM</strong></td></tr>
+      <tr><td>20,000,000</td><td>yes</td><td><strong>no</strong></td></tr>
+      <tr><td>auto-sized</td><td>no</td><td>&mdash;</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="s2b">Stability</h2>
+
+  <p>Ten-minute soak against job 1270323 after the 32-way sweep: <strong>10 of 10
+  health probes clean</strong> on both the serve and the router, live generations
+  returning throughout, zero OOM events, uptime 22 minutes. The one traceback in
+  the serve log is the registry publish step failing on a missing
+  <code>click</code> &mdash; an environment defect fixed separately, not a serve
+  fault.</p>
+
+  <h2 id="s5a">Withdrawn: W4A16 requantisation</h2>
+
+  <p>Recorded because the reasoning was wrong and the next reader should not
+  repeat it. W4A16 was proposed on the grounds that it would shrink the routed
+  experts enough to bring the Engram tables back into HBM within four cards.
+  <strong>The experts are already four-bit</strong> &mdash; MXFP4, 259.5 GiB for
+  ~545B parameters &mdash; so a four-bit requantisation frees nothing and the
+  memory argument does not exist. The premise came from carrying across the
+  GLM-5.3 precedent, where W4A8 replaced an <em>FP8</em> release and genuinely
+  halved it.</p>
+
+  <p>What survives is a narrower, untested claim: that Marlin-class INT4 kernels
+  might beat FlashInfer's MXFP4 dequantisation path on SM90. No V4.1 build in
+  that format exists, and the V4.1 model class carries no reference to
+  compressed-tensors, AWQ, GPTQ or Marlin, so the loader probably would not
+  accept one. The cheap version of the same experiment is to try a different
+  <code>moe_runner_backend</code>, which costs one restart and no
+  requantisation.</p>
+
+</main>
+</body>
+</html>
