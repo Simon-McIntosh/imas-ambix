@@ -449,6 +449,64 @@ so the engine is always the binding constraint. It is explicit because
 aiohttp's unset default is **100**, which would silently cap the lane below
 `max_num_seqs` with nothing in any log to say so.
 
+**The operational ceiling is activation memory, and it is far below
+`max_num_seqs`.** Measured 2026-09-14 on the four-card V4-Flash serve by walking
+concurrency until it broke:
+
+| concurrent short requests | outcome |
+|---|---|
+| 32 | 32/32 served, 1,136 tok/s aggregate |
+| 64 | 64/64 served, 1,192 tok/s |
+| **128** | **128/128 served, 1,451 tok/s — proven good** |
+| 256 | **every request HTTP 500; EngineCore dead, endpoint gone** |
+
+The engine reached 141 running and then died on `CUDA out of memory. Tried to
+allocate 1.51 GiB ... 1.19 GiB is free`, with **KV occupancy at 7.3%**. So
+`max_num_seqs = 1024` is not a capacity statement and **must never be sized
+against** — the serve cannot survive a fraction of it.
+
+**What kills it is the allocation that lives OUTSIDE `mem_fraction_static`.**
+The fused-MoE workspace is allocated lazily at generation and scales with
+concurrency, so free memory after startup is not the margin. The budget is
+badly split for this workload: 70.01 GiB per card of KV pool running at 3-7%
+occupancy, while the engine dies wanting 1.5 GiB of activation space. Lowering
+the fraction trades a pool nothing uses for the headroom that actually binds;
+raising it moves the ceiling **down**.
+
+**Failure at the edge is not graceful, which is why the edge needs a disposable
+job.** There is no backpressure, no queueing and no 429 — the API server fails
+to serialise its own error (`ValidationError` on
+`ChatCompletionStreamResponse`) and shuts down, taking every in-flight request
+with it. This ladder was run against a serve a live fleet was using and killed
+four of its workers. **Bisect a ceiling on a serve nobody needs.** The reasoning
+that permitted it is worth naming because it is seductive: the engine queues
+rather than refuses, which was true at every width tested and false at the next
+one. *True at every width I have tested* is not *true at every width I am about
+to test*.
+
+**A request ceiling is not a fleet size, and the conversion is not a constant.**
+Reckon dispatches **live runs**; the engine counts **simultaneous requests**.
+Measured across three fleets: 7-8 live runs produced 4-5 simultaneous requests
+(0.5-0.7), while 15 live runs coincided with 15 running (near 1.0). A worker
+spends most of its wall clock between turns, so the ratio is low when the fleet
+is small and **rises toward 1.0 as it grows**, because overlapping turns become
+likelier. **Convert at 1.0, never at the low end** — the conversion shrinks
+exactly when it is being relied upon, since the moment a fleet is large enough
+for the ceiling to matter is the moment a run is worth close to a whole request.
+
+**Before sizing a fleet against any of this, check whether capacity is the
+binding constraint at all — it usually is not.** A deliberate pressure test told
+three fleets to run hot and the engine never exceeded **five** concurrent, with
+zero capacity waits and zero preemptions. What bound every fleet was **the width
+of its dependency graph**: the number of ready nodes that do not contend for the
+same files, since two workers must never write one file. Confirmed again
+2026-09-14, a coordinator partitioning its closure by exclusive file ownership
+got **four** independent nodes against a proven-good 128. That is a property of
+the plan, and no lifted ceiling moves it. The ceiling is for genuinely wide
+work — a fan-out over many independent files, a review sweep, a corpus pass —
+and for the aggregate of every fleet sharing the lane, not for a dependency
+chain four nodes deep.
+
 **Read concurrency from the engine, which reports it directly** — `running`,
 `waiting`, KV usage and prefix-cache hit rate, once per interval:
 
