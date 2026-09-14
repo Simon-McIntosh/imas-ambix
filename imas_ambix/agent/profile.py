@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 # -- Model identity ----------------------------------------------------------
 
@@ -109,6 +109,13 @@ class EngineConfig(BaseModel):
     - ``"vllm"`` — vLLM native serving.
     """
 
+    # A misspelled or unsupported key is a configuration error, not something
+    # to drop. Pydantic's default is to ignore extras, which meant a profile
+    # could declare a flag the engine never received and read as configured --
+    # measured with DSpark, where the serve would have run without speculative
+    # decoding while the profile said otherwise.
+    model_config = ConfigDict(extra="forbid")
+
     type: Literal["ktransformers", "sglang", "vllm"]
     tensor_parallel: int = 4
     # Expert-parallel width for SGLang's ``--ep-size``. Distinct from
@@ -132,6 +139,13 @@ class EngineConfig(BaseModel):
     # (``--enable-decoder-swa-bounded-replay``). Measured by the vendor at 1.56x
     # prefill throughput on 8xH200 for DeepSeek-V4.1. SGLang-only.
     enable_decoder_swa_bounded_replay: bool = False
+    # SGLang speculative decoding. Distinct from the vLLM ``speculative_method``
+    # family below, which emits --speculative-config; SGLang takes
+    # --speculative-algorithm and its own per-algorithm options. Keeping both
+    # names is deliberate: a profile that set the vLLM key on an SGLang engine
+    # would silently emit nothing. SGLang-only.
+    speculative_algorithm: str | None = None
+    speculative_dspark_block_size: int | None = None
     disable_cuda_graph: bool = False
     disable_piecewise_cuda_graph: bool = False
     disable_custom_all_reduce: bool = False

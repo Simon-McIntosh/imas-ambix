@@ -99,6 +99,15 @@ moe_runner_backend = "flashinfer_mxfp4"
 # 1.56x prefill throughput on 8xH200.
 enable_decoder_swa_bounded_replay = true
 cuda_graph_max_bs_decode = 64
+# Speculative decoding. The decode is bound by fixed per-token cost, not by
+# bandwidth -- 29 ms per token against an HBM roofline in the high hundreds of
+# tok/s -- and speculation is the lever aimed at exactly that, since one
+# verification step carries a whole accepted block. The vendor's own four-GPU
+# recipe enables it, and the draft weights are already resident: the checkpoint
+# breakdown is "routed + DSpark experts", so this costs workspace rather than
+# another expert tower. Block size follows the vendor recipe.
+speculative_algorithm = "DSPARK"
+speculative_dspark_block_size = 5
 # The shared KV pool -- NOT the per-request context window, which stays at the
 # model's native 1,048,576 and cannot usefully go past it without RoPE
 # rescaling. This is how many tokens the engine holds across all concurrent
@@ -133,7 +142,7 @@ cuda_graph_max_bs_decode = 64
 # So size this against a generation workload, never against a clean start, and
 # leave room for a ~7.5 GiB per-card workspace on top of everything the startup
 # log accounts for. 3485952 is the value with load evidence behind it.
-max_total_tokens = 3485952
+max_total_tokens = 14999808
 trust_remote_code = true
 
 # "auto" resolves to this architecture's own parsers rather than a generic

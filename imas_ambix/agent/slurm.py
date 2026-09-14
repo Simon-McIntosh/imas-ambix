@@ -199,6 +199,12 @@ def _build_sglang_args(profile: ModelProfile, site: SiteConfig) -> list[str]:
         engine.weight_loader_disable_mmap,
     )
     _append_option(args, "--kv-cache-dtype", engine.kv_cache_dtype)
+    _append_option(args, "--speculative-algorithm", engine.speculative_algorithm)
+    _append_option(
+        args,
+        "--speculative-dspark-block-size",
+        engine.speculative_dspark_block_size,
+    )
 
     if engine.parsers.tool_call:
         _append_option(args, "--tool-call-parser", engine.parsers.tool_call)
