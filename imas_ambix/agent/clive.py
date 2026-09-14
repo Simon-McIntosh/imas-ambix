@@ -166,11 +166,21 @@ def validate_catalog_item(item, *, expected=None):
         fail("global catalog contains an invalid release id")
     release_id = item["id"]
     metadata = item.get("ambix")
-    if not isinstance(metadata, dict):
+    if metadata is None and expected is not None:
+        # The engine carries no site metadata. That is not a fault: the block
+        # is launch-owned data echoed back through a middleware only some
+        # engines accept, and the endpoint document beside us already carries
+        # the same values from the serve's own registration. Requiring the
+        # engine to repeat them made this launcher refuse a healthy endpoint.
+        family = expected["accelerator_family"]
+        count = expected["accelerator_count"]
+        precision = expected["checkpoint_precision"]
+    elif not isinstance(metadata, dict):
         fail(f"release {release_id!r} has no ambix metadata")
-    family = metadata.get("accelerator_family")
-    count = metadata.get("accelerator_count")
-    precision = metadata.get("checkpoint_precision")
+    else:
+        family = metadata.get("accelerator_family")
+        count = metadata.get("accelerator_count")
+        precision = metadata.get("checkpoint_precision")
     if not valid_text(family):
         fail(f"release {release_id!r} has an invalid accelerator family")
     if type(count) is not int or count not in {2, 4, 6, 8}:
@@ -182,7 +192,7 @@ def validate_catalog_item(item, *, expected=None):
         type(max_context) is not int or max_context <= 0
     ):
         fail(f"release {release_id!r} has an invalid maximum context")
-    if expected is not None and (
+    if metadata is not None and expected is not None and (
         release_id != expected["model_id"]
         or family != expected["accelerator_family"]
         or count != expected["accelerator_count"]
@@ -273,11 +283,15 @@ def catalog_match(catalog, entry):
         return None
     match = matches[0]
     metadata = match.get("ambix")
-    if not isinstance(metadata, dict) or (
-        metadata.get("accelerator_family") != entry["accelerator_family"]
+    if match.get("max_model_len") != entry["max_context"]:
+        return None
+    # Absence is accepted; disagreement is not. A card that states a topology
+    # different from the document describes a different serve.
+    if metadata is not None and (
+        not isinstance(metadata, dict)
+        or metadata.get("accelerator_family") != entry["accelerator_family"]
         or metadata.get("accelerator_count") != entry["accelerator_count"]
         or metadata.get("checkpoint_precision") != entry["checkpoint_precision"]
-        or match.get("max_model_len") != entry["max_context"]
     ):
         return None
     return match
