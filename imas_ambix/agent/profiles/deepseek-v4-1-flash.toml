@@ -110,13 +110,22 @@ tool_call = "auto"
 reasoning = "auto"
 
 # Startup logs "No HuggingFace chat template found" and falls back to the
-# 'string' content format. That is EXPECTED for this model family and is not a
-# misconfiguration to chase: the checkpoint deliberately ships no
-# chat_template, carrying an encoding/ module instead, and the engine formats
-# chat through its own vendored encoder
-# (srt/entrypoints/openai/encoding_dsv41.py) rather than through Jinja.
-# Supplying a chat template here would override a correct encoder with a
-# guess.
+# 'string' content format. That line is COSMETIC for this model family and
+# there is nothing to fix: the checkpoint deliberately ships no chat_template,
+# carrying an encoding/ module instead, and chat is formatted by the engine's
+# own vendored encoder (srt/entrypoints/openai/encoding_dsv41.py).
+#
+# Supplying a chat template here would not silence it and would not change
+# behaviour -- it would simply be ignored. resolve_chat_encoding_spec()
+# dispatches on model_type == "deepseek_v41" BEFORE it ever inspects
+# tokenizer.chat_template; only the DeepseekV3 branch below it is conditional
+# on a template being absent. The warning is emitted by the template layer
+# this model does not use.
+#
+# Verified by behaviour, not just by reading: a tool-calling round trip
+# returns finish_reason "tool_calls" with a correctly named function and valid
+# JSON arguments, and a follow-up carrying the tool result is consumed
+# correctly. Naive string concatenation could not produce either.
 
 [engine.env]
 # Move the 183.1 GiB of Engram tables into one shared host-resident copy.
