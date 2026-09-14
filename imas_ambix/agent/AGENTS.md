@@ -593,6 +593,27 @@ costing throughput for no measured reason. If one of them does move, it is a
 global signal and the response is a global one, negotiated across the sessions
 sharing the lane — not a number each invents alone.
 
+**`process_alive: false` does not mean a worker died.** A node that submits a
+SLURM job and ends its turn by design reads exactly like a dead one. Measured
+2026-09-14: a run flagged `blocked` with a dead process and an eight-hour-old
+dispatch stamp turned out to have been **resumed fourteen times**, with fourteen
+commits on its worktree, parked on a GPU job its coordinator was watching. The
+dispatch stamp is when the run started, not when it last did work.
+
+So before treating a dead process as a casualty, ask whether its manifest names
+a job under blockers and whether anyone holds a watch on it. This one runs
+*against* the headroom bias above — it reports worse than reality rather than
+better — which is why it needs stating separately rather than folding into the
+same prior.
+
+**SLURM reports LOCAL time; crew run ids are UTC. Never pair them without
+converting.** On this workstation local is CEST, so a SLURM `Submit`/`Start`
+read as UTC is two hours adrift, and a beat quoted from `squeue` output with a
+`Z` suffix is simply wrong. Run ids of the form
+`r-YYYYMMDDTHHMMSS...` are UTC and are safe to pair with an engine counter
+directly. `date -u` settles it in one call, and the cost of guessing is a
+pairing error that looks like a real two-hour discrepancy in the data.
+
 **EVERY measurement error found on this lane runs toward APPARENT HEADROOM.**
 Three independent instances, none of which has ever flattered the lane in the
 direction of caution:
