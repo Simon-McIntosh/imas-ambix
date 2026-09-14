@@ -308,9 +308,33 @@ if legacy_origin:
         fail("global catalog must contain a model data list")
     if not payload["data"]:
         fail("global catalog contains no models")
+    # Topology comes from the site-owned endpoint document, and the catalog is
+    # read for liveness. An engine that cannot echo the site metadata back
+    # through its own card -- SGLang takes no middleware -- would otherwise be
+    # rejected here even while serving, which is the same refusal the router
+    # and the publisher stopped making. Best effort: if the document cannot be
+    # read, a card carrying its own block still validates on its own.
+    document_topology = {}
+    try:
+        with open(document_path, encoding="utf-8") as _doc:
+            _payload = json.load(_doc)
+        for _entry in _payload.get("endpoints") or []:
+            if isinstance(_entry, dict) and valid_text(_entry.get("model_id")):
+                document_topology[_entry["model_id"]] = _entry
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        document_topology = {}
+
     for catalog_item in payload["data"]:
+        _expected = None
+        if isinstance(catalog_item, dict) and catalog_item.get("ambix") is None:
+            _expected = document_topology.get(catalog_item.get("id"))
+            if _expected is None:
+                fail(
+                    f"release {catalog_item.get('id')!r} states no topology and the "
+                    "endpoint document carries none for it"
+                )
         release_id, family, count, precision, max_context = validate_catalog_item(
-            catalog_item
+            catalog_item, expected=_expected
         )
         if release_id in release_ids:
             fail(f"global catalog repeats release id {release_id!r}")

@@ -430,7 +430,15 @@ class SiteConfig(BaseModel):
             default_port=int(os.environ.get("AMBIX_AGENT_PORT", "18800")),
             gpu_host=os.environ.get("AMBIX_AGENT_GPU_HOST", "98dci4-gpu-0003"),
             global_origin=os.environ.get(
-                "AMBIX_AGENT_GLOBAL_URL", "http://98dci4-gpu-0003:18800"
+                # The ROUTER, not a serve port. This origin is baked into the
+                # generated clive launcher as ANTHROPIC_BASE_URL, so it must
+                # name the multi-engine front door rather than whichever serve
+                # happened to hold 18800 when the default was written. It had
+                # gone stale exactly that way: `clive --list` kept working
+                # because it reads the endpoint document, while a clive session
+                # dialled a dead port and failed with unrecognized_model.
+                "AMBIX_AGENT_GLOBAL_URL",
+                "http://98dci4-gpu-0003:18802",
             ),
             endpoint_document_path=os.environ.get(
                 "AMBIX_AGENT_ENDPOINT_DOCUMENT", _default_endpoint_document_path()
