@@ -55,8 +55,21 @@ enable_auto_tool_choice = true
 max_total_tokens = 1048576
 # Above the 0.90 default so the full 1M window gets its pool. The single
 # compressed KV head does not shard across tensor parallelism, so the
-# four-card serve carries the measured 1313935-token pool of the two-card
-# serve at this fraction — a four-card pool matches the two-card one.
+# four-card serve carries the same pool as the two-card one at this fraction.
+# Measured on four cards: 70.01 GiB of KV per card, 2557835 tokens total,
+# which vLLM reports as 2.44x maximum concurrency at a full 1048576-token
+# request. That figure is informational rather than an admission ceiling —
+# paged KV means a request consumes the blocks it actually fills, and agent
+# traffic asks for a fraction of the window.
+#
+# Do not raise this fraction to chase the remaining headroom. vLLM's own
+# startup line offers `--kv-cache-memory=82366410240` (76.71 GiB) to consume
+# the last 6.7 GiB per card, and taking it buys nothing: steady-state KV
+# occupancy sits at 0.0% and the scheduler ceiling, not the pool, is what
+# bounds concurrency here. It would also spend the margin that the fused-MoE
+# workspace draws on lazily at generation, which is allocated outside this
+# fraction and is what a too-large pool dies on under load rather than at
+# startup.
 mem_fraction_static = 0.92
 kv_cache_dtype = "fp8"
 # Upstream recipe flags for this checkpoint family (recipes.vllm.ai + the
