@@ -501,6 +501,15 @@ picker_settings = {
             {
                 "model": item["id"],
                 "label": item["id"],
+                # Map the served id onto a model the harness's catalog knows.
+                # Without it the harness reports the release as undescribed and
+                # falls back to an assumed context window; the launcher already
+                # exports the real window, so this silences a warning rather
+                # than changing behaviour -- but an undescribed model is also
+                # one whose capabilities the harness has to guess, and a
+                # warning printed on every healthy run is one nobody reads when
+                # it finally means something.
+                "behavesAs": "claude-sonnet-5",
                 "description": (
                     f'{item["count"]}×{item["family"]} · '
                     f'{item["precision"]} · '
