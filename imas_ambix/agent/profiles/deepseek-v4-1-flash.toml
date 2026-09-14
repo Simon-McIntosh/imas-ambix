@@ -114,15 +114,18 @@ cuda_graph_max_bs_decode = 64
 # activations and non-PyTorch allocations, and that is not enough. Auto-sizing
 # and a high static fraction are alternatives, not companions.
 #
-# Pool sizing is an empirical bracket, not a formula. Three points so far,
-# per card:
-#   21.51 GiB /  3,485,952 tokens -- served 28 minutes, 40.61 GiB left over
-#  ~52.5  GiB / 20,000,000 tokens -- this setting, ~14.6 GiB left over
-#  ~60.7  GiB / auto-sized        -- OOM during scheduler init, 6.4 GiB left
-# The cost curve is roughly 15 GiB fixed plus 2 KiB/token, but fitting it from
-# one point understated the pool fivefold and fitting it from two overstated
-# the claimable headroom, so treat the bracket as the authority and this line
-# as the current probe. If it OOMs, 3485952 is the known-good fallback.
+# Pool sizing is an empirical bracket, not a formula. Measured, per card:
+#   21.51 GiB /  3,485,952 tokens -- serves, 40.61 GiB left free
+#   46.64 GiB / 20,000,000 tokens -- SERVES, 14.64 GiB left free (this line)
+#  ~60.7  GiB / auto-sized        -- OOM at scheduler init, 6.4 GiB left
+# Between the two serving points the cost is ~16.2 GiB fixed plus ~1.6
+# KiB/token, so the pool is cheap per token and the fixed base dominates. Do
+# not extrapolate past 20M from that: the OOM sits only ~14 GiB above this
+# line, and every estimate made here from fewer than two measured points has
+# been wrong -- once understating the pool fivefold, once overstating the
+# claimable headroom into an OOM. 14.64 GiB of margin is a bit over double the
+# 6.4 GiB that failed; treat that as the safety budget, not as spare capacity.
+# Known-good fallback if a future engine build shifts the numbers: 3485952.
 max_total_tokens = 20000000
 trust_remote_code = true
 
