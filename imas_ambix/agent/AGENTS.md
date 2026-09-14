@@ -1239,6 +1239,27 @@ Deployment facts — four-card INT4 only (measured 2026-08-26):
 - **The scheduler sequence cap is 64** — above the benchmark's maximum
   concurrency of 32, and low enough not to inflate CUDA-graph capture against a
   bf16 KV pool.
+- **A SEPARATE draft checkpoint needs its own quantization config, and vLLM
+  does not give it one.** Setting `speculative_model` to a distinct checkpoint
+  makes vLLM construct the draft MTP module from the *target* model's config —
+  including the target's quantization ignore list. Against a compressed draft
+  that selects unquantized expert parameters while the checkpoint holds packed
+  ones (`...experts.routed_experts.w13_weight_packed`, `w2_weight_packed`), so
+  the load fails or silently builds the wrong carriers. The fix is to derive
+  `model_config`, `load_config` and the quantization config from
+  `speculative_config.draft_model_config` before the draft module is built, and
+  the draft layer index must equal the target's `num_hidden_layers`.
+
+  **No current profile hits this**, because every speculative profile here uses
+  a method whose draft weights live in the target checkpoint (`mtp` for GLM,
+  `dspark` for DeepSeek-V4) and none sets `speculative_model`. An
+  implementation of the repair existed as a version-pinned monkey-patch of the
+  private `LLMBaseProposer._create_draft_vllm_config`, wrapping the API server
+  through `runpy`; it was dropped rather than carried, because a patch pinned to
+  one engine version that raises on every other is a latent startup failure
+  guarding a configuration nothing expresses. If a separate-draft checkpoint is
+  ever adopted, re-derive the fix against the engine version in use and check
+  first whether upstream has since fixed it.
 
 **Deploy:**
 ```bash
