@@ -607,6 +607,28 @@ better — which is why it needs stating separately rather than folding into the
 same prior. **A pattern that absorbs its counterexamples stops being evidence
 and becomes a lens.**
 
+**Commits beyond the base outrank any classification. A run whose worktree
+carries them was never abandoned.** That fact lives in git and survives every
+manifest format, which no parsed status field does. Measured 2026-09-14: a run
+classified `abandoned` had in fact **completed cleanly** — terminal record
+`stop_reason end_turn`, a 5,805-byte manifest reading `status: complete`, a gate
+of 84 passed before and 90 after, two commits, clean tree. It went on to promote
+and merge with an independent review of 97/100.
+
+It read `abandoned` because its manifest put the status on its own line and the
+parser continues a value across following lines containing a colon-space, so it
+swallowed the commit lines — and having swallowed those, parsed `commits` to
+empty as well. **One defect took both fields**, so a detector comparing two
+fields for disagreement sees none. A sibling run in the same session wrote a
+perfectly complete manifest in markdown headings instead of colon lines: every
+required field present in the document, every one absent from the parse.
+
+The lesson is narrower than "read the contents". **Gathering the disconfirming
+evidence is not the same as acting on it.** The commits-ahead count was in hand,
+was correctly described as the recoverable case, and the classifier's label was
+believed anyway — so the advice given was `resume` where the evidence supported
+`reconcile`, which would have restarted a worker that had already delivered.
+
 **The field distinguishes four different states and names none of them.** A
 worker with no live process may have finished, parked deliberately, committed
 and then died, or genuinely failed. Measured across one day: every `abandoned`
