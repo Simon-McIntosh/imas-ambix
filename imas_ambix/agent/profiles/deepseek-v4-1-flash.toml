@@ -114,19 +114,26 @@ cuda_graph_max_bs_decode = 64
 # activations and non-PyTorch allocations, and that is not enough. Auto-sizing
 # and a high static fraction are alternatives, not companions.
 #
-# Pool sizing is an empirical bracket, not a formula. Measured, per card:
-#   21.51 GiB /  3,485,952 tokens -- serves, 40.61 GiB left free
-#   46.64 GiB / 20,000,000 tokens -- SERVES, 14.64 GiB left free (this line)
-#  ~60.7  GiB / auto-sized        -- OOM at scheduler init, 6.4 GiB left
-# Between the two serving points the cost is ~16.2 GiB fixed plus ~1.6
-# KiB/token, so the pool is cheap per token and the fixed base dominates. Do
-# not extrapolate past 20M from that: the OOM sits only ~14 GiB above this
-# line, and every estimate made here from fewer than two measured points has
-# been wrong -- once understating the pool fivefold, once overstating the
-# claimable headroom into an OOM. 14.64 GiB of margin is a bit over double the
-# 6.4 GiB that failed; treat that as the safety budget, not as spare capacity.
-# Known-good fallback if a future engine build shifts the numbers: 3485952.
-max_total_tokens = 20000000
+# Pool sizing is an empirical bracket, and STARTING IS NOT THE TEST. Measured,
+# per card:
+#   21.51 GiB /  3,485,952 tokens -- starts AND serves under load
+#   46.64 GiB / 20,000,000 tokens -- starts, then DIES under load
+#  ~60.7  GiB / auto-sized        -- OOM during scheduler init
+#
+# The 20M point is the one that matters. It started cleanly, reported its pool,
+# answered single-stream dispatches, and reported 14.64 GiB free per card -- and
+# then a real request killed it: SIGKILL 137, with FlashInfer's MXFP4 fused-MoE
+# workspace asking 7.52 GiB against 6.91 GiB free on GPU 1. That workspace is
+# allocated lazily at generation, not at startup, so free-memory-after-startup
+# is NOT the margin; it is the margin before the largest allocation the serve
+# will ever make. A configuration that starts and answers a smoke request can
+# still be unable to serve, and that failure looks healthy for as long as
+# nobody loads it.
+#
+# So size this against a generation workload, never against a clean start, and
+# leave room for a ~7.5 GiB per-card workspace on top of everything the startup
+# log accounts for. 3485952 is the value with load evidence behind it.
+max_total_tokens = 3485952
 trust_remote_code = true
 
 # "auto" resolves to this architecture's own parsers rather than a generic
