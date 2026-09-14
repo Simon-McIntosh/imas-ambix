@@ -62,15 +62,23 @@ max_total_tokens = 1048576
 # paged KV means a request consumes the blocks it actually fills, and agent
 # traffic asks for a fraction of the window.
 #
-# Do not raise this fraction to chase the remaining headroom. vLLM's own
-# startup line offers `--kv-cache-memory=82366410240` (76.71 GiB) to consume
-# the last 6.7 GiB per card, and taking it buys nothing: steady-state KV
-# occupancy sits at 0.0% and the scheduler ceiling, not the pool, is what
-# bounds concurrency here. It would also spend the margin that the fused-MoE
-# workspace draws on lazily at generation, which is allocated outside this
-# fraction and is what a too-large pool dies on under load rather than at
-# startup.
-mem_fraction_static = 0.92
+# Lowered from 0.92 because the pool was never the constraint and the margin
+# outside it was. At 0.92 the serve carried 128 concurrent requests cleanly at
+# 1451 tok/s and died at 256: CUDA out of memory asking 1.51 GiB with 1.19 GiB
+# free, 141 requests running, and KV occupancy at 7.3%. So roughly 65 GiB per
+# card of pool sat idle while the engine ran out of room for the fused-MoE
+# workspace, which is allocated lazily at generation, scales with concurrency,
+# and lives OUTSIDE this fraction — free memory after startup is not the
+# margin, it is the margin before the largest allocation the serve will make.
+#
+# 0.85 returns ~9.8 GiB per card to that workspace, more than the 1.51 GiB the
+# engine died asking for, and still leaves ~60 GiB of KV (~2.2M tokens) against
+# an observed working set under a tenth of that. Raising the fraction moves the
+# concurrency ceiling DOWN, which is why vLLM's startup offer of
+# `--kv-cache-memory=82366410240` (76.71 GiB, "to fully utilize gpu memory")
+# must be refused: it buys pool nothing uses by spending the headroom that
+# decides whether the endpoint survives.
+mem_fraction_static = 0.85
 kv_cache_dtype = "fp8"
 # Upstream recipe flags for this checkpoint family (recipes.vllm.ai + the
 # DSpark model card). block_size and tokenizer_mode are the vendor-documented
