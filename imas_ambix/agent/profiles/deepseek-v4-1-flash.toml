@@ -106,14 +106,24 @@ cuda_graph_max_bs_decode = 64
 # request would consume the whole pool, so agentic sessions at 100-300k would
 # fit only a handful.
 #
-# Left to the engine rather than pinned, because sizing it by hand means
-# extrapolating a per-token cost that is mostly a fixed base. Two measured
-# points here: 16.94 GiB bought 1,048,576 tokens and 21.51 GiB bought
-# 3,485,952, which is ~15 GiB fixed plus ~2 KiB/token -- an estimate built on
-# the first point alone was five times too small. The engine computes this
-# from its own allocator against the memory actually left after weights, which
-# is a better estimator than two points and a straight line.
-auto_size_kv_pool = true
+# PINNED, and engine auto-sizing is the thing that must not be used here.
+# Handing the sizing to the allocator at this memory fraction died with
+# torch.OutOfMemoryError during scheduler init, at 139.57 GiB in use of a
+# 139.80 GiB card: it sizes the pool to fill the mem_fraction_static budget,
+# which leaves only the 5% outside that budget to cover CUDA graph capture,
+# activations and non-PyTorch allocations, and that is not enough. Auto-sizing
+# and a high static fraction are alternatives, not companions.
+#
+# Pool sizing is an empirical bracket, not a formula. Three points so far,
+# per card:
+#   21.51 GiB /  3,485,952 tokens -- served 28 minutes, 40.61 GiB left over
+#  ~52.5  GiB / 20,000,000 tokens -- this setting, ~14.6 GiB left over
+#  ~60.7  GiB / auto-sized        -- OOM during scheduler init, 6.4 GiB left
+# The cost curve is roughly 15 GiB fixed plus 2 KiB/token, but fitting it from
+# one point understated the pool fivefold and fitting it from two overstated
+# the claimable headroom, so treat the bracket as the authority and this line
+# as the current probe. If it OOMs, 3485952 is the known-good fallback.
+max_total_tokens = 20000000
 trust_remote_code = true
 
 # "auto" resolves to this architecture's own parsers rather than a generic
