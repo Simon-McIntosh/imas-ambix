@@ -2620,7 +2620,14 @@ def test_clive_codex_receives_selected_model_and_same_origin(tmp_path, selector)
             {"data": [_catalog_item("same"), _catalog_item("same")]},
             "repeats release id",
         ),
-        ({"data": [{"id": "missing-metadata"}]}, "no ambix metadata"),
+        # Still rejected, but for the sharper reason: the card states no
+        # topology AND the endpoint document has none for it either. A card
+        # without the block is no longer fatal on its own, because the document
+        # is the site-owned source the launcher now prefers.
+        (
+            {"data": [{"id": "missing-metadata"}]},
+            "endpoint document carries none for it",
+        ),
         ({"data": [_catalog_item(count=3)]}, "accelerator count"),
         ({"data": [_catalog_item(count=True)]}, "accelerator count"),
         ({"data": [_catalog_item(count=2.0)]}, "accelerator count"),
