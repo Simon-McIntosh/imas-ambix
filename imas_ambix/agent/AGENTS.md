@@ -445,9 +445,23 @@ merely cost throughput; it corrupts the diagnosis of unrelated failures.
 
 **The only bound now is a file-descriptor guard.** `RouterApp` sets an explicit
 `TCPConnector(limit=2048)`, far above the engine's own running-sequence ceiling
-so the engine is always the binding constraint. It is explicit because
-aiohttp's unset default is **100**, which would silently cap the lane below
-`max_num_seqs` with nothing in any log to say so.
+so the engine is always the binding constraint.
+
+**Deleting a limit does not remove it — it inherits the library's, which is
+lower and invisible.** `aiohttp.ClientSession` with no explicit connector
+defaults to **100** concurrent connections. Removing an explicit ceiling of 110
+would therefore have landed on 100, reproduced the symptom with no code left to
+blame, and sent the next investigator to measure the same wall with the
+admission filter already gone. Nothing logs it and no status code reports it;
+the queue simply forms inside the relay. Two sessions independently named this
+as the finding most likely to be rediscovered painfully.
+
+The rule generalises past this router and is worth applying whenever a bound is
+removed: **name the replacement ceiling explicitly, even when the intent is to
+have none.** An unset limit is not the absence of a limit, it is a limit chosen
+by somebody else, at a value nobody in this repository decided and no reader
+can see. Search the client library for its defaults before concluding that a
+removal removed anything.
 
 **The operational ceiling is activation memory, not the sequence cap — and at
 the right memory split there is no crash edge in the operational range at all.**
