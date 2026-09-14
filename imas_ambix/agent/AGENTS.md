@@ -601,6 +601,13 @@ your instinct disagree, the figure is more likely to be optimistic than your
 instinct is to be paranoid.** A fourth instance should be assumed to exist and
 be looked for, rather than waited for.
 
+**Which is why a coordinator should size to its dependency graph rather than to
+the lane's figure — and that is not conservatism.** The graph's width is
+refused by a validator that has never been wrong in either direction; the lane's
+headroom is the one quantity that has been wrong in the same direction every
+time anyone checked it. Sizing to the graph is preferring the instrument that has
+not yet lied.
+
 **The ramp's own answer, measured 2026-09-14 with explicit authorisation to
 crash the serve.** Three coordinators tried to saturate the lane and could not:
 
@@ -639,6 +646,28 @@ constraint, the question is whether the work can be cut along a different axis �
 **partition by a mechanical index over a generated inventory, not by subject** —
 and the test of a good cut is that coverage is checkable by arithmetic instead of
 by reading.
+
+**But some work admits no such cut, and forcing one is the filler failure in a
+better costume.** The distinction is in the shape of the work, not in the
+coordinator's ingenuity:
+
+| shape | tiles? | why |
+|---|---|---|
+| exhaustive disposal over a generated list | **yes** | the index already exists and coverage is verifiable by count |
+| feature implementation against named seams | **no** | each change is one coherent edit to one file |
+
+Measured the same afternoon: a coordinator asked whether its closure could be
+re-cut answered no and gave the reason. Its remaining work was six distinct
+behaviours in six distinct modules — a floor in one guard, a denominator in one
+reading, a marker in one view, a grouping in one schema, a meter, its captures.
+There was no inventory to tile, and splitting any of them by line range would
+have produced two workers writing one file, which is precisely what the scope
+validator exists to prevent.
+
+**So never read "re-partition by index" as a general remedy.** A coordinator who
+manufactures an index to satisfy it has invented filler with better paperwork.
+Ask whether the index already exists; if it has to be created to justify the
+split, the work is the shape that does not widen.
 
 **Check the roster before concluding anything about the lane — it binds first
 and looks nothing alike.** Two dispatches in that widening were refused for
