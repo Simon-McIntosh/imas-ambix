@@ -1,17 +1,21 @@
-# Agent serving environment — SGLang engine
+# Agent serving environment — KTransformers engine
 #
-# Manages the GPU inference venv for SGLang-native model serving. KTransformers
-# CPU-offloading is served from its own environment (see
-# `imas_ambix/agent/envs/ktransformers/`), which is what keeps this one free of
-# the kernel's cp312 wheel pin.
-# Install on a node with network access (e.g. sirius partition):
+# Manages the GPU inference venv for KTransformers CPU-offloading support
+# (SGLang plugin). Install on a node with network access (e.g. sirius
+# partition):
 #
-#   cd /work/projects/imas_gpu/agents/sglang && uv sync
+#   imas-ambix agent setup ktransformers
 #
 # The resulting .venv is used by SLURM serve jobs on GPU nodes.
+#
+# This environment is separate from the SGLang one, and must stay so. It
+# exists because `kt-kernel` publishes cp312 wheels only, so pinning the
+# kernel into the shipped SGLang environment would cap that environment at
+# Python 3.12. A separate environment lets SGLang move to a newer interpreter
+# on its own schedule while KTransformers waits on the kernel's wheel matrix.
 
 [project]
-name = "ambix-agent-sglang"
+name = "ambix-agent-ktransformers"
 version = "0.1.0"
 requires-python = ">=3.12,<3.13"
 dependencies = [
@@ -22,6 +26,9 @@ dependencies = [
     # torch floor follows sglang's own pin rather than the older >=2.11.
     "torch>=2.13",
     "transformers>=5.6",
+    # The KTransformers CPU-offload kernel. This is the sole reason this
+    # environment exists: it is what pins the interpreter to cp312.
+    "kt-kernel",
     "flashinfer-python>=0.2.4",
     "sgl-kernel>=0.1.1",
     "huggingface-hub[hf_transfer]>=0.28",

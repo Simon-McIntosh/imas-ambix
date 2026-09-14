@@ -463,11 +463,11 @@ class SiteConfig(BaseModel):
     def _engine_key(self, engine_type: str) -> str:
         """Map engine type to venv directory name.
 
-        ``ktransformers`` shares the ``sglang`` venv since it runs
-        as an SGLang plugin.
+        Every engine type names its own environment. ``ktransformers`` runs as
+        an SGLang plugin but is NOT served from the ``sglang`` environment:
+        its ``kt-kernel`` dependency publishes cp312 wheels only, and sharing
+        the environment would pin SGLang to that interpreter too.
         """
-        if engine_type == "ktransformers":
-            return "sglang"
         return engine_type
 
     def env_dir(self, engine_type: str) -> Path:

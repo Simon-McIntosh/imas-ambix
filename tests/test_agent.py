@@ -528,8 +528,11 @@ def test_site_config_venv_paths():
     assert site.python_path("vllm").name == "python"
     assert site.hf_path("vllm").name == "hf"
     assert site.python_path("sglang").name == "python"
-    # ktransformers shares sglang env
-    assert site.env_dir("ktransformers") == site.env_dir("sglang")
+    # ktransformers has its OWN environment. It runs as an SGLang plugin, but
+    # sharing the venv pinned SGLang to kt-kernel's cp312-only wheels, which is
+    # what blocked the serving interpreter from moving.
+    assert site.env_dir("ktransformers") == Path(site.engine_env_root) / "ktransformers"
+    assert site.env_dir("ktransformers") != site.env_dir("sglang")
 
 
 def test_site_config_engine_isolation():
