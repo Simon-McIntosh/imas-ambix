@@ -35,12 +35,24 @@ The node is split between groups via reservations + QoS:
   explicitly is what limits you to 4 cards (and `QOSGrpGRES`-denies a 6/8-GPU request at submit).
   Under `normal` the only enforced per-group limit is the reservation's 30 CPU cores.
 
-**We are authorised to use the full GPU server (all 8 H200 cards), and the reservation is ours to
-utilise — use the free cards wherever possible (idle GPUs are capacity to use, not a cost to conserve).**
-A single Group A submit under `normal` QOS bursts onto any free cards node-wide (the reservation reserves
+**Group A's budget is FOUR cards. The node is shared with group B, and its cards
+are not ours to take** (lead, 2026-09-14). The paragraph that stood here said the
+opposite — that all eight were authorised and idle GPUs were capacity to use —
+and it was acted on: a TP8 serve topology was proposed on the strength of it
+before the lead corrected the premise.
+
+That correction is the fourth time this section has been wrong about a card
+count, which is the point the section already makes about itself. **Treat every
+card figure here, including this one, as a dated observation rather than a fact
+about the system, and confirm entitlement with the lead before designing a
+topology around a card count you did not measure.** `squeue` tells you what is
+*idle*; it does not tell you what is *yours*, and the difference is invisible
+from the scheduler.
+
+A single Group A submit under `normal` QOS can burst onto free cards node-wide (the reservation reserves
 only cores); `CUDA_VISIBLE_DEVICES` is remapped to `0..N`, so the job never knows which physical silicon
-it is on. **Check `squeue` for the live state and request what is free:**
-- **DSv4 down → all 8 cards are free → request them** (`--gres=gpu:8`).
+it is on. That mechanism is what makes over-requesting easy and silent, not a licence to do it.
+**Check `squeue` for the live state, and request only what is both free and within the group's budget.**
 - **DSv4 up → read `squeue` for its card count; do not trust any figure written here.**
   The serve was 2 cards before 2026-09-06, 4 cards through 2026-09-06, and **2 again
   from 2026-09-07** when the node filled and the lead moved it back. Three values in
