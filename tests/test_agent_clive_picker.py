@@ -167,11 +167,13 @@ def test_each_release_gets_its_own_topology_and_context(tmp_path):
             "model": "narrow-release",
             "label": "narrow-release",
             "description": "2×H200 · int4 · 512k context",
+            "behavesAs": "claude-sonnet-5",
         },
         {
             "model": "wide-release",
             "label": "wide-release",
             "description": "4×H200 · fp8 · 256k context",
+            "behavesAs": "claude-sonnet-5",
         },
     ]
     # The exported context is the input ceiling, not the served window, so the
