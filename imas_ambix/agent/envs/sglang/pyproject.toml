@@ -25,6 +25,12 @@ dependencies = [
     "sgl-kernel>=0.1.1",
     "huggingface-hub[hf_transfer]>=0.28",
     "openai>=2.0",
+    # The serve job runs `imas_ambix.agent.registry publish` under THIS
+    # interpreter, and that subcommand imports imas_ambix.agent.cli, which
+    # imports click at module scope. Without it the publish step fails and
+    # the generated script swallows it with `|| true`, so the endpoint
+    # document silently stops tracking the serve.
+    "click",
     "hf-transfer",
 ]
 
