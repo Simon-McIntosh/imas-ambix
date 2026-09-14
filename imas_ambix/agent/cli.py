@@ -2800,6 +2800,10 @@ def _engine_runtime_check_script(
     lines += [
         f"#SBATCH --account={site.account}",
         f"#SBATCH --dependency=afterok:{dependency_job_id}",
+        # Without this a failed install leaves the verification pending on an
+        # unsatisfiable dependency forever, where it reads to an operator as a
+        # hung job rather than as a consequence. Observed twice.
+        "#SBATCH --kill-on-invalid-dep=yes",
         "#SBATCH --ntasks=1",
         "#SBATCH --cpus-per-task=1",
         "#SBATCH --mem=1G",
@@ -2990,9 +2994,23 @@ def setup(engine: str, dry_run: bool) -> None:
             "",
         ]
 
+    version = _engine_python_version(engine)
     lines += [
+        "# Resolve BEFORE touching the environment. `uv sync` recreates .venv",
+        "# and only then resolves, so a dependency failure destroys a working",
+        "# environment on its way to reporting itself -- measured: a Python",
+        "# bump that could never resolve left an empty venv where a serving",
+        "# one had been, and the endpoint's registry steps broke with it.",
+        "# `uv lock` answers the same question and touches no environment.",
+        f"if ! uv lock --python {version} 2>&1 | tail -40; then",
+        '    echo "ERROR: dependencies do not resolve for this engine at'
+        f' Python {version}." >&2',
+        '    echo "The existing environment has NOT been modified." >&2',
+        "    exit 1",
+        "fi",
+        "",
         "# uv sync creates/updates .venv and installs all dependencies",
-        f"uv sync --python {_engine_python_version(engine)} -v 2>&1 | tail -50",
+        f"uv sync --python {version} -v 2>&1 | tail -50",
     ]
 
     # vLLM: install the renamed wheel into the synced venv
