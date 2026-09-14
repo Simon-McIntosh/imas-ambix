@@ -199,6 +199,7 @@ def _build_sglang_args(profile: ModelProfile, site: SiteConfig) -> list[str]:
         engine.weight_loader_disable_mmap,
     )
     _append_option(args, "--kv-cache-dtype", engine.kv_cache_dtype)
+    _append_option(args, "--context-length", engine.context_length)
     _append_option(args, "--speculative-algorithm", engine.speculative_algorithm)
     _append_option(
         args,

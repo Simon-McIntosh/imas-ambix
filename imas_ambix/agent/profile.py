@@ -149,6 +149,15 @@ class EngineConfig(BaseModel):
     disable_cuda_graph: bool = False
     disable_piecewise_cuda_graph: bool = False
     disable_custom_all_reduce: bool = False
+    # Per-request context the ENGINE enforces (``--context-length``), distinct
+    # from max_total_tokens, which is the shared pool across requests. Set this
+    # below the model's native window when the native window is not reachable
+    # in practice: the MXFP4 fused-MoE prefill workspace grows with prefill
+    # length, so a request far inside the advertised context can still exhaust
+    # the card. Capping at the engine turns that from an OOM that kills the
+    # serve into a clean refusal of one request. ``None`` keeps the model's own
+    # value. SGLang-only.
+    context_length: int | None = None
     max_total_tokens: int | None = None
     # Let the engine size the KV pool from the memory actually left after
     # weights, instead of passing a figure. ``max_total_tokens`` otherwise

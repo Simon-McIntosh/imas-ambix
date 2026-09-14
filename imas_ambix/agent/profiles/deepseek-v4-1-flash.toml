@@ -153,6 +153,25 @@ cuda_graph_max_bs_decode = 64
 # leave room for a ~7.5 GiB per-card workspace on top of everything the startup
 # log accounts for. 3485952 is the value with load evidence behind it.
 max_total_tokens = 3485952
+# Per-request context capped at 200k, well below the model's native 1,048,576.
+# Measured on this four-card deployment: an agent-shaped request of 180,961
+# prefill tokens was absorbed, and one of roughly 360,000 asked 9.96 GiB
+# against 5.41 GiB free and killed the serve. Advertising the native window
+# therefore invited any long session to walk into a fatal request, and the
+# engine would have accepted it.
+#
+# Capping here rather than only in the launcher is what makes it safe: the
+# engine refuses an over-long request cleanly instead of exhausting the card,
+# and the figure then propagates on its own -- the catalog reports it as
+# max_model_len, the endpoint document carries it, and the launcher advertises
+# it. One source, no second place to go stale.
+#
+# 200k sits above the 180,961 proven here and below the ~360,000 known fatal;
+# the band between them is untested, and the ceiling additionally falls as
+# concurrency rises, because the workspace grows with both. Raise it only from
+# evidence taken on a disposable serve -- the measurement that found the
+# ceiling above did so by crossing it, and took the live endpoint down.
+context_length = 204800
 trust_remote_code = true
 
 # "auto" resolves to this architecture's own parsers rather than a generic
