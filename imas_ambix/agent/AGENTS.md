@@ -623,6 +623,41 @@ conflicts with live claim held by run 'lane-account-reading'`. The lane at that
 moment reported `headroom 16`, `waiting 0`, `preemptions 0`, and would have
 taken the work without noticing.
 
+**Graph width is not fixed — it is a property of how the work is CUT, and that
+is the only lever anyone found today that actually moved it.** A fifth
+coordinator had reported everything downstream serialising on a single `docs/`
+write scope, one node at a time. It then re-partitioned an exhaustive
+plan-surface triage **by row ranges over a generated inventory** rather than by
+subject: every worker reads all 209 rows and disposes only its own range,
+writing to its own report file. One serial write scope became five parallel
+read-only ones, and the coverage is exhaustive by construction rather than by
+trust, because a merge node verifies the tiling by count. It then widened by two
+more where it previously had none.
+
+So "the graph binds" is a diagnosis, not a dead end. When width is the
+constraint, the question is whether the work can be cut along a different axis —
+**partition by a mechanical index over a generated inventory, not by subject** —
+and the test of a good cut is that coverage is checkable by arithmetic instead of
+by reading.
+
+**Check the roster before concluding anything about the lane — it binds first
+and looks nothing alike.** Two dispatches in that widening were refused for
+member reasons, not lane reasons: `--local` resolves backend `clive`, and a
+member declaring a different harness is refused against it, so free members were
+unusable until new ones were registered. A third was refused because its member
+already held an in-flight run — members serialise. **Registered members of the
+matching harness is a distinct ceiling below both the graph and the lane**, it is
+a one-line registration to lift, and a refusal there resembles a capacity limit
+closely enough to be mistaken for one. Exhaust it first; it is the cheapest of
+the three.
+
+**A refusal inside a batch of successes leaves no trace in a transition stream.**
+The follower showed only the dispatches that launched; the refused ones were
+invisible and were caught only by inspecting each dispatch result individually.
+This is the discriminate-on-the-event rule applied to a stream that reports
+arrivals rather than outcomes — a count of what started is not a count of what
+was asked for.
+
 So the binding constraint on this workstation is neither KV, nor admission, nor
 preemption: it is **the number of independent units of work a dependency graph
 offers at a given moment**, because two workers must never write one file. That
