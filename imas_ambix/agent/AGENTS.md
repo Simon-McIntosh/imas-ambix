@@ -604,15 +604,32 @@ So before treating a dead process as a casualty, ask whether its manifest names
 a job under blockers and whether anyone holds a watch on it. This one runs
 *against* the headroom bias above — it reports worse than reality rather than
 better — which is why it needs stating separately rather than folding into the
-same prior.
+same prior. **A pattern that absorbs its counterexamples stops being evidence
+and becomes a lens.**
 
-**SLURM reports LOCAL time; crew run ids are UTC. Never pair them without
-converting.** On this workstation local is CEST, so a SLURM `Submit`/`Start`
-read as UTC is two hours adrift, and a beat quoted from `squeue` output with a
-`Z` suffix is simply wrong. Run ids of the form
-`r-YYYYMMDDTHHMMSS...` are UTC and are safe to pair with an engine counter
-directly. `date -u` settles it in one call, and the cost of guessing is a
-pairing error that looks like a real two-hour discrepancy in the data.
+**The field distinguishes four different states and names none of them.** A
+worker with no live process may have finished, parked deliberately, committed
+and then died, or genuinely failed. Measured across one day: every `abandoned`
+run had either committed cleanly or produced nothing, and nineteen SLURM parks
+were recorded with zero uses of any declared-wait field — so a parked run and a
+dead one are indistinguishable from the outside, in both directions. A
+coordinator misreads a healthy parked node as a casualty; an owner fails to wake
+one that was waiting. The durable fix is for a run to declare the job it waits
+on and for the follower to probe it, rather than for every reader to learn this.
+
+**Pair from run ids and `date -u`, never from a rendered pane or a scheduler
+quote.** At least two display surfaces on this workstation print LOCAL time and
+neither labels it: SLURM's `squeue`/`sacct` output, and the crew follower's
+ticker pane. Local is CEST, so a timestamp read off either and quoted with a `Z`
+is two hours adrift. Run ids of the form `r-YYYYMMDDTHHMMSS...` are UTC by
+construction and pair safely with an engine counter.
+
+Two sessions independently quoted a local time as `Z` within an hour, from the
+two different surfaces, and in both cases the beats that mattered were sound
+because they came from `date -u`. **The cost of guessing is a pairing error that
+does not look like a zone error — it looks like a real two-hour discrepancy
+between a run and an engine counter**, which is precisely the kind of artefact
+someone will then try to explain.
 
 **EVERY measurement error found on this lane runs toward APPARENT HEADROOM.**
 Three independent instances, none of which has ever flattered the lane in the
