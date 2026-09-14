@@ -516,6 +516,13 @@ from the memory split. So a pool sized past the working set is not free
 insurance; it is paid for in tokens per second at every width. Size the pool to
 the measured working set and give the remainder to the workspace.
 
+**Quote that 1.7x only with its operating point.** It is `mem_fraction_static =
+0.85` on four H200 cards yielding a **2,200,283-token** KV pool, against a
+working set under a tenth of it. Without the pool figure beside it, 0.85 reads as
+a tuning preference that a later reader may nudge; with it, the number is a
+measured operating point and moving it is a decision about a quantity somebody
+measured.
+
 **Failure at the edge is not graceful, which is why a ceiling probe needs a
 disposable job.** At 0.92 there was no backpressure, no queueing and no 429 —
 the API server failed to serialise its own error (`ValidationError` on
