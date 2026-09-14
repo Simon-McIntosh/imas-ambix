@@ -1,0 +1,204 @@
+"""Derive the shared lane's concurrency budget from the engine's own counters.
+
+The lane is one engine shared by every session on the workstation, so the only
+quantity that composes across them is tokens resident in the shared KV pool. A
+per-session seat allowance cannot be converted into that without knowing every
+other session's working context, and five sessions each holding to the same
+number carry either that number or five times it with nothing recording which.
+
+Everything here is read from the engine at the moment of asking -- the pool size
+included, which the engine publishes in ``cache_config_info`` -- so there is no
+configured figure that a launch can forget and no stored value that can go stale
+against the running process.
+
+**This is advisory and must stay advisory.** It reports a budget; it never
+refuses a request. Backpressure belongs to the engine, which queues, preempts
+and recomputes rather than failing, and a second scheduler in front of it can
+only refuse work the engine would have taken.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+import urllib.request
+from dataclasses import dataclass
+from pathlib import Path
+
+_SAMPLE = re.compile(
+    r"^(?P<name>vllm:[a-z_]+)\{(?P<labels>[^}]*)\}\s+(?P<value>[-+0-9.eE]+)\s*$",
+    re.MULTILINE,
+)
+_LABEL = re.compile(r'(?P<key>[a-z_0-9]+)="(?P<value>[^"]*)"')
+
+
+@dataclass(frozen=True, slots=True)
+class LaneCapacity:
+    """One reading of the shared lane, with every figure's provenance explicit."""
+
+    model_id: str
+    pool_tokens: int
+    running: int
+    waiting: int
+    kv_occupancy: float
+    preemptions: int
+    prefix_hit_rate: float | None
+
+    @property
+    def resident_tokens(self) -> int:
+        """Tokens the pool is currently holding."""
+        return round(self.pool_tokens * self.kv_occupancy)
+
+    @property
+    def mean_context(self) -> int | None:
+        """Mean working context per running request, or None when idle.
+
+        Undefined rather than zero when nothing is running: a lane with no
+        traffic says nothing about how large its traffic is, and returning a
+        figure there would invite a ceiling computed from noise.
+        """
+        if self.running <= 0:
+            return None
+        return round(self.resident_tokens / self.running)
+
+    @property
+    def concurrent_requests(self) -> int | None:
+        """How many requests of the CURRENTLY OBSERVED shape the pool holds.
+
+        This is an extrapolation from the present mix, not a measured limit --
+        see ``binding_observed``. It moves whenever the working context moves,
+        which is why it is derived on every read instead of being written down.
+        """
+        mean = self.mean_context
+        if mean is None or mean <= 0:
+            return None
+        return max(1, self.pool_tokens // mean)
+
+    @property
+    def headroom(self) -> int | None:
+        """Additional requests of the present shape before the pool is full."""
+        ceiling = self.concurrent_requests
+        if ceiling is None:
+            return None
+        return max(0, ceiling - self.running)
+
+    @property
+    def binding_observed(self) -> bool:
+        """Whether anything has actually been seen to constrain the lane.
+
+        False means every ceiling here is extrapolated and none of it has been
+        tested. Treating "not binding at the loads we could produce" as "not
+        binding" is the error this flag exists to keep visible.
+        """
+        return self.preemptions > 0 or self.waiting > 0
+
+    def summary(self) -> str:
+        """Render one line per fact, naming what is measured and what is not."""
+        mean = self.mean_context
+        ceiling = self.concurrent_requests
+        lines = [
+            f"lane            {self.model_id}",
+            f"pool            {self.pool_tokens:,} tokens",
+            f"running         {self.running}",
+            f"waiting         {self.waiting}",
+            f"kv occupancy    {self.kv_occupancy * 100:.1f}%",
+            f"resident        {self.resident_tokens:,} tokens",
+            f"preemptions     {self.preemptions}",
+        ]
+        if self.prefix_hit_rate is not None:
+            hit = self.prefix_hit_rate * 100
+            lines.append(f"prefix hits     {hit:.1f}% cumulative")
+        if mean is None:
+            lines.append("mean context    undefined (lane idle)")
+            lines.append("fleet budget    undefined (no traffic to measure)")
+        else:
+            lines.append(f"mean context    {mean:,} tokens/request")
+            lines.append(f"fleet budget    {ceiling} concurrent requests of this shape")
+            lines.append(f"headroom        {self.headroom} more")
+        if self.binding_observed:
+            lines.append(
+                "STATUS          something is binding — read waiting/preemptions"
+            )
+        else:
+            lines.append(
+                "STATUS          nothing observed to bind; the budget is an "
+                "extrapolation, not a measured limit"
+            )
+        return "\n".join(lines)
+
+
+def parse_lane_capacity(metrics: str) -> LaneCapacity:
+    """Build a reading from a Prometheus exposition body.
+
+    Parsing text rather than taking numbers on trust keeps the pool size tied to
+    the engine that is actually running, so a profile edit cannot make this
+    disagree with the process it describes.
+    """
+    values: dict[str, float] = {}
+    model_id = ""
+    pool_tokens = 0
+    for sample in _SAMPLE.finditer(metrics):
+        name = sample.group("name")
+        labels = dict(_LABEL.findall(sample.group("labels")))
+        if name == "vllm:cache_config_info":
+            pool_tokens = int(labels.get("kv_cache_size_tokens", "0") or 0)
+        if "reason" in labels:
+            continue
+        model_id = model_id or labels.get("model_name", "")
+        values[name] = float(sample.group("value"))
+
+    if pool_tokens <= 0:
+        raise ValueError("engine metrics carry no KV pool size")
+
+    queries = values.get("vllm:prefix_cache_queries_total", 0.0)
+    hits = values.get("vllm:prefix_cache_hits_total", 0.0)
+    return LaneCapacity(
+        model_id=model_id,
+        pool_tokens=pool_tokens,
+        running=int(values.get("vllm:num_requests_running", 0.0)),
+        waiting=int(values.get("vllm:num_requests_waiting", 0.0)),
+        kv_occupancy=values.get("vllm:kv_cache_usage_perc", 0.0),
+        preemptions=int(values.get("vllm:num_preemptions_total", 0.0)),
+        prefix_hit_rate=(hits / queries) if queries > 0 else None,
+    )
+
+
+def fetch_lane_capacity(origin: str, *, timeout: float = 10.0) -> LaneCapacity:
+    """Read the live lane from a serve origin."""
+    target = f"{origin.rstrip('/')}/metrics"
+    request = urllib.request.Request(target, method="GET")
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    with opener.open(request, timeout=timeout) as response:
+        body = response.read().decode("utf-8", "replace")
+    return parse_lane_capacity(body)
+
+
+def write_lane_document(capacity: LaneCapacity, path: str | Path) -> Path:
+    """Publish the reading so a session need not probe the engine to size work.
+
+    Published rather than configured, and stamped, because a record carrying no
+    observation time cannot be distinguished from a current one -- which is how
+    a stale verdict gets read forward as a live fact.
+    """
+    from datetime import UTC, datetime
+
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    document = {
+        "observed_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "model_id": capacity.model_id,
+        "pool_tokens": capacity.pool_tokens,
+        "running": capacity.running,
+        "waiting": capacity.waiting,
+        "kv_occupancy": round(capacity.kv_occupancy, 4),
+        "preemptions": capacity.preemptions,
+        "mean_context": capacity.mean_context,
+        "concurrent_requests": capacity.concurrent_requests,
+        "headroom": capacity.headroom,
+        "binding_observed": capacity.binding_observed,
+    }
+    scratch = target.with_suffix(".tmp")
+    scratch.write_text(json.dumps(document, indent=2, sort_keys=True), encoding="utf-8")
+    scratch.replace(target)
+    target.chmod(0o644)
+    return target

@@ -2810,6 +2810,62 @@ def _engine_runtime_check_script(
 
 
 @agent.command()
+@click.option(
+    "--origin",
+    default=None,
+    help="Serve origin to read; defaults to the published endpoint.",
+)
+@click.option(
+    "--publish",
+    is_flag=True,
+    help="Write the reading beside the endpoint document for other sessions.",
+)
+def lane(origin: str | None, publish: bool) -> None:
+    """Report the shared lane's concurrency budget from live engine counters.
+
+    One engine serves every session on the workstation, so the quantity that
+    composes across them is tokens resident in the shared KV pool rather than a
+    seat count. Every figure here is read from the engine at the moment of
+    asking -- the pool size included -- so nothing can go stale against the
+    process it describes.
+
+    The budget is advisory. It never refuses a request: the engine queues and
+    preempts rather than failing, and a second scheduler in front of it can only
+    turn away work the engine would have taken.
+    """
+    import json
+    from pathlib import Path
+
+    from imas_ambix.agent.lane import fetch_lane_capacity, write_lane_document
+
+    site = SiteConfig.from_env()
+    resolved = origin
+    if resolved is None:
+        document = json.loads(
+            Path(site.endpoint_document).read_text(encoding="utf-8")
+        )
+        endpoints = document.get("endpoints") or []
+        if not endpoints:
+            raise click.ClickException(
+                "no endpoint is published; pass --origin to read a serve directly"
+            )
+        first = endpoints[0]
+        resolved = f"http://{first['host']}:{first['port']}"
+
+    try:
+        capacity = fetch_lane_capacity(resolved)
+    except (OSError, ValueError) as error:
+        raise click.ClickException(f"could not read {resolved}: {error}") from error
+
+    console.print(capacity.summary(), markup=False, highlight=False)
+    if publish:
+        written = write_lane_document(
+            capacity, Path(site.endpoint_document).with_name("lane.json")
+        )
+        console.print(f"\npublished {written}", markup=False, highlight=False)
+
+
+@agent.command()
 @click.argument("engine", type=click.Choice(ENGINE_TYPES))
 @click.option(
     "--dry-run",
