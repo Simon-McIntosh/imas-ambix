@@ -269,3 +269,29 @@ def test_a_settling_reading_publishes_headroom_as_an_upper_bound(tmp_path):
     assert settling["settling"] is True
     assert settling["headroom_is_upper_bound"] is True
     assert settled["headroom_is_upper_bound"] is False
+
+
+def test_unknown_settling_publishes_headroom_as_a_bound_not_a_figure(tmp_path):
+    """The most dangerous reading is the one where settling cannot be decided.
+
+    Measured: a sample published `headroom 134` unflagged because the running
+    count had moved by 3 between polls, making settling unknown rather than
+    true. The next sample read 17. Unknown must resolve toward the direction
+    every measured error on this lane already runs -- apparent headroom.
+    """
+    capacity = parse_lane_capacity(_metrics(running=22, occupancy=0.141))
+
+    unknown = json.loads(
+        write_lane_document(
+            capacity, tmp_path / "u.json", settling=None
+        ).read_text(encoding="utf-8")
+    )
+    settled = json.loads(
+        write_lane_document(
+            capacity, tmp_path / "s.json", settling=False
+        ).read_text(encoding="utf-8")
+    )
+
+    assert unknown["settling"] is None
+    assert unknown["headroom_is_upper_bound"] is True, "unknown is not settled"
+    assert settled["headroom_is_upper_bound"] is False

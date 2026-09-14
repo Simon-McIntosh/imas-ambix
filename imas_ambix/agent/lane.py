@@ -353,7 +353,19 @@ def write_lane_document(
         # generous. None means no previous sample to compare, reported as
         # unknown rather than as settled.
         "settling": settling,
-        "headroom_is_upper_bound": settling is True,
+        # Unknown counts as an upper bound, not as a firm figure. Measured
+        # 2026-09-14: a reading of `headroom 134` published unflagged because
+        # the running count had moved by 3 between polls, which makes settling
+        # UNKNOWN rather than true -- and unknown was being rendered as
+        # settled. The very next sample read 17. So the single most dangerous
+        # reading, taken moments after a dispatch when the mix is also moving,
+        # was the one case the flag did not cover.
+        #
+        # Every measurement error found on this lane runs toward apparent
+        # headroom, so the unknown case resolves that way too: when it cannot
+        # be established that the quantity has stopped moving, say the figure
+        # is a bound rather than a value.
+        "headroom_is_upper_bound": settling is not False,
         "settling_caveat": (
             "a reading taken within ~60s of a dispatch reports the fleet at its "
             "lightest; prefer a pre-dispatch reading"
