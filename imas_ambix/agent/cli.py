@@ -356,13 +356,36 @@ def info(slug: str | None) -> None:
     is_flag=True,
     help="Print the SLURM script instead of submitting it.",
 )
-def download(slug: str | None, dry_run: bool) -> None:
+@click.option(
+    "--cpus",
+    type=int,
+    default=4,
+    show_default=True,
+    help="Cores to request, and concurrent shard transfers to run.",
+)
+@click.option(
+    "--time",
+    "time_limit",
+    default=None,
+    help=(
+        "Wall-clock limit, overriding the profile. Required below the "
+        "profile default on a debug partition, which caps at one hour and "
+        "pends a larger request forever. Transfers resume, so a truncated "
+        "download continues where it stopped."
+    ),
+)
+def download(
+    slug: str | None,
+    dry_run: bool,
+    cpus: int,
+    time_limit: str | None,
+) -> None:
     """Generate and submit a model download job."""
     from imas_ambix.agent.slurm import generate_download_script, submit_script
 
     profile = _load_profile(slug)
     site = SiteConfig.from_env()
-    script = generate_download_script(profile, site)
+    script = generate_download_script(profile, site, cpus=cpus, time_limit=time_limit)
 
     if dry_run:
         console.print(script, markup=False, highlight=False, soft_wrap=True)

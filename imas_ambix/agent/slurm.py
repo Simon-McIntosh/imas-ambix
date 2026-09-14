@@ -878,11 +878,25 @@ def generate_router_script(
     return "\n".join([*headers, "", script_body, ""])
 
 
-def generate_download_script(profile: ModelProfile, site: SiteConfig) -> str:
+def generate_download_script(
+    profile: ModelProfile,
+    site: SiteConfig,
+    *,
+    cpus: int = 4,
+    time_limit: str | None = None,
+) -> str:
     """Generate a SLURM batch script for downloading model weights.
 
     Downloads run on a standard compute partition (not the GPU partition)
     because GPU nodes may lack outbound network access.
+
+    *cpus* sizes both the allocation and the number of concurrent shard
+    transfers, which are the same quantity: each worker is one connection being
+    driven by one core. *time_limit* overrides the profile's own
+    ``time_download`` -- a debug partition caps wall clock at an hour, and a
+    request above a partition's limit pends forever rather than being trimmed
+    to fit. A transfer cut short by either is resumable, because the
+    already-fetched shards are complete files in the target directory.
     """
     model_dir = site.model_dir(profile)
     cache_dir = site.cache_dir(profile)
@@ -893,9 +907,9 @@ def generate_download_script(profile: ModelProfile, site: SiteConfig) -> str:
         account=site.account,
         reservation=None,
         gpus=0,
-        cpus=4,
+        cpus=cpus,
         memory="16G",
-        time_limit=profile.slurm.time_download,
+        time_limit=time_limit or profile.slurm.time_download,
         output_name=f"download-{profile.slug}-%j.log",
     )
     download_command = shlex.join(
@@ -906,7 +920,7 @@ def generate_download_script(profile: ModelProfile, site: SiteConfig) -> str:
             "--local-dir",
             _MODEL_DIR_TOKEN,
             "--max-workers",
-            "4",
+            str(cpus),
         ]
     ).replace(_MODEL_DIR_TOKEN, '"$MODEL_DIR"')
     script_body = dedent(
@@ -915,6 +929,11 @@ def generate_download_script(profile: ModelProfile, site: SiteConfig) -> str:
 
         export TMPDIR=/tmp
         export HF_HOME={shlex.quote(str(cache_dir))}
+        # Rust-backed multipart transfer. The dependency is declared in every
+        # engine environment but does nothing unless this is set, and the
+        # difference decides whether a large checkpoint fits inside a bounded
+        # wall clock.
+        export HF_HUB_ENABLE_HF_TRANSFER=1
 
         MODEL_DIR={shlex.quote(str(model_dir))}
 
