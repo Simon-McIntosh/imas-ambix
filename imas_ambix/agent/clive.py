@@ -646,17 +646,6 @@ fi
 KEY="clive-no-auth"
 SUPPORTED_CAPABILITIES="thinking"
 
-# Admission identity for the router. Without this header the router falls back
-# to client host joined with user-agent, and every harness process on one
-# machine presents the same pair -- so a whole fleet shares ONE bucket of two
-# in-flight requests and four queued, and the seventh concurrent request is
-# refused with 429 while the engine sits at zero percent KV occupancy.
-# Measured against the four-card serve: eight concurrent completions from one
-# bucket took 20.95 s and lost two to 429; the same eight declaring their own
-# identity served 8/8. $$ survives the exec below, so the id is stable for the
-# life of this harness and distinct from every sibling.
-CONSUMER_ID="clive-$(hostname -s)-$$"
-
 if [[ "$HARNESS" == "codex" ]]; then
     command -v codex >/dev/null 2>&1 || { echo "clive: 'codex' not on PATH." >&2; exit 127; }
     printf "\nClive (Codex) — serving: %s · %s\n\n" "$MODEL_ID" "$RUNTIME_LABEL" >&2
@@ -670,7 +659,6 @@ if [[ "$MODE" == "local" ]]; then
     ANTHROPIC_BASE_URL="$GLOBAL_ORIGIN" \
     ANTHROPIC_AUTH_TOKEN="$KEY" \
     ANTHROPIC_API_KEY="" \
-    ANTHROPIC_CUSTOM_HEADERS="x-ambix-consumer: $CONSUMER_ID" \
     ANTHROPIC_DEFAULT_OPUS_MODEL="$MODEL_ID" \
     ANTHROPIC_DEFAULT_OPUS_MODEL_NAME="$MODEL_ID" \
     ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION="$RUNTIME_LABEL, $CONTEXT_LABEL ctx" \
@@ -726,7 +714,6 @@ printf "\nClive — global + OpenRouter — picker: %s, or-opus-4.8, or-gpt-5.5,
 ANTHROPIC_BASE_URL="http://127.0.0.1:$LITELLM_PORT" \
 ANTHROPIC_AUTH_TOKEN="clive" \
 ANTHROPIC_API_KEY="" \
-ANTHROPIC_CUSTOM_HEADERS="x-ambix-consumer: $CONSUMER_ID" \
 ANTHROPIC_MODEL="$MODEL_ID" \
 ANTHROPIC_DEFAULT_SONNET_MODEL="$PRIMARY_LOCAL_MODEL" \
 ANTHROPIC_DEFAULT_SONNET_MODEL_NAME="$PRIMARY_LOCAL_MODEL" \

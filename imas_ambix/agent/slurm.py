@@ -838,9 +838,6 @@ def generate_router_script(
     port: int,
     cpus: int = 2,
     memory: str = "8G",
-    max_in_flight: int = 2,
-    max_queued: int = 4,
-    retry_after_seconds: int = 5,
 ) -> str:
     """Generate a CPU-only SLURM script for the standing router endpoint."""
     if not 1 <= port <= 65535:
@@ -849,12 +846,6 @@ def generate_router_script(
         raise ValueError("cpus must be positive")
     if not memory.strip():
         raise ValueError("memory must not be empty")
-    if max_in_flight < 1:
-        raise ValueError("max_in_flight must be positive")
-    if max_queued < 0:
-        raise ValueError("max_queued must not be negative")
-    if retry_after_seconds < 1:
-        raise ValueError("retry_after_seconds must be positive")
 
     headers = _sbatch_headers(
         job_name="ambix-router",
@@ -880,12 +871,6 @@ def generate_router_script(
             "0.0.0.0",
             "--port",
             str(port),
-            "--max-in-flight",
-            str(max_in_flight),
-            "--max-queued",
-            str(max_queued),
-            "--retry-after-seconds",
-            str(retry_after_seconds),
         ]
     )
     script_body = dedent(

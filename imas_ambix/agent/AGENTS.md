@@ -412,70 +412,50 @@ dimension 1024 reduced to 256 on output, L2-normalised.
 enforced it is `AMBIX_AGENT_API_KEY` in the shared `agents/.env`, and the engine
 accepts it **only** as `Authorization: Bearer` — never `x-api-key`.
 
-## 3c. Concurrency on the local lane — the router bounds it, not the model
+## 3c. Concurrency on the local lane — the engine schedules, nothing in front of it does
 
-**The ceiling that agent fleets hit is `AdmissionLimits` in
-`imas_ambix/agent/router.py`, and for most of 2026 it was six.** The shipped
-defaults are `max_in_flight = 2` and `max_queued = 4`; **2 + 4 = 6** concurrent
-requests, after which the router answers **HTTP 429** with
-`consumer queue full; retry after N seconds`. Raised to **16 in flight and 48
-queued** on 2026-09-06 after that arithmetic was traced to a fleet-wide worker
-die-off. Set them at launch, never in code:
+**The router does not bound concurrency and must never be made to again.** It
+resolves the upstream, merges the catalog, clamps output tokens against the
+engine's window, and relays. It is a stable address in front of a rotating
+serve, not a scheduler.
+
+**The engine is the scheduler, and it is the only correct one.** vLLM runs
+continuous batching with its own waiting queue, its own KV accounting and
+preemption under pressure; it is configured here at `max_num_seqs = 1024` with
+`max_num_batched_tokens = 32768`. It degrades by queueing, never by refusing, so
+a relay-side bound cannot protect it from anything — it can only refuse work the
+engine would have taken.
+
+**Why this is stated as a prohibition rather than a default.** A per-consumer
+admission filter lived in the router until 2026-09-14 with a ceiling of two in
+flight and four queued, keyed on client host joined with user-agent. Every
+harness process on one login node therefore resolved to a single bucket, so a
+whole fleet shared six request slots. Measured over a live afternoon: 402 of
+1,075 requests refused, **37.4%**, of which 252 were queue timeouts that each
+burned 30 seconds before failing — while the engine sat at **0.0% KV occupancy**
+with a 1024-sequence ceiling. Eight concurrent completions ran at **872 tok/s**
+direct against **110 tok/s** through the shared bucket.
+
+**Its worst failure was not the throughput.** A worker that exhausted its
+context tried to compact, and the compaction request was refused by the queue —
+so a recoverable condition became a dead run, reported as `Prompt is too long —
+automatic compaction failed`. That message is true, is actionable, and points at
+node sizing rather than at the filter. A bound in front of the engine does not
+merely cost throughput; it corrupts the diagnosis of unrelated failures.
+
+**The only bound now is a file-descriptor guard.** `RouterApp` sets an explicit
+`TCPConnector(limit=2048)`, far above the engine's own running-sequence ceiling
+so the engine is always the binding constraint. It is explicit because
+aiohttp's unset default is **100**, which would silently cap the lane below
+`max_num_seqs` with nothing in any log to say so.
+
+**Read concurrency from the engine, which reports it directly** — `running`,
+`waiting`, KV usage and prefix-cache hit rate, once per interval:
 
 ```bash
-imas-ambix agent router --submit --port 18802 --max-in-flight 16 --max-queued 48
+grep "Avg prompt throughput" <serve-log> | tail -3
 ```
 
-**The allowance is PER SOURCE IP — shared by every worker on one host, and
-multiplied by the number of hosts.** Admission is keyed on
-`_consumer_id(scope)`, which returns `scope["client"][0]`. Every clive worker
-dispatched from one login node is *one consumer* against one allowance, whatever
-project dispatched it — **but a second host gets its own full allowance.**
-Measured 2026-09-06: two client IPs (1,284 requests from one, 26 from another),
-and engine concurrency reached **17** against a configured 16, which is 16 from
-the busy host plus 1 from the other. **The lane-wide in-flight ceiling is
-therefore `max_in_flight × distinct client hosts`, not `max_in_flight`.** Check
-before sizing:
-
-```bash
-grep -oE 'INFO: +[0-9.]+:' ambix-router-<job>.log | grep -oE '[0-9.]+' | sort -u
-```
-
-Three further consequences that cost a night to learn:
-
-- **No project can see the binding quantity from its own ledger.** One session
-  measured its own maximum at four simultaneous runs and concluded the six-figure
-  could not apply, while another session's runs were consuming the same
-  allowance. Count clive runs *host-wide* or the number is meaningless.
-- **Sessions are not requests.** One turn issuing several parallel tool calls
-  bursts a limit of two on its own, so refusals were observed with as few as two
-  sessions live.
-- **A reckon-side concurrency ceiling and this one bound the same resource in
-  DIFFERENT UNITS, so setting both to the same number does not align them.**
-  Reckon's per-backend ceiling counts **live runs**; this one counts
-  **simultaneous requests**, and the ratio is variable — four agentic sessions
-  were measured producing two concurrent requests, because a worker spends most
-  of its wall clock between turns. A reckon ceiling of sixteen *runs* might
-  therefore produce only eight simultaneous requests and silently throttle the
-  lane to half its allowance while appearing to match. If both are set, the
-  tighter wins invisibly and nobody can tell which. **Reckon's stays unset by
-  default** — a number an operator cannot convert is a number they should not be
-  invited to set — and where it is set it is a coarse bound on how much work one
-  fleet may hold *open* against the lane, not a model of this queue.
-
-**The conversion between the two units, measured 2026-09-06 — and it is not a
-constant.** Joined samples across three fleets: 7-8 live clive runs produced 4-5
-simultaneous requests (0.5-0.7), while 15 live runs coincided with 15 running
-(near 1.0). An agentic worker spends most of its wall clock between turns, so
-the ratio is low when the fleet is small and **rises toward 1.0 as it grows**,
-because overlapping turns become likelier.
-
-**Convert a ceiling at 1.0, never at the low-end figure.** The observed band is
-0.5 to 1.0, and the conversion **shrinks exactly when it is being relied upon** —
-the moment a fleet is large enough for the ceiling to matter is the moment a run
-is worth close to a whole request. Sixteen in flight is therefore about sixteen
-runs at saturation, not the 23-32 the low end implies. The band is measured; the
-mechanism is inferred.
 
 **Any single spot reading of concurrency is a draw from a distribution, not a
 level.** Eight reads five seconds apart spanned **10 to 14** with the fleet

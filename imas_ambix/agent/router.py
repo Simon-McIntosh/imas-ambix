@@ -6,7 +6,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -19,128 +18,6 @@ AsgiMessage = dict[str, Any]
 Receive = Callable[[], Awaitable[AsgiMessage]]
 Send = Callable[[AsgiMessage], Awaitable[None]]
 logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True, slots=True)
-class AdmissionLimits:
-    """Bound active and waiting requests independently for each consumer."""
-
-    max_in_flight: int = 2
-    max_queued: int = 4
-    retry_after_seconds: int = 5
-    # Ceiling on how long a queued request waits for a slot. Without one the
-    # wait is unbounded, and a caller that finds the bucket busy but the queue
-    # not yet full hangs until it gives up -- which is not a status code, is
-    # not loggable, and is indistinguishable from a slow model, so callers
-    # retry into it. Measured: completions hung past 45s against a healthy
-    # upstream answering in 0.28s, while long-lived agent sessions held the
-    # in-flight slots.
-    queue_wait_seconds: int = 30
-
-    @classmethod
-    def from_environment(
-        cls, environment: Mapping[str, str] | None = None
-    ) -> AdmissionLimits:
-        """Read router limits while retaining group-sized defaults."""
-        source = os.environ if environment is None else environment
-        names = {
-            "max_in_flight": "AMBIX_ROUTER_MAX_IN_FLIGHT",
-            "max_queued": "AMBIX_ROUTER_MAX_QUEUED",
-            "retry_after_seconds": "AMBIX_ROUTER_RETRY_AFTER_SECONDS",
-            "queue_wait_seconds": "AMBIX_ROUTER_QUEUE_WAIT_SECONDS",
-        }
-        values: dict[str, int] = {}
-        for field, name in names.items():
-            raw = source.get(name)
-            if raw is None:
-                continue
-            try:
-                values[field] = int(raw)
-            except ValueError as error:
-                raise ValueError(f"{name} must be an integer") from error
-        return cls(**values)
-
-    def __post_init__(self) -> None:
-        if self.max_in_flight < 1:
-            raise ValueError("max_in_flight must be positive")
-        if self.max_queued < 0:
-            raise ValueError("max_queued must not be negative")
-        if self.retry_after_seconds < 1:
-            raise ValueError("retry_after_seconds must be positive")
-        if self.queue_wait_seconds < 1:
-            raise ValueError("queue_wait_seconds must be positive")
-
-
-@dataclass(slots=True)
-class _ConsumerCapacity:
-    condition: asyncio.Condition
-    in_flight: int = 0
-    queued: int = 0
-
-
-class _AdmissionController:
-    def __init__(self, limits: AdmissionLimits) -> None:
-        self._limits = limits
-        self._consumers: dict[str, _ConsumerCapacity] = {}
-
-    async def acquire(self, consumer: str) -> str:
-        """Return "admitted", "queue-full", or "timed-out".
-
-        The three are deliberately distinct at the caller: a full queue is the
-        system declining promptly, while a timeout is the system having waited
-        and still not found room. Collapsing them would hide which of the two
-        a caller is actually hitting, and they call for different responses.
-        """
-        capacity = self._consumers.setdefault(
-            consumer, _ConsumerCapacity(asyncio.Condition())
-        )
-        async with capacity.condition:
-            if capacity.in_flight < self._limits.max_in_flight:
-                capacity.in_flight += 1
-                self._log("admitted", consumer, capacity)
-                return "admitted"
-            if capacity.queued >= self._limits.max_queued:
-                self._log("retry", consumer, capacity)
-                return "queue-full"
-
-            capacity.queued += 1
-            self._log("queued", consumer, capacity)
-            try:
-                await asyncio.wait_for(
-                    capacity.condition.wait_for(
-                        lambda: capacity.in_flight < self._limits.max_in_flight
-                    ),
-                    timeout=self._limits.queue_wait_seconds,
-                )
-            except TimeoutError:
-                capacity.queued -= 1
-                self._log("queue-timeout", consumer, capacity)
-                return "timed-out"
-            except BaseException:
-                capacity.queued -= 1
-                self._log("queue-cancelled", consumer, capacity)
-                raise
-            capacity.queued -= 1
-            capacity.in_flight += 1
-            self._log("admitted-from-queue", consumer, capacity)
-            return "admitted"
-
-    async def release(self, consumer: str) -> None:
-        capacity = self._consumers[consumer]
-        async with capacity.condition:
-            capacity.in_flight -= 1
-            self._log("released", consumer, capacity)
-            capacity.condition.notify(1)
-
-    @staticmethod
-    def _log(action: str, consumer: str, capacity: _ConsumerCapacity) -> None:
-        logger.info(
-            "router admission action=%s consumer=%s in_flight=%d queued=%d",
-            action,
-            consumer,
-            capacity.in_flight,
-            capacity.queued,
-        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -288,13 +165,19 @@ class RouterApp:
         resolver: UpstreamResolver,
         *,
         timeout: aiohttp.ClientTimeout | None = None,
-        admission_limits: AdmissionLimits | None = None,
+        connection_limit: int = 2048,
     ) -> None:
         self._resolver = resolver
         self._timeout = timeout or aiohttp.ClientTimeout(total=None, connect=10)
         self._session: aiohttp.ClientSession | None = None
-        self._admission_limits = admission_limits or AdmissionLimits()
-        self._admission = _AdmissionController(self._admission_limits)
+        # The engine schedules its own work -- continuous batching, a waiting
+        # queue and preemption under KV pressure -- so the relay must not be a
+        # second, blinder scheduler in front of it. This ceiling exists only to
+        # keep the process from exhausting file descriptors, and sits far above
+        # the engine's own running-sequence ceiling so the engine is always the
+        # binding constraint. aiohttp's unset default is 100, which would
+        # silently cap concurrency below that.
+        self._connection_limit = connection_limit
 
     async def __call__(
         self, scope: dict[str, Any], receive: Receive, send: Send
@@ -355,19 +238,8 @@ class RouterApp:
                 _reported_width(upstream, card),
             )
 
-        consumer = self._consumer_id(scope)
-        admission = await self._admission.acquire(consumer)
-        if admission == "queue-full":
-            await self._retry_later(send)
-            return
-        if admission == "timed-out":
-            await self._queue_timed_out(send)
-            return
-        try:
-            relay_body = self._clamp_output_tokens(payload, body, card)
-            await self._relay(scope, receive, send, relay_body, upstream)
-        finally:
-            await self._admission.release(consumer)
+        relay_body = self._clamp_output_tokens(payload, body, card)
+        await self._relay(scope, receive, send, relay_body, upstream)
 
     async def _lifespan(self, receive: Receive, send: Send) -> None:
         while True:
@@ -387,6 +259,7 @@ class RouterApp:
             self._session = aiohttp.ClientSession(
                 timeout=self._timeout,
                 auto_decompress=False,
+                connector=aiohttp.TCPConnector(limit=self._connection_limit),
             )
         return self._session
 
@@ -606,106 +479,10 @@ class RouterApp:
             body,
         )
 
-    async def _retry_later(self, send: Send) -> None:
-        wait = self._admission_limits.retry_after_seconds
-        body = json.dumps(
-            {
-                "error": {
-                    "message": f"consumer queue full; retry after {wait} seconds",
-                    "retry_after_seconds": wait,
-                }
-            },
-            separators=(",", ":"),
-        ).encode()
-        await self._response(
-            send,
-            429,
-            [
-                (b"content-type", b"application/json"),
-                (b"content-length", str(len(body)).encode()),
-                (b"retry-after", str(wait).encode()),
-            ],
-            body,
-        )
 
-    async def _queue_timed_out(self, send: Send) -> None:
-        """Answer a queued request that waited out its ceiling.
-
-        503 rather than the 429 a full queue gets, because the two say
-        different things: a full queue declined immediately, while this one was
-        accepted, waited, and still found no slot. Both carry Retry-After, and
-        both are a status code in a log -- which is the whole point, since the
-        behaviour this replaces was an open connection that said nothing.
-        """
-        waited = self._admission_limits.queue_wait_seconds
-        wait = self._admission_limits.retry_after_seconds
-        body = json.dumps(
-            {
-                "error": {
-                    "message": (
-                        f"admission queue wait exceeded {waited} seconds; "
-                        f"retry after {wait} seconds"
-                    ),
-                    "queue_wait_seconds": waited,
-                    "retry_after_seconds": wait,
-                }
-            },
-            separators=(",", ":"),
-        ).encode()
-        await self._response(
-            send,
-            503,
-            [
-                (b"content-type", b"application/json"),
-                (b"content-length", str(len(body)).encode()),
-                (b"retry-after", str(wait).encode()),
-            ],
-            body,
-        )
-
-    @staticmethod
-    def _consumer_id(scope: Mapping[str, Any]) -> str:
-        """Identify the calling process, not merely the calling host.
-
-        Keying on the client IP alone collapsed every process on a shared
-        machine into one admission bucket, so long-lived agent sessions starved
-        unrelated callers on the same login node and the starvation was
-        invisible -- the victims queued rather than being refused.
-
-        An explicit ``x-ambix-consumer`` header wins, so a caller that knows
-        its own identity can declare it. Otherwise the user-agent joins the
-        host, which separates a harness from a benchmark from an operator's
-        curl without giving every TCP connection its own bucket -- keying on
-        the client PORT would do that and would disable admission control
-        entirely.
-        """
-        headers = scope.get("headers") or ()
-        declared = b""
-        agent = b""
-        for name, value in headers:
-            lowered = bytes(name).lower()
-            if lowered == b"x-ambix-consumer":
-                declared = bytes(value)
-            elif lowered == b"user-agent":
-                agent = bytes(value)
-        if declared.strip():
-            return declared.decode("utf-8", "replace")[:128]
-        client = scope.get("client")
-        host = "unknown"
-        if isinstance(client, Sequence) and client and isinstance(client[0], str):
-            host = client[0]
-        if not agent.strip():
-            return host
-        return f"{host}|{agent.decode('utf-8', 'replace')[:96]}"
-
-
-def create_router_app(
-    resolver: UpstreamResolver,
-    *,
-    admission_limits: AdmissionLimits | None = None,
-) -> RouterApp:
+def create_router_app(resolver: UpstreamResolver) -> RouterApp:
     """Build the ASGI application around an injected upstream resolver."""
-    return RouterApp(resolver, admission_limits=admission_limits)
+    return RouterApp(resolver)
 
 
 def serve_router(
@@ -713,14 +490,8 @@ def serve_router(
     *,
     host: str = "0.0.0.0",
     port: int,
-    admission_limits: AdmissionLimits | None = None,
 ) -> None:
     """Run the router ASGI application with the serving runtime."""
     import uvicorn
 
-    limits = admission_limits or AdmissionLimits.from_environment()
-    uvicorn.run(
-        create_router_app(resolver, admission_limits=limits),
-        host=host,
-        port=port,
-    )
+    uvicorn.run(create_router_app(resolver), host=host, port=port)
