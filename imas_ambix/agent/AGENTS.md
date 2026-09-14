@@ -528,6 +528,30 @@ rather than refuses, which was true at every width tested and false at the next
 one. *True at every width I have tested* is not *true at every width I am about
 to test*.
 
+**The short-request ceiling is NOT the agent-session ceiling, and the gap is two
+orders of magnitude.** The ladder above used 200-token completions, which barely
+touch the KV pool — 26 concurrent sat at 3.4% occupancy. Real agent traffic does
+not look like that. Measured 2026-09-14 from live fleet load on the same serve,
+passively from the engine's own counters:
+
+    Running: 11  Waiting: 0  KV 44.3%      -> ~89,000 tokens per request
+    Running: 11  Waiting: 0  KV 48.4%      -> ~97,000 tokens per request
+    Running: 10  Waiting: 1  KV 47.6%      -> ~105,000 tokens per request
+
+Against a 2,200,283-token pool that is **roughly 21-25 concurrent agent
+sessions** before KV saturates, against 1536 short requests. **Size a worker
+fleet off the KV arithmetic, never off the short-request ladder.** The ladder
+establishes that nothing breaks; it says nothing about how many real sessions
+fit.
+
+Saturation here degrades rather than fails — vLLM preempts and recomputes, which
+costs throughput and shows up as `num_preemptions_total` rising, so the symptom
+is a slow lane and not a refused request. Prefix caching offsets it to a degree
+that depends entirely on how much context the sessions share (31.5% hit rate
+under the traffic above), so treat the figure as an order of magnitude rather
+than a limit, and re-derive it from `Running` against KV occupancy whenever the
+pool size or the working context length changes.
+
 **A request ceiling is not a fleet size, and the conversion is not a constant.**
 Reckon dispatches **live runs**; the engine counts **simultaneous requests**.
 Measured across three fleets: 7-8 live runs produced 4-5 simultaneous requests
