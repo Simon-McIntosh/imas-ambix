@@ -685,6 +685,155 @@
     sessions <em>produced</em> for whichever shot is locked &mdash; a converging shot is not sufficient,
     it must also be a labelled one.</p>
 
+    <h2 id="session-20260907">Where the plan stands after the 2026-09-07 session</h2>
+    <p>Fourteen nodes landed and were promoted in one session, every heavy gate on a debug partition and every GPU
+    render as a single reserved-card job. The decoder is trained on nova's labels to step 77,258 and <strong>its defect
+    is now measured and named rather than inferred: exposure bias.</strong> Six candidate explanations were tested and
+    eliminated. Two defects of our own were found by opening artifacts rather than reading summaries, and both are
+    repaired. Three claims of mine were retracted with their reasons recorded. What cannot be produced yet is a
+    watchable camera panel: the labels carry a solver defect whose repair has been measured by two independent
+    instruments as reaching nothing, and the rollout remedy is deliberately held until a relabelled corpus exists so the
+    two are not confounded. By agreement across three sessions the camera panel is not shown; the label cartoon carries
+    the physics.</p>
+
+    <h2 id="s5b-rollout-limit">&#167;5b &mdash; The decoder's defect is sustained autoregressive rollout</h2>
+    <p>This is the session's principal result and it was invisible in every aggregate either project computed. Over the
+    full held-out window on carrier 22086, decoded error runs 8.4, 4.3 and 9.3 uint8 levels across the first three
+    transitions against a persistence baseline of 7.7, 5.1 and 6.4 &mdash; <strong>rough parity while the model holds
+    real-frame history.</strong> From the fifth transition, where its four-frame history is entirely self-generated,
+    decoded error jumps to between 13 and 46 while persistence falls to between 3 and 5. Aggregates: free-running 24.952
+    against 6.750 for a ratio of 3.696 over 41 scored transitions; early phase below 0.150 s 2.938 over 21; late phase
+    5.147 over 20. The model is therefore not weak at the task, it cannot sustain its own output as input, which points
+    at training-time remedies rather than at the label pipeline, the sampler or the conditioning. The curve is at
+    <code>docs/figures/physics-carried-playable-plasma/seed-window/rollout-degradation.png</code>, rendered by
+    <code>imas_ambix/worldmodel/rollout_degradation_figure.py</code>, which derives every annotation from the committed
+    receipts and names both source receipts on its face, because the seeded reference and the free-running curve come
+    from different renders and a reader taking them for one measurement concludes the opposite.</p>
+
+    <h2 id="s5b-seeding-defect">&#167;5b &mdash; A seeding defect contaminated every decoded-versus-real figure, and flattered it</h2>
+    <p>The renderer walked admitted slices from the earliest, at t = 0.025 s, while seeding the decoder's token history
+    from an unrelated seed slice near t = 0.24 s, and because the model is autoregressive over four history frames the
+    contamination propagated through the whole video. It was found by opening a six-frame contact sheet, not by any
+    metric: the decoded panel at 25 ms showed a bright structured plasma where the real frame is almost black. Repaired
+    at commit 75262ac, which seeds from the camera frames immediately preceding the first rendered slice and records the
+    seed provenance and time deltas in the receipt, with the sampling seed exposed so a render reproduces.
+    <strong>The defect improved the number it corrupted.</strong> The contaminated ratio was 2.894 and the corrected
+    comparable figure is 3.696, because the distant bright seed injected mid-tone content that partly matched the real
+    frames. A defect that flatters a metric survives far longer than one that worsens it, because nothing draws
+    attention to it.</p>
+
+    <h2 id="s5b-eliminated-explanations">&#167;5b &mdash; Six explanations tested and eliminated</h2>
+    <p><em>Classifier-free guidance and temperature.</em> Eight cells on checkpoint 77,258: no cell beat persistence,
+    and amplification made matters worse, with the mean-collapse indicator tripping on 1 of 45 frames at guidance 1.0
+    and 32 of 45 at guidance 6.0 with temperature 0.7. The sweep's own conclusions were subsequently withdrawn, not
+    merely its figures, because every cell rendered through the seeding defect above.
+    <em>Codec normalisation.</em> Encoding real frames with the frozen imagenet_256_L tokeniser and decoding straight
+    back returns input mean and standard deviation 17.835 and 36.245 as 17.868 and 36.402, a fitted scale of 0.9890 and
+    a standard-deviation ratio of 1.0043. The codec reproduces the camera's narrow dark band exactly, so the decoded
+    video's flat bright output is the model's own and no published figure needed rescaling.
+    <em>Admitted-slice spacing.</em> 17 of 254 persistence comparisons, 6.7 per cent, cross a gap departing from the
+    nominal 5 ms, maximum 125 ms. The bias handicaps persistence rather than the decoder, so the ratio was slightly
+    flattered, and at that share it cannot account for a ratio near 2.9.</p>
+
+    <h2 id="s4e-protocol-conformance">&#167;4e &mdash; A reset defect that would have crashed the demo on its first boundary edit</h2>
+    <p>Driving the decoder through nova's real protocol with three real steering frames reconstructed from a labeller
+    session found that a zero-argument <code>reset()</code> cleared history and made the next decode raise. That is the
+    call nova's application makes at every session and base-observation boundary, which is precisely what a boundary
+    edit triggers, so the demo would have failed on its first interaction regardless of picture quality. Fixed-seed
+    replay broke by the same path. A second, smaller violation: the decoder returned a module-local
+    <code>DecodedFrame</code> lookalike rather than nova's own type, which would have duck-typed through and worked
+    until something checked. Repaired at 1bb4a35: a bare reset restores the configured base-shot history and re-seeds
+    the sampling generator, while an explicitly empty sequence still clears history, so the two intentions are
+    expressible rather than collapsed. Seven tests pass with no skips and the zero-argument path is exercised in two
+    separate files so it cannot regress into the silence it was found in. Everything else in the contract held: image
+    shape 256 by 256 by 3, uint8, identical channels, stable identity, dotted-path reachability, runtime protocol
+    <code>isinstance</code>. nova's side had no test that any decoder satisfied the calls its app actually makes, and
+    has since opened a conformance suite parameterised over a decoder path.</p>
+
+    <h2 id="s6-axis-offset">&#167;6 &mdash; The axis question resolved against both hypotheses</h2>
+    <p>Over 51 free flat-top evidence slices on the six carriers: axis offset mean, median and standard deviation
+    4.355, 4.559 and 1.286 cm; dR &minus;1.906, &minus;1.843 and 2.613 cm with only 27.45 per cent positive; dZ 0.477,
+    &minus;0.790 and 3.151 cm. nova is inboard on 72.55 per cent of slices, so an outboard Shafranov-style displacement
+    is rejected. nova's pre-registered prediction &mdash; that its magnetic axis sits on its own current centroid,
+    making the miss a moment-versus-flux-extremum confusion &mdash; is refuted: the centroid is 13.27 cm from nova's
+    axis and 14.46 cm from EFIT's, three times the offset being explained. All 117 rows recovered by the corrected
+    conditioning predicate lack a finite nova magnetic axis, so no repair to the admission filter can enlarge this
+    denominator. A lead that dR carries time structure was <strong>discarded rather than caveated</strong>: the split
+    cannot separate time from shot, and nova-ea subsequently showed two nova solves disagreeing by 5.32 cm at one
+    identical slice, making the offset configuration-dependent.</p>
+
+    <h2 id="s6-centroid-radial">&#167;6 &mdash; The radial half nobody had measured</h2>
+    <p>Every centroid-agreement figure quoted during the session, the widely cited 1.08 cm included, is a
+    <strong>height-only</strong> comparison: nova's writer targets, errors and guards EFIT's centroid Z alone and no R
+    comparison exists in either writer. EFIT does publish a current-centroid major radius, level1 <code>efm/current_centrd_r</code>,
+    on all six carriers, so nothing was substituted. Two results follow. The centroid-to-axis distances are
+    overwhelmingly radial, 13.25 cm inboard of nova's axis and 14.16 cm inboard of EFIT's against vertical components of
+    0.08 and 1.33 cm, so the axis is outboard of the centroid in both codes with the correct Shafranov sign. And nova's
+    written centroid R is inboard of EFIT's on <strong>every one of the 51 slices</strong>, median 5.62 cm, mean 6.06,
+    standard deviation 3.14, per-shot medians from 2.68 to 8.67 cm, positive fraction exactly zero &mdash; a systematic
+    sign in a component its writer has never compared with anything.</p>
+
+    <h2 id="s4d-conditioned-predicate">&#167;4d &mdash; Conditioning semantics enforced, and a figure withdrawn</h2>
+    <p>A row recorded conditioned whose attempt raised at zero conditioning trips is now reclassified as free, which
+    moves 119 rows on the six carriers, and a genuinely conditioned row requires guard success with a finite paired
+    error strictly below its free error. Unavailable comparisons are counted separately from measured non-improvements
+    so the two can never again be summed into a denominator. <strong>Retracted in the process:</strong> the claim,
+    recorded here and sent to nova, that conditioning was effective on 31 of 31 rows from a median 5.43 cm to 0.00 cm.
+    Measured against the live carrier files the honest statement is 24 of 24 with 6 comparators unavailable, out of 30
+    genuine converged guard-ok rows. The direction survives; the denominator never existed.</p>
+
+    <h2 id="s6-fidelity-rescore">&#167;6 &mdash; The gate re-scored under the corrected predicate</h2>
+    <p>Joint 3 of 51, boundary 24 of 51, axis 3 of 51 &mdash; identical to the superseded counts, with per-arm
+    denominator deltas of exactly zero and the failing verdict unchanged. Both sets are recorded under distinct keys so
+    neither overwrites the other. This is the clean outcome: the correction was necessary for filter honesty rather than
+    because the gate was scoring the wrong rows, and it confirms that the 119 aborted rows were correctly excluded all
+    along because every one carries <code>converged=false</code>.</p>
+
+    <h2 id="s4d-label-quality">&#167;4d &mdash; What the conditioning input is actually made of</h2>
+    <p>nova reported a solver defect on the limited topology class: the boundary anchor lacks a reachability test, so a
+    boundary can float off a limiter EFIT touches at 1.1 mm, by a median 143 mm and a maximum 392 mm on one shot, with
+    an area up to 24 times too small, while <code>branch_guard_ok</code> stays true because that guard validates
+    convergence and never validates reachability. <strong>For this project that is input corruption, not label noise</strong>:
+    the outermost flux surface is our boundary and the nested set is the conditioning raster, so an affected frame shows
+    the model a small blob in open space paired with a camera frame of a full plasma, which is the shape that teaches a
+    model to ignore its conditioning. Our measured exposure, detected geometrically rather than by class label: of 371
+    admitted slices, 117 have no flux level with three finite vertices and all 117 are non-diverted, and 46 further
+    non-diverted slices carry a boundary beyond 50 mm from the limiter &mdash; about 69 per cent of that group. A
+    threshold caveat recorded with it: 50 mm indicates a defect only for limited frames, since a diverted closed
+    boundary stands off the wall by construction, so the 74 diverted slices beyond it are geometry rather than defect.
+    <em>Normalised flux coordinate cannot reveal any of this and must never be the check</em>, because it runs cleanly
+    from zero to one on a frame whose physical span has collapsed by ninety-nine per cent.</p>
+
+    <h2 id="s4d-reference-and-null">&#167;4d &mdash; The reference validated, and a repair that reached nothing</h2>
+    <p>The 36-vertex limiter constant underpinning three results &mdash; the boundary distances, the x-point containment
+    filter and the conditioning grid bounds &mdash; had no recorded source. Compared bidirectionally against the
+    machine-description wall, with the machine side densely resampled at 4096 points, the signed mismatch peaks at
+    <strong>0.0044 mm</strong>, so the constant is the machine wall and the 50 mm threshold holds by four orders of
+    magnitude. Separately, nova's anchor repair was measured by two independent instruments as changing nothing: over
+    371 paired slices across the banked and repaired roots, the limited class shows a maximum absolute distance
+    difference of exactly 0.0 mm on all 119 measurable pairs while the diverted control shows 6.68e-13 mm, which
+    reproduces nova's own 1.18e-13 through entirely different arithmetic and proves the solve re-ran. Of six
+    first-of-run cold slices, which the repair deliberately excludes, <strong>zero fall inside the renderer's seed
+    window</strong> and one sits immediately adjacent, retiring the concern that the unrepairable frames were the ones
+    the short-horizon regime depends on.</p>
+
+    <h2 id="s4d-camera-conditioning">&#167;4d &mdash; Camera-family rebuild is arithmetically impossible</h2>
+    <p>The per-group census settles it with counts over 888 sessions. The demo carrier's family holds 9 shots, 8 with
+    complete manifests, and the held-out carrier removes one, leaving about 7 trainable. The 512-pixel square family is
+    <strong>exactly the five cohort carriers and nothing else</strong>, so subtracting the labeller cohort empties it
+    &mdash; which also means the earlier transfer ratios of 7.3 and 12.0 were measured on a family with zero trainable
+    members rather than one we had undertrained. Across 42 distinct geometry-and-cadence bands the largest is 313
+    complete shots of 48 by 256, the strip geometry the decoder already sees most of. Conditioning on camera geometry
+    across the bands is therefore the only option the distribution supports, and nothing is rebuilt on the strength of
+    it tonight.</p>
+
+    <h2 id="s4f-resume">&#167;4f &mdash; Training resumable from a checkpoint</h2>
+    <p>The trainer restores model parameters, optimiser state, global step and epoch firewall history from a checkpoint
+    file or from the numerically highest checkpoint in a run directory, appending a path, digest, step, epoch and time
+    record to the receipt on every resume. The production directory holds eight checkpoints from step 7,644 to 77,258.
+    The node also repaired three test fixtures that had gone stale against the versioned cohort authority, moving the
+    focused gate from three failures at base to eight passes.</p>
+
   </main>
 </body>
 </html>
