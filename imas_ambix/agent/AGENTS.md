@@ -609,6 +609,13 @@ crash the serve.** Three coordinators tried to saturate the lane and could not:
 | one | 0 | sprint scope complete; nothing dispatchable without manufacturing it |
 | another | 0 more | every file in the closure claimed by a live node |
 | a third | 2 running | `recovery.py` in three pending sections, `ticker.py` in two |
+| a fourth | 0 more | every ready node touches a file the live work holds, or depends on its result |
+
+The fourth had one node it *could* have cut — a docs-only evidence update — and
+declined on the grounds that it would be filler rather than load. That judgement
+is what makes the other four figures trustworthy: a fleet that will not
+manufacture work to fill a lane is a fleet whose reported width means
+something.
 
 The middle one attempted a real dispatch and was **refused by the scope
 validator**, not by policy or caution: `write scope 'reckon/_backends.py'
