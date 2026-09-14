@@ -46,6 +46,7 @@ def _registration(job_id: str = "42", model_id: str = "glm-5.3") -> ServeRegistr
         job_id=job_id,
         accelerator_count=4,
         checkpoint_precision="int4",
+        accelerator_family="H200",
     )
 
 

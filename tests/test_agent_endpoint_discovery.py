@@ -23,6 +23,7 @@ from imas_ambix.agent.registry import (
     PublishedEndpoint,
     PublishedOrigin,
     ServeRegistration,
+    build_endpoint_document,
     publish_endpoint_document,
     read_endpoint_document,
     write_endpoint_document,
@@ -144,8 +145,8 @@ def _launcher(tmp_path, document, *, harness=None, preferred_release_id=None):
 
 def _publish_with_router_jobs(tmp_path, monkeypatch, jobs, probes):
     records = (
-        ServeRegistration("alpha", "node-a", 19001, "41", 2, "bf16"),
-        ServeRegistration("beta", "node-b", 19002, "42", 8, "fp8"),
+        ServeRegistration("alpha", "node-a", 19001, "41", 2, "bf16", "H100"),
+        ServeRegistration("beta", "node-b", 19002, "42", 8, "fp8", "H200"),
     )
     directory = tmp_path / "records"
     for record in records:
@@ -155,9 +156,7 @@ def _publish_with_router_jobs(tmp_path, monkeypatch, jobs, probes):
         records[1].origin: _catalog("beta", "H200", 8, "fp8", 262144),
     }
     target = tmp_path / "endpoints.json"
-    monkeypatch.setattr(
-        registry_mod, "_fetch_anonymous_catalog", catalogs.__getitem__
-    )
+    monkeypatch.setattr(registry_mod, "_fetch_anonymous_catalog", catalogs.__getitem__)
     monkeypatch.setattr(agent_cli, "_running_jobs", lambda _site: jobs)
     monkeypatch.setattr(
         agent_cli,
@@ -275,8 +274,8 @@ def test_publish_command_without_router_preserves_endpoint_document(
 
 def test_publisher_derives_complete_atomic_document_from_registrations(tmp_path):
     records = (
-        ServeRegistration("alpha", "node-a", 19001, "41", 2, "bf16"),
-        ServeRegistration("beta", "node-b", 19002, "42", 8, "fp8"),
+        ServeRegistration("alpha", "node-a", 19001, "41", 2, "bf16", "H100"),
+        ServeRegistration("beta", "node-b", 19002, "42", 8, "fp8", "H200"),
     )
     catalogs = {
         records[0].origin: _catalog("alpha", "H100", 2, "bf16", 131072),
@@ -615,7 +614,7 @@ def test_serve_on_changed_port_republishes_document_naming_new_port_and_cards(
 
     directory = registry_mod.registration_directory(site_dir)
     original = ServeRegistration(
-        "deepseek-v4-flash", "node-a", 19001, "41", 2, "fp4+fp8"
+        "deepseek-v4-flash", "node-a", 19001, "41", 2, "fp4+fp8", "H200"
     )
     write_registration(original, directory)
     publish_endpoint_document(
@@ -630,7 +629,7 @@ def test_serve_on_changed_port_republishes_document_naming_new_port_and_cards(
     # The moved-in serve has registered on a different port with a different
     # card count, and the original port has gone silent.
     moved = ServeRegistration(
-        "deepseek-v4-flash", "node-a", 19002, "42", 4, "fp4+fp8"
+        "deepseek-v4-flash", "node-a", 19002, "42", 4, "fp4+fp8", "H200"
     )
     write_registration(moved, directory)
 
@@ -657,9 +656,7 @@ def test_serve_on_changed_port_republishes_document_naming_new_port_and_cards(
     assert endpoint.accelerator_count == 4
 
 
-def test_shutdown_cancels_and_republishes_removing_the_release(
-    tmp_path, monkeypatch
-):
+def test_shutdown_cancels_and_republishes_removing_the_release(tmp_path, monkeypatch):
     """`agent shutdown` drops the cancelled release from the published document."""
     site_dir = tmp_path / "site"
     target = tmp_path / "endpoints.json"
@@ -668,20 +665,16 @@ def test_shutdown_cancels_and_republishes_removing_the_release(
     monkeypatch.setattr(agent_cli, "_running_jobs", lambda _site: [])
 
     directory = registry_mod.registration_directory(site_dir)
-    alpha = ServeRegistration("alpha", "node-a", 19001, "41", 2, "bf16")
-    beta = ServeRegistration("beta", "node-b", 19002, "42", 8, "fp8")
+    alpha = ServeRegistration("alpha", "node-a", 19001, "41", 2, "bf16", "H100")
+    beta = ServeRegistration("beta", "node-b", 19002, "42", 8, "fp8", "H200")
     write_registration(alpha, directory)
     write_registration(beta, directory)
     catalogs = {
         alpha.origin: _catalog("alpha", "H100", 2, "bf16", 131072),
         beta.origin: _catalog("beta", "H200", 8, "fp8", 262144),
     }
-    monkeypatch.setattr(
-        registry_mod, "_fetch_anonymous_catalog", catalogs.__getitem__
-    )
-    publish_endpoint_document(
-        [alpha, beta], target, fetch_catalog=catalogs.__getitem__
-    )
+    monkeypatch.setattr(registry_mod, "_fetch_anonymous_catalog", catalogs.__getitem__)
+    publish_endpoint_document([alpha, beta], target, fetch_catalog=catalogs.__getitem__)
     assert {endpoint.model_id for endpoint in read_endpoint_document(target)} == {
         "alpha",
         "beta",
@@ -775,3 +768,71 @@ def test_status_warns_when_published_document_disagrees_with_live_serves(
     assert "disagrees with live serves" in result.output
     assert "node-a:19001" in result.output
     assert "node-b:19002" in result.output
+
+
+def _bare_catalog(model_id, context):
+    """A catalog card from an engine that carries no site metadata at all.
+
+    SGLang takes no middleware, so it cannot echo the launch-owned block back.
+    """
+    return {"data": [{"id": model_id, "max_model_len": context}]}
+
+
+def test_endpoint_without_site_metadata_publishes_from_its_registration():
+    """An engine that cannot echo site metadata is still routable.
+
+    The block is launch-owned data the serve already wrote to its registration,
+    so requiring the engine to carry it back made routing a vLLM-only surface
+    rather than protecting anything.
+    """
+    record = ServeRegistration(
+        "deepseek-v4.1-flash", "node-a", 18810, "99", 4, "mxfp4+fp8", "H200"
+    )
+    endpoints = build_endpoint_document(
+        (record,),
+        fetch_catalog=lambda _origin: _bare_catalog("deepseek-v4.1-flash", 1048576),
+    )
+
+    assert [endpoint.model_id for endpoint in endpoints] == ["deepseek-v4.1-flash"]
+    assert endpoints[0].accelerator_count == 4
+    assert endpoints[0].accelerator_family == "H200"
+    assert endpoints[0].checkpoint_precision == "mxfp4+fp8"
+    assert endpoints[0].max_context == 1048576
+
+
+def test_endpoint_contradicting_its_registration_is_still_refused():
+    """Absence is tolerated; disagreement is not.
+
+    A card that declares a different topology from the record means the two
+    describe different serves, which is the integrity failure the cross-check
+    exists to catch.
+    """
+    record = ServeRegistration(
+        "deepseek-v4.1-flash", "node-a", 18810, "99", 4, "mxfp4+fp8", "H200"
+    )
+    for card in (
+        _catalog("deepseek-v4.1-flash", "H200", 8, "mxfp4+fp8", 1048576),
+        _catalog("deepseek-v4.1-flash", "H200", 4, "bf16", 1048576),
+        _catalog("deepseek-v4.1-flash", "H100", 4, "mxfp4+fp8", 1048576),
+    ):
+        assert (
+            build_endpoint_document((record,), fetch_catalog=lambda _o, c=card: c) == ()
+        )
+
+
+def test_a_dropped_registration_says_why(caplog):
+    """A silent drop is what made a whole lane unserviceable without a reason."""
+    record = ServeRegistration(
+        "deepseek-v4.1-flash", "node-a", 18810, "99", 4, "mxfp4+fp8", "H200"
+    )
+    with caplog.at_level("WARNING"):
+        assert (
+            build_endpoint_document(
+                (record,),
+                fetch_catalog=lambda _origin: _bare_catalog("other-model", 4096),
+            )
+            == ()
+        )
+
+    assert "deepseek-v4.1-flash" in caplog.text
+    assert "99" in caplog.text

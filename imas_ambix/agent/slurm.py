@@ -22,6 +22,11 @@ _DRAIN_SIDECAR = (
     Path(__file__).resolve().parents[2] / "scripts" / "slurm" / "drain_sidecar.sh"
 )
 
+# Accelerator family for this site. Recorded on every registration, not only
+# on the vLLM catalog block, because routing now reads topology from the
+# registration rather than from whatever the engine can echo back.
+_ACCELERATOR_FAMILY = "H200"
+
 _MODEL_DIR_TOKEN = "__AMBIX_MODEL_DIR__"
 _PORT_TOKEN = "__AMBIX_PORT__"
 _CATALOG_MIDDLEWARE = "imas_ambix.agent.vllm_catalog.GlobalModelCatalogMiddleware"
@@ -103,6 +108,7 @@ def _render_shell_command(args: list[str]) -> str:
 def _build_sglang_args(profile: ModelProfile, site: SiteConfig) -> list[str]:
     """Build common SGLang launch_server arguments."""
     engine = profile.engine
+    auto_pool = engine.auto_size_kv_pool and engine.max_total_tokens is None
     max_tokens = engine.max_total_tokens or profile.model.max_context
     if engine.container is not None:
         # Serve from the vendor image. The interpreter is the container's, not
@@ -137,8 +143,6 @@ def _build_sglang_args(profile: ModelProfile, site: SiteConfig) -> list[str]:
         str(engine.mem_fraction_static),
         "--chunked-prefill-size",
         str(engine.chunked_prefill_size),
-        "--max-total-tokens",
-        str(max_tokens),
         "--attention-backend",
         engine.attention_backend,
         "--host",
@@ -146,6 +150,12 @@ def _build_sglang_args(profile: ModelProfile, site: SiteConfig) -> list[str]:
         "--port",
         _PORT_TOKEN,
     ]
+
+    # Omitted entirely when the profile asks the engine to size the pool, so
+    # SGLang computes it from the memory left after weights rather than from a
+    # figure derived here.
+    if not auto_pool:
+        _append_option(args, "--max-total-tokens", max_tokens)
 
     _append_flag(args, "--trust-remote-code", engine.trust_remote_code)
     _append_flag(args, "--enable-mixed-chunk", engine.enable_mixed_chunk)
@@ -391,7 +401,7 @@ def generate_serve_script(
             raise ValueError("vLLM catalog serving requires model.checkpoint_precision")
         metadata = {
             profile.model.served_name: {
-                "accelerator_family": "H200",
+                "accelerator_family": _ACCELERATOR_FAMILY,
                 "accelerator_count": profile.slurm.gpus,
                 "checkpoint_precision": precision,
             }
@@ -761,7 +771,8 @@ def generate_serve_script(
             --port "$PORT" \
             --job-id "$SLURM_JOB_ID" \
             --accelerator-count "${{SLURM_GPUS_ON_NODE:-{profile.slurm.gpus}}}" \
-            --checkpoint-precision {shlex.quote(checkpoint_precision)}
+            --checkpoint-precision {shlex.quote(checkpoint_precision)} \
+            --accelerator-family {shlex.quote(_ACCELERATOR_FAMILY)}
 
         {evictor_block}
 

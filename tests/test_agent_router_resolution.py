@@ -28,6 +28,7 @@ def _record(
         job_id=job_id,
         accelerator_count=4,
         checkpoint_precision="int4",
+        accelerator_family="H200",
     )
 
 
@@ -80,6 +81,7 @@ def test_registration_becomes_probe_qualified_upstream(tmp_path, monkeypatch):
             "http://98dci4-gpu-0003:18801",
             ("Authorization", "Bearer secret"),
             "glm-5.3",
+            4,
         )
     ]
     assert probe_keys == [None]
@@ -136,7 +138,7 @@ def test_probe_qualified_record_survives_scheduler_fallback_outage(
     upstreams = cli_mod._resolve_router_upstreams(site, None)
 
     assert upstreams == [
-        router_mod.Upstream("http://98dci4-gpu-0003:18801", None, "glm-5.3")
+        router_mod.Upstream("http://98dci4-gpu-0003:18801", None, "glm-5.3", 4)
     ]
 
 
@@ -156,7 +158,7 @@ def test_registration_wins_deduplication_and_restart_uses_new_port(
     upstreams = cli_mod._resolve_router_upstreams(site, None)
 
     assert upstreams == [
-        router_mod.Upstream("http://98dci4-gpu-0003:19444", None, "glm-5.3")
+        router_mod.Upstream("http://98dci4-gpu-0003:19444", None, "glm-5.3", 4)
     ]
 
 

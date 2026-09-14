@@ -1425,6 +1425,9 @@ def _resolve_router_upstreams(site: SiteConfig, api_key: str | None) -> list[Ups
                 base_url=record.origin,
                 auth_header=auth_header,
                 model_id=record.model_id,
+                # Width from the record the serve wrote, so ranking does not
+                # depend on the engine echoing it back through its catalog.
+                accelerator_count=record.accelerator_count,
             )
         )
         seen_origins.add(record.origin.rstrip("/"))

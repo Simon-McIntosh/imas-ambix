@@ -136,6 +136,14 @@ class EngineConfig(BaseModel):
     disable_piecewise_cuda_graph: bool = False
     disable_custom_all_reduce: bool = False
     max_total_tokens: int | None = None
+    # Let the engine size the KV pool from the memory actually left after
+    # weights, instead of passing a figure. ``max_total_tokens`` otherwise
+    # falls back to the model's full context, which is a per-request limit and
+    # a poor pool size -- it makes one full-context request consume everything.
+    # Sizing it by hand means extrapolating a per-token cost that is mostly a
+    # fixed base, so the engine's own allocator is the better estimator.
+    # SGLang-only; ignored when ``max_total_tokens`` is set.
+    auto_size_kv_pool: bool = False
     # ``flashinfer_mxfp4`` is what keeps MXFP4 routed experts at their shipped
     # precision on SM90, where there are no FP4 tensor cores — without it the
     # experts need an FP8 conversion pass and a second checkpoint.

@@ -125,6 +125,11 @@ class Upstream:
     base_url: str
     auth_header: tuple[str, str] | None = None
     model_id: str | None = None
+    # Accelerator width, carried from the registration the serving allocation
+    # wrote. Ranking reads it from here rather than from the engine's card so
+    # an engine with no way to echo our own metadata back is still rankable.
+    # ``None`` where the upstream was discovered without a registration.
+    accelerator_count: int | None = None
 
 
 class UpstreamResolver(Protocol):
@@ -153,19 +158,41 @@ class _Catalog:
 _Owner = tuple[Upstream, dict[str, Any]]
 
 
-def _routing_rank(card: Mapping[str, Any]) -> tuple[int, int | None]:
+def _routing_rank(
+    upstream: Upstream, card: Mapping[str, Any]
+) -> tuple[int | None, int | None]:
     """Score one engine by how many accelerators it holds and when it started.
 
-    Every card the router accepts has passed catalog validation, so the
-    accelerator count is always an integer and always comparable. The start
-    stamp is the card's ``created`` field, which an engine may omit or report
-    in a form that cannot be ordered; ``None`` records that absence rather
-    than substituting a value, so a pair that only differs there stays
-    unranked instead of being separated by an invented default.
+    The width comes from the upstream's registration, which the serving
+    allocation wrote from its own profile, and falls back to the engine's card
+    where an upstream was discovered without one. Either way ``None`` records
+    that the width is unknown rather than substituting a value -- an engine
+    that cannot echo site metadata must not be ranked as though it were narrow.
+
+    The start stamp is the card's ``created`` field, which an engine may omit
+    or report in a form that cannot be ordered; ``None`` records that absence
+    for the same reason, so a pair that only differs there stays unranked
+    instead of being separated by an invented default.
     """
-    accelerators = card["ambix"]["accelerator_count"]
+    accelerators = upstream.accelerator_count
+    if accelerators is None:
+        metadata = card.get("ambix")
+        if isinstance(metadata, Mapping):
+            declared = metadata.get("accelerator_count")
+            accelerators = declared if type(declared) is int else None
     created = card.get("created")
     return accelerators, created if type(created) is int else None
+
+
+def _reported_width(upstream: Upstream, card: Mapping[str, Any]) -> int | None:
+    """Return the accelerator width for logging, or None when it is unknown.
+
+    Shares _routing_rank's resolution so a log line never claims a width that
+    ranking did not use, and never raises on an engine that carries no site
+    metadata.
+    """
+    width, _ = _routing_rank(upstream, card)
+    return width
 
 
 def _preferred_owner(owners: Sequence[_Owner]) -> _Owner | None:
@@ -180,13 +207,24 @@ def _preferred_owner(owners: Sequence[_Owner]) -> _Owner | None:
     the two leaders are indistinguishable on both terms there is no ground for
     preferring either, and the caller refuses instead of choosing arbitrarily.
     """
-    ranks = [_routing_rank(card) for _, card in owners]
-    widest = max(accelerators for accelerators, _ in ranks)
-    leaders = [
-        (owner, started)
-        for owner, (accelerators, started) in zip(owners, ranks, strict=True)
-        if accelerators == widest
-    ]
+    ranks = [_routing_rank(upstream, card) for upstream, card in owners]
+    widths = [accelerators for accelerators, _ in ranks]
+    if any(width is None for width in widths):
+        # One unknown width makes the whole comparison unsound: preferring a
+        # known 4 over an unknown would be ranking on the absence of metadata
+        # rather than on capacity. Drop the width term for everyone and let the
+        # start stamp decide, which still favours the engine replacing its peer
+        # and still refuses when there is no ground to choose.
+        leaders = [
+            (owner, started) for owner, (_, started) in zip(owners, ranks, strict=True)
+        ]
+    else:
+        widest = max(widths)
+        leaders = [
+            (owner, started)
+            for owner, (accelerators, started) in zip(owners, ranks, strict=True)
+            if accelerators == widest
+        ]
     if len(leaders) == 1:
         return leaders[0][0]
     if any(started is None for _, started in leaders):
@@ -285,11 +323,11 @@ class RouterApp:
         upstream, card = selected
         if len(owners) > 1:
             logger.info(
-                "router preference model=%s candidates=%d origin=%s accelerators=%d",
+                "router preference model=%s candidates=%d origin=%s accelerators=%s",
                 model_id,
                 len(owners),
                 upstream.base_url,
-                card["ambix"]["accelerator_count"],
+                _reported_width(upstream, card),
             )
 
         consumer = self._consumer_id(scope)
@@ -347,7 +385,14 @@ class RouterApp:
         for card in payload["data"]:
             if not isinstance(card, dict) or not isinstance(card.get("id"), str):
                 raise ValueError("catalog cards must carry native ids")
-            validate_catalog_metadata({card["id"]: card.get("ambix")})
+            # Validate the site metadata when the engine carries it, and accept
+            # the card when it does not. Requiring it here made routing a
+            # vLLM-only surface, because the block is launch-owned data echoed
+            # back through a middleware that only vLLM accepts -- so an engine
+            # without that channel was unroutable regardless of health. The
+            # width used for ranking now comes from the registration instead.
+            if card.get("ambix") is not None:
+                validate_catalog_metadata({card["id"]: card["ambix"]})
             cards.append(card)
         return _Catalog(upstream=upstream, payload=payload, cards=tuple(cards))
 
@@ -357,9 +402,7 @@ class RouterApp:
             await self._json_error(send, 503, "no upstream catalogs are reachable")
             return
         owners = [
-            (catalog.upstream, card)
-            for catalog in catalogs
-            for card in catalog.cards
+            (catalog.upstream, card) for catalog in catalogs for card in catalog.cards
         ]
         cards: list[dict[str, Any]] = []
         duplicates: list[str] = []
@@ -373,11 +416,11 @@ class RouterApp:
                 continue
             upstream, card = preferred
             logger.info(
-                "router preference model=%s candidates=%d origin=%s accelerators=%d",
+                "router preference model=%s candidates=%d origin=%s accelerators=%s",
                 model_id,
                 len(peers),
                 upstream.base_url,
-                card["ambix"]["accelerator_count"],
+                _reported_width(upstream, card),
             )
             cards.append(card)
         if duplicates:
