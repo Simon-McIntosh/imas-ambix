@@ -553,6 +553,39 @@ The operationally useful form is the order of magnitude: **tens of sessions, not
 thousands.** Re-derive from `Running` against KV occupancy whenever the pool
 size or the working context length changes.
 
+**Do not impose a per-session seat cap. There is no evidenced one, and seats are
+the wrong unit.** The lane is one shared engine, so the only quantity that means
+anything is **tokens resident in the shared KV pool**, and a per-session
+allowance cannot be converted into it without knowing every other session's
+working context. Five sessions each holding to "six" is not a policy — it is
+either 30 sessions or 6, nobody can tell which, and no counter anywhere records
+the intent. That is the deleted admission filter reappearing as social
+convention, with strictly worse properties: unlogged, unenforced, and invisible
+to the engine it claims to protect.
+
+**What the data actually supports, as of 2026-09-14:** nothing has been observed
+to bind. Peak KV occupancy ever recorded is **53.0%**, `num_preemptions_total`
+has never left **0**, and sustained `Waiting` above zero has never been seen
+under real traffic. Live mixed load across four projects has run at 8-11
+concurrent sessions at 27-48% occupancy without touching anything. **The binding
+point is unmeasured**, so any seat number — six, twenty-five, forty-five — is an
+extrapolation wearing the costume of a limit.
+
+**So the instruction to a fleet is not a number, it is an instrument.** Dispatch
+to the width your dependency graph actually offers, and read the engine rather
+than a quota:
+
+| read | means |
+|---|---|
+| `Waiting` sustained above 0 across several polls | the scheduler is queueing; a single-poll wait is granularity, not pressure |
+| KV occupancy trending toward 100% | the pool is the constraint; re-derive the arithmetic above |
+| `num_preemptions_total` rising | saturated — recomputing, and the lane is silently slowing |
+
+Until one of those moves, the lane is not the limit and a self-imposed cap is
+costing throughput for no measured reason. If one of them does move, it is a
+global signal and the response is a global one, negotiated across the sessions
+sharing the lane — not a number each invents alone.
+
 **Pair an engine counter only with a WORKSTATION-WIDE run count.** The engine
 counts every fleet on the lane, so a per-project count paired against it
 inflates the ratio by however many other projects are running. Measured
