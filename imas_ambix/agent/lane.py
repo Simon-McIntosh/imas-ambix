@@ -297,6 +297,20 @@ def write_lane_document(capacity: LaneCapacity, path: str | Path) -> Path:
                 "headroom = concurrent_requests - running"
             ),
         },
+        # The budget collapses within the first minute of a wave dispatching.
+        # Measured 2026-09-14 across three consecutive 30-second samples with
+        # `running` unchanged at 19: mean context 15,586 -> ~62,865 -> 73,121
+        # tokens, so the budget read 141, then 35, then 30. Nothing joined or
+        # left; the same requests went from their first tokens to their real
+        # working context. So the WORST moment to read this document is
+        # immediately after dispatching, which is exactly when a coordinator
+        # would naturally read it. Prefer a reading taken before a dispatch to
+        # one taken after, and treat any reading whose age is under about a
+        # minute on a just-widened fleet as provisional.
+        "settling_caveat": (
+            "a reading taken within ~60s of a dispatch reports the fleet at its "
+            "lightest; prefer a pre-dispatch reading"
+        ),
         # Declared, not enforced. The producer must not bake in a constant that
         # is right at one fleet age: measured 2026-09-14 the budget moved from
         # 143 to 38 in roughly twenty minutes as a fresh wave accumulated

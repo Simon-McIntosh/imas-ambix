@@ -586,6 +586,25 @@ costing throughput for no measured reason. If one of them does move, it is a
 global signal and the response is a global one, negotiated across the sessions
 sharing the lane — not a number each invents alone.
 
+**The budget collapses in the first minute after a wave dispatches, so the
+worst moment to read it is immediately after dispatching.** Measured 2026-09-14
+across three consecutive 30-second samples with `running` unchanged at 19:
+
+| sample | mean context | budget | headroom |
+|---|---|---|---|
+| 16:21:21Z | 15,586 | 141 | 122 |
+| 16:21:51Z | ~62,865 | 35 | 16 |
+| 16:22:21Z | 73,121 | 30 | 14 |
+
+Nothing joined or left. The same nineteen requests went from their first tokens
+to their real working context, and the budget fell by a factor of five in thirty
+seconds. A freshly dispatched worker's first request carries almost no context,
+so a reading taken right after a dispatch catches the fleet at its lightest and
+reports a figure roughly eight times too generous — **at exactly the moment a
+coordinator would naturally take it**, and on the strength of which they would
+dispatch again. Prefer a reading taken BEFORE a dispatch to one taken after, and
+treat any reading on a just-widened fleet as provisional until it settles.
+
 **Pair an engine counter only with a WORKSTATION-WIDE run count.** The engine
 counts every fleet on the lane, so a per-project count paired against it
 inflates the ratio by however many other projects are running. Measured
