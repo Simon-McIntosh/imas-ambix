@@ -586,6 +586,43 @@ costing throughput for no measured reason. If one of them does move, it is a
 global signal and the response is a global one, negotiated across the sessions
 sharing the lane — not a number each invents alone.
 
+**EVERY measurement error found on this lane runs toward APPARENT HEADROOM.**
+Three independent instances, none of which has ever flattered the lane in the
+direction of caution:
+
+| error | direction |
+|---|---|
+| a reading taken mid-settle | budget ~8x too generous |
+| a parser returning low utilisation on an unrecognised shape | looks idle |
+| a figure carrying an inherited denominator | looks under-used |
+
+Treat that as the prior when reading anything here: **when a lane figure and
+your instinct disagree, the figure is more likely to be optimistic than your
+instinct is to be paranoid.** A fourth instance should be assumed to exist and
+be looked for, rather than waited for.
+
+**The ramp's own answer, measured 2026-09-14 with explicit authorisation to
+crash the serve.** Three coordinators tried to saturate the lane and could not:
+
+| coordinator | width offered | why |
+|---|---|---|
+| one | 0 | sprint scope complete; nothing dispatchable without manufacturing it |
+| another | 0 more | every file in the closure claimed by a live node |
+| a third | 2 running | `recovery.py` in three pending sections, `ticker.py` in two |
+
+The middle one attempted a real dispatch and was **refused by the scope
+validator**, not by policy or caution: `write scope 'reckon/_backends.py'
+conflicts with live claim held by run 'lane-account-reading'`. The lane at that
+moment reported `headroom 16`, `waiting 0`, `preemptions 0`, and would have
+taken the work without noticing.
+
+So the binding constraint on this workstation is neither KV, nor admission, nor
+preemption: it is **the number of independent units of work a dependency graph
+offers at a given moment**, because two workers must never write one file. That
+is a property of the plan. No lifted ceiling, no deleted filter and no memory
+split moves it, and three sessions working in good faith could not fill a lane
+none of them could saturate.
+
 **The budget collapses in the first minute after a wave dispatches, so the
 worst moment to read it is immediately after dispatching.** Measured 2026-09-14
 across three consecutive 30-second samples with `running` unchanged at 19:
