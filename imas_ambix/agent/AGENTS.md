@@ -449,37 +449,48 @@ so the engine is always the binding constraint. It is explicit because
 aiohttp's unset default is **100**, which would silently cap the lane below
 `max_num_seqs` with nothing in any log to say so.
 
-**The operational ceiling is activation memory, and it is far below
-`max_num_seqs`.** Measured 2026-09-14 on the four-card V4-Flash serve by walking
-concurrency until it broke:
+**The operational ceiling is activation memory, not the sequence cap — and at
+the right memory split there is no crash edge in the operational range at all.**
+Measured 2026-09-14 on the four-card V4-Flash serve by walking concurrency until
+it broke, at two values of `mem_fraction_static`:
 
-| concurrent short requests | outcome |
-|---|---|
-| 32 | 32/32 served, 1,136 tok/s aggregate |
-| 64 | 64/64 served, 1,192 tok/s |
-| **128** | **128/128 served, 1,451 tok/s — proven good** |
-| 256 | **every request HTTP 500; EngineCore dead, endpoint gone** |
+| concurrent short requests | at 0.92 | at 0.85 |
+|---|---|---|
+| 128 | 128/128, 1,451 tok/s | 128/128, **2,483 tok/s** |
+| 256 | **every request HTTP 500; EngineCore dead, endpoint gone** | 256/256, 2,954 tok/s |
+| 512 | — | 512/512, 3,231 tok/s |
+| 768 | — | 768/768, 3,802 tok/s |
+| 1024 | — | 1024/1024, 3,683 tok/s |
+| 1536 | — | 1536/1536, **4,789 tok/s** |
 
-The engine reached 141 running and then died on `CUDA out of memory. Tried to
-allocate 1.51 GiB ... 1.19 GiB is free`, with **KV occupancy at 7.3%**. So
-`max_num_seqs = 1024` is not a capacity statement and **must never be sized
-against** — the serve cannot survive a fraction of it.
+At 0.92 the engine reached 141 running and died on `CUDA out of memory. Tried to
+allocate 1.51 GiB ... 1.19 GiB is free`, with **KV occupancy at 7.3%**. At 0.85
+no edge was found to 1536: engine peak **1023 running, 439 waiting, KV 53.0%,
+zero preemptions**. Above `max_num_seqs = 1024` it queues, which is the correct
+behaviour and not a failure.
 
 **What kills it is the allocation that lives OUTSIDE `mem_fraction_static`.**
 The fused-MoE workspace is allocated lazily at generation and scales with
-concurrency, so free memory after startup is not the margin. The budget is
-badly split for this workload: 70.01 GiB per card of KV pool running at 3-7%
-occupancy, while the engine dies wanting 1.5 GiB of activation space. Lowering
-the fraction trades a pool nothing uses for the headroom that actually binds;
-raising it moves the ceiling **down**.
+concurrency, so free memory after startup is not the margin. At 0.92 the split
+was wrong for this workload: 70.01 GiB per card of KV pool running at 3-7%
+occupancy, while the engine died wanting 1.5 GiB of activation space. Lowering
+the fraction to 0.85 returned ~9.8 GiB per card to that workspace and still left
+60.22 GiB of KV (2,200,283 tokens), far beyond the observed working set.
 
-**Failure at the edge is not graceful, which is why the edge needs a disposable
-job.** There is no backpressure, no queueing and no 429 — the API server fails
-to serialise its own error (`ValidationError` on
-`ChatCompletionStreamResponse`) and shuts down, taking every in-flight request
-with it. This ladder was run against a serve a live fleet was using and killed
-four of its workers. **Bisect a ceiling on a serve nobody needs.** The reasoning
-that permitted it is worth naming because it is seductive: the engine queues
+**The oversized pool was costing throughput everywhere, not only at the edge.**
+The same 128 concurrent requests went from 1,451 to 2,483 tok/s — 1.7x — purely
+from the memory split. So a pool sized past the working set is not free
+insurance; it is paid for in tokens per second at every width. Size the pool to
+the measured working set and give the remainder to the workspace.
+
+**Failure at the edge is not graceful, which is why a ceiling probe needs a
+disposable job.** At 0.92 there was no backpressure, no queueing and no 429 —
+the API server failed to serialise its own error (`ValidationError` on
+`ChatCompletionStreamResponse`) and shut down, taking every in-flight request
+with it. That ladder was run against a serve a live fleet was using and killed
+four of its workers, one holding 4.6M tokens over 65 turns with no commits.
+**Bisect a ceiling on a serve nobody needs.** The reasoning that permitted it is
+worth naming because it is seductive rather than careless: the engine queues
 rather than refuses, which was true at every width tested and false at the next
 one. *True at every width I have tested* is not *true at every width I am about
 to test*.
