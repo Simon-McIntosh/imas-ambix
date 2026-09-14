@@ -33,8 +33,23 @@
 #   KV is a rounding error either way — the compressed latents are stored in
 #   FP4 at 890 bytes/token, so the full 1M window costs ~0.89 GB.
 #
-# Throughput: not yet measured here. The DeepSeek beta reported 300-507 tok/s
-# output; treat that as the vendor's number on their own serving stack, not a
+# Measured on the first four-card serve, per rank:
+#   load weight begin        avail 138.72 GiB
+#   load weight end          avail  65.99 GiB   (weights 72.73 GiB/card)
+#   memory pool end          avail  49.05 GiB   (KV pool 16.94 GiB/card)
+#   decode CUDA graph end    avail  45.13 GiB   (graphs 1.33 GiB)
+# Four cards at 72.73 GiB is 290.9 GiB of weights against the 292.2 GiB the
+# host-table arithmetic predicts, so the offload does what it claims. The
+# Engram tables land as 2 layers x 4 ranks x ~24 GiB of pinned host memory,
+# 100% huge-page backed.
+#
+# Startup is dominated by reading the checkpoint off GPFS: load_weight 458.9 s,
+# kv_cache_allocation 6.6 s, decode graph capture 47.9 s, scheduler end-to-end
+# 670.1 s. Roughly eleven minutes from submit to first token; size any health
+# check's patience accordingly.
+#
+# Throughput not yet characterised here. The DeepSeek beta reported 300-507
+# tok/s output; that is the vendor's number on their own stack, not a
 # prediction for this deployment.
 #
 # License: MIT (fully permissive)
@@ -86,9 +101,22 @@ cuda_graph_max_bs_decode = 64
 max_total_tokens = 1048576
 trust_remote_code = true
 
+# "auto" resolves to this architecture's own parsers rather than a generic
+# fallback: the engine reports reasoning_parser "deepseek-v41" and
+# tool_call_parser "deepseekv41" at startup. Naming them explicitly would pin a
+# spelling that belongs to the engine build, not to the checkpoint.
 [engine.parsers]
 tool_call = "auto"
 reasoning = "auto"
+
+# Startup logs "No HuggingFace chat template found" and falls back to the
+# 'string' content format. That is EXPECTED for this model family and is not a
+# misconfiguration to chase: the checkpoint deliberately ships no
+# chat_template, carrying an encoding/ module instead, and the engine formats
+# chat through its own vendored encoder
+# (srt/entrypoints/openai/encoding_dsv41.py) rather than through Jinja.
+# Supplying a chat template here would override a correct encoder with a
+# guess.
 
 [engine.env]
 # Move the 183.1 GiB of Engram tables into one shared host-resident copy.
