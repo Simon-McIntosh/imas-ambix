@@ -436,6 +436,25 @@ burned 30 seconds before failing — while the engine sat at **0.0% KV occupancy
 with a 1024-sequence ceiling. Eight concurrent completions ran at **872 tok/s**
 direct against **110 tok/s** through the shared bucket.
 
+**The deployed ceiling was not the configured one, and nothing said so.** The
+filter had been deliberately set to sixteen in flight and forty-eight queued
+after an earlier fleet die-off, and the router measured here was running the
+code defaults of two and four. Eight concurrent requests from one consumer
+returned 6 x 200 and 2 x 429 in both repeats, which is exactly `2 + 4`. The
+mechanism: the launch command supplied the value, and the option's fallback was
+the dataclass default, so a relaunch that omitted the flag silently produced a
+router four times tighter than the one anyone had reasoned about. Two sessions'
+measurements of "the same" router were therefore both correct and described
+different systems -- 29,384 responses with zero refusals against 1,075 with
+37.4%.
+
+**A limit that lives only in an invocation will eventually be launched without
+it.** There was no log line, no warning, and nothing in the published document
+recording which value was in force. Prefer a configured default in code that a
+launch can raise, over a launch argument that a launch can forget; and where a
+bound matters, publish the value in force rather than leaving it inferable only
+from behaviour.
+
 **Its worst failure was not the throughput.** A worker that exhausted its
 context tried to compact, and the compaction request was refused by the queue —
 so a recoverable condition became a dead run, reported as `Prompt is too long —
