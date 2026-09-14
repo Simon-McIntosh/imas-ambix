@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-14T13:04:28",
+  "updated": "2026-09-14T13:54:06",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -1344,7 +1344,8 @@
         "session_model": "gpt-5.6-sol",
         "sessions": {
           "{\"alias\":\"sol5.6\",\"backend\":\"codex\",\"effort\":\"high\",\"launch\":\"cli\",\"model\":\"gpt-5.6-sol\",\"sandbox\":\"worktree-full\"}": "01a09f2a-aacf-71a3-b0df-2eb0f5b749fd",
-          "{\"alias\":\"dsv4-flash\",\"backend\":\"clive\",\"effort\":\"high\",\"launch\":\"cli\",\"local\":true,\"model\":\"deepseek-v4.1-flash\",\"sandbox\":\"worktree-full\",\"usable_input_window\":1016576}": "c8dc0e13-08c0-4720-ab46-98217619d897"
+          "{\"alias\":\"dsv4-flash\",\"backend\":\"clive\",\"effort\":\"high\",\"launch\":\"cli\",\"local\":true,\"model\":\"deepseek-v4.1-flash\",\"sandbox\":\"worktree-full\",\"usable_input_window\":1016576}": "c8dc0e13-08c0-4720-ab46-98217619d897",
+          "{\"alias\":\"dsv4.1-flash\",\"backend\":\"clive\",\"effort\":\"high\",\"launch\":\"cli\",\"local\":true,\"model\":\"deepseek-v4.1-flash\",\"sandbox\":\"worktree-full\",\"usable_input_window\":1016576}": "119efd7e-b06c-491d-9c17-b954ac6130e2"
         },
         "created": "2026-09-14"
       },
@@ -32448,6 +32449,191 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260914T110631398814-ktransformers-env-split",
+        "plan": "dsv41-flash-serve-characterisation",
+        "section": "\u00a75",
+        "node": "ktransformers-env-split",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1305,
+                "cached_input_tokens": 852324,
+                "input_tokens": 853631,
+                "output_tokens": 1105,
+                "reasoning_output_tokens": 235,
+                "total_tokens": 854736,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "52baf927-8066-49b2-94da-e4d32c07a1f3",
+            "session_id": "dsv41-char"
+          },
+          "done_when": "imas_ambix/agent/envs/ktransformers/pyproject.toml exists carrying kt-kernel and requiring python >=3.12,<3.13; imas_ambix/agent/envs/sglang/pyproject.toml no longer lists kt-kernel; SiteConfig._engine_key returns 'ktransformers' for the ktransformers engine rather than mapping it onto sglang; and uv run pytest tests/test_agent.py reports the same pass count as at base with zero failures",
+          "estimated_hours": null,
+          "goal": "Give the ktransformers engine its own uv environment so the sglang environment no longer carries kt-kernel",
+          "id": "ktransformers-env-split",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-14T11:06:31Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260914T110631398814-ktransformers-env-split/manifest.md",
+          "plan": "dsv41-flash-serve-characterisation",
+          "requested_backend": null,
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a75",
+          "spec_level": "guided",
+          "time_budget": "30m",
+          "token_budget": null,
+          "write_paths": [
+            "imas_ambix/agent/envs/ktransformers/pyproject.toml",
+            "imas_ambix/agent/envs/sglang/pyproject.toml",
+            "imas_ambix/agent/profile.py",
+            "tests/test_agent.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "session-d0425c5e57073f92e189",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "high",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "worktree-full",
+          "usable_input_window": 1016576
+        },
+        "dispatched_at": "2026-09-14T11:06:40Z",
+        "completed_at": "2026-09-14T11:39:04.572Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 1934,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 1944,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "79c6687130aa1a608f335d9354adcfa497fa6547",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "not-run",
+        "gate_check": null,
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260914T110631398814-ktransformers-env-split/manifest.md",
+        "scope_changed": true,
+        "session_id": "119efd7e-b06c-491d-9c17-b954ac6130e2",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 2126594,
+            "input_tokens_cumulative": 2126594,
+            "output_tokens": 8015,
+            "output_tokens_cumulative": 8015,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-14T11:39:04.572Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": {
+          "attempt": 2,
+          "kind": "redispatch",
+          "previous_run_id": "r-20260914T101305786843-ktransformers-env-split",
+          "root_run_id": "r-20260914T101305786843-ktransformers-env-split"
+        },
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 2126594,
+          "detail": "generation and wall clock reported separately by the backend",
+          "elapsed_seconds": 1941.383,
+          "generated_tokens": 8015,
+          "generation_seconds": 1914.962,
+          "input_budget_tokens": 200000,
+          "input_utilisation_pct": 54.5,
+          "machine_seconds": 26.421,
+          "peak_input_tokens": 108950,
+          "tokens_per_second": 4.19,
+          "wall_tokens_per_second": 4.13
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "uv run pytest tests/test_agent.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        },
+        "attempt_kind": "redispatch",
+        "attempt": 2,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/dsv41-char/ktransformers-env-split",
+          "session_id": "119efd7e-b06c-491d-9c17-b954ac6130e2",
+          "session_source": "pointer",
+          "retained_at": "2026-09-14T11:39:04.572Z"
+        },
+        "predecessor_run": null,
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "tool_steps": 27.0,
+        "orientation_input_tokens": 1586363.0,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -32494,6 +32680,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 599
+    "_version": 601
   }
 }
