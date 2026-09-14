@@ -92,22 +92,35 @@ def test_nothing_binding_is_reported_as_unmeasured_not_as_headroom():
     assert "extrapolation" in quiet.summary()
 
 
-@pytest.mark.parametrize(
-    ("waiting", "preemptions"),
-    [(3.0, 0.0), (0.0, 5.0)],
-)
-def test_waiting_or_preemption_marks_the_lane_as_actually_binding(
-    waiting, preemptions
-):
-    """Either signal is the lane speaking for itself rather than being modelled."""
-    capacity = parse_lane_capacity(
-        _metrics(
-            running=10, occupancy=0.9, waiting=waiting, preemptions=preemptions
-        )
+def test_only_preemption_marks_the_lane_as_saturated():
+    """Durable evidence only. A queue depth is an instantaneous reading.
+
+    Preemption is cumulative and monotonic, so a non-zero count cannot be a
+    sampling artefact. Waiting is routinely non-zero for a single poll under
+    normal scheduling -- measured on this lane at four waiting against two
+    running, cleared within one poll, no preemption.
+    """
+    preempting = parse_lane_capacity(
+        _metrics(running=10, occupancy=0.9, preemptions=5.0)
     )
 
-    assert capacity.binding_observed is True
-    assert "binding" in capacity.summary()
+    assert preempting.binding_observed is True
+    assert "SATURATED" in preempting.summary()
+
+
+def test_a_momentary_queue_is_not_reported_as_saturation():
+    """The first version of this field went true at waiting=2 on a healthy lane.
+
+    A consumer gating on that refuses work the engine would have taken, which is
+    the defect the deleted admission filter embodied.
+    """
+    queued = parse_lane_capacity(
+        _metrics(running=16, occupancy=0.514, waiting=2.0, preemptions=0.0)
+    )
+
+    assert queued.binding_observed is False, "a queue depth is not saturation"
+    assert "granularity, not pressure" in queued.summary()
+    assert "SATURATED" not in queued.summary()
 
 
 def test_metrics_without_a_pool_size_are_refused():

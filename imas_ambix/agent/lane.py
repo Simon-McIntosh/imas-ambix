@@ -84,13 +84,28 @@ class LaneCapacity:
 
     @property
     def binding_observed(self) -> bool:
-        """Whether anything has actually been seen to constrain the lane.
+        """Whether SATURATION has actually been seen, on durable evidence only.
+
+        Preemption is cumulative and monotonic: once the engine has recomputed
+        a request it cannot un-recompute it, so a non-zero count cannot be a
+        sampling artefact. A queue depth cannot make the same claim -- it is an
+        instantaneous reading that is routinely non-zero for a single poll under
+        normal scheduling, and every such event measured on this lane cleared
+        within one or two polls with no preemption at all, including one at four
+        waiting against two running.
+
+        So waiting is deliberately NOT part of this. Measured 2026-09-14: the
+        first version included it and went true at `waiting: 2` on a lane that
+        was not saturated, with the next sample reading 1. A consumer gating on
+        that would refuse work the engine would have taken, which is the defect
+        the deleted admission filter embodied. Sustained waiting is reported
+        separately, by a producer that can count consecutive samples.
 
         False means every ceiling here is extrapolated and none of it has been
-        tested. Treating "not binding at the loads we could produce" as "not
+        tested; treating "not binding at the loads we could produce" as "not
         binding" is the error this flag exists to keep visible.
         """
-        return self.preemptions > 0 or self.waiting > 0
+        return self.preemptions > 0
 
     def summary(self) -> str:
         """Render one line per fact, naming what is measured and what is not."""
@@ -117,7 +132,13 @@ class LaneCapacity:
             lines.append(f"headroom        {self.headroom} more")
         if self.binding_observed:
             lines.append(
-                "STATUS          something is binding — read waiting/preemptions"
+                "STATUS          SATURATED — the engine is preempting and "
+                "recomputing"
+            )
+        elif self.waiting > 0:
+            lines.append(
+                f"STATUS          {self.waiting} waiting this sample; a single "
+                "poll is scheduler granularity, not pressure"
             )
         else:
             lines.append(

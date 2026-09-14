@@ -832,6 +832,71 @@ def generate_serve_script(
     return "\n".join([*headers, "", script_body, ""])
 
 
+def generate_lane_refresher_script(
+    site: SiteConfig,
+    *,
+    origin: str,
+    interval: int = 30,
+    memory: str = "2G",
+) -> str:
+    """Generate a standing CPU job that republishes the shared lane reading.
+
+    Its own job rather than a thread inside the router or a session, for two
+    reasons measured on this workstation. A producer that dies with its
+    coordinator stops silently and looks exactly like a quiet lane. And a
+    consumer reading a document nobody refreshes gets a figure that is stale on
+    every read, which under the reader's own freshness rule degrades to
+    "unknown" permanently -- a feed that looks wired and carries nothing.
+    """
+    if interval < 5:
+        raise ValueError("interval must be at least 5 seconds")
+    if not origin.strip():
+        raise ValueError("origin must not be empty")
+    if not memory.strip():
+        raise ValueError("memory must not be empty")
+
+    headers = _sbatch_headers(
+        job_name="ambix-lane",
+        partition=site.partition,
+        account=site.account,
+        reservation=site.reservation,
+        gpus=0,
+        cpus=1,
+        memory=memory,
+        time_limit="0",
+        output_name="ambix-lane-%j.log",
+    )
+    headers.append("#SBATCH --comment=ambix-lane")
+    repo_root = Path(__file__).resolve().parents[2]
+    command = shlex.join(
+        [
+            str(site.python_path("vllm")),
+            "-c",
+            "from imas_ambix.cli import main; main()",
+            "agent",
+            "lane",
+            "--origin",
+            origin,
+            "--publish",
+            "--refresh",
+            str(interval),
+        ]
+    )
+    script_body = dedent(
+        f"""
+        set -euo pipefail
+
+        export TMPDIR=/scratch_local/$SLURM_JOB_ID
+        mkdir -p "$TMPDIR"
+        export PYTHONPATH={repo_root}:${{PYTHONPATH:-}}
+
+        echo "[$(date)] Publishing lane readings from {origin} every {interval}s"
+        exec {command}
+        """
+    ).strip()
+    return "\n".join(headers) + "\n\n" + script_body + "\n"
+
+
 def generate_router_script(
     site: SiteConfig,
     *,

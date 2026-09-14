@@ -2820,7 +2820,20 @@ def _engine_runtime_check_script(
     is_flag=True,
     help="Write the reading beside the endpoint document for other sessions.",
 )
-def lane(origin: str | None, publish: bool) -> None:
+@click.option(
+    "--refresh",
+    type=click.IntRange(min=5),
+    default=None,
+    help="Republish every N seconds instead of reading once.",
+)
+@click.option(
+    "--submit",
+    is_flag=True,
+    help="Submit the refresher as a standing SLURM job instead of running it.",
+)
+def lane(
+    origin: str | None, publish: bool, refresh: int | None, submit: bool
+) -> None:
     """Report the shared lane's concurrency budget from live engine counters.
 
     One engine serves every session on the workstation, so the quantity that
@@ -2836,7 +2849,11 @@ def lane(origin: str | None, publish: bool) -> None:
     import json
     from pathlib import Path
 
-    from imas_ambix.agent.lane import fetch_lane_capacity, write_lane_document
+    from imas_ambix.agent.lane import (
+        fetch_lane_capacity,
+        write_lane_document,
+        write_unavailable_document,
+    )
 
     site = SiteConfig.from_env()
     resolved = origin
@@ -2852,17 +2869,70 @@ def lane(origin: str | None, publish: bool) -> None:
         first = endpoints[0]
         resolved = f"http://{first['host']}:{first['port']}"
 
-    try:
-        capacity = fetch_lane_capacity(resolved)
-    except (OSError, ValueError) as error:
-        raise click.ClickException(f"could not read {resolved}: {error}") from error
+    document_path = Path(site.endpoint_document).with_name("lane.json")
 
-    console.print(capacity.summary(), markup=False, highlight=False)
-    if publish:
-        written = write_lane_document(
-            capacity, Path(site.endpoint_document).with_name("lane.json")
+    if submit:
+        if refresh is None:
+            raise click.ClickException("--submit requires --refresh N")
+        from imas_ambix.agent.slurm import (
+            generate_lane_refresher_script,
+            submit_script,
         )
-        console.print(f"\npublished {written}", markup=False, highlight=False)
+
+        script = generate_lane_refresher_script(
+            site, origin=resolved, interval=refresh
+        )
+        try:
+            job_id = submit_script(script)
+        except RuntimeError as error:
+            raise click.ClickException(str(error)) from error
+        console.print(
+            f"Submitted lane refresher job {job_id} reading {resolved} "
+            f"every {refresh}s."
+        )
+        return
+
+    if refresh is None:
+        try:
+            capacity = fetch_lane_capacity(resolved)
+        except (OSError, ValueError) as error:
+            raise click.ClickException(
+                f"could not read {resolved}: {error}"
+            ) from error
+        console.print(capacity.summary(), markup=False, highlight=False)
+        if publish:
+            written = write_lane_document(capacity, document_path)
+            console.print(f"\npublished {written}", markup=False, highlight=False)
+        return
+
+    # Standing refresh. A consumer reading a document nobody refreshes gets a
+    # stale figure on every read, which under the reader's own freshness rule
+    # degrades to "unknown" permanently -- the feed looks wired and carries
+    # nothing. This must run as its own long-lived job rather than inside a
+    # session: a producer that dies with its coordinator stops silently and
+    # looks exactly like a quiet lane.
+    import time
+
+    while True:
+        try:
+            capacity = fetch_lane_capacity(resolved)
+        except (OSError, ValueError) as error:
+            # Publish the failure rather than leaving the last good reading to
+            # age into a lie. A reader can distinguish "could not measure, here
+            # is why" from a figure whose vintage merely slipped.
+            write_unavailable_document(str(error), document_path)
+            console.print(
+                f"unavailable: {error}", markup=False, highlight=False
+            )
+        else:
+            write_lane_document(capacity, document_path)
+            console.print(
+                f"{capacity.running} running · headroom {capacity.headroom} · "
+                f"binding {capacity.binding_observed}",
+                markup=False,
+                highlight=False,
+            )
+        time.sleep(refresh)
 
 
 @agent.command()
