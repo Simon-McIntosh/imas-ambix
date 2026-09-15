@@ -4,8 +4,10 @@ output ceilings so a request can never overflow the owning engine's window."""
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
+import os
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Protocol
@@ -185,6 +187,10 @@ class RouterApp:
         self._lane_document = lane_document
         self._lane_interval = lane_interval
         self._lane_task: asyncio.Task[None] | None = None
+        # Opt-in, because it logs one line per routed request. Hashes only.
+        self._prefix_diagnostic = (
+            os.environ.get("AMBIX_ROUTER_PREFIX_PROBE", "").strip() == "1"
+        )
         self._timeout = timeout or aiohttp.ClientTimeout(total=None, connect=10)
         self._session: aiohttp.ClientSession | None = None
         # The engine schedules its own work -- continuous batching, a waiting
@@ -255,6 +261,7 @@ class RouterApp:
                 _reported_width(upstream, card),
             )
 
+        self._log_prefix_divergence(payload, scope)
         relay_body = self._clamp_output_tokens(payload, body, card)
         await self._relay(scope, receive, send, relay_body, upstream)
 
@@ -275,6 +282,59 @@ class RouterApp:
                     self._session = None
                 await send({"type": "lifespan.shutdown.complete"})
                 return
+
+    def _log_prefix_divergence(self, payload: object, scope: Mapping[str, Any]) -> None:
+        """Record where one caller's prompt stops matching its previous turn.
+
+        A prefix cache that is consulted and still misses is being asked about a
+        prefix that genuinely differs. Measured 2026-09-15: queries ran at 1.12x
+        prompt tokens, so every token was looked up, while the hit rate sat near
+        37% on an almost empty lane -- which contention cannot explain. The
+        remaining candidate is that something varies at the HEAD of the prompt,
+        because a single changed byte early invalidates every block after it.
+
+        Hashes only, at increasing depths, so the log carries no prompt content:
+        the first depth whose digest changes between two consecutive turns is
+        where reuse dies. Divergence at the shallowest depth means the very top
+        of the prompt moves per request and no reuse is possible at all.
+        """
+        if not self._prefix_diagnostic:
+            return
+        try:
+            messages = payload.get("messages") if isinstance(payload, dict) else None
+            if not isinstance(messages, list):
+                return
+            flat = json.dumps(messages, separators=(",", ":"), sort_keys=False)
+        except (TypeError, ValueError):
+            return
+        digests = []
+        for depth in (512, 2048, 8192, 32768, 131072):
+            chunk = flat[:depth]
+            digests.append(
+                f"{depth}:{hashlib.sha256(chunk.encode()).hexdigest()[:8]}"
+            )
+            if len(flat) <= depth:
+                break
+        logger.info(
+            "prefix-probe consumer=%s chars=%d %s",
+            self._caller_hint(scope),
+            len(flat),
+            " ".join(digests),
+        )
+
+    @staticmethod
+    def _caller_hint(scope: Mapping[str, Any]) -> str:
+        """Identify the calling process well enough to group its own turns."""
+        headers = scope.get("headers") or ()
+        agent = b""
+        for name, value in headers:
+            if bytes(name).lower() == b"user-agent":
+                agent = bytes(value)
+                break
+        client = scope.get("client")
+        host = client[0] if isinstance(client, Sequence) and client else "unknown"
+        port = client[1] if isinstance(client, Sequence) and len(client) > 1 else 0
+        return f"{host}:{port}|{agent.decode('utf-8', 'replace')[:32]}"
 
     async def _publish_lane(self) -> None:
         """Republish the shared lane budget for as long as the router runs.
