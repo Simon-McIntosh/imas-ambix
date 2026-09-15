@@ -74,14 +74,28 @@ max_total_tokens = 1048576
 # and lives OUTSIDE this fraction — free memory after startup is not the
 # margin, it is the margin before the largest allocation the serve will make.
 #
-# 0.85 returns ~9.8 GiB per card to that workspace, more than the 1.51 GiB the
-# engine died asking for, and still leaves ~60 GiB of KV (~2.2M tokens) against
-# an observed working set under a tenth of that. Raising the fraction moves the
-# concurrency ceiling DOWN, which is why vLLM's startup offer of
-# `--kv-cache-memory=82366410240` (76.71 GiB, "to fully utilize gpu memory")
-# must be refused: it buys pool nothing uses by spending the headroom that
-# decides whether the endpoint survives.
-mem_fraction_static = 0.85
+# Raised back to 0.92 on 2026-09-15, deliberately and with its ceiling stated.
+#
+# 0.85 was chosen when the pool looked oversized -- occupancy sat at 3-7% and the
+# workspace was starving. Under real fleet load the opposite is true: the pool is
+# the constraint, because a prefix evicted before its session's next turn is
+# recomputed, and recomputation is what evicts the next session's prefix. More
+# pool means longer residency and fewer of those collisions.
+#
+# THE CEILING THIS BUYS BACK IS MEASURED, NOT ASSUMED. At 0.92 this serve carried
+# 128 concurrent requests cleanly at 1451 tok/s and DIED at 256: CUDA out of
+# memory asking 1.51 GiB with 1.19 GiB free, 141 running. The fused-MoE workspace
+# is allocated lazily at generation and scales with concurrency, outside this
+# fraction, so free memory after startup is not the margin -- it is the margin
+# before the largest allocation the serve will make.
+#
+# So this value is only safe while fleet concurrency stays well under 128. The
+# observed real-fleet peak is 36 concurrent requests, a 3.5x margin. It is NOT
+# enforced anywhere: if a dispatch cap is ever removed, or a synthetic sweep is
+# pointed at this endpoint, return to 0.85 first. vLLM's startup offer of
+# `--kv-cache-memory=82366410240` (76.71 GiB, "to fully utilize gpu memory") is
+# still refused -- it leaves no workspace margin at any concurrency.
+mem_fraction_static = 0.92
 kv_cache_dtype = "fp8"
 # Upstream recipe flags for this checkpoint family (recipes.vllm.ai + the
 # DSpark model card). block_size and tokenizer_mode are the vendor-documented
@@ -143,14 +157,17 @@ max_num_batched_tokens = 8192
 # why draining the fleet from 36 requests to 20 barely moved it: turnover is set
 # by the prefill rate, not the worker count.
 #
-# 96 GiB holds roughly 3.5M tokens at the measured 28.7 KiB/token, so combined
-# with the GPU pool the cache turns over in about 250 s rather than 98 -- past
-# the turn gap rather than inside it. Restoring a block over PCIe costs far less
-# than a forward pass through 284B parameters.
+# 128 GiB holds roughly 4.7M tokens at the measured 28.7 KiB/token. Combined with
+# the 0.92 GPU pool (~2.56M) that is ~7.2M tokens of cache, turning over in about
+# 320 s against the 98 s measured at 0.85 without it -- past the turn gap rather
+# than inside it, which is the whole point. Restoring a block over PCIe costs far
+# less than a forward pass through 284B parameters.
 #
-# Sized against the job's 400G host allocation. Untested at this scale here:
-# measure the prefix hit rate, not throughput, to judge whether it worked.
-kv_offloading_size = 96
+# Sized against the job's 400G host allocation, leaving ~260G. Untested at this
+# scale here: judge it on the PREFIX HIT RATE, not on throughput. If hits move
+# from ~21% toward 90% the mechanism was right and throughput follows; if they do
+# not, the mechanism is wrong and the answer is not in the throughput number.
+kv_offloading_size = 128
 
 [engine.env]
 # Route top-k/top-p sampling around the FlashInfer TopKMaskLogits kernel, which
