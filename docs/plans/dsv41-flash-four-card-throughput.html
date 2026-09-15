@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-15">
-<meta name="plan-version" content="27">
+<meta name="plan-version" content="28">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s2a&quot;:&quot;done&quot;,&quot;s2b&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s3-paired&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;deferred&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;done&quot;}">
 <meta name="plan-artifacts" content="imas_ambix/agent/serving_receipts.py,imas_ambix/agent/receipt_bins.py,imas_ambix/agent/profiles/deepseek-v4-1-flash.toml,/home/ITER/mcintos/.config/reckon/crew/reports/four-card-reuse-map.md,/home/ITER/mcintos/.config/reckon/crew/reports/swa-index-width-attribution.md">
 <meta name="plan-impl" content="0.727">
@@ -513,6 +513,72 @@
     workaround to remember, because a rule with no check is how this class of
     defect returns.</p>
 
+    <h2 id="s11">§11 — What this deployment can actually do, measured</h2>
+
+    <p><strong>V4.1-Flash serves on four H200 and is load-proven.</strong> Not
+    started-and-answered-a-toy: a 203,241-token agentic-shaped prefill — long
+    system prompt, 52 tool definitions, 170-turn history — returned in 30
+    seconds. Everything below is measured on this deployment rather than
+    inferred from the checkpoint or the vendor.</p>
+
+    <table>
+      <thead>
+        <tr><th>Quantity</th><th>Value</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Per-request context / usable input</td><td>204,800 / <strong>172,800</strong></td></tr>
+        <tr><td>Largest prefill absorbed</td><td><strong>203,241 tokens</strong>, 30 s</td></tr>
+        <tr><td>Smallest prefill that killed a serve</td><td>~300,000 (workspace asked 9.00 GiB)</td></tr>
+        <tr><td>Device KV pool</td><td>4,000,000 tokens (20.63 GB/card)</td></tr>
+        <tr><td>Host KV tier (hierarchical cache)</td><td><strong>8,000,000 tokens</strong>, ~172 GB across four ranks</td></tr>
+        <tr><td>Free HBM at ready</td><td>42.76 GB/card</td></tr>
+        <tr><td>Weights (Engram host-offloaded)</td><td>72.73 GB/card</td></tr>
+        <tr><td>Startup to ready</td><td>~6 min warm, ~11 min cold</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Total KV capacity went UP, not down.</strong> The reclaim replaced
+    a 15M-token device pool with 4M device plus 8M host — 12M against 15M in
+    nominal capacity, while freeing 16.82 GB per card of HBM. The pool was not
+    sacrificed for headroom so much as relocated into memory that was sitting
+    unused, which is the one change tonight that was strictly better rather than
+    a trade.</p>
+
+    <h3 id="s11-ceiling">The context ceiling, and a claim withdrawn</h3>
+
+    <p><strong>This deployment's maximum is ~200k, not the checkpoint's
+    1,048,576.</strong> A 1,024,000 setting was committed and withdrawn the same
+    evening after measurement: it accepts a 300k request and dies serving it,
+    re-creating precisely the hazard §4's cap exists to prevent. The model's
+    maximum and the deployment's maximum are different numbers and were
+    conflated.</p>
+
+    <p><strong>Activation memory binds, not the workspace.</strong> The
+    fused-MoE workspace ask grows <em>sublinearly</em> — 9.00 GiB at ~300k
+    against 10.11 GiB at ~500k, twelve percent for sixty-seven percent more
+    tokens — while a single 203,241-token request consumes 37.1 GB of the 40.65
+    GB available. So per-token activation cost of roughly 183 KB is what sets
+    the ceiling. This is why the pool reclaim moved it and the context raise did
+    not: the reclaim added activation headroom, which is the scarce quantity.</p>
+
+    <p><strong>Every figure here is single-stream, and that is a real
+    limit on what it licenses.</strong> The ceiling falls as concurrency rises
+    because both terms grow with width, so 204,800 is a single-request bound.
+    A fleet should sit below it until someone measures concurrency, which nobody
+    has.</p>
+
+    <h3 id="s11-levers">The lever that is identified and unspent</h3>
+
+    <p>The OOM message reports <strong>~4.45 GiB reserved-but-unallocated</strong>
+    by the allocator and names its own remedy:
+    <code>PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True</code>. That is
+    roughly twice the margin left at 203k, and it is the only identified change
+    that would raise this ceiling rather than re-describe it. One restart and one
+    re-test. <em>The other lever, a different <code>moe_runner_backend</code>,
+    is now less attractive than it looked</em>: since the workspace is not the
+    binding term, replacing the MoE runner would address the quantity that is
+    not scarce.</p>
+
     <h2 id="s10">§10 — The bring-up sequence</h2>
 
     <p>Every step below exists because something was found the hard way today.
@@ -803,6 +869,9 @@
 <div class="r-comment" data-section="s8" data-id="c-run-r-20260915T194915087105-lane-reader-sglang" data-who="lane-reader-sglang" data-when="2026-09-15T19:56:09Z">
     <div class="r-comment-body"><p>Commits <code>9b955f0</code> and <code>b0c32e5</code> close the SGLang metrics parser gap. The live job 1271709 endpoint returned HTTP 200 with 1,102 lines, while the base reader refused it because only <code>vllm:</code> names matched. The retained fixture parses a 4,000,000-token rank-zero device pool, 8,000,000 / 55,552 hierarchical host-cache tokens, a direct 0.0 prefix hit rate, and <code>preemptions = null</code> because SGLang has no cumulative equivalent. Focused lane tests passed 31/31; <code>ruff check imas_ambix tests</code> exited 0. Full record: <a href="/imas-ambix/evidence/archive/dsv41-flash-four-card-throughput-landed.html#sglang-lane-reader">SGLang lane reader evidence</a>.</p></div>
 </div>
+<div class="r-comment" data-section="s8" data-id="c-run-r-20260915T202054044646-py312-parse-gate" data-who="py312-parse-gate" data-when="2026-09-15T20:25:50Z">
+    <div class="r-comment-body"><p>Serving Python <code>3.12.11</code> reproduced the syntax defect as <code>SyntaxError: multiple exception types must be parenthesized</code>. The initial full-package sweep parsed 286 of 295 modules and rejected nine files containing ten unparenthesized multiple-exception clauses. Commit <code>5ade84f</code> parenthesizes every clause and adds a gate that resolves the vLLM interpreter through <code>SiteConfig</code>, invokes it in a subprocess, and parses every <code>imas_ambix</code> module without importing service code. The post-repair sweep parsed 295 of 295 modules; its deliberately reverted copy fails at line 301 with the same message. Focused tests passed 2/2 and whole-tree Ruff exited 0. Full receipt: <a href="/imas-ambix/evidence/archive/dsv41-flash-four-card-throughput-landed.html#serving-interpreter-parse-gate">serving interpreter parse gate</a>.</p></div>
+</div>
 <div class="r-comment" data-section="s9" data-id="c-s9-lineage" data-who="reckon-ship" data-when="2026-09-15T17:58:00+00:00">
     <div class="r-comment-body">The decisive check was content, not topology. Main's deepseek_v4.py is 170,193 bytes against 211,019 at our commit, and main has no deepseek_v41_vit.py, so main's inability to serve this checkpoint is a fact about files rather than an inference from a commit graph. That distinction mattered: a squash merge makes 15 missing commits look identical to 15 absent features, because behind_by counts commits rather than content. Reading the files is what separated those two possibilities, and the commit graph alone could not have.</div>
 </div>
@@ -820,9 +889,6 @@
 </div>
 <div class="r-comment" data-section="s10" data-id="c-run-r-20260915T191213922393-pool-and-hicache" data-who="pool-and-hicache" data-when="2026-09-15T19:28:06Z">
     <div class="r-comment-body"><p>Device pool cut from 14,999,808 to 4,000,000 tokens and the hierarchical cache enabled, converting oversized KV pool into the per-request headroom the fused-MoE workspace draws from. Freed about 16.8 GiB per card against a fixed 7.52 GiB workspace ask, clearing it twice over. Established the image contract rather than assuming it: the DeepSeek-V4 cache path REJECTS --hicache-size and requires --hicache-ratio, so sizing via the wrong knob would have produced a serve that refused to start. Host request raised 420G to 480G, made of 192 GiB pinned Engram plus about 49 GiB of hicache payload across four ranks, leaving 170G under the 650G Group A allocation, with those components recorded in the profile rather than left as a magic number. Chose write_through_selective and page_first deliberately. Blocked correctly on a test file my brief omitted, the fifth time today I scoped a node to the surface I could see rather than the one the change had to reach. The pool value is a CANDIDATE recorded as such in the profile: load-proven only by a long prefill, which is mine to run.</p></div>
-</div>
-<div class="r-comment" data-section="s8" data-id="c-run-r-20260915T202054044646-py312-parse-gate" data-who="py312-parse-gate" data-when="2026-09-15T20:25:50Z">
-    <div class="r-comment-body"><p>Serving Python <code>3.12.11</code> reproduced the syntax defect as <code>SyntaxError: multiple exception types must be parenthesized</code>. The initial full-package sweep parsed 286 of 295 modules and rejected nine files containing ten unparenthesized multiple-exception clauses. Commit <code>5ade84f</code> parenthesizes every clause and adds a gate that resolves the vLLM interpreter through <code>SiteConfig</code>, invokes it in a subprocess, and parses every <code>imas_ambix</code> module without importing service code. The post-repair sweep parsed 295 of 295 modules; its deliberately reverted copy fails at line 301 with the same message. Focused tests passed 2/2 and whole-tree Ruff exited 0. Full receipt: <a href="/imas-ambix/evidence/archive/dsv41-flash-four-card-throughput-landed.html#serving-interpreter-parse-gate">serving interpreter parse gate</a>.</p></div>
 </div>
 </section>
 </main>
