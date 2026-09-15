@@ -1,0 +1,43 @@
+{
+  "taken_at": "2026-09-15T08:48:01Z",
+  "half": "BEFORE \u2014 current prompt shape, prior to any reordering in reckon prompts.py",
+  "method": "Byte-level shared prefix computed directly from the dispatched prompt files. NOT an endpoint replay: a 12KB prompt is ~88 block queries against ~1.16M ambient queries per 45s window (0.0076%), so a delta measurement would read noise, not cache. This method is exact, needs no endpoint, is immune to residual cache from the original dispatches, and is reproducible byte-identically after the fix.",
+  "why_this_is_the_right_quantity": "vLLM prefix caching matches blocks from position 0 while bytes are identical, so shared_prefix_bytes bounds the achievable cross-worker hit fraction on a first turn. The engine-side rate follows mechanically from this number.",
+  "prompt_sizes_bytes": {
+    "reckon-A": 12656,
+    "reckon-B": 12068,
+    "codex-C": 7869
+  },
+  "tokens_per_block_measured": 34.1,
+  "pairs": [
+    {
+      "pair": "reckon-A vs reckon-B",
+      "shared_prefix_bytes": 156,
+      "pct_of_reckon-A": 1.23,
+      "pct_of_reckon-B": 1.29,
+      "cross_project": false
+    },
+    {
+      "pair": "reckon-A vs codex-C",
+      "shared_prefix_bytes": 152,
+      "pct_of_reckon-A": 1.2,
+      "pct_of_codex-C": 1.93,
+      "cross_project": true
+    },
+    {
+      "pair": "reckon-B vs codex-C",
+      "shared_prefix_bytes": 152,
+      "pct_of_reckon-B": 1.26,
+      "pct_of_codex-C": 1.93,
+      "cross_project": true
+    }
+  ],
+  "shared_across_all_three_bytes": 152,
+  "cacheable_blocks_from_shared_prefix": 4.5,
+  "refutation": "After the fix, this same computation on fresh prompts must show a materially larger shared prefix. No movement refutes the placement hypothesis.",
+  "sources": [
+    "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260915T074439374137-the-second-key-check-does-not-fire-on-prose/prompt.txt",
+    "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260915T075410484832-the-blank-surface-guard-fires-and-stays-quiet/prompt.txt",
+    "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260915T081211090585-n-swcr-the-catalog-pin-reaches-the-published-grammar/prompt.txt"
+  ]
+}
