@@ -166,6 +166,42 @@
     describe DSpark and topology expectations for the separate V4-Flash
     profile and do not exercise this V4.1 selection. Whole-tree Ruff passed.</p>
 
+    <h2 id="width-binned-receipts">§2b — Receipt intervals now yield width-binned worker metrics</h2>
+
+    <p>Commit <code>d108cd7</code> adds
+    <code>imas_ambix/agent/receipt_bins.py</code>. It reads receipt JSONL
+    directly: the recorded <code>num_requests_running</code>, generation
+    throughput, prompt throughput, and interval prefix-cache rate are already
+    the measurement inputs, so no clive-stream join is needed. Each complete
+    interval contributes generation throughput divided by its own running count
+    as the per-worker decode rate; prompt throughput remains the recorded
+    interval prefill rate.</p>
+
+    <p>The default inclusive width bins retain the historical comparison ranges
+    <code>10–14</code> and <code>15–19</code>. Rows with any null interval field
+    are counted under <code>excluded_intervals</code> rather than silently
+    dropped, covering both the first receipt row and a counter-reset span.
+    Valid rows outside the requested ranges remain separately visible as
+    <code>unbinned_intervals</code>.</p>
+
+    <table>
+      <thead>
+        <tr><th>Fixture result</th><th>10–14 requests</th><th>15–19 requests</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Complete intervals</td><td>2</td><td>1</td></tr>
+        <tr><td>Median decode per worker</td><td>16.0 tok/s</td><td>10.0 tok/s</td></tr>
+        <tr><td>Median interval prefill</td><td>600.0 tok/s</td><td>950.0 tok/s</td></tr>
+        <tr><td>Prefix-hit distribution</td><td>median 0.50; p10 0.26; p90 0.74</td><td>median and every decile 0.90</td></tr>
+      </tbody>
+    </table>
+
+    <p>The fixture also contains one null first-row interval, producing
+    <strong>1 visible exclusion</strong>. This demonstrates the guarded path
+    rather than inferring it from a green aggregate: incomplete intervals never
+    become a rate. The focused collector, serving-receipt, and evaluation-pool
+    suites passed <strong>19/19</strong>; the whole-tree Ruff check passed.</p>
+
   </main>
 </body>
 </html>
