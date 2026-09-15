@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-15">
-<meta name="plan-version" content="9">
+<meta name="plan-version" content="10">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s2a&quot;:&quot;done&quot;,&quot;s2b&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;done&quot;}">
 <meta name="plan-artifacts" content="/home/ITER/mcintos/.config/reckon/crew/reports/four-card-reuse-map.md,/home/ITER/mcintos/.config/reckon/crew/reports/swa-index-width-attribution.md">
 <meta name="plan-impl" content="0.25">
@@ -430,6 +430,9 @@
 </div>
 <div class="r-comment" data-section="s4" data-id="c-s4-landed" data-who="reckon-ship" data-when="2026-09-15T16:35:00+00:00">
     <div class="r-comment-body">gate passed; section closed. Verdict carries-fix on engine commit da64c5cb, derived prefill SWA row width 128 with zero occurrences of 1152 in the builder, read from the SIF's own SquashFS source rather than the mutable tag. The 1152 control is observable in the checkpoint config as vision 1024 plus text 128 and is not used by the prefill builder, so the instrument saw the competing value and rejected it rather than failing to look. The two structural handicaps in this section remain open reference for interpreting section 3 and were not part of its done-when.</div>
+</div>
+<div class="r-comment" data-section="§2b" data-id="c-run-r-20260915T163247139914-interval-receipt-deltas" data-who="interval-receipt-deltas" data-when="2026-09-15T16:39:23Z">
+    <div class="r-comment-body"><p>Receipt rows now carry prefix_cache_query_delta, prefix_cache_hit_delta and prefix_cache_hit_rate_interval alongside the unchanged cumulative field. Controlled case proves both readings at once: 2,000 query and 1,800 hit deltas give an interval 0.9000 while the cumulative stays 0.8253, now pinned to that literal so a future redefinition breaks loudly. Interval fields are null on the first row and across a counter reset, which matters because this measurement spans a serve restart by design. Extended the existing controlled test rather than adding one, so both assertions sit on the same fixtures; suite stayed 15/15.</p></div>
 </div>
 </section>
 </main>
