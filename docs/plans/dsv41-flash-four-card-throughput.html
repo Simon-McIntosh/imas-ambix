@@ -24,11 +24,11 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-15">
-<meta name="plan-version" content="13">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s2a&quot;:&quot;done&quot;,&quot;s2b&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;done&quot;}">
-<meta name="plan-artifacts" content="/home/ITER/mcintos/.config/reckon/crew/reports/four-card-reuse-map.md,/home/ITER/mcintos/.config/reckon/crew/reports/swa-index-width-attribution.md">
-<meta name="plan-impl" content="0.5">
-<meta name="plan-commits" content="e11215257d06725da0c70eda69bb786388595421,f777ce9afb6acb941e9aa2e2132837790e848217">
+<meta name="plan-version" content="14">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s2a&quot;:&quot;done&quot;,&quot;s2b&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s3-paired&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;done&quot;}">
+<meta name="plan-artifacts" content="imas_ambix/agent/serving_receipts.py,imas_ambix/agent/receipt_bins.py,imas_ambix/agent/profiles/deepseek-v4-1-flash.toml,/home/ITER/mcintos/.config/reckon/crew/reports/four-card-reuse-map.md,/home/ITER/mcintos/.config/reckon/crew/reports/swa-index-width-attribution.md">
+<meta name="plan-impl" content="0.625">
+<meta name="plan-commits" content="e11215257d06725da0c70eda69bb786388595421,f777ce9afb6acb941e9aa2e2132837790e848217,b783a72c55b093f3c8b3347927d923346836387d,956c80b12d69a4e403e21c988d3059da65a4f363,d108cd78716aff8e0094d90fe6b6adfb4acdf9c0,15f2a3bf31b7d2ab294375d8ebb77eb8524f6837">
 </head>
 <body>
   <main class="plan-doc">
@@ -445,10 +445,11 @@
     <h4 class="r-gate-measure">Loaded per-worker decode on a V4.1 serve at the 14,999,808 pool under sustained real clive traffic, binned by concurrency width, with the prefill rate and a windowed per-interval prefix-hit distribution recorded in the same bins, compared against the g-baseline-harvested bins.</h4>
     <p class="r-gate-required-evidence">Per-worker tok/s and windowed hit-rate distribution for V4.1 in the same width bins as the V4-Flash harvest, stated as per-interval deltas rather than a cumulative ratio.</p>
     </div>
-<div class="r-gate" data-id="g-interval-instrument" data-section="s2b" data-gated-sections="s3" data-status="open" data-verdict="">
+<div class="r-gate" data-id="g-interval-instrument" data-section="s2b" data-gated-sections="s3" data-status="closed" data-verdict="passed">
     <h4 class="r-gate-measure">The receipts recorder emits per-interval prefix-cache query and hit deltas and an interval ratio alongside the retained cumulative fields, and a collector bins per-worker decode and prefill rate by concurrency width from real clive stream evidence rather than synthetic benchmark records.</h4>
     <p class="r-gate-required-evidence">A test asserting the interval ratio on the controlled two-snapshot case where the cumulative recorder reports 0.8253 and the interval truth is 0.9000, plus a width-binned collector run over real stream evidence showing its bins and its refusal of synthetic records.</p>
-    </div>
+    <a class="r-gate-evidence" href="All three instruments landed and pass together at the merged head: 19 tests across tests/test_agent_serving_receipts.py, tests/test_agent_evaluation_pool.py and tests/test_agent_receipt_bins.py, with whole-tree ruff clean and the three known DSpark failures unchanged. Interval ratio: the controlled two-snapshot case asserts 0.9000 while the retained cumulative field still reports 0.8253, now pinned to that literal. Width binning: receipt intervals group by their own recorded running count into the 10-14 and 15-19 comparison bins, reporting per-worker decode and prefill medians and the prefix-hit rate as a median with deciles. One clause of this gate&#x27;s required evidence was made moot rather than skipped, and that is recorded rather than glossed: it asked the collector to refuse synthetic benchmark records, which was written before the node was narrowed to read receipts alone. The collector has no path that ingests benchmark output at all, so the refusal is structural rather than a check it performs. Pool selection: deepseek-v4-1-flash@evaluation resolves 14,999,808 with the committed default unchanged at 3,485,952 and the weights directory still resolving through the unselected slug.">Evidence</a>
+</div>
 </section>
 <section data-reckon="comments" id="comments" class="r-comments">
 <div class="r-comment" data-section="s3" data-id="c-run-r-20260915T161636242522-four-card-reuse-map" data-who="four-card-reuse-scout" data-when="2026-09-15T16:26:56Z">
