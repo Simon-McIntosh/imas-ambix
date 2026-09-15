@@ -203,17 +203,39 @@ max_num_batched_tokens = 32768
 # why draining the fleet from 36 requests to 20 barely moved it: turnover is set
 # by the prefill rate, not the worker count.
 #
-# 128 GiB holds roughly 4.7M tokens at the measured 28.7 KiB/token. Combined with
-# the 0.92 GPU pool (~2.56M) that is ~7.2M tokens of cache, turning over in about
-# 320 s against the 98 s measured at 0.85 without it -- past the turn gap rather
-# than inside it, which is the whole point. Restoring a block over PCIe costs far
-# less than a forward pass through 284B parameters.
+# 768 GiB, which is a WORKAROUND for an acknowledged upstream defect rather
+# than a sizing judgement. Remove it when vllm-project/vllm#56953 merges.
 #
-# Sized against the job's 400G host allocation, leaving ~260G. Untested at this
-# scale here: judge it on the PREFIX HIT RATE, not on throughput. If hits move
-# from ~21% toward 90% the mechanism was right and throughput follows; if they do
-# not, the mechanism is wrong and the answer is not in the throughput number.
-kv_offloading_size = 128
+# THE DEFECT (vllm-project/vllm#56871, opened 2026-09-14): every OffloadKey is
+# (block_hash, group_idx), and a CPU slot reserves the combined footprint of ALL
+# KV cache groups while storing only one group's page. Effective capacity is
+# therefore `kv_offloading_size / num_selected_groups`. On a hybrid model that
+# falls below the GPU pool, and because both tiers evict in the same LRU order
+# the host tier is always evicted first and can never serve a hit.
+#
+# MEASURED HERE at 128 GiB, over 63 minutes at load:
+#   GPU_to_CPU   24.1 TB written, 857.9 s of transfer time
+#   CPU_to_GPU    0 bytes, 0 s, every latency bucket empty
+#   lookup_sync_delay count 819   -- the path IS taken, and misses every time
+#   cpu_cache_usage_perc 17.8%    -- reported against NOMINAL capacity, so the
+#                                    effective store was full while reading 18%
+#
+# That 17.8% is why two earlier diagnoses were wrong: a write-volume eviction
+# trap (the buffer never filled) and a structural block in the read path (819
+# lookups say it is taken). Neither survived the counters.
+#
+# SIZING. The host tier must exceed the 70.01 GiB GPU pool by a real multiple,
+# not marginally, or it evicts almost as fast and buys nothing:
+#   768 GiB / 2 groups = 384 GiB effective, 5.5x the GPU pool
+#   768 GiB / 4 groups = 192 GiB effective, 2.7x
+#   768 GiB / 8 groups =  96 GiB effective, 1.4x  <- marginal
+# The group count for this checkpoint is not exposed in its logs, metric labels
+# or config, so the restart measures it: CPU_to_GPU leaving zero says the
+# diagnosis holds and the buffer is now large enough.
+#
+# Sized inside a 1000G job, leaving ~175G for the runtime against a measured
+# non-buffer working set far below that.
+kv_offloading_size = 768
 
 [engine.env]
 # Route top-k/top-p sampling around the FlashInfer TopKMaskLogits kernel, which
@@ -237,7 +259,7 @@ reasoning = "deepseek_v4"
 [slurm]
 gpus = 4
 cpus = 12
-memory = "400G"
+memory = "1000G"
 port = 18800
 time_serve = "0"
 time_download = "24:00:00"
