@@ -318,6 +318,7 @@ def write_lane_document(
     path: str | Path,
     *,
     settling: bool | None = None,
+    refresh_interval: int = 30,
 ) -> Path:
     """Publish the reading so a session need not probe the engine to size work.
 
@@ -395,13 +396,19 @@ def write_lane_document(
             "a reading taken within ~60s of a dispatch reports the fleet at its "
             "lightest; prefer a pre-dispatch reading"
         ),
-        # Declared, not enforced. The producer must not bake in a constant that
-        # is right at one fleet age: measured 2026-09-14 the budget moved from
-        # 143 to 38 in roughly twenty minutes as a fresh wave accumulated
-        # context, so a bound generous at the start of a wave is tight in the
-        # middle of one. The reader owns the decision; this is the default it
-        # should apply absent its own policy.
-        "suggested_shelf_life_seconds": 120,
+        # Derived from the publishing cadence rather than written down, so it
+        # follows if the cadence changes. One and a half intervals: a reading is
+        # at most one interval old when a fresh one is due, and the half is
+        # margin for a late poll.
+        #
+        # It was a flat 120 s until 2026-09-15, when a peer sampling every
+        # twenty seconds watched lane_headroom read 21, then 11, then 14 across
+        # forty seconds while this field claimed two minutes of freshness. A
+        # shelf life several times the measured volatility does not make a
+        # figure safe to use -- it clears a stale one for action, which is worse
+        # than publishing no shelf life at all. The reader still owns the
+        # decision; this is the default it should apply absent its own policy.
+        "suggested_shelf_life_seconds": int(refresh_interval * 1.5),
     }
     scratch = target.with_suffix(".tmp")
     scratch.write_text(json.dumps(document, indent=2, sort_keys=True), encoding="utf-8")

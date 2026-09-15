@@ -73,7 +73,7 @@ def test_a_heavier_workload_yields_a_smaller_budget_from_the_same_pool():
     assert light.concurrent_requests == 18
 
 
-def test_an_idle_lane_reports_no_MEASUREMENT_but_still_answers():
+def test_an_idle_lane_reports_no_measurement_but_still_answers():
     """No traffic cannot be converted into a working-context figure.
 
     The mean context stays undefined, because there is nothing to measure. The
@@ -182,7 +182,7 @@ def test_shelf_life_is_declared_for_the_reader_not_enforced_by_the_producer():
         path = write_lane_document(capacity, Path(scratch) / "lane.json")
         document = json.loads(path.read_text(encoding="utf-8"))
 
-    assert document["suggested_shelf_life_seconds"] == 120
+    assert document["suggested_shelf_life_seconds"] == 45
     # Nothing in the reading refuses on age; staleness is the reader's call.
     assert not hasattr(capacity, "expired")
 
@@ -346,3 +346,26 @@ def test_an_idle_lane_answers_with_the_ceiling_rather_than_nothing():
     assert idle.mean_context is None, "still no measurement to report"
     assert idle.concurrent_requests == idle.max_concurrent
     assert idle.headroom == idle.max_concurrent
+
+
+def test_the_shelf_life_follows_the_publishing_cadence():
+    """A shelf life several times the volatility clears a stale figure for use.
+
+    Measured 2026-09-15: a peer sampling every twenty seconds watched
+    lane_headroom read 21, 11 then 14 across forty seconds while the document
+    claimed two minutes of freshness. Deriving it from the cadence keeps the two
+    in step if the cadence ever changes.
+    """
+    import tempfile
+    from pathlib import Path
+
+    capacity = parse_lane_capacity(_metrics(running=10, occupancy=0.267))
+    with tempfile.TemporaryDirectory() as scratch:
+        for interval, expected in ((30, 45), (10, 15), (60, 90)):
+            written = write_lane_document(
+                capacity,
+                Path(scratch) / f"{interval}.json",
+                refresh_interval=interval,
+            )
+            document = json.loads(written.read_text(encoding="utf-8"))
+            assert document["suggested_shelf_life_seconds"] == expected

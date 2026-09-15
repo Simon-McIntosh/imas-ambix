@@ -373,6 +373,7 @@ class RouterApp:
                     capacity,
                     self._lane_document,
                     settling=detect_settling(previous, capacity),
+                    refresh_interval=self._lane_interval,
                 )
                 previous = capacity
             await asyncio.sleep(self._lane_interval)

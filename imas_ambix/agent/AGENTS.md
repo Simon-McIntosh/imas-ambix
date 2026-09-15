@@ -815,6 +815,36 @@ were four nova, five reckon, two more reckon and one imas-codex. **A ratio above
 1.0 is the tell**, since it requires one turn issuing several concurrent
 requests; treat it as a pairing error until proven otherwise.
 
+**`kv_offloading_size` on this engine and model writes and never reads. Do not
+enable it without checking both counters.** Measured 2026-09-15 over 63 minutes
+at load:
+
+    vllm:kv_offload_total_bytes_total  GPU_to_CPU   24.1 TB   857.9 s transfer time
+    vllm:kv_offload_total_bytes_total  CPU_to_GPU    0 bytes    0.0 s, every latency bucket 0
+
+Not a low restore rate — **zero restores, and zero time**, so nothing has entered
+the read path even to be slow. Every evicted prefix is written to host RAM at
+full rate and then recomputed through 284B parameters anyway. The connector loads
+on all four ranks, `kv_role` is `kv_both` by construction rather than
+configuration, and the per-request `skip_reading_prefix_cache` applies only to
+`prompt_logprobs` requests, so none of those is the cause.
+
+**The cost is not neutral:** 128 GiB of host RAM held, and 858 s of transfer time
+in a 3,780 s window, for a store nothing reads.
+
+Two candidates remain and reading more source did not separate them: a
+self-sustaining eviction trap — the buffer turns over in about 56 s against turn
+gaps of 54 s and longer, `_maximal_prefix_lookup` walks from chunk 0, chunk 0 is
+always the first evicted, and because the lookup then fails the store is never
+accessed and chunk 0 is never refreshed — or a structural block in the read path
+for this model's hybrid attention. **The instrument that separates them is debug
+logging on the offloading scheduler, not another hypothesis**, and reaching for
+the logger earlier would have been cheaper than three rounds of source reading.
+
+**The general rule: a feature that reports work done is not reporting work
+useful.** The write counter climbing at 28 GB/s reads as healthy activity, and
+was the strongest possible evidence that something was wrong.
+
 **Prefix-cache eviction is the FIRST symptom of KV pressure, and it appears
 long before preemption.** Measured 2026-09-15 at 36 concurrent agent requests:
 hit rate down to 23-25%, KV occupancy 63-65%, **`num_preemptions_total` still
