@@ -244,10 +244,16 @@ max_num_batched_tokens = 32768
 #   512 GiB / 2 groups = 256 GiB effective, 3.7x the GPU pool
 #   512 GiB / 4 groups = 128 GiB effective, 1.8x
 #   512 GiB / 8 groups =  64 GiB effective, 0.9x  <- below the pool, useless
-# The group count for this checkpoint is not exposed in its logs, metric labels
-# or config, so the restart measures it: CPU_to_GPU leaving zero says the
-# diagnosis holds and the buffer is now large enough. Staying at exactly zero
-# says it does not, and the feature comes out rather than being resized again.
+# The engine DOES report part of the structure, on the line that creates the
+# connector: "EAGLE/MTP draft attention groups [2] detected. The trailing chunk
+# of these groups will be excluded from offloading due to volatility." So index
+# 2 exists -- at least three groups -- and the speculative-decode group is
+# PARTIALLY excluded, which the division above does not model. The total count
+# is still not printed, so the arithmetic remains a bound rather than a figure.
+#
+# The direct instrument is neither counter: the engine logs "External prefix
+# cache hit rate" beside the ordinary one, and that IS this store's hit rate.
+# Read it before deriving anything from bytes transferred.
 #
 # 512 leaves ~195 GiB of the swept tmpfs for NCCL, PSM and the peers who share
 # it, against a serve whose own non-buffer shm use is tens of GiB.

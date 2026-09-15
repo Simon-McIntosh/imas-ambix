@@ -837,13 +837,76 @@ self-sustaining eviction trap — the buffer turns over in about 56 s against tu
 gaps of 54 s and longer, `_maximal_prefix_lookup` walks from chunk 0, chunk 0 is
 always the first evicted, and because the lookup then fails the store is never
 accessed and chunk 0 is never refreshed — or a structural block in the read path
-for this model's hybrid attention. **The instrument that separates them is debug
-logging on the offloading scheduler, not another hypothesis**, and reaching for
-the logger earlier would have been cheaper than three rounds of source reading.
+for this model's hybrid attention. Both were later refuted by counters that were
+readable the whole time: `cpu_cache_usage_perc` at 17.8% kills the eviction trap
+because the buffer never filled, and 819 lookup-delay samples kill the
+structural block because the path is taken and misses. **The instrument that
+separates them is debug logging on the offloading scheduler, not another
+hypothesis**, and reaching for the logger earlier would have been cheaper than
+three rounds of source reading.
 
 **The general rule: a feature that reports work done is not reporting work
 useful.** The write counter climbing at 28 GB/s reads as healthy activity, and
 was the strongest possible evidence that something was wrong.
+
+**Read `External prefix cache hit rate` from the serve log — it IS this store's
+hit rate, and no counter arithmetic is needed.** It sits on the same throughput
+line as the ordinary hit rate:
+
+```
+Prefix cache hit rate: 24.1%, External prefix cache hit rate: 0.0%
+```
+
+Three sessions derived that second figure from transferred bytes across two days
+while the engine printed it once a logging interval. Before deriving a quantity
+from counters, grep the log for a line that states it.
+
+**The buffer is a FILE IN `/dev/shm`, so its ceiling is that tmpfs and not the
+job's `--mem`.** Measured 2026-09-15: a 768 GiB request inside a 1000G job died
+at KV-connector init with `Insufficient space in /dev/shm: 786431 MiB required,
+591923 MiB free`. The tmpfs is 756 GiB — half of RAM, as tmpfs defaults — so
+that value was unsatisfiable at any `--mem`, and reading the flag as ordinary
+memory is what let an impossible number look generous. All four ranks share ONE
+mmap, so the size is a node total rather than per-rank.
+
+**A cancelled serve leaves its whole buffer behind, and the failure then lands
+one restart later on an innocent job.** A 128 GiB file from a `scancel`ed serve
+was still resident with no process mapping it; the node is not rebooted between
+serves, so nothing else reclaims it. The generated serve script now sweeps
+orphaned `vllm_offload_*.mmap` files at launch, scoped by ownership and by
+whether anything still maps the file so a concurrently serving profile is
+untouched. Without that sweep each restart consumes its buffer permanently and
+the *next* one fails for a reason that has nothing to do with it.
+
+**The group structure IS partially exposed, on the connector-creation line:**
+
+```
+KV offloading: EAGLE/MTP draft attention groups [2] detected.
+The trailing chunk of these groups will be excluded from offloading due to
+volatility.
+```
+
+So index 2 exists — at least three groups — and the speculative-decode group is
+partially excluded from offloading, which a plain `size / group_count` division
+does not model. The total is still not printed, so that arithmetic is a bound
+and not a figure. This is the fourth quantity on this deployment recorded as
+"not exposed" that turned out to be printed somewhere nobody had read.
+
+**A prefix-cache query is not an external lookup, and the ratio is the open
+question.** Measured 2026-09-15 at 8 concurrent, two minutes into a serve:
+859,833 `prefix_cache_queries_total` against **8**
+`kv_offload_lookup_sync_delay_seconds_count`. A store merely evicting too fast
+would show lookups scaling with queries and missing nearly all of them, which is
+the 819-in-63-minutes shape. Eight is a different regime and points at how
+rarely the external path is consulted rather than at what it returns. No
+explanation yet; recorded as the place the next instrument should aim.
+
+**Test a reuse mechanism with reuse-shaped traffic.** A review wave reads many
+distinct landed diffs, so nearly every prefill is genuinely novel and a zero
+restore count under it is consistent with a working offload. The counter looks
+identical either way, so the load's prefix profile has to be stated beside any
+verdict — a coordinator running that wave named the limitation unprompted, and
+it is not visible in the metrics.
 
 **Prefix-cache eviction is the FIRST symptom of KV pressure, and it appears
 long before preemption.** Measured 2026-09-15 at 36 concurrent agent requests:
