@@ -228,6 +228,9 @@ SGLANG_ENABLE_DSV41_ENGRAM_HOST_TABLE = "1"
 [engine.container]
 image = "lmsysorg/sglang:dev-dsv41"
 sif_path = "/work/projects/imas_gpu/containers/sglang-dev-dsv41.sif"
+binds = [
+  { source = "imas_ambix/agent/kernel_patches/sglang-dev-dsv41/python/sglang/kernels/jit/csrc/deepseek_v4/main_norm_rope.cuh", target = "/sgl-workspace/sglang/python/sglang/kernels/jit/csrc/deepseek_v4/main_norm_rope.cuh" },
+]
 
 [slurm]
 gpus = 4
