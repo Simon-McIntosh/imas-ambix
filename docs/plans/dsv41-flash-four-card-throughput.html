@@ -386,6 +386,9 @@
 <div class="r-comment" data-section="s4" data-id="c-s4-landed" data-who="reckon-ship" data-when="2026-09-15T16:35:00+00:00">
     <div class="r-comment-body">gate passed; section closed. Verdict carries-fix on engine commit da64c5cb, derived prefill SWA row width 128 with zero occurrences of 1152 in the builder, read from the SIF's own SquashFS source rather than the mutable tag. The 1152 control is observable in the checkpoint config as vision 1024 plus text 128 and is not used by the prefill builder, so the instrument saw the competing value and rejected it rather than failing to look. The two structural handicaps in this section remain open reference for interpreting section 3 and were not part of its done-when.</div>
 </div>
+<div class="r-comment" data-section="s2b" data-id="c-run-r-20260915T163257733816-evaluation-pool-setting" data-who="evaluation-pool-setting" data-when="2026-09-15T16:40:15Z">
+    <div class="r-comment-body"><p>Named evaluation-pool selection landed in <code>b783a72</code>. The committed default still resolves to 3,485,952 tokens, while <code>deepseek-v4-1-flash@evaluation</code> resolves to the load-proven 14,999,808-token pool and a dry-run of <code>agent serve</code> carries both the selected job identity and <code>--max-total-tokens 14999808</code>. Focused loader and CLI coverage passed 5/5; whole-tree Ruff passed; the broader profile slice retained the same three pre-existing DSpark failures before and after, with zero added failures. Full record: <a href="/imas-ambix/evidence/archive/dsv41-flash-four-card-throughput-landed#evaluation-pool-setting">evaluation pool setting</a>.</p></div>
+</div>
 </section>
 </main>
 </body>

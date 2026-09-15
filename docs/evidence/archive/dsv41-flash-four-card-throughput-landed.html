@@ -107,6 +107,37 @@
     It must be stopped by exact job id. <code>--all</code> would stop it and
     would also stop serving jobs, so it is not the shortcut it looks like.</p>
 
+    <h2 id="evaluation-pool-setting">§2b — The load-proven evaluation pool is a named serve selection</h2>
+
+    <p>The missing selection reproduced before repair:
+    <code>load_profile("deepseek-v4-1-flash@evaluation")</code> raised
+    <code>FileNotFoundError</code> because the loader treated the complete
+    selector as a TOML filename. Commit <code>b783a72</code> added named
+    <code>[settings]</code> overrides using the same deep-merge mechanism as
+    card-count variants. The selection remains visible in the resolved slug and
+    generated SLURM job name, while its weights still resolve through
+    <code>deepseek-v4-1-flash</code>.</p>
+
+    <table>
+      <thead>
+        <tr><th>Serve selection</th><th>Resolved pool</th><th>Purpose</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>deepseek-v4-1-flash</code></td><td><strong>3,485,952 tokens</strong></td><td>ordinary default, unchanged</td></tr>
+        <tr><td><code>deepseek-v4-1-flash@evaluation</code></td><td><strong>14,999,808 tokens</strong></td><td>load-proven real-traffic comparison</td></tr>
+      </tbody>
+    </table>
+
+    <p>A dry-run of <code>agent serve</code> emitted both
+    <code>--job-name=deepseek-v4-1-flash@evaluation</code> and
+    <code>--max-total-tokens 14999808</code>, so the guarded selection was
+    exercised rather than inferred from a passing loader test. The focused
+    loader and CLI slice passed <strong>5/5</strong>. The broader existing
+    profile slice had the same three DSpark expectation failures before and
+    after this change, with <strong>zero added failures</strong>; those tests
+    describe DSpark and topology expectations for the separate V4-Flash
+    profile and do not exercise this V4.1 selection. Whole-tree Ruff passed.</p>
+
   </main>
 </body>
 </html>
