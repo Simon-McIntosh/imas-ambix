@@ -25,6 +25,8 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-16">
 <meta name="plan-version" content="30">
+<meta name="plan-modified" content="2026-09-15">
+<meta name="plan-version" content="24">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s2a&quot;:&quot;done&quot;,&quot;s2b&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s3-paired&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;deferred&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;done&quot;}">
 <meta name="plan-artifacts" content="imas_ambix/agent/serving_receipts.py,imas_ambix/agent/receipt_bins.py,imas_ambix/agent/profiles/deepseek-v4-1-flash.toml,/home/ITER/mcintos/.config/reckon/crew/reports/four-card-reuse-map.md,/home/ITER/mcintos/.config/reckon/crew/reports/swa-index-width-attribution.md">
 <meta name="plan-impl" content="0.727">
@@ -680,6 +682,22 @@
     <code>--hicache-ratio</code>. The candidate has not been load-proven:
     only a long-prefill serve can establish that; it is not launched by this
     node.</p>
+    <h3 id="prefill-ceiling-calibrated">Calibrated native-context probe</h3>
+    <p>A disposable TP4 serve exposed the native 1,048,576-token context only
+    in an uncommitted worktree profile. Its server receipt held
+    <code>chunked_prefill_size=32768</code>; a direct tokenizer check proved the
+    request generator one-for-one before the result was read. The trustworthy
+    lower result is <strong>90,004 prompt tokens completed</strong>; the warmed
+    process then died at an approximately 135,004-token calibrated midpoint,
+    a 45,000-token operational bracket. This is deliberately not promoted to a
+    fresh-process ceiling because the midpoint followed the lower request in the
+    same process. The crucial attribution is stronger than the provisional
+    ceiling: idle headroom was 23.05 GiB per card, long prefill consumed roughly
+    21.6–22.0 GiB before a late 7.52 GiB fused-MoE workspace request, and the
+    repeated fixed-size workspace is consistent with chunk-bounded workspace
+    rather than total-sequence scaling. The context pin remains necessary
+    because activation memory, not the workspace alone, exhausts the card.
+    Full receipt: <a href="/imas-ambix/evidence/archive/dsv41-flash-four-card-throughput-landed.html#prefill-ceiling-calibrated">calibrated prefill evidence</a>.</p>
 
     <h2 id="s9">§9 — There is no newer image for this checkpoint, and there cannot be one</h2>
 

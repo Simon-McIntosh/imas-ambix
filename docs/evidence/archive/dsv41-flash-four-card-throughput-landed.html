@@ -626,6 +626,68 @@
     bisect only if the refusal path is unavailable.</strong> The 204,800 cap
     behaves exactly as the profile intended: it refuses cleanly instead of
     exhausting the card.</p>
+    <h2 id="prefill-ceiling-calibrated">Calibrated single-stream prefill bracket</h2>
+
+    <p>A disposable TP4 serve ran with the engine cap raised only in its own
+    worktree to the native <code>1,048,576</code> context. The running receipt
+    confirmed <code>context_length=1048576</code>,
+    <code>chunked_prefill_size=32768</code>, and
+    <code>max_prefill_tokens=16384</code>. It was never committed; the
+    persistent profile remains capped at <code>204800</code>.</p>
+
+    <p><strong>Method finding.</strong> Raw character repetitions are not a
+    prefill-token coordinate. Two initially fatal inputs, labelled only by
+    360,000 and 180,000 repetitions, produced a disconnected client and no
+    usage receipt because the engine died first. Treating those labels as a
+    bisection axis would create a confident number about an unknown quantity.
+    The final serve called <code>/tokenize</code> first: ten repetitions of
+    both <code>&quot; a&quot;</code> and <code>&quot; b&quot;</code> returned ten
+    tokens. Only then were the following requests admitted as bisection
+    evidence.</p>
+
+    <table>
+      <thead>
+        <tr><th>Prompt coordinate</th><th>Receipt</th><th>GPU free MiB/card</th><th>Result</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>90,004</strong>: 90,000 calibrated content tokens plus the observed four-token chat envelope</td>
+          <td>HTTP 200; <code>usage.prompt_tokens=90004</code>, one completion token, 11.727 s</td>
+          <td>23,599 before; 1,049 after</td>
+          <td><strong>completed</strong></td>
+        </tr>
+        <tr>
+          <td>about <strong>135,004</strong>: independently calibrated 135,000-token content plus the same envelope</td>
+          <td>No usage receipt: client disconnected after 19.743 s as the engine died</td>
+          <td>1,049 before; unavailable after allocation expiry</td>
+          <td><strong>fatal</strong></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>The result is a <strong>warmed-process operational bracket</strong> of
+    90,004 completed and approximately 135,004 fatal, 45,000 tokens wide. The
+    midpoint followed the successful lower request in the same process, so this
+    is not promoted to a fresh-process per-request ceiling. A clean successor
+    should restart once per calibrated candidate; it inherits a trustworthy
+    lower point and input instrument rather than a fabricated ceiling.</p>
+
+    <p><strong>Memory attribution.</strong> At the first fatal allocation,
+    23,599 MiB (23.05 GiB) had been free at idle and 1.47 GiB remained. Thus
+    the prefill had already consumed roughly 21.6 GiB before FlashInfer asked
+    for a further 7.52 GiB fused-MoE workspace. The completed 90,004-token
+    request independently raised the per-card high-water mark by 22,550 MiB
+    (22.02 GiB). The same 7.52 GiB workspace request appeared at all fatal
+    sizes, which is consistent with chunk-bounded workspace allocation rather
+    than a workspace proportional to total sequence length. It does not make
+    the context pin safe to remove: total-prefill activation leaves only
+    1.47–1.49 GiB for that late workspace. There is no fitted linear or
+    superlinear rate: one completed point and post-crash absences are not a
+    curve.</p>
+
+    <p>Primary receipts: <code>/home/ITER/mcintos/.config/reckon/crew/reports/deepseek-v4-1-flash-1271684.log</code>,
+    <code>deepseek-v4-1-flash-1271688.log</code>, and
+    <code>deepseek-v4-1-flash-1271696.log</code>.</p>
 
   </main>
     <h2 id="sglang-lane-reader">§8 — The lane reader now understands the SGLang metrics family</h2>
