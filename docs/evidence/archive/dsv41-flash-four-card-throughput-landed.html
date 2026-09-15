@@ -225,6 +225,60 @@
     become a rate. The focused collector, serving-receipt, and evaluation-pool
     suites passed <strong>19/19</strong>; the whole-tree Ruff check passed.</p>
 
+    <h2 id="lane-block-reconciliation">The swap would have restored a lane that failed every request</h2>
+
+    <p>Established before the swap was completed, and the reason it was not
+    rushed. <code>reckon/_backends.py:1295</code> passes a backend's
+    <code>model</code> key to the launcher as <code>--model</code>. The clive
+    block named <code>deepseek-v4-flash</code> while V4.1 serves as
+    <code>deepseek-v4.1-flash</code>, so <strong>every dispatch after the swap
+    would have requested a model the endpoint no longer offers</strong> &mdash;
+    lane up, health probes green, every request failing.</p>
+
+    <p><strong>The remedy that exists would not have caught it.</strong>
+    <code>scripts/refresh_clive_context_window.py</code> was written precisely
+    because this value is a copy of a deployment property that rots. It rewrites
+    <code>usable_input_window</code>, which is one of three stale keys, so
+    running it would have reconciled a third of the block while reporting
+    success &mdash; worse than not running it, because it would have retired the
+    suspicion.</p>
+
+    <table>
+      <thead><tr><th>Key</th><th>Stale value</th><th>Refresher fixed it</th></tr></thead>
+      <tbody>
+        <tr><td><code>usable_input_window</code></td><td>1,016,576</td><td>yes</td></tr>
+        <tr><td><code>model</code></td><td><code>deepseek-v4-flash</code></td><td><strong>no</strong></td></tr>
+        <tr><td><code>alias</code></td><td><code>dsv4-flash</code></td><td><strong>no</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>The window is 172,800, and the derivation is the part to keep.</strong>
+    204,800 is the engine's context cap, read from a real launch's own
+    <code>server_args</code>. <code>imas_ambix/agent/clive.py:623-630</code> sets
+    the output reservation to <code>MAX_CONTEXT / 4</code> capped at 32,000: at
+    this cap the ceiling binds, so the reservation is 32,000 and the usable input
+    window is 204,800 &minus; 32,000 = <strong>172,800</strong>. Below a 128,000
+    window the quarter rule would govern instead, which is why the refresher
+    parses the reservation rather than assuming it, and why a hand-computed
+    figure is correct today and wrong after the next change. Confirmed twice
+    independently: flight config's own note records 172,800 being set on
+    2026-09-14, and six rows in reckon's ledger carry that window under this
+    alias.</p>
+
+    <p><strong>A precise account of the defect was sitting directly above the
+    defect.</strong> That note survives sixty-eight lines above a live value of
+    1,016,576 &mdash; so the repair was made, later undone, and its explanation
+    left standing over the value that reproduces the HTTP 400 refusals it warns
+    about. A record that reads as current while describing a fix that is gone is
+    worse than no record.</p>
+
+    <p>Provenance, because it decided the outcome: this came from two peer
+    coordinator sessions asking about a context window, not from anything this
+    plan was looking for. One sent the measured figure; the other sent the
+    config note around it, and the note is what exposed the one-of-three
+    coverage, because explaining <em>why</em> the value rots invited the question
+    of what else in the block does. The number alone would have been acted on.</p>
+
   </main>
 </body>
 </html>
