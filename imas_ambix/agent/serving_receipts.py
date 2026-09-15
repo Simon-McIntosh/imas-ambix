@@ -144,6 +144,9 @@ class ReceiptRow:
     kv_cache_usage_perc: float | None
     prefix_cache_queries_total: int | None
     prefix_cache_hits_total: int | None
+    prefix_cache_query_delta: int | None
+    prefix_cache_hit_delta: int | None
+    prefix_cache_hit_rate_interval: float | None
     prefix_cache_hit_rate: float | None
     spec_draft_tokens: int | None
     spec_accepted_tokens: int | None
@@ -200,7 +203,8 @@ def build_receipt_row(
     samples; a lone snapshot (the first sample of a run) reports it as
     ``None`` rather than a lifetime average passed off as an instantaneous
     rate. The prefix-cache hit rate carries no such requirement and is
-    computed from *current* alone.
+    computed from *current* alone. Prefix-cache interval fields, by contrast,
+    require the preceding snapshot and remain ``None`` on the first row.
     """
     gauges = current["gauges"]
     counters = current["counters"]
@@ -242,6 +246,25 @@ def build_receipt_row(
         else None
     )
 
+    prev_counters = previous["counters"] if previous is not None else None
+    prefix_cache_query_delta = (
+        _counter_delta(prev_counters, counters, "prefix_cache_queries_total")
+        if prev_counters is not None
+        else None
+    )
+    prefix_cache_hit_delta = (
+        _counter_delta(prev_counters, counters, "prefix_cache_hits_total")
+        if prev_counters is not None
+        else None
+    )
+    prefix_cache_hit_rate_interval = (
+        round(prefix_cache_hit_delta / prefix_cache_query_delta, 4)
+        if prefix_cache_query_delta is not None
+        and prefix_cache_query_delta > 0
+        and prefix_cache_hit_delta is not None
+        else None
+    )
+
     return ReceiptRow(
         timestamp=current_at.isoformat(),
         job_id=job_id,
@@ -257,6 +280,9 @@ def build_receipt_row(
             counters.get("prefix_cache_queries_total")
         ),
         prefix_cache_hits_total=_coerce_int(counters.get("prefix_cache_hits_total")),
+        prefix_cache_query_delta=prefix_cache_query_delta,
+        prefix_cache_hit_delta=prefix_cache_hit_delta,
+        prefix_cache_hit_rate_interval=prefix_cache_hit_rate_interval,
         prefix_cache_hit_rate=_prefix_cache_hit_rate(counters),
         spec_draft_tokens=draft_delta,
         spec_accepted_tokens=accepted_delta,
