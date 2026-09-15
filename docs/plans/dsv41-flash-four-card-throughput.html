@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-15">
-<meta name="plan-version" content="23">
+<meta name="plan-version" content="24">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s2a&quot;:&quot;done&quot;,&quot;s2b&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s3-paired&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;deferred&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;done&quot;}">
 <meta name="plan-artifacts" content="imas_ambix/agent/serving_receipts.py,imas_ambix/agent/receipt_bins.py,imas_ambix/agent/profiles/deepseek-v4-1-flash.toml,/home/ITER/mcintos/.config/reckon/crew/reports/four-card-reuse-map.md,/home/ITER/mcintos/.config/reckon/crew/reports/swa-index-width-attribution.md">
 <meta name="plan-impl" content="0.727">
@@ -583,6 +583,17 @@
     lane block follows the rotation back. The V4-Flash profile in git at plan
     start is the restore point.</p>
 
+    <h3 id="pool-and-hicache">Bounded device pool and host-tier prefix cache landed</h3>
+
+    <p><a href="/imas-ambix/evidence/archive/dsv41-flash-four-card-throughput-landed.html#pool-and-hicache">The cumulative evidence record</a>
+    records the candidate configuration: a 4,000,000-token device pool, a
+    two-times host HiCache tier, selective write-through, and a 480G SLURM
+    request. The pinned image establishes that DeepSeek-V4 rejects a fixed
+    <code>--hicache-size</code> and must be sized with
+    <code>--hicache-ratio</code>. The candidate has not been load-proven:
+    only a long-prefill serve can establish that; it is not launched by this
+    node.</p>
+
     <h2 id="s9">§9 — There is no newer image for this checkpoint, and there cannot be one</h2>
 
     <p><strong>Read this before ever "updating sglang" on this deployment. Doing
@@ -785,8 +796,10 @@
 </div>
 <div class="r-comment" data-section="s9" data-id="c-s9-lineage" data-who="reckon-ship" data-when="2026-09-15T17:58:00+00:00">
     <div class="r-comment-body">The decisive check was content, not topology. Main's deepseek_v4.py is 170,193 bytes against 211,019 at our commit, and main has no deepseek_v41_vit.py, so main's inability to serve this checkpoint is a fact about files rather than an inference from a commit graph. That distinction mattered: a squash merge makes 15 missing commits look identical to 15 absent features, because behind_by counts commits rather than content. Reading the files is what separated those two possibilities, and the commit graph alone could not have.</div>
+</div>
 <div class="r-comment" data-section="s8" data-id="c-run-r-20260915T175545649237-alias-declared-not-derived" data-who="alias-declared-not-derived" data-when="2026-09-15T17:55:45Z">
     <div class="r-comment-body"><p>The clive refresher now treats alias as a recorded display decision rather than endpoint metadata. The base behavior reproduced: a V4.1 endpoint wrote the long served name into <code>alias</code>, replacing <code>dsv4-flash</code>. The mapping holds <code>deepseek-v4-flash → dsv4-flash</code> and <code>deepseek-v4.1-flash → dsv4.1-flash</code>; six existing ledger rows attest the V4.1 spelling. An unmapped served name exits non-zero, names the missing model, asks for a mapping, and leaves its fixture unchanged. Existing model and usable-window coverage remains green. Focused coverage passed 8/8 and scoped Ruff passed. Full record: <a href="/imas-ambix/evidence/archive/dsv41-flash-four-card-throughput-landed.html#clive-alias-mapping">declared clive aliases</a>.</p></div>
+</div>
 <div class="r-comment" data-section="s8" data-id="c-run-r-20260915T175430553939-kernel-pdl-patch" data-who="kernel-pdl-patch" data-when="2026-09-15T20:20:00+00:00">
     <div class="r-comment-body"><p>Commit <code>a6aa2fc</code> adds a read-only launch-time overlay for the image's DeepSeek K norm/RoPE header. The direct image diff is exactly one deletion and one insertion: <code>params.out_loc[work_id]</code> now follows <code>PDLWaitPrimary&lt;kUsePDL&gt;()</code>. The dry run prints that bind. The H200 path is active: capability (9, 0) makes <code>is_arch_support_pdl()</code> true at the JIT factory call site. A deliberately broken bound header made <code>nvcc</code> fail at the mounted image path; the real header compiled cleanly with a fresh cache context and zero precompiled kernel binaries in the image tree. Focused coverage passed 5/5 and whole-tree Ruff passed. Full record: <a href="/imas-ambix/evidence/archive/dsv41-flash-four-card-throughput-landed.html#kernel-pdl-overlay">kernel PDL overlay evidence</a>.</p></div>
 </div>
