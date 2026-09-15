@@ -927,14 +927,37 @@ one serve, all correct and all different:
 | 784 s | 16-17 | 4.38% |
 | 120 s | 42-44 | 2.28% |
 | 76 s | 28-31 | **0%** — 1,057,060 queries, zero hits, 403 GB written |
+| ~90 s | 28-31 | 0.43% — the burst that arrived just after the row above |
 
-In that last window `external_prefix_cache_hits_total` and
-`kv_offload_load_bytes_total` were both frozen while 403 GB went the other way.
-Restores arrive in bursts and stop dead between them, so the cumulative climbs
-during a burst and flattens after — which reads as a store warming up to anyone
-sampling the cumulative, and two sessions independently reported it as
-"climbing" within an hour of both having documented the cumulative trap. **A
-non-stationary process has no rate; report the window and what it contained.**
+Two orders of magnitude across four correct measurements of one process, taken
+within half an hour. **A non-stationary process has no rate; report the window
+and what it contained.**
+
+Each of those four readings licensed a confident wrong verdict. The cumulative
+climbs during a burst and flattens after, so it reads as a store warming up —
+two sessions independently reported "climbing" within an hour of both having
+documented the cumulative trap, one of them in this file. And the zero window
+read as the path having stopped, which is the same error with the sign flipped:
+**"frozen" was a property of that window, not of the store**, and the next
+interval returned 148 MB.
+
+The single most misleading reading was the longest one. That 784 s window still
+contains roughly 90% of every byte the engine has ever restored, so the most
+carefully-taken measurement of the day sampled the interval holding the bulk of
+the phenomenon and reported it as the steady state — an outlier presented as a
+rate, by the session that had been most rigorous about everything else.
+
+**So measure a bursty process by its bursts.** A fixed-concurrency window is not
+the experiment, for two reasons: one wave's width does not control the lane's,
+and a ratio over bursts keeps producing confident numbers that disagree. Report
+the **burst count and inter-arrival** over a window long enough to contain
+several, so the next reader can see whether they are sampling one burst or
+twenty.
+
+What four sessions jointly support, and nothing more: the return path is
+functional and intermittent; roughly 9 GB returned in total against ~6 TB
+written; no window sampled so far estimates a rate; and between bursts the store
+sustains over 5 GB/s of writes and returns nothing.
 
 It also means a reading's concurrency label describes the READER's wave, not
 what produced the burst: every session shares one engine and one store, so four
