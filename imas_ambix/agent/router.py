@@ -8,6 +8,7 @@ import hashlib
 import json
 import logging
 import os
+import sys
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Protocol
@@ -618,6 +619,20 @@ def serve_router(
 ) -> None:
     """Run the router ASGI application with the serving runtime."""
     import uvicorn
+
+    # uvicorn configures its own loggers and leaves everyone else on the root
+    # logger, which defaults to WARNING -- so every INFO this module emits was
+    # dropped before reaching the job log. Measured 2026-09-15: 32 requests
+    # routed with zero lines from this module, including the upstream-preference
+    # diagnostic that has been silently absent since it was written. A
+    # diagnostic that cannot be read is not a diagnostic, so attach a handler
+    # rather than assume one.
+    if not logger.handlers:
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+        logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
 
     uvicorn.run(
         create_router_app(resolver, lane_document=lane_document),
