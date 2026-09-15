@@ -90,6 +90,34 @@
     cumulative field in place would silently change the meaning of every row
     already recorded.</p>
 
+    <h2 id="interval-receipt-deltas">§2b — Receipt rows now retain both the cumulative and interval cache readings</h2>
+
+    <p>Commit <code>e112152</code> adds
+    <code>prefix_cache_query_delta</code>, <code>prefix_cache_hit_delta</code>,
+    and <code>prefix_cache_hit_rate_interval</code> to every receipt row without
+    changing <code>prefix_cache_hit_rate</code>. The first row has no preceding
+    snapshot, so all three interval fields are <code>null</code>; later rows use
+    the same reset-safe counter differencing as throughput, and the interval
+    ratio is <code>null</code> when no positive query delta exists.</p>
+
+    <table>
+      <thead>
+        <tr><th>Controlled two-snapshot reading</th><th>Value</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Previous queries / hits</td><td>984,123 / 812,004</td></tr>
+        <tr><td>Current queries / hits</td><td>986,123 / 813,804</td></tr>
+        <tr><td>Interval query / hit deltas</td><td>2,000 / 1,800</td></tr>
+        <tr><td>Interval hit rate</td><td><strong>0.9000</strong></td></tr>
+        <tr><td>Retained cumulative hit rate</td><td><strong>0.8253</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p>The focused receipt suite passed 15 of 15 tests before and after the
+    change, and the repository lint gate passed. The controlled case now proves
+    both readings at once: the historical cumulative value remains 0.8253 while
+    a consumer can read the 0.9000 rate for this interval.</p>
+
     <h2 id="swap-hazards">Two operational findings that change the swap procedure</h2>
 
     <p><strong><code>agent serve</code> exposes no pool-size option.</strong> The
