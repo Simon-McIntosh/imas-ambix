@@ -217,7 +217,7 @@ reasoning = "auto"
 SGLANG_ENABLE_DSV41_ENGRAM_HOST_TABLE = "1"
 
 # Serving runs from the vendor preview container, not from the sglang engine
-# venv. V4.1 support merged to sglang main on 2026-09-14 (PR #38798) and is not
+# venv. V4.1 support merged to sglang main on 2026-09-14 and is not
 # in any released wheel, so the 0.5.11 in the shared engine environment cannot
 # register this architecture at all. The image is the route the cookbook
 # documents, and pinning the digest keeps a re-pull from silently moving the
@@ -244,3 +244,16 @@ memory = "420G"
 port = 18810
 time_serve = "0"
 time_download = "24:00:00"
+
+# The ordinary serve keeps the smallest pool proven under agent-shaped load.
+# This named selection exposes the larger pool used by the controlled
+# real-traffic comparison without turning a temporary experiment into the
+# default or requiring an operator to edit this file at launch time:
+#
+#   imas-ambix agent serve deepseek-v4-1-flash@evaluation
+#
+# 14,999,808 tokens completed the 32-way load sweep with zero OOM. Do not raise
+# it to 20,000,000: that pool started and answered light requests, then died
+# when a real prefill allocated the fused-MoE workspace lazily.
+[settings.evaluation.engine]
+max_total_tokens = 14999808
