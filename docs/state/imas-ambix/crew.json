@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-15T20:12:23",
+  "updated": "2026-09-15T20:19:15",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -34492,6 +34492,208 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260915T175430553939-kernel-pdl-patch",
+        "plan": "dsv41-flash-four-card-throughput",
+        "section": "\u00a78",
+        "node": "kernel-pdl-patch",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1691,
+                "cached_input_tokens": 505020,
+                "input_tokens": 506713,
+                "output_tokens": 727,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 507440,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "2f9d3191-e884-4a53-99ab-b894325cccbd",
+            "session_id": "dsv41-four-card-20260915"
+          },
+          "done_when": "A patched copy of python/sglang/kernels/jit/csrc/deepseek_v4/main_norm_rope.cuh lives in this repository at a versioned path, differing from the image's copy by EXACTLY the upstream change in PR #38409 and nothing else: the declaration reading params.out_loc at index work_id moves from just above the PDLWaitPrimary barrier call to immediately below it. Prove the diff is one insertion and one deletion by extracting the image's copy and diffing. The container config gains a declared bind so the generated sbatch script mounts the patched file over the image path, and agent serve deepseek-v4-1-flash --dry-run shows that bind in its output. THE LOAD-BEARING REQUIREMENT, and where your effort belongs: PROVE THE JIT COMPILES THE PATCHED SOURCE RATHER THAN A CACHE. A patch the kernel cache bypasses is a guard that never runs, and would leave everyone believing a race was fixed when it was not. Demonstrate it positively: bind a deliberately broken copy of the header over the image path and show the kernel compile FAILS with an error naming that file, proving the bound file is the compilation input; then show the real patch compiles clean. There is no precompiled .so, .cubin or .fatbin under the image kernels tree so runtime compilation is expected, but a cache mechanism exists via the SGLANG_CUTE_AOT_CACHE_DIR environment variable and must be shown not to shortcut the source. Compiling one kernel needs a GPU: run it on betelgeuse under the reservation rules in imas_ambix/agent/AGENTS.md, request ONE card, never pass --qos, never --mem=0, export TMPDIR=/tmp, and do NOT start a serve or occupy four cards. ALSO RECORD, because it decides whether the race was ever live: whether the boolean template parameter named kUsePDL is true for the fused_k_norm_rope_flashmla kernel in this deployment configuration, traced to the call site that supplies it rather than inferred from the template signature. State the answer either way, and do not treat an inert race as a reason to drop the patch. Gate: ruff clean on your own paths, your new test passes, the dry-run shows the bind, and both the broken-copy compile failure and the clean-patch compile success are captured in logs. Whole-tree ruff over the scripts directory carries 273 pre-existing findings and is NOT your gate; lint imas_ambix and tests only.",
+          "estimated_hours": null,
+          "goal": "The one-line upstream PDL ordering fix is applied to the served DeepSeek-V4 kernel through a launch-time bind mount, and proven to actually take effect",
+          "id": "kernel-pdl-patch",
+          "lane_declaration": {
+            "backend": "codex-terra",
+            "headroom": "known",
+            "metered": true,
+            "observed_at": "2026-09-15T17:54:31Z",
+            "read_at": "2026-09-15T17:54:32Z",
+            "resolved_backend": "codex-terra",
+            "utilisation_pct": 54.0
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "backend declares no lane document",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260915T175430553939-kernel-pdl-patch/manifest.md",
+          "plan": "dsv41-flash-four-card-throughput",
+          "requested_backend": "codex-terra",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a78",
+          "spec_level": "guided",
+          "time_budget": "45m",
+          "token_budget": null,
+          "write_paths": [
+            "imas_ambix/agent/kernel_patches",
+            "imas_ambix/agent/profile.py",
+            "imas_ambix/agent/slurm.py",
+            "imas_ambix/agent/profiles/deepseek-v4-1-flash.toml",
+            "tests/test_agent_kernel_patch.py",
+            "docs/evidence/archive/dsv41-flash-four-card-throughput-landed.html",
+            "docs/plans/dsv41-flash-four-card-throughput.html"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "kernel-pdl-patch",
+        "backend": "codex-terra",
+        "local": false,
+        "agent": {
+          "alias": "terra5.6",
+          "backend": "codex-terra",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-terra",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-15T17:54:51Z",
+        "completed_at": "2026-09-15T18:16:02Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1271,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1271,
+        "stalled": false,
+        "time_budget": "45m",
+        "base_sha": "d45d3de186fd2f36dc66045a622ae870aa354851",
+        "commits": [
+          "a6aa2fce2fbfd51a294f78ea9a6dea0afdfb0efd",
+          "0e641d3ebcc2a9c060c934e5aaf1798bd4390343",
+          "b210047a63c4e008c0315fa452b28fbb48919353"
+        ],
+        "changed_lines": {
+          "added": 1018,
+          "removed": 1,
+          "files": 7
+        },
+        "tests_added": 3,
+        "gate": "passed",
+        "gate_check": {
+          "command": "nvcc compile receipts with broken and clean bound headers, compute_build_key source inspection, pytest tests/test_agent_kernel_patch.py, ruff check imas_ambix tests, agent serve --dry-run",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260915T175430553939-kernel-pdl-patch/clean-header-compile.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260915T175430553939-kernel-pdl-patch/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a0a635-1571-7942-a6ba-95b27011c607",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 2535168,
+            "cached_input_tokens_cumulative": 2535168,
+            "input_tokens": 2604648,
+            "input_tokens_cumulative": 2604648,
+            "output_tokens": 9249,
+            "output_tokens_cumulative": 9249,
+            "reasoning_output_tokens": 2653,
+            "reasoning_output_tokens_cumulative": 2653
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lane_receipt": {
+          "quota_state": "measured",
+          "observed_at": "2026-09-15T18:16:02Z",
+          "effective_context_window": 380000,
+          "quota_windows": [
+            {
+              "window_minutes": 10080,
+              "used_percent": 54.0,
+              "resets_at": 1789970251,
+              "observed_at": "2026-09-15T18:16:02Z"
+            }
+          ],
+          "notional_cost_usd": 24.5702,
+          "rate_basis": {
+            "model_identifier": "gpt-5.6-terra",
+            "input_per_million": 2.0,
+            "output_per_million": 12.0,
+            "as_of": "2026-09-09"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": null,
+        "throughput": {
+          "cumulative_cached_input_tokens": 11599360,
+          "cumulative_input_tokens": 11857086,
+          "detail": "model span bounded from the client rollout's tool spans; input cumulative summed across resets",
+          "generated_tokens": 11902,
+          "generation_seconds": 1124.516,
+          "machine_seconds": 145.914,
+          "tokens_per_second": 10.58
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "resume",
+        "attempt": 2,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/dsv41-four-card-20260915/kernel-pdl-patch",
+          "session_id": "01a0a635-1571-7942-a6ba-95b27011c607",
+          "session_source": "pointer",
+          "retained_at": "2026-09-15T18:16:02Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "tool_steps": 69.0,
+        "orientation_input_tokens": null,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -34538,6 +34740,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 631
+    "_version": 632
   }
 }
