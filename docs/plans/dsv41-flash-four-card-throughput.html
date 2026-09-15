@@ -7,7 +7,7 @@
   <meta name="reckon-type" content="plan">
   <meta name="plan-slug" content="dsv41-flash-four-card-throughput">
   <meta name="plan-title" content="DSv4.1-Flash Four-Card Throughput — Reopening Against a Measured Close">
-  <meta name="plan-summary" content="Test whether V4.1-Flash&#x27;s 15M-token pool beats V4-Flash on real agent traffic, against a decode ceiling already measured at 34.4 tok/s">
+  <meta name="plan-summary" content="Serve DeepSeek-V4.1-Flash on four H200 for its 5.3x prefix pool, configured right on first start; the comparison behind it is now post-serve observation">
   <meta name="plan-status" content="active">
   <meta name="plan-roi" content="mid">
   <meta name="plan-effort-hours" content="6.0">
@@ -24,8 +24,8 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-15">
-<meta name="plan-version" content="15">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s2a&quot;:&quot;done&quot;,&quot;s2b&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s3-paired&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;done&quot;}">
+<meta name="plan-version" content="17">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s2a&quot;:&quot;done&quot;,&quot;s2b&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s3-paired&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;deferred&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;implementable&quot;}">
 <meta name="plan-artifacts" content="imas_ambix/agent/serving_receipts.py,imas_ambix/agent/receipt_bins.py,imas_ambix/agent/profiles/deepseek-v4-1-flash.toml,/home/ITER/mcintos/.config/reckon/crew/reports/four-card-reuse-map.md,/home/ITER/mcintos/.config/reckon/crew/reports/swa-index-width-attribution.md">
 <meta name="plan-impl" content="0.625">
 <meta name="plan-commits" content="e11215257d06725da0c70eda69bb786388595421,f777ce9afb6acb941e9aa2e2132837790e848217,b783a72c55b093f3c8b3347927d923346836387d,956c80b12d69a4e403e21c988d3059da65a4f363,d108cd78716aff8e0094d90fe6b6adfb4acdf9c0,15f2a3bf31b7d2ab294375d8ebb77eb8524f6837">
@@ -356,7 +356,89 @@
     <a href="/imas-ambix/evidence/archive/dsv41-flash-four-card-throughput-landed#swa-index-width">SWA
     index-width attribution</a>.</p>
 
-    <h2 id="s5">§5 — Resolution</h2>
+    <h2 id="s7">§7 — The question was withdrawn and replaced by a decision</h2>
+
+    <p><strong>This plan stopped being an experiment on 2026-09-15.</strong> The
+    lead's direction, in their words: the V4 loaded numbers are already well
+    characterised and poor, and <em>"I want the better capability 4.1 with the
+    larger prefill cache"</em>. That is an adoption decision, not a hypothesis,
+    and it retires §3's comparison as the thing that decides anything. §5's
+    resolution table below is therefore <strong>overtaken</strong> — it describes
+    putting a verdict back to the lead, and the lead has gone first.</p>
+
+    <p>Three consequences, recorded because each changed what was being built.
+    <strong>The V4-Flash arm is cut</strong>, not deferred: this plan measures
+    nothing on the retired checkpoint, and the drafter-restore decision its data
+    would have served is already routed to the plan that owns it.
+    <strong>§3 survives as post-serve observation rather than as a gate</strong> —
+    worth recording once V4.1 carries real traffic, and no longer permitted to
+    hold anything shut. And the target moved with the framing: the aim is
+    <em>comparable loaded throughput, a little less being acceptable</em>, bought
+    against a better model and a 5.3× pool. The 80/50 figures were written for a
+    comparison that is no longer the question.</p>
+
+    <p><strong>What replaced it is a configuration problem, and it is the real
+    work.</strong> Serving V4.1 correctly the first time turned out to need four
+    things the plan had not asked for: the large pool as the profile's plain
+    default rather than behind a selector; a decision on whether the 2026-09-14
+    image carries reverted upstream code; the lane's advertised context window
+    corrected from 1,016,576 to a measured figure; and the lane's model and alias
+    keys reconciled with the served name.</p>
+
+    <h2 id="s8">§8 — The swap would have restored a lane that failed every request</h2>
+
+    <p>This is the finding that justifies not rushing the serve, and it was
+    surfaced by two peer coordinator sessions asking about a context window
+    rather than by anything this plan was looking for.</p>
+
+    <p><code>reckon/_backends.py:1295</code> passes the backend's
+    <code>model</code> key to the launcher as <code>--model</code>. The clive
+    block in flight config reads <code>model: deepseek-v4-flash</code> and
+    <code>alias: dsv4-flash</code>, and V4.1 serves as
+    <code>deepseek-v4.1-flash</code>. <strong>So every clive dispatch after the
+    swap would have requested a model the endpoint no longer offers — the lane
+    up, health probes green, every request failing.</strong></p>
+
+    <p><strong>And the obvious remedy would not have caught it.</strong>
+    <code>scripts/refresh_clive_context_window.py</code> exists precisely because
+    this value is a copy of a deployment property, and it rewrites
+    <code>usable_input_window</code> — one of the three stale keys. Running it
+    would have reconciled a third of the block while reporting success, which is
+    worse than not running it, because it would have retired the suspicion.</p>
+
+    <table>
+      <thead>
+        <tr><th>Key</th><th>Stale value</th><th>Fixed by the refresher today</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>usable_input_window</code></td><td>1,016,576</td><td>yes</td></tr>
+        <tr><td><code>model</code></td><td><code>deepseek-v4-flash</code></td><td><strong>no</strong></td></tr>
+        <tr><td><code>alias</code></td><td><code>dsv4-flash</code></td><td><strong>no</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>The window figure is 172,800, and the arithmetic is not the one to
+    carry in your head.</strong> 204,800 is the engine's context cap;
+    <code>imas_ambix/agent/clive.py:623-630</code> sets the output reservation to
+    <code>MAX_CONTEXT / 4</code> capped at 32,000, so at this cap the ceiling
+    binds, the reservation is 32,000, and the usable input window is 172,800. Below
+    a 128,000 window the quarter rule would govern instead — which is why the
+    refresher parses the reservation rather than hardcoding it, and why a
+    hand-computed figure is right today and wrong after the next change. Two
+    independent confirmations: flight config's own note records 172,800 being set
+    on 2026-09-14, and six rows in reckon's ledger carry that window under this
+    alias.</p>
+
+    <p><strong>The config note outlived the fix it describes.</strong> That note
+    sits sixty-eight lines above a live value of 1,016,576 — so the repair was
+    made, undone, and its account left standing over the value that reproduces
+    the failure, including the HTTP 400 refusals it warns about. A precise record
+    of a defect directly above the defect is worse than no record, because it
+    reads as current. <strong>Done when:</strong> one command reconciles all
+    three keys from the live endpoint, so the block cannot be two-thirds stale
+    again.</p>
+
+    <h2 id="s5">§5 — Resolution <span class="badge">superseded by §7</span></h2>
 
     <table>
       <thead>
@@ -488,6 +570,12 @@
 </div>
 <div class="r-comment" data-section="s2b" data-id="c-run-r-20260915T164715246556-width-binned-collector" data-who="width-binned-collector" data-when="2026-09-15T16:54:00Z">
     <div class="r-comment-body"><p>Commit <code>d108cd7</code> adds <code>receipt_bins.py</code>, which reads receipt JSONL directly and groups complete interval rows by their recorded <code>num_requests_running</code>. The default historical bins are inclusive 10–14 and 15–19; per-worker decode is each interval's generation throughput divided by its recorded running count, while prefill remains the interval rate. Prefix hits are reported as median plus p10–p90, never an interval mean. The fixture records two 10–14 intervals (median decode 16.0 tok/s per worker, prefill 600.0 tok/s, prefix median 0.50; p10 0.26 and p90 0.74), one 15–19 interval (10.0, 950.0, and all distribution values 0.90), and one null first-row interval visibly excluded. Focused collector, receipt, and evaluation-pool suites passed 19/19; whole-tree Ruff passed.</p></div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-s5-superseded" data-who="reckon-ship" data-when="2026-09-15T17:34:00+00:00">
+    <div class="r-comment-body">Superseded by section 7 and deliberately NOT resolved. This table routes a measured verdict back to the lead for a four-card adoption decision; the lead made that decision directly instead, so there is no verdict to route. Marked deferred rather than done because nothing in it was executed, and recording it as done would claim a comparison that was never run. Its third row keeps standing value on its own terms — a hit rate that fails to rise despite the 5.3x pool would contradict the working model of this lane — and that is now section 3's post-serve observation.</div>
+</div>
+<div class="r-comment" data-section="s8" data-id="c-s8-provenance" data-who="reckon-ship" data-when="2026-09-15T17:34:30+00:00">
+    <div class="r-comment-body">Provenance worth keeping: this was found by two peer coordinator sessions asking about a context window, not by anything this plan was looking for. One sent the measured figure, the other sent the config note around it; the note is what exposed that the refresher covers one key of three, because it explained WHY the value rots and thereby invited the question of what else in the block does. A number alone would have been acted on and would have restored a broken lane. The general shape is the aimed-instrument failure again, third time today on this plan: a true answer to the question asked, about the wrong subject.</div>
 </div>
 </section>
 </main>
