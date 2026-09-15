@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="plan">
+  <meta name="plan-slug"      content="dsv41-flash-four-card-throughput">
+  <meta name="plan-title"     content="DSv4.1-Flash Four-Card Throughput — Reopening Against a Measured Close">
+  <meta name="plan-summary"   content="Test whether V4.1-Flash's 15M-token pool beats V4-Flash on real agent traffic, against a decode ceiling already measured at 34.4 tok/s">
+  <meta name="plan-status"    content="draft">
+  <meta name="plan-roi"       content="mid">
+  <meta name="plan-effort-hours" content="6.0">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="orchestrator">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-capability-risk" content="moderate">
+  <meta name="plan-milestone" content="OPS">
+  <meta name="plan-sprint"    content="S24">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-tags"      content="agent-serving,gpu-deployment,benchmarking">
+  <title>DSv4.1-Flash Four-Card Throughput | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — This question was closed with measurements, and they must be read first</h2>
+
+    <p>V4.1-Flash already ran on these four cards. The plan
+    <code>dsv41-flash-serve-characterisation</code> took it to <code>done</code>
+    on 2026-09-14 after landing a single-stream sweep and a concurrency sweep,
+    and the serve was withdrawn by operator decision on the grounds that
+    <em>the checkpoint is not suited to four cards and needs eight</em>. Anyone
+    dispatching this plan reads that one first. Its numbers are not to be
+    re-measured:</p>
+
+    <table>
+      <thead>
+        <tr><th>Landed 2026-09-14</th><th>Value</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Topology</td><td>four H200, TP4/EP4, port 18810</td></tr>
+        <tr><td>KV pool</td><td><strong>14,999,808 tokens</strong></td></tr>
+        <tr><td>Single-stream decode</td><td><strong>34.4 tok/s</strong>, flat from 128 to 2,689 output tokens</td></tr>
+        <tr><td>Time to first token</td><td>131 ms, flat</td></tr>
+        <tr><td>Per-stream to concurrency 4</td><td>33.5–33.6 tok/s, aggregate linear to 134.1</td></tr>
+        <tr><td>Per-stream at 8 / 16 / 32</td><td>24.7 / 17.0 / 11.0, falling as 1/concurrency</td></tr>
+        <tr><td>Aggregate at 32</td><td>350.8 tok/s, not saturated; zero OOM; 10/10 health probes over ten minutes</td></tr>
+        <tr><td>DSpark speculative decoding</td><td>cannot start — wants ~12 GiB/card of workspace; 1.3 GiB free at the 15M pool</td></tr>
+      </tbody>
+    </table>
+
+    <p>So three things are settled and are not open questions for this plan.
+    <strong>It fits on four cards</strong> — the 614 GB minimum quoted elsewhere
+    is the vision-enabled figure, and text-only ran here with a pool five times
+    ours. <strong>Its unloaded decode rate is 34.4 tok/s.</strong> <strong>DSpark
+    is unavailable on this topology</strong> at any pool size the cards can fund.</p>
+
+    <h2 id="s2">§2 — The arithmetic that decides this before any work starts</h2>
+
+    <p>The target is 80 tok/s with a loaded value of 50. Read per worker — which
+    is the unit every baseline in this repository is expressed in, and what a
+    worker actually experiences — <strong>V4.1 cannot reach it on four cards, and
+    that follows from a measurement already taken.</strong> Loaded throughput
+    cannot exceed unloaded throughput, and V4.1's unloaded ceiling here is 34.4
+    tok/s. A loaded target of 50 is above its idle rate.</p>
+
+    <table>
+      <thead>
+        <tr><th></th><th>V4-Flash (current)</th><th>V4.1-Flash (measured 09-14)</th><th>Target</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Unloaded, per worker</td><td><strong>86.6</strong></td><td>34.4</td><td>80</td></tr>
+        <tr><td>Loaded, per worker</td><td>6.9–10.1 <em>(real traffic)</em></td><td>17.0 at 16 <em>(synthetic)</em></td><td><strong>50</strong></td></tr>
+        <tr><td>KV pool</td><td>2,818,154</td><td><strong>14,999,808</strong></td><td>—</td></tr>
+        <tr><td>Prefix hit rate</td><td>25.7%</td><td>unmeasured</td><td>—</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>The two loaded figures in that table are not comparable and must
+    not be quoted against each other.</strong> V4-Flash's 6.9–10.1 is real agent
+    traffic carrying 12,000–17,000 tok/s of prefill. V4.1's 17.0 is the synthetic
+    concurrency bench on a fixed 12-token prompt, which barely touches the KV
+    pool. Comparing them would credit V4.1 with an advantage that is entirely the
+    absence of prefill.</p>
+
+    <p>That non-comparability is the whole remaining question, and it is
+    <strong>§3</strong>.</p>
+
+    <h2 id="s3">§3 — The one thing that was never measured</h2>
+
+    <p>The retired plan's §4 was to drive <em>real agent traffic</em> through
+    V4.1 with clive workers. It was closed unrun, correctly, because the serve
+    had been taken down by then. It is the only section of that plan that did not
+    land, and it is the only measurement that could overturn the close.</p>
+
+    <p>The reason it matters is specific rather than hopeful. This lane's
+    throughput problem is not decode — it is that the prefix cache returns 25.7%
+    where multi-turn agent traffic should approach 90%, so roughly three quarters
+    of every prompt is recomputed, and that recomputation is what evicts the next
+    session's prefix. Turnover is <code>pool ÷ prefill rate</code>: about 165
+    seconds on V4-Flash's 2.8M pool, which is inside a worker's think-and-tool
+    gap, so a prefix is often gone before its own next turn arrives.</p>
+
+    <p><strong>V4.1's pool is 5.3× larger.</strong> At the same prefill rate that
+    is roughly 880 seconds of prefix survival instead of 165 — comfortably beyond
+    an agent turn gap. If the hit rate rises accordingly, prefill volume falls,
+    and per-worker decode under real load rises toward the idle rate rather than
+    collapsing to a seventh of it.</p>
+
+    <p>So the genuine question is a trade with a measured cost and an unmeasured
+    benefit: <strong>V4.1 gives up 2.5× on raw decode and buys 5.3× on pool. On
+    real agent traffic, which wins?</strong> V4-Flash keeps 86.6 unloaded and
+    delivers 6.9–10.1 loaded; if V4.1 keeps a larger fraction of its 34.4, it
+    could deliver more under load while being far worse on paper.</p>
+
+    <p><strong>Done when:</strong> real clive workers have run sustained
+    multi-turn work against a V4.1 serve, with per-worker decode binned by
+    concurrency and the prefill rate recorded beside it, and a windowed internal
+    prefix-cache hit rate taken as a distribution of per-interval deltas at a
+    stated concurrency — not a cumulative ratio, which has misled four sessions
+    on this lane. The comparison bins are V4-Flash at 27.0% and 10.1 tok/s for
+    10–14 concurrent, and 26.3% and 6.9 tok/s for 15–19.</p>
+
+    <h2 id="s4">§4 — Two structural handicaps, and whether either is removable</h2>
+
+    <p>The retired plan named three candidate causes for 34.4 tok/s against the
+    300–507 the vendor reports on their own stack. One has since been settled —
+    DSpark cannot start. The other two are properties of this checkpoint on
+    Hopper rather than settings, and they bound how much §3 can possibly
+    recover:</p>
+
+    <ul>
+      <li><strong>MXFP4 experts dequantise rather than using native FP4 tensor
+      cores</strong>, because H200 is SM90 and FP4 silicon arrived with
+      Blackwell. Not removable on this hardware at all.</li>
+
+      <li><strong>Engram tables gathered from host memory rather than HBM.</strong>
+      The tables are 196.6B parameters at FP8, about 183 GiB. Four cards hold
+      561 GB against a 511 GB checkpoint, so they cannot be resident; eight cards
+      at 1128 GB could. <em>This is the concrete content of "needs eight cards"</em>,
+      and it is the one handicap that a topology change would remove.</li>
+    </ul>
+
+    <p>A third possibility is worth one cheap check rather than an assumption:
+    the 09-14 image predates the upstream fix that sizes prefill sliding-window
+    index rows to 128 columns instead of 1152 on a vision checkpoint served
+    text-only. Without it, every prefill row carries nine times the index width
+    for images that can never arrive, costing KV metadata and index bandwidth on
+    every platform. Whether our image lacked it has not been established, only
+    that it predates it.</p>
+
+    <p><strong>Done when:</strong> it is recorded whether the serve used for §3
+    carries the SWA width fix, so the resulting numbers are attributable. This is
+    a log check, not an experiment.</p>
+
+    <h2 id="s5">§5 — Resolution</h2>
+
+    <table>
+      <thead>
+        <tr><th>Outcome of §3</th><th>Action</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Loaded per-worker beats V4-Flash on real traffic</td>
+          <td>Record the number and the hit rate that produced it, and put the four-card decision back to the lead with both. This would overturn a close made on operator judgement, so it is reported rather than acted on unilaterally. Note that it can beat V4-Flash without reaching 50.</td>
+        </tr>
+        <tr>
+          <td>Loaded per-worker is no better than V4-Flash</td>
+          <td>Close the four-card V4.1 question permanently with a recorded measurement rather than a judgement, and say so in the profile so it is not reopened a fourth time. The pool advantage did not convert, and the decode handicap is structural on Hopper.</td>
+        </tr>
+        <tr>
+          <td>The hit rate does not rise despite the 5.3× pool</td>
+          <td>That is the more interesting negative and it belongs in the record whichever way the throughput lands: it would mean turnover is not what bounds the hit rate, which contradicts the current working model of this lane and would redirect the V4-Flash work that rests on it.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>In every branch the four cards end serving something. The V4-Flash profile
+    in git at plan start is the restore point and is one
+    <code>imas-ambix agent serve</code> away.</p>
+
+    <h2 id="s6">§6 — Constraints</h2>
+
+    <ul>
+      <li><strong>Taking V4-Flash down stops the local lane.</strong> The lead has
+      authorised it. Warn the peer coordinator sessions holding clive runs first;
+      recovery is <code>crew resume</code>, never redispatch, and promoting a
+      killed run destroys its resume path.</li>
+
+      <li><strong>Lower <code>max_num_seqs</code> for the evaluation.</strong>
+      Upstream reports a Triton illegal memory access in <code>dsv4_topk</code>
+      under high concurrency, mitigated by <code>max_num_seqs=256</code>. This
+      deployment runs 1024.</li>
+
+      <li><strong>Do not re-run the synthetic ladder.</strong> The concurrency
+      sweep is landed. A synthetic probe on this hardware once reached 8,479
+      tok/s aggregate at 1,023 concurrent and told us nothing about agent
+      sessions, while killing a serve and four workers.</li>
+
+      <li><strong>The V4-Flash baseline is moving.</strong> A data-parallel
+      replica split is staged and unmeasured; a memory-fraction return to 0.85
+      and a smaller prefill chunk are committed and unlanded. Record which
+      V4-Flash numbers the comparison used.</li>
+    </ul>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+
+      <div class="r-dec" data-key="target-unit" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">Is the 80 / 50 tok/s target per worker or per card?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="per-worker">per worker</button>
+          <button class="r-opt" data-value="per-card">per card</button>
+        </p>
+        <p class="r-dec-rat">This decides whether the plan can pass at all. Per worker, V4.1 is excluded by a landed measurement before any work starts: loaded throughput cannot exceed unloaded, and its unloaded ceiling here is 34.4 tok/s against a loaded target of 50. Per card on four cards, 50 means 200 tok/s aggregate, which V4.1 exceeded at 32 concurrent in the landed sweep — but that was synthetic traffic, so passing on that reading would be an artefact of the prompt shape rather than a result. Per worker is the unit every baseline in this repository uses and what a worker experiences; a single request is served by all four cards at once, so per-card decode is not a quantity the engine reports.</p>
+      </div>
+
+      <div class="r-dec" data-key="worth-the-cards" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">Given §2, is §3 worth the lane downtime and a 511 GB checkpoint?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="run-it">run §3</button>
+          <button class="r-opt" data-value="close-it">close on the landed evidence</button>
+          <button class="r-opt" data-value="eight-cards">defer to an eight-card window</button>
+        </p>
+        <p class="r-dec-rat">Honest expected value is low and the plan says so rather than selling it: V4.1 is 2.5× worse on measured decode, one of its two handicaps is unfixable on Hopper silicon and the other is exactly why it was judged to need eight cards. Against that, the single untested claim is a 5.3× pool on a lane whose measured problem is prefix turnover, and no amount of reasoning settles whether that converts — the retired plan's §4 was the right experiment and never ran. Deferring to an eight-card window is the option that removes the Engram handicap as well, and the node has eight cards when no training campaign holds them.</p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+
+      <article class="r-fu" data-id="f-dsv41t-01" data-status="open"
+               data-capability-version="1.0" data-capability-class="orchestrator"
+               data-capability-reasoning="deep" data-capability-verification="strict"
+               data-written-by="imas-ambix-92" data-written-at="2026-09-15 16:45">
+        <h4 class="r-fu-title">Lock both decisions before any serve is touched</h4>
+        <div class="r-fu-body">
+          <p>The target-unit decision determines whether this plan can pass at
+          all, and the worth-the-cards decision determines whether it runs. Both
+          are answerable from what is already recorded here — neither needs a
+          measurement — and locking them first avoids spending lane downtime and
+          a 511 GB download on a question whose answer is already arithmetic.</p>
+          <p>Read <code>dsv41-flash-serve-characterisation</code> before
+          dispatching anything. Its §1 and §2 are landed and must not be
+          re-measured; its §4 is the only open experiment and is this plan's §3.</p>
+        </div>
+        <pre class="r-fu-prompt">/reckon-ship dsv41-flash-four-card-throughput §3</pre>
+      </article>
+    </section>
+
+  </main>
+</body>
+</html>
