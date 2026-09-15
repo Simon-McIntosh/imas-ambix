@@ -1007,6 +1007,67 @@ identical either way, so the load's prefix profile has to be stated beside any
 verdict — a coordinator running that wave named the limitation unprompted, and
 it is not visible in the metrics.
 
+**The draft group's veto: the hypothesis, its prediction, and the evidence that
+can no longer be collected.** Recorded before the test ran, and before the
+offload counters were removed, because the supporting data becomes
+unrepeatable once the connector is gone.
+
+DSpark's draft layers form their own KV cache group, flagged an eagle group.
+The multi-group prefix lookup requires EVERY group to report a nonzero hit, so
+one group at zero short-circuits the whole request. Draft KV is recomputed from
+the target model rather than retained, so that group's blocks are sparse and
+discontinuous by construction. Upstream reports the real groups measuring
+88.9-100% once isolated from the veto. The same AND-convergence is reimplemented
+independently on BOTH lookup paths -- the GPU coordinator and the offload
+connector -- so the hypothesis covers both.
+
+**The point prediction, pre-registered.** If the veto gates the GPU path, the
+observed rate is a product of `P(un-vetoed)` and the un-vetoed rate:
+
+    observed 26.3%  =  P(un-vetoed) x 88.9-100%   ->  P = 0.26-0.30
+    predicted after DSpark is disabled: 88.9-100%, i.e. 3.4-3.8x
+    baseline NEVER exceeded 40.1% across 149 intervals
+    non-overlap gap: 48.8 points
+
+Three outcomes, and the third is the one both framings excluded by
+construction: landing in 17-40% means the veto was not gating this path;
+89-100% confirms it; **landing near 55% means a PARTIAL veto -- the draft group
+vetoing some requests rather than acting as a clean gate** -- so record the
+number rather than a verdict.
+
+**Pre-registered confound:** disabling speculative decoding changes the request
+stream itself, not only the lookup. No draft tokens means different sequence
+lengths and arrival timing, which moves prefix reuse independently of any veto.
+Hence compare BINNED BY WIDTH against the baseline bins rather than comparing
+two medians, and do not read a result in the 40-60% band as weak confirmation.
+
+**The evidence that is about to become uncollectable.** The strongest support
+the veto had that did NOT come from the upstream report was the SHAPE of the
+external-path data, and that counter ceases to exist when the connector is
+removed:
+
+| | internal path | external path |
+|---|---|---|
+| zero-hit intervals | **1 / 149 (0.7%)** | **89 / 149 (59.7%)** |
+| distribution | tight, unimodal, deciles 17-34 | intermittent bursts |
+| restore quanta | n/a | 15 blocks and 96 blocks, not a fixed unit |
+
+A capacity-or-eviction story predicts a LOW hit rate; it does not predict an
+INTERMITTENT one. Variable burst sizes separated by dead intervals fit "the rare
+intervals where the draft group happened to produce a consecutive run" far
+better than a full cache evicting in some order. That argument accounts for the
+shape of the data rather than only its level, which is why it displaced the
+eviction-order reading that two sessions had jointly settled on.
+
+**And interval dead-time does not transfer between the two paths.** It is an
+instrument for a rare countable event, not for a common proportion: at hundreds
+of requests per 20 s bin, "74% of requests vetoed to zero" and "every request
+hitting 26% of its prefix" produce the same aggregate, and the law of large
+numbers makes both tight. The discriminating quantity is the per-request
+distribution -- bimodal versus unimodal -- and vLLM exposes no metric for it. So
+a step confirms the veto while a null does NOT fully exonerate it; it shows only
+that the drafter was not the dominant term.
+
 **Prefix-cache eviction is the FIRST symptom of KV pressure, and it appears
 long before preemption.** Measured 2026-09-15 at 36 concurrent agent requests:
 hit rate down to 23-25%, KV occupancy 63-65%, **`num_preemptions_total` still
