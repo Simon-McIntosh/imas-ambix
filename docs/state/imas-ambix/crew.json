@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-16T00:01:11",
+  "updated": "2026-09-16T00:29:18",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -1319,6 +1319,17 @@
         "id": "reader-migration",
         "role": "implement",
         "session_id": "01a00c2f-7c14-7571-bdc7-f32684478b1a"
+      },
+      {
+        "id": "router-inline-fetch",
+        "harness": "codex-terra",
+        "role": "implement",
+        "session_id": "01a0a717-36ba-7980-8f4e-8180eef4235f",
+        "session_model": "gpt-5.6-terra",
+        "sessions": {
+          "{\"alias\":\"terra5.6\",\"backend\":\"codex-terra\",\"effort\":\"high\",\"launch\":\"cli\",\"model\":\"gpt-5.6-terra\",\"sandbox\":\"worktree-full\"}": "01a0a717-36ba-7980-8f4e-8180eef4235f"
+        },
+        "created": "2026-09-15"
       },
       {
         "created": "2026-09-01",
@@ -36166,6 +36177,204 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260915T220136983037-router-inline-fetch",
+        "plan": "dsv41-flash-four-card-throughput",
+        "section": "\u00a78",
+        "node": "router-inline-fetch",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1210,
+                "cached_input_tokens": 843659,
+                "input_tokens": 844871,
+                "output_tokens": 171,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 845042,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "2f9d3191-e884-4a53-99ab-b894325cccbd",
+            "session_id": "dsv41-four-card-20260915"
+          },
+          "done_when": "The live lane document reads state measured with pool_tokens 4000000 across AT LEAST EIGHT consecutive published samples spanning four minutes or more, after the router has been restarted from the canonical checkout. Eight consecutive samples is the bar because a single measured reading proves nothing here: the document was observed reading measured and flipping back to unavailable 43 seconds later while no fix was in place. The defect is precisely located, so do not re-derive it. RouterApp._publish_lane in imas_ambix/agent/router.py does its OWN inline fetch - an aiohttp session.get followed by await response.text() - and then calls parse_lane_capacity on the result. It never calls fetch_lane_capacity: grep counts zero occurrences in that file. A previous node correctly added gzip, x-gzip and deflate handling to fetch_lane_capacity in lane.py, which is the path the CLI one-shot agent lane --publish takes, which is why its one-shot demonstration succeeded while the standing router kept failing with UnicodeDecodeError on byte 0x8b, the gzip magic. Fix the router's inline path to tolerate a compressed body. STRONGLY PREFER routing the router through the now-correct shared helper over duplicating decompression logic inline, because two call sites for one conceptual operation is what produced this defect and adding a third spelling of it would be worse than the bug; if the async context makes reuse genuinely impossible, say why in your record and factor the decode so one function owns it. A test covers the router's publish path against a gzip-encoded body. Gate: ruff check imas_ambix tests exits 0, existing lane and router tests add no failures against base, your new test passes, and you paste the eight-sample observation with timestamps. You may restart the router freely; it is cheap and holds no weights. Do NOT touch the four-card serve. One pre-existing failure in tests/test_agent_router_resolution.py whose mock does not accept lane_document is known and out of scope.",
+          "estimated_hours": null,
+          "goal": "The standing router's lane publisher tolerates a compressed metrics body, and the live lane stays measured across many samples",
+          "id": "router-inline-fetch",
+          "lane_declaration": {
+            "backend": "codex-terra",
+            "headroom": "known",
+            "metered": true,
+            "observed_at": "2026-09-15T22:01:37Z",
+            "read_at": "2026-09-15T22:01:38Z",
+            "resolved_backend": "codex-terra",
+            "utilisation_pct": 63.0
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "backend declares no lane document",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260915T220136983037-router-inline-fetch/manifest.md",
+          "plan": "dsv41-flash-four-card-throughput",
+          "requested_backend": "codex-terra",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a78",
+          "spec_level": "exact",
+          "time_budget": "35m",
+          "token_budget": null,
+          "write_paths": [
+            "imas_ambix/agent/router.py",
+            "tests/test_agent_router_lane_publish.py",
+            "docs/evidence/archive/dsv41-flash-four-card-throughput-landed.html",
+            "docs/plans/dsv41-flash-four-card-throughput.html"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "router-inline-fetch",
+        "backend": "codex-terra",
+        "local": false,
+        "agent": {
+          "alias": "terra5.6",
+          "backend": "codex-terra",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-terra",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-15T22:01:51Z",
+        "completed_at": "2026-09-15T22:08:47Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 416,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 416,
+        "stalled": false,
+        "time_budget": "35m",
+        "base_sha": "3bebb8fe2412ca6b768066506334dada1a98e989",
+        "commits": [
+          "3f3909dd9248587b9e344da8c53c5d2676efcf07",
+          "a67810544b1003b46a51ce86b7a31632fc3a5235"
+        ],
+        "changed_lines": {
+          "added": 108,
+          "removed": 7,
+          "files": 4
+        },
+        "tests_added": 2,
+        "gate": "passed",
+        "gate_check": {
+          "command": "pytest tests/test_agent_router_lane_publish.py with a failing gzip baseline, ruff check imas_ambix tests, then eight timestamped live lane samples after a canonical restart",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/reports/lane-measured-eight-samples.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260915T220136983037-router-inline-fetch/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a0a717-36ba-7980-8f4e-8180eef4235f",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 2913024,
+            "cached_input_tokens_cumulative": 2913024,
+            "input_tokens": 3055957,
+            "input_tokens_cumulative": 3055957,
+            "output_tokens": 17790,
+            "output_tokens_cumulative": 17790,
+            "reasoning_output_tokens": 6263,
+            "reasoning_output_tokens_cumulative": 6263
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lane_receipt": {
+          "quota_state": "measured",
+          "observed_at": "2026-09-15T22:08:47Z",
+          "effective_context_window": 380000,
+          "quota_windows": [
+            {
+              "window_minutes": 10080,
+              "used_percent": 64.0,
+              "resets_at": 1789970251,
+              "observed_at": "2026-09-15T22:08:47Z"
+            }
+          ],
+          "notional_cost_usd": 6.3254,
+          "rate_basis": {
+            "model_identifier": "gpt-5.6-terra",
+            "input_per_million": 2.0,
+            "output_per_million": 12.0,
+            "as_of": "2026-09-09"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": null,
+        "throughput": {
+          "cumulative_cached_input_tokens": 2913024,
+          "cumulative_input_tokens": 3055957,
+          "detail": "model span bounded from the client rollout's tool spans; input cumulative summed across resets",
+          "generated_tokens": 24053,
+          "generation_seconds": 379.823,
+          "machine_seconds": 35.047,
+          "tokens_per_second": 63.33
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/dsv41-four-card-20260915/router-inline-fetch",
+          "session_id": "01a0a717-36ba-7980-8f4e-8180eef4235f",
+          "session_source": "pointer",
+          "retained_at": "2026-09-15T22:08:47Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "tool_steps": 32.0,
+        "orientation_input_tokens": null,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -36212,6 +36421,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 653
+    "_version": 656
   }
 }
