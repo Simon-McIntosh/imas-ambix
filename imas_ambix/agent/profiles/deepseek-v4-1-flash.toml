@@ -218,7 +218,35 @@ hicache_mem_layout = "page_first"
 # four requests at 1M each, with the 8M hicache host tier absorbing beyond that.
 # At realistic agentic sizes of 100-300k this does not bind. If per-request
 # context is raised further, raise the pool with it or accept host spill.
-context_length = 1024000
+# 204,800, reverted from a 1,024,000 attempt on 2026-09-15 after measurement.
+# The checkpoint's native window is 1,048,576, and that is the MODEL's maximum
+# rather than this DEPLOYMENT's. Measured on four H200 at a 4,000,000-token pool
+# with 40.65 GB free per card at ready:
+#   203,241 tokens  ABSORBED in 30 s, leaving only ~2 GB free -- 37.1 GB consumed
+#   167,527 tokens  absorbed in 26 s, ~30 GB consumed
+#   ~300,000 tokens FATAL, workspace asked 9.00 GiB
+#   ~500,000 tokens FATAL, workspace asked 10.11 GiB
+#
+# So the per-token cost is roughly 183 KB and the ceiling sits just above 203k,
+# with 204,800 the smallest page-aligned value above the proven point. The 1M
+# attempt was not merely optimistic, it re-created the hazard this cap exists to
+# prevent: the engine ACCEPTS a 300k request and then dies serving it, where a
+# cap refuses it cleanly with HTTP 400.
+#
+# The workspace ask grows SUBLINEARLY -- 9.00 GiB at 300k against 10.11 at 500k,
+# 12% for 67% more tokens -- so the workspace is not the binding term; prefill
+# activation memory is, and it grows far faster. Raising this cap therefore needs
+# activation headroom, not workspace headroom.
+#
+# EVERY figure above is single-stream. The ceiling falls as concurrency rises
+# because both terms grow with width, so treat 204,800 as a single-request bound
+# and size a fleet below it until a concurrency measurement exists.
+#
+# Untried lever: the OOM reports ~4.45 GiB reserved-but-unallocated by PyTorch
+# and suggests PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True. Recovering that
+# is about twice the margin left at 203k and is the one change that might raise
+# this ceiling rather than re-describe it.
+context_length = 204800
 trust_remote_code = true
 
 # "auto" resolves to this architecture's own parsers rather than a generic
