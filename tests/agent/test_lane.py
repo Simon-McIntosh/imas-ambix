@@ -467,13 +467,20 @@ def test_document_publishes_the_instantaneous_figures_beside_the_smoothed_one():
 
     assert document["mean_context"] == 51_000
     assert document["mean_context_instant"] == 247_000
-    assert document["concurrent_requests"] != document["concurrent_requests_instant"]
     assert document["mean_context_spread"] == [14_000, 247_000]
     assert document["window_samples"] == 4
     assert document["window_seconds"] == 120
     assert document["volatile"] is True
     # Volatility alone marks the figure a bound, independent of settling.
     assert document["headroom_is_upper_bound"] is True
+    # This window cannot answer, so the two sizing figures are WITHHELD from the
+    # top level rather than published beside a caveat. The instantaneous
+    # figures stay, because they describe the sample rather than advise a
+    # dispatch.
+    assert "concurrent_requests" not in document
+    assert "headroom" not in document
+    assert document["withheld"]["headroom"] == window.headroom
+    assert document["concurrent_requests_instant"] is not None
 
 
 def test_a_volatile_window_says_what_to_do_not_only_that_it_is_volatile():
@@ -548,3 +555,37 @@ def test_the_published_hit_rate_and_offload_health_reach_a_consumer():
     # present and zero: a missing key raises on a reader that assumed it, while
     # a zeroed one reads as a measured verdict of "nothing restored".
     assert "offload" not in document
+
+
+def test_an_idle_lane_refuses_instead_of_publishing_the_ceiling():
+    """The quiet lane is the dangerous case, because of WHEN it is read.
+
+    A coordinator consults this field to decide how large a wave to resume,
+    which is exactly when the lane is quiet. Publishing the safety ceiling
+    there returns the MAXIMUM figure at the moment of the largest dispatch
+    decision. Measured 2026-09-15: the highest value any session recorded, 96,
+    was taken at zero occupancy four minutes after a restart, against a real
+    budget of 35 a few minutes later.
+    """
+    import tempfile
+    from pathlib import Path
+
+    idle = parse_lane_capacity(_metrics(running=0, occupancy=0.0))
+
+    with tempfile.TemporaryDirectory() as scratch:
+        document = json.loads(
+            write_lane_document(idle, Path(scratch) / "lane.json").read_text(
+                encoding="utf-8"
+            )
+        )
+
+    assert document["sizing_verdict"] == "do-not-size"
+    assert "concurrent_requests" not in document
+    assert "headroom" not in document
+    # The ceiling is still recorded, one level down, so a reader debugging the
+    # lane can see what the arithmetic would have said.
+    assert document["withheld"]["concurrent_requests"] == idle.max_concurrent
+    assert "quiet lane" in document["sizing_reason"]
+    # And the reading itself is still `measured` -- the lane WAS read
+    # successfully; what is withheld is advice, not data.
+    assert document["state"] == "measured"

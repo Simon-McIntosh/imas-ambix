@@ -466,6 +466,36 @@ def write_lane_document(
         window = LaneWindow(readings=(capacity,))
     spread = window.spread
 
+    # An IDLE lane is the dangerous case, not the harmless one, and this is a
+    # reversal: the ceiling used to be published when the pool term was
+    # undefined, on the reasoning that a reader given nothing would guess.
+    #
+    # What that missed is WHEN the field is read. A coordinator consults it to
+    # decide how large a wave to resume, which is precisely when the lane is
+    # quiet -- so the undefined case does not merely return a vague number, it
+    # returns the MAXIMUM one at exactly the moment of the largest dispatch
+    # decision. Measured 2026-09-15: the highest figure any session recorded,
+    # 96, was taken at kv_occupancy 0.0 four minutes after a restart, against a
+    # real budget of 35 minutes later. The refusal below is what a reader needs
+    # there; the verdict field is what makes it readable rather than a guess.
+    idle = window.mean_context is None
+    sizing_usable = not idle and not window.is_volatile
+    if idle:
+        sizing_reason = (
+            "nothing is resident, so there is no working context to divide by; "
+            "a quiet lane says nothing about how large its traffic will be, and "
+            "this is the moment a resuming coordinator reads it"
+        )
+    elif window.is_volatile and spread is not None:
+        sizing_reason = (
+            "the working-context denominator is oscillating across this window "
+            f"({spread[0]:,}-{spread[1]:,} tokens); size from your dependency "
+            "graph and from waiting/preemptions/kv_occupancy, which stayed "
+            "stable across the same window"
+        )
+    else:
+        sizing_reason = "the working context is steady across this window"
+
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     document = {
@@ -477,8 +507,29 @@ def write_lane_document(
         "kv_occupancy": round(capacity.kv_occupancy, 4),
         "preemptions": capacity.preemptions,
         "mean_context": window.mean_context,
-        "concurrent_requests": window.concurrent_requests,
-        "headroom": window.headroom,
+        # `concurrent_requests` and `headroom` appear HERE ONLY WHEN THE FIELD
+        # CAN ANSWER. When it cannot they move under `withheld` below, so the
+        # document leads with a refusal rather than with a number. A number
+        # that is present and wrong gets consumed; a refusal gets read.
+        #
+        # This repository has landed the same shape twice for the same reason:
+        # the budget fence reports unknown rather than a low utilisation, and
+        # the run reader refuses rather than half-decoding a status. In both,
+        # a partial answer was judged worse than none.
+        **(
+            {
+                "concurrent_requests": window.concurrent_requests,
+                "headroom": window.headroom,
+            }
+            if sizing_usable
+            else {
+                "withheld": {
+                    "concurrent_requests": window.concurrent_requests,
+                    "headroom": window.headroom,
+                    "why": sizing_reason,
+                }
+            }
+        ),
         "binding_observed": capacity.binding_observed,
         # Cumulative since this engine started, which is the only form the
         # engine offers -- so it spans whatever mix of load has run since, and
@@ -544,15 +595,8 @@ def write_lane_document(
         # contradictory plans and both were right. When that is the state, the
         # honest output is "do not size from me" stated once, here, rather than
         # nine readers inferring it nine ways.
-        "sizing_verdict": ("do-not-size" if window.is_volatile else "usable"),
-        "sizing_reason": (
-            "the working-context denominator is oscillating across this "
-            f"window ({spread[0]:,}-{spread[1]:,} tokens); size from your "
-            "dependency graph and from waiting/preemptions/kv_occupancy, "
-            "which stayed stable across the same window"
-            if window.is_volatile and spread is not None
-            else "the working context is steady across this window"
-        ),
+        "sizing_verdict": ("usable" if sizing_usable else "do-not-size"),
+        "sizing_reason": sizing_reason,
         # Validity lives in its own field, never in the figure. `0` and `null`
         # are both falsy, so a reader writing `if not headroom` collapses "the
         # lane is full" into "we could not measure" -- opposite facts. Checking
