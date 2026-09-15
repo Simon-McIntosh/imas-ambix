@@ -152,9 +152,44 @@ enable_expert_parallel = true
 # output, where draft acceptance matters more than sample diversity, over the
 # SM120 recipe's "probabilistic". attention_config.use_fp4_indexer_cache is
 # Blackwell-oriented and left unset on these SM90 cards pending a measured win.
-speculative_method = "dspark"
-speculative_num_tokens = 5
-speculative_draft_sample_method = "greedy"
+#
+# DSPARK IS DISABLED, as an experiment with a measured baseline to return to.
+#
+# Its draft layers form their own KV cache group, flagged an eagle group, and
+# the multi-group prefix lookup requires EVERY group to report a nonzero hit --
+# one group at zero short-circuits the whole request to zero. The draft group's
+# blocks are sparse and discontinuous by construction, because draft KV is
+# recomputed from the target model rather than retained, so it can essentially
+# never satisfy the consecutive-hit requirement and vetoes lookups for the
+# groups that could serve them. Upstream reports the real groups measuring
+# 88.9-100% once isolated from that veto, against the 25.7% measured here.
+#
+# The match to this deployment is exact -- same checkpoint, TP=4, fp8 KV,
+# block_size 256, dspark -- and the veto exists on BOTH lookup paths, the GPU
+# coordinator and the offload connector, as separate reimplementations of the
+# same AND-convergence. Fixes for each are open and unmerged upstream and are
+# Python-only, so they can be carried as patches; disabling the drafter removes
+# the vetoing group instead and costs no patch.
+#
+# WHAT THIS BUYS AND WHAT IT COSTS. Speculative decoding is given up; upstream
+# measures DSpark mean acceptance at 2.82 on k=5, so the loss is real but
+# modest. The test is cheap to read because the two hypotheses predict
+# different shapes: a veto predicts a STEP in the hit rate, independent of
+# fleet width, while pool crowding predicts a slope against concurrency. A
+# 50-minute sample over 149 intervals at 13-23 concurrent found the rate flat
+# at 24-27% with correlation +0.10, which is the floor a veto produces and not
+# the slope crowding produces.
+#
+# BASELINE TO COMPARE AGAINST, pooled over that sample:
+#   internal prefix hit rate  25.7%
+#   external (offload)         3.09%, zero in 89 of 149 intervals
+#   per-client generation      4.5 tok/s median at 17 running
+#
+# Restore these three lines if the hit rate does not move: the drafter is then
+# not what is suppressing it, and neither upstream patch is worth carrying.
+# speculative_method = "dspark"
+# speculative_num_tokens = 5
+# speculative_draft_sample_method = "greedy"
 # Scheduler caps — raise both to exploit the 4×H200 KV cache budget.
 # At the default ``max_num_seqs=256`` only ~12% of KV cache is in use
 # (live measurement 2026-05-17), so the scheduler is the throughput
