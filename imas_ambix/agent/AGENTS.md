@@ -918,6 +918,30 @@ change. Nothing about two agreeing points says what happened between them. Take
 a trajectory before naming a ceiling, and treat a suspiciously exact agreement
 as a reason to sample more rather than as confirmation.
 
+**The restores are BURSTY, so no window measures "the rate" — and a rising
+cumulative is not a warming curve.** Measured 2026-09-15 across three windows on
+one serve, all correct and all different:
+
+| window | concurrency | external hit rate |
+|---|---|---|
+| 784 s | 16-17 | 4.38% |
+| 120 s | 42-44 | 2.28% |
+| 76 s | 28-31 | **0%** — 1,057,060 queries, zero hits, 403 GB written |
+
+In that last window `external_prefix_cache_hits_total` and
+`kv_offload_load_bytes_total` were both frozen while 403 GB went the other way.
+Restores arrive in bursts and stop dead between them, so the cumulative climbs
+during a burst and flattens after — which reads as a store warming up to anyone
+sampling the cumulative, and two sessions independently reported it as
+"climbing" within an hour of both having documented the cumulative trap. **A
+non-stationary process has no rate; report the window and what it contained.**
+
+It also means a reading's concurrency label describes the READER's wave, not
+what produced the burst: every session shares one engine and one store, so four
+readings at different widths are four samples of one shared process rather than
+four conditions. Pooling them estimates the current level, never a concurrency
+response curve.
+
 **What survives about the offload store: size is not a lever.** Residency
 measured ~0.1-0.25 GiB at BOTH 128 GiB and 512 GiB configured, so what bounds it
 is the eviction order and not the capacity — both tiers evict in the same LRU
