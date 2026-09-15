@@ -474,3 +474,77 @@ def test_document_publishes_the_instantaneous_figures_beside_the_smoothed_one():
     assert document["volatile"] is True
     # Volatility alone marks the figure a bound, independent of settling.
     assert document["headroom_is_upper_bound"] is True
+
+
+def test_a_volatile_window_says_what_to_do_not_only_that_it_is_volatile():
+    """A flag a reader must interpret is re-derived differently by each reader.
+
+    Measured across four sessions in one afternoon, the published headroom read
+    125, 1, 82, 7, 2, 62, 1, 53 and 0 -- oscillating faster than the interval
+    between two coordinators consulting it. Publishing the spread lets a
+    careful reader reach the right conclusion; publishing the conclusion means
+    every reader reaches it.
+    """
+    import tempfile
+    from pathlib import Path
+
+    window = LaneWindow(
+        readings=tuple(
+            parse_lane_capacity(_metrics(running=10, occupancy=mean * 10 / _POOL))
+            for mean in (19_000, 247_000, 14_000, 51_000)
+        )
+    )
+    steady = LaneWindow(
+        readings=tuple(
+            parse_lane_capacity(_metrics(running=10, occupancy=mean * 10 / _POOL))
+            for mean in (80_000, 84_000, 79_000, 82_000)
+        )
+    )
+
+    with tempfile.TemporaryDirectory() as scratch:
+        noisy = json.loads(
+            write_lane_document(
+                window.latest, Path(scratch) / "a.json", window=window
+            ).read_text(encoding="utf-8")
+        )
+        calm = json.loads(
+            write_lane_document(
+                steady.latest, Path(scratch) / "b.json", window=steady
+            ).read_text(encoding="utf-8")
+        )
+
+    assert noisy["sizing_verdict"] == "do-not-size"
+    # The reason names the measured spread, so the verdict is checkable rather
+    # than something the reader must take on trust.
+    assert "14,000-247,000" in noisy["sizing_reason"]
+    # And it names the fields that DID stay stable, so the reader is redirected
+    # rather than merely blocked.
+    assert "waiting" in noisy["sizing_reason"]
+
+    assert calm["sizing_verdict"] == "usable"
+
+
+def test_the_published_hit_rate_and_offload_health_reach_a_consumer():
+    """The signal this lane turns on was parsed, rendered locally, never published.
+
+    Prefix-cache eviction is the first symptom of KV pressure and appears long
+    before preemption, so a consumer watching only the preemption counter
+    learns nothing until far too late.
+    """
+    import tempfile
+    from pathlib import Path
+
+    capacity = parse_lane_capacity(_metrics(running=10, occupancy=0.267))
+
+    with tempfile.TemporaryDirectory() as scratch:
+        document = json.loads(
+            write_lane_document(capacity, Path(scratch) / "lane.json").read_text(
+                encoding="utf-8"
+            )
+        )
+
+    assert document["prefix_hit_rate"] == round(capacity.prefix_hit_rate, 4)
+    # No connector in this exposition, so the block is ABSENT rather than
+    # present and zero: a missing key raises on a reader that assumed it, while
+    # a zeroed one reads as a measured verdict of "nothing restored".
+    assert "offload" not in document

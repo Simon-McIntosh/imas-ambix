@@ -531,6 +531,28 @@ def write_lane_document(
         "window_samples": len(window.readings),
         "window_seconds": len(window.readings) * refresh_interval,
         "volatile": window.is_volatile,
+        # What to DO, not a flag to interpret. A spread of 1 to 96 tells a
+        # coordinator to stop sizing from this field -- but only if it reads
+        # the spread, converts it to a judgement, and acts. A smoothed figure
+        # published alone moves the same wrong confidence onto a rounder
+        # number, and a `volatile` boolean still leaves the decision to be
+        # re-derived by every reader, differently.
+        #
+        # Measured across four sessions on 2026-09-15, this field read 125, 1,
+        # 82, 7, 2, 62, 1, 53 and 0 -- oscillating faster than the interval
+        # between two coordinators consulting it, so any two of them formed
+        # contradictory plans and both were right. When that is the state, the
+        # honest output is "do not size from me" stated once, here, rather than
+        # nine readers inferring it nine ways.
+        "sizing_verdict": ("do-not-size" if window.is_volatile else "usable"),
+        "sizing_reason": (
+            "the working-context denominator is oscillating across this "
+            f"window ({spread[0]:,}-{spread[1]:,} tokens); size from your "
+            "dependency graph and from waiting/preemptions/kv_occupancy, "
+            "which stayed stable across the same window"
+            if window.is_volatile and spread is not None
+            else "the working context is steady across this window"
+        ),
         # Validity lives in its own field, never in the figure. `0` and `null`
         # are both falsy, so a reader writing `if not headroom` collapses "the
         # lane is full" into "we could not measure" -- opposite facts. Checking
