@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-15">
-<meta name="plan-version" content="22">
+<meta name="plan-version" content="23">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s2a&quot;:&quot;done&quot;,&quot;s2b&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s3-paired&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;deferred&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;done&quot;}">
 <meta name="plan-artifacts" content="imas_ambix/agent/serving_receipts.py,imas_ambix/agent/receipt_bins.py,imas_ambix/agent/profiles/deepseek-v4-1-flash.toml,/home/ITER/mcintos/.config/reckon/crew/reports/four-card-reuse-map.md,/home/ITER/mcintos/.config/reckon/crew/reports/swa-index-width-attribution.md">
 <meta name="plan-impl" content="0.727">
@@ -512,6 +512,76 @@
     directory per launch becomes <em>part of the deliverable</em> — not a
     workaround to remember, because a rule with no check is how this class of
     defect returns.</p>
+
+    <h2 id="s10">§10 — The bring-up sequence</h2>
+
+    <p>Every step below exists because something was found the hard way today.
+    Run it in order; each check is cheap and each one guards a failure that is
+    silent if skipped.</p>
+
+    <table>
+      <thead>
+        <tr><th>#</th><th>Step</th><th>Guards</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td><code>squeue</code> shows no <code>ambix-lane</code> job</td>
+          <td>A standing refresher would race the router and re-publish the retired origin. None runs today, but the CLI can submit one, so this is a check rather than an assumption (§2b).</td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td>Leave the router job alone</td>
+          <td>It publishes the lane document from an internal task and re-reads the endpoint on every resolution, so it survives the rotation. Restarting it is unnecessary and costs the lane its publisher (§2b).</td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td>Warn peer sessions holding <code>--local</code> work</td>
+          <td>One peer had a live clive worker mid-gate and banked it on a minute's notice. Also tell them when it is <em>back</em> — the return edge is the expensive one for them to establish.</td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td><code>agent shutdown deepseek-v4-flash --yes</code></td>
+          <td>Its EXIT trap empties the endpoint document, which is what lets the router converge. Never <code>--all</code>: it would take the router and every other serve with it.</td>
+        </tr>
+        <tr>
+          <td>5</td>
+          <td><code>agent serve deepseek-v4-1-flash</code> — plain, no selector</td>
+          <td>The pool is the profile default now. Expect ~11 minutes to ready: weight load off GPFS dominates, so size any health-check patience accordingly.</td>
+        </tr>
+        <tr>
+          <td>6</td>
+          <td>Confirm from the serve's own <code>server_args</code>, not the profile</td>
+          <td><code>max_total_tokens</code> 14,999,808 and <code>context_length</code> 204,800. The profile is a statement of intent; the dump is what runs.</td>
+        </tr>
+        <tr>
+          <td>7</td>
+          <td>Run <code>scripts/refresh_clive_context_window.py</code></td>
+          <td>Reconciles <code>usable_input_window</code> and <code>model</code> from the live endpoint, and <code>alias</code> from its recorded mapping. <strong>Without this the lane is up and every dispatch fails</strong>, because the backend's model key is passed to the launcher as <code>--model</code> (§8).</td>
+        </tr>
+        <tr>
+          <td>8</td>
+          <td>Expect the window to read <strong>172,800</strong></td>
+          <td>Not 204,800. The engine cap less the launcher's output reservation. If the script reports something else, believe the script — it parses the reservation, and the formula's ceiling only binds above a 128,000 window.</td>
+        </tr>
+        <tr>
+          <td>9</td>
+          <td>Prove a real completion through the router, not just <code>/v1/models</code></td>
+          <td>A health probe answers while generation is broken. The endpoint returning 200 is necessary and not sufficient.</td>
+        </tr>
+        <tr>
+          <td>10</td>
+          <td>Tell the peers it is serving, with the measured window</td>
+          <td>Two independent sessions asked for this figure because the alias has already meant three different windows in their ledger.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p><strong>The restore path, unchanged and one command:</strong>
+    <code>agent shutdown deepseek-v4-1-flash --yes</code> then
+    <code>agent serve deepseek-v4-flash</code>, followed by step 7 again so the
+    lane block follows the rotation back. The V4-Flash profile in git at plan
+    start is the restore point.</p>
 
     <h2 id="s9">§9 — There is no newer image for this checkpoint, and there cannot be one</h2>
 
