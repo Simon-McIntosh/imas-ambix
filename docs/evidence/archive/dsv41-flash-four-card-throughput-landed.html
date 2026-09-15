@@ -534,6 +534,99 @@
     measurement; it was not changed here. No serve was started, stopped, or
     restarted and no SLURM job was submitted.</p>
 
+    <h2 id="pool-reclaim-load-proof">The pool reclaim, and the first load proof of V4.1 on four cards</h2>
+
+    <p><strong>A 167,527-token agentic-shaped prefill returned in 24 seconds
+    with <code>end_turn</code></strong> &mdash; long system prompt, 52 tool
+    definitions, 170-turn history, 97% of the usable window. That is the first
+    real-traffic evidence for this checkpoint on this hardware; every prior
+    figure was synthetic or trivial.</p>
+
+    <p><strong>Withdrawn: an earlier claim in this session that a serve was
+    &ldquo;working&rdquo;.</strong> It rested on one completion of 19 input
+    tokens. A 19-token prefill barely allocates, and the configuration it ran on
+    would very likely have died on the first real worker. <em>Starting and
+    answering a toy is not serving</em>, and the distinction is the whole
+    subject of this section.</p>
+
+    <h3 id="memory-ledger">The memory ledger, per card</h3>
+
+    <table>
+      <thead>
+        <tr><th>Phase</th><th>15M pool</th><th>4M pool + hicache</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>empty card</td><td>138.72 GB</td><td>138.72 GB</td></tr>
+        <tr><td>after weights (72.73 GB)</td><td>65.99 GB</td><td>65.99 GB</td></tr>
+        <tr><td><strong>after KV pool</strong></td><td>28.54 GB</td><td><strong>45.36 GB</strong></td></tr>
+        <tr><td>pool cost</td><td>37.45 GB</td><td>20.63 GB</td></tr>
+        <tr><td>CUDA graph capture</td><td>3.18 GB / 47.9 s</td><td>0.32 GB / 5.8 s</td></tr>
+        <tr><td>reported free at ready</td><td>25.36 GB</td><td><strong>42.76 GB</strong></td></tr>
+        <tr><td><em>actually free to the lazy allocator</em></td><td><strong>1.49 GiB</strong></td><td>~13.5 GB at 97% window</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Reclaimed 16.82 GB per card against a predicted 16.8</strong>, so
+    the profile's cost model &mdash; a ~16 GB fixed base plus ~1.6 KiB per token
+    &mdash; holds to three significant figures and can be trusted for the next
+    sizing decision.</p>
+
+    <h3 id="workspace-is-fixed">The deaths were not prefill-length dependent</h3>
+
+    <p>Three probe serves died tonight and <strong>all three asked for the same
+    7.52 GiB fused-MoE workspace against the same ~1.49 GiB free</strong>: on a
+    long request, on a shorter one, and finally during the engine's own warmup
+    with no request from us at all. <strong>The ask does not scale with prefill
+    length</strong>, so there was no prefill ceiling to bisect &mdash; the
+    failure was governed by the memory split. A node was dispatched to bisect an
+    axis that does not control the outcome, which was a framing error, and its
+    informative negative is what redirected the work.</p>
+
+    <p><strong>The reported free memory was never free memory.</strong> Startup
+    printed 25.36 GB available while PyTorch's allocator held 138.21 of 139.80
+    GiB. That figure is the engine's internal budget accounting; the FlashInfer
+    workspace is allocated lazily from what is left <em>outside</em> it. Reading
+    it as headroom is what made the 15M pool look viable, and it is the same
+    error class as every other one recorded here: a true number about the wrong
+    quantity.</p>
+
+    <h3 id="hicache-measured">Hierarchical cache &mdash; measured, not estimated</h3>
+
+    <p>The host tier is <strong>~172 GB across four ranks</strong>, not the ~49
+    GiB estimated before the change &mdash; <strong>an estimate 3.5&times;
+    low</strong>. It fits only because the host request had been raised from
+    420G to 480G; on the original request this would have exhausted host memory,
+    and on the estimate a tighter request would have looked amply safe.</p>
+
+    <table>
+      <thead><tr><th>Host paged pool, per rank</th><th>Size</th></tr></thead>
+      <tbody>
+        <tr><td><code>swa</code> (40 layers, 5,122 pages)</td><td>30.68 GB</td></tr>
+        <tr><td><code>deepseek_v4_c2</code> (3 layers, 31,250 pages)</td><td>7.02 GB</td></tr>
+        <tr><td><code>deepseek_v4_c1</code> (1 layer, 31,250 pages)</td><td>4.68 GB</td></tr>
+        <tr><td><code>deepseek_v4_c2_indexer</code></td><td>0.82 GB</td></tr>
+        <tr><td><code>deepseek_v4_c1_indexer</code></td><td>0.54 GB</td></tr>
+        <tr><td><strong>per rank</strong></td><td><strong>42.92 GB</strong></td></tr>
+      </tbody>
+    </table>
+
+    <h3 id="refusal-as-instrument">The clean refusal is a better instrument than bisection</h3>
+
+    <p>An over-long request is refused with
+    <code>HTTP 400: The input (256091 tokens) is longer than the model's context
+    length (204800 tokens)</code> &mdash; and <strong>that refusal reports the
+    exact token count</strong>. One refused request gave 4.92 chars per token,
+    from which a follow-up prompt was sized to 167,540 predicted against 167,527
+    actual: <strong>0.008% error</strong>.</p>
+
+    <p>The probe node was killing serves to establish token counts because its
+    repeat-count axis was uncalibrated. The engine will simply state the number,
+    for the price of one rejected request and no dead serves. <strong>A
+    successor measuring any context boundary should calibrate this way and
+    bisect only if the refusal path is unavailable.</strong> The 204,800 cap
+    behaves exactly as the profile intended: it refuses cleanly instead of
+    exhausting the card.</p>
+
   </main>
 </body>
 </html>
