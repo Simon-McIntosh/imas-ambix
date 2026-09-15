@@ -904,8 +904,16 @@ def generate_router_script(
     port: int,
     cpus: int = 2,
     memory: str = "8G",
+    prefix_probe: bool = False,
 ) -> str:
-    """Generate a CPU-only SLURM script for the standing router endpoint."""
+    """Generate a CPU-only SLURM script for the standing router endpoint.
+
+    ``prefix_probe`` is written into the script rather than inherited from the
+    submitting shell, so the running job carries a visible record of whether the
+    diagnostic is on. A value that lives only in an invocation is a value nobody
+    can audit afterwards, which is how this router once ran at a quarter of its
+    configured admission ceiling without anyone being able to tell.
+    """
     if not 1 <= port <= 65535:
         raise ValueError("port must be between 1 and 65535")
     if cpus < 1:
@@ -939,6 +947,11 @@ def generate_router_script(
             str(port),
         ]
     )
+    probe_export = (
+        'export AMBIX_ROUTER_PREFIX_PROBE=1   # prompt-prefix divergence probe'
+        if prefix_probe
+        else "# prefix probe off"
+    )
     script_body = dedent(
         f"""
         set -euo pipefail
@@ -946,7 +959,7 @@ def generate_router_script(
         export TMPDIR=/scratch_local/$SLURM_JOB_ID
         mkdir -p "$TMPDIR"
         export PYTHONPATH={shlex.quote(str(repo_root))}:${{PYTHONPATH:-}}
-
+        {probe_export}
         echo "[$(date)] Starting keyless Ambix router on $(hostname):{port}"
         exec {command}
         """

@@ -1485,6 +1485,11 @@ def _resolve_router_upstreams(site: SiteConfig, api_key: str | None) -> list[Ups
     show_default=True,
     help="Host memory for a submitted router allocation.",
 )
+@click.option(
+    "--prefix-probe",
+    is_flag=True,
+    help="Log where each caller's prompt stops matching its previous turn.",
+)
 def router_command(
     host: str,
     port: int,
@@ -1493,6 +1498,7 @@ def router_command(
     dry_run: bool,
     cpus: int,
     memory: str,
+    prefix_probe: bool,
 ) -> None:
     """Run or submit the multi-engine pass-through router."""
     from imas_ambix.agent.router import DynamicUpstreamResolver, serve_router
@@ -1511,6 +1517,7 @@ def router_command(
             port=port,
             cpus=cpus,
             memory=memory,
+            prefix_probe=prefix_probe,
         )
         if dry_run:
             console.print(script, markup=False, highlight=False, soft_wrap=True)
