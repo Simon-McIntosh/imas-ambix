@@ -26,7 +26,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 _SAMPLE = re.compile(
-    r"^(?P<name>vllm:[a-z_]+)\{(?P<labels>[^}]*)\}\s+(?P<value>[-+0-9.eE]+)\s*$",
+    r"^(?P<name>(?:vllm|sglang):[a-z_]+)\{(?P<labels>[^}]*)\}\s+(?P<value>[-+0-9.eE]+)\s*$",
     re.MULTILINE,
 )
 _LABEL = re.compile(r'(?P<key>[a-z_0-9]+)="(?P<value>[^"]*)"')
@@ -41,7 +41,7 @@ class LaneCapacity:
     running: int
     waiting: int
     kv_occupancy: float
-    preemptions: int
+    preemptions: int | None
     prefix_hit_rate: float | None
     # Offload-tier health, None when the engine serves without the connector.
     # A store that is written and never read costs transfer bandwidth, host
@@ -52,6 +52,8 @@ class LaneCapacity:
     offload_written_bytes: int | None = None
     offload_restored_bytes: int | None = None
     offload_resident_fraction: float | None = None
+    hicache_host_total_tokens: int | None = None
+    hicache_host_used_tokens: int | None = None
     # Safety ceiling, independent of workload. The pool arithmetic below is a
     # capacity estimate that rises without bound as the working context shrinks
     # -- on a cold lane with short prompts it read 131, which would invite a
@@ -126,7 +128,7 @@ class LaneCapacity:
         return max(0, ceiling - self.running)
 
     @property
-    def binding_observed(self) -> bool:
+    def binding_observed(self) -> bool | None:
         """Whether SATURATION has actually been seen, on durable evidence only.
 
         Preemption is cumulative and monotonic: once the engine has recomputed
@@ -146,8 +148,12 @@ class LaneCapacity:
 
         False means every ceiling here is extrapolated and none of it has been
         tested; treating "not binding at the loads we could produce" as "not
-        binding" is the error this flag exists to keep visible.
+        binding" is the error this flag exists to keep visible. SGLang does not
+        expose an equivalent cumulative preemption counter, so its readings
+        return None rather than substituting a queue depth or a zero.
         """
+        if self.preemptions is None:
+            return None
         return self.preemptions > 0
 
     def summary(self) -> str:
@@ -161,7 +167,11 @@ class LaneCapacity:
             f"waiting         {self.waiting}",
             f"kv occupancy    {self.kv_occupancy * 100:.1f}%",
             f"resident        {self.resident_tokens:,} tokens",
-            f"preemptions     {self.preemptions}",
+            (
+                f"preemptions     {self.preemptions}"
+                if self.preemptions is not None
+                else "preemptions     unavailable from this engine"
+            ),
         ]
         if self.prefix_hit_rate is not None:
             hit = self.prefix_hit_rate * 100
@@ -176,6 +186,11 @@ class LaneCapacity:
         if self.binding_observed:
             lines.append(
                 "STATUS          SATURATED — the engine is preempting and recomputing"
+            )
+        elif self.binding_observed is None:
+            lines.append(
+                "STATUS          cumulative preemption pressure unavailable "
+                "from this engine"
             )
         elif self.waiting > 0:
             lines.append(
@@ -286,6 +301,46 @@ class LaneWindow:
         return max(0, self.concurrent_requests - self.latest.running)
 
 
+def _parse_sglang_capacity(
+    samples: list[tuple[str, dict[str, str], float]],
+) -> LaneCapacity:
+    """Build a reading from SGLang's rank-zero metrics.
+
+    SGLang repeats device-pool measurements on every tensor-parallel rank. The
+    rank-zero sample is one shared pool measurement, not four independent
+    pools to sum. It directly reports prefix hits and the hierarchical-cache
+    host tier. It does not expose a cumulative preemption counter, so
+    ``preemptions`` stays None rather than being fabricated from queue depth.
+    """
+    values: dict[str, float] = {}
+    model_id = ""
+    for name, labels, value in samples:
+        if not name.startswith("sglang:"):
+            continue
+        if labels.get("tp_rank", "0") != "0":
+            continue
+        model_id = model_id or labels.get("model_name", "")
+        values.setdefault(name, value)
+
+    pool_tokens = int(values.get("sglang:max_total_num_tokens", 0.0))
+    if pool_tokens <= 0:
+        raise ValueError("engine metrics carry no KV pool size")
+
+    host_total = values.get("sglang:hicache_host_total_tokens")
+    host_used = values.get("sglang:hicache_host_used_tokens")
+    return LaneCapacity(
+        model_id=model_id,
+        pool_tokens=pool_tokens,
+        running=int(values.get("sglang:num_running_reqs", 0.0)),
+        waiting=int(values.get("sglang:num_queue_reqs", 0.0)),
+        kv_occupancy=values.get("sglang:full_token_usage", 0.0),
+        preemptions=None,
+        prefix_hit_rate=values.get("sglang:cache_hit_rate"),
+        hicache_host_total_tokens=int(host_total) if host_total is not None else None,
+        hicache_host_used_tokens=int(host_used) if host_used is not None else None,
+    )
+
+
 def parse_lane_capacity(metrics: str) -> LaneCapacity:
     """Build a reading from a Prometheus exposition body.
 
@@ -293,18 +348,29 @@ def parse_lane_capacity(metrics: str) -> LaneCapacity:
     the engine that is actually running, so a profile edit cannot make this
     disagree with the process it describes.
     """
+    samples: list[tuple[str, dict[str, str], float]] = []
+    for sample in _SAMPLE.finditer(metrics):
+        samples.append(
+            (
+                sample.group("name"),
+                dict(_LABEL.findall(sample.group("labels"))),
+                float(sample.group("value")),
+            )
+        )
+
+    if any(name.startswith("sglang:") for name, _, _ in samples):
+        return _parse_sglang_capacity(samples)
+
     values: dict[str, float] = {}
     model_id = ""
     pool_tokens = 0
-    for sample in _SAMPLE.finditer(metrics):
-        name = sample.group("name")
-        labels = dict(_LABEL.findall(sample.group("labels")))
+    for name, labels, value in samples:
         if name == "vllm:cache_config_info":
             pool_tokens = int(labels.get("kv_cache_size_tokens", "0") or 0)
         if "reason" in labels:
             continue
         model_id = model_id or labels.get("model_name", "")
-        values[name] = float(sample.group("value"))
+        values[name] = value
 
     if pool_tokens <= 0:
         raise ValueError("engine metrics carry no KV pool size")
@@ -466,11 +532,11 @@ def write_lane_document(
         window = LaneWindow(readings=(capacity,))
     spread = window.spread
 
-    # An IDLE lane is the dangerous case, not the harmless one, and this is a
-    # reversal: the ceiling used to be published when the pool term was
-    # undefined, on the reasoning that a reader given nothing would guess.
+    # An IDLE lane is the dangerous case, not the harmless one. Publishing the
+    # ceiling while the pool term is undefined turns an absent workload
+    # measurement into the largest available dispatch suggestion.
     #
-    # What that missed is WHEN the field is read. A coordinator consults it to
+    # The decisive constraint is WHEN the field is read. A coordinator consults it to
     # decide how large a wave to resume, which is precisely when the lane is
     # quiet -- so the undefined case does not merely return a vague number, it
     # returns the MAXIMUM one at exactly the moment of the largest dispatch
@@ -566,6 +632,27 @@ def write_lane_document(
                 }
             }
             if capacity.offload_written_bytes is not None
+            else {}
+        ),
+        # SGLang's host cache is a separate observable tier. Keep absence as
+        # absence: a serve without hierarchical caching must not resemble an
+        # empty eight-million-token host pool.
+        **(
+            {
+                "hicache_host": {
+                    "total_tokens": capacity.hicache_host_total_tokens,
+                    "used_tokens": capacity.hicache_host_used_tokens,
+                    "used_fraction": round(
+                        capacity.hicache_host_used_tokens
+                        / capacity.hicache_host_total_tokens,
+                        6,
+                    )
+                    if capacity.hicache_host_total_tokens
+                    and capacity.hicache_host_used_tokens is not None
+                    else None,
+                }
+            }
+            if capacity.hicache_host_total_tokens is not None
             else {}
         ),
         # What this sample alone said, kept beside the smoothed figure. Sizing
