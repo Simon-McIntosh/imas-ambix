@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-15">
-<meta name="plan-version" content="8">
+<meta name="plan-version" content="9">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s2a&quot;:&quot;done&quot;,&quot;s2b&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;done&quot;}">
 <meta name="plan-artifacts" content="/home/ITER/mcintos/.config/reckon/crew/reports/four-card-reuse-map.md,/home/ITER/mcintos/.config/reckon/crew/reports/swa-index-width-attribution.md">
 <meta name="plan-impl" content="0.25">
@@ -237,6 +237,39 @@
     stated concurrency — not a cumulative ratio, which has misled four sessions
     on this lane. The comparison bins are V4-Flash at 27.0% and 10.1 tok/s for
     10–14 concurrent, and 26.3% and 6.9 tok/s for 15–19.</p>
+
+    <h3 id="s3-paired">§3a — The two arms must run the same traffic, and that has to be arranged in advance</h3>
+
+    <p>§3 compares a V4-Flash arm and a V4.1 arm. <strong>If each arm improvises
+    its own workload, the comparison measures the workload rather than the
+    serve</strong> — and nothing above says otherwise, which is how this would
+    have been missed. The measured problem on this lane is prefix reuse, and
+    prefix reuse is a property of the prompts: two task sets with different
+    context growth or different repetition produce different hit rates on an
+    identical engine. The arms are hours apart and on different checkpoints, so
+    the only thing that can hold the workload constant is a recorded artifact.</p>
+
+    <p><strong>The V4-Flash arm therefore produces two deliverables, and the
+    second is a prerequisite rather than a courtesy:</strong> the measurement,
+    and a <em>replayable task set</em> — the concrete agent tasks, their order,
+    their concurrency schedule, and the seed or fixture that makes the sequence
+    reproducible. The V4.1 arm replays that artifact rather than authoring its
+    own, and records that it did so. A V4.1 arm that cannot name the artifact it
+    replayed has not produced a comparison.</p>
+
+    <p>The generator is real clive sessions — multi-turn, real tool calls, real
+    context growth. It is explicitly <strong>not</strong> <code>agent bench</code>,
+    whose prompt is a fixed single turn that barely touches the KV pool and is
+    the exact shape §2 warns must not be compared against real traffic. The
+    fleet runs inside one SLURM allocation on a <code>*_debug</code> partition,
+    never on the login node.</p>
+
+    <p><strong>One run, three results.</strong> The V4-Flash arm is also the
+    post-measurement of the pre-registered draft-group veto test, whose baseline
+    was taken with DSpark enabled and whose current serve has it disabled. The
+    same windowed, width-binned instrument answers both questions, so the arm is
+    dispatched once and reports the veto verdict against its own pre-registered
+    bands alongside the comparison numbers.</p>
 
     <h2 id="s4">§4 — Two structural handicaps, and whether either is removable</h2>
 
