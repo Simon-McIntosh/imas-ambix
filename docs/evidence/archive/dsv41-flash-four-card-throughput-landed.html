@@ -390,6 +390,29 @@
     The real overlay then compiled cleanly in a separate fresh cache context.
     A cache therefore did not bypass the source that the serve bind declares.</p>
 
+    <h3 id="kernel-pdl-cache-key">The warm serve cache is content-addressed to the bound header</h3>
+
+    <p>The persistent-cache measure resolves by derivation rather than by a
+    weaker artifact comparison. The image's <code>load_jit</code> creates a
+    <code>BuildSpec</code> containing the K kernel's direct
+    <code>cuda_files</code> source, then calls <code>compute_build_key</code>.
+    That function SHA-256 hashes the bytes of every direct source before it
+    looks for a cached build. The launch-time bind therefore changes the build
+    key before a stale unpatched artifact can be selected.</p>
+
+    <p>The cache has a second independent guard: each published leaf records
+    SHA-256 digests for compiler-scanned dependencies, and
+    <code>find_prebuilt</code> re-hashes those files before accepting the leaf.
+    The direct header is required in that record or the build is not published.
+    This is a fresh server process at each serve launch, so the per-process
+    digest memo cannot carry an image-header digest across the bind boundary.</p>
+
+    <p><strong>Verdict: content-addressed; standing bind is safe.</strong> The
+    factory's JIT cache defaults through <code>SGLANG_JIT_CACHE_DIR</code>, not
+    <code>SGLANG_CUTE_AOT_CACHE_DIR</code>; the latter is a separate CUTE object
+    cache. No per-launch cache override is required for this header, because
+    the source bytes themselves select the reusable artifact.</p>
+
   </main>
 </body>
 </html>
