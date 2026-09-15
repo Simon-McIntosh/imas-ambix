@@ -110,7 +110,7 @@ max_total_tokens = 1048576
 # (block_pool.py:44, 146, 711). A pool at 50% "usage" may be entirely full of
 # reusable cache about to be destroyed. Occupancy is not cache residency, and no
 # vLLM metric reports the latter.
-mem_fraction_static = 0.92
+mem_fraction_static = 0.85
 kv_cache_dtype = "fp8"
 # Upstream recipe flags for this checkpoint family (recipes.vllm.ai + the
 # DSpark model card). block_size and tokenizer_mode are the vendor-documented
@@ -195,7 +195,7 @@ enable_expert_parallel = true
 # (live measurement 2026-05-17), so the scheduler is the throughput
 # bottleneck, not hardware. Targeting ~80% KV utilization:
 #   * max_num_seqs = 1024 → 4× the running-sequences ceiling
-#   * max_num_batched_tokens = 32768 → matches the chunked prefill
+#   * max_num_batched_tokens = 8192 → smaller chunks, decode runs more often
 #     budget so the scheduler isn't starved when many long prompts
 #     queue up at the same time
 max_num_seqs = 1024
@@ -208,20 +208,26 @@ max_num_seqs = 1024
 # stuffed with prefill lengthens every step and each sequence emits its token
 # less often. That is the mechanism behind 9.3 tok/s per worker.
 #
-# Lowering it therefore looks attractive and was drafted at 8192. It was
-# withdrawn because the 119:1 prefill-to-generation ratio is caused by VOLUME --
-# 18,863 tok/s of recomputation that should not exist -- rather than by
-# scheduler policy, so a smaller budget would process that volume in more steps
-# without reducing it. The recomputation is a cache-retention problem: the pool
-# must hold live contexts AND the prefixes those same sessions will ask for next
-# turn, and concurrency is what trades between them.
+# Lowering it was drafted at 8192 and withdrawn once, on the reasoning that the
+# recomputation volume would be removed at its source by the host-RAM offload
+# tier in the same restart. That tier never served a read and has been removed,
+# so the reason for withholding this is gone and the lever is taken.
 #
-# It is also the only one of the three levers with no measurement behind it on
-# this workload; 8192 was a conventional four-fold reduction, not a finding. With
-# one restart available, a worse outcome must have as few candidate explanations
-# as possible. If the hit rate recovers and per-worker throughput is still poor,
-# this is the next lever and it will then have a clean before and after.
-max_num_batched_tokens = 32768
+# The argument is what the volume does to DECODE rather than to prefill. This
+# lane is prefill-bound, not concurrency-bound: pooled over 66,841 samples
+# across every serve, per-client generation tracks prefill volume inversely and
+# barely responds to width -- 16.4 tok/s at 20-24 concurrent where prefill was
+# 575, against 6.9 at 15-19 where prefill was 12,870. A step spent on a
+# 32,768-token prefill chunk is a step not spent decoding. A smaller chunk does
+# not reduce the total prefill work; it stops that work monopolising the step
+# budget, returning the scheduler to decode more often.
+#
+# The cost runs the other way and is real: larger batches use the device better,
+# so the genuine prefill that remains is processed less efficiently. That trade
+# has never been measured on this workload, which is why it lands against a
+# recorded baseline -- per-client 13.9 at width 10-14, internal hit rate 25.7%
+# pooled -- rather than being bundled with a second scheduler change.
+max_num_batched_tokens = 8192
 # KV offload to host RAM is DISABLED. This records why, so it is not re-enabled
 # on the same reasoning that first turned it on.
 #
