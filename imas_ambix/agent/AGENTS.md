@@ -892,14 +892,43 @@ does not model. The total is still not printed, so that arithmetic is a bound
 and not a figure. This is the fourth quantity on this deployment recorded as
 "not exposed" that turned out to be printed somewhere nobody had read.
 
-**A prefix-cache query is not an external lookup, and the ratio is the open
-question.** Measured 2026-09-15 at 8 concurrent, two minutes into a serve:
-859,833 `prefix_cache_queries_total` against **8**
-`kv_offload_lookup_sync_delay_seconds_count`. A store merely evicting too fast
-would show lookups scaling with queries and missing nearly all of them, which is
-the 819-in-63-minutes shape. Eight is a different regime and points at how
-rarely the external path is consulted rather than at what it returns. No
-explanation yet; recorded as the place the next instrument should aim.
+**A reading taken in the first minutes of a serve is measuring the warm-up, not
+the system.** Three figures were reported as findings on 2026-09-15 and all
+three dissolved:
+
+| reported | what it was |
+|---|---|
+| 859,833 queries against **8** external lookups — "a different regime" | ninety seconds later, 2,501,521 against 1,972,113 |
+| resident store **pinned at 22.8 GiB** across a 4x size change | a coincidence of timing; a four-sample trajectory showed oscillation near zero |
+| external hit rate **0.07%** | cumulative since engine start; the windowed figure was **2.28%**, thirtyfold higher |
+
+The last one is the trap worth naming, because every counter here is cumulative
+since the engine started and there is no other form on offer. A store that was
+cold for the opening stretch has every one of those queries in its denominator
+forever, so **a cumulative figure understates current behaviour by however much
+warm-up it contains** — and it never stops doing so, it only dilutes. Three
+sessions each voided somebody else's cumulative comparison and then carried
+their own into a decision. Take a windowed delta at a stated concurrency, or do
+not quote a rate.
+
+**Two points cannot separate a plateau from a transient.** The 22.8 GiB reading
+was the most convincing wrong result of the day precisely because two
+independent readings agreed to within 30 MiB across a fourfold configuration
+change. Nothing about two agreeing points says what happened between them. Take
+a trajectory before naming a ceiling, and treat a suspiciously exact agreement
+as a reason to sample more rather than as confirmation.
+
+**What survives about the offload store: size is not a lever.** Residency
+measured ~0.1-0.25 GiB at BOTH 128 GiB and 512 GiB configured, so what bounds it
+is the eviction order and not the capacity — both tiers evict in the same LRU
+order, so a host entry is discarded before anything asks for it again and
+restores land only in the window between store and eviction. Of the two claims
+in the upstream defect, that one fits and the capacity-division one does not:
+every candidate effective size sits orders of magnitude above what is ever
+resident. One clean 120 s window at 42-44 concurrent gave an external hit rate
+of **2.28%** (33,372 of 1,461,932 queries) against 509.9 GB written and 721.6 MB
+restored — a real but small return, bought with sustained host write bandwidth
+that nothing has yet measured against it.
 
 **Test a reuse mechanism with reuse-shaped traffic.** A review wave reads many
 distinct landed diffs, so nearly every prefill is genuinely novel and a zero
