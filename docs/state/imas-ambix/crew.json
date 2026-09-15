@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-15T23:30:21",
+  "updated": "2026-09-15T23:40:08",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -737,9 +737,11 @@
         "id": "lane-publish-diagnostic",
         "harness": "codex-terra",
         "role": "implement",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
+        "session_id": "01a0a6fb-fd64-70d0-adf2-e31dce5056a5",
+        "session_model": "gpt-5.6-terra",
+        "sessions": {
+          "{\"alias\":\"terra5.6\",\"backend\":\"codex-terra\",\"effort\":\"high\",\"launch\":\"cli\",\"model\":\"gpt-5.6-terra\",\"sandbox\":\"worktree-full\"}": "01a0a6fb-fd64-70d0-adf2-e31dce5056a5"
+        },
         "created": "2026-09-15"
       },
       {
@@ -35752,6 +35754,206 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260915T213153049689-lane-publish-diagnostic",
+        "plan": "dsv41-flash-four-card-throughput",
+        "section": "\u00a78",
+        "node": "lane-publish-diagnostic",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1293,
+                "cached_input_tokens": 806311,
+                "input_tokens": 807606,
+                "output_tokens": 488,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 808094,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "2f9d3191-e884-4a53-99ab-b894325cccbd",
+            "session_id": "dsv41-four-card-20260915"
+          },
+          "done_when": "RouterApp._publish_lane logs, at warning level, the exception that caused it to publish an unavailable lane state, naming the target URL it attempted plus the exception type and message. Its docstring today states that every failure publishes an explicit unavailable state and the loop continues, and it does so SILENTLY: a reader outside the process cannot distinguish a dead serve from a parse failure from a refused connection from an exception in the windowing logic after a successful parse. That is a live problem right now, because the lane document reads state unavailable on a healthy serve and four separate hypotheses have been tested from outside the process without settling it. Keep the existing behaviour otherwise: publishing unavailable and continuing the loop is correct, since a relay that stopped serving requests to keep a metrics file current would have inverted its purpose. Log rather than raise. Do not rate-limit the message away to nothing; if you guard against log flooding, still emit on the first failure and on any CHANGE of exception type or message, because a cause that changes is the signal a reader needs. A test covers that a failing publish emits the warning with the URL and the exception text. Gate: uv run --no-sync ruff check imas_ambix tests exits 0, existing lane and router tests pass with no added failures against base, and your new test passes. You may restart the router to see your own logging take effect, which is cheap and holds no model weights. Do NOT touch the serve on the four cards, which is load-proven and carrying the lane. Diagnosing the underlying cause is a separate node and not yours; if your logging happens to reveal it, record what the log said in your report and leave the fix alone.",
+          "estimated_hours": null,
+          "goal": "The router's lane publisher logs why it published an unavailable state instead of failing silently",
+          "id": "lane-publish-diagnostic",
+          "lane_declaration": {
+            "backend": "codex-terra",
+            "headroom": "known",
+            "metered": true,
+            "observed_at": "2026-09-15T21:31:53Z",
+            "read_at": "2026-09-15T21:31:54Z",
+            "resolved_backend": "codex-terra",
+            "utilisation_pct": 62.0
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "backend declares no lane document",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260915T213153049689-lane-publish-diagnostic/manifest.md",
+          "plan": "dsv41-flash-four-card-throughput",
+          "requested_backend": "codex-terra",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a78",
+          "spec_level": "exact",
+          "time_budget": "35m",
+          "token_budget": null,
+          "write_paths": [
+            "imas_ambix/agent/router.py",
+            "tests/test_agent_router_lane_publish.py",
+            "docs/evidence/archive/dsv41-flash-four-card-throughput-landed.html",
+            "docs/plans/dsv41-flash-four-card-throughput.html"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "lane-publish-diagnostic",
+        "backend": "codex-terra",
+        "local": false,
+        "agent": {
+          "alias": "terra5.6",
+          "backend": "codex-terra",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-terra",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-15T21:32:06Z",
+        "completed_at": "2026-09-15T21:37:44Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 338,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 338,
+        "stalled": false,
+        "time_budget": "35m",
+        "base_sha": "f3c50d60a4c218ec68c13db1be2b30e8363d135a",
+        "commits": [
+          "12d35c7ebcb6a40e13b1ff7dca4f8f191b83287e",
+          "23939364538b171bce204ab8e5826a8c5f20aba0"
+        ],
+        "changed_lines": {
+          "added": 92,
+          "removed": 0,
+          "files": 4
+        },
+        "tests_added": 1,
+        "gate": "passed",
+        "gate_check": {
+          "command": "pytest tests/test_agent_router_lane_publish.py with a failing-baseline control, plus the router/lane slice and ruff",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/reports/lane-publisher-gzip-diagnostic.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260915T213153049689-lane-publish-diagnostic/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a0a6fb-fd64-70d0-adf2-e31dce5056a5",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 2497280,
+            "cached_input_tokens_cumulative": 2497280,
+            "input_tokens": 2623333,
+            "input_tokens_cumulative": 2623333,
+            "output_tokens": 14922,
+            "output_tokens_cumulative": 14922,
+            "reasoning_output_tokens": 3274,
+            "reasoning_output_tokens_cumulative": 3274
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lane_receipt": {
+          "quota_state": "measured",
+          "observed_at": "2026-09-15T21:37:44Z",
+          "effective_context_window": 380000,
+          "quota_windows": [
+            {
+              "window_minutes": 10080,
+              "used_percent": 62.0,
+              "resets_at": 1789970251,
+              "observed_at": "2026-09-15T21:37:44Z"
+            }
+          ],
+          "notional_cost_usd": 5.4257,
+          "rate_basis": {
+            "model_identifier": "gpt-5.6-terra",
+            "input_per_million": 2.0,
+            "output_per_million": 12.0,
+            "as_of": "2026-09-09"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": null,
+        "throughput": {
+          "cumulative_cached_input_tokens": 2497280,
+          "cumulative_input_tokens": 2623333,
+          "detail": "model span bounded from the client rollout's tool spans; input cumulative summed across resets",
+          "generated_tokens": 18196,
+          "generation_seconds": 307.408,
+          "machine_seconds": 29.333,
+          "tokens_per_second": 59.19
+        },
+        "follow_on_paths": [
+          "tests/test_agent_router_resolution.py::test_router_command_runs_injected_resolver_on_requested_port"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/dsv41-four-card-20260915/lane-publish-diagnostic",
+          "session_id": "01a0a6fb-fd64-70d0-adf2-e31dce5056a5",
+          "session_source": "pointer",
+          "retained_at": "2026-09-15T21:37:44Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "tool_steps": 41.0,
+        "orientation_input_tokens": null,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -35798,6 +36000,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 648
+    "_version": 650
   }
 }
