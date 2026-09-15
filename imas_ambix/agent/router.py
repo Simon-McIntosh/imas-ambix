@@ -362,6 +362,7 @@ class RouterApp:
         readings: deque = deque(maxlen=5)
         previous = None
         while True:
+            target = "unresolved"
             try:
                 upstreams = await self._resolver.resolve()
                 if not upstreams:
@@ -372,6 +373,12 @@ class RouterApp:
                     body = await response.text()
                 capacity = parse_lane_capacity(body)
             except (aiohttp.ClientError, OSError, RuntimeError, ValueError) as error:
+                logger.warning(
+                    "lane publisher unavailable target=%s error=%s: %s",
+                    target,
+                    type(error).__name__,
+                    error,
+                )
                 write_unavailable_document(str(error), self._lane_document)
                 # Both histories are dropped, not just the last sample. A window
                 # spanning an outage would average across a gap of unknown
