@@ -716,6 +716,36 @@
     contract while making connection, parse, and windowing failures observable
     to readers outside the process.</p>
 
+    <h2 id="lane-fetch-compression">Compressed lane-fetch receipt</h2>
+
+    <p><strong>Compressed metrics now parse through the reusable lane-fetch
+    path.</strong> Commit <code>df58ea3</code> reads declared content encodings,
+    decompresses <code>gzip</code> or <code>deflate</code> bytes, then decodes
+    the resulting metrics as UTF-8. Before the change, a gzip fixture failed
+    with <code>ValueError: engine metrics carry no KV pool size</code>, because
+    the replacement-decoded bytes no longer matched any Prometheus sample. The
+    regression reads the existing SGLang metrics fixture both directly and
+    through a gzip response and requires identical <code>LaneCapacity</code>
+    values.</p>
+
+    <table>
+      <thead><tr><th>Measure</th><th>Receipt</th></tr></thead>
+      <tbody>
+        <tr><td>Focused lane regression</td><td><strong>4 passed</strong></td></tr>
+        <tr><td>Whole-tree lint</td><td><strong><code>ruff check imas_ambix tests</code> exit 0</strong></td></tr>
+        <tr><td>Live fetch after router restart</td><td><strong><code>state: measured</code>; 4,000,000 pool tokens</strong></td></tr>
+        <tr><td>Serve ownership</td><td>four-card SGLang job <code>1271741</code> left running</td></tr>
+      </tbody>
+    </table>
+
+    <p>The two-core router was restarted for the measurement, then restored from
+    the canonical checkout as job <code>1271755</code>. Its own publisher still
+    fetches metrics through an independent direct <code>aiohttp</code>
+    response-text path and continued to log the gzip <code>UnicodeDecodeError</code>;
+    <code>router.py</code> was outside this deliverable's exclusive write scope.
+    The one-shot fetch proves the delivered function and published document, not
+    that separate publisher repair.</p>
+
 </main>
 </body>
 </html>
