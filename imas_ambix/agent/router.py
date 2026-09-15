@@ -306,7 +306,7 @@ class RouterApp:
             if not isinstance(messages, list):
                 return
             flat = json.dumps(messages, separators=(",", ":"), sort_keys=False)
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             return
         digests = []
         for depth in (512, 2048, 8192, 32768, 131072):
