@@ -43,6 +43,14 @@ class LaneCapacity:
     kv_occupancy: float
     preemptions: int
     prefix_hit_rate: float | None
+    # Safety ceiling, independent of workload. The pool arithmetic below is a
+    # capacity estimate that rises without bound as the working context shrinks
+    # -- on a cold lane with short prompts it read 131, which would invite a
+    # dispatch far past anything this serve has survived. The crash edge is a
+    # property of the memory configuration rather than the traffic: measured at
+    # mem_fraction 0.92, clean at 128 concurrent and fatal at 256. This caps
+    # what is advertised so the two cannot be confused.
+    max_concurrent: int = 96
 
     @property
     def resident_tokens(self) -> int:
@@ -61,18 +69,35 @@ class LaneCapacity:
             return None
         return round(self.resident_tokens / self.running)
 
+    # The pool must hold active contexts AND the prefixes they will reuse next
+    # turn. Sizing to the whole pool leaves nothing to retain: measured at 63%
+    # active occupancy the hit rate fell to 23%, and the recomputation that
+    # follows is itself what evicts the next session's prefix.
+    OCCUPANCY_TARGET = 0.5
+
     @property
     def concurrent_requests(self) -> int | None:
-        """How many requests of the CURRENTLY OBSERVED shape the pool holds.
+        """Advertised capacity: the lesser of pool arithmetic and the ceiling.
 
-        This is an extrapolation from the present mix, not a measured limit --
-        see ``binding_observed``. It moves whenever the working context moves,
-        which is why it is derived on every read instead of being written down.
+        Two different quantities are combined deliberately. The pool term is a
+        workload extrapolation that moves with the working context -- measured
+        across one day it implied anywhere from 5 to 131. The ceiling is a
+        property of the memory configuration and does not move with traffic.
+        Publishing the pool term alone advertised 131 on a cold lane, which is
+        beyond anything this serve has been shown to survive.
+
+        On an idle lane the pool term is undefined, and the honest answer is the
+        ceiling rather than ``None``: with nothing resident, what bounds a
+        dispatch is the configuration, not the traffic. Returning ``None`` there
+        forced every reader to guess, and a reader treating it as a hold would
+        stall a ramp permanently while one treating it as a green light is right
+        only by luck.
         """
         mean = self.mean_context
         if mean is None or mean <= 0:
-            return None
-        return max(1, self.pool_tokens // mean)
+            return self.max_concurrent
+        usable = int(self.pool_tokens * self.OCCUPANCY_TARGET)
+        return max(1, min(usable // mean, self.max_concurrent))
 
     @property
     def headroom(self) -> int | None:

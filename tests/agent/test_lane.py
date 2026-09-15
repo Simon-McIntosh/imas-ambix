@@ -50,8 +50,10 @@ def test_budget_is_derived_from_the_engines_own_pool_size():
     assert capacity.pool_tokens == _POOL
     assert capacity.model_id == "deepseek-v4-flash"
     assert capacity.mean_context == pytest.approx(58_747, abs=50)
-    assert capacity.concurrent_requests == 37
-    assert capacity.headroom == 27
+    # Half the pool, because the other half must hold the prefixes these
+    # requests will reuse on their next turn.
+    assert capacity.concurrent_requests == 18
+    assert capacity.headroom == 8
 
 
 def test_a_heavier_workload_yields_a_smaller_budget_from_the_same_pool():
@@ -67,18 +69,23 @@ def test_a_heavier_workload_yields_a_smaller_budget_from_the_same_pool():
     assert heavy.mean_context is not None
     assert light.mean_context is not None
     assert heavy.mean_context > light.mean_context
-    assert heavy.concurrent_requests == 22
-    assert light.concurrent_requests == 37
+    assert heavy.concurrent_requests == 11
+    assert light.concurrent_requests == 18
 
 
-def test_an_idle_lane_reports_no_budget_rather_than_a_fabricated_one():
-    """No traffic cannot be converted into a ceiling, so refuse to invent one."""
+def test_an_idle_lane_reports_no_MEASUREMENT_but_still_answers():
+    """No traffic cannot be converted into a working-context figure.
+
+    The mean context stays undefined, because there is nothing to measure. The
+    advertised capacity does not: with nothing resident, what bounds a dispatch
+    is the memory configuration rather than the traffic, and answering None
+    there forced every reader to guess.
+    """
     capacity = parse_lane_capacity(_metrics(running=0, occupancy=0.0))
 
     assert capacity.mean_context is None
-    assert capacity.concurrent_requests is None
-    assert capacity.headroom is None
     assert "undefined" in capacity.summary()
+    assert capacity.concurrent_requests == capacity.max_concurrent
 
 
 def test_nothing_binding_is_reported_as_unmeasured_not_as_headroom():
@@ -140,7 +147,7 @@ def test_published_document_carries_its_observation_time(tmp_path):
     document = json.loads(path.read_text(encoding="utf-8"))
 
     assert document["observed_at"].endswith("Z")
-    assert document["concurrent_requests"] == 37
+    assert document["concurrent_requests"] == 18
     assert document["binding_observed"] is False
     assert document["pool_tokens"] == _POOL
 
@@ -220,7 +227,7 @@ def test_a_stale_reading_keeps_its_figure_rather_than_becoming_unavailable(tmp_p
 
     assert fresh == "measured"
     assert old == "stale"
-    assert document["concurrent_requests"] == 37, "the figure survives staleness"
+    assert document["concurrent_requests"] == 18, "the figure survives staleness"
 
 
 def test_an_unreadable_stamp_is_unavailable_not_silently_fresh():
@@ -295,3 +302,47 @@ def test_unknown_settling_publishes_headroom_as_a_bound_not_a_figure(tmp_path):
     assert unknown["settling"] is None
     assert unknown["headroom_is_upper_bound"] is True, "unknown is not settled"
     assert settled["headroom_is_upper_bound"] is False
+
+
+def test_advertised_capacity_reserves_room_for_the_prefixes_it_will_reuse():
+    """Sizing to the whole pool leaves nothing to cache.
+
+    Reproduces a reading taken 2026-09-15: pool 2,557,835, four running at 38%
+    occupancy, mean context 243k. Published against the whole pool that was 10
+    concurrent; against the half that keeps prefixes resident it is 5, which is
+    what an independent re-derivation from the same advice produced.
+    """
+    capacity = parse_lane_capacity(
+        _metrics(running=4, occupancy=0.3804, pool=2_557_835)
+    )
+
+    assert capacity.mean_context == pytest.approx(243_250, abs=500)
+    assert capacity.concurrent_requests == 5, "half the pool, not all of it"
+    assert capacity.headroom == 1
+
+
+def test_a_shrinking_context_cannot_advertise_past_the_safety_ceiling():
+    """The pool term rises without bound as the working context shrinks.
+
+    Measured: a cold lane with short prompts advertised 131 concurrent, beyond
+    anything this serve has survived. The crash edge is a property of the memory
+    configuration rather than the traffic, so it caps what is published.
+    """
+    tiny = parse_lane_capacity(_metrics(running=1, occupancy=0.0061))
+
+    assert tiny.concurrent_requests <= tiny.max_concurrent
+    assert tiny.concurrent_requests == 81
+
+
+def test_an_idle_lane_answers_with_the_ceiling_rather_than_nothing():
+    """With nothing resident, the configuration bounds a dispatch, not traffic.
+
+    Returning None forced every reader to guess: one treating it as a hold
+    stalls a ramp permanently, one treating it as a green light is right only by
+    luck. The first ramp step is exactly where the signal is most wanted.
+    """
+    idle = parse_lane_capacity(_metrics(running=0, occupancy=0.0))
+
+    assert idle.mean_context is None, "still no measurement to report"
+    assert idle.concurrent_requests == idle.max_concurrent
+    assert idle.headroom == idle.max_concurrent
