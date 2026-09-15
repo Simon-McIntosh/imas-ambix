@@ -203,6 +203,18 @@
     selectable through a reviewable setting. These are what make §3's done-when
     measurable at all.</p>
 
+    <h3 id="interval-receipt-deltas">Receipt interval fields landed</h3>
+
+    <p><a href="/imas-ambix/evidence/archive/dsv41-flash-four-card-throughput-landed.html#interval-receipt-deltas">The cumulative evidence record</a>
+    records commit <code>e112152</code>: later receipt rows carry query and hit
+    deltas plus the interval hit rate, while first rows carry null interval
+    fields. The controlled snapshots prove the required split — 2,000 queries
+    and 1,800 hits yield an interval rate of <strong>0.9000</strong>, while the
+    retained cumulative <code>prefix_cache_hit_rate</code> remains
+    <strong>0.8253</strong>. The focused receipt suite passed 15 of 15 tests
+    before and after the change, and lint passed. The width-binned collector and
+    reviewable pool setting remain separate work in this section.</p>
+
     <h2 id="s3">§3 — The one thing that was never measured</h2>
 
     <p>The retired plan's §4 was to drive <em>real agent traffic</em> through
