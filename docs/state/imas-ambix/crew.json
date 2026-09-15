@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-15T19:53:45",
+  "updated": "2026-09-15T20:04:58",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -34293,6 +34293,203 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260915T175545649237-alias-declared-not-derived",
+        "plan": "dsv41-flash-four-card-throughput",
+        "section": "\u00a78",
+        "node": "alias-declared-not-derived",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1724,
+                "cached_input_tokens": 511253,
+                "input_tokens": 512979,
+                "output_tokens": 845,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 513824,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "2f9d3191-e884-4a53-99ab-b894325cccbd",
+            "session_id": "dsv41-four-card-20260915"
+          },
+          "done_when": "scripts/refresh_clive_context_window.py no longer writes the served model name into the alias key. Instead it resolves alias through an explicit mapping recorded in the script, keyed by served model name, containing at least deepseek-v4-flash to dsv4-flash and deepseek-v4.1-flash to dsv4.1-flash; the short spellings are attested by existing reckon ledger rows rather than invented. When a served name has NO recorded mapping the script EXITS NON-ZERO naming the served name and telling the operator to add a mapping, and writes nothing at all - it must not fall back to the long form, because a silent fallback reintroduces this defect at the next checkpoint with nothing announcing it. usable_input_window and model keep their current endpoint-derived behaviour and are correct as they are. The reason for the split, which belongs in the module docstring: reckon's flight schema defines alias as the display label rendered in place of the backend's model identifier, with the spelling decided by whoever writes the configuration and no schema-supplied default, so it is a naming decision that merely changes at the same moment the model does - not a property of the deployment. Writing the served name there would put the model identifier into the field whose purpose is to replace it, rendering the long form in the column that exists for the short one. Tests cover: a mapped model writing the short alias, an unmapped model exiting non-zero and leaving the file untouched, and the existing window and model behaviour still passing. Gate: pytest -p no:cacheprovider tests/test_refresh_clive_context_window.py passes with your additions, ruff clean on your own two paths. Do not edit the live flight config and do not run the script against it; tests use fixtures in tmp_path. Seconds-long, login node fine; whole-tree ruff over scripts carries 273 pre-existing findings and is not your gate.",
+          "estimated_hours": null,
+          "goal": "The reconciler takes the alias from a recorded mapping and refuses loudly when a served model has none, instead of deriving it from the endpoint",
+          "id": "alias-declared-not-derived",
+          "lane_declaration": {
+            "backend": "codex-terra",
+            "headroom": "known",
+            "metered": true,
+            "observed_at": "2026-09-15T17:55:46Z",
+            "read_at": "2026-09-15T17:55:47Z",
+            "resolved_backend": "codex-terra",
+            "utilisation_pct": 54.0
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "backend declares no lane document",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260915T175545649237-alias-declared-not-derived/manifest.md",
+          "plan": "dsv41-flash-four-card-throughput",
+          "requested_backend": "codex-terra",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a78",
+          "spec_level": "exact",
+          "time_budget": "25m",
+          "token_budget": null,
+          "write_paths": [
+            "scripts/refresh_clive_context_window.py",
+            "tests/test_refresh_clive_context_window.py",
+            "docs/evidence/archive/dsv41-flash-four-card-throughput-landed.html",
+            "docs/plans/dsv41-flash-four-card-throughput.html"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "lane-config-reconcile",
+        "backend": "codex-terra",
+        "local": false,
+        "agent": {
+          "alias": "terra5.6",
+          "backend": "codex-terra",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-terra",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-15T17:56:02Z",
+        "completed_at": "2026-09-15T18:03:10Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 428,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 428,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "d45d3de186fd2f36dc66045a622ae870aa354851",
+        "commits": [
+          "ef4779ba7050989d562b50c4183582541b3322c4"
+        ],
+        "changed_lines": {
+          "added": 100,
+          "removed": 11,
+          "files": 4
+        },
+        "tests_added": 3,
+        "gate": "passed",
+        "gate_check": {
+          "command": "pytest -p no:cacheprovider tests/test_refresh_clive_context_window.py and ruff on the node's own paths",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/reports/four-card-reuse-map.md",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260915T175545649237-alias-declared-not-derived/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a0a61f-5a1f-7090-bfbe-b4f539883f12",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 0,
+            "cached_input_tokens_cumulative": 6358528,
+            "input_tokens": 15686,
+            "input_tokens_cumulative": 6642643,
+            "output_tokens": 0,
+            "output_tokens_cumulative": 16508,
+            "reasoning_output_tokens": 0,
+            "reasoning_output_tokens_cumulative": 3340
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lane_receipt": {
+          "quota_state": "measured",
+          "observed_at": "2026-09-15T18:03:10Z",
+          "effective_context_window": 380000,
+          "quota_windows": [
+            {
+              "window_minutes": 10080,
+              "used_percent": 54.0,
+              "resets_at": 1789970251,
+              "observed_at": "2026-09-15T18:03:10Z"
+            }
+          ],
+          "notional_cost_usd": 32.175,
+          "rate_basis": {
+            "model_identifier": "gpt-5.6-terra",
+            "input_per_million": 2.0,
+            "output_per_million": 12.0,
+            "as_of": "2026-09-09"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": null,
+        "throughput": {
+          "cumulative_cached_input_tokens": 12762368,
+          "cumulative_input_tokens": 13053176,
+          "detail": "model span bounded from the client rollout's tool spans; input cumulative summed across resets",
+          "generated_tokens": 19848,
+          "generation_seconds": 1859.594,
+          "machine_seconds": 62.097,
+          "tokens_per_second": 10.67
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest -p",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/dsv41-four-card-20260915/alias-declared-not-derived",
+          "session_id": "01a0a61f-5a1f-7090-bfbe-b4f539883f12",
+          "session_source": "pointer",
+          "retained_at": "2026-09-15T18:03:10Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "tool_steps": 46.0,
+        "orientation_input_tokens": null,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -34339,6 +34536,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 629
+    "_version": 630
   }
 }
