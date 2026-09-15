@@ -328,6 +328,41 @@
     config note around it, and the note is what exposed the one-of-three
     coverage, because explaining <em>why</em> the value rots invited the question
     of what else in the block does. The number alone would have been acted on.</p>
+    <h2 id="clive-deployment-reconcile">§2b — Clive flight settings now follow one served deployment</h2>
+
+    <p>The refresher previously updated the first
+    <code>usable_input_window</code> anywhere in flight configuration. A
+    controlled reproduction placed an unrelated backend first; a write changed
+    its value from <code>100</code> to <code>172800</code> while the clive block
+    remained at <code>model: retired-checkpoint</code>, <code>alias: Retired</code>,
+    and <code>usable_input_window: 400000</code>. This was a real dispatch
+    hazard: the launcher receives the configured model key, so the lane could
+    look configured while every request targeted the retired checkpoint.</p>
+
+    <p><code>refresh_clive_context_window.py</code> now scopes every replacement
+    to <code>backends.clive</code>. It reads the served model ID and context cap
+    from one endpoint card, writes that ID to both <code>model</code> and
+    <code>alias</code>, and retains the launcher-parsed output reservation for
+    the usable input window. The alias is deliberately the served model ID:
+    Reckon's ledger uses that same identifier when a display alias is absent, so
+    the refresh introduces no guessed display name.</p>
+
+    <table>
+      <thead>
+        <tr><th>Controlled measure</th><th>Result</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>204,800-token endpoint with 32,000-token reservation</td><td>model, alias, and usable window reconcile; usable window <strong>172,800</strong></td></tr>
+        <tr><td>100,000-token endpoint with launcher reservation 25,000</td><td>usable window <strong>75,000</strong>; the quarter rule, not the 32,000 cap, governs</td></tr>
+        <tr><td>Dry run</td><td>prints each before-and-after value and leaves the fixture unchanged</td></tr>
+        <tr><td>Second backend carrying the same key</td><td>its <code>usable_input_window</code> remains <code>100</code></td></tr>
+      </tbody>
+    </table>
+
+    <p>Focused regression coverage passed <strong>5/5</strong> and scoped Ruff
+    passed. The repository-wide Ruff command still reports 273 pre-existing
+    findings outside this node's files; this change adds none. No live flight
+    configuration was read or written, and no serving operation was started.</p>
 
   </main>
 </body>
