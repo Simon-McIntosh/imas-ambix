@@ -628,5 +628,40 @@
     exhausting the card.</p>
 
   </main>
+    <h2 id="sglang-lane-reader">§8 — The lane reader now understands the SGLang metrics family</h2>
+
+    <p><strong>The parser gap reproduced against a healthy endpoint.</strong>
+    Job <code>1271709</code> returned HTTP 200 from
+    <code>http://98dci4-gpu-0003:18810/metrics</code> with 1,102 exposition
+    lines, but the reader matched only <code>vllm:</code> metric names and
+    raised <code>ValueError: engine metrics carry no KV pool size</code>. The
+    response is preserved as <code>tests/data/sglang_metrics_sample.txt</code>
+    so its assertions stay independent of the live serve.</p>
+
+    <p>Commits <code>9b955f0</code> and <code>b0c32e5</code> dispatch by the
+    metric family observed in the document. SGLang pool measurements repeat on
+    each tensor-parallel rank; the reader intentionally takes rank zero's
+    <code>sglang:max_total_num_tokens</code> rather than summing four replicas.
+    The receipt yielded a 4,000,000-token device pool, no running or queued
+    requests, zero device occupancy, a direct 0.0 prefix hit rate, and a
+    hierarchical host cache of 8,000,000 total / 55,552 used tokens.</p>
+
+    <table>
+      <thead><tr><th>Measurement</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td>Live endpoint receipt</td><td>HTTP 200; 1,102 lines; SGLang metric family present</td></tr>
+        <tr><td>Device pool</td><td><strong>4,000,000 tokens</strong> from rank-zero <code>max_total_num_tokens</code></td></tr>
+        <tr><td>Host hierarchical cache</td><td>8,000,000 total / 55,552 used tokens (0.6944%)</td></tr>
+        <tr><td>SGLang-only pressure field</td><td><code>preemptions = null</code>; SGLang exposes no cumulative equivalent</td></tr>
+        <tr><td>Regression gates</td><td>31 focused tests passed; <code>ruff check imas_ambix tests</code> exited 0</td></tr>
+      </tbody>
+    </table>
+
+    <p>The vLLM parser keeps its existing values, while a document containing
+    neither engine family retains the existing refusal. The new
+    <code>hicache_host</code> document field makes the host tier visible without
+    making a serve without hierarchical caching look like an empty host pool.</p>
+
+</main>
 </body>
 </html>
