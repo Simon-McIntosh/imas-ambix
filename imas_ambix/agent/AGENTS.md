@@ -780,6 +780,32 @@ coordinator would naturally take it**, and on the strength of which they would
 dispatch again. Prefer a reading taken BEFORE a dispatch to one taken after, and
 treat any reading on a just-widened fleet as provisional until it settles.
 
+**Read `lane_headroom` from `reckon flight`, never `headroom` from
+`crew preflight` — they are different quantities sharing a word.** Measured
+2026-09-15, both for the same backend at the same moment:
+
+| surface | field | value | what it means |
+|---|---|---|---|
+| `reckon flight` | `availability.clive.lane_headroom` | **131** | KV-pool headroom, from the lane document, 14.6 s old |
+| `crew preflight` | `state.headroom` | `"unknown"` | quota and rate-limit position, from the ledger |
+
+Preflight's figure is correctly `unknown` for a local unmetered lane — it emits
+no rate-limit events and never will — and its `observed_at` legitimately predates
+the serve restart, because nothing has written such an event. It is not stale and
+not broken; it answers a question that does not apply to this backend. A
+coordinator that reads it concludes the lane figure does not exist.
+
+`flight` is a read command, so it is consultable **before** a dispatch. That
+distinction matters: a figure recorded on a run after the fact tells the next
+reader what the lane was like, while sizing a wave needs it beforehand.
+
+**This is the fourth field this deployment has that answers a different question
+from the one its name invites** — alongside `kv_cache_usage_perc` counting cached
+blocks as free, `process_alive` conflating four states, and the engine's
+`block_size` reporting a post-layout minimum under a configuration field's name.
+In every case the number was true and answered a question nobody had asked.
+**A field name is not a specification: read what wrote it before acting on it.**
+
 **Pair an engine counter only with a WORKSTATION-WIDE run count.** The engine
 counts every fleet on the lane, so a per-project count paired against it
 inflates the ratio by however many other projects are running. Measured
