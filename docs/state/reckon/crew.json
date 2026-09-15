@@ -1,0 +1,121 @@
+{
+  "updated": "2026-09-03T07:37:57",
+  "project": "reckon",
+  "doc": "crew",
+  "data": {
+    "members": [],
+    "runs": [
+      {
+        "run_id": "r-20260903T053309747041-clive-declares-the-input-ceiling",
+        "plan": "clive-local-workers",
+        "section": "\u00a72",
+        "node": "clive-declares-the-input-ceiling",
+        "node_definition": {
+          "done_when": "In imas_ambix/agent/clive.py the launcher exports CLAUDE_CODE_MAX_CONTEXT_TOKENS as MAX_CONTEXT, the engine's full served window, while separately exporting CLAUDE_CODE_MAX_OUTPUT_TOKENS as a reservation of a quarter of that window capped at 32000, and computing USABLE_INPUT_BUDGET as the difference purely for its display label. The engine bounds prompt plus requested output by the window, so a harness told the full window fills toward it and every request then asks for prompt plus the reservation on top and is refused outright with a 400 stating the maximum context length and the requested output tokens. Compaction never gets the chance because the refusal arrives at the API rather than as pressure the harness can see. Measured on glm-5.3 on 2026-09-03: a 98304 window with a 24576 reservation makes the true input ceiling 73728 while the harness planned against 98304, and a real run died on exactly that 400 after four turns. Export USABLE_INPUT_BUDGET as CLAUDE_CODE_MAX_CONTEXT_TOKENS instead, leaving the reservation and the label unchanged, with a comment stating the engine-bound reason rather than the incident. Three tests in tests/test_agent_clive_picker.py currently pin the defect by asserting the exported context equals the full window and deriving usable input as context minus reservation: test_each_release_gets_its_own_topology_and_context, test_small_context_uses_its_own_safe_output_reservation, and the parametrised test_output_reservation_always_leaves_a_minimal_prompt. Update them to assert the corrected contract while keeping what they protect, which is that the reservation stays safe and leaves a usable prompt. Add to at least one the invariant that actually prevents the refusal: exported context plus exported reservation must not exceed the release's max_model_len. Your gate is tests/test_agent_clive_picker.py plus tests/test_agent_clive_modes.py and tests/test_agent_endpoint_discovery.py, which were 27 passed and 3 failed before the change and must be fully green after. Do NOT run that repository's full suite and do NOT deploy the generated wrapper; deployment is the orchestrator's. Judge by delta against base abe876b19dec446d3ddc0379fa63ec4c6ede9704",
+          "estimated_hours": null,
+          "goal": "Tell the harness what it may spend on input, so a small-window model compacts instead of being refused",
+          "id": "clive-declares-the-input-ceiling",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260903T053309747041-clive-declares-the-input-ceiling/manifest.md",
+          "plan": "clive-local-workers",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a72",
+          "spec_level": "guided",
+          "time_budget": "30m",
+          "write_paths": [
+            "imas_ambix/agent/clive.py",
+            "tests/test_agent_clive_picker.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "opus-a",
+        "backend": "claude-opus",
+        "local": false,
+        "agent": {
+          "backend": "claude-opus",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "claude-opus-5",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-03T05:33:18Z",
+        "completed_at": "2026-09-03T05:35:13.822Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 109,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 115,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "abe876b19dec446d3ddc0379fa63ec4c6ede9704",
+        "commits": [
+          "1badb66eb9a7528af61a6b130250d9e025053270"
+        ],
+        "changed_lines": {
+          "added": 17,
+          "removed": 8,
+          "files": 2
+        },
+        "tests_added": 0,
+        "gate": "passed",
+        "gate_check": {
+          "command": "pytest -q tests/test_agent_clive_picker.py tests/test_agent_clive_modes.py tests/test_agent_endpoint_discovery.py",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260903T053309747041-clive-declares-the-input-ceiling/after.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "The launcher now tells the harness what it may spend on INPUT rather than the engine's full served window, so a small-window model compacts instead of meeting a 400. 30 passed against a base of 27 passed and 3 failed, those three having pinned the defect. Verified across every release size including the degenerate ones: 524288 gives 492288+32000, 65536 gives 49152+16384, 3 gives 2+1. glm-5.3 now declares 73728, exactly the ceiling a real run overshot. Merged and deployed to the shared path after diffing the regenerated script against the deployed one \u2014 13 lines, all of them the export and its comment \u2014 and GLM answers a live prompt through the deployed wrapper.",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260903T053309747041-clive-declares-the-input-ceiling/manifest.md",
+        "scope_changed": false,
+        "session_id": "9e9e7865-03e0-4cb9-bdd5-5748aa1f9955",
+        "budget": {
+          "headroom": "known",
+          "utilisation_pct": 1.21,
+          "rate_limit_type": "overage",
+          "rate_limit_period_minutes": null,
+          "resets_at": "2026-10-01T00:00:00Z",
+          "threshold_status": "allowed_warning",
+          "surpassed_threshold": 1,
+          "tokens": {
+            "cache_creation_input_tokens": 57406,
+            "cache_creation_input_tokens_cumulative": 57406,
+            "cache_read_input_tokens": 559392,
+            "cache_read_input_tokens_cumulative": 559392,
+            "inference_geo": "not_available",
+            "input_tokens": 20,
+            "input_tokens_cumulative": 20,
+            "output_tokens": 7463,
+            "output_tokens_cumulative": 7463,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": 1.0404309999999999,
+          "detail": "backend reports utilisation and reset time",
+          "cost_usd_cumulative": 1.0404309999999999
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "5m",
+          "requested": true,
+          "waived_runs": []
+        },
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        }
+      }
+    ],
+    "holds": [],
+    "_version": 1
+  }
+}

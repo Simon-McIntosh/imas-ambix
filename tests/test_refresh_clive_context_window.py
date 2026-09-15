@@ -48,7 +48,7 @@ def _run(
     monkeypatch: pytest.MonkeyPatch,
     config: Path,
     launcher: Path,
-    model: str = "served-checkpoint",
+    model: str = "deepseek-v4.1-flash",
     window: int = 204800,
     write: bool = False,
 ) -> int:
@@ -86,6 +86,20 @@ def test_endpoint_identity_uses_the_served_model_id(
     )
 
 
+@pytest.mark.parametrize(
+    ("model", "alias"),
+    [
+        ("deepseek-v4-flash", "dsv4-flash"),
+        ("deepseek-v4.1-flash", "dsv4.1-flash"),
+    ],
+)
+def test_declared_alias_uses_the_recorded_short_spelling(
+    refresh_module: ModuleType, model: str, alias: str
+) -> None:
+    """The two attested clive display labels remain explicit mappings."""
+    assert refresh_module.declared_alias(model) == alias
+
+
 def test_dry_run_reports_all_deployment_changes_without_writing(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -100,8 +114,8 @@ def test_dry_run_reports_all_deployment_changes_without_writing(
 
     assert config.read_text(encoding="utf-8") == original
     output = capsys.readouterr().out
-    assert 'model               : retired-checkpoint -> "served-checkpoint"' in output
-    assert 'alias               : Retired -> "served-checkpoint"' in output
+    assert 'model               : retired-checkpoint -> "deepseek-v4.1-flash"' in output
+    assert 'alias               : Retired -> "dsv4.1-flash"' in output
     assert "usable_input_window : 400000 -> 172800" in output
 
 
@@ -116,8 +130,8 @@ def test_write_reconciles_model_alias_and_window(
     assert _run(refresh_module, monkeypatch, config, launcher, write=True) == 0
 
     updated = config.read_text(encoding="utf-8")
-    assert 'model: "served-checkpoint"' in updated
-    assert 'alias: "served-checkpoint"' in updated
+    assert 'model: "deepseek-v4.1-flash"' in updated
+    assert 'alias: "dsv4.1-flash"' in updated
     assert "usable_input_window: 172800" in updated
 
 
@@ -158,3 +172,25 @@ def test_window_rewrite_is_anchored_to_the_clive_backend(
     assert "unrelated:\n    usable_input_window: 100" in updated
     assert "clive:\n    model:" in updated
     assert "usable_input_window: 172800" in updated
+
+
+def test_unmapped_model_refuses_without_touching_the_config(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    refresh_module: ModuleType,
+) -> None:
+    """A new served model needs an explicit display-name decision."""
+    config, launcher = _paths(tmp_path, _config())
+    original = config.read_text(encoding="utf-8")
+
+    with pytest.raises(SystemExit, match="unmapped-checkpoint.*add a mapping"):
+        _run(
+            refresh_module,
+            monkeypatch,
+            config,
+            launcher,
+            model="unmapped-checkpoint",
+            write=True,
+        )
+
+    assert config.read_text(encoding="utf-8") == original

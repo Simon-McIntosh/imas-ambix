@@ -785,6 +785,8 @@
 </div>
 <div class="r-comment" data-section="s9" data-id="c-s9-lineage" data-who="reckon-ship" data-when="2026-09-15T17:58:00+00:00">
     <div class="r-comment-body">The decisive check was content, not topology. Main's deepseek_v4.py is 170,193 bytes against 211,019 at our commit, and main has no deepseek_v41_vit.py, so main's inability to serve this checkpoint is a fact about files rather than an inference from a commit graph. That distinction mattered: a squash merge makes 15 missing commits look identical to 15 absent features, because behind_by counts commits rather than content. Reading the files is what separated those two possibilities, and the commit graph alone could not have.</div>
+<div class="r-comment" data-section="s8" data-id="c-run-r-20260915T175545649237-alias-declared-not-derived" data-who="alias-declared-not-derived" data-when="2026-09-15T17:55:45Z">
+    <div class="r-comment-body"><p>The clive refresher now treats alias as a recorded display decision rather than endpoint metadata. The base behavior reproduced: a V4.1 endpoint wrote the long served name into <code>alias</code>, replacing <code>dsv4-flash</code>. The mapping holds <code>deepseek-v4-flash → dsv4-flash</code> and <code>deepseek-v4.1-flash → dsv4.1-flash</code>; six existing ledger rows attest the V4.1 spelling. An unmapped served name exits non-zero, names the missing model, asks for a mapping, and leaves its fixture unchanged. Existing model and usable-window coverage remains green. Focused coverage passed 8/8 and scoped Ruff passed. Full record: <a href="/imas-ambix/evidence/archive/dsv41-flash-four-card-throughput-landed.html#clive-alias-mapping">declared clive aliases</a>.</p></div>
 </div>
 </section>
 </main>
