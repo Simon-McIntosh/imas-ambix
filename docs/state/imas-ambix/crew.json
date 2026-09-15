@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-15T19:49:33",
+  "updated": "2026-09-15T19:51:34",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -713,9 +713,11 @@
         "id": "lane-config-reconcile",
         "harness": "codex-terra",
         "role": "implement",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
+        "session_id": "01a0a61f-5a1f-7090-bfbe-b4f539883f12",
+        "session_model": "gpt-5.6-terra",
+        "sessions": {
+          "{\"alias\":\"terra5.6\",\"backend\":\"codex-terra\",\"effort\":\"high\",\"launch\":\"cli\",\"model\":\"gpt-5.6-terra\",\"sandbox\":\"worktree-full\"}": "01a0a61f-5a1f-7090-bfbe-b4f539883f12"
+        },
         "created": "2026-09-15"
       },
       {
@@ -33898,6 +33900,203 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260915T173044420216-lane-config-reconcile",
+        "plan": "dsv41-flash-four-card-throughput",
+        "section": "\u00a72b",
+        "node": "lane-config-reconcile",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1251,
+                "cached_input_tokens": 440926,
+                "input_tokens": 442179,
+                "output_tokens": 793,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 442972,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "2f9d3191-e884-4a53-99ab-b894325cccbd",
+            "session_id": "dsv41-four-card-20260915"
+          },
+          "done_when": "scripts/refresh_clive_context_window.py updates every value in the clive backend block that is a property of the deployment rather than of the lane: usable_input_window as it already does, AND model, AND alias. Today it rewrites only the window, which is why a swap to a differently-named checkpoint leaves model and alias naming the retired one. That is not cosmetic: reckon/_backends.py:1295 passes the backend's model key to the launcher as --model, so a stale value makes every clive dispatch request a model the endpoint no longer offers, and the lane returns looking healthy while failing every request. Derive model from the endpoint's served name and alias from the same source the ledger uses, so the block follows the deployment; if alias cannot be derived from the endpoint, say so in the report and leave it reported rather than guessed. Harden two things while you are there. The current key search uses re.search with a MULTILINE anchor and so takes the FIRST usable_input_window in the file: anchor the rewrite inside the clive backend block instead, because a second backend gaining that key would silently redirect the write. And keep the existing dry-run default, printing every value it would change with its before and after. Add tests covering a dry run that changes nothing, a write that updates all three, the reservation formula at a window where the quarter rule governs rather than the 32,000 cap, and the block-anchoring when a second backend carries the same key. The reservation is MAX_CONTEXT/4 capped at 32,000 per imas_ambix/agent/clive.py:623-630, so at the 204,800 cap the reservation is 32,000 and the usable window is 172,800; do not hardcode 32,000 as the reservation, parse it as the script already does. Do not edit the live flight config and do not run the script against it; tests use fixtures in tmp_path. Gate: uv run --no-sync ruff check imas_ambix tests scripts exits 0 and your new tests pass with no added failures against base. Seconds-long, login node fine; start no serve and submit no SLURM job.",
+          "estimated_hours": null,
+          "goal": "One command reconciles the whole clive lane block in flight config against the live endpoint, so a checkpoint swap cannot leave two thirds of it stale",
+          "id": "lane-config-reconcile",
+          "lane_declaration": {
+            "backend": "codex-terra",
+            "headroom": "known",
+            "metered": true,
+            "observed_at": "2026-09-15T17:30:45Z",
+            "read_at": "2026-09-15T17:30:46Z",
+            "resolved_backend": "codex-terra",
+            "utilisation_pct": 52.0
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "backend declares no lane document",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260915T173044420216-lane-config-reconcile/manifest.md",
+          "plan": "dsv41-flash-four-card-throughput",
+          "requested_backend": "codex-terra",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a72b",
+          "spec_level": "guided",
+          "time_budget": "30m",
+          "token_budget": null,
+          "write_paths": [
+            "scripts/refresh_clive_context_window.py",
+            "tests/test_refresh_clive_context_window.py",
+            "docs/evidence/archive/dsv41-flash-four-card-throughput-landed.html",
+            "docs/plans/dsv41-flash-four-card-throughput.html"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "lane-config-reconcile",
+        "backend": "codex-terra",
+        "local": false,
+        "agent": {
+          "alias": "terra5.6",
+          "backend": "codex-terra",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-terra",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-15T17:31:07Z",
+        "completed_at": "2026-09-15T17:45:56Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 889,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 889,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "9bb8dab90a27d9664590fcd2d2a672ee54284bc0",
+        "commits": [
+          "75ae866be14e7c46a9fef8a1c43a5eec9dcb56cb"
+        ],
+        "changed_lines": {
+          "added": 283,
+          "removed": 27,
+          "files": 4
+        },
+        "tests_added": 5,
+        "gate": "passed",
+        "gate_check": {
+          "command": "pytest -p no:cacheprovider tests/test_refresh_clive_context_window.py and ruff check on the node's own paths",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/reports/h200-serving-recipe.md",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "One command now reconciles all three deployment-derived keys in the clive block from the live endpoint: usable_input_window, model and alias, read from the served model card rather than assumed, with the rewrite anchored inside the clive block so a second backend gaining the same key cannot capture the write. 5 new tests, scoped ruff clean. Two caveats recorded rather than buried: it sets alias to the served name deepseek-v4.1-flash, which is defensible as the only non-invented value but breaks continuity with six ledger rows using the short form dsv4.1-flash; and my done-when wrongly demanded whole-tree ruff over scripts, which carries 273 pre-existing findings the repo's documented gate excludes, so the node correctly scoped to its own paths and refused to sweep.",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260915T173044420216-lane-config-reconcile/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a0a61f-5a1f-7090-bfbe-b4f539883f12",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 6414848,
+            "cached_input_tokens_cumulative": 6414848,
+            "input_tokens": 6626957,
+            "input_tokens_cumulative": 6626957,
+            "output_tokens": 38376,
+            "output_tokens_cumulative": 38376,
+            "reasoning_output_tokens": 11370,
+            "reasoning_output_tokens_cumulative": 11370
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lane_receipt": {
+          "quota_state": "measured",
+          "observed_at": "2026-09-15T17:45:56Z",
+          "effective_context_window": 380000,
+          "quota_windows": [
+            {
+              "window_minutes": 10080,
+              "used_percent": 53.0,
+              "resets_at": 1789970251,
+              "observed_at": "2026-09-15T17:45:56Z"
+            }
+          ],
+          "notional_cost_usd": 13.7144,
+          "rate_basis": {
+            "model_identifier": "gpt-5.6-terra",
+            "input_per_million": 2.0,
+            "output_per_million": 12.0,
+            "as_of": "2026-09-09"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": null,
+        "throughput": {
+          "cumulative_cached_input_tokens": 6414848,
+          "cumulative_input_tokens": 6626957,
+          "detail": "model span bounded from the client rollout's tool spans; input cumulative summed across resets",
+          "generated_tokens": 49746,
+          "generation_seconds": 859.058,
+          "machine_seconds": 28.674,
+          "tokens_per_second": 57.91
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/dsv41-four-card-20260915/lane-config-reconcile",
+          "session_id": "01a0a61f-5a1f-7090-bfbe-b4f539883f12",
+          "session_source": "pointer",
+          "retained_at": "2026-09-15T17:45:56Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "tool_steps": 75.0,
+        "orientation_input_tokens": null,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -33944,6 +34143,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 624
+    "_version": 626
   }
 }
