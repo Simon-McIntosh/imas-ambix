@@ -1,5 +1,6 @@
 """Tests for the imas-ambix agent CLI and profile system."""
 
+import math
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -44,7 +45,8 @@ def test_load_deepseek_v4_flash_profile():
     # is expected to move as new checkpoints ship.
     assert profile.model.hf_repo.startswith("deepseek-ai/DeepSeek-V4-Flash")
     assert profile.engine.type == "vllm"
-    assert profile.engine.tensor_parallel == 4
+    # Four cards, however they are split between tensor width and replicas.
+    assert profile.engine.tensor_parallel * profile.engine.data_parallel == 4
     assert profile.engine.ktransformers is None
     assert profile.engine.enable_auto_tool_choice is True
     assert profile.model.max_context == 1048576
@@ -623,8 +625,7 @@ def test_generate_serve_script():
 def test_agent_serve_gpu_help_matches_core_scaling():
     result = CliRunner().invoke(main, ["agent", "serve", "--help"])
     assert (
-        result.exit_code == 0
-        and "Host cores do not scale with cards" in result.output
+        result.exit_code == 0 and "Host cores do not scale with cards" in result.output
     )
 
 
@@ -781,7 +782,9 @@ def test_card_count_override_never_inflates_host_cores(gpus):
     base = load_profile("deepseek-v4-flash")
     resolved = _scale_profile(base, gpus)
     assert resolved.slurm.gpus == gpus
-    assert resolved.engine.tensor_parallel == gpus
+    # Cards are the PRODUCT of the two parallel widths, so the card count lands
+    # on tensor_parallel only when the profile runs a single replica.
+    assert resolved.engine.tensor_parallel * resolved.engine.data_parallel == gpus
 
     # Cores come from exactly one of two places: a variant that declares them
     # for this topology, or the base inherited unchanged. Never a ratio.
@@ -847,9 +850,7 @@ def test_endpoint_requires_key_detects_enforcement(monkeypatch, code):
     from imas_ambix.agent.cli import _endpoint_requires_key
 
     def refuse(request, timeout):
-        raise urllib.error.HTTPError(
-            request.full_url, code, "denied", {}, None
-        )
+        raise urllib.error.HTTPError(request.full_url, code, "denied", {}, None)
 
     monkeypatch.setattr(urllib.request, "urlopen", refuse)
     assert _endpoint_requires_key("http://gpu-node:19123") is True
@@ -872,12 +873,19 @@ def test_engine_facts_report_the_allocated_card_count(monkeypatch):
     """Engine facts follow the running allocation, not the profile default."""
     from imas_ambix.agent.cli import _engine_facts, _scale_profile
 
+    def cards_from(facts: str) -> int:
+        """Recover the card count the facts line describes."""
+        width = next(p for p in facts.split(" · ") if p.startswith("TP="))
+        return math.prod(int(term.split("=")[1]) for term in width.split("×"))
+
     base = load_profile("deepseek-v4-flash")
-    assert f"TP={base.slurm.gpus}" in _engine_facts(base)
+    # The facts line must let a reader recover the CARDS, whatever split of
+    # tensor width and replicas the profile happens to use.
+    assert cards_from(_engine_facts(base)) == base.slurm.gpus
+
     resolved = _scale_profile(base, 2)
-    facts = _engine_facts(resolved)
-    assert "TP=2" in facts
-    assert f"TP={base.engine.tensor_parallel}" not in facts
+    assert cards_from(_engine_facts(resolved)) == 2
+    assert _engine_facts(resolved) != _engine_facts(base)
 
 
 def test_probe_endpoint_authenticated_metadata(monkeypatch):
@@ -2493,7 +2501,7 @@ def test_clive_clean_directory_uses_no_forbidden_consumer_dependency(tmp_path):
         fake_bin / "claude",
         "#!/bin/bash\n"
         f'printf \'%s\\n\' "$ANTHROPIC_BASE_URL" "$ANTHROPIC_MODEL" > {trace}\n'
-        f'printf \'%s\\n\' "$@" >> {trace}\n',
+        f"printf '%s\\n' \"$@\" >> {trace}\n",
     )
     tempting_key = tmp_path / "consumer.env"
     tempting_key.write_text("AMBIX_AGENT_API_KEY=file-only-private-key\n")

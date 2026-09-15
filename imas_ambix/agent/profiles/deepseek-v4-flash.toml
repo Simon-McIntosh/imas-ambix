@@ -45,7 +45,21 @@ max_context = 1048576
 
 [engine]
 type = "vllm"
-tensor_parallel = 4
+# Two replicas of two cards rather than one four-wide engine, on the same four
+# cards. The lane is step-budget-bound rather than pool-bound -- KV occupancy
+# has run 15-50% and never filled, while per-client generation tracks prefill
+# volume inversely and barely responds to width. One engine serialises every
+# request's prefill and decode into a single step budget, so a 32k prefill
+# chunk starves decode for every concurrent session; two replicas give that
+# budget once each.
+#
+# Expert weights stay sharded across all four ranks because expert parallelism
+# is enabled below, so this does not duplicate the 156 GiB checkpoint the way
+# two separate serves would -- that would have cost roughly 17% of the KV pool.
+# Replicas do synchronise at the MoE all-to-all and idle ranks are padded, so
+# the independence is partial; the gain is measured, not assumed.
+tensor_parallel = 2
+data_parallel = 2
 trust_remote_code = true
 enable_auto_tool_choice = true
 # Full native context window (1M) for the four-card base.
@@ -110,7 +124,7 @@ max_total_tokens = 1048576
 # (block_pool.py:44, 146, 711). A pool at 50% "usage" may be entirely full of
 # reusable cache about to be destroyed. Occupancy is not cache residency, and no
 # vLLM metric reports the latter.
-mem_fraction_static = 0.85
+mem_fraction_static = 0.92
 kv_cache_dtype = "fp8"
 # Upstream recipe flags for this checkpoint family (recipes.vllm.ai + the
 # DSpark model card). block_size and tokenizer_mode are the vendor-documented
@@ -227,7 +241,7 @@ max_num_seqs = 1024
 # has never been measured on this workload, which is why it lands against a
 # recorded baseline -- per-client 13.9 at width 10-14, internal hit rate 25.7%
 # pooled -- rather than being bundled with a second scheduler change.
-max_num_batched_tokens = 8192
+max_num_batched_tokens = 32768
 # KV offload to host RAM is DISABLED. This records why, so it is not re-enabled
 # on the same reasoning that first turned it on.
 #
@@ -315,8 +329,26 @@ time_download = "24:00:00"
 # different weights -- so only the topology and the KV budget move. This
 # attention keeps a single compressed KV head, which makes context cheap enough
 # that the full native window fits once the weights are spread over eight cards.
+# Two cards cannot carry two replicas: each would need the whole 156 GiB
+# checkpoint on one 140 GiB card, because replicas duplicate everything the
+# expert-parallel sharding does not cover. So the two-card topology is a single
+# engine two ranks wide, which is what the replica split degenerates to when
+# there is no room to split.
+[gpu_variants.2.engine]
+tensor_parallel = 2
+data_parallel = 1
+
+[gpu_variants.2.slurm]
+gpus = 2
+cpus = 8
+memory = "200G"
+
 [gpu_variants.8.engine]
-tensor_parallel = 8
+# Cards are tensor_parallel * data_parallel, so eight cards at two replicas is
+# a tensor width of four, not eight. Carrying the card count straight into
+# tensor_parallel here would have requested sixteen.
+tensor_parallel = 4
+data_parallel = 2
 max_total_tokens = 1048576
 
 [gpu_variants.8.slurm]

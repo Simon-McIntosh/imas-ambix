@@ -297,6 +297,11 @@ def _build_serve_command(profile: ModelProfile, site: SiteConfig) -> str:
             _append_option(args, "--reasoning-parser", engine.parsers.reasoning)
         _append_option(args, "--max-num-seqs", engine.max_num_seqs)
         _append_option(args, "--max-num-batched-tokens", engine.max_num_batched_tokens)
+        # Only emitted above one: a profile that wants a single engine must
+        # produce the command it produced before this option existed, so an
+        # unrelated change cannot be attributed to it.
+        if engine.data_parallel > 1:
+            _append_option(args, "--data-parallel-size", engine.data_parallel)
         _append_option(args, "--kv-offloading-size", engine.kv_offloading_size)
         if engine.kv_cache_dtype:
             _append_option(args, "--kv-cache-dtype", engine.kv_cache_dtype)

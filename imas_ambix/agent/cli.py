@@ -255,9 +255,29 @@ def _scale_profile(profile, gpus: int):
             "slurm": profile.slurm.model_copy(
                 update={"gpus": gpus, "memory": new_memory}
             ),
-            "engine": profile.engine.model_copy(update={"tensor_parallel": gpus}),
+            # --gpus names CARDS, and the cards are tensor_parallel *
+            # data_parallel. Assigning the card count straight to
+            # tensor_parallel silently multiplied the request by the replica
+            # count, so a `--gpus 4` on a two-replica profile asked for eight.
+            # Divide instead, and refuse a count the replicas do not divide
+            # rather than rounding to something nobody asked for.
+            "engine": profile.engine.model_copy(
+                update={"tensor_parallel": _tensor_width(profile, gpus)}
+            ),
         },
     )
+
+
+def _tensor_width(profile: ModelProfile, gpus: int) -> int:
+    """Tensor width for a card count, given the profile's replica count."""
+    replicas = profile.engine.data_parallel
+    if replicas > 1 and gpus % replicas:
+        raise click.BadParameter(
+            f"--gpus {gpus} is not divisible by the profile's "
+            f"data_parallel={replicas}; cards are tensor_parallel * "
+            f"data_parallel, so choose a multiple of {replicas}."
+        )
+    return max(1, gpus // replicas)
 
 
 @click.group()
@@ -1668,9 +1688,16 @@ def _engine_facts(profile) -> str:
     # Served context = max_total_tokens when set (the real cap), else the
     # model's theoretical max_context.
     served_ctx = e.max_total_tokens or profile.model.max_context
+    # Replicas are named alongside the tensor width because the CARD COUNT is
+    # their product: a bare "TP=2" on a four-card serve reads as two cards,
+    # which is the same trap as a field whose name invites a different question
+    # than the one it answers.
+    width = f"TP={e.tensor_parallel}"
+    if e.data_parallel > 1:
+        width = f"{width}×DP={e.data_parallel}"
     parts = [
         engine_label,
-        f"TP={e.tensor_parallel}",
+        width,
         f"ctx {_fmt_context(served_ctx)}",
     ]
     if e.kv_cache_dtype:
@@ -2845,9 +2872,7 @@ def _engine_runtime_check_script(
     is_flag=True,
     help="Submit the refresher as a standing SLURM job instead of running it.",
 )
-def lane(
-    origin: str | None, publish: bool, refresh: int | None, submit: bool
-) -> None:
+def lane(origin: str | None, publish: bool, refresh: int | None, submit: bool) -> None:
     """Report the shared lane's concurrency budget from live engine counters.
 
     One engine serves every session on the workstation, so the quantity that
@@ -2873,9 +2898,7 @@ def lane(
     site = SiteConfig.from_env()
     resolved = origin
     if resolved is None:
-        document = json.loads(
-            Path(site.endpoint_document).read_text(encoding="utf-8")
-        )
+        document = json.loads(Path(site.endpoint_document).read_text(encoding="utf-8"))
         endpoints = document.get("endpoints") or []
         if not endpoints:
             raise click.ClickException(
@@ -2894,9 +2917,7 @@ def lane(
             submit_script,
         )
 
-        script = generate_lane_refresher_script(
-            site, origin=resolved, interval=refresh
-        )
+        script = generate_lane_refresher_script(site, origin=resolved, interval=refresh)
         try:
             job_id = submit_script(script)
         except RuntimeError as error:
@@ -2911,9 +2932,7 @@ def lane(
         try:
             capacity = fetch_lane_capacity(resolved)
         except (OSError, ValueError) as error:
-            raise click.ClickException(
-                f"could not read {resolved}: {error}"
-            ) from error
+            raise click.ClickException(f"could not read {resolved}: {error}") from error
         console.print(capacity.summary(), markup=False, highlight=False)
         if publish:
             written = write_lane_document(capacity, document_path)
@@ -2941,9 +2960,7 @@ def lane(
             # is why" from a figure whose vintage merely slipped.
             write_unavailable_document(str(error), document_path)
             previous = None
-            console.print(
-                f"unavailable: {error}", markup=False, highlight=False
-            )
+            console.print(f"unavailable: {error}", markup=False, highlight=False)
         else:
             settling = detect_settling(previous, capacity)
             write_lane_document(capacity, document_path, settling=settling)

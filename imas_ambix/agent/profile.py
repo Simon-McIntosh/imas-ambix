@@ -118,6 +118,22 @@ class EngineConfig(BaseModel):
 
     type: Literal["ktransformers", "sglang", "vllm"]
     tensor_parallel: int = 4
+    # Engine replicas sharing the cards, vLLM's ``--data-parallel-size``. The
+    # card count is tensor_parallel * data_parallel, so 2 and 2 fill four cards
+    # with two replicas rather than one four-wide engine.
+    #
+    # It exists because this serve is step-budget-bound rather than
+    # pool-bound: one engine serialises every request's prefill and decode into
+    # a single step budget, so a long prefill chunk starves decode for every
+    # concurrent session. Replicas give that budget once each.
+    #
+    # On a MoE with ``enable_expert_parallel``, expert weights stay sharded
+    # across all ranks rather than being duplicated per replica, so this does
+    # NOT cost the KV pool the way running separate serves would. Replicas do
+    # synchronise at the MoE all-to-all and idle ranks are padded with dummy
+    # batches, so the independence is partial and the gain has to be measured
+    # rather than assumed. 1 keeps a single engine.
+    data_parallel: int = 1
     # Expert-parallel width for SGLang's ``--ep-size``. Distinct from
     # ``enable_expert_parallel`` below, which is vLLM's boolean switch. A MoE
     # layer with hundreds of routed experts is sharded by this rather than by
@@ -260,6 +276,20 @@ class EngineConfig(BaseModel):
     ktransformers: KTransformersConfig | None = None
     container: ContainerConfig | None = None
     parsers: ParsersConfig = ParsersConfig()
+
+    @model_validator(mode="after")
+    def _parallelism_is_positive(self) -> EngineConfig:
+        """Refuse a parallel width below one rather than silently clamping it.
+
+        Both widths multiply into the card count, so a zero or negative value
+        would produce a request for no cards or a nonsensical one, and pydantic
+        would otherwise carry it to the engine untouched.
+        """
+        if self.tensor_parallel < 1:
+            raise ValueError("tensor_parallel must be at least 1")
+        if self.data_parallel < 1:
+            raise ValueError("data_parallel must be at least 1")
+        return self
 
     @model_validator(mode="after")
     def _absent_speculation_is_none(self) -> EngineConfig:
