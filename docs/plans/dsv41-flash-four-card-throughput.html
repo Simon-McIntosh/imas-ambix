@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-15">
-<meta name="plan-version" content="25">
+<meta name="plan-version" content="26">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s2a&quot;:&quot;done&quot;,&quot;s2b&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s3-paired&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;deferred&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;done&quot;}">
 <meta name="plan-artifacts" content="imas_ambix/agent/serving_receipts.py,imas_ambix/agent/receipt_bins.py,imas_ambix/agent/profiles/deepseek-v4-1-flash.toml,/home/ITER/mcintos/.config/reckon/crew/reports/four-card-reuse-map.md,/home/ITER/mcintos/.config/reckon/crew/reports/swa-index-width-attribution.md">
 <meta name="plan-impl" content="0.727">
@@ -817,6 +817,9 @@
 </div>
 <div class="r-comment" data-section="s10" data-id="c-run-r-20260915T191213922393-pool-and-hicache" data-who="pool-and-hicache" data-when="2026-09-15T19:28:06Z">
     <div class="r-comment-body"><p>Device pool cut from 14,999,808 to 4,000,000 tokens and the hierarchical cache enabled, converting oversized KV pool into the per-request headroom the fused-MoE workspace draws from. Freed about 16.8 GiB per card against a fixed 7.52 GiB workspace ask, clearing it twice over. Established the image contract rather than assuming it: the DeepSeek-V4 cache path REJECTS --hicache-size and requires --hicache-ratio, so sizing via the wrong knob would have produced a serve that refused to start. Host request raised 420G to 480G, made of 192 GiB pinned Engram plus about 49 GiB of hicache payload across four ranks, leaving 170G under the 650G Group A allocation, with those components recorded in the profile rather than left as a magic number. Chose write_through_selective and page_first deliberately. Blocked correctly on a test file my brief omitted, the fifth time today I scoped a node to the surface I could see rather than the one the change had to reach. The pool value is a CANDIDATE recorded as such in the profile: load-proven only by a long prefill, which is mine to run.</p></div>
+</div>
+<div class="r-comment" data-section="s8" data-id="c-run-r-20260915T194915087105-lane-reader-sglang" data-who="lane-reader-sglang" data-when="2026-09-15T19:56:09Z">
+    <div class="r-comment-body"><p>Commits <code>9b955f0</code> and <code>b0c32e5</code> close the SGLang metrics parser gap. The live job 1271709 endpoint returned HTTP 200 with 1,102 lines, while the base reader refused it because only <code>vllm:</code> names matched. The retained fixture parses a 4,000,000-token rank-zero device pool, 8,000,000 / 55,552 hierarchical host-cache tokens, a direct 0.0 prefix hit rate, and <code>preemptions = null</code> because SGLang has no cumulative equivalent. Focused lane tests passed 31/31; <code>ruff check imas_ambix tests</code> exited 0. Full record: <a href="/imas-ambix/evidence/archive/dsv41-flash-four-card-throughput-landed.html#sglang-lane-reader">SGLang lane reader evidence</a>.</p></div>
 </div>
 </section>
 </main>
