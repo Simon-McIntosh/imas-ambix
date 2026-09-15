@@ -348,7 +348,7 @@ class RouterApp:
         from imas_ambix.agent.lane import (
             LaneWindow,
             detect_settling,
-            parse_lane_capacity,
+            fetch_lane_capacity,
             write_lane_document,
             write_unavailable_document,
         )
@@ -367,11 +367,10 @@ class RouterApp:
                 upstreams = await self._resolver.resolve()
                 if not upstreams:
                     raise RuntimeError("no upstream is registered")
-                session = await self._client()
                 target = f"{upstreams[0].base_url.rstrip('/')}/metrics"
-                async with session.get(target) as response:
-                    body = await response.text()
-                capacity = parse_lane_capacity(body)
+                capacity = await asyncio.to_thread(
+                    fetch_lane_capacity, upstreams[0].base_url
+                )
             except (aiohttp.ClientError, OSError, RuntimeError, ValueError) as error:
                 logger.warning(
                     "lane publisher unavailable target=%s error=%s: %s",
