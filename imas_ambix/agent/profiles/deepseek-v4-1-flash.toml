@@ -201,7 +201,24 @@ hicache_mem_layout = "page_first"
 # concurrency rises, because the workspace grows with both. Raise it only from
 # evidence taken on a disposable serve -- the measurement that found the
 # ceiling above did so by crossing it, and took the live endpoint down.
-context_length = 204800
+# RAISED to 1,024,000 on 2026-09-15 by lead direction, from 204,800, after the
+# KV pool was cut from 14,999,808 to 4,000,000 tokens. That reclaim freed a
+# measured 16.82 GB per card into the space OUTSIDE mem_fraction_static, which
+# is where the FlashInfer MXFP4 fused-MoE workspace is allocated lazily at
+# generation. The old cap existed because that workspace asks a FIXED 7.52 GiB
+# and only 1.49 GiB was free at the 15M pool -- three probe serves died on that
+# same allocation, one of them during its own warmup with no request at all.
+#
+# 1,024,000 is 2.3% below the checkpoint's native 1,048,576 (config.json
+# max_position_embeddings, reached by YaRN factor 16 from a 65,536 base) and is
+# page-aligned at page_size 256. The launcher reserves MAX_CONTEXT/4 capped at
+# 32,000, so the cap binds and the usable input window is 992,000.
+#
+# The pool now bounds concurrency at full context: 4,000,000 tokens covers about
+# four requests at 1M each, with the 8M hicache host tier absorbing beyond that.
+# At realistic agentic sizes of 100-300k this does not bind. If per-request
+# context is raised further, raise the pool with it or accept host spill.
+context_length = 1024000
 trust_remote_code = true
 
 # "auto" resolves to this architecture's own parsers rather than a generic
