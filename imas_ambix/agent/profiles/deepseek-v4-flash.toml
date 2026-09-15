@@ -117,12 +117,27 @@ kv_cache_dtype = "fp8"
 # values for DeepSeek-V4; moe_backend "auto" lets vLLM pick the routed-expert
 # kernel, and expert parallelism is required alongside tensor parallelism for
 # this model's routed-expert layout.
-# Declared 256, but the engine reports block_size=4 with
-# _block_size_resolved=true and user_specified_block_size=true, so something
-# resolves it down for this checkpoint's hybrid attention. Left as declared
-# because smaller blocks give FINER prefix matching and so cannot be the cause
-# of a low hit rate -- but the divergence is unexplained, and a declared value
-# that is not in effect is worth resolving before tuning further around it.
+# This value IS in effect. The engine's exported `block_size` label reads 4, and
+# that is not our setting being overridden -- it is a different quantity under
+# the same name. After the KV cache is laid out, vllm/v1/engine/core.py:322
+# overwrites cache_config.block_size with the MINIMUM across kv_cache_groups,
+# and this checkpoint's hybrid CSA+HCA attention with its 128-token sliding
+# window allocates several groups of differing sizes. The label afterwards
+# reports the smallest group, not the configured value.
+#
+# Three checks establish that nothing coerced our 256, made 2026-09-15:
+#   * `user_specified_block_size=true`, and the platform's backend-preferred
+#     override is gated on NOT user-specified, so that path was skipped;
+#   * neither `_align_hybrid_block_size` nor the preferred-backend path logged
+#     its "Setting ... block size to %d" message, and both do when they fire;
+#   * 2,557,835 pool tokens over 75,000 blocks is 34.1 tokens per block, which
+#     is neither 4 nor 256 -- the signature of mixed group sizes.
+#
+# It could not have been the low-hit-rate cause in any case: smaller blocks make
+# prefix matching FINER, never coarser. Recorded at length because the reading
+# is the same trap as `kv_cache_usage_perc` counting cached blocks as free and
+# `process_alive` conflating four states -- a true value standing where the
+# expected one would be, under a name that invites the wrong question.
 block_size = 256
 tokenizer_mode = "deepseek_v4"
 moe_backend = "auto"
