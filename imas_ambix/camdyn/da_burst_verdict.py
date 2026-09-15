@@ -82,7 +82,7 @@ def _metric_value(record: dict[str, Any], *names: str) -> float | None:
             if name in container:
                 try:
                     value = float(container[name])
-                except TypeError, ValueError:
+                except (TypeError, ValueError):
                     continue
                 if math.isfinite(value):
                     return value
@@ -93,7 +93,7 @@ def _normalise_evaluation_record(record: dict[str, Any]) -> dict[str, Any] | Non
     """Return the common frame-record schema, or ``None`` when incomplete."""
     try:
         shot_id = int(record["shot_id"])
-    except KeyError, TypeError, ValueError:
+    except (KeyError, TypeError, ValueError):
         return None
     morphology_score = _metric_value(record, "morphology_fidelity", "morphology")
     token_nll = _metric_value(
