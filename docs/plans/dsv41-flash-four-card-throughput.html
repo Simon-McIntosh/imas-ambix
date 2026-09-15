@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-15">
-<meta name="plan-version" content="12">
+<meta name="plan-version" content="13">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s2a&quot;:&quot;done&quot;,&quot;s2b&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;done&quot;}">
 <meta name="plan-artifacts" content="/home/ITER/mcintos/.config/reckon/crew/reports/four-card-reuse-map.md,/home/ITER/mcintos/.config/reckon/crew/reports/swa-index-width-attribution.md">
 <meta name="plan-impl" content="0.5">
@@ -190,11 +190,37 @@
     <code>agent serve</code> exposes no pool-size option, so
     <code>agent serve deepseek-v4-1-flash</code> cannot by itself produce the
     14,999,808 pool §3 requires — the pool must become an explicit, reviewable
-    setting rather than a hand-edit at serve time. And the standing lane
-    refresher is a separate <code>ambix-lane</code> SLURM job, not a model
-    profile, so a profile shutdown will not stop it: two refreshers would race
-    and re-publish the retired origin. <strong>Stop it by exact job id; never use
-    <code>--all</code></strong>, which would also stop serving jobs.</p>
+    setting rather than a hand-edit at serve time. And the survey reported that
+    the standing lane refresher is a separate <code>ambix-lane</code> SLURM job
+    which a profile shutdown will not stop, so two refreshers would race and
+    re-publish the retired origin. <strong>That second finding is wrong for the
+    running system, and the correction follows.</strong></p>
+
+    <p><strong>Correction — the lane document is published by the router, so the
+    swap is simpler than the survey said.</strong> There is no
+    <code>ambix-lane</code> job in <code>squeue</code>, yet <code>lane.json</code>
+    is rewritten every thirty seconds. <code>RouterApp</code> carries an internal
+    publish task on a thirty-second interval, and its own comment gives the
+    reason it was moved there: a separate job "spent a core of a 30-core GPU
+    reservation on one HTTP read every thirty seconds, while a peer's GPU work
+    pended on Resources with two cards idle". The router "already survives serve
+    rotations", and its resolver is a supplier invoked afresh on every
+    resolution, so it re-reads the endpoint document rather than caching an
+    upstream. <strong>Leave the router running through the swap</strong> — job
+    <code>1271309</code> — and the lane reading follows the new serve within one
+    interval.</p>
+
+    <p><strong>Why a careful survey got this wrong is the part worth keeping.</strong>
+    <code>generate_lane_refresher_script</code> is still in
+    <code>slurm.py</code>, and its docstring argues for a separate job in exactly
+    the terms the survey reported — while nothing calls it any more, and the
+    router's comment argues the opposite case and won. Two rationales for
+    opposite designs sit in one codebase and the superseded one still reads as
+    authoritative. The survey asked what the source says publishes the lane, got
+    a true statement about a function nobody calls, and reported it — the
+    aimed-instrument trap rather than carelessness. <strong>The dead generator is
+    removed as part of the swap preparation</strong>, because leaving it is what
+    produced a wrong operational finding today and would do so again.</p>
 
     <p><strong>Done when:</strong> the receipts recorder emits per-interval query
     and hit deltas and an interval ratio alongside the retained cumulative

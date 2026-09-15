@@ -128,12 +128,25 @@
     zero OOM — has to become an explicit, reviewable setting rather than a
     hand-edit at serve time.</p>
 
-    <p><strong>The lane refresher is a separate SLURM job, not a model
-    profile.</strong> A profile shutdown will not stop the standing
-    <code>ambix-lane</code> job, so a swap that starts a second refresher leaves
-    two of them racing to publish, one of which advertises the retired origin.
-    It must be stopped by exact job id. <code>--all</code> would stop it and
-    would also stop serving jobs, so it is not the shortcut it looks like.</p>
+    <p><strong>The lane refresher claim was wrong, and the correction is the
+    more useful record.</strong> The survey reported the refresher as a separate
+    <code>ambix-lane</code> SLURM job needing to be stopped by exact job id. No
+    such job exists in <code>squeue</code>, yet <code>lane.json</code> is
+    rewritten every thirty seconds. <code>RouterApp</code> publishes it from an
+    internal task, having been moved there because a separate job &ldquo;spent a
+    core of a 30-core GPU reservation on one HTTP read every thirty seconds,
+    while a peer's GPU work pended on Resources with two cards idle&rdquo;. The
+    router already survives serve rotations and re-reads the endpoint document on
+    every resolution, so it is left running through the swap and the lane reading
+    follows the new serve within one interval.</p>
+
+    <p>The survey was not careless. <code>generate_lane_refresher_script</code>
+    is still in <code>slurm.py</code> arguing for the separate job in exactly
+    those terms, while nothing calls it and the router's comment argues the
+    opposite case and won. Two rationales for opposite designs sit in one
+    codebase and the superseded one still reads as authoritative, so a question
+    aimed at the source returned a true statement about dead code. The dead
+    generator is removed as part of the swap preparation.</p>
 
     <h2 id="evaluation-pool-setting">§2b — The load-proven evaluation pool is a named serve selection</h2>
 
