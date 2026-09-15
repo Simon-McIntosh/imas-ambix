@@ -444,6 +444,51 @@
     cache. No per-launch cache override is required for this header, because
     the source bytes themselves select the reusable artifact.</p>
 
+    <h2 id="serve-engine-metrics">§10 — The SGLang serve now publishes the metrics consumed by the lane reader</h2>
+
+    <p><strong>The missing endpoint reproduced before repair.</strong> At base
+    <code>2000539</code>, the plain <code>agent serve
+    deepseek-v4-1-flash --dry-run</code> exited zero and printed the expected
+    <code>sglang.launch_server</code> command with the positive-control flag
+    <code>--max-total-tokens 14999808</code>, but no
+    <code>--enable-metrics</code>. The absence was therefore in a command known
+    to have been generated, rather than inferred from an empty result.</p>
+
+    <p>The exact spelling came from the serving image, not from a guessed
+    translation. In
+    <code>/work/projects/imas_gpu/containers/sglang-dev-dsv41.sif</code>, the
+    launch server's <code>ServerArgs.enable_metrics</code> field documents
+    <code>--enable-metrics</code> and defaults to <code>False</code>; the HTTP
+    server installs its Prometheus middleware only when that field is true.</p>
+
+    <p>Commit <code>58525d8</code> adds a typed
+    <code>EngineConfig.enable_metrics</code> switch with a false default, emits
+    the flag only from the SGLang argument builder, and enables it in
+    <code>deepseek-v4-1-flash.toml</code>. The generated V4.1 command now carries
+    <code>--enable-metrics</code>. The V4-Flash profile remains unchanged and its
+    vLLM dry-run output is byte-for-byte identical before and after the commit;
+    vLLM continues to use its default metrics endpoint rather than consuming a
+    SGLang setting.</p>
+
+    <table>
+      <thead><tr><th>Measure</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td>Base V4.1 dry run</td><td><code>--max-total-tokens 14999808</code> present; <code>--enable-metrics</code> absent</td></tr>
+        <tr><td>Changed V4.1 dry run</td><td><code>--enable-metrics</code> present on the <code>sglang.launch_server</code> line</td></tr>
+        <tr><td>V4-Flash vLLM control</td><td><strong>byte-identical</strong> dry-run output before and after</td></tr>
+        <tr><td>Focused tests</td><td><strong>4 passed</strong>: the two new metrics tests plus <code>tests/test_agent_evaluation_pool.py</code></td></tr>
+        <tr><td>Repository lint</td><td><code>ruff check imas_ambix tests</code> exited 0 before and after</td></tr>
+      </tbody>
+    </table>
+
+    <p>This is a correctness fix, not telemetry polish. Without the endpoint,
+    the lane document reports <code>state unavailable</code> because it cannot
+    parse the KV-pool sample, while the scheduler reports lane headroom as
+    <code>unknown</code>. The same missing measurement therefore makes one
+    surface over-cautious and the other over-permissive. The new setting takes
+    effect on the next serve launch; no live serve was stopped or restarted and
+    no SLURM job was submitted by this node.</p>
+
   </main>
 </body>
 </html>
