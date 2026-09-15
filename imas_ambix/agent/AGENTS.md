@@ -789,6 +789,31 @@ were four nova, five reckon, two more reckon and one imas-codex. **A ratio above
 1.0 is the tell**, since it requires one turn issuing several concurrent
 requests; treat it as a pairing error until proven otherwise.
 
+**Prefix-cache eviction is the FIRST symptom of KV pressure, and it appears
+long before preemption.** Measured 2026-09-15 at 36 concurrent agent requests:
+hit rate down to 23-25%, KV occupancy 63-65%, **`num_preemptions_total` still
+zero**. The pool was already evicting cached prefixes to make room for active
+requests, so the lane was paying for it in recomputed tokens while the signal
+everyone was told to watch had not moved.
+
+    prefill queries   23,924 tok/s      of which recomputed  18,378 tok/s
+    generation            55-63 tok/s
+
+So **watch the hit rate, not only preemptions.** Preemption is the last resort;
+eviction happens first, costs throughput silently, and is the earlier warning.
+
+**A low hit rate is not evidence of a broken cache — occupancy is the
+discriminator.** The two cases look identical in the hit-rate figure alone:
+
+| | hit rate | pool occupancy | verdict |
+|---|---|---|---|
+| engine defect (V4.1, 2026-09-14) | 93.2% of prefills with **zero** cached tokens | **10%** | broken: failing with abundant room |
+| contention (2026-09-15) | 23-25% | **63%** | working: evicting under real pressure |
+
+A cache that misses while the pool is nearly empty is faulty. A cache that
+misses while the pool is two-thirds full is doing what a cache does. **Never
+diagnose a cache from its hit rate without reading occupancy beside it.**
+
 **Saturation degrades rather than failing.** vLLM preempts and recomputes, so
 the symptom is a lane that silently gets slower — no error, no status code, and
 nothing a worker manifest would attribute correctly. `num_preemptions_total` in
