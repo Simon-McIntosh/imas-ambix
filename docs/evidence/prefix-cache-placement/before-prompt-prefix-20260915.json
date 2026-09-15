@@ -39,5 +39,13 @@
     "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260915T074439374137-the-second-key-check-does-not-fire-on-prose/prompt.txt",
     "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260915T075410484832-the-blank-surface-guard-fires-and-stays-quiet/prompt.txt",
     "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260915T081211090585-n-swcr-the-catalog-pin-reaches-the-published-grammar/prompt.txt"
-  ]
+  ],
+  "why_replay_was_not_run": "Two independent reasons, both verified rather than assumed. (1) Signal: a 12KB prompt is ~88 block queries against ~1.16M ambient queries per 45s window, 0.0076%. (2) No instrument: the engine returns prompt_tokens_details=null, so there is no per-request cached-token count with which to isolate one request from fleet traffic. The incremental B-given-A framing addresses cache contamination but not signal-to-noise, so it does not rescue the method. This byte measurement is the controlled arm instead \u2014 same prompts, one variable, and deterministic rather than stochastic.",
+  "cohort_half": {
+    "status": "authorised by reckon's operator; dispatch window to follow",
+    "size": "n=2-3, real owed nodes rather than synthetic traffic",
+    "power": "INDICATIVE, NOT POWERED \u2014 hold it as such",
+    "confound": "before and after cohorts do DIFFERENT work, because the owed nodes will have been done by then. The cohort measures multi-turn behaviour under real conditions; it is NOT a controlled comparison and must not be written up as one.",
+    "parallelism": "worker prompts are composed at dispatch, so once the before-cohort is dispatched its prompts are fixed under the current shape and a later prompts.py change cannot contaminate them. Only the AFTER cohort must wait for the merge."
+  }
 }
