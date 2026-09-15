@@ -298,7 +298,7 @@ def _commit() -> str:
             text=True,
             check=True,
         ).stdout.strip()
-    except OSError, subprocess.CalledProcessError:
+    except (OSError, subprocess.CalledProcessError):
         return ""
 
 

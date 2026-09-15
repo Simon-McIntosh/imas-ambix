@@ -285,7 +285,7 @@ def _resize(image: ImageArray) -> ImageArray:
 def _frame_value(frame: object, name: str, default: object) -> object:
     try:
         value = frame[name]  # type: ignore[index]
-    except KeyError, TypeError:
+    except (KeyError, TypeError):
         value = getattr(frame, name, default)
     if hasattr(value, "item"):
         return value.item()
