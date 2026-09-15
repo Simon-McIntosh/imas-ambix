@@ -127,6 +127,10 @@ def _build_sglang_args(profile: ModelProfile, site: SiteConfig) -> list[str]:
             engine.container.sif_path,
             "python3",
         ]
+        repo_root = Path(__file__).resolve().parents[2]
+        for bind in engine.container.binds:
+            source = repo_root / bind.source
+            interpreter[3:3] = ["--bind", f"{source}:{bind.target}:ro"]
     else:
         interpreter = [str(site.python_path(profile.engine.type))]
     args = [

@@ -80,6 +80,23 @@ class ParsersConfig(BaseModel):
     reasoning: str | None = None
 
 
+class ContainerBind(BaseModel):
+    """A read-only repository file mounted at an image path for a serve."""
+
+    source: str
+    target: str
+
+    @model_validator(mode="after")
+    def _bind_paths_are_unambiguous(self) -> ContainerBind:
+        """Require a repository-relative source and an absolute image target."""
+        source = Path(self.source)
+        if source.is_absolute() or ".." in source.parts:
+            raise ValueError("container bind source must be repository-relative")
+        if not Path(self.target).is_absolute():
+            raise ValueError("container bind target must be absolute")
+        return self
+
+
 class ContainerConfig(BaseModel):
     """Serve this model from a container image instead of an engine venv.
 
@@ -96,6 +113,7 @@ class ContainerConfig(BaseModel):
 
     image: str
     sif_path: str
+    binds: list[ContainerBind] = []
 
 
 class EngineConfig(BaseModel):
