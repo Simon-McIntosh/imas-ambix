@@ -8,7 +8,8 @@
 #   GPU: ~41 GB/card weights, leaves ~100 GB/card for KV cache
 #   KV: ultra-compact — 1 KV head × 512 dim × CSA/HCA compression
 #        → millions of tokens capacity at FP8 KV
-#   No CPU offloading needed — entire model fits on GPU
+#   Weights need no CPU offloading — the model fits on GPU. The KV cache is a
+#   different matter; see kv_offloading_size below.
 #
 # Throughput (measured 2026-06-04):
 #   TP=2 (2×H200): ~100 tok/s single-request decode, ~114 tok/s 8-way concurrent
@@ -47,15 +48,17 @@ type = "vllm"
 tensor_parallel = 4
 trust_remote_code = true
 enable_auto_tool_choice = true
-# Full native context window (1M) for the four-card base, matching the
-# two-card variant. This model's single compressed KV head does not shard
-# across tensor parallelism, so a four-card pool matches the two-card one:
-# the measured KV pool of 1313935 tokens is the same at either card count,
-# and comfortably holds the full window.
+# Full native context window (1M) for the four-card base.
+#
+# It does NOT match the two-card variant, despite what this comment said until
+# 2026-09-15. Weights shard across tensor parallelism, so TP2 puts roughly 82 GB
+# per card of weights against TP4's 41 and leaves far less room for KV: measured
+# at this fraction, 22.32 GiB of KV on two cards against 60.22 on four. A single
+# 1048576-token request needs 31.49 GiB, so the two-card variant REFUSES TO
+# START at this window and reports an estimated maximum length of 53,124 tokens.
+# Any sizing that assumes the pool is card-count-independent is wrong.
 max_total_tokens = 1048576
-# Above the 0.90 default so the full 1M window gets its pool. The single
-# compressed KV head does not shard across tensor parallelism, so the
-# four-card serve carries the same pool as the two-card one at this fraction.
+# Above the 0.90 default so the full 1M window gets its pool.
 # Measured on four cards: 70.01 GiB of KV per card, 2557835 tokens total,
 # which vLLM reports as 2.44x maximum concurrency at a full 1048576-token
 # request. That figure is informational rather than an admission ceiling —
@@ -85,6 +88,12 @@ kv_cache_dtype = "fp8"
 # values for DeepSeek-V4; moe_backend "auto" lets vLLM pick the routed-expert
 # kernel, and expert parallelism is required alongside tensor parallelism for
 # this model's routed-expert layout.
+# Declared 256, but the engine reports block_size=4 with
+# _block_size_resolved=true and user_specified_block_size=true, so something
+# resolves it down for this checkpoint's hybrid attention. Left as declared
+# because smaller blocks give FINER prefix matching and so cannot be the cause
+# of a low hit rate -- but the divergence is unexplained, and a declared value
+# that is not in effect is worth resolving before tuning further around it.
 block_size = 256
 tokenizer_mode = "deepseek_v4"
 moe_backend = "auto"
@@ -111,7 +120,37 @@ speculative_draft_sample_method = "greedy"
 #     budget so the scheduler isn't starved when many long prompts
 #     queue up at the same time
 max_num_seqs = 1024
-max_num_batched_tokens = 32768
+# Lowered from 32768. The chunked-prefill scheduler fills this budget before it
+# decodes, so a large budget lets prefill monopolise every step. Measured
+# 2026-09-15 under real agent load: 22,557 tok/s of prefill against 190 tok/s of
+# generation aggregate -- 119 to 1 -- with each worker seeing 9.3 tok/s. A
+# smaller budget chunks a long prompt across more steps and lets decode
+# interleave. It treats the symptom rather than the cause; the cause is below.
+max_num_batched_tokens = 8192
+# Host-RAM buffer for evicted prefix blocks, GiB summed across tensor ranks.
+#
+# THIS IS THE CAUSE. Without it an evicted prefix is recomputed from scratch,
+# and on a shared agent lane that is self-sustaining: the recomputation is
+# itself what evicts the next session's prefix. The arithmetic, measured on
+# this serve:
+#
+#   pool 2,200,283 tokens / 22,557 tok/s prefill = 98 s to turn over completely
+#   a 500-token reply at 9.3 tok/s               = 54 s, plus tool and think time
+#
+# So a session's cached prefix is evicted on the same timescale as its own turn
+# gap, and the hit rate sits at 21-25% where multi-turn agent traffic should
+# reach 90% -- turn N+1's prompt is turn N's plus the exchange. It also explains
+# why draining the fleet from 36 requests to 20 barely moved it: turnover is set
+# by the prefill rate, not the worker count.
+#
+# 96 GiB holds roughly 3.5M tokens at the measured 28.7 KiB/token, so combined
+# with the GPU pool the cache turns over in about 250 s rather than 98 -- past
+# the turn gap rather than inside it. Restoring a block over PCIe costs far less
+# than a forward pass through 284B parameters.
+#
+# Sized against the job's 400G host allocation. Untested at this scale here:
+# measure the prefix hit rate, not throughput, to judge whether it worked.
+kv_offloading_size = 96
 
 [engine.env]
 # Route top-k/top-p sampling around the FlashInfer TopKMaskLogits kernel, which
@@ -135,7 +174,7 @@ reasoning = "deepseek_v4"
 [slurm]
 gpus = 4
 cpus = 12
-memory = "300G"
+memory = "400G"
 port = 18800
 time_serve = "0"
 time_download = "24:00:00"

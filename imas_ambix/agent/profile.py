@@ -215,6 +215,16 @@ class EngineConfig(BaseModel):
     # available HBM. Only forwarded for the vLLM engine type.
     max_num_seqs: int | None = None
     max_num_batched_tokens: int | None = None
+    # Host-RAM buffer for evicted prefix blocks, in GiB summed across tensor
+    # ranks. Unset means vLLM recomputes an evicted prefix from scratch, which
+    # is what makes a shared agent lane self-defeating: the recomputation is
+    # itself what evicts the next session's prefix. Measured 2026-09-15 on the
+    # four-card serve -- 22,557 tok/s of prefill against 190 of generation, of
+    # which 18,863 tok/s was recomputation, and a 2,200,283-token pool turning
+    # over completely every 98 s against turn gaps of about the same length.
+    # Restoring a block over PCIe costs far less than a forward pass through
+    # 284B parameters.
+    kv_offloading_size: float | None = None
     # vLLM Multi-Token-Prediction (MTP) speculative decoding. When
     # ``speculative_method`` is set, the serve command emits
     # ``--speculative-config.method`` and
