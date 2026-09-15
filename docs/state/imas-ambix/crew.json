@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-15T19:51:34",
+  "updated": "2026-09-15T19:52:10",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -672,9 +672,11 @@
         "id": "h200-serving-recipe",
         "harness": "codex-terra",
         "role": "investigate",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
+        "session_id": "01a0a61a-995b-7941-bea9-3202c8b9569e",
+        "session_model": "gpt-5.6-terra",
+        "sessions": {
+          "{\"alias\":\"terra5.6\",\"backend\":\"codex-terra\",\"effort\":\"xhigh\",\"launch\":\"cli\",\"model\":\"gpt-5.6-terra\",\"sandbox\":\"read-only\"}": "01a0a61a-995b-7941-bea9-3202c8b9569e"
+        },
         "created": "2026-09-15"
       },
       {
@@ -34097,6 +34099,191 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260915T172540294609-h200-serving-recipe",
+        "plan": "dsv41-flash-four-card-throughput",
+        "section": "\u00a74",
+        "node": "h200-serving-recipe",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 377,
+                "cached_input_tokens": 420980,
+                "input_tokens": 421359,
+                "output_tokens": 1148,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 422507,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "2f9d3191-e884-4a53-99ab-b894325cccbd",
+            "session_id": "dsv41-four-card-20260915"
+          },
+          "done_when": "A written recommendation resting on five parts. FIRST, the exact configuration this deployment runs is recorded at /home/ITER/mcintos/.config/reckon/crew/reports/dsv41-served-args-1271638.log as the engine's own server_args dump from a real launch: judge relevance against THAT, never against the profile file and never by keyword, because a keyword filter already missed the important commits once today. SECOND, our image is sglang commit da64c5cb built 2026-09-14 08:30 CEST; enumerate every commit on sglang main since then that touches a code path those server_args actually activate, with a relevance verdict and reasoning for each, and say explicitly which are irrelevant because they are AMD, NPU, CI, disaggregation, LoRA or MegaMoE paths this serve does not use. THIRD, settle a specific suspicion: commit 09-14T10:04 reverted #38346, #33426, #39061 and #39219, and our build predates it by ninety minutes, so establish whether our image actually contains any of those four and what each did. FOURTH, assess #38409, waiting for PDL before reading DeepSeek V4 K cache locations, against attention_backend dsv4 which we run \u2014 is it a correctness fix that affects us, and what is the symptom if unfixed. FIFTH, search for community, vendor and upstream recipes for THIS checkpoint on H200 or SM90 at TP4 with expert parallelism, and list concretely which flags they set that our server_args do not, and which of ours they contradict; the profile already records that the published H200 recipe is TP8/EP8 while we compose TP4/EP4, so pay particular attention to anything that assumes eight cards. Use gh api for GitHub rather than unauthenticated web fetches, which return 403. Cite every claim with a commit sha, PR number or URL, and give the recommendation as rebuild or keep with the reasons ranked by expected effect on loaded throughput. If a claim cannot be verified, say so rather than inferring. This is research: start no serve, submit no SLURM job, and change no repository file.",
+          "estimated_hours": null,
+          "goal": "A rebuild-or-keep recommendation for the DeepSeek-V4.1-Flash serving image and a flag-by-flag verdict on whether this profile is the best available configuration for four H200 cards",
+          "id": "h200-serving-recipe",
+          "lane_declaration": {
+            "backend": "codex-terra",
+            "headroom": "known",
+            "metered": true,
+            "observed_at": "2026-09-15T17:25:40Z",
+            "read_at": "2026-09-15T17:25:41Z",
+            "resolved_backend": "codex-terra",
+            "utilisation_pct": 52.0
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "backend declares no lane document",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260915T172540294609-h200-serving-recipe/manifest.md",
+          "plan": "dsv41-flash-four-card-throughput",
+          "requested_backend": "codex-terra",
+          "requires_decisions": [],
+          "role": "investigate",
+          "section": "\u00a74",
+          "spec_level": "open",
+          "time_budget": "30m",
+          "token_budget": null,
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/h200-serving-recipe.md"
+          ]
+        },
+        "role": "investigate",
+        "spec_level": "open",
+        "member": "h200-serving-recipe",
+        "backend": "codex-terra",
+        "local": false,
+        "agent": {
+          "alias": "terra5.6",
+          "backend": "codex-terra",
+          "effort": "xhigh",
+          "launch": "cli",
+          "model": "gpt-5.6-terra",
+          "sandbox": "read-only"
+        },
+        "dispatched_at": "2026-09-15T17:25:55Z",
+        "completed_at": "2026-09-15T17:46:30Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1235,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1235,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "9bb8dab90a27d9664590fcd2d2a672ee54284bc0",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "failed",
+        "gate_check": null,
+        "suite_delta": null,
+        "failure_classification": "malformed-node",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260915T172540294609-h200-serving-recipe/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a0a61a-995b-7941-bea9-3202c8b9569e",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 2322944,
+            "cached_input_tokens_cumulative": 2322944,
+            "input_tokens": 2457553,
+            "input_tokens_cumulative": 2457553,
+            "output_tokens": 21035,
+            "output_tokens_cumulative": 21035,
+            "reasoning_output_tokens": 8197,
+            "reasoning_output_tokens_cumulative": 8197
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lane_receipt": {
+          "quota_state": "measured",
+          "observed_at": "2026-09-15T17:46:30Z",
+          "effective_context_window": 380000,
+          "quota_windows": [
+            {
+              "window_minutes": 10080,
+              "used_percent": 53.0,
+              "resets_at": 1789970251,
+              "observed_at": "2026-09-15T17:46:30Z"
+            }
+          ],
+          "notional_cost_usd": 12.0629,
+          "rate_basis": {
+            "model_identifier": "gpt-5.6-terra",
+            "input_per_million": 2.0,
+            "output_per_million": 12.0,
+            "as_of": "2026-09-09"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": null,
+        "throughput": {
+          "cumulative_cached_input_tokens": 5254656,
+          "cumulative_input_tokens": 5537648,
+          "detail": "model span bounded from the client rollout's tool spans; input cumulative summed across resets",
+          "generated_tokens": 29232,
+          "generation_seconds": 1125.044,
+          "machine_seconds": 108.733,
+          "tokens_per_second": 25.98
+        },
+        "follow_on_paths": [
+          "A/B"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": false,
+          "matched_measure": null,
+          "override": false,
+          "role": "investigate",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "resume",
+        "attempt": 2,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": "read-only investigate role; the deliverable is the report in the crew reports dir",
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/dsv41-four-card-20260915/h200-serving-recipe",
+          "session_id": "01a0a61a-995b-7941-bea9-3202c8b9569e",
+          "session_source": "pointer",
+          "retained_at": "2026-09-15T17:46:30Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "tool_steps": 47.0,
+        "orientation_input_tokens": null,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -34143,6 +34330,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 626
+    "_version": 628
   }
 }
