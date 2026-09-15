@@ -947,12 +947,33 @@ carefully-taken measurement of the day sampled the interval holding the bulk of
 the phenomenon and reported it as the steady state — an outlier presented as a
 rate, by the session that had been most rigorous about everything else.
 
-**So measure a bursty process by its bursts.** A fixed-concurrency window is not
-the experiment, for two reasons: one wave's width does not control the lane's,
-and a ratio over bursts keeps producing confident numbers that disagree. Report
-the **burst count and inter-arrival** over a window long enough to contain
-several, so the next reader can see whether they are sampling one burst or
-twenty.
+**So measure a bursty process by its bursts, and the sampling shape that works
+needs no prior knowledge of the period.** A long window is not the answer —
+sizing one to contain several bursts requires knowing the burst period, which is
+the unknown. Sample the hit counter at a FIXED SHORT INTERVAL over several
+minutes and record the distribution of per-interval deltas: the quanta, the
+gaps, and how many. That answers how often and how big directly, and the mean
+falls out for free. Measured this way, six samples twenty seconds apart:
+
+```
+hits 464,640  464,640  489,216  489,216  489,216  513,792
+delta       0   +24,576        0        0  +24,576
+```
+
+Three empty intervals, two single restores. Over that 101 s the rate is 3.64%,
+which makes five windows in one afternoon at 4.38, 3.64, 2.28, 0.64 and 0
+percent.
+
+**`external_prefix_cache_hits_total` advances in multiples of the configured
+`block_size`**, 256 here — the steps above are 96 blocks, and a session
+measuring elsewhere saw 15. Two intervals advancing by an identical amount is
+two equal-sized restores, not a fixed quantum, and the inference it invites —
+that a hit count indifferent to its denominator means the rate measures load
+rather than the store — does not hold. Worth checking rather than assuming,
+because the artefact is striking and the wrong reading of it is a strong claim.
+
+Note also that a fixed-CONCURRENCY window is not the experiment either: one
+wave's width does not control the lane's, since every session shares the engine.
 
 What four sessions jointly support, and nothing more: the return path is
 functional and intermittent; roughly 9 GB returned in total against ~6 TB
