@@ -438,6 +438,27 @@
     three keys from the live endpoint, so the block cannot be two-thirds stale
     again.</p>
 
+    <h3 id="lane-fetch-compression">Compressed metrics decode landed</h3>
+
+    <p>Commit <code>df58ea3</code> makes <code>fetch_lane_capacity</code> decode
+    declared <code>gzip</code> and <code>deflate</code> bodies before parsing the
+    Prometheus text. The controlled gzip receipt reproduced the base failure as
+    <code>ValueError: engine metrics carry no KV pool size</code>: replacement
+    UTF-8 decoding turned compressed bytes into text that carried no valid metric
+    samples. The fixture-backed regression compares the same SGLang receipt as
+    plain text and as a gzip response; both yield the same capacity. Four focused
+    lane tests passed and <code>ruff check imas_ambix tests</code> exited zero.</p>
+
+    <p>The live receipt was taken after restarting only the two-core router; the
+    four-card SGLang serve remained job <code>1271741</code>. A one-shot lane
+    fetch of <code>http://98dci4-gpu-0003.iter.org:18810</code> published
+    <code>state: measured</code> with <strong>4,000,000 pool tokens</strong>.
+    The router was then restored from the canonical checkout as job
+    <code>1271755</code>. Its separate direct <code>aiohttp</code> metrics loop,
+    outside this change's declared path, still reports the gzip
+    <code>UnicodeDecodeError</code>; that repair remains a follow-on rather than
+    evidence that this fetch path did not land.</p>
+
     <h2 id="s8a">§8a — How to prove a bind-mounted kernel patch is in the compiled artifact</h2>
 
     <p><strong>This is the measure that binds, and it is written down because two
