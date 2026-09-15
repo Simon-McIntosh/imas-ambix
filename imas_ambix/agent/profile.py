@@ -339,11 +339,6 @@ class SlurmDefaults(BaseModel):
 class ModelProfile(BaseModel):
     """Complete deployment profile for one LLM model.
 
-    ``settings`` carries named, reviewable configuration overrides selected as
-    ``<slug>@<setting>``.  Like a GPU variant, each setting is deep-merged over
-    the committed default profile rather than requiring a second profile file
-    or an edit immediately before launch.
-
     ``gpu_variants`` lets one profile carry more than one checkpoint for the
     same model release, keyed on the card count it is sized for. A release is
     then one slug whose deployment is chosen at launch with ``--gpus N``,
@@ -360,33 +355,8 @@ class ModelProfile(BaseModel):
     model: ModelConfig
     engine: EngineConfig
     slurm: SlurmDefaults = SlurmDefaults()
-    # Named launch settings, selected by appending ``@<name>`` to the slug.
-    settings: dict[str, dict] = {}
     # Per-card-count checkpoint overrides, keyed on the GPU count they suit.
     gpu_variants: dict[int, dict] = {}
-
-    def for_setting(self, setting: str) -> ModelProfile:
-        """Return this profile with the named launch setting applied.
-
-        The selected name remains in :attr:`slug`, so generated jobs and
-        operator commands expose which committed setting they use.  Model
-        weights continue to resolve through the unselected profile slug.
-        """
-        override = self.settings.get(setting)
-        if override is None:
-            available = ", ".join(sorted(self.settings)) or "(none)"
-            msg = (
-                f"No setting '{setting}' for profile '{self.slug}'. "
-                f"Available: {available}"
-            )
-            raise FileNotFoundError(msg)
-        merged = _deep_merge(self.model_dump(exclude={"settings"}), dict(override))
-        merged.pop("slug", None)
-        if not merged["model"].get("weights_slug"):
-            merged["model"]["weights_slug"] = self.weights_directory_slug
-        return ModelProfile(
-            slug=f"{self.slug}@{setting}", settings=self.settings, **merged
-        )
 
     def for_gpus(self, gpus: int) -> ModelProfile:
         """Return this profile resolved for a *gpus*-card deployment.
@@ -697,13 +667,8 @@ def _load_raw(
 def load_profile(slug: str) -> ModelProfile:
     """Load and validate a model profile by slug.
 
-    A selector of the form ``<slug>@<setting>`` deep-merges that profile's
-    named ``settings`` entry over its committed defaults.  The selected name
-    remains part of the returned profile slug so a generated serve job records
-    the configuration choice.
-
     Variant profiles that declare ``_base = "<other-slug>"`` inherit all
-    settings from the named profile and override only the keys they specify.
+    values from the named profile and override only the keys they specify.
     The ``model.weights_slug`` field is automatically set to the root-of-chain
     slug so that ``SiteConfig.model_dir()`` resolves to the correct weights
     directory without re-downloading.
@@ -715,13 +680,8 @@ def load_profile(slug: str) -> ModelProfile:
     ValueError
         If a circular ``_base`` chain is detected.
     """
-    base_slug, separator, setting = slug.partition("@")
-    if separator and (not base_slug or not setting or "@" in setting):
-        msg = f"Invalid profile setting selector '{slug}'"
-        raise FileNotFoundError(msg)
-
-    data, canonical_slug = _load_raw(base_slug)
-    if canonical_slug != base_slug:
+    data, canonical_slug = _load_raw(slug)
+    if canonical_slug != slug:
         # Point a variant at the root of its inheritance chain so one download
         # serves the whole chain -- but never over a weights_slug the chain
         # declared for itself. A profile that redirects its weights (because
@@ -729,5 +689,4 @@ def load_profile(slug: str) -> ModelProfile:
         # redirect for its variants too; overwriting it here would silently
         # load a different checkpoint under the variant's name.
         data.setdefault("model", {}).setdefault("weights_slug", canonical_slug)
-    profile = ModelProfile(slug=base_slug, **data)
-    return profile.for_setting(setting) if separator else profile
+    return ModelProfile(slug=slug, **data)
