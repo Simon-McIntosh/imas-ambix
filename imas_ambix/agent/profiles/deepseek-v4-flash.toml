@@ -74,33 +74,43 @@ max_total_tokens = 1048576
 # and lives OUTSIDE this fraction — free memory after startup is not the
 # margin, it is the margin before the largest allocation the serve will make.
 #
-# Held at 0.85. A raise to 0.92 was drafted on 2026-09-15 and withdrawn before
-# it ran, for the same reason the scheduler-budget change was withdrawn: one
-# restart is available and a worse outcome must have as few candidate
-# explanations as possible.
+# Raised to 0.92, with the condition it depends on stated beside it.
 #
-# The case for raising it was that a larger pool keeps a session's prefix
-# resident across its own turn gap. The case against is that kv_offloading_size
-# below already does that, by giving an evicted block somewhere to go instead of
-# being recomputed -- so the device pool buys much less residency alongside the
-# offload than it would alone, while carrying the full crash risk measured here:
-# at 0.92 this serve died at 256 concurrent, CUDA out of memory asking 1.51 GiB
-# with 1.19 GiB free, because the fused-MoE workspace allocates lazily at
-# generation and lives outside this fraction.
+# THE CEILING IS MEASURED IN BOTH DIRECTIONS. At 0.92 this serve carried 128
+# concurrent requests cleanly at 1451 tok/s and DIED at 256: CUDA out of memory
+# asking 1.51 GiB with 1.19 GiB free, 141 running. The fused-MoE workspace is
+# allocated lazily at generation and lives OUTSIDE this fraction, so free memory
+# after startup is not the margin -- it is the margin before the largest
+# allocation the serve will make. How that workspace scales with concurrency is
+# OBSERVED, not understood; 256 was measured with short requests, and agent
+# traffic at 100k contexts may load it differently at the same request count.
 #
-# A peer additionally observed a 17% cumulative hit rate at 0.92 against 28.2% at
-# 0.85 and argued the larger pool was worse. That comparison is inconclusive
-# rather than decisive -- both are cumulative counters over different eras, fleet
-# sizes and workloads, and this serve's recent delta rate (21-23%) runs BELOW its
-# own cumulative (28.6%). It is recorded because it is the honest state of the
-# evidence: uncertain benefit against a measured risk.
+# The operating cap is in the 36-concurrent range, which is 3.5x below the
+# proven-good 128 and 7x below the fatal 256. At that width the edge is not a
+# realistic exposure, and the pool is worth more than the margin.
 #
-# What does NOT support keeping 0.85 is occupancy. `kv_cache_usage_perc` is
-# 1 - free_blocks/total, and vLLM keeps cached-but-unreferenced blocks in the
-# FREE queue as eviction candidates (block_pool.py:44, 146, 711). So a pool at
-# 50% "usage" may be entirely full of reusable cache about to be destroyed:
-# occupancy is not cache residency, and no vLLM metric reports the latter.
-mem_fraction_static = 0.85
+# THE CAP IS NOT ENFORCED ANYWHERE. If it is removed, or a synthetic sweep is
+# pointed at this endpoint, return to 0.85 FIRST -- that is exactly how the 256
+# death was produced, by a ladder aimed at a serve a live fleet was using.
+#
+# This is layered with kv_offloading_size below rather than redundant with it: a
+# device-resident block is strictly faster than one restored over PCIe, so the
+# pool avoids eviction and the offload survives what eviction remains. Tier one
+# and tier two, not two attempts at the same thing.
+#
+# One contrary reading, recorded because the evidence is genuinely mixed: a peer
+# measured 17% cumulative hit rate at 0.92 against 28.2% at 0.85 and argued the
+# larger pool was worse. Inconclusive rather than decisive -- both are cumulative
+# counters over different eras, fleet sizes and workloads, and this serve's
+# recent delta rate (21-23%) runs below its own cumulative (28.6%).
+#
+# What does NOT bear on the decision, because the inference is appealing and
+# wrong: `kv_cache_usage_perc` is 1 - free_blocks/total, and vLLM keeps
+# cached-but-unreferenced blocks in the FREE queue as eviction candidates
+# (block_pool.py:44, 146, 711). A pool at 50% "usage" may be entirely full of
+# reusable cache about to be destroyed. Occupancy is not cache residency, and no
+# vLLM metric reports the latter.
+mem_fraction_static = 0.92
 kv_cache_dtype = "fp8"
 # Upstream recipe flags for this checkpoint family (recipes.vllm.ai + the
 # DSpark model card). block_size and tokenizer_mode are the vendor-documented
