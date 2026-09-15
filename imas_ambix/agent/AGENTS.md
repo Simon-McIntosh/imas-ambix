@@ -931,7 +931,9 @@ one serve, all correct and all different:
 
 Two orders of magnitude across four correct measurements of one process, taken
 within half an hour. **A non-stationary process has no rate; report the window
-and what it contained.**
+and what it contained.** The return here is not small, it is INTERMITTENT, and
+those are different objects deserving different names: a mean over this one
+describes no moment that actually occurs.
 
 Each of those four readings licensed a confident wrong verdict. The cumulative
 climbs during a burst and flattens after, so it reads as a store warming up —
