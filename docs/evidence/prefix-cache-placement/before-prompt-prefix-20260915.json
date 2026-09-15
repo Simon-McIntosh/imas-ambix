@@ -47,5 +47,7 @@
     "power": "INDICATIVE, NOT POWERED \u2014 hold it as such",
     "confound": "before and after cohorts do DIFFERENT work, because the owed nodes will have been done by then. The cohort measures multi-turn behaviour under real conditions; it is NOT a controlled comparison and must not be written up as one.",
     "parallelism": "worker prompts are composed at dispatch, so once the before-cohort is dispatched its prompts are fixed under the current shape and a later prompts.py change cannot contaminate them. Only the AFTER cohort must wait for the merge."
-  }
+  },
+  "after_half_validity_condition": "CRITICAL \u2014 the after-cohort must be dispatched by a coordinator process RESTARTED after the merge, not merely dispatched after the merge landed. Measured 2026-09-15: two prompts dispatched 7 and 16 seconds after commit 59526eb still showed 152 B shared with the node id as first divergence, because the dispatching process had already imported the old prompts.py. A running process does not pick up a merge. Applying the refutation condition to such prompts yields a FALSE NEGATIVE that looks exactly like a refuted hypothesis. Verify the divergence point, not only the file mtime.",
+  "baseline_reproduced": "152 B reproduced on two further prompts from a third dispatch window (r-20260915T0906*), so the before figure rests on five prompts across three windows and two projects rather than three prompts from one."
 }
