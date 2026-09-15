@@ -690,6 +690,32 @@
     model dependency. A second test supplies a reverted exception tuple and
     requires the subprocess receipt to name its file, line, and diagnostic.</p>
 
+    <h2 id="lane-publisher-diagnostic">Lane publisher failure diagnostics</h2>
+
+    <p><strong>The silent unavailable state reproduced before repair.</strong>
+    A controlled publisher pointed at <code>http://127.0.0.1:1/metrics</code>
+    wrote an unavailable lane document after the connection refusal, while the
+    router warning capture contained no target, exception type, or exception
+    message. The focused regression therefore failed on the absent target
+    receipt, not on the unavailable-state behaviour.</p>
+
+    <table>
+      <thead><tr><th>Check</th><th>Receipt</th></tr></thead>
+      <tbody>
+        <tr><td>Unavailable state</td><td>Written after the refused connection; publisher loop remains non-fatal</td></tr>
+        <tr><td>Published warning</td><td><strong>target <code>http://127.0.0.1:1/metrics</code>, <code>ClientConnectorError</code>, and <code>Cannot connect to host</code></strong></td></tr>
+        <tr><td>Focused regression</td><td><strong>1 passed</strong></td></tr>
+        <tr><td>Whole-tree lint</td><td><strong><code>ruff check imas_ambix tests</code> exit 0</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p>Commit <code>12d35c7</code> records the warning before publishing the
+    same unavailable document and continuing the loop. Resolver failures log
+    <code>target=unresolved</code>; once a metrics URL has been formed, the log
+    reports the exact URL attempted. This preserves the router's availability
+    contract while making connection, parse, and windowing failures observable
+    to readers outside the process.</p>
+
 </main>
 </body>
 </html>
