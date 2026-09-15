@@ -1,4 +1,4 @@
-"""Named launch setting for the load-proven evaluation token pool."""
+"""Default launch behavior for the load-proven evaluation token pool."""
 
 from __future__ import annotations
 
@@ -8,24 +8,26 @@ from imas_ambix.agent.profile import load_profile
 from imas_ambix.cli import main
 
 
-def test_default_and_evaluation_pool_resolve_independently() -> None:
-    """Selecting the experiment must not change the ordinary serve default."""
-    default = load_profile("deepseek-v4-1-flash")
-    evaluation = load_profile("deepseek-v4-1-flash@evaluation")
+def test_default_profile_resolves_the_load_proven_pool() -> None:
+    """The ordinary serve uses the pool demonstrated under load."""
+    profile = load_profile("deepseek-v4-1-flash")
 
-    assert default.engine.max_total_tokens == 3485952
-    assert evaluation.engine.max_total_tokens == 14999808
-    assert evaluation.slug == "deepseek-v4-1-flash@evaluation"
-    assert evaluation.weights_directory_slug == "deepseek-v4-1-flash"
+    assert profile.engine.max_total_tokens == 14999808
 
 
-def test_agent_serve_selects_the_evaluation_pool() -> None:
-    """The named profile selection reaches the generated serve command."""
+def test_agent_serve_uses_the_load_proven_pool_by_default() -> None:
+    """The plain profile carries the proven pool into the serve command."""
     result = CliRunner().invoke(
         main,
-        ["agent", "serve", "deepseek-v4-1-flash@evaluation", "--dry-run"],
+        ["agent", "serve", "deepseek-v4-1-flash", "--dry-run"],
     )
 
     assert result.exit_code == 0, result.output
-    assert "#SBATCH --job-name=deepseek-v4-1-flash@evaluation" in result.output
+    job_name = next(
+        line
+        for line in result.output.splitlines()
+        if line.startswith("#SBATCH --job-name")
+    )
+    assert job_name == "#SBATCH --job-name=deepseek-v4-1-flash"
+    assert "@" not in job_name
     assert "--max-total-tokens 14999808" in result.output
