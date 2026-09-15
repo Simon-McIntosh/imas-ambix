@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-15T18:45:30",
+  "updated": "2026-09-15T18:55:18",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -1445,6 +1445,17 @@
         "session_id": null,
         "session_model": null,
         "sessions": {},
+        "created": "2026-09-15"
+      },
+      {
+        "id": "width-binned-collector",
+        "harness": "codex-terra",
+        "role": "implement",
+        "session_id": "01a0a5f7-6c1d-71d3-9543-4931365eba71",
+        "session_model": "gpt-5.6-terra",
+        "sessions": {
+          "{\"alias\":\"terra5.6\",\"backend\":\"codex-terra\",\"effort\":\"high\",\"launch\":\"cli\",\"model\":\"gpt-5.6-terra\",\"sandbox\":\"worktree-full\"}": "01a0a5f7-6c1d-71d3-9543-4931365eba71"
+        },
         "created": "2026-09-15"
       }
     ],
@@ -33461,6 +33472,204 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260915T164715246556-width-binned-collector",
+        "plan": "dsv41-flash-four-card-throughput",
+        "section": "\u00a72b",
+        "node": "width-binned-collector",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1206,
+                "cached_input_tokens": 331640,
+                "input_tokens": 332848,
+                "output_tokens": 720,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 333568,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "2f9d3191-e884-4a53-99ab-b894325cccbd",
+            "session_id": "dsv41-four-card-20260915"
+          },
+          "done_when": "Given a receipts JSONL file the collector groups rows by their recorded num_requests_running into width bins that include the historical comparison bins 10-14 and 15-19, and reports for each bin: the number of intervals, per-worker decode tok/s as the interval generation throughput divided by the running count, the interval prefill rate, and the interval prefix-hit rate AS A DISTRIBUTION - median and deciles - never a single mean, because a mean over intervals is the same averaging mistake the cumulative ratio makes. Rows whose interval fields are null, which is the first row and any row spanning a counter reset, are excluded from the bins and counted as excluded so the exclusion is visible rather than silent. Scope note that bounds this node: everything above comes from the receipt rows alone, since they already carry the running count and both throughput rates, so DO NOT build a join against clive stream files - the survey called that join missing, but this measure does not need it and the smaller instrument is the one to build. Tests cover a fixture with rows in both comparison bins, the null-row exclusion, and a bin with a single interval. Gate at the merged head, which is also this wave's integration check: uv run --no-sync ruff check imas_ambix tests exits 0, and pytest -p no:cacheprovider over your new test plus tests/test_agent_serving_receipts.py and tests/test_agent_evaluation_pool.py passes, proving the two instruments landed this wave work together rather than only apart. Three failures in tests/test_agent_dspark_profile.py are known, pre-existing and out of scope: do not touch that file, and report your delta against them. All gates are seconds-long and may run on the login node; start no serve and submit no SLURM job.",
+          "estimated_hours": null,
+          "goal": "A collector that reads serving receipts and reports per-worker decode rate, prefill rate and the interval prefix-hit distribution binned by concurrency width",
+          "id": "width-binned-collector",
+          "lane_declaration": {
+            "backend": "codex-terra",
+            "headroom": "known",
+            "metered": true,
+            "observed_at": "2026-09-15T16:47:15Z",
+            "read_at": "2026-09-15T16:47:16Z",
+            "resolved_backend": "codex-terra",
+            "utilisation_pct": 51.0
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "backend declares no lane document",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260915T164715246556-width-binned-collector/manifest.md",
+          "plan": "dsv41-flash-four-card-throughput",
+          "requested_backend": "codex-terra",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a72b",
+          "spec_level": "guided",
+          "time_budget": "30m",
+          "token_budget": null,
+          "write_paths": [
+            "imas_ambix/agent/receipt_bins.py",
+            "tests/test_agent_receipt_bins.py",
+            "docs/evidence/archive/dsv41-flash-four-card-throughput-landed.html",
+            "docs/plans/dsv41-flash-four-card-throughput.html"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "width-binned-collector",
+        "backend": "codex-terra",
+        "local": false,
+        "agent": {
+          "alias": "terra5.6",
+          "backend": "codex-terra",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-terra",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-15T16:47:30Z",
+        "completed_at": "2026-09-15T16:54:19Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 409,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 409,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "0faf7997c237f9720b0ee7b47c4ccc5b31a548c3",
+        "commits": [
+          "d108cd78716aff8e0094d90fe6b6adfb4acdf9c0",
+          "15f2a3bf31b7d2ab294375d8ebb77eb8524f6837"
+        ],
+        "changed_lines": {
+          "added": 342,
+          "removed": 0,
+          "files": 4
+        },
+        "tests_added": 3,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest -p no:cacheprovider tests/test_agent_receipt_bins.py tests/test_agent_serving_receipts.py tests/test_agent_evaluation_pool.py and ruff check imas_ambix tests",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260915T164715246556-width-binned-collector/after-suite.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "Receipt intervals now bin by their own recorded running width into the historical 10-14 and 15-19 comparison bins, reporting per-worker decode and prefill medians and the prefix-hit rate as a distribution with deciles rather than a mean. Per-worker decode divides by each row's recorded running count rather than the bin label, which is the error that would have made every bin wrong. Incomplete intervals are counted as excluded and out-of-bin intervals as unbinned, so neither disappears silently. Also this wave's integration check: all three instrument suites pass together at the merged head, 19 tests, whole-tree ruff clean, known DSpark failures unchanged at 3.",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260915T164715246556-width-binned-collector/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a0a5f7-6c1d-71d3-9543-4931365eba71",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 2753536,
+            "cached_input_tokens_cumulative": 2753536,
+            "input_tokens": 2881960,
+            "input_tokens_cumulative": 2881960,
+            "output_tokens": 18759,
+            "output_tokens_cumulative": 18759,
+            "reasoning_output_tokens": 5753,
+            "reasoning_output_tokens_cumulative": 5753
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lane_receipt": {
+          "quota_state": "measured",
+          "observed_at": "2026-09-15T16:54:19Z",
+          "effective_context_window": 380000,
+          "quota_windows": [
+            {
+              "window_minutes": 10080,
+              "used_percent": 51.0,
+              "resets_at": 1789970251,
+              "observed_at": "2026-09-15T16:54:19Z"
+            }
+          ],
+          "notional_cost_usd": 5.989,
+          "rate_basis": {
+            "model_identifier": "gpt-5.6-terra",
+            "input_per_million": 2.0,
+            "output_per_million": 12.0,
+            "as_of": "2026-09-09"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": null,
+        "throughput": {
+          "cumulative_cached_input_tokens": 2753536,
+          "cumulative_input_tokens": 2881960,
+          "detail": "model span bounded from the client rollout's tool spans; input cumulative summed across resets",
+          "generated_tokens": 24512,
+          "generation_seconds": 385.631,
+          "machine_seconds": 22.497,
+          "tokens_per_second": 63.56
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest -p",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/dsv41-four-card-20260915/width-binned-collector",
+          "session_id": "01a0a5f7-6c1d-71d3-9543-4931365eba71",
+          "session_source": "pointer",
+          "retained_at": "2026-09-15T16:54:19Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "tool_steps": 36.0,
+        "orientation_input_tokens": null,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -33507,6 +33716,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 616
+    "_version": 619
   }
 }
