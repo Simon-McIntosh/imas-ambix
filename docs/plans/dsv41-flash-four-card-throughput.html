@@ -4,12 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"   content="imas-ambix">
-  <meta name="reckon-type"    content="plan">
-  <meta name="plan-slug"      content="dsv41-flash-four-card-throughput">
-  <meta name="plan-title"     content="DSv4.1-Flash Four-Card Throughput — Reopening Against a Measured Close">
-  <meta name="plan-summary"   content="Test whether V4.1-Flash's 15M-token pool beats V4-Flash on real agent traffic, against a decode ceiling already measured at 34.4 tok/s">
-  <meta name="plan-status"    content="draft">
-  <meta name="plan-roi"       content="mid">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="dsv41-flash-four-card-throughput">
+  <meta name="plan-title" content="DSv4.1-Flash Four-Card Throughput — Reopening Against a Measured Close">
+  <meta name="plan-summary" content="Test whether V4.1-Flash&#x27;s 15M-token pool beats V4-Flash on real agent traffic, against a decode ceiling already measured at 34.4 tok/s">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="mid">
   <meta name="plan-effort-hours" content="6.0">
   <meta name="plan-capability-version" content="1.0">
   <meta name="plan-capability-class" content="orchestrator">
@@ -17,12 +17,15 @@
   <meta name="plan-capability-verification" content="strict">
   <meta name="plan-capability-risk" content="moderate">
   <meta name="plan-milestone" content="OPS">
-  <meta name="plan-sprint"    content="S24">
-  <meta name="plan-owner"     content="Simon McIntosh">
-  <meta name="plan-tags"      content="agent-serving,gpu-deployment,benchmarking">
+  <meta name="plan-sprint" content="S24">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-tags" content="agent-serving,gpu-deployment,benchmarking">
   <title>DSv4.1-Flash Four-Card Throughput | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-09-15">
+<meta name="plan-version" content="3">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s2a&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;done&quot;}">
 </head>
 <body>
   <main class="plan-doc">
@@ -89,6 +92,64 @@
 
     <p>That non-comparability is the whole remaining question, and it is
     <strong>§3</strong>.</p>
+
+    <h2 id="s2a">§2a — What changed between authoring this plan and dispatching it</h2>
+
+    <p>Five facts established on 2026-09-15 before any node was cut. They move
+    the cost, the running order, and the premise, so they are recorded here
+    rather than left in a session.</p>
+
+    <p><strong>The checkpoint is already resident.</strong>
+    <code>/work/projects/imas_gpu/agents/deepseek-v4-1-flash</code> holds 476 GiB
+    of weights and <code>imas_ambix/agent/profiles/deepseek-v4-1-flash.toml</code>
+    is committed beside it. The 511 GB download the decision rationale priced is
+    already paid; the only remaining cost is lane downtime.</p>
+
+    <p><strong>The committed V4.1 profile pins the wrong pool for this
+    experiment.</strong> It carries <code>max_total_tokens = 3485952</code>, the
+    smallest load-proven pool. §3's whole premise is the 5.3× pool advantage, and
+    3.49M against V4-Flash's 2,818,154 is 1.24× — serving at the committed value
+    would answer nothing. <strong>§3 must serve at 14,999,808</strong>, which is
+    the pool the landed evidence load-proved through a 32-way sweep with zero
+    OOM. 20,000,000 starts cleanly and then dies under real load; do not reach
+    for it.</p>
+
+    <p><strong>The live V4-Flash serve is a pre-registered experiment in
+    progress, not an idle baseline.</strong> Job <code>1271487</code> started
+    2026-09-15T15:40:11, forty-six seconds after the commit that disabled DSpark,
+    and reports <code>speculative_config=None</code>, TP4/DP1, pool 2,818,154. It
+    is the draft-group veto test. Note that the committed profile no longer
+    describes it — that file now carries a TP2/DP2 replica split which this serve
+    does not run — so <em>the configuration to record beside the comparison
+    numbers is the job's own, not the file's</em>.</p>
+
+    <p><strong>That test has already refuted its hypothesis, and the refutation
+    raises this plan's value.</strong> The serve reads a 28.8% cumulative prefix
+    hit rate. Its own pre-registration predicted 88.9–100% if the draft group
+    were gating lookups and 17–40% if it were not; 28.8% is inside the no-veto
+    band, and a 3.4–3.8× step cannot hide inside a cumulative figure. <strong>The
+    drafter was not what held the hit rate down.</strong> With the veto
+    eliminated and concurrency already ruled a floor rather than a slope, pool
+    turnover is the leading surviving explanation for this lane — and pool size
+    is exactly the variable §3 changes. The competing account of §3's premise
+    died; the premise did not.</p>
+
+    <p><strong>Consequently the harvest precedes the takedown, and that ordering
+    is binding.</strong> The cumulative figure settles the direction but is the
+    reading this plan already warns has misled four sessions; the pre-registered
+    comparison wants a windowed per-interval distribution binned by width, and
+    <em>it can only be taken while job 1271487 is alive</em>. Taking the serve
+    down first destroys a measurement whose supporting counters were themselves
+    recorded because they were about to become uncollectable. The lead's
+    authority covers stopping the serve to make room for V4.1; it is not
+    authority to discard data nobody can collect again. <strong>Harvest, then
+    take it down.</strong></p>
+
+    <p>The same harvest is what §6's last constraint asks for — it is the
+    V4-Flash side of §3's comparison, measured on the configuration actually
+    serving rather than on the stale bins quoted in §3's done-when. Those bins
+    (27.0% / 10.1 tok/s and 26.3% / 6.9 tok/s) were taken with DSpark enabled and
+    should be treated as historical once the harvest lands.</p>
 
     <h2 id="s3">§3 — The one thing that was never measured</h2>
 
@@ -208,50 +269,53 @@
     </ul>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-
-      <div class="r-dec" data-key="target-unit" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Is the 80 / 50 tok/s target per worker or per card?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="per-worker">per worker</button>
-          <button class="r-opt" data-value="per-card">per card</button>
-        </p>
-        <p class="r-dec-rat">This decides whether the plan can pass at all. Per worker, V4.1 is excluded by a landed measurement before any work starts: loaded throughput cannot exceed unloaded, and its unloaded ceiling here is 34.4 tok/s against a loaded target of 50. Per card on four cards, 50 means 200 tok/s aggregate, which V4.1 exceeded at 32 concurrent in the landed sweep — but that was synthetic traffic, so passing on that reading would be an artefact of the prompt shape rather than a result. Per worker is the unit every baseline in this repository uses and what a worker experiences; a single request is served by all four cards at once, so per-card decode is not a quantity the engine reports.</p>
-      </div>
-
-      <div class="r-dec" data-key="worth-the-cards" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Given §2, is §3 worth the lane downtime and a 511 GB checkpoint?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="run-it">run §3</button>
-          <button class="r-opt" data-value="close-it">close on the landed evidence</button>
-          <button class="r-opt" data-value="eight-cards">defer to an eight-card window</button>
-        </p>
-        <p class="r-dec-rat">Honest expected value is low and the plan says so rather than selling it: V4.1 is 2.5× worse on measured decode, one of its two handicaps is unfixable on Hopper silicon and the other is exactly why it was judged to need eight cards. Against that, the single untested claim is a 5.3× pool on a lane whose measured problem is prefix turnover, and no amount of reasoning settles whether that converts — the retired plan's §4 was the right experiment and never ran. Deferring to an eight-card window is the option that removes the Engram handicap as well, and the node has eight cards when no training campaign holds them.</p>
-      </div>
-    </section>
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="target-unit" data-choice="per-worker" data-by="reckon-ship" data-when="2026-09-15T16:12:48+00:00">
+    <p class="r-dec-q">Is the 80 / 50 tok/s target per worker or per card?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="per-worker">per worker</button>
+      <button class="r-opt" data-value="per-card">per card</button>
+      </p>
+    <p class="r-dec-rat">Locked on the plan&#x27;s own argument, which needs no measurement: per worker is the unit every baseline in this repository is expressed in, it is what a worker experiences, and per-card decode is not a quantity the engine reports because a single request is served by all four cards at once. The consequence is accepted rather than worked around — the 50 tok/s loaded target is above V4.1&#x27;s measured 34.4 tok/s idle ceiling, so V4.1 cannot reach the target on four cards. Section 5 already provides for this: the live comparison is against V4-Flash&#x27;s loaded per-worker figures, and beating those without reaching 50 is a real outcome. Reading the target per card would let a synthetic aggregate clear a bar no worker ever experiences.</p>
+    </div>
+<div class="r-dec" data-key="worth-the-cards" data-choice="run-it" data-by="reckon-ship" data-when="2026-09-15T16:12:48+00:00">
+    <p class="r-dec-q">Given §2, is §3 worth the lane downtime and a 511 GB checkpoint?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="run-it">run §3</button>
+      <button class="r-opt" data-value="close-it">close on the landed evidence</button>
+      <button class="r-opt" data-value="eight-cards">defer to an eight-card window</button>
+      </p>
+    <p class="r-dec-rat">The lead authorised taking the four-card DSv4 serve down to serve this variant, which settles the lane-downtime half. Two facts found while scoping move the cost and the value in the same direction. The 511 GB download is already paid: the checkpoint is resident at /work/projects/imas_gpu/agents/deepseek-v4-1-flash, 476 GiB, with a committed serve profile beside it. And the competing explanation for this lane&#x27;s prefix hit rate has just been eliminated on the live serve — the draft-group veto test reads 28.8 percent, inside its own pre-registered no-veto band of 17-40 and nowhere near the 88.9-100 a gating veto predicted. Removing the drafter did not move the hit rate, so pool turnover is the leading remaining candidate, and pool size is precisely what section 3 varies.</p>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups</h2>
-
-      <article class="r-fu" data-id="f-dsv41t-01" data-status="open"
-               data-capability-version="1.0" data-capability-class="orchestrator"
-               data-capability-reasoning="deep" data-capability-verification="strict"
-               data-written-by="imas-ambix-92" data-written-at="2026-09-15 16:45">
-        <h4 class="r-fu-title">Lock both decisions before any serve is touched</h4>
-        <div class="r-fu-body">
-          <p>The target-unit decision determines whether this plan can pass at
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-dsv41t-01" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="imas-ambix-92" data-written-at="2026-09-15 16:45" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Lock both decisions before any serve is touched</h4>
+    <div class="r-fu-body"><p>The target-unit decision determines whether this plan can pass at
           all, and the worth-the-cards decision determines whether it runs. Both
           are answerable from what is already recorded here — neither needs a
           measurement — and locking them first avoids spending lane downtime and
           a 511 GB download on a question whose answer is already arithmetic.</p>
-          <p>Read <code>dsv41-flash-serve-characterisation</code> before
+<p>Read <code>dsv41-flash-serve-characterisation</code> before
           dispatching anything. Its §1 and §2 are landed and must not be
-          re-measured; its §4 is the only open experiment and is this plan's §3.</p>
-        </div>
-        <pre class="r-fu-prompt">/reckon-ship dsv41-flash-four-card-throughput §3</pre>
-      </article>
-    </section>
+          re-measured; its §4 is the only open experiment and is this plan's §3.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship dsv41-flash-four-card-throughput §3</pre>
+    </article>
+</section>
 
-  </main>
+  <section data-reckon="gates" id="gates" class="r-gates">
+<h2><span class="sec">§</span> Evidence gates</h2>
+<div class="r-gate" data-id="g-baseline-harvested" data-section="s2a" data-gated-sections="s3" data-status="open" data-verdict="">
+    <h4 class="r-gate-measure">The V4-Flash comparison baseline is recorded from live job 1271487 as a distribution of per-interval prefix-cache hit deltas binned by concurrency width, with per-worker decode and prefill rate in the same bins, and the job&#x27;s own served configuration beside it. Taken while the job is alive; the serve is not stopped before this lands.</h4>
+    <p class="r-gate-required-evidence">Per-interval hit-rate distribution and per-worker decode, binned by width, with interval count and bin widths stated, plus the recorded serve configuration (job id, TP/DP, speculative_config, pool tokens).</p>
+    </div>
+<div class="r-gate" data-id="g-loaded-per-worker" data-section="s3" data-gated-sections="s5" data-status="open" data-verdict="">
+    <h4 class="r-gate-measure">Loaded per-worker decode on a V4.1 serve at the 14,999,808 pool under sustained real clive traffic, binned by concurrency width, with the prefill rate and a windowed per-interval prefix-hit distribution recorded in the same bins, compared against the g-baseline-harvested bins.</h4>
+    <p class="r-gate-required-evidence">Per-worker tok/s and windowed hit-rate distribution for V4.1 in the same width bins as the V4-Flash harvest, stated as per-interval deltas rather than a cumulative ratio.</p>
+    </div>
+</section>
+</main>
 </body>
 </html>
