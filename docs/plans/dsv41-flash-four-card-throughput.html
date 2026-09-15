@@ -24,10 +24,10 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-15">
-<meta name="plan-version" content="18">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s2a&quot;:&quot;done&quot;,&quot;s2b&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s3-paired&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;deferred&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;implementable&quot;}">
+<meta name="plan-version" content="20">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s2a&quot;:&quot;done&quot;,&quot;s2b&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s3-paired&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;deferred&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;done&quot;}">
 <meta name="plan-artifacts" content="imas_ambix/agent/serving_receipts.py,imas_ambix/agent/receipt_bins.py,imas_ambix/agent/profiles/deepseek-v4-1-flash.toml,/home/ITER/mcintos/.config/reckon/crew/reports/four-card-reuse-map.md,/home/ITER/mcintos/.config/reckon/crew/reports/swa-index-width-attribution.md">
-<meta name="plan-impl" content="0.625">
+<meta name="plan-impl" content="0.727">
 <meta name="plan-commits" content="e11215257d06725da0c70eda69bb786388595421,f777ce9afb6acb941e9aa2e2132837790e848217,b783a72c55b093f3c8b3347927d923346836387d,956c80b12d69a4e403e21c988d3059da65a4f363,d108cd78716aff8e0094d90fe6b6adfb4acdf9c0,15f2a3bf31b7d2ab294375d8ebb77eb8524f6837">
 </head>
 <body>
@@ -438,6 +438,55 @@
     three keys from the live endpoint, so the block cannot be two-thirds stale
     again.</p>
 
+    <h2 id="s9">§9 — There is no newer image for this checkpoint, and there cannot be one</h2>
+
+    <p><strong>Read this before ever "updating sglang" on this deployment. Doing
+    so would stop the model loading.</strong> The lead asked for the latest build
+    with all fixes; the answer is that we are already on it, and the reason is
+    structural rather than a matter of being current.</p>
+
+    <table>
+      <thead>
+        <tr><th>Question</th><th>Answer</th><th>How it was established</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>What commit does our image carry?</td><td><code>da64c5cb</code>, authored <strong>2026-09-11</strong></td><td>SIF label, then the commit's own author date</td></tr>
+        <tr><td>Is it on <code>main</code>?</td><td>No — <code>diverged</code>, 15 commits main lacks</td><td><code>compare</code> against main</td></tr>
+        <tr><td>Can <code>main</code> serve this checkpoint?</td><td><strong>No.</strong></td><td>no <code>deepseek_v41_vit.py</code>; <code>deepseek_v4.py</code> is 170,193 B on main against <strong>211,019 B</strong> at our commit</td></tr>
+        <tr><td>Is there a newer published image?</td><td>No — the <code>dev-dsv41</code> tag was last pushed <strong>2026-09-11</strong></td><td>registry tag listing; it matches the commit we run</td></tr>
+        <tr><td>Can we build from the branch?</td><td>No — the branch is <strong>deleted upstream</strong></td><td><code>branches/dev-dsv41</code> returns 404</td></tr>
+      </tbody>
+    </table>
+
+    <p>So the V4.1 support this deployment depends on lives on a feature branch
+    that was never merged to <code>main</code> and has since been removed. Our
+    image is the only artifact that can load
+    <code>DeepseekV41ForCausalLM</code>, and it is simultaneously the newest such
+    artifact in existence. <strong>"Upgrade to the latest release" is not a
+    conservative action here; it is the destructive one.</strong> The latest
+    release, v0.5.19 of 2026-09-05, predates V4.1 support entirely.</p>
+
+    <p><strong>The one fix that is reachable, and why it is reachable.</strong>
+    Upstream PR #38409 moves a single line: the read of <code>params.out_loc</code>
+    happens <em>before</em> the PDL barrier rather than after it, so the kernel
+    reads the K-cache output index while the predecessor kernel may still be
+    writing it. That is a race producing <strong>silent KV-cache corruption
+    under load</strong> — no crash, load-dependent, non-deterministic. It merged
+    to <code>main</code>, which we cannot take; but the affected kernel ships in
+    our image as <em>plain JIT source</em> with no precompiled objects anywhere
+    under the kernels tree, so the fix is a bind-mounted one-line patch rather
+    than a rebuild.</p>
+
+    <p><strong>A build date is not a commit date, and reading one as the other
+    cost this session two wrong recommendations.</strong> The SIF's
+    <code>build-date</code> label reads 2026-09-14 08:30; the code in it is from
+    09-11. On the wrong date the gap to main looked like 65 commits and a
+    one-day-old build, which supported a confident "rebuild through 2123aca" that
+    was given twice and was not actionable at all. The correct distance is 522
+    commits and <em>diverged</em>, which is a different kind of fact and points
+    the opposite way. <strong>Take the age of an artifact from the artifact's
+    contents, never from when it was packaged.</strong></p>
+
     <h2 id="s5">§5 — Resolution <span class="badge">superseded by §7</span></h2>
 
     <table>
@@ -560,7 +609,7 @@
     <div class="r-comment-body">gate passed; section closed. Verdict carries-fix on engine commit da64c5cb, derived prefill SWA row width 128 with zero occurrences of 1152 in the builder, read from the SIF's own SquashFS source rather than the mutable tag. The 1152 control is observable in the checkpoint config as vision 1024 plus text 128 and is not used by the prefill builder, so the instrument saw the competing value and rejected it rather than failing to look. The two structural handicaps in this section remain open reference for interpreting section 3 and were not part of its done-when.</div>
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20260915T172540294609-h200-serving-recipe" data-who="h200-serving-recipe" data-when="2026-09-15T17:46:30Z">
-    <div class="r-comment-body"><p>Central recommendation is unsound because the coordinator supplied a census with the wrong base. I read the SIF build-date label 2026-09-14 08:30 as the code&#x27;s age; commit da64c5cb is actually from 2026-09-11, so the census covered 65 commits since 09-14 when the real distance to main is 522 with status diverged. The node certified faithfully against what it was given. WHAT DOES NOT STAND: rebuild through 2123aca is not actionable. That commit is on main, and main has no V4.1 support at all — no deepseek_v41_vit.py, and its deepseek_v4.py is 41KB smaller than ours — so a main-based image cannot load DeepseekV41ForCausalLM. Our image is the dev-dsv41 feature branch, whose Docker tag was last pushed 2026-09-11 and matches the commit we already run, and whose upstream branch is now deleted. There is no newer image for this checkpoint. WHAT STANDS AND IS VALUABLE: judging relevance against the real launch server_args rather than the profile; the clean negative that all four reverted changes are irrelevant to our active path; and the flashinfer_mxfp4_moe_precision fp8 A/B as a separate throughput follow-on. Classified malformed-node so it stays out of calibration: the worker&#x27;s reasoning was sound on the inputs it had.</p></div>
+    <div class="r-comment-body"><p>Central recommendation is unsound because the coordinator supplied a census with the wrong base. I read the SIF build-date label 2026-09-14 08:30 as the code's age; commit da64c5cb is actually from 2026-09-11, so the census covered 65 commits since 09-14 when the real distance to main is 522 with status diverged. The node certified faithfully against what it was given. WHAT DOES NOT STAND: rebuild through 2123aca is not actionable. That commit is on main, and main has no V4.1 support at all — no deepseek_v41_vit.py, and its deepseek_v4.py is 41KB smaller than ours — so a main-based image cannot load DeepseekV41ForCausalLM. Our image is the dev-dsv41 feature branch, whose Docker tag was last pushed 2026-09-11 and matches the commit we already run, and whose upstream branch is now deleted. There is no newer image for this checkpoint. WHAT STANDS AND IS VALUABLE: judging relevance against the real launch server_args rather than the profile; the clean negative that all four reverted changes are irrelevant to our active path; and the flashinfer_mxfp4_moe_precision fp8 A/B as a separate throughput follow-on. Classified malformed-node so it stays out of calibration: the worker's reasoning was sound on the inputs it had.</p></div>
 </div>
 <div class="r-comment" data-section="§2b" data-id="c-run-r-20260915T163247139914-interval-receipt-deltas" data-who="interval-receipt-deltas" data-when="2026-09-15T16:39:23Z">
     <div class="r-comment-body"><p>Receipt rows now carry prefix_cache_query_delta, prefix_cache_hit_delta and prefix_cache_hit_rate_interval alongside the unchanged cumulative field. Controlled case proves both readings at once: 2,000 query and 1,800 hit deltas give an interval 0.9000 while the cumulative stays 0.8253, now pinned to that literal so a future redefinition breaks loudly. Interval fields are null on the first row and across a counter reset, which matters because this measurement spans a serve restart by design. Extended the existing controlled test rather than adding one, so both assertions sit on the same fixtures; suite stayed 15/15.</p></div>
@@ -585,6 +634,12 @@
 </div>
 <div class="r-comment" data-section="s8" data-id="c-s8-provenance" data-who="reckon-ship" data-when="2026-09-15T17:34:30+00:00">
     <div class="r-comment-body">Provenance worth keeping: this was found by two peer coordinator sessions asking about a context window, not by anything this plan was looking for. One sent the measured figure, the other sent the config note around it; the note is what exposed that the refresher covers one key of three, because it explained WHY the value rots and thereby invited the question of what else in the block does. A number alone would have been acted on and would have restored a broken lane. The general shape is the aimed-instrument failure again, third time today on this plan: a true answer to the question asked, about the wrong subject.</div>
+</div>
+<div class="r-comment" data-section="s8" data-id="c-s8-alias-split" data-who="reckon-ship" data-when="2026-09-15T17:58:30+00:00">
+    <div class="r-comment-body">Correction to this section's own done-when, raised by a peer citing reckon's flight schema line 270: alias is the label rendered IN PLACE OF the model identifier, spelling decided by configuration with no schema default. Two of the three keys are deployment properties; alias is a naming decision that merely changes at the same instant. Deriving it would have written the model identifier into the field whose purpose is to replace it. The ledger already carries the drift this prevents: 284 rows pair deepseek-v4-flash with dsv4-flash and 11 pair deepseek-v4.1-flash with dsv4.1-flash, but one row served v4.1 while still labelled dsv4-flash. The inferred-from-config mechanism has therefore already produced a mislabelled row, so the case is measured rather than theoretical.</div>
+</div>
+<div class="r-comment" data-section="s9" data-id="c-s9-lineage" data-who="reckon-ship" data-when="2026-09-15T17:58:00+00:00">
+    <div class="r-comment-body">The decisive check was content, not topology. Main's deepseek_v4.py is 170,193 bytes against 211,019 at our commit, and main has no deepseek_v41_vit.py, so main's inability to serve this checkpoint is a fact about files rather than an inference from a commit graph. That distinction mattered: a squash merge makes 15 missing commits look identical to 15 absent features, because behind_by counts commits rather than content. Reading the files is what separated those two possibilities, and the commit graph alone could not have.</div>
 </div>
 </section>
 </main>
