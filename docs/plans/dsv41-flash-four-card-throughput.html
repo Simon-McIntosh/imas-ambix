@@ -586,6 +586,9 @@
 <div class="r-comment" data-section="s8" data-id="c-s8-provenance" data-who="reckon-ship" data-when="2026-09-15T17:34:30+00:00">
     <div class="r-comment-body">Provenance worth keeping: this was found by two peer coordinator sessions asking about a context window, not by anything this plan was looking for. One sent the measured figure, the other sent the config note around it; the note is what exposed that the refresher covers one key of three, because it explained WHY the value rots and thereby invited the question of what else in the block does. A number alone would have been acted on and would have restored a broken lane. The general shape is the aimed-instrument failure again, third time today on this plan: a true answer to the question asked, about the wrong subject.</div>
 </div>
+<div class="r-comment" data-section="s8" data-id="c-run-r-20260915T175430553939-kernel-pdl-patch" data-who="kernel-pdl-patch" data-when="2026-09-15T20:20:00+00:00">
+    <div class="r-comment-body"><p>Commit <code>a6aa2fc</code> adds a read-only launch-time overlay for the image's DeepSeek K norm/RoPE header. The direct image diff is exactly one deletion and one insertion: <code>params.out_loc[work_id]</code> now follows <code>PDLWaitPrimary&lt;kUsePDL&gt;()</code>. The dry run prints that bind. The H200 path is active: capability (9, 0) makes <code>is_arch_support_pdl()</code> true at the JIT factory call site. A deliberately broken bound header made <code>nvcc</code> fail at the mounted image path; the real header compiled cleanly with a fresh cache context and zero precompiled kernel binaries in the image tree. Focused coverage passed 5/5 and whole-tree Ruff passed. Full record: <a href="/imas-ambix/evidence/archive/dsv41-flash-four-card-throughput-landed.html#kernel-pdl-overlay">kernel PDL overlay evidence</a>.</p></div>
+</div>
 </section>
 </main>
 </body>

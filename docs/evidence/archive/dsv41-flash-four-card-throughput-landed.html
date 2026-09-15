@@ -12,7 +12,7 @@
   <meta name="plan-owner"     content="Simon McIntosh">
   <meta name="plan-tags"      content="agent-serving,gpu-deployment,benchmarking">
   <meta name="plan-evidence-for" content="dsv41-flash-four-card-throughput">
-  <meta name="plan-verifies"  content="dsv41-flash-four-card-throughput#s4">
+  <meta name="plan-verifies"  content="dsv41-flash-four-card-throughput#s4,dsv41-flash-four-card-throughput#s8">
   <title>DSv4.1-Flash Four-Card Throughput — Landed Record | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
@@ -363,6 +363,32 @@
     passed. The repository-wide Ruff command still reports 273 pre-existing
     findings outside this node's files; this change adds none. No live flight
     configuration was read or written, and no serving operation was started.</p>
+
+    <h2 id="kernel-pdl-overlay">§8 — The DeepSeek kernel now waits before consuming cache locations</h2>
+
+    <p>Commit <code>a6aa2fc</code> carries a read-only bind-mounted copy of
+    <code>main_norm_rope.cuh</code> for the exact
+    <code>sglang-dev-dsv41.sif</code> deployment. The generated serve script
+    mounts it over the image source path, so the correction is applied at launch
+    without rebuilding or mutating the image.</p>
+
+    <table>
+      <thead><tr><th>Measure</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td>Image-to-overlay diff</td><td><strong>1 deletion, 1 insertion</strong>: <code>params.out_loc[work_id]</code> moved from above to below <code>PDLWaitPrimary&lt;kUsePDL&gt;()</code></td></tr>
+        <tr><td>Dry-run launch receipt</td><td><code>--bind &lt;repo&gt;/imas_ambix/agent/kernel_patches/sglang-dev-dsv41/.../main_norm_rope.cuh:/sgl-workspace/sglang/python/sglang/kernels/jit/csrc/deepseek_v4/main_norm_rope.cuh:ro</code></td></tr>
+        <tr><td>PDL specialization on H200</td><td><strong>enabled</strong>: NVIDIA H200 NVL, capability <code>(9, 0)</code>, and the JIT call site supplies <code>is_arch_support_pdl() == True</code></td></tr>
+        <tr><td>Bound broken-header control</td><td><strong>failed as required</strong>: <code>nvcc</code> reported the deliberate error at the image target path</td></tr>
+        <tr><td>Bound real-header compilation</td><td><strong>clean</strong>: fresh HOME and <code>SGLANG_CUTE_AOT_CACHE_DIR</code>, zero precompiled <code>.so</code>, <code>.cubin</code>, or <code>.fatbin</code> files under the image kernels tree</td></tr>
+        <tr><td>Focused tests and lint</td><td><strong>5 passed</strong>; <code>ruff check imas_ambix tests</code> exited 0</td></tr>
+      </tbody>
+    </table>
+
+    <p>The broken-header control is the load-bearing proof: the same direct JIT
+    factory invoked for the fused K norm/RoPE/FlashMLA kernel compiled the bound
+    source and failed at <code>/sgl-workspace/sglang/python/sglang/kernels/jit/csrc/deepseek_v4/main_norm_rope.cuh:2</code>.
+    The real overlay then compiled cleanly in a separate fresh cache context.
+    A cache therefore did not bypass the source that the serve bind declares.</p>
 
   </main>
 </body>
