@@ -1,7 +1,7 @@
 {
   "taken_at": "2026-09-15T08:42:14Z",
   "purpose": "BEFORE half of a matched-load prefix-cache comparison; reckon prompt reordering not yet landed",
-  "load_state": "LOADED, NOT IDLE \u2014 compare only against an after-reading at matched concurrency",
+  "load_state": "LOADED AND AGED \u2014 13 of 15 runs over two hours. Match the AFTER reading on age distribution as well as concurrency: fourteen fresh runs and fourteen three-hour runs are different workloads wearing the same number.",
   "engine": {
     "pool_tokens": 2200283,
     "mem_fraction_static": 0.85,
@@ -29,6 +29,26 @@
     "Cumulative counters span the serve's whole life; the 45s window is the comparable figure.",
     "Ambient fleet traffic dominates both figures \u2014 this is a fleet-average, not a per-request measurement.",
     "The 45x placement estimate is for the shared prefix across workers, NOT a predicted hit-rate multiple; conversation history dominates as runs extend, so a smaller fleet-wide gain is consistent with the hypothesis.",
-    "Refutation condition: no movement in the shared-prefix hit rate at matched load."
-  ]
+    "Refutation condition: no movement in the shared-prefix hit rate at matched load.",
+    "Any fleet-count figure has a shelf life of about a minute at this cadence; the stamp is load-bearing, not decorative."
+  ],
+  "run_age_distribution": {
+    "stamp": "2026-09-15T08:43:12Z",
+    "source": "reckon-b2, derived from run-id dispatch stamps",
+    "live_runs": 15,
+    "median_s": 9951,
+    "mean_s": 9640,
+    "min_s": 777,
+    "max_s": 15102,
+    "buckets": {
+      "<15m": 1,
+      "15-60m": 1,
+      "1-2h": 0,
+      "2-3h": 8,
+      ">3h": 5
+    },
+    "note": "bimodal; 13 of 15 over two hours, nothing in the 1-2h band"
+  },
+  "limitation": "This load may not test the hypothesis well AT ALL. A placement fix moves the shared prefix across workers, which matters most in a run's early turns; this lane is saturated with conversations whose accumulated history already dominates their prefix. The baseline is therefore conservative in a KNOWN direction \u2014 a modest after-reading is not weak evidence.",
+  "preferred_design_if_pair_is_small": "Cohort comparison rather than matched-load pair: measure the shared-prefix hit rate over the FIRST N turns of newly dispatched runs, before and after. That isolates the quantity the change actually moves and survives the objection that both halves were dominated by conversations the change never touched. A small result from the pair cannot distinguish 'the fix does little' from 'the fix does little for three-hour conversations', and those license opposite decisions."
 }
