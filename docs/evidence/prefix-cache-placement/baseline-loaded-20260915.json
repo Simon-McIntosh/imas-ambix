@@ -1,0 +1,34 @@
+{
+  "taken_at": "2026-09-15T08:42:14Z",
+  "purpose": "BEFORE half of a matched-load prefix-cache comparison; reckon prompt reordering not yet landed",
+  "load_state": "LOADED, NOT IDLE \u2014 compare only against an after-reading at matched concurrency",
+  "engine": {
+    "pool_tokens": 2200283,
+    "mem_fraction_static": 0.85,
+    "serve_job": 1270628,
+    "model": "deepseek-v4-flash",
+    "cards": 4
+  },
+  "concurrency": {
+    "running_start": 10.0,
+    "running_end": 14.0,
+    "waiting_end": 0.0,
+    "kv_usage_end": 0.4998
+  },
+  "cumulative": {
+    "hits": 372410368.0,
+    "queries": 1320088203.0,
+    "hit_rate_pct": 28.21
+  },
+  "window_45s": {
+    "hits": 333312.0,
+    "queries": 1164295.0,
+    "hit_rate_pct": 28.63
+  },
+  "caveats": [
+    "Cumulative counters span the serve's whole life; the 45s window is the comparable figure.",
+    "Ambient fleet traffic dominates both figures \u2014 this is a fleet-average, not a per-request measurement.",
+    "The 45x placement estimate is for the shared prefix across workers, NOT a predicted hit-rate multiple; conversation history dominates as runs extend, so a smaller fleet-wide gain is consistent with the hypothesis.",
+    "Refutation condition: no movement in the shared-prefix hit rate at matched load."
+  ]
+}
