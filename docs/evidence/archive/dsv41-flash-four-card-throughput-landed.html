@@ -662,6 +662,34 @@
     <code>hicache_host</code> document field makes the host tier visible without
     making a serve without hierarchical caching look like an empty host pool.</p>
 
+    <h2 id="serving-interpreter-parse-gate">Serving interpreter parse gate</h2>
+
+    <p><strong>The serving interpreter reproduced the defect before the repair.</strong>
+    Its <code>3.12.11</code> parser rejected a deliberately reverted module at
+    line 301 with <code>SyntaxError: multiple exception types must be
+    parenthesized</code>. That is a real incompatibility: the repository targets
+    Python 3.14, where the unparenthesized form parses and whole-tree Ruff is
+    configured for <code>py314</code>.</p>
+
+    <table>
+      <thead><tr><th>Check</th><th>Before repair</th><th>After repair</th></tr></thead>
+      <tbody>
+        <tr><td>Serving-Python parse sweep</td><td>286 / 295 modules; 9 files rejected</td><td><strong>295 / 295 modules; 0 rejected</strong></td></tr>
+        <tr><td>Multiple-exception clauses</td><td>10 unparenthesized clauses across 9 files</td><td><strong>0 unparenthesized clauses</strong></td></tr>
+        <tr><td>Focused parser tests</td><td>&mdash;</td><td><strong>2 passed</strong></td></tr>
+        <tr><td>Whole-tree lint</td><td>&mdash;</td><td><strong><code>ruff check imas_ambix tests</code> exit 0</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p>Commit <code>5ade84f</code> parenthesizes all ten clauses and adds
+    <code>tests/test_serving_interpreter_parse.py</code>. The gate resolves the
+    vLLM Python through <code>SiteConfig</code>, skips with an explicit reason
+    when that engine environment is absent, and calls the interpreter in a
+    subprocess that uses <code>ast.parse</code> over every repository module.
+    It never imports module code, so parser coverage cannot execute an engine or
+    model dependency. A second test supplies a reverted exception tuple and
+    requires the subprocess receipt to name its file, line, and diagnostic.</p>
+
 </main>
 </body>
 </html>
