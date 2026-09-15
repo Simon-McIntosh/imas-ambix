@@ -176,10 +176,10 @@ max_num_seqs = 1024
 # Lowering it therefore looks attractive and was drafted at 8192. It was
 # withdrawn because the 119:1 prefill-to-generation ratio is caused by VOLUME --
 # 18,863 tok/s of recomputation that should not exist -- rather than by
-# scheduler policy, and kv_offloading_size below removes that volume at its
-# source in the same restart. The two changes work against each other: once the
-# recomputation is gone, a smaller budget would process the remaining real
-# prefill LESS efficiently, since larger batches use the device better.
+# scheduler policy, so a smaller budget would process that volume in more steps
+# without reducing it. The recomputation is a cache-retention problem: the pool
+# must hold live contexts AND the prefixes those same sessions will ask for next
+# turn, and concurrency is what trades between them.
 #
 # It is also the only one of the three levers with no measurement behind it on
 # this workload; 8192 was a conventional four-fold reduction, not a finding. With
@@ -187,90 +187,49 @@ max_num_seqs = 1024
 # as possible. If the hit rate recovers and per-worker throughput is still poor,
 # this is the next lever and it will then have a clean before and after.
 max_num_batched_tokens = 32768
-# Host-RAM buffer for evicted prefix blocks, GiB summed across tensor ranks.
+# KV offload to host RAM is DISABLED. This records why, so it is not re-enabled
+# on the same reasoning that first turned it on.
 #
-# THIS IS THE CAUSE. Without it an evicted prefix is recomputed from scratch,
-# and on a shared agent lane that is self-sustaining: the recomputation is
-# itself what evicts the next session's prefix. The arithmetic, measured on
-# this serve:
+# The idea is sound and the problem it targets is real: an evicted prefix is
+# otherwise recomputed from scratch, and on a shared agent lane that is
+# self-sustaining, because the recomputation is itself what evicts the next
+# session's prefix. What the connector delivers on this model does not pay for
+# it.
 #
-#   pool 2,200,283 tokens / 22,557 tok/s prefill = 98 s to turn over completely
-#   a 500-token reply at 9.3 tok/s               = 54 s, plus tool and think time
+# MEASURED over one serve lifetime, by four sessions reading independently:
+#   returned    ~9 GB in total
+#   written     ~6 TB, sustained above 4.6 GiB/s in the gaps between restores
+#   residency   0.11-0.23 GiB -- UNCHANGED at 128 GiB and at 512 GiB configured
 #
-# So a session's cached prefix is evicted on the same timescale as its own turn
-# gap, and the hit rate sits at 21-25% where multi-turn agent traffic should
-# reach 90% -- turn N+1's prompt is turn N's plus the exchange. It also explains
-# why draining the fleet from 36 requests to 20 barely moved it: turnover is set
-# by the prefill rate, not the worker count.
+# So size is not a lever. A fourfold change in the only setting that exists
+# moved residency by nothing, which means no value of it fixes this. What bounds
+# the store is the eviction ORDER rather than the capacity: both tiers evict in
+# the same LRU order, so a host entry is discarded before anything asks for it
+# again, and restores land only in the window between store and eviction.
 #
-# 768 GiB, which is a WORKAROUND for an acknowledged upstream defect rather
-# than a sizing judgement. Remove it when vllm-project/vllm#56953 merges.
+# The return is INTERMITTENT rather than small, and that is a different object.
+# Five windows in one afternoon read 4.38, 3.64, 2.28, 0.64 and 0 percent, so a
+# mean over it describes no moment that actually occurs. If this is ever
+# re-measured, sample the distribution of per-interval deltas at a fixed short
+# interval; a ratio over a bursty process yields confident figures that
+# disagree, and a long window is not the remedy because sizing one requires
+# knowing the burst period.
 #
-# THE DEFECT (vllm-project/vllm#56871, opened 2026-09-14): every OffloadKey is
-# (block_hash, group_idx), and a CPU slot reserves the combined footprint of ALL
-# KV cache groups while storing only one group's page. Effective capacity is
-# therefore `kv_offloading_size / num_selected_groups`. On a hybrid model that
-# falls below the GPU pool, and because both tiers evict in the same LRU order
-# the host tier is always evicted first and can never serve a hit.
+# Two traps that cost real time and are not obvious from the setting's name:
+#   * the buffer is a FILE IN /dev/shm, so its ceiling is that tmpfs -- 756 GiB
+#     here, half of RAM -- and NOT the job's --mem. A 768 GiB request died at
+#     connector init inside a job holding 1000G, and raising --mem cannot help.
+#     All ranks share ONE mmap, so the figure is a node total, not per-rank.
+#   * a cancelled serve leaves its buffer resident with nothing mapping it, so a
+#     later launch fails against a tmpfs an earlier job filled -- one restart
+#     away from its cause, against a job that did nothing wrong. The serve
+#     script sweeps orphans before launch; that sweep is load-bearing and stays
+#     whether or not this setting is ever restored.
 #
-# MEASURED HERE at 128 GiB, over 63 minutes at load:
-#   GPU_to_CPU   24.1 TB written, 857.9 s of transfer time
-#   CPU_to_GPU    0 bytes, 0 s, every latency bucket empty
-#   lookup_sync_delay count 819   -- the path IS taken, and misses every time
-#   cpu_cache_usage_perc 17.8%    -- reported against NOMINAL capacity, so the
-#                                    effective store was full while reading 18%
-#
-# That 17.8% is why two earlier diagnoses were wrong: a write-volume eviction
-# trap (the buffer never filled) and a structural block in the read path (819
-# lookups say it is taken). Neither survived the counters.
-#
-# THE BUFFER IS A FILE IN /dev/shm, NOT HEAP, so the binding constraint is that
-# tmpfs and NOT the job's --mem. Measured 2026-09-15: a 768 GiB request died at
-# KV-connector init with "Insufficient space in /dev/shm: 786431 MiB required,
-# 591923 MiB free" inside a job holding 1000G. The tmpfs is 756 GiB -- half of
-# RAM, as tmpfs defaults -- so 768 was never satisfiable here at any --mem, and
-# reading the flag as ordinary memory is what made an impossible value look
-# generous. Raising --mem does not raise this ceiling.
-#
-# The node is shared and not rebooted between serves, so the free figure is
-# live state: other users held ~50 GiB, and a cancelled serve of ours had left
-# its own 128 GiB buffer behind with no process holding it. The serve script
-# now sweeps those before launch; without it each restart consumes its buffer
-# permanently and the NEXT one fails, which is a failure that appears one
-# restart away from its cause.
-#
-# SIZING IS NOT A LEVER HERE, which is measured rather than argued. Residency
-# was read across a FOURFOLD change in the configured size and did not move:
-#
-#   128 GiB configured   resident ~0.1-0.25 GiB
-#   512 GiB configured   resident ~0.1-0.25 GiB   (0.044% -> 0.022% in 120 s)
-#
-# A single pair of readings appeared to agree at 22.8 GiB and suggested a hard
-# ceiling; a four-sample trajectory showed that was a coincidence of timing and
-# the real behaviour is oscillation near zero. Two points cannot distinguish a
-# plateau from a transient -- take a trajectory before naming a ceiling.
-#
-# So what bounds the store is the EVICTION ORDER, not the capacity: both tiers
-# evict in the same LRU order, so a host entry is discarded before anything can
-# ask for it again, and restores only land in the narrow window between store
-# and eviction. That is the half of the upstream defect that survives here; the
-# capacity-division half does not, because every candidate effective size is
-# orders of magnitude above what is ever resident.
-#
-# MEASURED RETURN, one clean 120 s window at 42-44 concurrent:
-#   external hit rate   33,372 / 1,461,932 queries  =  2.28%
-#   written 509.9 GB    restored 721.6 MB           =  707 : 1
-#
-# 64 GiB is therefore 256x the observed residency and buys exactly what 512 did,
-# while returning 448 GiB of shared memory and the GPU staging that goes with
-# it -- staging pressure drove four ranks into allocator OOM retries at the
-# current memory fraction, two of them to 3.9 MB free.
-#
-# Whether to keep it at all is unsettled and needs a controlled comparison at
-# the next restart rather than another resize: 2.28% of prefill is a real
-# return, and the sustained ~4.25 GB/s of host writes buying it is a real cost.
-# Neither has been measured against the other with one variable moving.
-kv_offloading_size = 64
+# Re-enable only against evidence that the upstream eviction order has changed,
+# and measure the return before paying the cost, because the cost is
+# unconditional and the return is not.
+# kv_offloading_size = <GiB>   -- deliberately unset
 
 [engine.env]
 # Route top-k/top-p sampling around the FlashInfer TopKMaskLogits kernel, which
@@ -294,11 +253,12 @@ reasoning = "deepseek_v4"
 [slurm]
 gpus = 4
 cpus = 12
-# 64 GiB of this is the /dev/shm offload buffer above; tmpfs pages are charged
-# to the job's cgroup, so --mem must cover the buffer AND the runtime. The
-# four-card serve ran on 400G against a 128 GiB buffer, so ~270 GiB is the
-# measured runtime need, and 400G carries 64 + that with margin.
-memory = "400G"
+# No offload buffer to cover, so this is the runtime alone. The bound is soft
+# rather than measured: a four-card serve ran inside 400G while also holding a
+# 128 GiB buffer, which puts the runtime at or under ~270 GiB without proving it
+# uses that much. 320G keeps a real margin over the upper bound rather than
+# trimming to a figure nobody has measured directly.
+memory = "320G"
 port = 18800
 time_serve = "0"
 time_download = "24:00:00"
