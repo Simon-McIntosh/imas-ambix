@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-15T20:43:01",
+  "updated": "2026-09-15T21:16:49",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -1223,12 +1223,23 @@
         "session_id": "01a01087-bb8d-71b0-bb31-ce2f02765e11"
       },
       {
-        "id": "prefill-ceiling-probe",
+        "id": "pool-and-hicache",
         "harness": "codex-terra",
-        "role": "test",
+        "role": "implement",
         "session_id": null,
         "session_model": null,
         "sessions": {},
+        "created": "2026-09-15"
+      },
+      {
+        "id": "prefill-ceiling-probe",
+        "harness": "codex-terra",
+        "role": "test",
+        "session_id": "01a0a65a-9a20-7d21-b7a0-325c8df54764",
+        "session_model": "gpt-5.6-terra",
+        "sessions": {
+          "{\"alias\":\"terra5.6\",\"backend\":\"codex-terra\",\"effort\":\"xhigh\",\"launch\":\"cli\",\"model\":\"gpt-5.6-terra\",\"sandbox\":\"worktree-full\"}": "01a0a65a-9a20-7d21-b7a0-325c8df54764"
+        },
         "created": "2026-09-15"
       },
       {
@@ -34924,6 +34935,174 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260915T183538016525-prefill-ceiling-bisect",
+        "plan": "dsv41-flash-four-card-throughput",
+        "section": "\u00a710",
+        "node": "prefill-ceiling-bisect",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1969,
+                "cached_input_tokens": 607109,
+                "input_tokens": 609080,
+                "output_tokens": 639,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 609719,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "2f9d3191-e884-4a53-99ab-b894325cccbd",
+            "session_id": "dsv41-four-card-20260915"
+          },
+          "done_when": "A report giving the largest single-stream prefill this deployment absorbs, found by BISECTION, with a footprint table behind it. The lead has authorised crashing serves: nothing is waiting on the lane, so crossing the ceiling is the method rather than a hazard. Bring up your own probe serves and leave NONE running at the end. Four cards are free now; confirm rather than assume. A probe serve must have context_length raised to the native 1048576 so the engine ATTEMPTS long prefills instead of refusing them cleanly at the committed 204800 cap, and the way to get that without touching main is to edit the profile in YOUR OWN worktree and launch with PYTHONPATH pointed at it; that edit must never be committed or merged. Record at EVERY probe: prefill token count, free GPU memory per card before and after, the workspace allocation the engine asked for when it logs one, and whether the request completed or the serve died. Two recorded endpoints start you off: 180,961 tokens was absorbed and roughly 360,000 asked 9.96 GiB against 5.41 GiB free and was fatal \u2014 but that was a DIFFERENT memory configuration and this serve idles at 25.36 GB free per card, so test the old fatal point first and expect the boundary to have moved upward. Each death costs one probe-serve restart, about five minutes with GPFS warm. Bisect to a precision of about 32,768 tokens and no finer, and stop bisecting if you reach the native 1048576 without a failure, which is itself the best possible result and must be reported as such. ALSO RESOLVE a contradiction worth more than the ceiling: chunked_prefill_size is 32768, so the fused-MoE workspace ought to be bounded per chunk, yet the 360k case asked 9.96 GiB \u2014 establish from your own measurements whether the workspace scales with the CHUNK or with the TOTAL sequence, and say which, because if chunking bounds it the pin may be unnecessary. State whether the curve is linear or superlinear in sequence length and give the fitted rate with the points it was fitted to. Do NOT attempt concurrency variation; a separate node owns that and your value is the single-stream input to it. All GPU work on betelgeuse under the reservation rules in imas_ambix/agent/AGENTS.md, four cards for TP4, never --qos, never --mem=0, export TMPDIR=/tmp. Gate: the report carries the probe table, the bisection history naming each death, the chunk-versus-sequence verdict with its evidence, and the fitted scaling with its residuals or a plain statement that the fit is two-point and therefore weak.",
+          "estimated_hours": null,
+          "goal": "The single-stream per-request prefill ceiling for this four-card deployment, bisected, with the memory footprint curve behind it",
+          "id": "prefill-ceiling-bisect",
+          "lane_declaration": {
+            "backend": "codex-terra",
+            "headroom": "known",
+            "metered": true,
+            "observed_at": "2026-09-15T18:35:38Z",
+            "read_at": "2026-09-15T18:35:39Z",
+            "resolved_backend": "codex-terra",
+            "utilisation_pct": 55.0
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "backend declares no lane document",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260915T183538016525-prefill-ceiling-bisect/manifest.md",
+          "plan": "dsv41-flash-four-card-throughput",
+          "requested_backend": "codex-terra",
+          "requires_decisions": [],
+          "role": "test",
+          "section": "\u00a710",
+          "spec_level": "guided",
+          "time_budget": "55m",
+          "token_budget": null,
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/prefill-ceiling-bisect.md",
+            "docs/evidence/archive/dsv41-flash-four-card-throughput-landed.html",
+            "docs/plans/dsv41-flash-four-card-throughput.html"
+          ]
+        },
+        "role": "test",
+        "spec_level": "guided",
+        "member": "prefill-ceiling-probe",
+        "backend": "codex-terra",
+        "local": false,
+        "agent": {
+          "alias": "terra5.6",
+          "backend": "codex-terra",
+          "effort": "xhigh",
+          "launch": "cli",
+          "model": "gpt-5.6-terra",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-15T18:35:50Z",
+        "completed_at": "2026-09-15T19:16:33Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 2443,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 2443,
+        "stalled": false,
+        "time_budget": "55m",
+        "base_sha": "2000539be599a0c785102a4e077b41bd72f49be5",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "failed",
+        "gate_check": null,
+        "suite_delta": null,
+        "failure_classification": "negative-result",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260915T183538016525-prefill-ceiling-bisect/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a0a65a-9a20-7d21-b7a0-325c8df54764",
+        "budget": {
+          "cost_usd": null,
+          "detail": "",
+          "headroom": "unknown",
+          "rate_limit_period_minutes": null,
+          "rate_limit_type": null,
+          "refusal": false,
+          "resets_at": null,
+          "surpassed_threshold": null,
+          "threshold_status": null,
+          "tokens": null,
+          "utilisation_pct": null
+        },
+        "lane_receipt": {
+          "quota_state": "measured",
+          "observed_at": "2026-09-15T19:16:33Z",
+          "effective_context_window": 380000,
+          "quota_windows": [
+            {
+              "window_minutes": 10080,
+              "used_percent": 57.0,
+              "resets_at": 1789970251,
+              "observed_at": "2026-09-15T19:16:33Z"
+            }
+          ],
+          "notional_cost_usd": 53.4673,
+          "rate_basis": {
+            "model_identifier": "gpt-5.6-terra",
+            "input_per_million": 2.0,
+            "output_per_million": 12.0,
+            "as_of": "2026-09-09"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": null,
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "test",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "resume",
+        "attempt": 2,
+        "duration_measurement": {
+          "status": "underivable",
+          "reason": "model_span_unavailable_at_promotion"
+        },
+        "scope_acceptances": null,
+        "no_commit": "read-only evidence node; deliverable is the report and three copied serve logs in the crew reports dir",
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/dsv41-four-card-20260915/prefill-ceiling-bisect",
+          "session_id": "01a0a65a-9a20-7d21-b7a0-325c8df54764",
+          "session_source": "pointer",
+          "retained_at": "2026-09-15T19:16:33Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "tool_steps": 157.0,
+        "orientation_input_tokens": null,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -34970,6 +35149,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 636
+    "_version": 639
   }
 }
