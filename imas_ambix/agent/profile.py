@@ -173,6 +173,10 @@ class EngineConfig(BaseModel):
     # (``--enable-decoder-swa-bounded-replay``). Measured by the vendor at 1.56x
     # prefill throughput on 8xH200 for DeepSeek-V4.1. SGLang-only.
     enable_decoder_swa_bounded_replay: bool = False
+    # Publish SGLang's Prometheus endpoint (``--enable-metrics``). SGLang
+    # defaults this off; vLLM exposes metrics by default and does not consume
+    # this setting.
+    enable_metrics: bool = False
     # SGLang speculative decoding. Distinct from the vLLM ``speculative_method``
     # family below, which emits --speculative-config; SGLang takes
     # --speculative-algorithm and its own per-algorithm options. Keeping both

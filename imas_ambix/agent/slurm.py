@@ -197,6 +197,7 @@ def _build_sglang_args(profile: ModelProfile, site: SiteConfig) -> list[str]:
         "--enable-decoder-swa-bounded-replay",
         engine.enable_decoder_swa_bounded_replay,
     )
+    _append_flag(args, "--enable-metrics", engine.enable_metrics)
     _append_flag(
         args,
         "--weight-loader-disable-mmap",

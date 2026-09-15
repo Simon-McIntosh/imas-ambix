@@ -104,6 +104,9 @@ moe_runner_backend = "flashinfer_mxfp4"
 # Vendor-documented Hopper prefill win: decoder-side bounded replay measured
 # 1.56x prefill throughput on 8xH200.
 enable_decoder_swa_bounded_replay = true
+# The lane publisher reads the engine's Prometheus endpoint to derive KV-pool
+# headroom. SGLang defaults that endpoint off, so the serve must opt in.
+enable_metrics = true
 cuda_graph_max_bs_decode = 64
 # Speculative decoding is NOT VIABLE on this four-card deployment, and the
 # reason is capacity rather than benefit. DSpark wants a ~12 GiB per-card
