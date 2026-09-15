@@ -746,6 +746,35 @@
     The one-shot fetch proves the delivered function and published document, not
     that separate publisher repair.</p>
 
+    <h2 id="router-compressed-publisher">Standing router compressed-metrics reader</h2>
+
+    <p><strong>The controlled standing-publisher failure reproduced before the
+    repair.</strong> Its raw <code>aiohttp</code> response-text path raised
+    <code>UnicodeDecodeError: 'utf-8' codec can't decode byte 0x8b in position
+    1</code> for a declared gzip metrics body, and the measured document was not
+    written. Commit <code>3f3909d</code> delegates this path to
+    <code>fetch_lane_capacity</code> in a worker thread, making the established
+    content-encoding reader the only owner of gzip, x-gzip, and deflate decoding.</p>
+
+    <table>
+      <thead><tr><th>Check</th><th>Receipt</th></tr></thead>
+      <tbody>
+        <tr><td>Controlled gzip publisher regression</td><td><strong>passes; writes <code>state: measured</code> with 4,000,000 pool tokens</strong></td></tr>
+        <tr><td>Focused lane and publisher tests</td><td><strong>3 passed</strong></td></tr>
+        <tr><td>Router and lane unit slice at base <code>3bebb8f</code></td><td>32 passed; one known mock-signature failure</td></tr>
+        <tr><td>Router and lane unit slice at <code>3f3909d</code></td><td><strong>33 passed; the same one known mock-signature failure</strong></td></tr>
+        <tr><td>Whole-tree lint</td><td><strong><code>ruff check imas_ambix tests</code> exit 0</strong></td></tr>
+        <tr><td>Canonical live observation</td><td><strong>pending coordinator integration and canonical router restart</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p>The required eight consecutive measured samples spanning at least four
+    minutes are intentionally not claimed here. The canonical checkout still
+    contains the old direct parser call, so restarting it now would only repeat
+    the known failure. After the committed marker is present in the canonical
+    checkout, restart only the router, leave the four-card serve untouched, and
+    retain timestamped lane-document reads until the eight-sample interval closes.</p>
+
 </main>
 </body>
 </html>
