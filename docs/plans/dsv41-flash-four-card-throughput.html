@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-15">
-<meta name="plan-version" content="21">
+<meta name="plan-version" content="22">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s2a&quot;:&quot;done&quot;,&quot;s2b&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s3-paired&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;deferred&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;done&quot;}">
 <meta name="plan-artifacts" content="imas_ambix/agent/serving_receipts.py,imas_ambix/agent/receipt_bins.py,imas_ambix/agent/profiles/deepseek-v4-1-flash.toml,/home/ITER/mcintos/.config/reckon/crew/reports/four-card-reuse-map.md,/home/ITER/mcintos/.config/reckon/crew/reports/swa-index-width-attribution.md">
 <meta name="plan-impl" content="0.727">
@@ -466,6 +466,18 @@
     every compile differ, so <code>B ≠ A</code> passes without the cache having
     been consulted at all, and the check reports success for a reason unrelated
     to its claim.</p>
+
+    <p><strong>The rule the third version violates, stated generally because the
+    control is only its instance.</strong> Ask what a check does on the
+    <em>worst</em> input it could receive, not the expected one. If the answer is
+    "passes, and more emphatically", the check is measuring its own form rather
+    than its subject. That is a worse failure than a check that cannot fire and
+    than one that fires wrongly, because <strong>its pass probability rises with
+    the severity of the condition it exists to detect</strong> — it grows more
+    convincing as it grows more vacuous, so the evidence feels strongest exactly
+    where it is worth least. A compiler embedding a timestamp is the ideal
+    subject for an artifact-inequality measure and the one it can say nothing
+    about.</p>
 
     <p><strong>The measure, with the control that closes it — one extra
     compile:</strong></p>
