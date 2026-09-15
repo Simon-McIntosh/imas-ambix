@@ -24,10 +24,10 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-15">
-<meta name="plan-version" content="11">
+<meta name="plan-version" content="12">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s2a&quot;:&quot;done&quot;,&quot;s2b&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;done&quot;}">
 <meta name="plan-artifacts" content="/home/ITER/mcintos/.config/reckon/crew/reports/four-card-reuse-map.md,/home/ITER/mcintos/.config/reckon/crew/reports/swa-index-width-attribution.md">
-<meta name="plan-impl" content="0.375">
+<meta name="plan-impl" content="0.5">
 <meta name="plan-commits" content="e11215257d06725da0c70eda69bb786388595421,f777ce9afb6acb941e9aa2e2132837790e848217">
 </head>
 <body>
@@ -402,6 +402,11 @@
           re-measured; its §4 is the only open experiment and is this plan's §3.</p></div>
     <pre class="r-fu-prompt">/reckon-ship dsv41-flash-four-card-throughput §3</pre>
     </article>
+<article class="r-fu" data-id="f-dsv41t-02" data-status="open" data-capability-version="1.0" data-capability-class="general" data-capability-verification="strict" data-written-by="reckon-ship" data-written-at="2026-09-15 16:50" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">The veto test&#x27;s own restore rule has fired, and three red tests are waiting on that decision</h4>
+    <div class="r-fu-body"><p><strong>Owned by <code>dsv4-flash-dspark-four-card-serve</code>, not by this plan.</strong> Recorded here because this session found it and must not act on it.</p><p>Three tests in <code>tests/test_agent_dspark_profile.py</code> fail at base and are unrelated to this plan's work: they assert the four-card V4-Flash profile's DSpark flags and its TP4/DP1 topology, both of which this afternoon's commits changed. The failures are real, attributable, and were carried unchanged through this plan's gates as a recorded delta of zero.</p><p>They should not be repaired by editing the assertions, because that would bake in a configuration the evidence says is about to be reverted. The commit that disabled DSpark stated its own restore rule — the settings stay commented in the file so that <em>restoring them is one edit if the hit rate does not move</em>. <strong>It did not move.</strong> The serve reads 28.8% against a 25.7–27.0% baseline, inside the pre-registered no-veto band of 17–40 and nowhere near the 88.9–100 a gating veto predicted. So the rule fires and the drafter should go back, at which point the three tests pass again without being touched.</p><p>This plan must not execute that: reverting the profile now would change the V4-Flash serve in the middle of the comparison it is the baseline for. Sequence it after the baseline arm is harvested.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship dsv4-flash-dspark-four-card-serve</pre>
+    </article>
 </section>
 
   <section data-reckon="gates" id="gates" class="r-gates">
@@ -437,6 +442,7 @@
 </div>
 <div class="r-comment" data-section="s2b" data-id="c-s2b-interval-verified" data-who="reckon-ship" data-when="2026-09-15T16:42:00+00:00">
     <div class="r-comment-body">gate passed; section stays open pending the width-binned collector and the pool setting. Verified by reading the diff rather than the gate: the repair reuses the existing reset-safe counter-delta primitive, which returns null on a negative difference, so the interval fields are correctly null across a serve restart — the case this measurement spans by design. The node extended the existing controlled test instead of adding a new one, which is why the suite count stayed 15; that is better than what was asked, because both readings now sit on one set of fixtures, and it additionally pinned the cumulative value to the literal 0.8253 so a future redefinition breaks loudly.</div>
+</div>
 <div class="r-comment" data-section="s2b" data-id="c-run-r-20260915T163257733816-evaluation-pool-setting" data-who="evaluation-pool-setting" data-when="2026-09-15T16:40:15Z">
     <div class="r-comment-body"><p>Named evaluation-pool selection landed in <code>b783a72</code>. The committed default still resolves to 3,485,952 tokens, while <code>deepseek-v4-1-flash@evaluation</code> resolves to the load-proven 14,999,808-token pool and a dry-run of <code>agent serve</code> carries both the selected job identity and <code>--max-total-tokens 14999808</code>. Focused loader and CLI coverage passed 5/5; whole-tree Ruff passed; the broader profile slice retained the same three pre-existing DSpark failures before and after, with zero added failures. Full record: <a href="/imas-ambix/evidence/archive/dsv41-flash-four-card-throughput-landed#evaluation-pool-setting">evaluation pool setting</a>.</p></div>
 </div>
