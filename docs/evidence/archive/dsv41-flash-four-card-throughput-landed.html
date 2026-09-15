@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="evidence">
+  <meta name="plan-slug"      content="dsv41-flash-four-card-throughput-landed">
+  <meta name="plan-title"     content="DSv4.1-Flash Four-Card Throughput — Landed Record">
+  <meta name="plan-summary"   content="Cumulative execution record: instrument survey, index-width attribution, and the paired real-traffic measurement">
+  <meta name="plan-status"    content="active">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-tags"      content="agent-serving,gpu-deployment,benchmarking">
+  <meta name="plan-evidence-for" content="dsv41-flash-four-card-throughput">
+  <meta name="plan-verifies"  content="dsv41-flash-four-card-throughput#s4">
+  <title>DSv4.1-Flash Four-Card Throughput — Landed Record | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="swa-index-width">§4 — The serving image carries the sliding-window index-width fix</h2>
+
+    <p>Verdict <strong>carries-fix</strong>, so §3's numbers carry no
+    index-width penalty and are attributable to the two structural handicaps the
+    plan names rather than to a stale container.</p>
+
+    <p>The evidence was read from the SIF's own SquashFS filesystem rather than
+    inferred from the mutable <code>lmsysorg/sglang:dev-dsv41</code> tag, which
+    is the distinction that makes the verdict worth anything — the tag moves and
+    the image does not.</p>
+
+    <table>
+      <thead>
+        <tr><th>Quantity</th><th>Value</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Image</td><td><code>/work/projects/imas_gpu/containers/sglang-dev-dsv41.sif</code></td></tr>
+        <tr><td>Engine commit</td><td><code>da64c5cbb8cf6bfd39be19da43573fdfd484c43a</code></td></tr>
+        <tr><td>Call site inspected</td><td><code>DeepseekV4AttnBackend.make_core_attn_metadata</code></td></tr>
+        <tr><td>Builder inspected</td><td><code>build_causal_swa_page_indices_triton</code></td></tr>
+        <tr><td><code>SWA_WINDOW</code> / <code>PAGE_INDEX_ALIGNED_SIZE</code></td><td>128 / 64</td></tr>
+        <tr><td>Derived prefill row width</td><td><strong>128</strong> — <code>ceil(128/64) × 64</code></td></tr>
+        <tr><td>Occurrences of 1152 in the builder</td><td><strong>0</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>The negative control matters as much as the verdict.</strong> The
+    suspected inflated width is not hypothetical: the checkpoint config declares
+    <code>vision_config.max_image_tokens = 1024</code> and
+    <code>text_config.sliding_window = 128</code>, so 1152 is exactly the value
+    an implementation would produce if it sized the prefill index from the
+    vision path. It is observable, and the builder does not use it. The
+    instrument therefore saw the competing value and rejected it, rather than
+    returning a clean answer because it never looked.</p>
+
+    <h2 id="instrument-survey">§2b — Four instruments reusable, two absent, and one of the two is wrong rather than missing</h2>
+
+    <p>A reuse survey at <code>da3c816</code> mapped the six capabilities the
+    measurement needs. It found no reason to author serving, dispatch, endpoint
+    or restore machinery — all four already exist — and two measurement seams
+    that do not.</p>
+
+    <table>
+      <thead>
+        <tr><th>Capability</th><th>Verdict</th><th>Instrument or gap</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Start / stop a named serve profile on SLURM</td><td>reuse</td><td><code>agent serve</code>, <code>agent shutdown</code></td></tr>
+        <tr><td>Real multi-turn clive traffic at a chosen width</td><td>reuse</td><td>Reckon dispatch through the <code>clive</code> backend</td></tr>
+        <tr><td>Publish endpoint and lane documents through a swap</td><td>reuse</td><td><code>registry.py</code>, <code>agent lane --publish</code></td></tr>
+        <tr><td>Restore the V4-Flash profile</td><td>reuse</td><td>the named-profile flow; the ready script republishes</td></tr>
+        <tr><td>Windowed per-interval prefix-cache hit rate</td><td><strong>absent</strong></td><td>the recorder emits a lifetime ratio by design</td></tr>
+        <tr><td>Decode and prefill binned by concurrency width</td><td><strong>absent</strong></td><td>nothing joins clive stream evidence to receipt intervals</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>The cumulative-ratio trap is in the code, and it reproduces.</strong>
+    The plan warned that a cumulative hit-rate reading had misled four sessions
+    on this lane. The survey found the reason: <code>serving_receipts.py</code>
+    computes the hit rate as a lifetime ratio and assigns that same value to
+    every emitted row. On two controlled snapshots differing by +2,000 queries
+    and +1,800 hits — an interval truth of <strong>0.9000</strong> — the recorder
+    reports <strong>0.8253</strong>. A test codifies the behaviour and passes.</p>
+
+    <p>The repair is additive rather than a redefinition: emit interval delta
+    fields alongside the retained cumulative fields under their existing names,
+    so historical rows remain readable as what they actually were. Renaming the
+    cumulative field in place would silently change the meaning of every row
+    already recorded.</p>
+
+    <h2 id="swap-hazards">Two operational findings that change the swap procedure</h2>
+
+    <p><strong><code>agent serve</code> exposes no pool-size option.</strong> The
+    committed V4.1 profile pins <code>max_total_tokens = 3485952</code>, which is
+    1.24× the V4-Flash baseline pool rather than the 5.3× the experiment's premise
+    rests on. Serving the profile as committed would answer a question nobody
+    asked. The 14,999,808 pool — the one load-proven through a 32-way sweep with
+    zero OOM — has to become an explicit, reviewable setting rather than a
+    hand-edit at serve time.</p>
+
+    <p><strong>The lane refresher is a separate SLURM job, not a model
+    profile.</strong> A profile shutdown will not stop the standing
+    <code>ambix-lane</code> job, so a swap that starts a second refresher leaves
+    two of them racing to publish, one of which advertises the retired origin.
+    It must be stopped by exact job id. <code>--all</code> would stop it and
+    would also stop serving jobs, so it is not the shortcut it looks like.</p>
+
+  </main>
+</body>
+</html>

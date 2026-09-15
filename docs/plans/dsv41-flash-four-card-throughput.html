@@ -24,8 +24,10 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-15">
-<meta name="plan-version" content="5">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s2a&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;done&quot;}">
+<meta name="plan-version" content="8">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s2a&quot;:&quot;done&quot;,&quot;s2b&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;done&quot;}">
+<meta name="plan-artifacts" content="/home/ITER/mcintos/.config/reckon/crew/reports/four-card-reuse-map.md,/home/ITER/mcintos/.config/reckon/crew/reports/swa-index-width-attribution.md">
+<meta name="plan-impl" content="0.25">
 </head>
 <body>
   <main class="plan-doc">
@@ -151,6 +153,56 @@
     (27.0% / 10.1 tok/s and 26.3% / 6.9 tok/s) were taken with DSpark enabled and
     should be treated as historical once the harvest lands.</p>
 
+    <h2 id="s2b">§2b — The instruments §3's measure needs, and the two that do not exist</h2>
+
+    <p>A reuse survey at <code>da3c816</code> mapped the six capabilities §3
+    requires. Four reuse existing machinery and must not be re-authored; two do
+    not exist, and one of the two is not merely absent but actively wrong in a
+    way this plan already warned about in the abstract.</p>
+
+    <table>
+      <thead>
+        <tr><th>Capability</th><th>Verdict</th><th>Instrument</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Start / stop a named serve profile on SLURM</td><td>reuse</td><td><code>agent serve</code> and <code>agent shutdown</code>, <code>imas_ambix/agent/cli.py</code></td></tr>
+        <tr><td>Drive real multi-turn clive traffic at a chosen width</td><td>reuse</td><td>Reckon dispatch through the <code>clive</code> backend — real CLI workers, not <code>agent bench</code></td></tr>
+        <tr><td>Publish endpoint and lane documents through a swap</td><td>reuse, with a caution</td><td><code>imas_ambix/agent/registry.py</code>, <code>agent lane --publish</code></td></tr>
+        <tr><td>Restore the V4-Flash profile</td><td>reuse</td><td>the named-profile flow; the ready script republishes the endpoint</td></tr>
+        <tr><td><strong>Windowed per-interval prefix-cache hit rate</strong></td><td><strong>does not exist</strong></td><td>the recorder emits a lifetime ratio by design</td></tr>
+        <tr><td><strong>Decode and prefill binned by concurrency width</strong></td><td><strong>does not exist</strong></td><td>no joiner binds clive stream evidence to receipt intervals</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>The cumulative-ratio trap is in the code, not only in the
+    reading.</strong> <code>imas_ambix/agent/serving_receipts.py</code> computes
+    <code>prefix_cache_hit_rate</code> as a lifetime ratio and assigns that same
+    cumulative value to every emitted row, and a test codifies the behaviour. On
+    two controlled snapshots differing by +2,000 queries and +1,800 hits — an
+    interval truth of <strong>0.9000</strong> — the recorder reports
+    <strong>0.8253</strong>. That is the instrument four sessions read. It must be
+    repaired before either arm is measured, by <em>adding</em> interval delta
+    fields rather than redefining the existing cumulative field, so old rows stay
+    readable as what they were.</p>
+
+    <p><strong>Two operational findings that change the swap procedure.</strong>
+    <code>agent serve</code> exposes no pool-size option, so
+    <code>agent serve deepseek-v4-1-flash</code> cannot by itself produce the
+    14,999,808 pool §3 requires — the pool must become an explicit, reviewable
+    setting rather than a hand-edit at serve time. And the standing lane
+    refresher is a separate <code>ambix-lane</code> SLURM job, not a model
+    profile, so a profile shutdown will not stop it: two refreshers would race
+    and re-publish the retired origin. <strong>Stop it by exact job id; never use
+    <code>--all</code></strong>, which would also stop serving jobs.</p>
+
+    <p><strong>Done when:</strong> the receipts recorder emits per-interval query
+    and hit deltas and an interval ratio alongside the retained cumulative
+    fields, with the 0.9000 case as a test; a collector joins real clive stream
+    evidence to receipt intervals and bins per-worker decode and prefill rate by
+    width, refusing synthetic benchmark records; and the 14,999,808 pool is
+    selectable through a reviewable setting. These are what make §3's done-when
+    measurable at all.</p>
+
     <h2 id="s3">§3 — The one thing that was never measured</h2>
 
     <p>The retired plan's §4 was to drive <em>real agent traffic</em> through
@@ -206,17 +258,18 @@
       and it is the one handicap that a topology change would remove.</li>
     </ul>
 
-    <p>A third possibility is worth one cheap check rather than an assumption:
-    the 09-14 image predates the upstream fix that sizes prefill sliding-window
-    index rows to 128 columns instead of 1152 on a vision checkpoint served
-    text-only. Without it, every prefill row carries nine times the index width
-    for images that can never arrive, costing KV metadata and index bandwidth on
-    every platform. Whether our image lacked it has not been established, only
-    that it predates it.</p>
-
-    <p><strong>Done when:</strong> it is recorded whether the serve used for §3
-    carries the SWA width fix, so the resulting numbers are attributable. This is
-    a log check, not an experiment.</p>
+    <p class="landed-summary"><span class="badge badge-shipped">✓ landed
+    2026-09-15</span> <strong>The third possibility is closed: the image carries
+    the fix.</strong> Read from the SIF's own SquashFS source rather than the
+    mutable tag — engine commit <code>da64c5cb</code>, <code>SWA_WINDOW = 128</code>
+    with <code>PAGE_INDEX_ALIGNED_SIZE = 64</code> giving a derived prefill row
+    width of 128 and zero occurrences of 1152 in the builder. The suspected 1152
+    is real and observable in the checkpoint config as vision 1024 plus text 128,
+    and the prefill builder does not use it. So §3's numbers carry no index-width
+    penalty and are attributable to the two structural handicaps above. Full
+    record:
+    <a href="/imas-ambix/evidence/archive/dsv41-flash-four-card-throughput-landed#swa-index-width">SWA
+    index-width attribution</a>.</p>
 
     <h2 id="s5">§5 — Resolution</h2>
 
@@ -315,13 +368,23 @@
     <h4 class="r-gate-measure">Loaded per-worker decode on a V4.1 serve at the 14,999,808 pool under sustained real clive traffic, binned by concurrency width, with the prefill rate and a windowed per-interval prefix-hit distribution recorded in the same bins, compared against the g-baseline-harvested bins.</h4>
     <p class="r-gate-required-evidence">Per-worker tok/s and windowed hit-rate distribution for V4.1 in the same width bins as the V4-Flash harvest, stated as per-interval deltas rather than a cumulative ratio.</p>
     </div>
+<div class="r-gate" data-id="g-interval-instrument" data-section="s2b" data-gated-sections="s3" data-status="open" data-verdict="">
+    <h4 class="r-gate-measure">The receipts recorder emits per-interval prefix-cache query and hit deltas and an interval ratio alongside the retained cumulative fields, and a collector bins per-worker decode and prefill rate by concurrency width from real clive stream evidence rather than synthetic benchmark records.</h4>
+    <p class="r-gate-required-evidence">A test asserting the interval ratio on the controlled two-snapshot case where the cumulative recorder reports 0.8253 and the interval truth is 0.9000, plus a width-binned collector run over real stream evidence showing its bins and its refusal of synthetic records.</p>
+    </div>
 </section>
 <section data-reckon="comments" id="comments" class="r-comments">
 <div class="r-comment" data-section="s3" data-id="c-run-r-20260915T161636242522-four-card-reuse-map" data-who="four-card-reuse-scout" data-when="2026-09-15T16:26:56Z">
     <div class="r-comment-body"><p>Reuse map delivered: four of six capabilities reuse existing instruments; two do not exist — the receipts recorder emits a cumulative hit rate by design, reproduced at 0.8253 where the windowed truth is 0.9000, and no joiner bins real clive traffic by concurrency width. Also found agent serve exposes no pool-size option and the standing ambix-lane refresher is a separate SLURM job that profile shutdown will not stop.</p></div>
 </div>
+<div class="r-comment" data-section="s3" data-id="c-s3-reuse-map" data-who="reckon-ship" data-when="2026-09-15T16:35:30+00:00">
+    <div class="r-comment-body">gate passed on the prior-art scout; section 3 remains open. Four of six capabilities reuse existing machinery. The two that do not exist are now section 2b with its own gate: the receipts recorder emits a lifetime ratio by design and reports 0.8253 where the two-snapshot interval truth is 0.9000, and nothing joins clive stream evidence to receipt intervals to bin by width. Section 3's measure is not takeable until both land.</div>
+</div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20260915T161645540251-swa-index-width-attribution" data-who="swa-width-attribution" data-when="2026-09-15T16:26:59Z">
-    <div class="r-comment-body"><p>Verdict carries-fix, read from the SIF&#x27;s own SquashFS source rather than the mutable tag: engine commit da64c5cb, SWA_WINDOW 128 with PAGE_INDEX_ALIGNED_SIZE 64 gives a derived prefill row width of 128 and zero occurrences of 1152 in the builder. The 1152 control is real and observable in the checkpoint config as vision 1024 plus text 128, and the builder does not use it.</p></div>
+    <div class="r-comment-body"><p>Verdict carries-fix, read from the SIF's own SquashFS source rather than the mutable tag: engine commit da64c5cb, SWA_WINDOW 128 with PAGE_INDEX_ALIGNED_SIZE 64 gives a derived prefill row width of 128 and zero occurrences of 1152 in the builder. The 1152 control is real and observable in the checkpoint config as vision 1024 plus text 128, and the builder does not use it.</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-s4-landed" data-who="reckon-ship" data-when="2026-09-15T16:35:00+00:00">
+    <div class="r-comment-body">gate passed; section closed. Verdict carries-fix on engine commit da64c5cb, derived prefill SWA row width 128 with zero occurrences of 1152 in the builder, read from the SIF's own SquashFS source rather than the mutable tag. The 1152 control is observable in the checkpoint config as vision 1024 plus text 128 and is not used by the prefill builder, so the instrument saw the competing value and rejected it rather than failing to look. The two structural handicaps in this section remain open reference for interpreting section 3 and were not part of its done-when.</div>
 </div>
 </section>
 </main>
