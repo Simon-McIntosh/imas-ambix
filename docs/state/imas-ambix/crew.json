@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-15T21:16:49",
+  "updated": "2026-09-15T21:29:17",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -1226,9 +1226,11 @@
         "id": "pool-and-hicache",
         "harness": "codex-terra",
         "role": "implement",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
+        "session_id": "01a0a67c-37a2-7321-8978-db3c91400877",
+        "session_model": "gpt-5.6-terra",
+        "sessions": {
+          "{\"alias\":\"terra5.6\",\"backend\":\"codex-terra\",\"effort\":\"high\",\"launch\":\"cli\",\"model\":\"gpt-5.6-terra\",\"sandbox\":\"worktree-full\"}": "01a0a67c-37a2-7321-8978-db3c91400877"
+        },
         "created": "2026-09-15"
       },
       {
@@ -35103,6 +35105,211 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260915T191213922393-pool-and-hicache",
+        "plan": "dsv41-flash-four-card-throughput",
+        "section": "\u00a710",
+        "node": "pool-and-hicache",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 2680,
+                "cached_input_tokens": 662847,
+                "input_tokens": 665529,
+                "output_tokens": 675,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 666204,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "2f9d3191-e884-4a53-99ab-b894325cccbd",
+            "session_id": "dsv41-four-card-20260915"
+          },
+          "done_when": "The deepseek-v4-1-flash profile sets max_total_tokens to 4000000 and enables the engine's hierarchical cache, and imas-ambix agent serve deepseek-v4-1-flash --dry-run carries both plus a host-memory request that provably fits. The lead has directed both changes. The arithmetic behind them, measured from the production serve's own startup on one card: 138.72 GB empty, 65.99 after weights so weights are 72.73 GB, 28.54 after the pool so THE 15M-TOKEN POOL COSTS 37.45 GB PER CARD, and 25.36 GB free at the end. The pool only needs to cover concurrency times context, and the landed characterisation puts the knee at four concurrent with four to eight as the fleet guidance, so four million tokens covers eight workers at five hundred thousand each and is generous rather than tight; the profile records the pool cost as roughly a sixteen gigabyte fixed base plus 1.6 KiB per token, so verify the freed amount from that rather than assuming it scales linearly to zero. Put the sizing RULE in the profile comment, not just the number: pool must exceed expected concurrency times per-request context, and if context is later reduced the pool can shrink further. SECOND, the host-memory budget is the part to get right and it is the reason this is not a one-line change. The Engram tables already live in pinned host RAM by design, recorded as two layers times four ranks times about twenty-four gibibytes, so roughly 192 GiB of the serve's current 420G request is already committed before any hierarchical cache exists. Establish from the image what hicache_ratio and hicache_size actually mean and which one the engine sizes from, compute the host tier the chosen setting implies, and raise the slurm memory request to cover Engram plus that tier plus ordinary process memory with margin. Group A is allocated 650 GB of host RAM on this node, so stay meaningfully below that and state your headroom; do not simply round up to the cap. Choose and justify hicache_write_policy and hicache_mem_layout rather than accepting defaults silently, and say why. DO NOT change moe_runner_backend in this node even though a different MoE runner is the next lever under consideration; it risks up-converting MXFP4 experts and is a separate experiment with its own measurement. DO NOT start, stop or restart any serve and submit no SLURM job: four cards are occupied by a probe node right now and the coordinator owns the serve lifecycle. Gate: uv run --no-sync ruff check imas_ambix tests exits 0, the dry-run output is captured showing the pool value, the hierarchical-cache flags and the memory request, your new test asserts all three reach the command, and existing profile tests add no failures against base. Also state plainly in your record that a pool change is load-proven only by serving under a long prefill, which this node does not do, so the value is a candidate until the coordinator load-tests it.",
+          "estimated_hours": null,
+          "goal": "Convert oversized KV pool into per-request context headroom by shrinking the device pool to four million tokens and moving the prefix cache's bulk into host RAM",
+          "id": "pool-and-hicache",
+          "lane_declaration": {
+            "backend": "codex-terra",
+            "headroom": "known",
+            "metered": true,
+            "observed_at": "2026-09-15T19:12:14Z",
+            "read_at": "2026-09-15T19:12:15Z",
+            "resolved_backend": "codex-terra",
+            "utilisation_pct": 57.0
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "backend declares no lane document",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260915T191213922393-pool-and-hicache/manifest.md",
+          "plan": "dsv41-flash-four-card-throughput",
+          "requested_backend": "codex-terra",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a710",
+          "spec_level": "guided",
+          "time_budget": "40m",
+          "token_budget": null,
+          "write_paths": [
+            "imas_ambix/agent/profiles/deepseek-v4-1-flash.toml",
+            "imas_ambix/agent/profile.py",
+            "imas_ambix/agent/slurm.py",
+            "tests/test_agent_pool_and_hicache.py",
+            "docs/evidence/archive/dsv41-flash-four-card-throughput-landed.html",
+            "docs/plans/dsv41-flash-four-card-throughput.html"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "pool-and-hicache",
+        "backend": "codex-terra",
+        "local": false,
+        "agent": {
+          "alias": "terra5.6",
+          "backend": "codex-terra",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-terra",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-15T19:12:33Z",
+        "completed_at": "2026-09-15T19:28:06Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 933,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 933,
+        "stalled": false,
+        "time_budget": "40m",
+        "base_sha": "ba49c8d036d886c7653fd3a158b1cc58c39ab6a9",
+        "commits": [
+          "94ca835b7549b39873964d317d770e4d144ae2ee",
+          "b1d61cedfcba2a6e81cb7b7b1d3d46ee6fcfac44"
+        ],
+        "changed_lines": {
+          "added": 165,
+          "removed": 21,
+          "files": 7
+        },
+        "tests_added": 2,
+        "gate": "passed",
+        "gate_check": {
+          "command": "pytest tests/test_agent_pool_and_hicache.py tests/test_agent_evaluation_pool.py, ruff check imas_ambix tests, agent serve dry-run",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/reports/prefill-ceiling-bisect.md",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260915T191213922393-pool-and-hicache/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a0a67c-37a2-7321-8978-db3c91400877",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 4707328,
+            "cached_input_tokens_cumulative": 4707328,
+            "input_tokens": 4773119,
+            "input_tokens_cumulative": 4773119,
+            "output_tokens": 14423,
+            "output_tokens_cumulative": 14423,
+            "reasoning_output_tokens": 3126,
+            "reasoning_output_tokens_cumulative": 3126
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lane_receipt": {
+          "quota_state": "measured",
+          "observed_at": "2026-09-15T19:28:06Z",
+          "effective_context_window": 380000,
+          "quota_windows": [
+            {
+              "window_minutes": 10080,
+              "used_percent": 58.0,
+              "resets_at": 1789970251,
+              "observed_at": "2026-09-15T19:28:06Z"
+            }
+          ],
+          "notional_cost_usd": 16.8315,
+          "rate_basis": {
+            "model_identifier": "gpt-5.6-terra",
+            "input_per_million": 2.0,
+            "output_per_million": 12.0,
+            "as_of": "2026-09-09"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": null,
+        "throughput": {
+          "cumulative_cached_input_tokens": 7900160,
+          "cumulative_input_tokens": 8109720,
+          "detail": "model span bounded from the client rollout's tool spans; input cumulative summed across resets",
+          "generated_tokens": 17549,
+          "generation_seconds": 709.447,
+          "machine_seconds": 222.472,
+          "tokens_per_second": 24.74
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "resume",
+        "attempt": 2,
+        "duration_measurement": null,
+        "scope_acceptances": [
+          {
+            "path": "tests/test_agent_evaluation_pool.py",
+            "reason": "scope extension granted on resume: its two assertions pinned the retired 14,999,808 pool and had to move to 4,000,000 with the deliberate default change"
+          }
+        ],
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/dsv41-four-card-20260915/pool-and-hicache",
+          "session_id": "01a0a67c-37a2-7321-8978-db3c91400877",
+          "session_source": "pointer",
+          "retained_at": "2026-09-15T19:28:06Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "tool_steps": 33.0,
+        "orientation_input_tokens": null,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -35149,6 +35356,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 639
+    "_version": 641
   }
 }
