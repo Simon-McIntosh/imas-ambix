@@ -7,11 +7,13 @@ is therefore a copy of a deployment property, and copies rot -- this one was
 stale within the hour when it was first set, and stale again when the serve
 took a 204,800-token context cap.
 
-This makes refreshing the full deployment identity one command: read what the
-endpoint advertises, subtract the launcher's output reservation, and write the
-result back. The served model name is copied to both ``model`` and ``alias``:
-Reckon's ledger displays the model when no alias is supplied, so the endpoint
-name is the only non-guessed alias for a rotating deployment.
+This makes refreshing the deployment-derived settings one command: read what
+the endpoint advertises, subtract the launcher's output reservation, and write
+the result back. ``model`` is deployment identity, but ``alias`` is a declared
+display label. Reckon's flight schema renders the alias in place of the model
+identifier and supplies no spelling, leaving that decision to configuration.
+The two values change at the same time, but only the model is derived from the
+endpoint; the alias must come from the recorded mapping below.
 """
 
 from __future__ import annotations
@@ -26,6 +28,10 @@ from pathlib import Path
 DEFAULT_ORIGIN = "http://98dci4-gpu-0003:18802"
 DEFAULT_CONFIG = Path.home() / ".config" / "reckon" / "flight.yaml"
 LAUNCHER = Path("/work/projects/imas_gpu/agents/clive")
+SERVED_MODEL_ALIASES = {
+    "deepseek-v4-flash": "dsv4-flash",
+    "deepseek-v4.1-flash": "dsv4.1-flash",
+}
 
 
 def advertised_deployment(origin: str) -> tuple[str, int]:
@@ -59,6 +65,17 @@ def output_reservation(launcher: Path) -> int:
     if not match:
         raise SystemExit(f"no OUTPUT_RESERVATION found in {launcher}")
     return int(match.group(1))
+
+
+def declared_alias(model: str) -> str:
+    """Return the configured display spelling for one served model."""
+    try:
+        return SERVED_MODEL_ALIASES[model]
+    except KeyError as error:
+        raise SystemExit(
+            f"no recorded alias for served model {model!r}; "
+            "add a mapping to SERVED_MODEL_ALIASES"
+        ) from error
 
 
 def clive_block(text: str) -> tuple[int, int]:
@@ -113,6 +130,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     model, window = advertised_deployment(args.origin)
+    alias = declared_alias(model)
     reservation = output_reservation(args.launcher)
     usable = window - reservation
     if usable < 1:
@@ -123,7 +141,7 @@ def main(argv: list[str] | None = None) -> int:
     text = args.config.read_text(encoding="utf-8")
     replacements = {
         "model": json.dumps(model),
-        "alias": json.dumps(model),
+        "alias": json.dumps(alias),
         "usable_input_window": str(usable),
     }
     declared: dict[str, str] = {}

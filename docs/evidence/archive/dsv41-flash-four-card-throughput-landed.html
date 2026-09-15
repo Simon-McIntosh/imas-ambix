@@ -364,6 +364,38 @@
     findings outside this node's files; this change adds none. No live flight
     configuration was read or written, and no serving operation was started.</p>
 
+    <h2 id="clive-alias-mapping">§8 — Clive aliases are recorded display names, not endpoint data</h2>
+
+    <p>The preceding reconciliation record correctly made the served model and
+    usable input window follow the endpoint, but it incorrectly copied the
+    served model ID into <code>alias</code>. A controlled V4.1 endpoint write
+    changed <code>alias: dsv4-flash</code> to
+    <code>alias: &quot;deepseek-v4.1-flash&quot;</code>. That replaces the compact
+    display field with exactly the long identifier it exists to abbreviate.</p>
+
+    <p>The refresher now holds the attested spellings in an explicit mapping.
+    Six existing Reckon ledger rows already record the V4.1 spelling
+    <code>dsv4.1-flash</code>, alongside the established V4 spelling, so neither
+    value is invented here.
+    This is deliberately separate from endpoint parsing: Reckon's flight schema
+    defines <code>alias</code> as a writer-chosen display label rendered in
+    place of the model identifier, while the endpoint supplies only deployment
+    facts.</p>
+
+    <table>
+      <thead><tr><th>Served model</th><th>Recorded alias</th></tr></thead>
+      <tbody>
+        <tr><td><code>deepseek-v4-flash</code></td><td><code>dsv4-flash</code></td></tr>
+        <tr><td><code>deepseek-v4.1-flash</code></td><td><code>dsv4.1-flash</code></td></tr>
+      </tbody>
+    </table>
+
+    <p>An unrecognised served model now exits non-zero, names the model, and
+    tells the operator to add a mapping before the configuration is read for a
+    write; its fixture remains byte-for-byte unchanged. Focused coverage passed
+    <strong>8/8</strong> and scoped Ruff passed. No live configuration or serve
+    was touched.</p>
+
   </main>
 </body>
 </html>
