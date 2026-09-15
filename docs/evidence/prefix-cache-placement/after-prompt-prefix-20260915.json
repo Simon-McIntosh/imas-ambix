@@ -1,0 +1,38 @@
+{
+  "taken_at": "2026-09-15T10:13:48Z",
+  "half": "AFTER \u2014 prompts dispatched from bases carrying 16f4a0b7 (reorder merged at 5e52be0a)",
+  "method": "Byte-level shared prefix from dispatched prompt files, identical computation to the before-half.",
+  "validity": "Self-validating: 152 B is the old shape's signature, ~1,311 the new one. One run's base sha was independently confirmed to carry 16f4a0b7; the other two manifests were not yet written, but the measured prefix itself establishes the shape.",
+  "prompt_sizes_bytes": {
+    "r-20260915T100234371122-th": 11884,
+    "r-20260915T100528833708-ar": 11952,
+    "r-20260915T100841261383-a-": 12807
+  },
+  "pairs": [
+    {
+      "pair": "r-20260915T100234371122- vs r-20260915T100528833708-",
+      "shared_prefix_bytes": 1315
+    },
+    {
+      "pair": "r-20260915T100234371122- vs r-20260915T100841261383-",
+      "shared_prefix_bytes": 1315
+    },
+    {
+      "pair": "r-20260915T100528833708- vs r-20260915T100841261383-",
+      "shared_prefix_bytes": 1316
+    }
+  ],
+  "shared_across_all_bytes": 1315,
+  "before_shared_bytes": 152,
+  "ratio": 8.65,
+  "predicted_boundary": 1311,
+  "prediction_delta_bytes": 4,
+  "first_divergence": "the NODE id field, as predicted",
+  "verdict": "REFUTATION CONDITION NOT MET. The shared prefix moved 152 -> 1315 bytes, 8.65x, in the predicted direction and to within 4 bytes of the declared INVARIANT_PROMPT_BOUNDARY. The extra 4 bytes are the common 'NODE ' label preceding the differing id. The placement hypothesis survives its own falsification test.",
+  "what_this_does_NOT_show": "First-turn cross-worker prefix only. The live fleet is dominated by hours-old conversations where accumulated history dominates the prefix, so a fleet-wide hit-rate movement much smaller than 8.65x is consistent with this rather than against it. Engine-side counters also reset at 09:59Z, so before/after cumulative rates are not comparable and only a delta over a fixed window is valid.",
+  "sources": [
+    "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260915T100234371122-the-snapshot-check-runs-as-a-command/prompt.txt",
+    "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260915T100528833708-archived-evidence-enters-the-conformance-scan/prompt.txt",
+    "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260915T100841261383-a-staged-ref-blocks-only-the-sections-it-names/prompt.txt"
+  ]
+}
