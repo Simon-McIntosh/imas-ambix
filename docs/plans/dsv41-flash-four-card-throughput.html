@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-15">
-<meta name="plan-version" content="20">
+<meta name="plan-version" content="21">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s2a&quot;:&quot;done&quot;,&quot;s2b&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s3-paired&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;deferred&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;done&quot;}">
 <meta name="plan-artifacts" content="imas_ambix/agent/serving_receipts.py,imas_ambix/agent/receipt_bins.py,imas_ambix/agent/profiles/deepseek-v4-1-flash.toml,/home/ITER/mcintos/.config/reckon/crew/reports/four-card-reuse-map.md,/home/ITER/mcintos/.config/reckon/crew/reports/swa-index-width-attribution.md">
 <meta name="plan-impl" content="0.727">
@@ -437,6 +437,69 @@
     reads as current. <strong>Done when:</strong> one command reconciles all
     three keys from the live endpoint, so the block cannot be two-thirds stale
     again.</p>
+
+    <h2 id="s8a">§8a — How to prove a bind-mounted kernel patch is in the compiled artifact</h2>
+
+    <p><strong>This is the measure that binds, and it is written down because two
+    weaker versions of it were accepted first.</strong> The subject is a one-line
+    patch to a JIT-compiled CUDA header bind-mounted over the container's copy.
+    The failure mode is specific: a patch present in the file and absent from the
+    compiled kernel looks identical to a working patch from every angle except
+    the one that matters, and the defect it exists to prevent is silent KV-cache
+    corruption under load — nothing crashes to tell you.</p>
+
+    <p><strong>First rejected version:</strong> show the patched file is bound and
+    the diff is one line. Satisfiable while the kernel never recompiles. It
+    asserts about the source, and the source is not what runs.</p>
+
+    <p><strong>Second rejected version:</strong> bind a deliberately broken copy
+    and show the compile fails naming that file. Better — it proves the bind
+    reaches the compiler — but only on a <em>cold</em> cache. It does not exclude
+    a warm cache populated before the bind existed, where the patched source is
+    read and a stale artifact is used regardless.</p>
+
+    <p><strong>Third rejected version, and the instructive one:</strong> using one
+    persistent cache directory, compile unpatched to artifact A, bind the patch,
+    compile to artifact B, and require <code>B ≠ A</code>. This has a hole that
+    is invisible until named: <em>"different" is also what a non-reproducible
+    build produces.</em> Embedded timestamps, absolute paths or a build id make
+    every compile differ, so <code>B ≠ A</code> passes without the cache having
+    been consulted at all, and the check reports success for a reason unrelated
+    to its claim.</p>
+
+    <p><strong>The measure, with the control that closes it — one extra
+    compile:</strong></p>
+
+    <table>
+      <thead>
+        <tr><th>Step</th><th>Artifact</th><th>Requirement</th><th>What it establishes</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>compile unpatched</td><td>A</td><td>—</td><td>baseline</td></tr>
+        <tr><td>compile unpatched again</td><td>A&prime;</td><td><strong>A = A&prime;</strong></td><td><em>the control</em>: output is reproducible, so a later difference is attributable</td></tr>
+        <tr><td>bind patch, compile</td><td>B</td><td><strong>B &ne; A</strong></td><td><em>the measure</em>: the bind reached the compiled artifact</td></tr>
+      </tbody>
+    </table>
+
+    <p>Without the middle step, <code>B ≠ A</code> is consistent with both "the
+    patch was compiled" and "this compiler never emits the same bytes twice".
+    With it, the inequality can only come from the patch.</p>
+
+    <p><strong>And <code>A ≠ A′</code> is not a failed run — it is the finding.</strong>
+    A non-reproducible artifact means no patch can ever be proven present by
+    comparing artifacts, so verification must move to something derived from the
+    source rather than from artifact identity: a symbol, a constant, or an
+    instruction sequence the patch changes. Record that outcome as the result
+    rather than retrying for a pass.</p>
+
+    <p><strong>Two acceptable answers on the cache, and the second is better for
+    the fleet.</strong> If the cache key derives from a hash of the source, the
+    cache is content-addressed, a changed source can never hit a stale entry, and
+    demonstrating the key derivation settles the question outright. If it does
+    not, the bind is unsafe as a standing configuration and a fresh cache
+    directory per launch becomes <em>part of the deliverable</em> — not a
+    workaround to remember, because a rule with no check is how this class of
+    defect returns.</p>
 
     <h2 id="s9">§9 — There is no newer image for this checkpoint, and there cannot be one</h2>
 
