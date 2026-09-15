@@ -197,6 +197,23 @@ class EngineConfig(BaseModel):
     # value. SGLang-only.
     context_length: int | None = None
     max_total_tokens: int | None = None
+    # Keep evicted reusable prefix pages in pinned host RAM. SGLang's
+    # ``hicache_ratio`` is the host-to-device KV-pool ratio; a configured
+    # ratio is preferable to its engine default because it makes the host-RAM
+    # reservation reviewable with the profile. DeepSeek-V4's hybrid cache does
+    # not support a fixed ``hicache_size`` and rejects that option.
+    enable_hierarchical_cache: bool = False
+    hicache_ratio: float | None = None
+    hicache_write_policy: Literal[
+        "write_back", "write_through", "write_through_selective"
+    ] = "write_through"
+    hicache_mem_layout: Literal[
+        "layer_first",
+        "page_first",
+        "page_first_direct",
+        "page_first_kv_split",
+        "page_head",
+    ] = "page_first"
     # Let the engine size the KV pool from the memory actually left after
     # weights, instead of passing a figure. ``max_total_tokens`` otherwise
     # falls back to the model's full context, which is a per-request limit and

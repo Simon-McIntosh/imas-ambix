@@ -161,6 +161,14 @@ def _build_sglang_args(profile: ModelProfile, site: SiteConfig) -> list[str]:
     if not auto_pool:
         _append_option(args, "--max-total-tokens", max_tokens)
 
+    _append_flag(
+        args,
+        "--enable-hierarchical-cache",
+        engine.enable_hierarchical_cache,
+    )
+    _append_option(args, "--hicache-ratio", engine.hicache_ratio)
+    _append_option(args, "--hicache-write-policy", engine.hicache_write_policy)
+    _append_option(args, "--hicache-mem-layout", engine.hicache_mem_layout)
     _append_flag(args, "--trust-remote-code", engine.trust_remote_code)
     _append_flag(args, "--enable-mixed-chunk", engine.enable_mixed_chunk)
     _append_flag(args, "--enable-p2p-check", engine.enable_p2p_check)
