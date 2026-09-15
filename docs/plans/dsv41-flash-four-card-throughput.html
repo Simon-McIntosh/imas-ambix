@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-15">
-<meta name="plan-version" content="14">
+<meta name="plan-version" content="15">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s2a&quot;:&quot;done&quot;,&quot;s2b&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s3-paired&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;done&quot;}">
 <meta name="plan-artifacts" content="imas_ambix/agent/serving_receipts.py,imas_ambix/agent/receipt_bins.py,imas_ambix/agent/profiles/deepseek-v4-1-flash.toml,/home/ITER/mcintos/.config/reckon/crew/reports/four-card-reuse-map.md,/home/ITER/mcintos/.config/reckon/crew/reports/swa-index-width-attribution.md">
 <meta name="plan-impl" content="0.625">
@@ -210,17 +210,30 @@
     <code>1271309</code> — and the lane reading follows the new serve within one
     interval.</p>
 
-    <p><strong>Why a careful survey got this wrong is the part worth keeping.</strong>
+    <p><strong>Both mechanisms are real, which is the accurate version of this
+    and corrects a first attempt at the correction.</strong>
     <code>generate_lane_refresher_script</code> is still in
-    <code>slurm.py</code>, and its docstring argues for a separate job in exactly
-    the terms the survey reported — while nothing calls it any more, and the
-    router's comment argues the opposite case and won. Two rationales for
-    opposite designs sit in one codebase and the superseded one still reads as
-    authoritative. The survey asked what the source says publishes the lane, got
-    a true statement about a function nobody calls, and reported it — the
-    aimed-instrument trap rather than carelessness. <strong>The dead generator is
-    removed as part of the swap preparation</strong>, because leaving it is what
-    produced a wrong operational finding today and would do so again.</p>
+    <code>slurm.py</code> and is <em>reachable</em>:
+    <code>agent lane --submit --refresh N</code> calls it and submits a standing
+    <code>ambix-lane</code> job. It is a supported path, not dead code. An
+    earlier note here said nothing called it and that it should be deleted;
+    that was wrong, and deleting it would have removed a live CLI feature.</p>
+
+    <p>So the codebase carries two publication mechanisms whose docstrings argue
+    against each other, and the one in use is not the one that argues hardest.
+    <code>slurm.py</code> makes the case for a separate job in exactly the terms
+    the survey reported; <code>router.py</code> makes the opposite case, cites
+    the reservation core the separate job wasted, and is what actually runs. The
+    survey asked what the source says publishes the lane and got a true answer
+    about the mechanism that is available rather than the one that is running —
+    an aimed-instrument error, not carelessness, and one the source invites.</p>
+
+    <p><strong>The swap-time consequence is a precondition, not a
+    deletion.</strong> The scout's race is real but conditional: it needs an
+    <code>ambix-lane</code> job to exist, and none does. So before the swap,
+    require <code>squeue</code> to show no <code>ambix-lane</code> job, and if
+    one has appeared, stop it by its exact id — never with <code>--all</code>,
+    which would take the serving jobs too. Leave the router alone either way.</p>
 
     <p><strong>Done when:</strong> the receipts recorder emits per-interval query
     and hit deltas and an interval ratio alongside the retained cumulative

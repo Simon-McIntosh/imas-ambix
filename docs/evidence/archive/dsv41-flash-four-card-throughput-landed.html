@@ -140,13 +140,23 @@
     every resolution, so it is left running through the swap and the lane reading
     follows the new serve within one interval.</p>
 
-    <p>The survey was not careless. <code>generate_lane_refresher_script</code>
-    is still in <code>slurm.py</code> arguing for the separate job in exactly
-    those terms, while nothing calls it and the router's comment argues the
-    opposite case and won. Two rationales for opposite designs sit in one
-    codebase and the superseded one still reads as authoritative, so a question
-    aimed at the source returned a true statement about dead code. The dead
-    generator is removed as part of the swap preparation.</p>
+    <p>The survey was not careless, and a first attempt at this correction was
+    itself wrong. <code>generate_lane_refresher_script</code> is still in
+    <code>slurm.py</code> arguing for the separate job in exactly those terms,
+    and it is <em>reachable</em> &mdash; <code>agent lane --submit --refresh N</code>
+    calls it and submits a standing <code>ambix-lane</code> job. It is a
+    supported path, not dead code, and an earlier note here proposing to delete
+    it would have removed a live CLI feature.</p>
+
+    <p>The codebase therefore carries two publication mechanisms whose
+    docstrings argue against each other, and the one in use is not the one that
+    argues hardest: <code>router.py</code> makes the opposing case, cites the
+    reservation core the separate job wasted, and is what runs. A question aimed
+    at the source returned a true answer about the mechanism that is
+    <em>available</em> rather than the one that is <em>running</em>. The
+    swap-time consequence is a precondition rather than a deletion: require
+    <code>squeue</code> to show no <code>ambix-lane</code> job before swapping,
+    and stop one by exact id if it has appeared.</p>
 
     <h2 id="evaluation-pool-setting">§2b — The load-proven evaluation pool is a named serve selection</h2>
 
