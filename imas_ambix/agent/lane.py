@@ -19,9 +19,11 @@ only refuse work the engine would have taken.
 
 from __future__ import annotations
 
+import gzip
 import json
 import re
 import urllib.request
+import zlib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -407,7 +409,20 @@ def fetch_lane_capacity(origin: str, *, timeout: float = 10.0) -> LaneCapacity:
     request = urllib.request.Request(target, method="GET")
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     with opener.open(request, timeout=timeout) as response:
-        body = response.read().decode("utf-8", "replace")
+        body = response.read()
+        encodings = [
+            encoding.strip().lower()
+            for encoding in response.headers.get("Content-Encoding", "").split(",")
+            if encoding.strip()
+        ]
+    for encoding in reversed(encodings):
+        if encoding in {"gzip", "x-gzip"}:
+            body = gzip.decompress(body)
+        elif encoding == "deflate":
+            body = zlib.decompress(body)
+        else:
+            raise ValueError(f"unsupported metrics content encoding: {encoding}")
+    body = body.decode("utf-8", "replace")
     return parse_lane_capacity(body)
 
 
