@@ -679,6 +679,36 @@ def generate_serve_script(
         export TMPDIR=/scratch_local/$SLURM_JOB_ID
         mkdir -p "$TMPDIR"
 
+        # Reclaim KV-offload buffers orphaned by an earlier serve.
+        #
+        # The offload store is a file in /dev/shm, not ordinary heap, so it is
+        # bounded by that tmpfs (756 GiB here, half of RAM) rather than by the
+        # job's --mem, and a cancelled serve leaves its buffer behind: measured
+        # 2026-09-15, a 128 GiB file survived the scancel with no process
+        # holding it. Nothing else reclaims these -- the node is not rebooted
+        # between serves -- so without this sweep each restart permanently
+        # consumes its own buffer's worth of shared memory and the NEXT restart
+        # fails at KV-connector init with "Insufficient space in /dev/shm".
+        # The failure is far from its cause: the buffer that fills the tmpfs
+        # belongs to a job that ended, and the job that dies is innocent.
+        #
+        # Scoped by ownership and by whether anything still maps the file, so a
+        # concurrently serving profile's buffer is left alone. A file we do not
+        # own is skipped before the holder test rather than relying on rm to
+        # fail, and an unreadable /proc entry (another user's process) cannot
+        # make a held file look free, because that file failed the -O test.
+        for _buf in /dev/shm/vllm_offload_*.mmap; do
+            [ -e "$_buf" ] || continue
+            [ -O "$_buf" ] || continue
+            if grep -qF "$(basename "$_buf")" /proc/*/maps 2>/dev/null; then
+                echo "offload buffer in use, leaving: $_buf"
+            else
+                echo "reclaiming orphaned offload buffer: $_buf"
+                rm -f "$_buf"
+            fi
+        done
+        df -h /dev/shm
+
         {sidecar_block}
 
         {api_key_block}
@@ -948,7 +978,7 @@ def generate_router_script(
         ]
     )
     probe_export = (
-        'export AMBIX_ROUTER_PREFIX_PROBE=1   # prompt-prefix divergence probe'
+        "export AMBIX_ROUTER_PREFIX_PROBE=1   # prompt-prefix divergence probe"
         if prefix_probe
         else "# prefix probe off"
     )

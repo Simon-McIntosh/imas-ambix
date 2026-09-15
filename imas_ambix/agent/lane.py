@@ -75,6 +75,19 @@ class LaneCapacity:
     # follows is itself what evicts the next session's prefix.
     OCCUPANCY_TARGET = 0.5
 
+    def budget_for(self, mean_context: int | None) -> int:
+        """The advertised figure for a given working context, in one place.
+
+        Separated from the reading so the instantaneous mean and a windowed one
+        go through identical arithmetic. Two call sites computing "the same"
+        ceiling from different code is how a published figure and the advice
+        derived from it silently diverge, which happened here once already.
+        """
+        if mean_context is None or mean_context <= 0:
+            return self.max_concurrent
+        usable = int(self.pool_tokens * self.OCCUPANCY_TARGET)
+        return max(1, min(usable // mean_context, self.max_concurrent))
+
     @property
     def concurrent_requests(self) -> int | None:
         """Advertised capacity: the lesser of pool arithmetic and the ceiling.
@@ -93,11 +106,7 @@ class LaneCapacity:
         stall a ramp permanently while one treating it as a green light is right
         only by luck.
         """
-        mean = self.mean_context
-        if mean is None or mean <= 0:
-            return self.max_concurrent
-        usable = int(self.pool_tokens * self.OCCUPANCY_TARGET)
-        return max(1, min(usable // mean, self.max_concurrent))
+        return self.budget_for(self.mean_context)
 
     @property
     def headroom(self) -> int | None:
@@ -157,8 +166,7 @@ class LaneCapacity:
             lines.append(f"headroom        {self.headroom} more")
         if self.binding_observed:
             lines.append(
-                "STATUS          SATURATED — the engine is preempting and "
-                "recomputing"
+                "STATUS          SATURATED — the engine is preempting and recomputing"
             )
         elif self.waiting > 0:
             lines.append(
@@ -171,6 +179,102 @@ class LaneCapacity:
                 "extrapolation, not a measured limit"
             )
         return "\n".join(lines)
+
+
+@dataclass(frozen=True, slots=True)
+class LaneWindow:
+    """Several consecutive readings, because one ratio is not a level.
+
+    ``mean_context`` divides a pool-resident token count by an INSTANTANEOUS
+    request count, so it carries that count's sampling noise multiplied by
+    whatever the numerator happens to be, and the noise is worst exactly where
+    the denominator is smallest. Measured 2026-09-15 by two sessions
+    independently: four readings inside one 120 s shelf life gave mean contexts
+    of 19k, 247k, 14k and 51k, so the derived budget read 125, 1, 82 and 7.
+    Every one of them was current -- this is not staleness, and no shelf life
+    can express it. A wave sized from any single sample is sized from a figure
+    that will be wrong within a minute in EITHER direction, which is what makes
+    it different from the settling error: too low stalls a fleet, too high is
+    the failure this module exists to prevent.
+
+    The median is the estimator rather than the arithmetic mean because the
+    excursions are spikes rather than a symmetric spread -- one 247k sample
+    moves an average far more than it moves a median, and it is precisely the
+    sample least likely to describe the next minute.
+
+    The window does NOT replace ``settling``. They answer different questions
+    and can disagree: settling asks whether the quantity was still moving in one
+    direction when it was read, volatility asks whether repeated reads of a
+    steady fleet land in the same place. A ramp is settling and not volatile; a
+    lane whose request count flickers between polls is volatile and not
+    settling. Both make the published figure an upper bound, for different
+    reasons.
+    """
+
+    readings: tuple[LaneCapacity, ...]
+
+    @property
+    def latest(self) -> LaneCapacity:
+        """The most recent reading; the window is never empty by construction."""
+        return self.readings[-1]
+
+    @property
+    def defined_means(self) -> tuple[int, ...]:
+        """Working contexts from readings that had traffic to measure.
+
+        An idle reading contributes nothing rather than a zero. Folding "no
+        traffic" in as a small context would drag the median toward a large
+        budget, which is the generous direction every measurement error on this
+        lane has already run in.
+        """
+        return tuple(
+            sorted(mean for r in self.readings if (mean := r.mean_context) is not None)
+        )
+
+    @property
+    def mean_context(self) -> int | None:
+        """Median working context across the window, or None when all idle."""
+        means = self.defined_means
+        if not means:
+            return None
+        return means[len(means) // 2]
+
+    @property
+    def spread(self) -> tuple[int, int] | None:
+        """Smallest and largest working context in the window.
+
+        Published rather than reduced away: a reader that can see 14k to 247k
+        knows to distrust any single figure derived from it, and a reader given
+        only the median cannot tell a quiet lane from a thrashing one.
+        """
+        means = self.defined_means
+        if not means:
+            return None
+        return means[0], means[-1]
+
+    # A window whose extremes differ by more than this is reporting noise, not a
+    # level. Set at 2.0 because the measured excursions were seventeenfold and a
+    # doubling is already far beyond what a steady fleet produces between polls;
+    # it is a threshold for flagging, never for refusing.
+    VOLATILITY_RATIO = 2.0
+
+    @property
+    def is_volatile(self) -> bool:
+        """Whether repeated reads of this lane disagree enough to distrust one."""
+        bounds = self.spread
+        if bounds is None or len(self.defined_means) < 2 or bounds[0] <= 0:
+            return False
+        return bounds[1] / bounds[0] > self.VOLATILITY_RATIO
+
+    @property
+    def concurrent_requests(self) -> int:
+        """Advertised capacity, from the windowed context rather than the last."""
+        return self.latest.budget_for(self.mean_context)
+
+    @property
+    def headroom(self) -> int:
+        """Additional requests before the windowed budget is reached."""
+        return max(0, self.concurrent_requests - self.latest.running)
 
 
 def parse_lane_capacity(metrics: str) -> LaneCapacity:
@@ -319,14 +423,26 @@ def write_lane_document(
     *,
     settling: bool | None = None,
     refresh_interval: int = 30,
+    window: LaneWindow | None = None,
 ) -> Path:
     """Publish the reading so a session need not probe the engine to size work.
 
     Published rather than configured, and stamped, because a record carrying no
     observation time cannot be distinguished from a current one -- which is how
     a stale verdict gets read forward as a live fact.
+
+    ``concurrent_requests`` and ``headroom`` are published from ``window`` when
+    one is supplied, because a single sample of this particular ratio is not a
+    level -- see ``LaneWindow``. The instantaneous figures are published beside
+    them rather than dropped: a reader comparing the two can see how much the
+    smoothing moved, and a reader debugging a specific moment still has the
+    number that moment produced.
     """
     from datetime import UTC, datetime
+
+    if window is None:
+        window = LaneWindow(readings=(capacity,))
+    spread = window.spread
 
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -338,10 +454,24 @@ def write_lane_document(
         "waiting": capacity.waiting,
         "kv_occupancy": round(capacity.kv_occupancy, 4),
         "preemptions": capacity.preemptions,
-        "mean_context": capacity.mean_context,
-        "concurrent_requests": capacity.concurrent_requests,
-        "headroom": capacity.headroom,
+        "mean_context": window.mean_context,
+        "concurrent_requests": window.concurrent_requests,
+        "headroom": window.headroom,
         "binding_observed": capacity.binding_observed,
+        # What this sample alone said, kept beside the smoothed figure. Sizing
+        # from these is the defect the window exists to fix; they are here so
+        # the smoothing is auditable rather than invisible.
+        "mean_context_instant": capacity.mean_context,
+        "concurrent_requests_instant": capacity.concurrent_requests,
+        "headroom_instant": capacity.headroom,
+        # The evidence for distrusting any one figure, published rather than
+        # reduced away. A reader seeing 14,000 to 247,000 here knows what the
+        # median is standing in for; a reader given only the median cannot tell
+        # a settled lane from a flickering one.
+        "mean_context_spread": list(spread) if spread is not None else None,
+        "window_samples": len(window.readings),
+        "window_seconds": len(window.readings) * refresh_interval,
+        "volatile": window.is_volatile,
         # Validity lives in its own field, never in the figure. `0` and `null`
         # are both falsy, so a reader writing `if not headroom` collapses "the
         # lane is full" into "we could not measure" -- opposite facts. Checking
@@ -355,12 +485,16 @@ def write_lane_document(
         # derived figure here names what it was divided by.
         "derived_from": {
             "pool_tokens": capacity.pool_tokens,
-            "mean_context": capacity.mean_context,
+            "mean_context": window.mean_context,
+            "occupancy_target": LaneCapacity.OCCUPANCY_TARGET,
             "running_at_observation": capacity.running,
             "formula": (
-                "concurrent_requests = pool_tokens // mean_context; "
-                "mean_context = pool_tokens * kv_occupancy / running; "
-                "headroom = concurrent_requests - running"
+                "concurrent_requests = "
+                "(pool_tokens * occupancy_target) // mean_context, "
+                f"capped at {capacity.max_concurrent}; "
+                "mean_context = MEDIAN over the window of "
+                "(pool_tokens * kv_occupancy / running); "
+                "headroom = concurrent_requests - running_at_observation"
             ),
         },
         # The budget collapses within the first minute of a wave dispatching.
@@ -391,7 +525,12 @@ def write_lane_document(
         # headroom, so the unknown case resolves that way too: when it cannot
         # be established that the quantity has stopped moving, say the figure
         # is a bound rather than a value.
-        "headroom_is_upper_bound": settling is not False,
+        #
+        # Volatility resolves the same way and for the same reason. A window
+        # spanning 14k to 247k tokens cannot support a firm figure whichever
+        # estimator is used, and the median of a noisy sample is still a
+        # summary of noise.
+        "headroom_is_upper_bound": settling is not False or window.is_volatile,
         "settling_caveat": (
             "a reading taken within ~60s of a dispatch reports the fleet at its "
             "lightest; prefer a pre-dispatch reading"

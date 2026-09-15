@@ -7,6 +7,8 @@ import json
 import pytest
 
 from imas_ambix.agent.lane import (
+    LaneCapacity,
+    LaneWindow,
     classify_reading,
     detect_settling,
     parse_lane_capacity,
@@ -168,7 +170,14 @@ def test_published_document_names_its_own_denominators(tmp_path):
     assert derived["pool_tokens"] == _POOL
     assert derived["mean_context"] == document["mean_context"]
     assert derived["running_at_observation"] == 10
-    assert "pool_tokens // mean_context" in derived["formula"]
+    assert "(pool_tokens * occupancy_target) // mean_context" in derived["formula"]
+    # The occupancy target is a denominator too, and it was the one the recorded
+    # formula omitted: the published figure has always been halved by it, so a
+    # reader re-deriving from the stated arithmetic got twice the real budget.
+    # Naming pool and context while silently dropping the factor between them is
+    # the exact failure this test exists to catch.
+    assert derived["occupancy_target"] == LaneCapacity.OCCUPANCY_TARGET
+    assert "MEDIAN over the window" in derived["formula"]
 
 
 def test_shelf_life_is_declared_for_the_reader_not_enforced_by_the_producer():
@@ -212,7 +221,7 @@ def test_zero_headroom_and_unmeasurable_are_distinguishable(tmp_path):
 
 
 def test_a_stale_reading_keeps_its_figure_rather_than_becoming_unavailable(tmp_path):
-    """"Measured 15 four minutes ago" and "could not measure" differ."""
+    """ "Measured 15 four minutes ago" and "could not measure" differ."""
     from datetime import UTC, datetime, timedelta
 
     capacity = parse_lane_capacity(_metrics(running=10, occupancy=0.267))
@@ -263,14 +272,14 @@ def test_a_settling_reading_publishes_headroom_as_an_upper_bound(tmp_path):
     capacity = parse_lane_capacity(_metrics(running=19, occupancy=0.1346))
 
     settling = json.loads(
-        write_lane_document(
-            capacity, tmp_path / "s.json", settling=True
-        ).read_text(encoding="utf-8")
+        write_lane_document(capacity, tmp_path / "s.json", settling=True).read_text(
+            encoding="utf-8"
+        )
     )
     settled = json.loads(
-        write_lane_document(
-            capacity, tmp_path / "q.json", settling=False
-        ).read_text(encoding="utf-8")
+        write_lane_document(capacity, tmp_path / "q.json", settling=False).read_text(
+            encoding="utf-8"
+        )
     )
 
     assert settling["settling"] is True
@@ -289,14 +298,14 @@ def test_unknown_settling_publishes_headroom_as_a_bound_not_a_figure(tmp_path):
     capacity = parse_lane_capacity(_metrics(running=22, occupancy=0.141))
 
     unknown = json.loads(
-        write_lane_document(
-            capacity, tmp_path / "u.json", settling=None
-        ).read_text(encoding="utf-8")
+        write_lane_document(capacity, tmp_path / "u.json", settling=None).read_text(
+            encoding="utf-8"
+        )
     )
     settled = json.loads(
-        write_lane_document(
-            capacity, tmp_path / "s.json", settling=False
-        ).read_text(encoding="utf-8")
+        write_lane_document(capacity, tmp_path / "s.json", settling=False).read_text(
+            encoding="utf-8"
+        )
     )
 
     assert unknown["settling"] is None
@@ -369,3 +378,99 @@ def test_the_shelf_life_follows_the_publishing_cadence():
             )
             document = json.loads(written.read_text(encoding="utf-8"))
             assert document["suggested_shelf_life_seconds"] == expected
+
+
+def test_windowed_budget_survives_an_excursion_a_single_sample_cannot():
+    """One sample of this ratio is not a level.
+
+    The four readings below are what two sessions independently measured on
+    2026-09-15 inside a single 120-second shelf life, with every one of them
+    current. Sized from any single sample the budget reads 57, 4, 78 or 21 --
+    a seventeenfold swing in a figure a coordinator uses to size a wave, where
+    too low stalls a fleet and too high is the failure the module exists to
+    prevent.
+    """
+    readings = tuple(
+        parse_lane_capacity(_metrics(running=10, occupancy=mean * 10 / _POOL))
+        for mean in (19_000, 247_000, 14_000, 51_000)
+    )
+    window = LaneWindow(readings=readings)
+
+    instant = [r.concurrent_requests for r in readings]
+    assert max(instant) / min(instant) > 10, instant
+
+    # The median lands inside the samples, not at either extreme.
+    assert window.mean_context == 51_000
+    assert min(instant) < window.concurrent_requests < max(instant)
+
+    # And it declares that it is summarising noise rather than reporting a level.
+    assert window.is_volatile is True
+    assert window.spread == (14_000, 247_000)
+
+
+def test_a_steady_lane_is_not_flagged_volatile():
+    """The flag must discriminate, or it is decoration.
+
+    A threshold that fires on ordinary variation trains its reader to ignore
+    it, which is worse than not publishing it.
+    """
+    window = LaneWindow(
+        readings=tuple(
+            parse_lane_capacity(_metrics(running=10, occupancy=mean * 10 / _POOL))
+            for mean in (80_000, 84_000, 79_000, 82_000)
+        )
+    )
+
+    assert window.is_volatile is False
+    assert window.spread == (79_000, 84_000)
+
+
+def test_idle_readings_do_not_drag_the_window_toward_a_large_budget():
+    """An idle sample contributes nothing rather than a zero context.
+
+    Folding "no traffic" in as a small mean would inflate the budget, which is
+    the generous direction every measurement error on this lane has run in.
+    """
+    idle = parse_lane_capacity(_metrics(running=0, occupancy=0.0))
+    busy = parse_lane_capacity(_metrics(running=10, occupancy=90_000 * 10 / _POOL))
+
+    assert LaneWindow(readings=(idle, busy)).mean_context == 90_000
+    # All-idle stays undefined, and the budget falls back to the safety ceiling
+    # rather than to an extrapolation from nothing.
+    all_idle = LaneWindow(readings=(idle,))
+    assert all_idle.mean_context is None
+    assert all_idle.concurrent_requests == idle.max_concurrent
+
+
+def test_document_publishes_the_instantaneous_figures_beside_the_smoothed_one():
+    """Smoothing must be auditable, not invisible.
+
+    A reader debugging one moment still needs the number that moment produced;
+    a reader checking the smoothing needs both to compare.
+    """
+    import tempfile
+    from pathlib import Path
+
+    spike = parse_lane_capacity(_metrics(running=10, occupancy=247_000 * 10 / _POOL))
+    window = LaneWindow(
+        readings=tuple(
+            parse_lane_capacity(_metrics(running=10, occupancy=mean * 10 / _POOL))
+            for mean in (19_000, 247_000, 14_000, 51_000)
+        )
+    )
+
+    with tempfile.TemporaryDirectory() as scratch:
+        path = write_lane_document(
+            spike, Path(scratch) / "lane.json", window=window, refresh_interval=30
+        )
+        document = json.loads(path.read_text(encoding="utf-8"))
+
+    assert document["mean_context"] == 51_000
+    assert document["mean_context_instant"] == 247_000
+    assert document["concurrent_requests"] != document["concurrent_requests_instant"]
+    assert document["mean_context_spread"] == [14_000, 247_000]
+    assert document["window_samples"] == 4
+    assert document["window_seconds"] == 120
+    assert document["volatile"] is True
+    # Volatility alone marks the figure a bound, independent of settling.
+    assert document["headroom_is_upper_bound"] is True

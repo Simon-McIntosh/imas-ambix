@@ -224,18 +224,34 @@ max_num_batched_tokens = 32768
 # trap (the buffer never filled) and a structural block in the read path (819
 # lookups say it is taken). Neither survived the counters.
 #
+# THE BUFFER IS A FILE IN /dev/shm, NOT HEAP, so the binding constraint is that
+# tmpfs and NOT the job's --mem. Measured 2026-09-15: a 768 GiB request died at
+# KV-connector init with "Insufficient space in /dev/shm: 786431 MiB required,
+# 591923 MiB free" inside a job holding 1000G. The tmpfs is 756 GiB -- half of
+# RAM, as tmpfs defaults -- so 768 was never satisfiable here at any --mem, and
+# reading the flag as ordinary memory is what made an impossible value look
+# generous. Raising --mem does not raise this ceiling.
+#
+# The node is shared and not rebooted between serves, so the free figure is
+# live state: other users held ~50 GiB, and a cancelled serve of ours had left
+# its own 128 GiB buffer behind with no process holding it. The serve script
+# now sweeps those before launch; without it each restart consumes its buffer
+# permanently and the NEXT one fails, which is a failure that appears one
+# restart away from its cause.
+#
 # SIZING. The host tier must exceed the 70.01 GiB GPU pool by a real multiple,
 # not marginally, or it evicts almost as fast and buys nothing:
-#   768 GiB / 2 groups = 384 GiB effective, 5.5x the GPU pool
-#   768 GiB / 4 groups = 192 GiB effective, 2.7x
-#   768 GiB / 8 groups =  96 GiB effective, 1.4x  <- marginal
+#   512 GiB / 2 groups = 256 GiB effective, 3.7x the GPU pool
+#   512 GiB / 4 groups = 128 GiB effective, 1.8x
+#   512 GiB / 8 groups =  64 GiB effective, 0.9x  <- below the pool, useless
 # The group count for this checkpoint is not exposed in its logs, metric labels
 # or config, so the restart measures it: CPU_to_GPU leaving zero says the
-# diagnosis holds and the buffer is now large enough.
+# diagnosis holds and the buffer is now large enough. Staying at exactly zero
+# says it does not, and the feature comes out rather than being resized again.
 #
-# Sized inside a 1000G job, leaving ~175G for the runtime against a measured
-# non-buffer working set far below that.
-kv_offloading_size = 768
+# 512 leaves ~195 GiB of the swept tmpfs for NCCL, PSM and the peers who share
+# it, against a serve whose own non-buffer shm use is tens of GiB.
+kv_offloading_size = 512
 
 [engine.env]
 # Route top-k/top-p sampling around the FlashInfer TopKMaskLogits kernel, which
@@ -259,7 +275,11 @@ reasoning = "deepseek_v4"
 [slurm]
 gpus = 4
 cpus = 12
-memory = "1000G"
+# 512 GiB of this is the /dev/shm offload buffer above; tmpfs pages are charged
+# to the job's cgroup, so --mem must cover the buffer AND the runtime. The
+# four-card serve ran on 400G against a 128 GiB buffer, so ~270 GiB is the
+# measured runtime need, and 800G carries 512 + that with margin.
+memory = "800G"
 port = 18800
 time_serve = "0"
 time_download = "24:00:00"

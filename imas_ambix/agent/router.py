@@ -306,14 +306,12 @@ class RouterApp:
             if not isinstance(messages, list):
                 return
             flat = json.dumps(messages, separators=(",", ":"), sort_keys=False)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return
         digests = []
         for depth in (512, 2048, 8192, 32768, 131072):
             chunk = flat[:depth]
-            digests.append(
-                f"{depth}:{hashlib.sha256(chunk.encode()).hexdigest()[:8]}"
-            )
+            digests.append(f"{depth}:{hashlib.sha256(chunk.encode()).hexdigest()[:8]}")
             if len(flat) <= depth:
                 break
         logger.info(
@@ -345,13 +343,23 @@ class RouterApp:
         serving requests to keep a metrics file current would have inverted its
         own purpose.
         """
+        from collections import deque
+
         from imas_ambix.agent.lane import (
+            LaneWindow,
             detect_settling,
             parse_lane_capacity,
             write_lane_document,
             write_unavailable_document,
         )
 
+        # Five samples, so the published budget rests on ~2.5 minutes at the
+        # default cadence rather than on one draw. The window is what makes the
+        # figure a level instead of a ratio caught mid-flicker; the length is a
+        # trade the reader should know about, since a genuine ramp is reported
+        # late by up to that span. `settling` and `volatile` both cover that gap
+        # by marking the figure an upper bound, which is the safe direction.
+        readings: deque = deque(maxlen=5)
         previous = None
         while True:
             try:
@@ -365,15 +373,21 @@ class RouterApp:
                 capacity = parse_lane_capacity(body)
             except (aiohttp.ClientError, OSError, RuntimeError, ValueError) as error:
                 write_unavailable_document(str(error), self._lane_document)
+                # Both histories are dropped, not just the last sample. A window
+                # spanning an outage would average across a gap of unknown
+                # length and publish it as a continuous measurement.
+                readings.clear()
                 previous = None
             except asyncio.CancelledError:
                 raise
             else:
+                readings.append(capacity)
                 write_lane_document(
                     capacity,
                     self._lane_document,
                     settling=detect_settling(previous, capacity),
                     refresh_interval=self._lane_interval,
+                    window=LaneWindow(readings=tuple(readings)),
                 )
                 previous = capacity
             await asyncio.sleep(self._lane_interval)
