@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-15T18:55:18",
+  "updated": "2026-09-15T19:49:33",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -669,6 +669,15 @@
         }
       },
       {
+        "id": "h200-serving-recipe",
+        "harness": "codex-terra",
+        "role": "investigate",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-09-15"
+      },
+      {
         "created": "2026-08-19",
         "harness": "codex",
         "id": "harmonic-anchor-wiring",
@@ -699,6 +708,15 @@
         "id": "ip-channel-audit",
         "role": "implement",
         "session_id": "01a01bc6-694d-79a2-b4f4-456f85311d6b"
+      },
+      {
+        "id": "lane-config-reconcile",
+        "harness": "codex-terra",
+        "role": "implement",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-09-15"
       },
       {
         "created": "2026-08-20",
@@ -1195,6 +1213,17 @@
         "id": "pressure-closure",
         "role": "implement",
         "session_id": null
+      },
+      {
+        "id": "profile-default-pool",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": "01a0a61a-34dc-7560-b5fb-483467900fd2",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "{\"alias\":\"sol5.6\",\"backend\":\"codex\",\"effort\":\"high\",\"launch\":\"cli\",\"model\":\"gpt-5.6-sol\",\"sandbox\":\"worktree-full\"}": "01a0a61a-34dc-7560-b5fb-483467900fd2"
+        },
+        "created": "2026-09-15"
       },
       {
         "created": "2026-08-13",
@@ -33670,6 +33699,205 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260915T172513420092-profile-default-pool",
+        "plan": "dsv41-flash-four-card-throughput",
+        "section": "\u00a72b",
+        "node": "profile-default-pool",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 4375,
+                "cached_input_tokens": 416605,
+                "input_tokens": 420982,
+                "output_tokens": 302,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 421284,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "2f9d3191-e884-4a53-99ab-b894325cccbd",
+            "session_id": "dsv41-four-card-20260915"
+          },
+          "done_when": "imas-ambix agent serve deepseek-v4-1-flash --dry-run emits --max-total-tokens 14999808 and a SLURM job name containing no @ character. The [settings.evaluation.engine] block is gone from imas_ambix/agent/profiles/deepseek-v4-1-flash.toml with its max_total_tokens value moved to the plain [engine] default, replacing 3485952. The settings field, the for_setting method and the slug@setting parsing added to imas_ambix/agent/profile.py are removed, so load_profile no longer accepts an @ selector at all; grep for for_setting and for settings. across imas_ambix and tests must return nothing. tests/test_agent_evaluation_pool.py is rewritten to assert only that the plain profile resolves 14999808 and that a dry run carries it, or deleted if that is covered elsewhere; no test may reference the selector. Keep the profile comment explaining why 20,000,000 is rejected and why this pool is the load-proven one, moved to sit with the default. This is a deliberate revert of a mechanism built for a framing the lead has since dropped, so removing it is the goal rather than a regression. Gate: uv run --no-sync ruff check imas_ambix tests exits 0 and pytest -p no:cacheprovider over tests/test_agent_evaluation_pool.py if it survives plus tests/agent/test_profile.py adds no failures against base; three failures in tests/test_agent_dspark_profile.py are known and out of scope. Seconds-long, login node fine; start no serve and submit no SLURM job.",
+          "estimated_hours": null,
+          "goal": "The committed V4.1 profile serves the load-proven 14,999,808 pool as its plain default, with the named-setting selector mechanism removed entirely",
+          "id": "profile-default-pool",
+          "lane_declaration": {
+            "backend": "codex",
+            "headroom": "known",
+            "metered": true,
+            "observed_at": "2026-09-15T17:25:14Z",
+            "read_at": "2026-09-15T17:25:14Z",
+            "resolved_backend": "codex",
+            "utilisation_pct": 52.0
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "backend declares no lane document",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260915T172513420092-profile-default-pool/manifest.md",
+          "plan": "dsv41-flash-four-card-throughput",
+          "requested_backend": "codex",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a72b",
+          "spec_level": "exact",
+          "time_budget": "20m",
+          "token_budget": null,
+          "write_paths": [
+            "imas_ambix/agent/profiles/deepseek-v4-1-flash.toml",
+            "imas_ambix/agent/profile.py",
+            "tests/test_agent_evaluation_pool.py",
+            "docs/evidence/archive/dsv41-flash-four-card-throughput-landed.html",
+            "docs/plans/dsv41-flash-four-card-throughput.html"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "profile-default-pool",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-15T17:25:29Z",
+        "completed_at": "2026-09-15T17:41:21Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 952,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 952,
+        "stalled": false,
+        "time_budget": "20m",
+        "base_sha": "9bb8dab90a27d9664590fcd2d2a672ee54284bc0",
+        "commits": [
+          "12ca793e7b3d6130595dba02ebdf30a98804a5a5",
+          "50ef7d342915503bb70a35bd67bac81aef766523"
+        ],
+        "changed_lines": {
+          "added": 77,
+          "removed": 73,
+          "files": 5
+        },
+        "tests_added": 0,
+        "gate": "passed",
+        "gate_check": {
+          "command": "imas-ambix agent serve deepseek-v4-1-flash --dry-run plus pytest tests/test_agent_evaluation_pool.py tests/agent/test_profile.py and ruff check imas_ambix tests",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260915T172513420092-profile-default-pool/after-default-dry-run.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "The 14,999,808 pool is the profile's plain default and the selector mechanism is gone: agent serve deepseek-v4-1-flash emits job-name=deepseek-v4-1-flash with no @ and --max-total-tokens 14999808, the selector probe now fails with FileNotFoundError as intended, and a source scan finds no remaining reference. Net 73 deletions against 24 insertions, so a real removal rather than a rename. 5/5 tests, ruff clean, zero added failures.",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260915T172513420092-profile-default-pool/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a0a61a-34dc-7560-b5fb-483467900fd2",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 8418048,
+            "cached_input_tokens_cumulative": 8418048,
+            "input_tokens": 8577354,
+            "input_tokens_cumulative": 8577354,
+            "output_tokens": 29631,
+            "output_tokens_cumulative": 29631,
+            "reasoning_output_tokens": 7252,
+            "reasoning_output_tokens_cumulative": 7252
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lane_receipt": {
+          "quota_state": "measured",
+          "observed_at": "2026-09-15T17:41:21Z",
+          "effective_context_window": 380000,
+          "quota_windows": [
+            {
+              "window_minutes": 10080,
+              "used_percent": 53.0,
+              "resets_at": 1789970251,
+              "observed_at": "2026-09-15T17:41:21Z"
+            }
+          ],
+          "notional_cost_usd": 34.902,
+          "rate_basis": {
+            "model_identifier": "gpt-5.6-sol",
+            "input_per_million": 4.0,
+            "output_per_million": 20.0,
+            "as_of": "2026-09-09"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": null,
+        "throughput": {
+          "cumulative_cached_input_tokens": 8418048,
+          "cumulative_input_tokens": 8577354,
+          "detail": "model span bounded from the client rollout's tool spans; input cumulative summed across resets",
+          "generated_tokens": 36883,
+          "generation_seconds": 913.343,
+          "machine_seconds": 37.256,
+          "tokens_per_second": 40.38
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest -p",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/dsv41-four-card-20260915/profile-default-pool",
+          "session_id": "01a0a61a-34dc-7560-b5fb-483467900fd2",
+          "session_source": "pointer",
+          "retained_at": "2026-09-15T17:41:21Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "tool_steps": 76.0,
+        "orientation_input_tokens": null,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -33716,6 +33944,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 619
+    "_version": 624
   }
 }
