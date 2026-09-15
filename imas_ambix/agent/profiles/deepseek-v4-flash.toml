@@ -74,28 +74,33 @@ max_total_tokens = 1048576
 # and lives OUTSIDE this fraction — free memory after startup is not the
 # margin, it is the margin before the largest allocation the serve will make.
 #
-# Raised back to 0.92 on 2026-09-15, deliberately and with its ceiling stated.
+# Held at 0.85. A raise to 0.92 was drafted on 2026-09-15 and withdrawn before
+# it ran, for the same reason the scheduler-budget change was withdrawn: one
+# restart is available and a worse outcome must have as few candidate
+# explanations as possible.
 #
-# 0.85 was chosen when the pool looked oversized -- occupancy sat at 3-7% and the
-# workspace was starving. Under real fleet load the opposite is true: the pool is
-# the constraint, because a prefix evicted before its session's next turn is
-# recomputed, and recomputation is what evicts the next session's prefix. More
-# pool means longer residency and fewer of those collisions.
+# The case for raising it was that a larger pool keeps a session's prefix
+# resident across its own turn gap. The case against is that kv_offloading_size
+# below already does that, by giving an evicted block somewhere to go instead of
+# being recomputed -- so the device pool buys much less residency alongside the
+# offload than it would alone, while carrying the full crash risk measured here:
+# at 0.92 this serve died at 256 concurrent, CUDA out of memory asking 1.51 GiB
+# with 1.19 GiB free, because the fused-MoE workspace allocates lazily at
+# generation and lives outside this fraction.
 #
-# THE CEILING THIS BUYS BACK IS MEASURED, NOT ASSUMED. At 0.92 this serve carried
-# 128 concurrent requests cleanly at 1451 tok/s and DIED at 256: CUDA out of
-# memory asking 1.51 GiB with 1.19 GiB free, 141 running. The fused-MoE workspace
-# is allocated lazily at generation and scales with concurrency, outside this
-# fraction, so free memory after startup is not the margin -- it is the margin
-# before the largest allocation the serve will make.
+# A peer additionally observed a 17% cumulative hit rate at 0.92 against 28.2% at
+# 0.85 and argued the larger pool was worse. That comparison is inconclusive
+# rather than decisive -- both are cumulative counters over different eras, fleet
+# sizes and workloads, and this serve's recent delta rate (21-23%) runs BELOW its
+# own cumulative (28.6%). It is recorded because it is the honest state of the
+# evidence: uncertain benefit against a measured risk.
 #
-# So this value is only safe while fleet concurrency stays well under 128. The
-# observed real-fleet peak is 36 concurrent requests, a 3.5x margin. It is NOT
-# enforced anywhere: if a dispatch cap is ever removed, or a synthetic sweep is
-# pointed at this endpoint, return to 0.85 first. vLLM's startup offer of
-# `--kv-cache-memory=82366410240` (76.71 GiB, "to fully utilize gpu memory") is
-# still refused -- it leaves no workspace margin at any concurrency.
-mem_fraction_static = 0.92
+# What does NOT support keeping 0.85 is occupancy. `kv_cache_usage_perc` is
+# 1 - free_blocks/total, and vLLM keeps cached-but-unreferenced blocks in the
+# FREE queue as eviction candidates (block_pool.py:44, 146, 711). So a pool at
+# 50% "usage" may be entirely full of reusable cache about to be destroyed:
+# occupancy is not cache residency, and no vLLM metric reports the latter.
+mem_fraction_static = 0.85
 kv_cache_dtype = "fp8"
 # Upstream recipe flags for this checkpoint family (recipes.vllm.ai + the
 # DSpark model card). block_size and tokenizer_mode are the vendor-documented
