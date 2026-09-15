@@ -189,6 +189,56 @@
     describe DSpark and topology expectations for the separate V4-Flash
     profile and do not exercise this V4.1 selection. Whole-tree Ruff passed.</p>
 
+    <h2 id="profile-default-pool">§2b — The load-proven pool is now the plain profile default</h2>
+
+    <p>The named selection above was subsequently removed rather than extended.
+    Its framing no longer describes the intended deployment: the committed
+    V4.1 profile itself must serve the pool that survived the real load sweep,
+    and a generated job identity must not encode a secondary setting.</p>
+
+    <p><strong>The superseded behavior reproduced before removal.</strong> Both
+    dry runs exited zero. The plain profile emitted the smaller pool, while the
+    named selection carried the desired pool and exposed its selector in the
+    SLURM job name:</p>
+
+    <table>
+      <thead>
+        <tr><th>Base dry run</th><th>SLURM job name</th><th>Token pool</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Plain profile</td><td><code>deepseek-v4-1-flash</code></td><td>3,485,952</td></tr>
+        <tr><td>Named selection</td><td><code>deepseek-v4-1-flash@evaluation</code></td><td>14,999,808</td></tr>
+      </tbody>
+    </table>
+
+    <p>Commit <code>12ca793</code> moves <code>14,999,808</code> into the plain
+    <code>[engine]</code> block and removes the named settings field, its
+    resolution method, and selector parsing from the profile loader. The
+    adjacent profile comment retains both empirical bounds: 14,999,808 completed
+    the 32-way sweep with zero OOM, whereas 20,000,000 started and answered
+    light requests before a real prefill lazily allocated the fused-MoE
+    workspace and killed the serve.</p>
+
+    <table>
+      <thead>
+        <tr><th>Post-change check</th><th>Observed result</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Plain profile resolution</td><td><strong>14,999,808 tokens</strong></td></tr>
+        <tr><td>Plain dry-run job name</td><td><code>deepseek-v4-1-flash</code>, with no <code>@</code></td></tr>
+        <tr><td>Plain dry-run engine argument</td><td><code>--max-total-tokens 14999808</code></td></tr>
+        <tr><td>Removed selector</td><td><code>FileNotFoundError</code>, exit 1</td></tr>
+        <tr><td>Focused pytest before / after</td><td>5/5 passed / 5/5 passed; zero added failures</td></tr>
+        <tr><td>Whole-tree Ruff</td><td>exit 0</td></tr>
+      </tbody>
+    </table>
+
+    <p>The focused test now names only the plain profile and proves the generated
+    job line exactly, including the absence of an <code>@</code> suffix. A
+    selector-specific source scan found no remaining <code>for_setting</code>,
+    <code>self.settings</code>, <code>@evaluation</code>, or named TOML settings
+    block anywhere under <code>imas_ambix</code> and <code>tests</code>.</p>
+
     <h2 id="width-binned-receipts">§2b — Receipt intervals now yield width-binned worker metrics</h2>
 
     <p>Commit <code>d108cd7</code> adds
