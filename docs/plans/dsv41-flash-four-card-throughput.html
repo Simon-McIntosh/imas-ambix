@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-15">
-<meta name="plan-version" content="3">
+<meta name="plan-version" content="4">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s2a&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;done&quot;}">
 </head>
 <body>
@@ -315,6 +315,11 @@
     <h4 class="r-gate-measure">Loaded per-worker decode on a V4.1 serve at the 14,999,808 pool under sustained real clive traffic, binned by concurrency width, with the prefill rate and a windowed per-interval prefix-hit distribution recorded in the same bins, compared against the g-baseline-harvested bins.</h4>
     <p class="r-gate-required-evidence">Per-worker tok/s and windowed hit-rate distribution for V4.1 in the same width bins as the V4-Flash harvest, stated as per-interval deltas rather than a cumulative ratio.</p>
     </div>
+</section>
+<section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="s3" data-id="c-run-r-20260915T161636242522-four-card-reuse-map" data-who="four-card-reuse-scout" data-when="2026-09-15T16:26:56Z">
+    <div class="r-comment-body"><p>Reuse map delivered: four of six capabilities reuse existing instruments; two do not exist — the receipts recorder emits a cumulative hit rate by design, reproduced at 0.8253 where the windowed truth is 0.9000, and no joiner bins real clive traffic by concurrency width. Also found agent serve exposes no pool-size option and the standing ambix-lane refresher is a separate SLURM job that profile shutdown will not stop.</p></div>
+</div>
 </section>
 </main>
 </body>
