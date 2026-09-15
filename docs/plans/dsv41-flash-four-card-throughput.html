@@ -583,6 +583,17 @@
     lane block follows the rotation back. The V4-Flash profile in git at plan
     start is the restore point.</p>
 
+    <h3 id="pool-and-hicache">Bounded device pool and host-tier prefix cache landed</h3>
+
+    <p><a href="/imas-ambix/evidence/archive/dsv41-flash-four-card-throughput-landed.html#pool-and-hicache">The cumulative evidence record</a>
+    records the candidate configuration: a 4,000,000-token device pool, a
+    two-times host HiCache tier, selective write-through, and a 480G SLURM
+    request. The pinned image establishes that DeepSeek-V4 rejects a fixed
+    <code>--hicache-size</code> and must be sized with
+    <code>--hicache-ratio</code>. The candidate has not been load-proven:
+    only a long-prefill serve can establish that; it is not launched by this
+    node.</p>
+
     <h2 id="s9">§9 — There is no newer image for this checkpoint, and there cannot be one</h2>
 
     <p><strong>Read this before ever "updating sglang" on this deployment. Doing
@@ -782,6 +793,10 @@
 </div>
 <div class="r-comment" data-section="s8" data-id="c-s8-alias-split" data-who="reckon-ship" data-when="2026-09-15T17:58:30+00:00">
     <div class="r-comment-body">Correction to this section's own done-when, raised by a peer citing reckon's flight schema line 270: alias is the label rendered IN PLACE OF the model identifier, spelling decided by configuration with no schema default. Two of the three keys are deployment properties; alias is a naming decision that merely changes at the same instant. Deriving it would have written the model identifier into the field whose purpose is to replace it. The ledger already carries the drift this prevents: 284 rows pair deepseek-v4-flash with dsv4-flash and 11 pair deepseek-v4.1-flash with dsv4.1-flash, but one row served v4.1 while still labelled dsv4-flash. The inferred-from-config mechanism has therefore already produced a mislabelled row, so the case is measured rather than theoretical.</div>
+</div>
+
+<div class="r-comment" data-section="s9" data-id="c-s9-lineage" data-who="reckon-ship" data-when="2026-09-15T17:58:00+00:00">
+    <div class="r-comment-body">The decisive check was content, not topology. Main's deepseek_v4.py is 170,193 bytes against 211,019 at our commit, and main has no deepseek_v41_vit.py, so main's inability to serve this checkpoint is a fact about files rather than an inference from a commit graph. That distinction mattered: a squash merge makes 15 missing commits look identical to 15 absent features, because behind_by counts commits rather than content. Reading the files is what separated those two possibilities, and the commit graph alone could not have.</div>
 </div>
 <div class="r-comment" data-section="s8" data-id="c-run-r-20260915T175545649237-alias-declared-not-derived" data-who="alias-declared-not-derived" data-when="2026-09-15T17:55:45Z">
     <div class="r-comment-body"><p>The clive refresher now treats alias as a recorded display decision rather than endpoint metadata. The base behavior reproduced: a V4.1 endpoint wrote the long served name into <code>alias</code>, replacing <code>dsv4-flash</code>. The mapping holds <code>deepseek-v4-flash → dsv4-flash</code> and <code>deepseek-v4.1-flash → dsv4.1-flash</code>; six existing ledger rows attest the V4.1 spelling. An unmapped served name exits non-zero, names the missing model, asks for a mapping, and leaves its fixture unchanged. Existing model and usable-window coverage remains green. Focused coverage passed 8/8 and scoped Ruff passed. Full record: <a href="/imas-ambix/evidence/archive/dsv41-flash-four-card-throughput-landed.html#clive-alias-mapping">declared clive aliases</a>.</p></div>

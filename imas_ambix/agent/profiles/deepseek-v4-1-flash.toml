@@ -152,13 +152,37 @@ cuda_graph_max_bs_decode = 64
 # still be unable to serve, and that failure looks healthy for as long as
 # nobody loads it.
 #
-# So size this against a generation workload, never against a clean start, and
-# leave room for a ~7.5 GiB per-card workspace on top of everything the startup
-# log accounts for. 14,999,808 is the load-proven pool: it completed the
-# 32-way sweep with zero OOM. Do not raise it to 20,000,000, which started and
-# answered light requests before a real prefill allocated the fused-MoE
-# workspace lazily and killed the serve.
-max_total_tokens = 14999808
+# Size the shared device pool for the requests it must carry, not for the
+# largest value that starts. The pool must exceed expected concurrency times
+# per-request context; eight workers at 500,000 tokens each require 4,000,000
+# tokens. If the per-request context is reduced later, this pool can shrink
+# further. The observed pool cost is roughly a 16 GiB fixed base plus 1.6 KiB
+# per token, so reducing 14,999,808 to 4,000,000 frees about 16.8 GiB per card,
+# not the 27.5 GiB predicted by a zero-intercept extrapolation.
+#
+# This is a CANDIDATE until a long-prefill serve proves it under load; a clean
+# start does not prove it. Three probe deaths each requested the same fixed
+# 7.52 GiB fused-MoE workspace with only about 1.49 GiB free, including warmup
+# with no request. The freed 16.8 GiB per card clears that workspace requirement
+# more than twice over, so this change discriminates the memory split from the
+# runner: if long prefills still die, the workspace is not binding and
+# moe_runner_backend is the next separate lever to measure.
+max_total_tokens = 4000000
+# Keep evicted shared prefixes in the engine's pinned host tier instead of
+# recomputing them through the 284B-parameter forward path. In the pinned
+# image, DeepSeek-V4's hybrid cache rejects --hicache-size, so its host tier is
+# sized solely by the host-to-device pool ratio. At two times a 4M-token device
+# pool, the variable KV payload is about 2 * 4,000,000 * 1.6 KiB across four
+# ranks, or roughly 49 GiB; it is deliberately less than the Engram host-table
+# allocation and preserves process and page-cache margin.
+enable_hierarchical_cache = true
+hicache_ratio = 2.0
+# Write only prefixes that demonstrate reuse into the host tier. This avoids
+# copying one-off prompts over PCIe while retaining the repeated agent context
+# that caused the device pool to turn over. page_first is the image's
+# kernel-I/O-compatible layout, stated here rather than inherited silently.
+hicache_write_policy = "write_through_selective"
+hicache_mem_layout = "page_first"
 # Per-request context capped at 200k, well below the model's native 1,048,576.
 # Measured on this four-card deployment: an agent-shaped request of 180,961
 # prefill tokens was absorbed, and one of roughly 360,000 asked 9.96 GiB
@@ -243,12 +267,12 @@ gpus = 4
 # request scaled off the card count strands co-running jobs on cores while the
 # cards they want sit idle.
 cpus = 12
-# Sized for the host-resident Engram tables: ~200 GB of tables plus the engine's
-# own working set and the shard-loading page cache. Above the 300G the V4-Flash
-# serve runs at, and deliberately well under the 650 GB group ceiling so a
-# co-running job can still be admitted. Never request the node's RealMemory —
-# that reads as "no limit" and reserves everything.
-memory = "420G"
+# The 480G request comprises 192 GiB committed to the two host-resident Engram
+# layers (four ranks at about 24 GiB each), roughly 49 GiB of two-times HiCache
+# variable payload for the 4M-token device pool, and process, pinned-transfer,
+# and weight-loading page-cache margin. It remains 170G below Group A's 650G
+# allocation; never request the node's RealMemory.
+memory = "480G"
 # 18800-18809 are taken by the other profiles and by the router at 18802.
 port = 18810
 time_serve = "0"

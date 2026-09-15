@@ -489,6 +489,51 @@
     effect on the next serve launch; no live serve was stopped or restarted and
     no SLURM job was submitted by this node.</p>
 
+    <h2 id="pool-and-hicache">§10 — Bounded device pool and host-tier prefix cache</h2>
+
+    <p><strong>The old configuration reproduced before it was changed.</strong>
+    At base <code>ba49c8d</code>, <code>agent serve deepseek-v4-1-flash
+    --dry-run</code> exited zero, emitted the positive-control engine command
+    with <code>--max-total-tokens 14999808</code>, emitted no hierarchical-cache
+    flags, and requested <code>#SBATCH --mem=420G</code>. The absence is thus
+    from a command known to have been generated, not inferred from an empty
+    result.</p>
+
+    <p><strong>The pinned image determines the valid cache configuration.</strong>
+    Its <code>ServerArgs</code> documents <code>hicache_ratio</code> as the
+    host-to-device KV-pool ratio and <code>hicache_size</code> as a GB override.
+    The DeepSeek-V4 hybrid-cache assembler then explicitly rejects
+    <code>--hicache-size</code> and requires the ratio. The profile therefore
+    sets <code>--enable-hierarchical-cache --hicache-ratio 2.0</code>, not an
+    unsupported fixed host size. It explicitly chooses
+    <code>write_through_selective</code> to avoid copying one-off prefixes while
+    retaining reused agent context, and <code>page_first</code>, the image's
+    kernel-I/O-compatible host layout.</p>
+
+    <table>
+      <thead><tr><th>Budget and launch measure</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td>Device pool</td><td><strong>4,000,000 tokens</strong>: eight expected workers × 500,000 tokens/request</td></tr>
+        <tr><td>HBM recovered</td><td><strong>about 16.8 GiB/card</strong>, from the measured 16 GiB fixed base plus 1.6 KiB/token rather than zero-intercept scaling</td></tr>
+        <tr><td>Host Engram tables</td><td><strong>192 GiB</strong>: two layers × four ranks × about 24 GiB</td></tr>
+        <tr><td>HiCache variable payload</td><td><strong>about 49 GiB</strong>: 2 × 4,000,000 tokens × 1.6 KiB × four ranks</td></tr>
+        <tr><td>SLURM request / Group A headroom</td><td><strong>480G / 170G</strong> below the 650G allocation, leaving ordinary process, pinned-transfer, and page-cache margin</td></tr>
+        <tr><td>Generated command</td><td><code>--max-total-tokens 4000000 --enable-hierarchical-cache --hicache-ratio 2.0 --hicache-write-policy write_through_selective --hicache-mem-layout page_first</code></td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Candidate, not a load receipt.</strong> Commit <code>94ca835</code>
+    forwards the typed profile settings and its focused tests pass 4/4; whole-tree
+    <code>ruff check imas_ambix tests</code> exits zero. The pool is load-proven
+    only by serving through a long prefill, which this node deliberately did not
+    do. The three probe deaths each requested a fixed <strong>7.52 GiB</strong>
+    fused-MoE workspace with only about <strong>1.49 GiB</strong> free, including
+    warmup without a request. The recovered 16.8 GiB/card clears that requirement
+    more than twice over. If long prefill still dies, the workspace is not the
+    binding constraint and <code>moe_runner_backend</code> is the next separate
+    measurement; it was not changed here. No serve was started, stopped, or
+    restarted and no SLURM job was submitted.</p>
+
   </main>
 </body>
 </html>
