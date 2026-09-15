@@ -239,25 +239,38 @@ max_num_batched_tokens = 32768
 # permanently and the NEXT one fails, which is a failure that appears one
 # restart away from its cause.
 #
-# SIZING. The host tier must exceed the 70.01 GiB GPU pool by a real multiple,
-# not marginally, or it evicts almost as fast and buys nothing:
-#   512 GiB / 2 groups = 256 GiB effective, 3.7x the GPU pool
-#   512 GiB / 4 groups = 128 GiB effective, 1.8x
-#   512 GiB / 8 groups =  64 GiB effective, 0.9x  <- below the pool, useless
-# The engine DOES report part of the structure, on the line that creates the
-# connector: "EAGLE/MTP draft attention groups [2] detected. The trailing chunk
-# of these groups will be excluded from offloading due to volatility." So index
-# 2 exists -- at least three groups -- and the speculative-decode group is
-# PARTIALLY excluded, which the division above does not model. The total count
-# is still not printed, so the arithmetic remains a bound rather than a figure.
+# SIZING IS NOT A LEVER HERE, which is measured rather than argued. Residency
+# was read across a FOURFOLD change in the configured size and did not move:
 #
-# The direct instrument is neither counter: the engine logs "External prefix
-# cache hit rate" beside the ordinary one, and that IS this store's hit rate.
-# Read it before deriving anything from bytes transferred.
+#   128 GiB configured   resident ~0.1-0.25 GiB
+#   512 GiB configured   resident ~0.1-0.25 GiB   (0.044% -> 0.022% in 120 s)
 #
-# 512 leaves ~195 GiB of the swept tmpfs for NCCL, PSM and the peers who share
-# it, against a serve whose own non-buffer shm use is tens of GiB.
-kv_offloading_size = 512
+# A single pair of readings appeared to agree at 22.8 GiB and suggested a hard
+# ceiling; a four-sample trajectory showed that was a coincidence of timing and
+# the real behaviour is oscillation near zero. Two points cannot distinguish a
+# plateau from a transient -- take a trajectory before naming a ceiling.
+#
+# So what bounds the store is the EVICTION ORDER, not the capacity: both tiers
+# evict in the same LRU order, so a host entry is discarded before anything can
+# ask for it again, and restores only land in the narrow window between store
+# and eviction. That is the half of the upstream defect that survives here; the
+# capacity-division half does not, because every candidate effective size is
+# orders of magnitude above what is ever resident.
+#
+# MEASURED RETURN, one clean 120 s window at 42-44 concurrent:
+#   external hit rate   33,372 / 1,461,932 queries  =  2.28%
+#   written 509.9 GB    restored 721.6 MB           =  707 : 1
+#
+# 64 GiB is therefore 256x the observed residency and buys exactly what 512 did,
+# while returning 448 GiB of shared memory and the GPU staging that goes with
+# it -- staging pressure drove four ranks into allocator OOM retries at the
+# current memory fraction, two of them to 3.9 MB free.
+#
+# Whether to keep it at all is unsettled and needs a controlled comparison at
+# the next restart rather than another resize: 2.28% of prefill is a real
+# return, and the sustained ~4.25 GB/s of host writes buying it is a real cost.
+# Neither has been measured against the other with one variable moving.
+kv_offloading_size = 64
 
 [engine.env]
 # Route top-k/top-p sampling around the FlashInfer TopKMaskLogits kernel, which
@@ -281,11 +294,11 @@ reasoning = "deepseek_v4"
 [slurm]
 gpus = 4
 cpus = 12
-# 512 GiB of this is the /dev/shm offload buffer above; tmpfs pages are charged
+# 64 GiB of this is the /dev/shm offload buffer above; tmpfs pages are charged
 # to the job's cgroup, so --mem must cover the buffer AND the runtime. The
 # four-card serve ran on 400G against a 128 GiB buffer, so ~270 GiB is the
-# measured runtime need, and 800G carries 512 + that with margin.
-memory = "800G"
+# measured runtime need, and 400G carries 64 + that with margin.
+memory = "400G"
 port = 18800
 time_serve = "0"
 time_download = "24:00:00"

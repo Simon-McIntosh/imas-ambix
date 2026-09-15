@@ -43,6 +43,15 @@ class LaneCapacity:
     kv_occupancy: float
     preemptions: int
     prefix_hit_rate: float | None
+    # Offload-tier health, None when the engine serves without the connector.
+    # A store that is written and never read costs transfer bandwidth, host
+    # memory and GPU staging space while returning nothing, and the write
+    # counter climbing reads as healthy activity -- so the READ side is what a
+    # consumer needs, and it is the half nobody was looking at.
+    external_hit_rate: float | None = None
+    offload_written_bytes: int | None = None
+    offload_restored_bytes: int | None = None
+    offload_resident_fraction: float | None = None
     # Safety ceiling, independent of workload. The pool arithmetic below is a
     # capacity estimate that rises without bound as the working context shrinks
     # -- on a cold lane with short prompts it read 131, which would invite a
@@ -302,6 +311,11 @@ def parse_lane_capacity(metrics: str) -> LaneCapacity:
 
     queries = values.get("vllm:prefix_cache_queries_total", 0.0)
     hits = values.get("vllm:prefix_cache_hits_total", 0.0)
+    external_queries = values.get("vllm:external_prefix_cache_queries_total")
+    external_hits = values.get("vllm:external_prefix_cache_hits_total")
+    written = values.get("vllm:kv_offload_store_bytes_total")
+    restored = values.get("vllm:kv_offload_load_bytes_total")
+    resident = values.get("vllm:kv_offload_cpu_cache_usage_perc")
     return LaneCapacity(
         model_id=model_id,
         pool_tokens=pool_tokens,
@@ -310,6 +324,14 @@ def parse_lane_capacity(metrics: str) -> LaneCapacity:
         kv_occupancy=values.get("vllm:kv_cache_usage_perc", 0.0),
         preemptions=int(values.get("vllm:num_preemptions_total", 0.0)),
         prefix_hit_rate=(hits / queries) if queries > 0 else None,
+        external_hit_rate=(
+            (external_hits / external_queries)
+            if external_queries and external_hits is not None
+            else None
+        ),
+        offload_written_bytes=int(written) if written is not None else None,
+        offload_restored_bytes=int(restored) if restored is not None else None,
+        offload_resident_fraction=resident,
     )
 
 
@@ -458,6 +480,43 @@ def write_lane_document(
         "concurrent_requests": window.concurrent_requests,
         "headroom": window.headroom,
         "binding_observed": capacity.binding_observed,
+        # Cumulative since this engine started, which is the only form the
+        # engine offers -- so it spans whatever mix of load has run since, and
+        # two such figures from different eras are not comparable. Published
+        # because it was the single most load-bearing signal on this lane and
+        # no consumer could see it: prefix-cache eviction is the FIRST symptom
+        # of KV pressure and shows up long before preemption, so a reader
+        # watching only `preemptions` learns nothing until it is far too late.
+        "prefix_hit_rate": (
+            round(capacity.prefix_hit_rate, 4)
+            if capacity.prefix_hit_rate is not None
+            else None
+        ),
+        # Absent entirely when the engine runs without an offload connector,
+        # rather than present and zero -- a missing key fails loudly on a
+        # reader that assumed it, where a zero reads as a measured verdict.
+        **(
+            {
+                "offload": {
+                    "external_hit_rate": round(capacity.external_hit_rate, 6)
+                    if capacity.external_hit_rate is not None
+                    else None,
+                    "written_bytes": capacity.offload_written_bytes,
+                    "restored_bytes": capacity.offload_restored_bytes,
+                    "resident_fraction": capacity.offload_resident_fraction,
+                    # The read side is the whole question. A store whose
+                    # written figure climbs while restored stays flat is
+                    # spending bandwidth and host memory for nothing, and it
+                    # looks busy the entire time.
+                    "note": (
+                        "restored_bytes flat against a climbing written_bytes "
+                        "means the store is not serving reads"
+                    ),
+                }
+            }
+            if capacity.offload_written_bytes is not None
+            else {}
+        ),
         # What this sample alone said, kept beside the smoothed figure. Sizing
         # from these is the defect the window exists to fix; they are here so
         # the smoothing is auditable rather than invisible.
