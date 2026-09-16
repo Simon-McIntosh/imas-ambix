@@ -143,6 +143,22 @@ target-version = "py314"
 line-length = 88
 src = [".", "tests"]
 
+# The serving stack runs on the container's Python 3.12, not this project's
+# 3.14, and PEP 758 lets 3.14 drop the parentheses from `except A, B:`. At
+# target-version py314 the FORMATTER removes them, which is valid here and a
+# SyntaxError there -- so `ruff format` can silently make a module unloadable by
+# the interpreter that has to serve it, with lint still passing. Measured twice:
+# once in imas_ambix/agent/router.py on 2026-09-16, reintroduced by a format run
+# on a line that had been repaired that morning.
+#
+# Modules the serving interpreter imports therefore pin the lower version, so
+# the formatter never emits syntax that interpreter cannot parse.
+# tests/test_serving_interpreter_parse.py is the backstop and must stay green.
+[tool.ruff.per-file-target-version]
+"imas_ambix/agent/router.py" = "py312"
+"imas_ambix/agent/serving_receipts.py" = "py312"
+"imas_ambix/agent/lane.py" = "py312"
+
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "N", "B", "A", "SIM", "TCH"]
 
