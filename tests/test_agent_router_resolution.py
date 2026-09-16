@@ -165,8 +165,10 @@ def test_registration_wins_deduplication_and_restart_uses_new_port(
 def test_router_command_runs_injected_resolver_on_requested_port(monkeypatch):
     captured: dict[str, object] = {}
 
-    def serve(resolver, *, host, port):
-        captured.update(resolver=resolver, host=host, port=port)
+    def serve(resolver, *, host, port, **extra):
+        # The router also passes the lane document it republishes; this test is
+        # about port and resolver wiring, so extras are captured, not enumerated.
+        captured.update(resolver=resolver, host=host, port=port, **extra)
 
     monkeypatch.setattr(router_mod, "serve_router", serve)
     monkeypatch.setattr(cli_mod, "_resolve_router_upstreams", lambda *_: [])
