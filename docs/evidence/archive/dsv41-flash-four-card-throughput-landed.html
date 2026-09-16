@@ -910,14 +910,41 @@
     live processes, and it is per-backend and therefore shared across projects.</strong>
     During the study two dead runs held slots: one abandoned two days earlier from the
     reckon project, whose worktree was clean with HEAD equal to its own base_sha, and
-    one from imas-codex whose manifest read <code>status: complete</code> with an
-    unpromoted commit. Neither had a live process. They refused a dispatch while nothing
+    one from imas-codex whose manifest read <code>status: complete</code>. Neither had a
+    live process. <strong>The imas-codex case was diagnosed wrongly here at first and its
+    owner corrected it</strong>: that run was not unpromoted but already
+    <em>promoted</em>, on 2026-09-15, with its commit an ancestor of the catalog
+    repository's main &mdash; a promoted run whose pointer was never released, which is a
+    different failure with a different remedy. <code>crew complete</code> refuses it
+    outright as a double promotion; only <code>crew discard</code> clears it, and nothing
+    in the run's own state advertises that, because its classification reads
+    <code>promotable</code> &mdash; which sounds like pending work rather than a record
+    already written. They refused a dispatch while nothing
     executed in them, and at the lowered ceiling of 4 they occupy half the lane. So
     capacity leaks monotonically as pointers accumulate, and a lane can reach zero
     usable width against a completely idle serve. Sweep stale pointers before concluding
     a lane is full; a fence that skipped pointers already classified
     <code>abandoned</code> &mdash; a classification reckon computes and exposes &mdash;
-    would close the leak without new state.</p>
+    would close the leak without new state. The owning project supplied a sharper
+    mechanism still: the fence's own docstring already intends this, stating that a
+    finished run holds no slot because its phase is terminal, and the defect is that it
+    filters on a <em>stored phase</em> which only a living process ever updates &mdash; a
+    run whose process dies before reaching a terminal phase leaves a non-terminal phase
+    behind forever, in this case reading <code>starting</code> for two days. Liveness is
+    already re-derived per pointer elsewhere in the same module, with a pid-start-time
+    check against reuse, and the fence declines to use the fact it is iterating past.</p>
+
+    <p><strong>A caution on this curve from a project that ran the same lane wider.</strong>
+    The imas-codex coordinator ran roughly forty concurrent workers with no ceiling and
+    reports that concurrency was never its binding constraint: a 600-second per-run fence
+    truncating twelve compositions was. The general form is worth recording against this
+    study &mdash; a ladder that measures slots without measuring what each slot is allowed
+    to finish will find a limit that is not the one that bites. It does not invalidate
+    these figures, because this lane's 90-minute budget is advisory and unenforced, and
+    two nodes here ran 38 and 58 minutes with nothing stopping the overrun. But it does
+    bound what they establish: the widths above are a <em>throughput</em> optimum measured
+    over 20-minute windows, not a completion optimum, and only two nodes completed inside
+    the study.</p>
 
     <h2 id="prefix-reuse-defect">The workers reuse no prefix at all, and the engine is not at fault</h2>
 

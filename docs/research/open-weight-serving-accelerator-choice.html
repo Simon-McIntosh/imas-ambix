@@ -185,6 +185,25 @@
     hold, so each turn re-prefills history it had a moment ago. That is the mechanism behind
     a 17.6-second time to first token and a 205-second mean request.</p>
 
+    <p><strong>AMENDED 2026-09-16, later the same day, and the amendment cuts against
+    this study's own conclusion.</strong> A staged saturation curve on real work
+    subsequently measured the prefix hit rate at 0.0% across 61 consecutive turns of a
+    single agent, while the same engine returns 97&ndash;98% on a stable prefix, proven by
+    five probes that exonerate the engine, the Messages protocol and the request shape
+    alike. So most of the prefill measured here is not work the deployment needs to do:
+    it is recomputation caused by a client-side prefix that changes at the head of every
+    turn. In the width-1 phase, 6.72M of 6.93M prompt tokens need never have been
+    prefilled &mdash; 23.0 minutes of card time inside a 23.7 minute phase. Evidence:
+    <a href="/imas-ambix/evidence/archive/dsv41-flash-four-card-throughput-landed#prefix-reuse-defect">the landed record</a>.</p>
+
+    <p><strong>What that does to the argument.</strong> The measurement stands &mdash;
+    99.4% of this deployment's token work is prefill. The <em>inference</em> that HBM
+    capacity is therefore the binding constraint does not survive it. A larger card would
+    compute the wasted prefill faster; it would not stop it happening. Stabilising the
+    prompt prefix is worth more than either accelerator on this shortlist, costs nothing,
+    and should be done before any purchase is sized &mdash; it changes the workload the
+    purchase would be sized against. Read sections 6 and 8 with that correction applied.</p>
+
     <p><strong>This is the single most decision-relevant measurement in the study, and it
     sharpens the case rather than weakening it.</strong> It says the binding resource is
     prefill throughput and cache residency — not decode bandwidth. Prefill is compute-bound,
@@ -676,10 +695,18 @@
     the H200 node. What remains unmeasured is the same fleet at a width inside the measured
     knee, which is the next thing to run and costs nothing.</p>
 
-    <p><em>Two.</em> The block-FP8 dequant path on the cards we already own. One restart,
-    no money, and the upstream measurement is 2.04× prefill at 32 concurrent requests.
-    If it lands here, part of the case for buying is answered without buying, and the
-    purchase can be specified more calmly.</p>
+    <p><em>Two &mdash; done, and it cost one restart.</em> The FP8 expert path is live:
+    our own build exposes <code>--flashinfer-mxfp4-moe-precision fp8</code>, selecting the
+    MXFP4-weight by FP8-activation kernels instead of upcasting to BF16, and the serving
+    container carries exactly the FlashInfer 0.6.18 that path requires. Its contribution
+    is not isolated, because it shipped alongside a fourfold host-tier increase.</p>
+
+    <p><em>Two-bis, and now the highest-value item in this document.</em> Stabilise the
+    prompt prefix. The deployment reuses none of it today, so it pays full prefill on every
+    turn of every conversation, while the engine would serve 97&ndash;98% from cache if the
+    head of the prompt stopped changing. No hardware decision should be finalised against a
+    workload that is nine-tenths avoidable recomputation: the sizing would be wrong in the
+    direction of buying too much.</p>
 
     <p><em>Three.</em> An eight-card topology read. Allocate all eight cards and run
     <code>nvidia-smi topo -m</code>. This either confirms §5's two-island account of our
