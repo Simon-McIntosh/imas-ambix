@@ -115,7 +115,7 @@
 
     <p><em>The synthetic numbers are not the service.</em> V4-Flash delivers 86.6 tok/s
     per worker unloaded and <strong>6.9–10.1 tok/s per worker on real agent traffic</strong>
-    while carrying 12,000–17,000 tok/s of prefill. Figure 1 draws the gap. Any capacity
+    while carrying 12,000–17,000 tok/s of prefill. Figure 1 draws the gap, and the first real-traffic harvest below measures it. Any capacity
     projection in this study that ignores it is a vendor slide.</p>
 
     <figure>
@@ -135,6 +135,72 @@
     not that the arithmetic units are saturated; a compute-bound FP8 GEMM on this part
     pulls far closer to the cap. The cards are waiting on memory and on a dequantisation
     path, and that is a hardware mismatch, not a thermal or power limit.</p>
+
+    <h3 id="s2-real-traffic">The first real-traffic measurement, and it moves the argument</h3>
+
+    <p><strong>Measured 2026-09-16 under a live fleet of about 28 concurrent agent
+    workers, from the serve's own counters differenced across a 300-second window.</strong>
+    Two independent estimators were run — the generation counter against wall clock, and
+    the inter-token-latency histogram — and they agree.</p>
+
+    <table>
+      <thead><tr><th>Quantity</th><th>Counter window, 285 s</th><th>Histogram window, 300 s</th></tr></thead>
+      <tbody>
+        <tr><td>Mean concurrent requests</td><td>26.5 (max 30)</td><td>28.2 (max 31)</td></tr>
+        <tr><td>Queued requests</td><td>0.25 mean, max 1</td><td>—</td></tr>
+        <tr><td><strong>Aggregate output</strong></td><td><strong>30.1 tok/s</strong></td><td><strong>43.7 tok/s</strong></td></tr>
+        <tr><td><strong>Mean per client, output</strong></td><td><strong>1.13 tok/s</strong></td><td><strong>1.55 tok/s</strong> (646 ms between tokens)</td></tr>
+        <tr><td>Aggregate prefill submitted</td><td>7,466 tok/s</td><td>7,254 tok/s</td></tr>
+        <tr><td>Aggregate prefill computed</td><td>—</td><td>6,685 tok/s</td></tr>
+        <tr><td>Prefix-cache hit on prompt tokens</td><td>7.3%</td><td>7.8%</td></tr>
+        <tr><td>Input : output ratio</td><td>248 : 1</td><td>270 : 1</td></tr>
+        <tr><td>Mean prompt / output tokens per request</td><td>—</td><td>83,814 / 311</td></tr>
+        <tr><td>Mean time to first token</td><td>—</td><td>17.6 s</td></tr>
+        <tr><td>Mean end-to-end per request</td><td>—</td><td>205.6 s</td></tr>
+        <tr><td>Host prefix tier</td><td colspan="2">7,991,808 of 8,000,000 tokens — <strong>99.9% full</strong>, 135.7M tokens evicted cumulatively</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>An aggregate of 44 output tok/s from four H200 looks like a broken serve,
+    and it is not one.</strong> The same window carries 6,685 tok/s of computed prefill,
+    which sits inside the 6,396–12,248 tok/s band the synthetic concurrent-prefill sweep
+    measured on this exact configuration. The hardware is delivering what it was measured
+    to deliver. What has changed is the shape of the demand: this fleet asks for 270 input
+    tokens per output token, so 99.4% of the token work is prefill and the output rate is
+    a rounding error on top of it.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/open-weight-serving-accelerator-choice/where-the-token-work-goes.svg"
+           alt="Horizontal bar showing 6,685 tok/s of recomputed prefill, 569 tok/s served from cache, and 44 tok/s of output">
+      <figcaption><strong>Figure 2 — where the token work goes under real load.</strong>
+      Every decode benchmark in this study, ours and every vendor's, measures the thin blue
+      sliver. The purchase has to be justified against the other 99.4%.</figcaption>
+    </figure>
+
+    <p><strong>And 91.6% of that prefill is work we already did.</strong> The prefix cache
+    is thrashing: the host tier is 99.9% full, has evicted 135.7 million tokens, and served
+    only 7.8% of prompt tokens in the window — against 49.1% measured cumulatively over the
+    serve's life, when the fleet was narrower. Twenty-eight workers carrying ~84,000-token
+    prompts present a working set the 4M-token device pool and 8M-token host tier cannot
+    hold, so each turn re-prefills history it had a moment ago. That is the mechanism behind
+    a 17.6-second time to first token and a 205-second mean request.</p>
+
+    <p><strong>This is the single most decision-relevant measurement in the study, and it
+    sharpens the case rather than weakening it.</strong> It says the binding resource is
+    prefill throughput and cache residency — not decode bandwidth. Prefill is compute-bound,
+    which is exactly what an FP4-native tensor core accelerates and what our BF16-upcast
+    path taxes; and cache residency is exactly what HBM capacity and a larger host tier buy.
+    Every argument in §4 and §6 gets stronger; the bandwidth ratio of §3, which governs
+    decode, gets less important. It also means the honest headline for a purchase is
+    <em>turns per hour per worker</em>, not tokens per second.</p>
+
+    <p><strong>Two of the levers are free and should be pulled before any money is
+    spent.</strong> Our own measured knee is at four to eight concurrent streams; this
+    fleet is at 28, which is past the point where added workers stop buying throughput and
+    start evicting each other's cache. And <code>hicache_ratio</code> is 2.0, giving an
+    8M-token host tier against 1.5 TB of node RAM — there is room to multiply it. Neither
+    changes the hardware conclusion, but both change what the current node delivers, and
+    an accelerator bought to fix a thrashing cache would be bought for the wrong reason.</p>
 
     <h2 id="s3">§3 — The silicon, and what actually changes</h2>
 
@@ -203,7 +269,7 @@
     <figure>
       <img src="/imas-ambix/figures/open-weight-serving-accelerator-choice/four-bit-datapath.svg"
            alt="Diagram comparing the Hopper conversion paths for MXFP4 weights against Blackwell's native FP4 tensor-core path">
-      <figcaption><strong>Figure 2 — the same checkpoint, two very different journeys to
+      <figcaption><strong>Figure 3 — the same checkpoint, two very different journeys to
       a multiply.</strong> Our serve takes the top Hopper branch. The bottom Hopper branch
       is a free experiment we have not run (§12). The Blackwell lane has no conversion
       step at all.</figcaption>
@@ -304,7 +370,7 @@
     <figure>
       <img src="/imas-ambix/figures/open-weight-serving-accelerator-choice/memory-budget-per-card.svg"
            alt="Stacked per-card memory budget for one DeepSeek-V4.1-Flash rank on H200 NVL, B200 and B300">
-      <figcaption><strong>Figure 3 — what another 40 or 120 GB per card would buy.</strong>
+      <figcaption><strong>Figure 4 — what another 40 or 120 GB per card would buy.</strong>
       Weights and pool are fixed by the model and the configuration, so extra capacity
       arrives entirely as free memory, and free memory is what every blocked capability
       was waiting for. The dotted line is DSpark's 12 GiB per-card ask, refused on our
@@ -338,7 +404,7 @@
     <figure>
       <img src="/imas-ambix/figures/open-weight-serving-accelerator-choice/power-capacity-envelope.svg"
            alt="Scatter of per-GPU power envelope against HBM capacity, marking which parts have air-cooled SKUs">
-      <figcaption><strong>Figure 4 — capacity against power envelope.</strong> The shaded
+      <figcaption><strong>Figure 5 — capacity against power envelope.</strong> The shaded
       region is what a standard rack with hot-aisle containment can carry. Our cards sit at
       the bottom-left corner of it at 600 W; the B300 air bin sits at the right-hand edge at
       1,100 W. Everything beyond needs a coolant loop. The Rubin point is a supply-chain
@@ -377,7 +443,7 @@
     <figure>
       <img src="/imas-ambix/figures/open-weight-serving-accelerator-choice/cooling-procurement-window.svg"
            alt="Timeline of which eight-GPU systems are buyable when, annotated with cooling requirements">
-      <figcaption><strong>Figure 5 — the procurement window.</strong> Blackwell and
+      <figcaption><strong>Figure 6 — the procurement window.</strong> Blackwell and
       Blackwell Ultra are shipping and air-coolable now. Rubin's broad availability lands
       around 2026 Q4 into 2027 Q1 and is liquid-only at 1.8–2.3 kW per GPU.</figcaption>
     </figure>
@@ -390,7 +456,10 @@
     have measured. Throughput does not follow from anything we own, because the dominant
     term — how much of the gap between 36 tok/s and a vendor's 300 tok/s is silicon, how
     much is our topology and how much is our software stack — is exactly what we have never
-    isolated. So the throughput column is a decomposed estimate with its mechanism stated,
+    isolated. <strong>Read the whole section against §2's real-traffic result:</strong> on
+    live agent load this deployment spends 99.4% of its token work on prefill, so the decode
+    multipliers below govern the smaller half of the problem and the prefill and capacity
+    rows govern the larger one. So the throughput column is a decomposed estimate with its mechanism stated,
     and it is not evidence.</p>
 
     <table>
@@ -599,11 +668,13 @@
 
     <p><strong>Four measurements would change this, and three of them are free.</strong></p>
 
-    <p><em>One.</em> The real-traffic harvest already running on the V4.1 serve. Per-worker
-    decode and prefill under genuine agent load, binned by concurrency, is the number this
-    whole study is a projection of. If it confirms that wall clock is bound by turn count,
-    the capacity argument strengthens and the throughput argument weakens further — which
-    would push the choice toward the B300 air bin.</p>
+    <p><em>One — now measured, and recorded in §2.</em> 28 concurrent real workers gave
+    43.7 tok/s aggregate output, 1.55 tok/s per client, 6,685 tok/s of computed prefill and
+    a 7.8% prefix-cache hit rate against a host tier 99.9% full. It confirms the capacity
+    argument and demotes the decode argument, which pushes the choice toward the option with
+    the most memory the room can cool — the B300 air bin — provided fp64 physics stays on
+    the H200 node. What remains unmeasured is the same fleet at a width inside the measured
+    knee, which is the next thing to run and costs nothing.</p>
 
     <p><em>Two.</em> The block-FP8 dequant path on the cards we already own. One restart,
     no money, and the upstream measurement is 2.04× prefill at 32 concurrent requests.
@@ -632,6 +703,7 @@
       <li><a href="/imas-ambix/evidence/archive/glm-53-serve-and-wiring-landed">GLM-5.3 serve and wiring</a> — four attempts, four causes, and why the four-card deployment is a W4A8 substitute.</li>
       <li><a href="/imas-ambix/evidence/archive/multi-model-serving-capacity-landed">Multi-model serving capacity</a> — the locked service statement and the admission cap this study sizes against.</li>
       <li>Live readings taken while writing: <code>nvidia-smi</code> reporting H200 NVL, a 600 W limit and <code>NV6</code> between the serving job's four cards; 392–406 W at 96–100% utilisation and 61–63 °C under real load.</li>
+      <li>The §2 real-traffic window: the serve's own <code>generation_tokens_total</code>, <code>prompt_tokens_histogram</code>, <code>uncached_prompt_tokens_histogram</code>, <code>inter_token_latency_seconds</code>, <code>time_to_first_token_seconds</code> and <code>hicache_host_used_tokens</code>, each differenced across the window rather than read cumulatively — the cumulative values carry the synthetic sweeps that ran on the same job.</li>
     </ul>
 
     <p><strong>External sources.</strong> Vendor specifications are cited as such;

@@ -274,9 +274,66 @@ def envelope():
     plt.close(fig)
 
 
+# ── Figure 4 — where the token work actually goes under real load ────────────
+# Measured over a 300 s window with 28.2 mean concurrent agent requests:
+# 7,254 prompt tok/s submitted of which 6,685 were computed (7.8% served from
+# the prefix cache), against 43.7 output tok/s.
+PREFILL_COMPUTED = 6685.0
+PREFILL_CACHED = 569.0
+OUTPUT = 43.7
+
+
+def token_work():
+    fig, ax = plt.subplots(figsize=(9.4, 2.5))
+    segments = [
+        (PREFILL_COMPUTED, WARM, "prefill recomputed", 0.30),
+        (PREFILL_CACHED, "#c9d6e8", "prefill served from cache", 0.30),
+        (OUTPUT, ACCENT, "output", 0.62),
+    ]
+    left = 0.0
+    total = sum(segment[0] for segment in segments)
+    for width, colour, label, label_y in segments:
+        ax.barh(0, width, left=left, height=0.42, color=colour, edgecolor="none")
+        share = 100 * width / total
+        wide = share > 6
+        ax.text(
+            left + width / 2 if wide else left + width + total * 0.014,
+            label_y,
+            f"{label}\n{width:,.0f} tok/s · {share:.1f}%",
+            ha="center" if wide else "left",
+            va="bottom",
+            fontsize=12,
+            color=INK,
+        )
+        left += width
+    ax.annotate(
+        "",
+        xy=(total, -0.30),
+        xytext=(total - OUTPUT, -0.30),
+        arrowprops=dict(arrowstyle="-", color=ACCENT, lw=1),
+    )
+    ax.text(
+        total * 0.62,
+        -0.42,
+        "the only part a decode benchmark measures",
+        fontsize=12,
+        color=ACCENT,
+    )
+    ax.set_xlim(0, total * 1.20)
+    ax.set_ylim(-0.55, 1.05)
+    ax.set_yticks([])
+    ax.set_xlabel("tokens per second through the serve, 28 concurrent agent workers")
+    strip(ax, keep=("bottom",))
+    fig.savefig(
+        FIGDIR / "where-the-token-work-goes.svg", bbox_inches="tight", pad_inches=0.25
+    )
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     FIGDIR.mkdir(parents=True, exist_ok=True)
     memory_budget()
     concurrency()
     envelope()
+    token_work()
     print("wrote", *(p.name for p in sorted(FIGDIR.glob("*.svg"))))
