@@ -1025,6 +1025,100 @@
     numbers would mis-plan by a factor of two to five, and the figure degrades with lane width,
     so a budget calibrated at width 1 misleads worst exactly when the lane is busiest.</p>
 
+    <h2 id="prefix-defect-found-and-repaired">The prefix defect: found, repaired, and measured on real load</h2>
+
+    <p><strong>The cause was mid-conversation <code>system</code>-role messages, and it
+    was neither reckon, nor the dispatch prompts, nor the launcher.</strong> Agent
+    harnesses inject one such message per turn &mdash; a session hook, server
+    instructions, a remaining-token notice. Capturing four consecutive real requests
+    through a transparent proxy and ablating one field at a time isolated it:</p>
+
+    <table>
+      <thead><tr><th>Arm, same 48,159-token turn</th><th>Prefix hit</th></tr></thead>
+      <tbody>
+        <tr><td>baseline (as sent)</td><td>0.0%</td></tr>
+        <tr><td>&minus; <code>context_management</code> / <code>output_config</code> / <code>metadata</code>, separately and together</td><td>0.0%</td></tr>
+        <tr><td><strong><code>role:"system"</code> &rarr; <code>role:"user"</code></strong></td><td><strong>99.4%</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>The prompt length is identical in both arms &mdash; 48,159 tokens to the
+    token &mdash; while uncached falls from 48,159 to 287.</strong> So the divergence is
+    in the VALUE of control tokens at particular positions, not in prompt size. An
+    earlier explanation of this record, that the encoder re-emitted the whole tool block
+    after each system message and the model was reading several copies of 51 tool
+    definitions, is <strong>refuted by that equality</strong> and must not be carried
+    forward. The exact encoder path remains unestablished and is deliberately not
+    asserted here.</p>
+
+    <p><strong>The repair lives in the router</strong>, which re-labels system-role
+    messages after the first. That matches the encoder's own reading: it already treats
+    a mid-conversation system message as a user turn when placing the assistant header.
+    A controlled A/B on one worker running an identical task gave 1.6&ndash;4.2% reuse as
+    sent and 99.3&ndash;99.7% re-labelled.</p>
+
+    <h3 id="relay-framing-bug">The repair broke the lane first, and the failure mode is worth the record</h3>
+
+    <p>The first deployment took the lane down for thirty-five minutes. <code>_relay</code>
+    forwarded the client's <code>content-length</code> while the payload had been
+    re-encoded two bytes shorter per relabelled message, so the upstream waited forever
+    for bytes that never arrived. <strong>Requests hung rather than failed</strong>, which
+    presents as a slow serve rather than a malformed relay. <code>_clamp_output_tokens</code>
+    had carried the same exposure since it was written; the repair merely made it fire on
+    most requests instead of rarely. Two further lessons, both mine: a verification probe
+    returned <code>Terminated</code> and was attributed to a busy serve rather than opened,
+    and the router's own <code>prefix-repair</code> log line was read as proof of success
+    when it only proved the rewrite ran &mdash; it sits upstream of the failure. The
+    throughput figures reported from that window are void: they sampled only the small
+    requests that needed no rewrite.</p>
+
+    <h3 id="post-repair-load">Measured on real load, and the knee</h3>
+
+    <table>
+      <thead><tr><th>Mean concurrency</th><th>Prefix hit</th><th>Prefill submitted / computed</th><th>Aggregate output</th><th>Per-client</th><th>TTFT</th><th>Device pool</th></tr></thead>
+      <tbody>
+        <tr><td>1.44 (pre-repair)</td><td>10.6%</td><td>5,863 / 5,242 tok/s</td><td>32.9 tok/s</td><td>23.17 tok/s</td><td>10.0 s</td><td>&mdash;</td></tr>
+        <tr><td>8.19</td><td>86.2%</td><td>21,217 / 2,935</td><td>169.6</td><td>21.30</td><td>2.0 s</td><td>17.7%</td></tr>
+        <tr><td>13.09</td><td>97.5%</td><td>29,311 / 746</td><td>302.5</td><td>23.45</td><td>1.2 s</td><td>21.5%</td></tr>
+        <tr><td><strong>23.05</strong> (peak 34)</td><td>96.4%</td><td>40,893 / 1,462</td><td><strong>328.9</strong></td><td><strong>14.40</strong></td><td>1.7 s</td><td>62.6%</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>The hit rate rises with width, which inverts the pre-repair regime.</strong>
+    Before the repair it collapsed from 49% to 7.8% as the fleet widened, because every
+    worker recomputed prefix the tier then evicted. Now more workers share more reusable
+    prefix, so width makes the cache better. Aggregate output is <strong>ten times</strong>
+    the pre-repair figure and per-client rose before it fell.</p>
+
+    <p><strong>The knee sits near twenty workers.</strong> From 13 to 23 concurrent,
+    aggregate moved 302.5 to 328.9 &mdash; under nine percent &mdash; while per-client
+    fell 23.45 to 14.40, a 39% loss. Added workers past that point buy latency rather
+    than throughput. The queue stayed at zero throughout, so this is not a dispatch
+    limit; the engine is saturated with requests it accepts immediately.</p>
+
+    <h3 id="hicache-is-write-only">The host tier is nearly inert, and that reverses a decision</h3>
+
+    <p><strong>Counted over eight hours of serving: 100,308 backup writes into the
+    32,000,000-token host tier, and 56 load-backs out of it.</strong> Every bit of the
+    96.4% reuse is being served from the 4,000,000-token DEVICE pool. The host tier is,
+    for this workload, a write-only mirror.</p>
+
+    <p>That reverses the reasoning behind raising <code>hicache_ratio</code> from 2.0 to
+    8.0 earlier the same day. The raise was correct given what was then known &mdash; the
+    tier was 99.9% full and evicting 135.7M tokens while the hit rate sat at 7.8% &mdash;
+    but that thrashing was a symptom of the encoder defect, not of an undersized tier.
+    With the defect repaired the residency requirement collapsed, and the ~344 GB of host
+    RAM the ratio-8 tier occupies is buying 56 load-backs. The device pool, at 62.6% of
+    4,000,000 tokens under a 2.4M-token live working set, is the resource that is
+    actually working and the one now closest to its limit.</p>
+
+    <p><strong>What that implies for the next restart, stated as a hypothesis rather than
+    a conclusion:</strong> shrink <code>hicache_ratio</code> and grow
+    <code>max_total_tokens</code>, spending the freed host RAM allocation on device KV
+    instead. It should be tested rather than assumed, because a tier that is inert under
+    tonight's traffic may still earn its place under a workload with longer gaps between
+    a worker's turns, where device eviction is likelier before the worker returns.</p>
+
     <h2 id="prefix-reuse-defect">The workers reuse no prefix at all, and the engine is not at fault</h2>
 
     <p><strong>Across the whole curve the prefix hit rate ran 0.0%, 1.8%, 7.4% and 7.1%,
