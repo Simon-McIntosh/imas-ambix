@@ -964,11 +964,12 @@
         <tr><td>swallow-census-cli-r2</td><td>4&ndash;6</td><td><strong>146 min</strong></td><td>60 min</td><td>2 commits, gate passed, merged; overran by 2.4&times;</td></tr>
         <tr><td>failopen-boundary-method-metrics-r2</td><td>6&rarr;4</td><td><strong>222 min</strong></td><td>45 min</td><td>1 commit, 5 new tests, gate 12&rarr;17, merged; one resume; overran by 4.9&times;</td></tr>
         <tr><td>failopen-validator-not-run-r2</td><td>6&rarr;4</td><td><strong>224 min</strong></td><td>60 min</td><td>2 commits, 6 new tests, gate 12&rarr;18, merged; overran by 3.7&times;</td></tr>
+        <tr><td>swallow-census-config-r2</td><td>6&rarr;4</td><td><strong>255 min</strong></td><td>45 min</td><td>1 commit, delta gate passed, merged; overran by 5.7&times;</td></tr>
       </tbody>
     </table>
 
-    <p><strong>Five of five nodes that ran to the end landed.</strong> Wall times 38, 58,
-    146, 222 and 224 minutes; the last three lived on a saturated lane.</p>
+    <p><strong>Six of six nodes that ran to the end landed.</strong> Wall times 38, 58,
+    146, 222, 224 and 255 minutes; the last four lived on a saturated lane.</p>
 
     <p><strong>The five together raise a question the throughput curve cannot answer, and
     it is the one that should decide the ceiling.</strong> Width multiplies the slots, but
@@ -980,13 +981,14 @@
       <thead><tr><th>Band</th><th>n</th><th>Mean wall</th><th>Per slot</th><th>Slots</th><th>Lane completion rate</th></tr></thead>
       <tbody>
         <tr><td>width 1&ndash;2</td><td>1</td><td>38.0 min</td><td>1.58 nodes/h</td><td>~1.5</td><td><strong>2.37 nodes/h</strong> &mdash; one every 25 min</td></tr>
-        <tr><td>width 4&ndash;6</td><td>3</td><td>197.3 min</td><td>0.30 nodes/h</td><td>~5.0</td><td><strong>1.52 nodes/h</strong> &mdash; one every 40 min</td></tr>
+        <tr><td>width 4&ndash;6</td><td>4</td><td>211.8 min</td><td>0.28 nodes/h</td><td>~5.0</td><td><strong>1.42 nodes/h</strong> &mdash; one every 42 min</td></tr>
       </tbody>
     </table>
 
     <p><strong>On these numbers the narrow lane finishes more work, not less</strong>
-    &mdash; about 1.6&times; the completion rate, with each node arriving five times
-    sooner. If that survives a proper test it inverts the usual reason for running wide,
+    &mdash; about 1.7&times; the completion rate, with each node arriving five to six times
+    sooner. A fourth wide-band completion moved the wide mean from 197 to 212 minutes,
+    so the gap widened slightly rather than closing as n grew. If that survives a proper test it inverts the usual reason for running wide,
     and it would argue for a ceiling well below 4. <strong>It does not survive as
     evidence yet</strong>, and the weaknesses are severe enough to name plainly: the
     narrow band is a single node, the node scopes differ (the 38-minute node classified
@@ -1013,8 +1015,8 @@
 
     <p><strong>The advisory budget is not merely unenforced, it is wrong under load.</strong>
     A 60-minute advisory carried a 146-minute node and then a 224-minute one, and a
-    45-minute advisory carried 58 and then 222 &mdash; overruns of 2.4&times;, 3.7&times;
-    and 4.9&times;, none of them interrupted. A coordinator planning waves against those
+    45-minute advisory carried 58 and then 222 &mdash; overruns of 2.4&times;, 3.7&times;, 4.9&times; and 5.7&times;, none of them
+    interrupted. A coordinator planning waves against those
     numbers would mis-plan by a factor of two to five, and the figure degrades with lane width,
     so a budget calibrated at width 1 misleads worst exactly when the lane is busiest.</p>
 
