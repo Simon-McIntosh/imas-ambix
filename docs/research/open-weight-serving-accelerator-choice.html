@@ -1,0 +1,666 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type"  content="research">
+  <meta name="plan-slug"    content="open-weight-serving-accelerator-choice">
+  <meta name="plan-title"   content="Choosing the Next Accelerator for Open-Weight Serving — what four cards of measured pain say about 8×H200, B200 and B300">
+  <meta name="plan-summary" content="Every difficulty we hit deploying DeepSeek-V4.1-Flash and GLM-5.3 traces to one of three hardware properties — no FP4 datapath, too little HBM per card, and an NVLink domain four cards wide — and each one is a purchasable fix; the study prices them against cooling, FP64 and the Rubin cliff">
+  <meta name="plan-informs" content="dsv41-flash-four-card-throughput,dsv41-flash-serve-characterisation,glm-53-serve-and-wiring,glm-52-local-serve-performance,multi-model-serving-capacity,dsv4-flash-dspark-four-card-serve">
+  <meta name="plan-tags"    content="serving,gpu,hardware,capacity">
+  <title>Choosing the Next Accelerator for Open-Weight Serving | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — The argument in one page</h2>
+
+    <p><strong>We have spent three weeks learning what four H200 cards cannot do, and
+    every one of those lessons names a hardware property rather than a software
+    mistake.</strong> That is what makes this a procurement question instead of an
+    engineering backlog. Three properties account for almost all of it:</p>
+
+    <table>
+      <thead>
+        <tr><th>What went wrong here</th><th>The property behind it</th><th>What fixes it</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>A 4-bit checkpoint runs through a dequantisation path that wants a 10.11 GiB
+          workspace per card and killed three serves before we bounded it</td>
+          <td>Hopper has <strong>no FP4 datapath</strong>. Our MXFP4 experts are converted
+          to 16-bit before they can be multiplied</td>
+          <td>FP4-native silicon — every Blackwell part</td>
+        </tr>
+        <tr>
+          <td>Engram tables exiled to host RAM; speculative decoding refused outright;
+          GLM-5.3 requantised to fit four cards and losing 90% of its context</td>
+          <td><strong>141 GB per card.</strong> After weights and pool there is not room
+          for the things that make serving fast</td>
+          <td>180 GB (B200) or 288 GB (B300) per card</td>
+        </tr>
+        <tr>
+          <td>Eight cards deliver 11.9% more aggregate throughput than two, while
+          single-stream decode <em>falls</em> 18.3%; one eight-card arm collapsed 16.4×
+          at 32 workers</td>
+          <td>Our cards are <strong>H200 NVL</strong>. The NVLink bridge tops out at four
+          cards, so eight cards are two islands joined by PCIe</td>
+          <td>An NVSwitch baseboard — HGX or DGX, any generation</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p><strong>The recommendation is an air-cooled eight-card Blackwell node, and which
+    Blackwell depends on one question we have not answered: whether this site can supply
+    a coolant loop, and whether the new node must also carry fp64 physics.</strong>
+    §12 states it properly. The rest of this document is the evidence, because the
+    interesting part is not the conclusion — it is that our own measurements disagree
+    with the obvious reason for buying. <strong>Generation speed is not our
+    bottleneck.</strong> Our own record says it plainly: agentic wall throughput measures
+    22–33 tok/s while the engine peaks at 418.5, so "most of an agentic node's wall clock
+    is not generation, and more generation capacity moves it less than the cache does."
+    A purchase justified on tok/s would be justified on the wrong quantity. The one
+    justified on <em>capacity</em> — context, prefix cache, concurrent workers, and models
+    that fit at all — is the one the evidence supports.</p>
+
+    <h2 id="s2">§2 — What four H200 cards actually did</h2>
+
+    <p>Everything in this section was measured on <code>98dci4-gpu-0003</code> between
+    2026-09-01 and 2026-09-16, on the cards we own. It is the context the rest of the
+    study is calibrated against, and the numbers are less flattering than any vendor
+    table — which is the point of having them.</p>
+
+    <table>
+      <thead>
+        <tr><th>Configuration</th><th>Single-stream decode</th><th>Aggregate at 32</th><th>Context served</th><th>KV pool</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>DeepSeek-V4-Flash, 2 cards, vLLM</td><td>127.1 tok/s</td><td>1,649.3</td><td>524,288</td><td>740,338 tok / 37.8 GiB</td></tr>
+        <tr><td>DeepSeek-V4-Flash, 4 cards, vLLM</td><td>114.5</td><td>1,696.0</td><td>524,288</td><td>1,453,347 tok / 74.3 GiB</td></tr>
+        <tr><td>DeepSeek-V4-Flash, 8 cards, vLLM</td><td><strong>103.8</strong></td><td>1,845.4</td><td>1,048,576</td><td>3,370,578 tok / 92.3 GiB</td></tr>
+        <tr><td>GLM-5.2, 4 cards, INT4</td><td>84.2</td><td>1,108.7</td><td><strong>32,768</strong></td><td>74,240 tok / 6.4 GiB</td></tr>
+        <tr><td>GLM-5.2, 8 cards, FP8 + MTP</td><td>30.0</td><td>942.4</td><td>204,800</td><td>214,464 tok / 18.8 GiB</td></tr>
+        <tr><td>GLM-5.2, 8 cards, FP8, no MTP</td><td>45.7</td><td><strong>57.6</strong></td><td>204,800</td><td>259,264 tok / 22.4 GiB</td></tr>
+        <tr><td>DeepSeek-V4.1-Flash, 4 cards, SGLang</td><td>36.4–36.7 (40.6 peak at width 4)</td><td>794</td><td><strong>511,993</strong></td><td>4,000,000 tok device + 8,000,000 host</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Four readings in that table are worth more than the rest.</strong></p>
+
+    <p><em>Eight cards are not twice four.</em> DeepSeek moving from two cards to eight
+    grows KV capacity 4.55× and aggregate throughput by 11.9%, while single-stream decode
+    drops 18.3%. The GLM eight-card arm without drafting is worse than a joke: 45.7 tok/s
+    single-stream, and <strong>57.6 tok/s aggregate at 32 workers</strong> — it peaks at
+    60.6 with four workers and then stops scaling entirely. §5 argues that this is the
+    NVLink island boundary rather than a software defect, and names the one cheap
+    measurement that would confirm it.</p>
+
+    <p><em>The newest and most capable model is the slowest.</em> V4.1-Flash decodes at
+    36.4 tok/s where V4-Flash manages 114.5 on the same four cards. We took that trade
+    deliberately for a 5.3× larger prefix pool and a 512,000-token window, but it is the
+    shape of things to come: each generation of open-weight frontier model is larger,
+    sparser, and more dependent on hardware features we do not have.</p>
+
+    <p><em>Context is bought with memory, and we ran out.</em> GLM-5.3's FP8 release is
+    703.7 GiB and needs all eight cards. To serve it on four we substituted a W4A8
+    requantisation of the same architecture — and its MLA latent KV is
+    <strong>replicated on every rank rather than sharded</strong>, ~91.7 KiB per token
+    across 78 layers, so the four-card deployment tops out at 98,304 tokens of context
+    against a native window of 1,048,576. More cards buy context here only by shrinking
+    weights-per-card, which is a memory-capacity argument and nothing else.</p>
+
+    <p><em>The synthetic numbers are not the service.</em> V4-Flash delivers 86.6 tok/s
+    per worker unloaded and <strong>6.9–10.1 tok/s per worker on real agent traffic</strong>
+    while carrying 12,000–17,000 tok/s of prefill. Figure 1 draws the gap. Any capacity
+    projection in this study that ignores it is a vendor slide.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/open-weight-serving-accelerator-choice/measured-concurrency.svg"
+           alt="Per-stream and aggregate decode against concurrency for three models on four H200 NVL cards, with the real-traffic band marked">
+      <figcaption><strong>Figure 1 — measured on our four cards.</strong> Per-stream rate
+      is aggregate divided by width. The grey band is the only real-traffic measurement we
+      have: 6.9–10.1 tok/s per worker, roughly a seventh of the same serve's idle rate,
+      because real turns carry prefill that synthetic decode tests do not. The knee at
+      width 4 is where added concurrency stops being free and starts trading latency for
+      throughput one-for-one.</figcaption>
+    </figure>
+
+    <p><strong>One live reading, taken while writing this.</strong> With real agent traffic
+    flowing, the four cards report 96–100% utilisation at <strong>392–406 W against a
+    600 W limit</strong>, at 61–63 °C. Utilisation that high means kernels are resident,
+    not that the arithmetic units are saturated; a compute-bound FP8 GEMM on this part
+    pulls far closer to the cap. The cards are waiting on memory and on a dequantisation
+    path, and that is a hardware mismatch, not a thermal or power limit.</p>
+
+    <h2 id="s3">§3 — The silicon, and what actually changes</h2>
+
+    <p>Three generations matter here: Hopper (what we own), Blackwell (B200), and Blackwell
+    Ultra (B300). They are not three points on one line — the design priorities move, and
+    one of the moves is a regression that matters to this repository.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Property</th>
+          <th>H200 NVL — ours</th>
+          <th>H200 SXM</th>
+          <th>B200</th>
+          <th>B300 (Blackwell Ultra)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Architecture / target</td><td>Hopper GH100, SM90</td><td>Hopper GH100, SM90</td><td>Blackwell, two dies per package, 208B transistors, SM100</td><td>Blackwell Ultra, SM100</td></tr>
+        <tr><td>HBM per GPU</td><td>141 GB HBM3e</td><td>141 GB HBM3e</td><td><strong>180 GB HBM3e</strong></td><td><strong>288 GB HBM3e</strong> (a DGX B300 exposes 2.1 TB across eight, ~262 GB each)</td></tr>
+        <tr><td>Memory bandwidth</td><td>4.8 TB/s</td><td>4.8 TB/s</td><td><strong>8 TB/s</strong></td><td><strong>8 TB/s</strong></td></tr>
+        <tr><td>Dense FP4</td><td><strong>none — emulated</strong></td><td>none — emulated</td><td>~9–10 PFLOPS</td><td><strong>15 PFLOPS</strong> (1.5× B200; attention throughput 2×)</td></tr>
+        <tr><td>Dense FP8</td><td>~1,979 TFLOPS, thermally derated at 600 W</td><td>~1,979 TFLOPS</td><td>~4.5 PFLOPS</td><td>~4.5 PFLOPS</td></tr>
+        <tr><td>FP64</td><td>34 TFLOPS</td><td>34 TFLOPS</td><td>~37–40 TFLOPS</td><td><strong>10 TFLOPS</strong> — a 3.4× regression against our H200</td></tr>
+        <tr><td>NVLink per GPU</td><td>900 GB/s, <strong>but only inside a 2- or 4-card bridge</strong></td><td>900 GB/s all-to-all through NVSwitch</td><td><strong>1.8 TB/s</strong> NVLink 5, NVSwitch</td><td>1.8 TB/s NVLink 5, NVSwitch</td></tr>
+        <tr><td>Power envelope</td><td>600 W</td><td>700 W</td><td>1,000 W</td><td>1,100 W air bin / 1,400 W liquid bin</td></tr>
+        <tr><td>Air-cooled system exists</td><td>yes (ours)</td><td>yes</td><td><strong>yes</strong> — 10U, 14.3 kW</td><td><strong>yes at the 1,100 W bin</strong> — 8–10U, ~14 kW</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Read the memory row and the bandwidth row together, because they are the
+    two that govern our workload.</strong> A Blackwell card holds 1.28× (B200) or 2.04×
+    (B300) our weights-and-cache budget and reads it at 1.67× the rate. For a decode step,
+    which streams a slice of the weights and the whole active KV set per token, bandwidth
+    is very nearly the whole story — the arithmetic is trivially small. That ratio, 1.67×,
+    is the most defensible single number in this study.</p>
+
+    <p><strong>Now read the FP64 row, because it is the trap.</strong> The B300 buys its
+    FP4 headroom by gutting double precision: NVIDIA publishes 10 TFLOPS of FP64 for
+    HGX B300 against 34 on our H200. This repository's own GPU policy makes that binding
+    rather than academic — <code>imas_ambix/spine_bench/AGENTS.md</code> defines a
+    capability demonstration as running "on the accelerator, batched, <strong>in fp64</strong>,
+    matching the host", and <code>scripts/fsa_gpu_capability.py</code> asserts
+    <code>float64</code> on its output. A B300 node would be a fine serving machine and a
+    poor equilibrium-solver. B200 keeps FP64 roughly at parity with what we have.</p>
+
+    <h2 id="s4">§4 — 4-bit: Blackwell is FP4-native, and that is not the same as INT4-native</h2>
+
+    <p><strong>The premise this study was asked to confirm is half right, and the wrong
+    half is the one that decides which checkpoints run fast.</strong> Blackwell's
+    fifth-generation tensor cores natively execute FP4, FP6, FP8, INT8, FP16, BF16, TF32
+    and FP64 — <em>and INT4 is absent from that list</em>. Native INT4 matrix instructions
+    existed from SM75 to SM89 (Turing through Ada) as <code>IMMA.8832.S4.S4.SAT</code>;
+    compile the same operation for SM90 or SM100 and the compiler emits an emulation
+    sequence built on INT8. What Blackwell added instead is a hardware FP4 datapath with
+    block scaling — NVFP4 (E2M1 with a shared FP8 scale per 16 values) and MXFP4 (E2M1
+    with an E8M0 scale per 32 values) — reached through
+    <code>tcgen05.mma.kind::mxf4nvf4</code>. An INT4 operand on SM100 rides that same FP4
+    machinery rather than a dedicated integer one.</p>
+
+    <p>So the correct claim is: <strong>Blackwell is the first architecture that multiplies
+    4-bit values in the format they are stored in.</strong> Everything before it either
+    used an integer-only 4-bit path that the frontier checkpoints do not ship in, or
+    converted 4-bit weights up to 8- or 16-bit before doing arithmetic.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/open-weight-serving-accelerator-choice/four-bit-datapath.svg"
+           alt="Diagram comparing the Hopper conversion paths for MXFP4 weights against Blackwell's native FP4 tensor-core path">
+      <figcaption><strong>Figure 2 — the same checkpoint, two very different journeys to
+      a multiply.</strong> Our serve takes the top Hopper branch. The bottom Hopper branch
+      is a free experiment we have not run (§12). The Blackwell lane has no conversion
+      step at all.</figcaption>
+    </figure>
+
+    <p><strong>This is not an abstraction; it is the direct cause of our most expensive
+    week.</strong> DeepSeek-V4.1-Flash ships 259.5 GiB of MXFP4 routed experts. On our
+    SM90 cards the native MXFP4 kernels are gated off — they exist only for Blackwell — so
+    the engine falls back to a path that upcasts to BF16 and needs a fused-MoE workspace
+    allocated <em>lazily at generation</em>: 9.00 GiB at a 300k prefill, 10.11 GiB at 500k.
+    That workspace is what made a 20,000,000-token pool start cleanly, answer single
+    requests, report 14.64 GiB free per card, and then die with SIGKILL under the first
+    real load. It is also why speculative decoding is impossible here: DSpark asked for
+    12.00 GiB per card on top of everything else and was refused with 7.6 GB free even
+    after we shrank the pool to its smallest load-proven size.</p>
+
+    <p><strong>Our own record already contained the correct diagnosis and drew the wrong
+    conclusion from it, which is worth preserving.</strong> We proposed a W4A16
+    requantisation to shrink the experts — and the experts were <em>already</em> four-bit,
+    so it would have freed nothing. The surviving idea from that withdrawal was that a
+    different kernel might beat the FlashInfer dequantisation path on SM90. The upstream
+    work says the same thing and quantifies it: an opt-in path that losslessly re-encodes
+    MXFP4 experts to block-FP8 at load time, to reach the FP8 tensor cores Hopper
+    <em>does</em> have, measured <strong>1.38–1.53× single-request prefill and 2.04× at 32
+    concurrent requests</strong> on TP4, at the cost of doubling expert weight memory, with
+    accuracy inside noise. SGLang has a fused CUTLASS MXFP4-with-FP8-activations MoE
+    backend for SM90 in the same spirit.</p>
+
+    <p><strong>Two things follow, and they point in opposite directions.</strong> First,
+    some of our gap is recoverable on the cards we own, for the price of one restart —
+    which is an argument for measuring before buying (§12). Second, the fact that this
+    workaround exists at all, and costs 2× weight memory on a card that has no memory to
+    spare, is the argument for FP4-native silicon. On Blackwell the same checkpoint is
+    simply multiplied, at twice the arithmetic rate of FP8, with no workspace and no
+    penalty.</p>
+
+    <h2 id="s5">§5 — TP8, TP4, expert parallelism, and why our eight cards are two machines</h2>
+
+    <p><strong>Tensor parallelism splits every weight matrix across N cards.</strong> Each
+    card holds 1/N of each layer, computes its slice, and then all N exchange partial
+    results — an all-reduce per layer, twice per transformer block. It cuts weights-per-card
+    by N and multiplies interconnect traffic by roughly the same factor. TP is therefore an
+    interconnect trade, not a free scaling knob, and the quality of the link between the
+    cards decides whether it works.</p>
+
+    <p><strong>The width is not a free choice either.</strong> TP must divide the attention
+    head count, which our own matrix study recorded the hard way: with 64 heads the feasible
+    widths on this node are 2, 4 and 8, and <em>six cards is not a valid arm</em>. So the
+    ladder is discrete, and the rungs are 2 / 4 / 8.</p>
+
+    <p><strong>Expert parallelism (EP) is the MoE-specific alternative.</strong> Instead of
+    slicing every expert across every card, EP gives each card whole experts and routes
+    tokens to wherever their chosen experts live — an all-to-all per MoE layer rather than
+    an all-reduce. Both our DeepSeek deployments run TP4 with EP4. For a model with 256
+    routed experts and 8 active per token this is much better behaved than pure TP, because
+    each card does dense work on fewer experts. It also makes the interconnect
+    <em>latency</em>-sensitive rather than merely bandwidth-hungry, since the all-to-all is
+    small messages on the critical path of every token.</p>
+
+    <p><strong>And here is the thing about our node that we appear never to have written
+    down: its cards are H200 <em>NVL</em>, and an NVL bridge is at most four cards
+    wide.</strong> A live topology read inside the serving job shows <code>NV6</code>
+    between each pair of its four cards — six of the card's eighteen NVLink lanes to each
+    of three peers, 26.562 GB/s per lane, which is the 4-way bridge wired exactly as
+    specified. NVIDIA's own specification for the part is a "2- or 4-way NVLink bridge".
+    There is no 8-way option, and there is no NVSwitch on a PCIe card. Therefore an
+    eight-card job on this node is <strong>two four-card NVLink islands connected only by
+    PCIe Gen5</strong>, and a TP8 all-reduce must cross that gap twice per layer at roughly
+    a seventh of NVLink bandwidth.</p>
+
+    <p>That is the best available explanation for the two eight-card results in §2 that
+    otherwise look like software bugs: the 16.4× aggregate collapse of GLM without drafting,
+    and DeepSeek's 11.9%-for-4×-the-cards. It is consistent with both, and with the 5,430-second
+    load time of the eight-card GLM arm. <strong>It is an explanation, not a proof</strong>,
+    and the measurement that would settle it is cheap: allocate all eight cards and read
+    <code>nvidia-smi topo -m</code>. Two NVLink cliques with <code>PIX</code> or
+    <code>NODE</code> between them confirms it; <code>NV</code> across all pairs refutes it.
+    I could not run it while the serve holds four cards, and this study should not be read
+    as having established it.</p>
+
+    <p><strong>What this means for the purchase is unusually concrete.</strong> Any HGX or
+    DGX baseboard — B200, B300, or an H200 SXM node — puts all eight GPUs in one NVSwitch
+    domain at 900 GB/s (Hopper) or 1.8 TB/s (Blackwell) per card, all-to-all. TP8 and EP8
+    become genuine options instead of traps, which matters specifically for GLM-5.3, whose
+    FP8 release needs eight cards to fit at all, and for any future checkpoint above
+    ~600 GiB. <strong>Buying eight more NVL cards would buy a second four-card machine, not
+    an eight-card one.</strong></p>
+
+    <h2 id="s6">§6 — Memory is the scarce quantity, and it is scarce in a specific way</h2>
+
+    <p>The engine's memory ledger on our final configuration, per card: 137.85 GB
+    accounted available, 65.24 after weights, 55.15 after the 4,000,000-token pool, 52.62
+    at ready. Weights are ~75 GB of a 141 GB card. The pool costs ~10 GB per card for four
+    million tokens — about 2.5 KB per token per card. What remains is not slack: it is the
+    reserve the MoE workspace and the prefill chunk draw from, lazily, at the moment of
+    largest allocation.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/open-weight-serving-accelerator-choice/memory-budget-per-card.svg"
+           alt="Stacked per-card memory budget for one DeepSeek-V4.1-Flash rank on H200 NVL, B200 and B300">
+      <figcaption><strong>Figure 3 — what another 40 or 120 GB per card would buy.</strong>
+      Weights and pool are fixed by the model and the configuration, so extra capacity
+      arrives entirely as free memory, and free memory is what every blocked capability
+      was waiting for. The dotted line is DSpark's 12 GiB per-card ask, refused on our
+      cards and comfortably affordable on either Blackwell.</figcaption>
+    </figure>
+
+    <p><strong>Free memory is not an abstraction to us; it is a list of things we could not
+    have.</strong> At 42 GB free we cannot hold the Engram tables in HBM, cannot run
+    speculative decoding at all, cannot raise the prefill chunk above 16,384 without
+    shrinking something else, and cannot grow the device pool past 4M tokens without
+    re-entering the region where a serve starts cleanly and dies under load. At 82 GB
+    (B200) the DSpark workspace fits with room to spare. At 164 GB (B300) the device pool
+    could hold roughly 20M tokens <em>and</em> the workspace <em>and</em> a doubled prefill
+    chunk — or the whole GLM-5.3 FP8 release at TP8 with a large pool rather than a
+    requantised substitute with 98,304 tokens of context.</p>
+
+    <p><strong>And capacity, not speed, is what our workload actually consumes.</strong>
+    The 8,000,000-token host prefix tier we added is worth more to a fleet of agent workers
+    than any decode improvement, because agent turns re-read long prefixes. Our DSpark
+    record states the general principle from measurement: the ceiling is turn count and
+    thinking volume, so "more cards will not make an agentic node finish sooner" — but a
+    bigger cache will, by removing prefill it would otherwise repeat. Every projection in
+    §8 weights capacity accordingly.</p>
+
+    <h2 id="s7">§7 — Cooling: what air can carry, and which systems are air-cooled</h2>
+
+    <p><strong>Air cooling is still available at the top of the Blackwell line, and it
+    stops being available immediately afterwards.</strong> That single fact does more to
+    shape the timing of this purchase than any performance number.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/open-weight-serving-accelerator-choice/power-capacity-envelope.svg"
+           alt="Scatter of per-GPU power envelope against HBM capacity, marking which parts have air-cooled SKUs">
+      <figcaption><strong>Figure 4 — capacity against power envelope.</strong> The shaded
+      region is what a standard rack with hot-aisle containment can carry. Our cards sit at
+      the bottom-left corner of it at 600 W; the B300 air bin sits at the right-hand edge at
+      1,100 W. Everything beyond needs a coolant loop. The Rubin point is a supply-chain
+      estimate, and its Max P profile is 2.3 kW rather than the 1.8 kW plotted.</figcaption>
+    </figure>
+
+    <table>
+      <thead>
+        <tr><th>System</th><th>Cooling</th><th>Form</th><th>Node power</th><th>Note</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Our 8×H200 NVL node</td><td><strong>air</strong></td><td>—</td><td>~4.8 kW of GPU at the 600 W cap; ~400 W/card observed under real load</td><td>the baseline every figure below is a multiple of</td></tr>
+        <tr><td>DGX / HGX B200, 8 GPU</td><td><strong>air</strong></td><td>10U</td><td><strong>14.3 kW</strong></td><td>1,440 GB per node; ~49,000 BTU/h and ~1,550 CFM of airflow; two units per 48–52U rack</td></tr>
+        <tr><td>DGX B300 / HGX B300, 8 GPU, air bin</td><td><strong>air</strong></td><td>8–10U</td><td><strong>~14 kW</strong></td><td>2.1–2.3 TB per node at the 1,100 W bin — the largest air-coolable memory pool on the market</td></tr>
+        <tr><td>HGX B300, 1,400 W bin</td><td>liquid (DLC)</td><td>4U</td><td>11.2 kW of GPU alone</td><td>the full-power bin is not air-coolable in any form factor</td></tr>
+        <tr><td>8×MI355X (UBB8)</td><td><strong>air or liquid</strong></td><td>—</td><td>1,400 W/GPU</td><td>industry-standard baseboard offered both ways</td></tr>
+        <tr><td>GB200 / GB300 NVL72</td><td>liquid</td><td>rack</td><td>~120–140 kW/rack</td><td>rack-scale; not a fit for one shared node</td></tr>
+        <tr><td>Rubin VR200 — NVL72 <em>and</em> the 8-GPU HGX NVL8</td><td>liquid only</td><td>—</td><td>1.8 kW (Max Q) to 2.3 kW (Max P) per GPU; ~190–230 kW/rack</td><td>compute and switch trays are fanless; even the eight-GPU board requires direct-to-chip liquid</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Air will carry roughly 30–40 kW per rack with a well-designed hot aisle.</strong>
+    An air-cooled eight-GPU Blackwell node at ~14 kW therefore fits, and two of them fit in
+    one rack, which is the practical ceiling worth planning against. The step from our
+    current node to either Blackwell option is a <strong>2.5–3× increase in heat load in the
+    same footprint</strong>, and that is the number to take to the facilities conversation
+    rather than the GPU count. The three questions that decide everything: can the rack
+    take 14 kW, is there containment, and is there a coolant loop or a path to one.</p>
+
+    <p><strong>If the answer on liquid is "no, and not soon", then the timing argument is
+    settled for us.</strong> Blackwell is the last NVIDIA generation with an air-cooled
+    eight-GPU option. Rubin is liquid in every form factor including the small one. A
+    decision to stay air-cooled is therefore a decision to buy Blackwell within its
+    availability window, or to buy nothing until the site changes.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/open-weight-serving-accelerator-choice/cooling-procurement-window.svg"
+           alt="Timeline of which eight-GPU systems are buyable when, annotated with cooling requirements">
+      <figcaption><strong>Figure 5 — the procurement window.</strong> Blackwell and
+      Blackwell Ultra are shipping and air-coolable now. Rubin's broad availability lands
+      around 2026 Q4 into 2027 Q1 and is liquid-only at 1.8–2.3 kW per GPU.</figcaption>
+    </figure>
+
+    <h2 id="s8">§8 — Capacity scoping: concurrency, context, and honest throughput ranges</h2>
+
+    <p><strong>Two of the three quantities below can be projected with confidence, and the
+    third cannot.</strong> Memory capacity is arithmetic on published specifications and our
+    measured per-token costs. Concurrency follows from capacity and from a scaling shape we
+    have measured. Throughput does not follow from anything we own, because the dominant
+    term — how much of the gap between 36 tok/s and a vendor's 300 tok/s is silicon, how
+    much is our topology and how much is our software stack — is exactly what we have never
+    isolated. So the throughput column is a decomposed estimate with its mechanism stated,
+    and it is not evidence.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Option</th>
+          <th>Node memory</th>
+          <th>Largest model that fits natively</th>
+          <th>Device pool at V4.1's measured cost</th>
+          <th>Concurrent 200k-context workers</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Today — 4×H200 NVL</strong></td>
+          <td>562 GB (4 cards of 141)</td>
+          <td>V4.1-Flash MXFP4; GLM-5.3 only as a W4A8 requant at 98k context</td>
+          <td><strong>4M measured</strong>, 20M starts and dies</td>
+          <td><strong>32 measured</strong> at 210k each; 12 at 415k each</td>
+        </tr>
+        <tr>
+          <td>8×H200 NVL (a second node like ours)</td>
+          <td>1,126 GB, but as <strong>two four-card islands</strong></td>
+          <td>unchanged — two independent TP4 replicas</td>
+          <td>2 × 4M</td>
+          <td>2 × 32, as two separate serves</td>
+        </tr>
+        <tr>
+          <td><strong>8×B200, air</strong></td>
+          <td><strong>1,440 GB</strong>, one NVSwitch domain</td>
+          <td>GLM-5.3 FP8 (703.7 GiB) at TP8 with a real pool; V4.1 at TP4 ×2 replicas</td>
+          <td>~30M at TP4, or 4M plus DSpark's workspace plus a doubled prefill chunk</td>
+          <td>~100+ at 200k, capacity-limited rather than memory-limited</td>
+        </tr>
+        <tr>
+          <td><strong>8×B300, air bin</strong></td>
+          <td><strong>2,100–2,300 GB</strong>, one NVSwitch domain</td>
+          <td>GLM-5.3 FP8 at TP8 <em>and</em> a 1M-token window; two frontier models resident at once</td>
+          <td>~60M+, or full native context on two models concurrently</td>
+          <td>~200+ at 200k; the binding limit becomes compute and the 64-request batch bound</td>
+        </tr>
+        <tr>
+          <td>8×MI355X</td>
+          <td>2,300 GB</td>
+          <td>same envelope as B300</td>
+          <td>same arithmetic</td>
+          <td>same, if the software lands — see §10</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p><strong>The throughput estimate, decomposed so each factor can be argued with
+    separately.</strong> Against our measured 36.4 tok/s single-stream and 794 tok/s
+    aggregate at width 32 on V4.1-Flash:</p>
+
+    <table>
+      <thead><tr><th>Factor</th><th>Multiplier</th><th>Basis</th></tr></thead>
+      <tbody>
+        <tr><td>Memory bandwidth</td><td><strong>1.67×</strong></td><td>8.0 against 4.8 TB/s; decode streams weights and KV, so this is close to linear</td></tr>
+        <tr><td>Native FP4 instead of a BF16 upcast</td><td>1.4–2.0×</td><td>Lower bound is measured <em>on Hopper</em>: merely reaching FP8 tensor cores through a lossless re-encode gives 1.38–1.53× prefill and 2.04× at 32 concurrent. Native FP4 removes the conversion entirely and runs at twice FP8's rate</td></tr>
+        <tr><td>Speculative decoding becomes affordable</td><td>1.5–2.0×</td><td>DSpark measured 45.3–46.4% acceptance at 3.31 mean accept length on V4-Flash here; it needs 12 GiB/card, which only Blackwell has spare</td></tr>
+        <tr><td>One NVLink domain instead of two islands</td><td>unquantified</td><td>The mechanism is real (§5) but our eight-card arms confound it with software; claiming a number here would be inventing one</td></tr>
+      </tbody>
+    </table>
+
+    <p>Multiplied naively that is 3.5–6.7× per-stream decode, so <strong>130–240 tok/s
+    single-stream and 2,800–5,300 tok/s aggregate at width 32</strong>, for V4.1-Flash on
+    eight air-cooled Blackwell cards. <strong>Treat that as a bracket, not a forecast.</strong>
+    The factors are not independent, the third is conditional on a kernel path that must be
+    measured, and every figure it is built on is synthetic. The one thing we know about
+    translating synthetic decode to our real traffic is that it cost us a factor of seven
+    last time.</p>
+
+    <p><strong>What we can promise more confidently is the thing we actually need:</strong>
+    a node on which GLM-5.3 serves at its native precision with a real context window,
+    on which speculative decoding is a configuration choice rather than an OOM, on which
+    a 4-bit checkpoint is multiplied rather than converted, and on which two frontier
+    models can be resident at once for a handful of concurrent consumers — which is exactly
+    the service statement our capacity plan already locked, currently honoured on spare
+    cards with no reserved floor.</p>
+
+    <h2 id="s9">§9 — Cost, and what each option buys per unit of it</h2>
+
+    <p><strong>Every figure here is a secondary-source estimate from public 2026 pricing
+    commentary; only a quote is a number.</strong> They are included because the ratios are
+    stable across sources even where the absolutes are not, and because the cheapest option
+    is not the one with the lowest sticker.</p>
+
+    <table>
+      <thead>
+        <tr><th>Option</th><th>Reported system price</th><th>Per GPU</th><th>Node memory per $100k</th><th>What the money removes</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>8×H200 HGX (SXM, NVSwitch)</td><td>~$370k</td><td>~$32k</td><td>~305 GB</td><td>the island boundary only — no FP4, no capacity gain</td></tr>
+        <tr><td><strong>8×B200 HGX, air</strong></td><td>$400–500k, ~$450k typical</td><td>~$56k deployed</td><td>~320 GB</td><td>islands, FP4 emulation, and the DSpark refusal; keeps FP64</td></tr>
+        <tr><td><strong>8×B300 HGX/DGX, air bin</strong></td><td>$300–430k+ reported, wide spread</td><td>~$40–54k</td><td>~490–700 GB</td><td>all of the above plus the GLM-5.3 requantisation and the context cap; sacrifices FP64</td></tr>
+        <tr><td>8×MI355X UBB8</td><td>typically quoted below NVIDIA per GB</td><td>—</td><td>highest of any option</td><td>capacity, at the price of the software risk in §10</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Note the shape of that table.</strong> Another eight H200 costs the most per
+    unit of capability delivered, because it fixes one of our three problems and none of the
+    others. The B300 air bin has the best memory-per-euro of the NVIDIA options and the worst
+    FP64. B200 is the middle in every column, which is usually a weak recommendation and here
+    is a strong one, because it is the only option that improves all three of our measured
+    constraints without regressing a fourth.</p>
+
+    <h2 id="s10">§10 — The other options, including the ones we should not take</h2>
+
+    <p><strong>AMD MI355X — the best capacity per euro and the worst fit for our
+    operations budget.</strong> 288 GB of HBM3E at 8 TB/s, native FP4, air-coolable on a
+    standard UBB8 baseboard, and around 78 TFLOPS of FP64 — twice NVIDIA's, which our fp64
+    physics policy would welcome. The case against it is not the silicon, it is what we
+    have just lived through. Getting GLM-5.3 to serve on <em>CUDA</em> took four attempts
+    with four distinct causes, and one was an unmerged upstream architecture registration.
+    The public record of DeepSeek-V4-Pro on MI355X is a 110.5× throughput improvement in
+    26 days across 31 optimisation pull requests — which is a triumph of engineering and
+    simultaneously a measurement of how far the software was from ready at the start, on the
+    flagship model, done by people who do that full-time. On identical FP4 workloads the
+    same source puts B200 around 5× ahead in our serving range and attributes the gap to
+    software rather than silicon. We would be adopting that gap along with the memory.</p>
+
+    <p><strong>RTX PRO 6000 Blackwell Server Edition — right architecture, wrong
+    topology.</strong> 96 GB of GDDR7 at 1.6 TB/s, 600 W, passively cooled, FP4-native, and
+    a fraction of the price. Eight of them total 768 GB, which on paper holds GLM-5.3's FP8
+    release. But there is no NVLink: every TP all-reduce and every EP all-to-all would cross
+    PCIe, which is the exact pathology §5 blames for our eight-card collapse, at a seventh
+    of the bandwidth and with no island to hide inside. For dense single-card inference,
+    fine-tuning, or many small models it is excellent value. For a 744B-parameter MoE served
+    across eight cards it is the failure we already have, bought deliberately.</p>
+
+    <p><strong>Wait for Rubin — a real option, with a real cost.</strong> 288 GB of HBM4 at
+    roughly 20 TB/s and ~50 PFLOPS of NVFP4 per package is a genuine generational step, and
+    the platform is in production now with broad availability reported for 2026 Q4 into
+    2027 Q1. Two things argue against waiting. It is liquid-cooled in every form factor, so
+    waiting only helps if the site is also getting a coolant loop; and it does not help the
+    traffic we are serving today, on a serve whose context window we raised this week
+    precisely because workers are hitting the limits we have.</p>
+
+    <p><strong>Rack-scale NVL72 — out of scope, and worth saying why.</strong> GB300 NVL72
+    is 72 GPUs in one liquid-cooled NVLink domain at ~120–140 kW per rack. It is the right
+    purchase for a fleet serving thousands of concurrent users. Our locked service statement
+    is "a handful of concurrent consumers" on a shared node, and the honest reading of our
+    own traffic is that we are nowhere near needing a rack.</p>
+
+    <p><strong>Keep the H200 node either way.</strong> This is not a trade-in. Two four-card
+    islands are an awkward eight-card machine and two perfectly good four-card serving lanes,
+    and with 34 TFLOPS of FP64 apiece the cards remain the right home for the batched fp64
+    equilibrium work regardless of which accelerator arrives. If the new node is a B300, that
+    argument becomes load-bearing rather than convenient.</p>
+
+    <h2 id="s11">§11 — Future-proofing, argued in both directions</h2>
+
+    <p><strong>For Blackwell now.</strong> The checkpoint formats have already moved to where
+    the hardware is: DeepSeek-V4.1-Flash ships MXFP4 experts and GLM-5.3 ships FP8, and the
+    kernels that make either fast are written for Blackwell first and back-ported to Hopper
+    slowly, partially, or never. We are currently on the wrong side of that gate and paying
+    for it in workspace memory, in a refused speculative decoder, and in a requantised model.
+    Buying FP4-native silicon puts us on the side the ecosystem optimises for, which is a
+    durable advantage independent of any FLOPS number. NVLink 5 at 1.8 TB/s per card doubles
+    the headroom for the parallelism these sparse models need. And it is the last
+    generation that can arrive without a plumbing project.</p>
+
+    <p><strong>Against Blackwell now.</strong> HBM3e at 8 TB/s is one generation from HBM4 at
+    roughly 20 TB/s, and for a decode-bound workload bandwidth is the quantity that matters
+    most; a 2026 Q4 purchase is a card whose defining number will be beaten by 2.5× within
+    a year. The B300's FP64 collapse makes it a specialised part rather than a general one.
+    Most Blackwell production is absorbed by hyperscalers, so institutional buyers face
+    waitlists — a lead time that could push delivery into the window where Rubin is
+    orderable. And our own evidence undercuts the urgency: if agentic wall clock is bound by
+    turn count and thinking volume rather than generation, the fleet gets less from new
+    silicon than the arithmetic suggests.</p>
+
+    <p><strong>How to hold both.</strong> The resolution is not a compromise part, it is
+    sequencing. Air-cooled Blackwell now is a five-year serving asset that works on the day
+    it arrives and needs no facility change; Rubin, when it comes, is a liquid-cooled
+    purchase that will require one anyway, and the coolant loop is the long-lead item. If the
+    site is going to get liquid cooling eventually, the honest plan is: buy air-cooled
+    Blackwell now for the workload we have, and treat the coolant loop as the infrastructure
+    project that makes the <em>next</em> purchase possible.</p>
+
+    <h2 id="s12">§12 — What I would do, and what would change it</h2>
+
+    <p><strong>Recommendation, conditional on one fact I do not have.</strong></p>
+
+    <table>
+      <thead><tr><th>If</th><th>Then</th><th>Because</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>No coolant loop, and the new node must also do fp64 physics</td>
+          <td><strong>8×B200, air-cooled HGX or DGX, 10U, 14.3 kW</strong></td>
+          <td>Fixes all three measured constraints — FP4-native, 1,440 GB in one NVSwitch domain, 82 GB/card free — while holding FP64 at parity. The only option that regresses nothing.</td>
+        </tr>
+        <tr>
+          <td>No coolant loop, and fp64 physics stays on the H200 node</td>
+          <td><strong>8×B300 at the 1,100 W air bin</strong></td>
+          <td>2.1–2.3 TB per node is the largest air-coolable memory pool available, and capacity is what our workload consumes. It is the only option under which GLM-5.3 serves at native precision with a real window. Accept 10 TFLOPS of FP64 and keep the H200 for the physics.</td>
+        </tr>
+        <tr>
+          <td>A coolant loop exists or is funded</td>
+          <td>Re-open the question with B300 DLC, MI355X and Rubin all in scope</td>
+          <td>The air ceiling is the only thing excluding the top of the market; remove it and the analysis changes rather than merely extends.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p><strong>Four measurements would change this, and three of them are free.</strong></p>
+
+    <p><em>One.</em> The real-traffic harvest already running on the V4.1 serve. Per-worker
+    decode and prefill under genuine agent load, binned by concurrency, is the number this
+    whole study is a projection of. If it confirms that wall clock is bound by turn count,
+    the capacity argument strengthens and the throughput argument weakens further — which
+    would push the choice toward the B300 air bin.</p>
+
+    <p><em>Two.</em> The block-FP8 dequant path on the cards we already own. One restart,
+    no money, and the upstream measurement is 2.04× prefill at 32 concurrent requests.
+    If it lands here, part of the case for buying is answered without buying, and the
+    purchase can be specified more calmly.</p>
+
+    <p><em>Three.</em> An eight-card topology read. Allocate all eight cards and run
+    <code>nvidia-smi topo -m</code>. This either confirms §5's two-island account of our
+    eight-card results or refutes it. It is the single cheapest experiment in this document
+    and it validates or destroys one of the three pillars of the argument.</p>
+
+    <p><em>Four.</em> A facilities answer on 14 kW in the rack, containment, and a coolant
+    path. Not free, but it is the gate on everything above, and no GPU comparison can
+    substitute for it.</p>
+
+    <h2 id="s13">§13 — Provenance</h2>
+
+    <p><strong>Our own measurements</strong>, all on <code>98dci4-gpu-0003</code>, recorded
+    in this repository:</p>
+
+    <ul>
+      <li><a href="/imas-ambix/evidence/archive/glm-52-local-serve-performance-landed">Six-configuration serving matrix</a> — decode, TTFT, aggregate concurrency curves, KV pool allocations and load times for DeepSeek-V4-Flash at 2/4/8 cards and GLM-5.2 at 4/8 cards; also the discrete-topology finding and the 218 GiB-per-card statement that puts GLM's four-card floor where it is.</li>
+      <li><a href="/imas-ambix/evidence/archive/dsv41-flash-four-card-throughput-landed">V4.1-Flash four-card throughput</a> — the memory ledger, the 512,000-token proof, concurrent prefill scaling, the decode table, and the real-traffic caveat.</li>
+      <li><a href="/imas-ambix/evidence/archive/dsv41-flash-serve-characterisation-landed">V4.1-Flash characterisation</a> — the fused-MoE workspace asks, the pool that started and died, the DSpark refusal at 12.00 GiB, and the withdrawn W4A16 reasoning whose surviving claim §4 follows up.</li>
+      <li><a href="/imas-ambix/evidence/archive/dsv4-flash-dspark-four-card-serve-landed">DSpark on four cards</a> — 45.3–46.4% acceptance at 3.31 mean accept length, 418.5 tok/s peak generation, and the 22–33 tok/s agentic wall rate that reframes the whole purchase.</li>
+      <li><a href="/imas-ambix/evidence/archive/glm-53-serve-and-wiring-landed">GLM-5.3 serve and wiring</a> — four attempts, four causes, and why the four-card deployment is a W4A8 substitute.</li>
+      <li><a href="/imas-ambix/evidence/archive/multi-model-serving-capacity-landed">Multi-model serving capacity</a> — the locked service statement and the admission cap this study sizes against.</li>
+      <li>Live readings taken while writing: <code>nvidia-smi</code> reporting H200 NVL, a 600 W limit and <code>NV6</code> between the serving job's four cards; 392–406 W at 96–100% utilisation and 61–63 °C under real load.</li>
+    </ul>
+
+    <p><strong>External sources.</strong> Vendor specifications are cited as such;
+    third-party benchmark figures are used for direction and mechanism rather than as
+    quotable rates, for the reason given in §8.</p>
+
+    <ul>
+      <li><a href="https://www.nvidia.com/en-us/data-center/dgx-b300/">NVIDIA DGX B300</a> — 8× Blackwell Ultra SXM, 2.1 TB total GPU memory, 144/108 PFLOPS FP4 sparse/dense, 14.4 TB/s NVLink, ~14 kW, 10U.</li>
+      <li><a href="https://forums.developer.nvidia.com/t/does-blackwell-support-int4-native/326513">NVIDIA developer forum — does Blackwell support INT4 natively</a> — the SASS-level answer: native <code>IMMA.8832.S4.S4.SAT</code> on SM75–SM89, emulation on SM90 and SM100, with INT4 operands reaching the FP4 datapath through <code>tcgen05.mma.kind::mxf4nvf4</code>.</li>
+      <li><a href="https://www.hivenet.com/post/nvfp4-blackwell-ai-inference">NVFP4 explained</a> and <a href="https://arxiv.org/pdf/2507.10789">Dissecting the NVIDIA Blackwell Architecture with Microbenchmarks</a> — the fifth-generation tensor-core datatype list, and the absence of INT4 from it.</li>
+      <li><a href="https://github.com/vllm-project/vllm/pull/53709">vLLM pull request — opt-in lossless MXFP4 to block-FP8 expert dequant for Hopper</a> — the measured 1.38–1.53× prefill and 2.04×-at-32-concurrent figures, and the statement that native MXFP4 kernels are gated to Blackwell.</li>
+      <li><a href="https://github.com/sgl-project/sglang/pull/34682">SGLang pull request — fused CUTLASS MXFP4A8 MoE backend for SM90</a> — the same gap addressed in the engine we serve V4.1 with.</li>
+      <li><a href="https://www.lmsys.org/blog/2026-04-25-deepseek-v4/">LMSYS — DeepSeek-V4 on day 0</a> — TP8 on B200 Pro against TP4 on H200 Flash, and FlashInfer TRTLLM-Gen fused MoE for MXFP8×MXFP4 described as Blackwell machinery.</li>
+      <li><a href="https://www.supermicro.com/en/accelerators/nvidia">Supermicro NVIDIA Blackwell systems</a> — the 8U air-cooled eight-GPU HGX B300 at the 1,100 W bin against the 4U DLC configuration.</li>
+      <li><a href="https://intuitionlabs.ai/articles/nvidia-hgx-data-center-requirements">HGX data-centre physical requirements</a> — DGX B200 at 10U and 14.3 kW, ~49,000 BTU/h, ~1,550 CFM, and the 30–40 kW air ceiling per rack.</li>
+      <li><a href="https://developer.nvidia.com/blog/inside-the-nvidia-rubin-platform-six-new-chips-one-ai-supercomputer/">Inside the NVIDIA Rubin platform</a>, <a href="https://www.datacenterdynamics.com/en/news/nvidia-announces-vera-rubin-superchip-for-late-2026/">Vera Rubin announcement</a> and <a href="https://www.storagereview.com/news/supermicro-expands-liquid-cooling-for-nvidia-vera-rubin-nvl72-and-hgx-rubin-nvl8-platforms">liquid cooling for NVL72 and HGX Rubin NVL8</a> — availability, HBM4, and the absence of an air-cooled variant.</li>
+      <li><a href="https://www.amd.com/en/products/accelerators/instinct/mi350.html">AMD Instinct MI350 series</a> and <a href="https://inferencex.semianalysis.com/blog/mi355x-deepseek-v4-pro-sglang-110x-in-26-days">MI355X DeepSeek-V4-Pro on SGLang</a> — 288 GB at 8 TB/s air or liquid, and the 110.5×-in-26-days software history.</li>
+      <li><a href="https://www.nvidia.com/en-us/data-center/rtx-pro-6000-blackwell-server-edition/">RTX PRO 6000 Blackwell Server Edition</a> — 96 GB GDDR7, 600 W, passive, FP4-capable, no NVLink.</li>
+      <li><a href="https://www.mercatus-ai.com/blog/b200-server-price">Reported 2026 pricing for an eight-GPU HGX B200</a>, <a href="https://www.mercatus-ai.com/blog/h200-server-price">for H200</a>, and <a href="https://gpusmith.com/articles/en/nvidia-dgx-b300-price">for DGX B300</a> — secondary-source estimates, used only for ratios.</li>
+      <li><a href="https://www.nvidia.com/en-us/data-center/h200/">NVIDIA H200</a> — the 2- or 4-way NVLink bridge specification for the NVL part, which §5's argument rests on.</li>
+    </ul>
+
+    <p><strong>What this study does not establish.</strong> The two-island topology account
+    of our eight-card results is an explanation consistent with three measurements, not a
+    verified fact; §12 names the read that would settle it. The throughput bracket in §8 is
+    a decomposed estimate, and its speculative-decoding factor is conditional. The pricing
+    is secondary-source. And no projection here has been tested against real agent traffic
+    on Blackwell silicon, because nobody in this project has yet run any.</p>
+
+  </main>
+</body>
+</html>
