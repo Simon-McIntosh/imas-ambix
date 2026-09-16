@@ -107,6 +107,15 @@ enable_decoder_swa_bounded_replay = true
 # The lane publisher reads the engine's Prometheus endpoint to derive KV-pool
 # headroom. SGLang defaults that endpoint off, so the serve must opt in.
 enable_metrics = true
+# A 203,241-token prefill consumed 37.1 GB of the 40.65 GB free at ready, so
+# halve the 32,768-token chunk to halve each transient prefill peak. This trades
+# some prefill rate for activation headroom; it does not alter the context cap.
+chunked_prefill_size = 16384
+# Keep at most 64 requests running in SGLang at once: this is twice the 32-way
+# load already known to work, but one quarter of the engine default 256 so its
+# scheduling structures leave burst headroom. Extra requests queue because the
+# engine has no maximum queued-request limit.
+max_running_requests = 64
 cuda_graph_max_bs_decode = 64
 # Speculative decoding is NOT VIABLE on this four-card deployment, and the
 # reason is capacity rather than benefit. DSpark wants a ~12 GiB per-card
@@ -290,6 +299,13 @@ reasoning = "auto"
 # and a longer load. Huge-page backing keeps the gather cheap; without it the
 # ~1% figure will not reproduce.
 SGLANG_ENABLE_DSV41_ENGRAM_HOST_TABLE = "1"
+# The OOM receipt reported about 4.45 GiB reserved but unallocated and named
+# expandable segments as its remedy. Let the caching allocator reuse those
+# segments for transient prefill peaks rather than increasing steady-state use.
+# This ships with the smaller chunks and running bound as one unattributed
+# combination: any later improvement cannot be assigned to one lever without
+# separate restarts.
+PYTORCH_CUDA_ALLOC_CONF = "expandable_segments:True"
 
 # Serving runs from the vendor preview container, not from the sglang engine
 # venv. V4.1 support merged to sglang main on 2026-09-14 and is not

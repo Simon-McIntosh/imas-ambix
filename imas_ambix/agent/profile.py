@@ -163,6 +163,10 @@ class EngineConfig(BaseModel):
     enable_mixed_chunk: bool = True
     enable_p2p_check: bool = True
     chunked_prefill_size: int = 32768
+    # SGLang queues requests beyond this engine-side running bound rather than
+    # rejecting them when its queue limit remains unset. ``None`` preserves the
+    # engine default. SGLang-only.
+    max_running_requests: int | None = None
     cuda_graph_max_bs: int | None = None
     # Separate decode-side CUDA-graph batch ceiling
     # (``--cuda-graph-max-bs-decode``). Architectures that split prefill and

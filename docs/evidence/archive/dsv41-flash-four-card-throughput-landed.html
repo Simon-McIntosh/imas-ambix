@@ -837,6 +837,40 @@
     checkout, restart only the router, leave the four-card serve untouched, and
     retain timestamped lane-document reads until the eight-sample interval closes.</p>
 
+    <h2 id="context-memory-settings">§11 — Generated launch now carries the identified prefill headroom settings</h2>
+
+    <p><strong>The omission reproduced before the change.</strong> The generated
+    V4.1 dry run carried <code>--chunked-prefill-size 32768</code> and the
+    existing Engram host-table export, but contained neither the allocator
+    setting nor a running-request bound. That was a configuration defect, not a
+    claim that the measured 203,241-token prefill had stopped fitting.</p>
+
+    <table>
+      <thead><tr><th>Generated-launch setting</th><th>Constraint it addresses</th></tr></thead>
+      <tbody>
+        <tr><td><code>PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True</code></td><td>Reuse the roughly 4.45 GiB the OOM receipt reported as reserved but unallocated.</td></tr>
+        <tr><td><code>--chunked-prefill-size 16384</code></td><td>Halve the transient prefill peak per chunk from the prior 32,768-token setting, accepting a prefill-rate trade.</td></tr>
+        <tr><td><code>--max-running-requests 64</code></td><td>Keep the SGLang scheduler above the measured working width of 32 while cutting its 256-request default by four; excess requests queue because no queue maximum is configured.</td></tr>
+      </tbody>
+    </table>
+
+    <p>Commit <code>3f670a6</code> adds the typed SGLang-only request setting,
+    emits it only on the SGLang command, and records the two profile-only
+    settings alongside the existing engine environment. The post-change dry
+    run emits all three values on the same generated launch. The focused launch
+    contract passed 6 tests; the pre-existing metrics and pool tests passed 4
+    before and 4 after; and <code>ruff check imas_ambix tests</code> exited
+    zero. A V4-Flash dry run rendered from the base checkout and from this
+    commit had an empty byte diff, preserving the vLLM command exactly.</p>
+
+    <p><strong>No performance attribution is claimed.</strong> The settings ship
+    together because they all relieve the same transient-prefill headroom
+    constraint: 37.1 GB of the 40.65 GB ready-state margin was consumed at
+    203,241 tokens. A later improvement cannot be assigned to any individual
+    setting without separate restarts and measurements. This node generated no
+    serve and submitted no SLURM job; the live restart and measurement remain
+    coordinator-owned.</p>
+
 </main>
 </body>
 </html>
