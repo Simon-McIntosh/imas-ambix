@@ -201,14 +201,23 @@ max_total_tokens = 4000000
 # ranks, or roughly 49 GiB; it is deliberately less than the Engram host-table
 # allocation and preserves process and page-cache margin.
 enable_hierarchical_cache = true
-# Eight, raised from 2.0 on 2026-09-16 against the engine's own startup
-# ledger rather than an estimate. At ratio 2 it logged, per rank, 4.68 GB for
-# the 'deepseek_v4_c1' full pool, 0.54 GB for its indexer and 8.45 GB for
-# 'swa' -- 13.67 GB/rank, 54.7 GB across four, so 6.84 GB/rank per unit of
-# ratio, and both pools scale linearly (full_host_pages = device_pages * ratio,
-# with no cap in the pool assembler). Ratio 8 therefore asks ~219 GB of host
-# RAM for a 32,000,000-token host tier, against a measured 232 GB of non-cache
-# job residency -- which is why `memory` moves with it.
+# Eight, raised from 2.0 on 2026-09-16, costed from the engine's own startup
+# allocation log. There are FIVE host pools per rank, not three, and the count
+# is the thing to get right -- at ratio 2 the log reads 4.68 GB
+# 'deepseek_v4_c1' + 0.54 'c1_indexer' + 7.02 'deepseek_v4_c2' + 0.82
+# 'c2_indexer' + 8.45 'swa' = 21.51 GB/rank, so 86.0 GB across four ranks and
+# 10.76 GB/rank per unit of ratio. Every pool scales linearly
+# (full_host_pages = device_pages * ratio, no cap in the pool assembler), so
+# ratio 8 asks ~344 GB for a 32,000,000-token tier. Measured after the
+# restart: 320.8 GB of cgroup shmem, against 206.1 GB anon.
+#
+# `memory` is 720G because of that, and the number to size against is
+# anon + shmem, NOT memory.current. At ratio 8 memory.current reads ~715 GB of
+# the 720 GB limit and the serve is nowhere near death: ~185 GB of that is
+# reclaimable page cache from reading a ~400 GB checkpoint, while the
+# unreclaimable total is ~530 GB. Shared memory is charged to the cgroup's
+# `file` counter but cannot be reclaimed, so reading `file` as headroom
+# overstates it and reading `memory.current` as usage understates the margin.
 #
 # The evidence for raising it at all: under 28 concurrent real workers the
 # in-window prefix hit rate read 7.8% against 49.1% cumulative when the fleet
@@ -216,10 +225,14 @@ enable_hierarchical_cache = true
 # Workers carrying ~84k-token prompts were re-prefilling history they had
 # moments earlier, and prefill is 99.4% of this deployment's token work.
 #
-# A correction to a figure recorded earlier in this repository: the host tier
-# was described as "~172 GB across four ranks" at ratio 2. The engine's own
-# allocation log says 54.7 GB. The 172 GB figure was never measured and must
-# not be carried forward.
+# Two figures for this tier have now been wrong in this repository, in opposite
+# directions, and both by the same mechanism -- a number written without the
+# allocation log fully enumerated. It was once recorded as "~172 GB across four
+# ranks" (2x high), then as "54.7 GB" (missing the two 'c2' pools, because the
+# log was read through a truncated grep that cut off after twelve lines). The
+# measured figure is 86.0 GB at ratio 2. Count the pools before trusting a
+# per-token cost: `grep -c "Allocating .* host memory"` must equal pools x
+# ranks, which is 20 here.
 hicache_ratio = 8.0
 # Write only prefixes that demonstrate reuse into the host tier. This avoids
 # copying one-off prompts over PCIe while retaining the repeated agent context
