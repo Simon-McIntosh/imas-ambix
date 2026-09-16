@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-16T08:26:34",
+  "updated": "2026-09-16T08:29:00",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -36386,6 +36386,206 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260916T061738844616-context-headroom-levers",
+        "plan": "dsv41-flash-four-card-throughput",
+        "section": "\u00a711",
+        "node": "context-headroom-levers",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1501,
+                "cached_input_tokens": 888394,
+                "input_tokens": 889897,
+                "output_tokens": 266,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 890163,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "2f9d3191-e884-4a53-99ab-b894325cccbd",
+            "session_id": "dsv41-four-card-20260916"
+          },
+          "done_when": "imas-ambix agent serve deepseek-v4-1-flash --dry-run emits all three of: the environment variable PYTORCH_CUDA_ALLOC_CONF set to expandable_segments:True, --chunked-prefill-size 16384, and --max-running-requests 64. All three target the SAME measured constraint, which is why they ship together: a 203,241-token prefill consumes 37.1 GB of 40.65 GB free, and that is the caching allocator's high-water mark from transient prefill peaks rather than steady-state use. Expandable segments addresses the roughly 4.45 GiB the allocator reports as reserved-but-unallocated, a figure the OOM message printed along with that exact remedy. Halving the prefill chunk from 32768 halves the transient peak per chunk at some prefill-rate cost. The running-request bound drops from the engine default 256 to 64, which sits above the 32 concurrent already measured working so it leaves burst headroom, while cutting scheduling structures fourfold; requests beyond the bound QUEUE rather than fail because max_queued_requests is None, so no client sees an error. The first two are profile-only: chunked_prefill_size already exists on EngineConfig with default 32768, and engine.env already carries SGLANG_ENABLE_DSV41_ENGRAM_HOST_TABLE so the allocator variable joins it there. The third needs a new EngineConfig field and an emitter, following the precedent set when enable_metrics was added to profile.py and slurm.py; keep it SGLang-only so the vLLM command stays byte-identical and PROVE that by diffing a deepseek-v4-flash dry-run before and after. Record in the profile comment what each of the three targets, and state that the combination is unattributed by design: three at once means a later improvement cannot be assigned to one without further restarts. Gate: uv run --no-sync ruff check imas_ambix tests exits 0, a new test asserts all three reach the dry-run, the V4-Flash dry-run diff is empty, and existing profile and metrics tests add no failures against base. Start no serve and submit no SLURM job; the coordinator owns the restart and the measurement.",
+          "estimated_hours": null,
+          "goal": "Three memory-headroom settings reach the generated V4.1 launch command in one change",
+          "id": "context-headroom-levers",
+          "lane_declaration": {
+            "backend": "codex-terra",
+            "headroom": "known",
+            "metered": true,
+            "observed_at": "2026-09-16T06:17:39Z",
+            "read_at": "2026-09-16T06:17:40Z",
+            "resolved_backend": "codex-terra",
+            "utilisation_pct": 73.0
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "backend declares no lane document",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260916T061738844616-context-headroom-levers/manifest.md",
+          "plan": "dsv41-flash-four-card-throughput",
+          "requested_backend": "codex-terra",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a711",
+          "spec_level": "exact",
+          "time_budget": "35m",
+          "token_budget": null,
+          "write_paths": [
+            "imas_ambix/agent/profiles/deepseek-v4-1-flash.toml",
+            "imas_ambix/agent/profile.py",
+            "imas_ambix/agent/slurm.py",
+            "tests/test_agent_context_headroom.py",
+            "docs/evidence/archive/dsv41-flash-four-card-throughput-landed.html",
+            "docs/plans/dsv41-flash-four-card-throughput.html"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "context-headroom-levers",
+        "backend": "codex-terra",
+        "local": false,
+        "agent": {
+          "alias": "terra5.6",
+          "backend": "codex-terra",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-terra",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-16T06:17:53Z",
+        "completed_at": "2026-09-16T06:25:46Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 473,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 473,
+        "stalled": false,
+        "time_budget": "35m",
+        "base_sha": "04e812afdc5dc905ec6c7c40afb9199de92112c8",
+        "commits": [
+          "3f670a6b5a085a4101d12e8b6f3dffc8a92b1191",
+          "dfd35b6a3c39109efe15790b5777d9a65e17d292"
+        ],
+        "changed_lines": {
+          "added": 98,
+          "removed": 0,
+          "files": 6
+        },
+        "tests_added": 2,
+        "gate": "passed",
+        "gate_check": {
+          "command": "pytest tests/test_agent_context_headroom.py re-run from the merged head",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260916T061738844616-context-headroom-levers/logs/headroom-gate-pass.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260916T061738844616-context-headroom-levers/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a0a8dd-58b0-7af1-8d0e-d5c9ccfdcfe5",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 6934272,
+            "cached_input_tokens_cumulative": 6934272,
+            "input_tokens": 7151438,
+            "input_tokens_cumulative": 7151438,
+            "output_tokens": 19861,
+            "output_tokens_cumulative": 19861,
+            "reasoning_output_tokens": 5178,
+            "reasoning_output_tokens_cumulative": 5178
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lane_receipt": {
+          "quota_state": "measured",
+          "observed_at": "2026-09-16T06:25:46Z",
+          "effective_context_window": 380000,
+          "quota_windows": [
+            {
+              "window_minutes": 10080,
+              "used_percent": 73.0,
+              "resets_at": 1789970251,
+              "observed_at": "2026-09-16T06:25:46Z"
+            }
+          ],
+          "notional_cost_usd": 14.5412,
+          "rate_basis": {
+            "model_identifier": "gpt-5.6-terra",
+            "input_per_million": 2.0,
+            "output_per_million": 12.0,
+            "as_of": "2026-09-09"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": null,
+        "throughput": {
+          "cumulative_cached_input_tokens": 6934272,
+          "cumulative_input_tokens": 7151438,
+          "detail": "model span bounded from the client rollout's tool spans; input cumulative summed across resets",
+          "generated_tokens": 25039,
+          "generation_seconds": 442.213,
+          "machine_seconds": 29.751,
+          "tokens_per_second": 56.62
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/dsv41-four-card-20260916/context-headroom-levers",
+          "session_id": "01a0a8dd-58b0-7af1-8d0e-d5c9ccfdcfe5",
+          "session_source": "pointer",
+          "retained_at": "2026-09-16T06:25:46Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "tool_steps": 52.0,
+        "orientation_input_tokens": null,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -36432,6 +36632,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 658
+    "_version": 659
   }
 }
