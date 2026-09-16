@@ -946,6 +946,42 @@
     over 20-minute windows, not a completion optimum, and only two nodes completed inside
     the study.</p>
 
+    <h3 id="completion-wall-time">Completion wall time, the axis the throughput curve did not measure</h3>
+
+    <p><strong>Three nodes ran to completion during the study and all three landed;
+    their wall times were 38, 58 and 146 minutes.</strong> The last of those,
+    <code>swallow-census-cli-r2</code>, spent its whole life inside the width-4-to-6
+    window, so 146 minutes is a saturated-lane figure: two commits, a delta gate passed
+    at 387 passed with the same four pre-existing failures measured in a sibling
+    worktree at the base, merged to develop. The 38-minute node ran at widths 1&ndash;2
+    and the 58-minute one crossed into width 6.</p>
+
+    <table>
+      <thead><tr><th>Node</th><th>Width during its life</th><th>Wall</th><th>Advisory budget</th><th>Outcome</th></tr></thead>
+      <tbody>
+        <tr><td>swallow-census-inspect-r2</td><td>1&ndash;2</td><td>38 min</td><td>45 min</td><td>2 commits, gate passed, merged</td></tr>
+        <tr><td>swallow-census-log-r2</td><td>2&ndash;6</td><td>58 min</td><td>45 min</td><td>2 commits, merged; overran by 13 min</td></tr>
+        <tr><td>swallow-census-cli-r2</td><td>4&ndash;6</td><td><strong>146 min</strong></td><td>60 min</td><td>2 commits, gate passed, merged; overran by 2.4&times;</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>This is the axis a slot-counting ladder misses, and it moves further than
+    the throughput figures do.</strong> Aggregate output varied by a factor of 2.4 across
+    the whole curve while completion wall time varied by 3.8&times; between the narrowest
+    and the widest node. A ceiling chosen on throughput alone would therefore understate
+    what width costs the thing anyone actually waits for. <strong>It is confounded and
+    must not be read as a clean width effect</strong>: the three nodes had the same brief
+    shape but different file sets, so scope differs, and only one node's life sits wholly
+    inside one width band. What it does establish without qualification is that the lane
+    lands work at these widths &mdash; three of three that ran to the end merged &mdash;
+    against seventeen runs and zero commits at width 34.</p>
+
+    <p><strong>The advisory budget is not merely unenforced, it is wrong under load.</strong>
+    A 60-minute advisory carried a 146-minute node with nothing stopping it, and a
+    45-minute advisory carried 58. A coordinator planning waves against those numbers
+    would mis-plan by a factor of two or more, and the figure degrades with lane width,
+    so a budget calibrated at width 1 misleads worst exactly when the lane is busiest.</p>
+
     <h2 id="prefix-reuse-defect">The workers reuse no prefix at all, and the engine is not at fault</h2>
 
     <p><strong>Across the whole curve the prefix hit rate ran 0.0%, 1.8%, 7.4% and 7.1%,
