@@ -232,6 +232,20 @@ class EngineConfig(BaseModel):
     moe_runner_backend: (
         Literal["auto", "triton", "triton_kernel", "flashinfer_mxfp4"] | None
     ) = None
+    # Computation precision inside the FlashInfer MXFP4 MoE runner. ``default``
+    # upcasts activations to BF16, which is the only thing SM90 can do with a
+    # 4-bit weight through that path; ``fp8`` selects the Humming-style
+    # MXFP4-weight x FP8-activation kernels, reaching the FP8 tensor cores
+    # Hopper does have. It needs FlashInfer >= 0.6.18 -- the serving container
+    # carries exactly 0.6.18, so the floor is met rather than exceeded, and a
+    # container rebuild below that version silently reverts the path.
+    #
+    # This is a prefill lever, which is what makes it worth the field: measured
+    # on real agent traffic, 99.4% of this deployment's token work is prefill
+    # (270 input tokens per output token at a mean prompt of 83,814), so the
+    # dequantisation cost sits on the dominant term. Only meaningful alongside
+    # ``moe_runner_backend = "flashinfer_mxfp4"``.
+    flashinfer_mxfp4_moe_precision: Literal["default", "bf16", "fp8"] | None = None
     # CLI flag is `--fp8-gemm-backend` but the ServerArgs attribute
     # SGLang uses internally is `fp8_gemm_runner_backend`; mirror the
     # internal name here. Allowed values match SGLang's argparse.

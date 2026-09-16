@@ -187,6 +187,11 @@ def _build_sglang_args(profile: ModelProfile, site: SiteConfig) -> list[str]:
     # Note: --enable-auto-tool-choice is vLLM-only; SGLang enables
     # tool calls automatically when --tool-call-parser is set.
     _append_option(args, "--moe-runner-backend", engine.moe_runner_backend)
+    _append_option(
+        args,
+        "--flashinfer-mxfp4-moe-precision",
+        engine.flashinfer_mxfp4_moe_precision,
+    )
     # SGLang's CLI uses --fp8-gemm-backend even though the internal
     # ServerArgs attribute is named fp8_gemm_runner_backend.
     _append_option(

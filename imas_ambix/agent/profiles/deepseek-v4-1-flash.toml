@@ -101,6 +101,22 @@ attention_backend = "dsv4"
 # experts stay at their shipped precision on these SM90 cards — no FP8
 # up-conversion pass and no second checkpoint.
 moe_runner_backend = "flashinfer_mxfp4"
+# Route the MXFP4 experts through FP8 activations instead of a BF16 upcast.
+# SM90 has no FP4 datapath, so the runner's `default` precision upcasts to
+# BF16 and pays a dequantisation pass on every expert GEMM; `fp8` selects
+# FlashInfer's Humming-style MXFP4-weight x FP8-activation kernels and reaches
+# the FP8 tensor cores this silicon does have. Requires FlashInfer >= 0.6.18;
+# the serving container carries exactly 0.6.18.
+#
+# Chosen as a prefill lever on measurement: real agent traffic on this serve
+# runs 270 input tokens per output token, so the expert GEMM cost lands almost
+# entirely on prefill. The comparable published change on Hopper -- a lossless
+# MXFP4-to-block-FP8 re-encode reaching the same tensor cores -- measured
+# 1.38-1.53x single-request prefill and 2.04x at 32 concurrent on TP4. This
+# path should not carry that change's 2x weight-memory cost, because it
+# converts activations rather than duplicating weights, but the gain here is
+# UNMEASURED until this serve is compared against its own prior figures.
+flashinfer_mxfp4_moe_precision = "fp8"
 # Vendor-documented Hopper prefill win: decoder-side bounded replay measured
 # 1.56x prefill throughput on 8xH200.
 enable_decoder_swa_bounded_replay = true
@@ -185,7 +201,26 @@ max_total_tokens = 4000000
 # ranks, or roughly 49 GiB; it is deliberately less than the Engram host-table
 # allocation and preserves process and page-cache margin.
 enable_hierarchical_cache = true
-hicache_ratio = 2.0
+# Eight, raised from 2.0 on 2026-09-16 against the engine's own startup
+# ledger rather than an estimate. At ratio 2 it logged, per rank, 4.68 GB for
+# the 'deepseek_v4_c1' full pool, 0.54 GB for its indexer and 8.45 GB for
+# 'swa' -- 13.67 GB/rank, 54.7 GB across four, so 6.84 GB/rank per unit of
+# ratio, and both pools scale linearly (full_host_pages = device_pages * ratio,
+# with no cap in the pool assembler). Ratio 8 therefore asks ~219 GB of host
+# RAM for a 32,000,000-token host tier, against a measured 232 GB of non-cache
+# job residency -- which is why `memory` moves with it.
+#
+# The evidence for raising it at all: under 28 concurrent real workers the
+# in-window prefix hit rate read 7.8% against 49.1% cumulative when the fleet
+# was narrower, with the 8M-token tier 99.9% full and 135.7M tokens evicted.
+# Workers carrying ~84k-token prompts were re-prefilling history they had
+# moments earlier, and prefill is 99.4% of this deployment's token work.
+#
+# A correction to a figure recorded earlier in this repository: the host tier
+# was described as "~172 GB across four ranks" at ratio 2. The engine's own
+# allocation log says 54.7 GB. The 172 GB figure was never measured and must
+# not be carried forward.
+hicache_ratio = 8.0
 # Write only prefixes that demonstrate reuse into the host tier. This avoids
 # copying one-off prompts over PCIe while retaining the repeated agent context
 # that caused the device pool to turn over. page_first is the image's
@@ -361,7 +396,20 @@ cpus = 12
 # variable payload for the 4M-token device pool, and process, pinned-transfer,
 # and weight-loading page-cache margin. It remains 170G below Group A's 650G
 # allocation; never request the node's RealMemory.
-memory = "480G"
+# 720G, raised from 480G to carry the ratio-8 host tier. Sized from the job's
+# own cgroup: memory.current read 287 GB at ratio 2, of which 54.7 GB was the
+# host tier, leaving ~232 GB of non-cache residency; ratio 8 adds ~164 GB on
+# top, for ~451 GB. The margin above that is deliberate -- memory.peak had
+# already touched the old 480 GB ceiling, which is load-time page cache from
+# reading a ~400 GB checkpoint rather than steady-state use, and a limit sized
+# to steady state would be hit while loading.
+#
+# Checked admissible before raising: the node carries 1,500 GB and peers held
+# ~200 GB, so 720G leaves the request well clear of RealMemory. Never size
+# this to the node -- `--mem=0` or a figure near 1,500 GB reads as "no limit"
+# and means "reserve everything", which cannot start while anyone else holds
+# memory and head-of-line blocks the queue behind it.
+memory = "720G"
 # 18800-18809 are taken by the other profiles and by the router at 18802.
 port = 18810
 time_serve = "0"
