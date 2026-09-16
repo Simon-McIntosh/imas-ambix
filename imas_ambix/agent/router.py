@@ -263,6 +263,7 @@ class RouterApp:
             )
 
         self._log_prefix_divergence(payload, scope)
+        payload, body = self._repair_system_roles(payload, body)
         relay_body = self._clamp_output_tokens(payload, body, card)
         await self._relay(scope, receive, send, relay_body, upstream)
 
@@ -306,7 +307,7 @@ class RouterApp:
             if not isinstance(messages, list):
                 return
             flat = json.dumps(messages, separators=(",", ":"), sort_keys=False)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return
         digests = []
         for depth in (512, 2048, 8192, 32768, 131072):
@@ -548,6 +549,72 @@ class RouterApp:
             finally:
                 disconnected.cancel()
                 await asyncio.gather(disconnected, return_exceptions=True)
+
+    @staticmethod
+    def _repair_system_roles(
+        payload: Mapping[str, Any], body: bytes
+    ) -> tuple[Mapping[str, Any], bytes]:
+        """Re-label mid-conversation system messages so the prefix can be reused.
+
+        The DeepSeek-V4.1 encoder re-emits the ENTIRE tool block after every
+        message whose role is ``system``, and agent harnesses inject one such
+        message per turn -- a session hook, server instructions, a remaining-token
+        notice. With a large tool set that rewrites tens of thousands of tokens at
+        a fresh position on every request, so no two consecutive turns share a
+        prefix and the cache can never be consulted usefully.
+
+        Measured on this deployment 2026-09-16, one worker, identical task:
+        conversational turns reused 1.6-4.2% of their prompt with the roles as
+        sent, and 99.3-99.7% with them re-labelled. An ablation isolated the
+        cause: removing ``context_management``, ``output_config`` or ``metadata``
+        changed nothing, while re-labelling alone moved a 48,159-token turn from
+        0.0% to 99.4%. Across a fleet the waste was the dominant cost of serving
+        -- a width-1 phase spent 23.0 of 23.7 minutes of card time re-computing a
+        prefix the engine would otherwise have had.
+
+        ``user`` is the encoder's own reading rather than an invention: it treats
+        a mid-conversation system message as a user turn when deciding where the
+        assistant header goes, and says so. Only messages after the first are
+        touched, because a leading system message is the conventional way to open
+        a conversation and the encoder handles it without re-emitting tools. The
+        body is re-encoded only when a message actually changed, so an untouched
+        request passes through byte-for-byte.
+        """
+        messages = payload.get("messages") if isinstance(payload, Mapping) else None
+        if not isinstance(messages, list):
+            return payload, body
+        repaired: list[Any] = []
+        changed = False
+        for index, message in enumerate(messages):
+            if (
+                index > 0
+                and isinstance(message, Mapping)
+                and message.get("role") == "system"
+            ):
+                amended = dict(message)
+                amended["role"] = "user"
+                repaired.append(amended)
+                changed = True
+            else:
+                repaired.append(message)
+        if not changed:
+            return payload, body
+        amended_payload = dict(payload)
+        amended_payload["messages"] = repaired
+        logger.info(
+            "router prefix-repair relabelled=%d messages=%d",
+            sum(
+                1
+                for index, message in enumerate(messages)
+                if index > 0
+                and isinstance(message, Mapping)
+                and message.get("role") == "system"
+            ),
+            len(messages),
+        )
+        return amended_payload, json.dumps(
+            amended_payload, ensure_ascii=False, separators=(",", ":")
+        ).encode()
 
     @staticmethod
     def _clamp_output_tokens(
