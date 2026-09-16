@@ -80,3 +80,4 @@ def test_a_payload_without_messages_is_returned_unchanged() -> None:
 
     assert body is original
     assert amended is payload
+

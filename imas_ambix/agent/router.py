@@ -499,10 +499,22 @@ class RouterApp:
         upstream: Upstream,
     ) -> None:
         session = await self._client()
+        # content-length and transfer-encoding describe the body the CLIENT
+        # sent, and this relay may forward a different one: both
+        # _repair_system_roles and _clamp_output_tokens re-encode the payload,
+        # and re-labelling a role shortens the body by two bytes per message.
+        # Forwarding the original length makes the upstream wait forever for
+        # bytes that will never arrive -- the request hangs rather than failing,
+        # so it reads as a slow serve rather than a malformed relay. Measured
+        # 2026-09-16: every relabelled request hung for six minutes and then
+        # retried, taking the lane down for agent traffic while small probes
+        # that needed no rewrite passed in 0.2 s. Dropping both lets the client
+        # library set the framing from the body actually being sent.
+        drop = {b"host", b"content-length", b"transfer-encoding"}
         request_headers = [
             (name.decode("latin-1"), value.decode("latin-1"))
             for name, value in scope.get("headers", [])
-            if name.lower() != b"host"
+            if name.lower() not in drop
             and (
                 upstream.auth_header is None
                 or name.decode("latin-1").lower() != upstream.auth_header[0].lower()
