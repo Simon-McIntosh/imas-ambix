@@ -775,6 +775,80 @@
     prefill; setting the two side by side would credit V4.1 with an advantage
     that is entirely the absence of prefill.</p>
 
+
+    <h3 id="wide-concurrency-what-is-measured">Width 32 at 210k, and why there is no width-64 figure</h3>
+
+    <table>
+      <thead><tr><th>Width &times; prefill</th><th>Nominal vs pool</th><th>Wall</th><th>Aggregate prefill</th><th>Completed</th><th>Mem delta</th></tr></thead>
+      <tbody>
+        <tr><td>32 &times; 210,240</td><td>6,720k vs 4,000k (1.68&times;)</td><td>1,163.6 s</td><td>6,396 tok/s</td><td><strong>32/32</strong></td><td>+4 MiB</td></tr>
+      </tbody>
+    </table>
+
+    <p>All 32 distinct payloads, cache flushed before the phase. A 1.68&times;
+    nominal pool overflow completed every request with a 4 MiB memory delta, so
+    the graceful path that held at width 12 holds at 32 as well.</p>
+
+    <p><strong>Two width-64 readings taken earlier are void and are withdrawn
+    here.</strong> Both reused payloads, so they measured cache replay rather
+    than prefill: the larger reported 526,788 tok/s at a
+    <code>cache_hit_rate</code> of 0.9989, because 64 workers were indexed
+    <code>k % 32</code> over 32 payloads the width-32 phase had already cached.
+    13.4M tokens in 28.3 seconds is not a throughput figure; it is the pool
+    returning what it already held. Every conclusion drawn from either reading
+    is withdrawn with them.</p>
+
+    <p><strong>Width 64 is therefore unmeasured.</strong> The genuine run &mdash;
+    64 distinct payloads with a flush between phases &mdash; was 7 minutes 23
+    seconds in when the synthetic suite was taken down to open the serve to real
+    traffic, and was killed mid-flight. What is measured at width is 32/32 at
+    210k and 12/12 at 415k. What supports 64 as a worker ceiling is structural
+    rather than measured: <code>max_running_requests</code> bounds the running
+    batch at 64, <code>max_queued_requests</code> is unset so surplus requests
+    queue rather than fail, and <code>max_prefill_tokens</code> of 16,384 bounds
+    activation memory independently of how many requests are resident. That is a
+    reason to expect 64 to hold, not evidence that it does.</p>
+
+    <h2 id="handover-to-real-traffic">Handover: synthetic suite down, serve open to real work</h2>
+
+    <p><strong>2026-09-16 08:30Z</strong> &mdash; the serve is drained, its prefix
+    cache is flushed, and it answers real requests. Sequence: the test driver was
+    terminated, <code>num_running_reqs</code> and <code>num_queue_reqs</code>
+    both read 0.0 on the first sample, <code>POST /flush_cache</code> returned
+    <em>Cache flushed</em>, and <code>cache_hit_rate</code> fell to 0.0 so real
+    traffic starts from a clean measurement. A 31-token request returned 83
+    tokens in 2.5 seconds through the routing origin the launcher uses.</p>
+
+    <p><strong>The takedown itself failed twice on a self-matching pattern.</strong>
+    <code>pgrep -f &lt;pattern&gt;</code> matches the shell that is running the
+    <code>pgrep</code>, because the pattern is in that shell's own command line:
+    the first attempt killed its own wrapper and reported the test as still
+    running. The test was reached instead by identifying the process by shape
+    &mdash; <code>timeout N python3 -</code>, fed on stdin, so its payload
+    filenames never appear in any command line &mdash; and killing it by pid.</p>
+
+    <p><strong>The advertised window was reconciled before any dispatch.</strong>
+    <code>usable_input_window</code> read 172,800, derived from the retired
+    204,800 cap; the endpoint now advertises 512,000 and the launcher reserves
+    32,000 for output, so it is <strong>480,000</strong>. Re-derived from the
+    live endpoint rather than edited by hand, and the note beside it no longer
+    claims a 356,574-token turn would be refused.</p>
+
+    <p><strong>The lane document's derived width will read low at first, and that
+    is correct.</strong> Its <code>concurrent_requests</code> figure comes from a
+    median observed context, and the median it currently holds is the synthetic
+    434,176. So it publishes 4 against an instantaneous 96, and re-derives upward
+    as real turns &mdash; which are far smaller &mdash; enter the window. A
+    coordinator reading it during the first minutes of real traffic is reading
+    the synthetic suite's residue, not the serve's capacity.</p>
+
+    <p><strong>The 794 tok/s aggregate does not forecast real traffic.</strong>
+    It is short-prompt decode at width 32 with no prefill competing for the same
+    cards. Real agent turns carry heavy prefill, which is why V4-Flash measures
+    6.9&ndash;10.1 tok/s per worker on live traffic against far higher synthetic
+    figures. The real-traffic number has to be measured on real traffic; that is
+    what the lane and receipt instruments built for this deployment are for.</p>
+
   </main>
     <h2 id="sglang-lane-reader">§8 — The lane reader now understands the SGLang metrics family</h2>
 

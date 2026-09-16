@@ -24,12 +24,10 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-16">
-<meta name="plan-version" content="25">
-<meta name="plan-modified" content="2026-09-15">
-<meta name="plan-version" content="24">
+<meta name="plan-version" content="29">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s2a&quot;:&quot;done&quot;,&quot;s2b&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s3-paired&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;deferred&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;done&quot;}">
 <meta name="plan-artifacts" content="imas_ambix/agent/serving_receipts.py,imas_ambix/agent/receipt_bins.py,imas_ambix/agent/profiles/deepseek-v4-1-flash.toml,/home/ITER/mcintos/.config/reckon/crew/reports/four-card-reuse-map.md,/home/ITER/mcintos/.config/reckon/crew/reports/swa-index-width-attribution.md">
-<meta name="plan-impl" content="0.85">
+<meta name="plan-impl" content="0.9">
 <meta name="plan-commits" content="e11215257d06725da0c70eda69bb786388595421,f777ce9afb6acb941e9aa2e2132837790e848217,b783a72c55b093f3c8b3347927d923346836387d,956c80b12d69a4e403e21c988d3059da65a4f363,d108cd78716aff8e0094d90fe6b6adfb4acdf9c0,15f2a3bf31b7d2ab294375d8ebb77eb8524f6837">
 </head>
 <body>
@@ -549,12 +547,15 @@
         <tr><th>Quantity</th><th>Value</th></tr>
       </thead>
       <tbody>
-        <tr><td>Per-request context / usable input</td><td>204,800 / <strong>172,800</strong></td></tr>
-        <tr><td>Largest prefill absorbed</td><td><strong>203,241 tokens</strong>, 30 s</td></tr>
-        <tr><td>Smallest prefill that killed a serve</td><td>~300,000 (workspace asked 9.00 GiB)</td></tr>
+        <tr><td>Per-request context / usable input</td><td>512,000 / <strong>480,000</strong></td></tr>
+        <tr><td>Largest prefill absorbed</td><td><strong>511,993 tokens</strong>, 34 s</td></tr>
+        <tr><td>Widest measured concurrency</td><td><strong>32/32</strong> at 210k each, <strong>12/12</strong> at 415k each</td></tr>
+        <tr><td>Peak aggregate decode</td><td><strong>794 tok/s</strong> at width 32, short prompts</td></tr>
+        <tr><td>Peak aggregate prefill</td><td>12,248 tok/s at width 12</td></tr>
+        <tr><td>Smallest prefill that killed a serve</td><td>~300,000, before the headroom levers</td></tr>
         <tr><td>Device KV pool</td><td>4,000,000 tokens (20.63 GB/card)</td></tr>
         <tr><td>Host KV tier (hierarchical cache)</td><td><strong>8,000,000 tokens</strong>, ~172 GB across four ranks</td></tr>
-        <tr><td>Free HBM at ready</td><td>42.76 GB/card</td></tr>
+        <tr><td>Free HBM at ready</td><td>52.62 GB/card, with the levers applied</td></tr>
         <tr><td>Weights (Engram host-offloaded)</td><td>72.73 GB/card</td></tr>
         <tr><td>Startup to ready</td><td>~6 min warm, ~11 min cold</td></tr>
       </tbody>
@@ -569,12 +570,15 @@
 
     <h3 id="s11-ceiling">The context ceiling, and a claim withdrawn</h3>
 
-    <p><strong>This deployment's maximum is ~200k, not the checkpoint's
+    <p><strong>This deployment's maximum is 512,000, not the checkpoint's
     1,048,576.</strong> A 1,024,000 setting was committed and withdrawn the same
     evening after measurement: it accepts a 300k request and dies serving it,
     re-creating precisely the hazard §4's cap exists to prevent. The model's
     maximum and the deployment's maximum are different numbers and were
-    conflated.</p>
+    conflated. 512,000 was then set on a measurement rather than on the
+    checkpoint's advertised window: a 511,993-token prefill served in 34 seconds
+    with roughly 16 GB of card memory still spare, and an over-cap request
+    refused cleanly with the serve surviving.</p>
 
     <p><strong>Activation memory binds, not the workspace.</strong> The
     fused-MoE workspace ask grows <em>sublinearly</em> — 9.00 GiB at ~300k
@@ -584,23 +588,41 @@
     the ceiling. This is why the pool reclaim moved it and the context raise did
     not: the reclaim added activation headroom, which is the scarce quantity.</p>
 
-    <p><strong>Every figure here is single-stream, and that is a real
-    limit on what it licenses.</strong> The ceiling falls as concurrency rises
-    because both terms grow with width, so 204,800 is a single-request bound.
-    A fleet should sit below it until someone measures concurrency, which nobody
-    has.</p>
+    <p><strong>Concurrency is now measured, to width 32.</strong> Thirty-two
+    concurrent 210,240-token prefills all completed, demanding 1.68&times; the
+    nominal pool with a 4 MiB memory delta; twelve concurrent 415k prefills all
+    completed at 1.25&times;. Aggregate prefill throughput rises 1.0 / 1.91 /
+    2.77 across widths 4 / 8 / 12, so concurrency buys throughput rather than
+    only trading latency for it.</p>
 
-    <h3 id="s11-levers">The lever that is identified and unspent</h3>
+    <p><strong>Width 64 is not measured, and two readings that appeared to
+    measure it are withdrawn.</strong> Both reused payloads and so reported
+    cache replay &mdash; the larger 526,788 tok/s at a hit rate of 0.9989. The
+    genuine 64-wide run was killed mid-flight when the synthetic suite came down
+    for real traffic. 64 holds as a worker ceiling on structure rather than
+    evidence: the running batch is bounded at 64, the queue is unbounded so
+    surplus requests wait instead of failing, and a 16,384-token prefill bound
+    caps activation independently of width.</p>
 
-    <p>The OOM message reports <strong>~4.45 GiB reserved-but-unallocated</strong>
-    by the allocator and names its own remedy:
-    <code>PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True</code>. That is
-    roughly twice the margin left at 203k, and it is the only identified change
-    that would raise this ceiling rather than re-describe it. One restart and one
-    re-test. <em>The other lever, a different <code>moe_runner_backend</code>,
-    is now less attractive than it looked</em>: since the workspace is not the
-    binding term, replacing the MoE runner would address the quantity that is
-    not scarce.</p>
+    <h3 id="s11-levers">The levers are spent, and the serve is open to real work</h3>
+
+    <p>Three changes shipped together and moved the ceiling 2.5&times;:
+    <code>expandable_segments</code> for allocator fragmentation, the prefill
+    chunk halved to 16,384, and the running-request bound cut from 256 to 64.
+    Shipped in one restart at the lead's direction, so the gain is unattributed
+    between them. <em>A different <code>moe_runner_backend</code> remains
+    unattractive</em>: the workspace is not the binding term, so replacing the
+    MoE runner would address the quantity that is not scarce.</p>
+
+    <p><strong>2026-09-16 08:30Z: the synthetic suite is down and the serve is
+    handed over.</strong> Drained to zero, prefix cache flushed to a 0.0 hit
+    rate so real traffic measures from clean, and answering through the routing
+    origin the launcher uses. <code>usable_input_window</code> was re-derived
+    from the live endpoint to 480,000 before any dispatch. The remaining figure
+    nobody has is the one that matters &mdash; per-worker throughput on real
+    agent turns, which carry prefill the synthetic decode sweep does not. Detail
+    in the
+    <a href="/imas-ambix/evidence/archive/dsv41-flash-four-card-throughput-landed#handover-to-real-traffic">handover record</a>.</p>
 
     <h2 id="s10">§10 — The bring-up sequence</h2>
 
@@ -838,6 +860,11 @@
     <h4 class="r-fu-title">The veto test&#x27;s own restore rule has fired, and three red tests are waiting on that decision</h4>
     <div class="r-fu-body"><p><strong>Owned by <code>dsv4-flash-dspark-four-card-serve</code>, not by this plan.</strong> Recorded here because this session found it and must not act on it.</p><p>Three tests in <code>tests/test_agent_dspark_profile.py</code> fail at base and are unrelated to this plan's work: they assert the four-card V4-Flash profile's DSpark flags and its TP4/DP1 topology, both of which this afternoon's commits changed. The failures are real, attributable, and were carried unchanged through this plan's gates as a recorded delta of zero.</p><p>They should not be repaired by editing the assertions, because that would bake in a configuration the evidence says is about to be reverted. The commit that disabled DSpark stated its own restore rule — the settings stay commented in the file so that <em>restoring them is one edit if the hit rate does not move</em>. <strong>It did not move.</strong> The serve reads 28.8% against a 25.7–27.0% baseline, inside the pre-registered no-veto band of 17–40 and nowhere near the 88.9–100 a gating veto predicted. So the rule fires and the drafter should go back, at which point the three tests pass again without being touched.</p><p>This plan must not execute that: reverting the profile now would change the V4-Flash serve in the middle of the comparison it is the baseline for. Sequence it after the baseline arm is harvested.</p></div>
     <pre class="r-fu-prompt">/reckon-ship dsv4-flash-dspark-four-card-serve</pre>
+    </article>
+<article class="r-fu" data-id="f-dsv41t-03" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-verification="strict" data-written-by="reckon-ship" data-written-at="2026-09-16" data-recommends-skill="/reckon-ship dsv41-flash-four-card-throughput §3" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Harvest per-worker throughput from real traffic, and close the width-64 question with it rather than with another synthetic run</h4>
+    <div class="r-fu-body"><p><strong>The serve is handed over and the instruments are in place; what is missing is traffic through them.</strong> The synthetic suite came down at 08:30Z drained and flushed, so the receipt bins and the lane document now start from a clean prefix-cache measurement. Every throughput figure this plan holds is synthetic: 794 tok/s aggregate decode at width 32 on ~30-token prompts, and 6,396&ndash;12,248 tok/s aggregate prefill on 210k&ndash;415k payloads. Real agent turns carry both at once, which is why V4-Flash measures 6.9&ndash;10.1 tok/s per worker live against far higher synthetic figures.</p><p><strong>Measure from the receipt bins under real load, binned by concurrency width</strong>, recording per-worker decode, aggregate prefill, and the windowed prefix-hit distribution in the same bins. No synthetic load: this measure is real traffic only. Two things resolve as a by-product and should be stated explicitly rather than inferred &mdash; whether width 64 is actually safe, since the only 64-wide readings taken so far were cache replay and are withdrawn while the genuine run was killed mid-flight, and where the fleet size settles, which was asked to emerge from the evidence rather than from a hard limit.</p><p><strong>Ramp rather than opening at 64.</strong> 32/32 at 210k and 12/12 at 415k are measured; 64 is structural inference. A 4 &rarr; 8 &rarr; 16 ramp reads the lane document between steps, whose derived width will read low at first because the median context it holds is still the synthetic 434,176.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship dsv41-flash-four-card-throughput §3</pre>
     </article>
 </section>
 
