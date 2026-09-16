@@ -689,6 +689,92 @@
     <code>deepseek-v4-1-flash-1271688.log</code>, and
     <code>deepseek-v4-1-flash-1271696.log</code>.</p>
 
+    <h2 id="context-512k-and-concurrency">512,000-token context and concurrent prefill, measured</h2>
+
+    <p><strong>The three headroom levers moved the ceiling by more than
+    2.5&times;.</strong> Before them a ~300k input killed three serves with 1.49
+    GiB free; after them 511,993 tokens absorbs in 34 seconds with about 16 GB
+    still free, and 305,599 tokens is refused cleanly by the cap rather than
+    crashing the serve.</p>
+
+    <table>
+      <thead><tr><th>Quantity</th><th>Before levers</th><th>After</th></tr></thead>
+      <tbody>
+        <tr><td>Free HBM at ready</td><td>42.76 GB</td><td><strong>52.62 GB</strong></td></tr>
+        <tr><td>167,527-token request cost</td><td>~30 GB</td><td><strong>14.0 GB</strong></td></tr>
+        <tr><td>203,241-token request cost</td><td>37.1 GB (≈2 GB spare)</td><td><strong>2.4 GB incremental</strong></td></tr>
+        <tr><td>Largest absorbed</td><td>203,241</td><td><strong>511,993</strong></td></tr>
+        <tr><td>Committed cap</td><td>204,800</td><td><strong>512,000</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p>The levers were <em>expandable_segments</em> for allocator fragmentation,
+    the prefill chunk halved to 16,384, and the running-request bound cut from
+    256 to 64. <strong>Shipped together at the lead's direction, so the gain is
+    unattributed between them</strong> &mdash; isolating any one needs its own
+    restart.</p>
+
+    <h3 id="concurrent-prefill">Concurrent prefill scales near-linearly</h3>
+
+    <table>
+      <thead><tr><th>Width &times; prefill</th><th>Wall</th><th>Aggregate prefill</th><th>Mean latency</th><th>Completed</th><th>Mem delta</th></tr></thead>
+      <tbody>
+        <tr><td>4 &times; 415k</td><td>415.0 s</td><td>4,429 tok/s</td><td>298.5 s</td><td>4/4</td><td>+5,376 MiB</td></tr>
+        <tr><td>8 &times; 415k</td><td>435.2 s</td><td><strong>8,449 tok/s</strong></td><td>173.6 s</td><td>8/8</td><td>+16 MiB</td></tr>
+        <tr><td>12 &times; 415k</td><td>451.8 s</td><td><strong>12,248 tok/s</strong></td><td>124.1 s</td><td>12/12</td><td>+4 MiB</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Three times the work in 1.09&times; the wall clock.</strong>
+    Throughput rises 1.0 / 1.91 / 2.77 against width 1 / 2 / 3, so concurrency
+    buys prefill throughput rather than merely trading latency for it.</p>
+
+    <p><strong>A nominal pool overflow was a non-event.</strong> Width 12
+    demanded 4,980,000 tokens of a 4,000,000-token pool and all twelve completed
+    with a <em>+4 MiB</em> memory delta and no failures. Either retraction
+    handled it invisibly or requests never hold peak residency together; either
+    way the graceful path held and nothing fatal occurred.</p>
+
+    <p><strong>Memory plateaued rather than growing with load</strong> &mdash;
+    +5,376 MiB, then +16, then +4, as the work tripled. That is what
+    <code>expandable_segments</code> was added for: the allocator found its
+    working set and stopped fragmenting.</p>
+
+    <h3 id="refuted-serialisation">A hypothesis of mine, refuted by the data</h3>
+
+    <p>Mid-test I read <code>num_running_reqs</code> of 1.0 from the live metrics
+    and inferred that large prefills serialise on prefill bandwidth, because
+    <code>max_prefill_tokens</code> caps a step at 16,384. <strong>The
+    measurements refute it</strong>: aggregate throughput nearly triples from
+    width 4 to 12, which serialisation forbids. The gauge readings were sampling
+    artefacts rather than steady state &mdash; a single-sample reading of an
+    oscillating quantity, which is the error this record already warns about in
+    another context.</p>
+
+    <h3 id="decode-rates">Decode throughput</h3>
+
+    <table>
+      <thead><tr><th>Concurrency</th><th>Per-stream</th><th>Aggregate</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>36.4&ndash;36.7 tok/s</td><td>36 tok/s</td></tr>
+        <tr><td>4</td><td><strong>40.6</strong> (peak)</td><td>162</td></tr>
+        <tr><td>16</td><td>30.9</td><td>493</td></tr>
+        <tr><td>20</td><td>26.7</td><td>533</td></tr>
+        <tr><td>32</td><td>24.8</td><td><strong>794</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p>Per-stream <em>peaks at width 4 above single-stream</em>, then degrades
+    gently rather than as 1/concurrency. On the retired 15M-pool configuration
+    the same widths gave 33.5 / 33.6 / 17.0 / 11.0 with 351 aggregate at 32, so
+    aggregate has roughly doubled.</p>
+
+    <p><strong>These decode figures use ~30-token prompts and are comparable
+    only to the 09-14 synthetic sweep.</strong> V4-Flash's 6.9&ndash;10.1 tok/s
+    per worker is real agent traffic carrying 12,000&ndash;17,000 tok/s of
+    prefill; setting the two side by side would credit V4.1 with an advantage
+    that is entirely the absence of prefill.</p>
+
   </main>
     <h2 id="sglang-lane-reader">§8 — The lane reader now understands the SGLang metrics family</h2>
 
