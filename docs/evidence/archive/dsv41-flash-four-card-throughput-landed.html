@@ -1096,6 +1096,49 @@
     than throughput. The queue stayed at zero throughout, so this is not a dispatch
     limit; the engine is saturated with requests it accepts immediately.</p>
 
+    <h3 id="width-penalty-removed">Node latency: the width penalty is gone, and the budgets are right again</h3>
+
+    <p><strong>The first reading of this was wrong and is corrected here.</strong> The
+    first matched pair post-repair came in flat &mdash; 48 minutes against a pre-repair
+    baseline of 39, 41, 47 and 47 at width 2 &mdash; and was reported as "the repair
+    bought capacity, not latency". Three further landings show that was too coarse. At
+    low width the lane was never the constraint, so flat is expected; the change is at
+    width, where the lane used to charge a steep and rising toll.</p>
+
+    <table>
+      <thead><tr><th>Node</th><th>Class</th><th>Width</th><th>Wall</th><th>Budget</th><th>Outcome</th></tr></thead>
+      <tbody>
+        <tr><td colspan="6"><em>Pre-repair, widths 4&ndash;6</em></td></tr>
+        <tr><td>swallow-census-cli-r2</td><td>implement</td><td>4&ndash;6</td><td>146 min</td><td>60 min</td><td>overran 2.4&times;</td></tr>
+        <tr><td>failopen-boundary-method-metrics-r2</td><td>implement</td><td>6&rarr;4</td><td>222 min</td><td>45 min</td><td>overran 4.9&times;</td></tr>
+        <tr><td>failopen-validator-not-run-r2</td><td>implement</td><td>6&rarr;4</td><td>224 min</td><td>60 min</td><td>overran 3.7&times;</td></tr>
+        <tr><td>swallow-census-config-r2</td><td>implement</td><td>6&rarr;4</td><td>255 min</td><td>45 min</td><td>overran 5.7&times;</td></tr>
+        <tr><td>swallow-census-gate-r2</td><td>implement</td><td>6&rarr;4</td><td>272 min</td><td>45 min</td><td>overran 6.0&times;</td></tr>
+        <tr><td colspan="6"><em>Post-repair</em></td></tr>
+        <tr><td>inert-stale-cmake-comment</td><td>documentation</td><td>8</td><td>10 min</td><td>30 min</td><td>inside budget</td></tr>
+        <tr><td>ddout-case-rename-r2</td><td>implement, small</td><td>13</td><td>39 min</td><td>30 min</td><td>2 commits, 46/46 gate</td></tr>
+        <tr><td>declared-surface-install-check-r2</td><td>implement, <strong>matched</strong></td><td>2&rarr;13</td><td>48 min</td><td>60 min</td><td>inside budget</td></tr>
+        <tr><td>ffdeg-live-dof-refusal-r2</td><td>implement, <strong>heavy</strong> (C++/Fortran solver, 101 tool calls)</td><td>5&rarr;19</td><td><strong>89 min</strong></td><td>90 min</td><td><strong>inside budget</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>The last row is the closest matched shape to the pre-repair heavy nodes
+    and it finished in 89 minutes against their 146&ndash;272, at equal or greater
+    width.</strong> More tellingly, it finished <em>inside</em> its 90-minute advisory
+    budget, where all five pre-repair heavy nodes overran theirs by factors of 2.4 to
+    6.0. So the advisory budgets that were measured as wrong under the defect are
+    approximately correct again, which is a stronger statement than any ratio: they were
+    calibrated on a lane whose width penalty has since been removed.</p>
+
+    <p><strong>What still bounds a node, and it is not the serve.</strong> The coordinator
+    reports these nodes spending their wall clock in build and ctest on SLURM compute
+    nodes rather than in the lane, and the heavy one made 101 tool calls. So serving
+    capacity bounds only the inference fraction of a node's life. That is the third
+    measurement today to narrow the accelerator case &mdash; after the 99.4%-prefill
+    figure proving nine-tenths avoidable, and flat latency at low width &mdash; and it
+    leaves the purchase argument resting on concurrency alone rather than on making any
+    node finish sooner.</p>
+
     <h3 id="hicache-is-write-only">The host tier is nearly inert, and that reverses a decision</h3>
 
     <p><strong>Counted over eight hours of serving: 100,308 backup writes into the
