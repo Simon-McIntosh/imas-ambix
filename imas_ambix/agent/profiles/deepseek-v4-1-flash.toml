@@ -255,7 +255,35 @@ hicache_mem_layout = "page_first"
 # and suggests PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True. Recovering that
 # is about twice the margin left at 203k and is the one change that might raise
 # this ceiling rather than re-describe it.
-context_length = 204800
+# 512,000 on 2026-09-16, raised from 204,800 on MEASURED evidence after the
+# three headroom levers landed. Page-aligned at page_size 256.
+#
+# Proven on four H200 at a 4,000,000-token pool with 51 GB free at ready:
+#   511,993 tokens  ABSORBED in 34 s, 8.3 GB incremental, ~16 GB still free
+#   409,635 tokens  absorbed in 76 s, 26.1 GB consumed from idle
+#   203,241 tokens  absorbed in 26 s, 2.4 GB incremental
+# The same 300k input that KILLED three serves before the levers is now
+# comfortably inside this cap. What changed: the pool reclaim freed 16.82 GB
+# per card, expandable_segments recovered the ~4.45 GiB the allocator was
+# losing to fragmentation, and halving the prefill chunk to 16,384 bounds the
+# transient peak. A 167k request cost ~30 GB before and 14.0 GB after.
+#
+# This also clears the real traffic peak that mattered: flight config records a
+# 356,574-token per-turn input that a 204,800 cap would refuse outright.
+#
+# THE REMAINING TRADE IS CONCURRENCY, NOT MEMORY. pool >= concurrency x context,
+# so 4,000,000 tokens covers about eight requests at this cap against nineteen
+# at 204,800, with the 8,000,000-token host tier behind it. The limit is left to
+# emerge rather than pinned: a full pool makes the engine queue and retract,
+# which is graceful, and max_running_requests bounds the running batch at 64
+# with an unbounded queue, so a larger fleet queues rather than failing.
+# max_prefill_tokens caps the prefill batch at 16,384 regardless of fleet size,
+# which is what keeps activation memory - the one exhaustion that is FATAL
+# rather than graceful - bounded independently of concurrency.
+#
+# Every figure above is single-stream. Concurrent large prefills are the
+# untested corner; raise nothing further until that is measured.
+context_length = 512000
 trust_remote_code = true
 
 # "auto" resolves to this architecture's own parsers rather than a generic
