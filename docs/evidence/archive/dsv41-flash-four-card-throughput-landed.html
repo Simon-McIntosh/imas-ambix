@@ -849,6 +849,126 @@
     figures. The real-traffic number has to be measured on real traffic; that is
     what the lane and receipt instruments built for this deployment are for.</p>
 
+
+    <h2 id="saturation-curve">The fleet ceiling, measured on real work instead of inferred</h2>
+
+    <p><strong>A staged saturation curve was run on live agent traffic at dispatch
+    widths 1, 2, 4 and 6</strong> by the imas-efit coordinator, ascending, constant
+    node class (Python implement nodes, guided spec, pytest gate) with tool use
+    throughout, each phase held for at least twenty minutes and ten completed
+    requests. No cache flush between phases, because a real deployment is always
+    warm and flushing would measure a condition that never occurs; the per-phase
+    hit rate is recorded instead so warmth is visible rather than assumed. Serve-side
+    figures are counters differenced across each phase window, never read
+    cumulatively &mdash; the cumulative counters carry the synthetic sweeps, the
+    pre-restart traffic and the coordinator's own probes.</p>
+
+    <table>
+      <thead>
+        <tr><th>Dispatch width</th><th>Per-client output</th><th>Aggregate output</th>
+        <th>Requests</th><th>TTFT</th><th>End-to-end</th><th>Prefix hit</th>
+        <th>Host tier</th><th>Turns/worker/h</th><th>Tool ok:error</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>1</td><td><strong>35.53 tok/s</strong></td><td>15.8</td><td>61</td><td>11.0 s</td><td>21.4 s</td><td>0.0%</td><td>20%</td><td>20.1</td><td>61:0</td></tr>
+        <tr><td>2</td><td>24.02</td><td>31.3</td><td>81</td><td>9.4 s</td><td>29.2 s</td><td>1.8%</td><td>39%</td><td>17.1</td><td>74:2</td></tr>
+        <tr><td><strong>4</strong></td><td>12.81</td><td><strong>38.4</strong></td><td>95</td><td>12.6 s</td><td>54.9 s</td><td>7.4%</td><td>68%</td><td><strong>19.9</strong></td><td>111:10</td></tr>
+        <tr><td>6</td><td>7.49</td><td>33.0</td><td>98</td><td>15.1 s</td><td>75.3 s</td><td>7.1%</td><td><strong>100%</strong></td><td>7.3</td><td>86:20</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>The decisive column is aggregate output, not per-client.</strong> Below
+    the knee, added width trades per-client rate for total throughput, and that trade
+    is worth making. At width 6 the aggregate <em>falls as well</em>, 38.4 to 33.0 &mdash;
+    not a trade but pure loss, the lane doing less total useful work for more workers.
+    The mechanism is named by the host tier reaching exactly 100.0% of its 32,000,000
+    tokens, with queueing appearing for the first time: the workers' combined working
+    set exceeds even the enlarged tier and they resume evicting each other. Quadrupling
+    the tier that morning moved that collapse from width 28 to width 6; it did not
+    remove it.</p>
+
+    <p><strong>Four is the best measured point rather than a conservative one.</strong>
+    It carries the highest aggregate throughput of any width tested, the same turns per
+    worker per hour as running a single worker, the tier not yet saturated, and a lower
+    error share than width 6. The dispatch fence was set to 8 on inference in the
+    morning &mdash; a synthetic per-stream knee at 4 plus an observed cache collapse at
+    28 &mdash; and lowered to 4 on this evidence the same afternoon.</p>
+
+    <p><strong>Two qualifications that belong with the numbers.</strong> Worker run age
+    is partly confounded with width in the width-6 row, where four of six workers were
+    44&ndash;58 minutes old carrying roughly twice the context, and the mean prompt rose
+    from 107,926 to 114,941 tokens; so the exact shape between 4 and 6 is uncertain.
+    Age cannot explain aggregate output falling, nor a tier at exactly 100%, so the
+    degradation itself stands. Separately, an earlier reading of this curve from its
+    first two points called the metric &quot;already declining&quot; and predicted a
+    ceiling below 8 for the wrong reason; width 4 at 19.9 turns/hour showed that to be
+    two points read as a trend, and the corrected statement is flat from 1 through 4.</p>
+
+    <h3 id="fence-counts-pointers">The fence counts pointers, so capacity leaks</h3>
+
+    <p><strong><code>max_concurrent_runs</code> counts non-terminal live pointers, not
+    live processes, and it is per-backend and therefore shared across projects.</strong>
+    During the study two dead runs held slots: one abandoned two days earlier from the
+    reckon project, whose worktree was clean with HEAD equal to its own base_sha, and
+    one from imas-codex whose manifest read <code>status: complete</code> with an
+    unpromoted commit. Neither had a live process. They refused a dispatch while nothing
+    executed in them, and at the lowered ceiling of 4 they occupy half the lane. So
+    capacity leaks monotonically as pointers accumulate, and a lane can reach zero
+    usable width against a completely idle serve. Sweep stale pointers before concluding
+    a lane is full; a fence that skipped pointers already classified
+    <code>abandoned</code> &mdash; a classification reckon computes and exposes &mdash;
+    would close the leak without new state.</p>
+
+    <h2 id="prefix-reuse-defect">The workers reuse no prefix at all, and the engine is not at fault</h2>
+
+    <p><strong>Across the whole curve the prefix hit rate ran 0.0%, 1.8%, 7.4% and 7.1%,
+    against the 97&ndash;98% the same engine delivers on a stable prefix.</strong> In
+    phase 1, <code>prompt_tokens_histogram_sum</code> and
+    <code>uncached_prompt_tokens_histogram_sum</code> were byte-identical at 6,931,716
+    tokens over 61 consecutive turns of a single agent &mdash; every prompt token
+    uncached, with a mean prompt of 113,635 tokens against 370 output.</p>
+
+    <p>Five probes establish that neither the engine, the protocol, nor the request
+    shape is responsible:</p>
+
+    <table>
+      <thead><tr><th>Probe</th><th>Prefix hit</th></tr></thead>
+      <tbody>
+        <tr><td>Identical 15,011-token prompt sent twice</td><td>0.0% then <strong>98.9%</strong>, 1.32 s &rarr; 0.24 s</td></tr>
+        <tr><td>Agent-shaped conversation, messages appended (turns 2, 3)</td><td><strong>97.2% / 97.1%</strong></td></tr>
+        <tr><td>Request shape: system-as-array, <code>cache_control</code>, <code>metadata.user_id</code>, <code>stream:true</code>, beta header</td><td><strong>97.2% on all five variants</strong></td></tr>
+        <tr><td>Conversation history preserved byte-for-byte</td><td><strong>94.3%</strong></td></tr>
+        <tr><td>Same system block, entirely different user message</td><td><strong>98.2%</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>The last row is the one that locates the fault.</strong> An identical
+    system block is reusable on its own even when everything after it differs, so the
+    workers' 0.0% means even their system prompt is not matching. That puts the
+    divergence at or before the head of the prompt rather than in the message history,
+    and shifts the leading hypothesis onto the system block being regenerated per turn
+    &mdash; Claude Code embeds a git-status snapshot and a date there. A radix match is
+    a prefix match, so a difference in the first page forfeits all of the remaining
+    pages rather than degrading the hit rate; a partial hit would read 60&ndash;90%,
+    and exactly 0.0% across 61 consecutive turns is the signature of divergence at the
+    head.</p>
+
+    <p><strong>What it costs.</strong> Of phase 1's 6,931,716 prompt tokens, roughly
+    6.72M need never have been prefilled at the reuse rate the engine demonstrably
+    achieves. At the 4,875 tok/s that phase sustained, that is <strong>23.0 minutes of
+    card time inside a 23.7 minute phase</strong>. Essentially the entire GPU cost of
+    the phase was recomputing a prefix the engine would have served from cache, and
+    the remedy is client-side.</p>
+
+    <p><strong>One anomaly is recorded rather than resolved.</strong> A test that dropped
+    an early assistant turn's thinking block read 0.0% despite an identical system
+    block, which contradicts the 98.2% row above. The two cannot be reconciled from the
+    data collected, so the thinking-block mechanism is not claimed as proven; what is
+    established is that altering early history is costly and that request shape is not
+    the cause. The synthetic route is exhausted, and the next step is to hash the first
+    pages of two consecutive real requests at the router and diff them, which names the
+    responsible line instead of inferring it.</p>
+
   </main>
     <h2 id="sglang-lane-reader">§8 — The lane reader now understands the SGLang metrics family</h2>
 
