@@ -107,6 +107,135 @@
     full operational receipt is
     <code>/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/dsv41-tune/restart-one-launch.md</code>.</p>
 
+    <h2 id="decode-log-harvester">Decode batch log harvester</h2>
+
+    <p><strong>The recorded gap reproduced at base.</strong> The plan states
+    that a search for the <code>Decode batch</code> marker across
+    <code>imas_ambix/</code>, <code>tests/</code> and <code>scripts/</code>
+    returns zero executable matches. At base <code>e3adfca</code> that is what
+    <code>git grep -c "Decode batch" HEAD -- imas_ambix tests scripts</code>
+    reports: exit status <strong>1</strong>, no match on any path. The existing
+    <code>receipt_bins</code> collector is a different instrument and does not
+    substitute for it — it bins differenced Prometheus counters over sampling
+    intervals, where this section needs <code>(running width, generation
+    rate)</code> pairs taken from engine log intervals.</p>
+
+    <p><strong>What was built.</strong> <code>imas_ambix/agent/decode_bins.py</code>
+    parses <code>Decode batch</code> lines into records carrying the interval
+    timestamp, the running width, the speculative accept length and rate, and
+    that step's generation throughput. Each record carries a <em>limb</em> —
+    whether the width was rising, falling or flat — derived from the width
+    trajectory across the log as the first difference against the preceding
+    interval, never from anything printed on the line. The earliest interval
+    has no predecessor and its limb stays unset; the report renders that group
+    as <code>unknown</code> rather than calling it flat, because a no-change
+    label would assert a comparison no interval made. The harvest reports, per
+    exact width, the interval count, the median generation rate and the median
+    accept length, each also split by limb.</p>
+
+    <p><strong>A decode line that cannot be parsed is reported, not
+    dropped.</strong> Each unreadable line lands with its line number and the
+    field that failed to match, so a harvest cannot present a smaller sample as
+    if it were the whole one. The line number <em>is</em> the check: it is only
+    populated by the refusal path, so a non-empty malformed list shows the
+    guard fired.</p>
+
+    <p><strong>A carriage return inflated the line count before the splitter
+    ran.</strong> The engine rewrites its shard-loading progress bar in place,
+    so this log carries <strong>332 bare carriage returns</strong>. Reading it
+    in text mode translates each one to a newline — inside
+    <code>Path.read_text</code>, before any splitting code is reached — so a
+    text-mode and a byte-mode read of the same frozen file disagree by exactly
+    the number of carriage returns it holds: <code>wc -l</code> reported
+    <strong>7,123</strong> while a text-mode read reported <strong>7,456</strong>.
+    The over-count equalling the carriage-return count exactly is the diagnosis
+    rather than a coincidence about it — the same population appearing once as
+    input and once as error. The inflation is not cosmetic: a rewritten progress
+    bar is one physical line, so an interval logged beside one would be cut in
+    two and then reported as malformed. The repair reads bytes and splits on
+    newlines alone, rounding off a trailing carriage return so that a CRLF log
+    counts one line per record. Verified against a frozen copy, where the
+    harvest's <code>lines read</code> and <code>wc -l</code> agree exactly.</p>
+
+    <p><strong>The gate values, read against a frozen snapshot of the live
+    serve log.</strong> Read at <code>2026-09-17T10:18:59Z</code>. The log
+    belongs to SLURM job <code>1272783</code>, which is <strong>still
+    running</strong> and still appending, so the snapshot was frozen first and
+    every instrument below read the same bytes; a later reader's line count will
+    differ, and the gate values will drift with it.</p>
+
+    <table>
+      <thead><tr><th>Measure</th><th>Required</th><th>Measured</th></tr></thead>
+      <tbody>
+        <tr><td>Width-1 intervals</td><td>≥ 30</td><td><strong>40</strong></td></tr>
+        <tr><td>Width-1 median generation rate</td><td>100–118 tok/s</td><td><strong>111.075 tok/s</strong></td></tr>
+        <tr><td>Width-1 median accept length</td><td>3.3–3.8</td><td><strong>3.585</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p>The width-1 group is itself split, and the split is the reason the limb
+    exists: 37 of the 40 intervals are <code>flat</code> at a median
+    <strong>110.450 tok/s</strong>, two are <code>descending</code> at
+    <strong>216.725</strong>, and one is <code>unknown</code> at
+    <strong>9.580</strong> — the log's first decode step, which is the
+    warm-up line a reader should not pool with the rest. Medians per exact
+    width, unsplit — widths 1 to 12 of the 683 intervals; the captured artifact
+    carries the full range to width 22:</p>
+
+    <table>
+      <thead><tr><th>Width</th><th>Intervals</th><th>Median gen tok/s</th><th>Median accept length</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>40</td><td>111.075</td><td>3.585</td></tr>
+        <tr><td>2</td><td>21</td><td>282.480</td><td>4.640</td></tr>
+        <tr><td>3</td><td>61</td><td>300.650</td><td>4.380</td></tr>
+        <tr><td>4</td><td>122</td><td>329.810</td><td>4.150</td></tr>
+        <tr><td>5</td><td>131</td><td>351.290</td><td>4.120</td></tr>
+        <tr><td>6</td><td>81</td><td>362.090</td><td>4.180</td></tr>
+        <tr><td>7</td><td>92</td><td>372.500</td><td>4.185</td></tr>
+        <tr><td>8</td><td>24</td><td>360.995</td><td>4.010</td></tr>
+        <tr><td>9</td><td>21</td><td>361.040</td><td>3.940</td></tr>
+        <tr><td>10</td><td>13</td><td>349.710</td><td>3.810</td></tr>
+        <tr><td>11</td><td>15</td><td>350.310</td><td>3.650</td></tr>
+        <tr><td>12</td><td>7</td><td>359.810</td><td>3.680</td></tr>
+      </tbody>
+    </table>
+
+    <p>Two readings the split makes visible, recorded without a verdict
+    because neither is this node's to settle. The <code>descending</code>
+    intervals sit consistently <em>above</em> the <code>ascending</code> ones
+    at the same width — at width 6, 415.910 against 314.270 tok/s, and the sign
+    holds at <strong>every</strong> width that carries both limbs — 20 of 20, across
+    the whole range from 3 upward. Whether that is the width trajectory
+    carrying information, or the two groups differing in some other way this
+    harvest does not record, is not decided here; it is a confound the fit has
+    to state rather than a finding. Separately, the width-1
+    <code>unknown</code> interval reads 9.580 tok/s against a
+    <code>flat</code> median of 110.450, so the unlabelled group is not
+    exchangeable with the rest and pooling it in silently is a choice the
+    report now makes visible.</p>
+
+    <p><strong>Tests and gates.</strong> <code>tests/test_agent_decode_bins.py</code>
+    covers a rising trajectory, a falling one, a flat one, a trajectory that
+    turns inside a single log, a malformed line (reported with its field and
+    line number, with the surrounding good lines still parsed), a
+    <code>Prefill batch</code> line — which also carries
+    <code>#running-req</code> and must NOT be read as a decode interval — the
+    progress-bar rewrite and a CRLF-terminated record, both of which fail
+    against a text-mode read, the per-width and per-limb medians, JSON
+    serialisability, interval order, and the width-1 spot values read from the
+    live log. Result: <strong>13 passed</strong>. The repo's whole-tree lint
+    gate <code>uv run --no-sync ruff check imas_ambix tests</code> exits
+    <strong>0</strong>, and the serving-interpreter parse guard passes
+    (2 passed, 7 deselected), which matters because this module sits under
+    <code>imas_ambix/agent/</code>.</p>
+
+    <p>Artifacts captured under
+    <code>~/.config/reckon/crew/runs/r-20260917T094626859296-decode-log-harvester/logs/</code>:
+    <code>decode-harvest-spot-run.txt</code> carries the harvest with its read
+    timestamp and frozen byte count, <code>decode-bins-tests.log</code> the
+    unit tests, <code>whole-tree-ruff.log</code> the lint gate and
+    <code>serving-python-parse-guard.log</code> the interpreter guard.</p>
+
   </main>
 </body>
 </html>

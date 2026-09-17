@@ -28,7 +28,7 @@
 <meta name="plan-modified" content="2026-09-17">
 <meta name="plan-version" content="12">
 <meta name="plan-commits" content="e808a8e3d89816a334f167b05eb4986afde532fd">
-<meta name="plan-artifacts" content="imas_ambix/agent/profiles/deepseek-v4-1-flash.toml,docs/evidence/archive/dsv41-serve-tuning-for-concurrency-landed.html">
+<meta name="plan-artifacts" content="imas_ambix/agent/profiles/deepseek-v4-1-flash.toml,imas_ambix/agent/decode_bins.py,docs/evidence/archive/dsv41-serve-tuning-for-concurrency-landed.html">
 </head>
 <body>
   <main class="plan-doc">
@@ -497,6 +497,29 @@
     throughput silently, so <code>num_preemptions_total</code> leaving zero is
     already late. The reading that says this lane is in trouble is a
     <strong>hit rate falling while pool occupancy climbs</strong>.</p>
+
+    <p><strong>Landing record — decode log harvester.</strong> The instrument
+    this section requires landed as <code>imas_ambix/agent/decode_bins.py</code>:
+    a reusable harvester that turns <code>Decode batch</code> lines into
+    per-exact-width records carrying the interval timestamp, the running width,
+    the accept length and rate, and the
+    (<code>running, generation rate</code>) pair, each labelled
+    <code>ascending</code>, <code>descending</code>, <code>flat</code> or
+    <code>unknown</code> from the width trajectory rather than from anything
+    printed on the line. A line that cannot be parsed is reported with its line
+    number and the field that failed, never dropped. Run against the live serve
+    log it reports width 1 at <strong>40 intervals</strong>, median generation
+    rate <strong>111.075 tok/s</strong> and median accept length
+    <strong>3.585</strong> against 683 intervals and zero malformed lines. Two
+    readings it makes visible without settling either: the width-1 group is 37
+    <code>flat</code> intervals at 110.450 tok/s beside a single unlabelled
+    opening interval at 9.580, so the first decode step must not be pooled; and
+    the <code>descending</code> median exceeds the <code>ascending</code> one at
+    all 20 widths carrying both, which any refit has to state as a confound. Found and repaired in the same
+    work: a text-mode read converted the log's 332 bare carriage returns — the
+    loader rewriting its progress bar in place — into newlines, over-counting it
+    by exactly 332 lines and able to cut a record in two. Full record:
+    <a href="/imas-ambix/evidence/archive/dsv41-serve-tuning-for-concurrency-landed#decode-log-harvester">harvester evidence</a>.</p>
 
     <h2 id="s5">§5 — What is deliberately not a lever, so nobody spends a window on it</h2>
 
