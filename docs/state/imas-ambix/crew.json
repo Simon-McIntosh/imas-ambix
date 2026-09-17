@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-17T16:08:22",
+  "updated": "2026-09-17T16:09:37",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -37998,6 +37998,229 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260917T125923190772-pool-increment-profile",
+        "plan": "dsv41-serve-tuning-for-concurrency",
+        "section": "\u00a74",
+        "node": "pool-increment-profile",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 6594,
+                "cached_input_tokens": 720806,
+                "input_tokens": 727402,
+                "output_tokens": 2142,
+                "reasoning_output_tokens": 1283,
+                "total_tokens": 729544,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "11e65032-39c1-40fd-943f-d18ea21d44df",
+            "session_id": "dsv41-restart-20260917"
+          },
+          "done_when": "A read of the committed imas_ambix/agent/profiles/deepseek-v4-1-flash.toml shows max_total_tokens = 8000000 with speculative_algorithm DSPARK, speculative_dspark_block_size 5 and hicache_ratio 2.0 all unchanged; imas-ambix agent serve deepseek-v4-1-flash --dry-run emits --max-total-tokens 8000000 alongside --hicache-ratio 2.0 and --speculative-algorithm DSPARK; the profile comment states the host-tier arithmetic for a doubled device pool at ratio 2 from the per-rank figures already in that comment block, namely five host pools per rank at 10.76 GB per rank per unit of ratio for a 4M pool, and gives an explicit verdict with the arithmetic shown on whether memory = 480G still holds or must rise; and if it must rise the new value is set in the same commit and the dry-run emits the corresponding SBATCH mem line",
+          "estimated_hours": 0.4,
+          "goal": "The serve profile carries the device-pool increment sized from the measured loaded free memory, with its host-tier consequence for the job memory request resolved in the same commit",
+          "id": "pool-increment-profile",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-17T12:59:24Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no numeric 'headroom'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260917T125923190772-pool-increment-profile/manifest.md",
+          "plan": "dsv41-serve-tuning-for-concurrency",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74",
+          "spec_level": "exact",
+          "time_budget": "20m",
+          "token_budget": null,
+          "write_paths": [
+            "imas_ambix/agent/profiles/deepseek-v4-1-flash.toml",
+            "docs/evidence/archive/dsv41-serve-tuning-for-concurrency-landed.html",
+            "docs/plans/dsv41-serve-tuning-for-concurrency.html"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "dsv41-recipe-scribe",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "high",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "worktree-full",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-17T12:59:34Z",
+        "completed_at": "2026-09-17T13:12:07.162Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 743,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 753,
+        "stalled": false,
+        "time_budget": "20m",
+        "base_sha": "bd3047c537f70e29048348e2ccccef45e61afe1f",
+        "commits": [
+          "b55700263f62ef114cb282a4997233c9fbecb3cb",
+          "e22561138b85a27b27b24709f2e83c4c6c7bcbca",
+          "36c0cd1d4ed377b33e0ad3cace853d9e2f2d93f2"
+        ],
+        "changed_lines": {
+          "added": 256,
+          "removed": 15,
+          "files": 3
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync imas-ambix agent serve deepseek-v4-1-flash --dry-run",
+          "exit_status": 0,
+          "log_path": "/tmp/pool-increment-dryrun-600g.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260917T125923190772-pool-increment-profile/manifest.md",
+        "scope_changed": false,
+        "session_id": "e880f016-4587-4c49-9a77-85c3a217a1cb",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 3320782,
+            "input_tokens_cumulative": 3320782,
+            "output_tokens": 16009,
+            "output_tokens_cumulative": 16009,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-17T13:12:07.162Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": {
+          "status": "parsed",
+          "scores": {
+            "durability": 6,
+            "evidence": 15,
+            "fit": 16,
+            "goal_fidelity": 19,
+            "scope_discipline": 20
+          },
+          "absent": [],
+          "total": 76
+        },
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 3455611,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 267.974,
+          "generated_tokens": 24462,
+          "generation_seconds": 256.631,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 27.8,
+          "machine_seconds": 11.343,
+          "peak_input_tokens": 133529,
+          "tokens_per_second": 95.32,
+          "wall_tokens_per_second": 91.28
+        },
+        "follow_on_paths": [
+          "tests/test_agent_pool_and_hicache.py",
+          "tests/test_agent_evaluation_pool.py",
+          "/"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "resume",
+        "attempt": 2,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/dsv41-restart-20260917/pool-increment-profile",
+          "session_id": "e880f016-4587-4c49-9a77-85c3a217a1cb",
+          "session_source": "pointer",
+          "retained_at": "2026-09-17T13:12:07.162Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": {
+          "arming_line": "reckon crew watch --project imas-ambix",
+          "attach_line": "reckon crew follow --project imas-ambix --session dsv41-restart-20260917",
+          "requested": true,
+          "session_attached": false,
+          "watcher_live": true
+        },
+        "tool_steps": 27.0,
+        "orientation_input_tokens": 253608.0,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -38058,6 +38281,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 687
+    "_version": 688
   }
 }
