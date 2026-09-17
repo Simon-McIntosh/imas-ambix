@@ -1676,6 +1676,87 @@ imas-ambix agent serve deepseek-v4-flash      # 4× GPUs — 400+ tok/s target
 imas-ambix agent serve deepseek-v4-flash-2x   # 2× GPUs — share node with other work
 ```
 
+### DeepSeek V4.1 Flash Deployment (SGLang)
+
+**Profile:** `deepseek-v4-1-flash` — SGLang, TP=4/EP=4 on four H200, MXFP4+FP8
+checkpoint, 512,000-token per-request context, keyless port 18810. The 183.1 GiB
+of Engram tables live in host RAM; the 4,000,000-token device pool is pinned
+rather than auto-sized. The committed tuning carries DSpark speculative decoding
+(`speculative_algorithm = "DSPARK"`, `speculative_dspark_block_size = 5`),
+`hicache_ratio = 2.0` and `memory = "480G"`.
+
+#### Launch from the main checkout, never from a generated worktree
+
+Submit a serve from `/home/ITER/mcintos/Code/imas-ambix`. The generated script
+binds the SGLang kernel patch
+(`imas_ambix/agent/kernel_patches/…/main_norm_rope.cuh`) into the container and
+resolves `scripts/slurm/drain_sidecar.sh`, both by absolute path from the
+directory the script was generated in (`Path(__file__).resolve().parents[2]`). A
+serve submitted from a detached worktree therefore holds that worktree open for
+its entire life, and reclaiming it — ordinary housekeeping — breaks a running
+lane.
+
+Check the generated script rather than trusting it: **no path in the submitted
+script may contain `.reckon-worktrees`.**
+
+#### speculative_algorithm is compared case-sensitively
+
+SGLang compares `speculative_algorithm` case-sensitively against the literal
+tuple `("EAGLE", "DSPARK")` inside the model-specific startup resolution — the
+`arg_groups` hook the DeepSeek-V4 model module installs as
+`deepseek_v4_hook`. Lowercase `"dspark"` is rejected there, before weights load,
+about 42 s after the job enters `RUNNING`, with:
+
+```
+Only EAGLE and DSPARK speculative algorithms are supported for
+DeepseekV4ForCausalLM
+```
+
+Write the value uppercase.
+
+#### Readiness took 485 s from RUNNING, and the bound is fifteen minutes
+
+On the launch carrying the fused draft module, readiness took **485 s from
+`RUNNING`**, against the profile's own `scheduler end-to-end 670.1 s` in the
+startup log. Measure readiness from `RUNNING`, not from submit — time
+spent pending on `Resources` is a queueing fact that says nothing about whether
+the engine will start. The bound is fifteen minutes, not the smaller 460 s an
+earlier serve recorded, because loading the draft module adds work no previous
+launch did. Readiness is not the gate for DSpark: the fused-MoE workspace
+allocates lazily at generation, so validate with a real multi-hundred-token
+completion.
+
+#### Draining this lane — two drains sixty times apart, the slow one governing
+
+Stopping the lane means two different things, and confusing them kills peer
+work:
+
+| Drain | What retires | Cost | What it protects |
+|---|---|---|---|
+| **Run-level** | a worker's node reaches its end and it writes a manifest | **~1 h** | a peer's in-flight implementation work — uncommitted, with no commit behind it |
+| Request-level | the HTTP completions already in flight | ~1–3 min | nothing not already covered once the runs have ended |
+
+The **run-level drain governs**: the load is other orchestrators' workers, each
+mid-plan, so the unit that must be allowed to finish is the *node*, not the
+request. A hot restart therefore costs about an hour of held dispatch, charged
+to other projects. The duty cycle makes it free — 00:00–03:00 UTC is two
+independently observed hours of 100% idle.
+
+Read the fleet and the engine, never the clock. The non-terminal run pointers
+across the projects using the lane and the engine's running and waiting request
+counters are both observable, via
+`serving_receipts.sample_serving_metrics`, which declares exact aliases for
+`num_requests_running` and `num_requests_waiting` and scrapes them from
+`<origin>/metrics`. **A failed scrape returns `None`, and none is not
+zero** — a drain must never read a failed read as quiescence. A drain reporting
+zero on both counters is also the in-flight-count evidence a cutover records.
+
+Stop the lane with `imas-ambix agent shutdown`, never `scancel`. `shutdown`
+selects the profile's own jobs, cancels them, and *republishes the endpoint
+document*; a bare `scancel` skips the republish, so cancelling directly leaves
+the published endpoint claiming a lane that is gone. Never `scancel` a serve
+with peer runs live against it.
+
 ### MiniMax M2.7 Deployment
 
 **Engine:** SGLang native (full GPU serving, no CPU offloading)
