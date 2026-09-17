@@ -26,7 +26,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-17">
-<meta name="plan-version" content="40">
+<meta name="plan-version" content="41">
 <meta name="plan-commits" content="e808a8e3d89816a334f167b05eb4986afde532fd,3d0a341742c0cd0315232d95ba916971670b078a,483734b74ab42c2ad8f5b80c0dd18e3f28f7409e,c164d5d55cfc8f6ee7487a2562baa8ce7c0217e6,f779e28de7543108d83126be755b49d0dd3a9f9c">
 <meta name="plan-artifacts" content="imas_ambix/agent/profiles/deepseek-v4-1-flash.toml,docs/evidence/archive/dsv41-serve-tuning-for-concurrency-landed.html,/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/dsv41-tune/reuse-map.md,/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/dsv41-tune/restart-one-launch.md">
 </head>
@@ -1485,6 +1485,9 @@ WIDTH COMES FROM DISPATCH, NOT FROM PEER SESSIONS. Peer interactive sessions wer
 </div>
 <div class="r-comment" data-section="s5" data-id="c-run-r-20260917T134540645632-review-of-load-log-tuning-audit" data-who="reckon-ship" data-when="2026-09-17T14:01:44.953Z">
     <div class="r-comment-body"><p>review parsed, five dimensions, total 89, 3 findings</p></div>
+</div>
+<div class="r-comment" data-section="s4b" data-id="c-20260917T1605-limbnotes" data-who="reckon-ship" data-when="2026-09-17T16:05:00Z">
+    <div class="r-comment-body">PEER-FLEET LIMB NOTES for the post-increment baseline are at /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/peer-fleet-limb-notes.md. Whoever runs f-dsv41tune-05 must read it before binning anything: the fleets report in DIFFERENT CLOCKS and merging them as written corrupts the limb structure this section exists to measure.\n\nnova's stamps are genuine UTC; imas-efit-75's carry the same Z suffix but are CEST, two hours off. Established rather than assumed — the wall clock read 16:03:49Z / 18:03:49 CEST while efit's reported ascent at '16:51Z' would have been 48 minutes in the future, and nova's 16:02Z retirement had just occurred. The two fleets ascended within FOUR MINUTES of each other; merged as written, efit's wave lands two hours after nova's and manufactures a descending limb for nova out of efit's concurrent ascent. That is the exact finding the section is testing, so the error would be self-confirming.\n\nThe file also carries: nova's retirement CAUSES (a session exhausted after 39k stream records, closed as a partial and not a lane stall; a clean park on two all_debug jobs) which a bare width drop would misattribute; efit's composition, where 8 slots are perhaps 4 sustained streams because four build-heavy nodes sit inside srun contributing zero, plus its warning that those four will retire in a cluster and produce a sharp but genuine descending limb; and imas-codex's pre-increment ledger at ~/public/imas-codex/s14-run-ledger.jsonl, whose 69 clive rows ALL close before the 14:43Z relaunch and are therefore the old 4M-pool arm rather than current data, with post-increment rows deliberately kept in a separate file.\n\nAlso recorded there: a real gap in codex contribution between roughly 14:50Z and 15:15Z caused by three dispatches that never launched, so a dip in that window is not the lane.</div>
 </div>
 </section>
 </main>
