@@ -155,6 +155,45 @@
     any width; the possible width-eight regression remains an instrumentation
     limitation rather than an omitted measurement.</p>
 
+  <h2 id="deploy-recipe-record">Deploy recipe and launch contract</h2>
+
+    <p><strong>The superseded contract reproduced before the repair.</strong>
+    Against the committed profile, the focused launch-contract test reported
+    <strong>2 failed, 1 passed</strong>: both failures asserted the superseded
+    <code>hicache_ratio == 8.0</code> and <code>memory == "720G"</code>. The
+    committed profile reports <code>2.0</code> and <code>"480G"</code>. Commit
+    <code>a96547d</code> moves the assertions to the landed values and adds a
+    case that pins the two emitted speculative flags.</p>
+
+    <table>
+      <thead><tr><th>Measure</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td>Focused test</td><td><code>uv run --no-sync pytest tests/test_agent_pool_and_hicache.py</code> — <strong>5 passed</strong></td></tr>
+        <tr><td>Emitted flags pinned</td><td><code>--speculative-algorithm DSPARK</code>, <code>--speculative-dspark-block-size 5</code></td></tr>
+        <tr><td>Ruff, changed paths</td><td>clean (the only finding, a missing trailing newline, was fixed)</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>The recipe is committed where a later session reads it.</strong>
+    <code>imas_ambix/agent/AGENTS.md</code> gains a
+    <q>DeepSeek V4.1 Flash Deployment</q> section carrying the four facts the
+    launch depends on, each stated so it can be acted on without this plan: the
+    main-checkout submission constraint and its <code>.reckon-worktrees</code>
+    check; the case-sensitive <strong>EAGLE</strong>/<strong>DSPARK</strong>
+    tuple asserted by the engine's <code>arg_groups</code>
+    <code>deepseek_v4_hook</code> resolution, which rejected lowercase after
+    <strong>42&#160;s</strong>; readiness at <strong>485&#160;s from
+    <code>RUNNING</code></strong> against the startup log's 670.1&#160;s
+    scheduler end-to-end; and the run-level (~1&#160;h) versus request-level
+    (~1–3&#160;min) drains that differ sixtyfold, with the run-level one
+    governing, read from <strong>serving_receipts.sample_serving_metrics</strong>
+    (a failed scrape is <code>None</code>, and none is not zero) and stopped by
+    <strong>imas-ambix agent shutdown</strong> rather than <code>scancel</code>,
+    because shutdown republishes the endpoint document a bare cancel skips.</p>
+
+    <p>The plan's §8 carries the matching landing record. The plan-version and
+    plan-modified meta lines were left untouched.</p>
+
   </main>
 </body>
 </html>
