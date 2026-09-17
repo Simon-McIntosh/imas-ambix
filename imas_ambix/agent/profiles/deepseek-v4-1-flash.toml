@@ -186,10 +186,12 @@ speculative_dspark_block_size = 5
 # Size the shared device pool for the requests it must carry, not for the
 # largest value that starts. The pool must exceed expected concurrency times
 # per-request context; eight workers at 500,000 tokens each require 4,000,000
-# tokens. If the per-request context is reduced later, this pool can shrink
-# further. The observed pool cost is roughly a 16 GiB fixed base plus 1.6 KiB
-# per token, so reducing 14,999,808 to 4,000,000 frees about 16.8 GiB per card,
-# not the 27.5 GiB predicted by a zero-intercept extrapolation.
+# tokens, and the measured working context on this lane has come in ABOVE that
+# assumption rather than under it — see the doubling note below. If the
+# per-request context is reduced later, this pool can shrink further. The
+# observed pool cost is roughly a 16 GiB fixed base plus 1.6 KiB per token, so
+# reducing 14,999,808 to 4,000,000 frees about 16.8 GiB per card, not the
+# 27.5 GiB predicted by a zero-intercept extrapolation.
 #
 # This is a CANDIDATE until a long-prefill serve proves it under load; a clean
 # start does not prove it. Three probe deaths each requested the same fixed
@@ -198,14 +200,63 @@ speculative_dspark_block_size = 5
 # more than twice over, so this change discriminates the memory split from the
 # runner: if long prefills still die, the workspace is not binding and
 # moe_runner_backend is the next separate lever to measure.
-max_total_tokens = 4000000
+#
+# 8,000,000, doubled from 4,000,000 on measured evidence. The 4M pool binds
+# nearer than the sizing assumption above: at width 30 it read 79% of
+# 4,000,000 tokens, and the implied working context is 98,379 tokens per
+# resident request against the 79,000 assumed here, so it fills near 38-40
+# concurrent rather than the 50 a 79k mean predicts — and the lane's own duty
+# cycle peaks at a median of 29. A pool that fills on an ordinary evening is a
+# concurrency bound, not headroom for a hypothetical width; doubling moves it
+# to roughly 80. Expected throughput change at today's width: none. What it
+# buys is the absence of silent eviction at widths the eight-card and
+# dependency-graph work make reachable.
+#
+# DEVICE side: the startup log puts the 4M pool at a measured 10.10 GB per
+# card, so another 4M costs another 10.10 GB per card. Per-card free memory at
+# sustained width 23-24 read 25.4-27.6 GiB across the last fifteen drain-sidecar
+# blocks, against an all-time worst of 23.0 GiB taken at width 10 or below —
+# flat in width, not falling — so the increment leaves about 16 GiB at the
+# operating point. That is device memory and it is unaffected by the job's
+# `memory` request below.
+#
+# HOST side, because hicache_ratio multiplies the DEVICE pool and doubles with
+# it. Measured pools per rank at ratio 2 on the 4M device pool, five of them:
+#   4.68 deepseek_v4_c1 + 0.54 c1_indexer + 7.02 deepseek_v4_c2
+#   + 0.82 c2_indexer + 8.45 swa = 21.51 GB/rank
+# so 10.76 GB per rank per unit of ratio, and 86.0 GB across four ranks at
+# ratio 2. Doubling the device pool doubles that tier for the same ratio:
+# 2 x 10.76 = 21.52 GB/rank per rank at ratio 2 on a 4M pool, doubled to
+# 43.04 GB/rank, or 172.1 GB across four ranks. The increment is therefore
+# 86.0 GB = 80.1 GiB of host RAM.
+#
+# VERDICT on `memory` below: RAISED to 600G. The steady-state arithmetic — 480
+# GiB as 192 GiB of pinned Engram host tables plus the 160.3 GiB HiCache tier
+# at 8M/ratio 2 plus a 127.7 GiB remainder — is sound and is not what binds.
+# The binding constraint is the LOAD-TIME PEAK, and a steady-state margin does
+# not answer it: the job's memory.peak already touched the old 480 GiB ceiling
+# at ratio 2 on the 4M device pool, i.e. with about 80 GiB LESS host tier
+# resident than this change leaves, and that peak is page cache from reading a
+# ~400 GB checkpoint at launch rather than steady-state use. Arithmetic for the
+# raise, all terms in GiB:
+#   480   peak already observed at ratio 2 on the 4M pool
+#  + 80.1 host tier this change adds inside the same limit (see HOST side)
+#  = 560  arithmetic floor
+#   600  the floor plus margin for the load-time page cache the peak is made of
+# 600G also stays below Group A's 650G allocation, the ceiling that matters
+# here, so the raise does not strand a co-running job on memory.
+max_total_tokens = 8000000
 # Keep evicted shared prefixes in the engine's pinned host tier instead of
 # recomputing them through the 284B-parameter forward path. In the pinned
 # image, DeepSeek-V4's hybrid cache rejects --hicache-size, so its host tier is
-# sized solely by the host-to-device pool ratio. At two times a 4M-token device
-# pool, the variable KV payload is about 2 * 4,000,000 * 1.6 KiB across four
-# ranks, or roughly 49 GiB; it is deliberately less than the Engram host-table
-# allocation and preserves process and page-cache margin.
+# sized solely by the host-to-device pool ratio. At two times the
+# 8,000,000-token device pool the per-token estimate for that payload is about
+# 2 * 8,000,000 * 1.6 KiB across four ranks, or roughly 98 GiB — but the
+# ENUMERATED pools measure 160.3 GiB across four ranks at this ratio, so read
+# the measured figure rather than the estimate (see the pool key below for the
+# pool-by-pool arithmetic). Even at the measured size it is deliberately less
+# than the Engram host-table allocation and preserves process and page-cache
+# margin.
 enable_hierarchical_cache = true
 # Two, restored from 8.0 because the host tier writes almost everything and
 # reads almost nothing: 100,308 backups against 56 load-backs. There are FIVE
@@ -397,12 +448,32 @@ gpus = 4
 # request scaled off the card count strands co-running jobs on cores while the
 # cards they want sit idle.
 cpus = 12
-# The 480G request comprises 192 GiB committed to the two host-resident Engram
-# layers (four ranks at about 24 GiB each), roughly 49 GiB of two-times HiCache
-# variable payload for the 4M-token device pool, and process, pinned-transfer,
-# and weight-loading page-cache margin. It remains 170G below Group A's 650G
-# allocation; never request the node's RealMemory.
-memory = "480G"
+# 600G. THE BINDING CONSTRAINT ON THIS REQUEST IS THE LOAD-TIME PEAK, NOT
+# STEADY STATE. At ratio 2 on the 4M device pool this job's memory.peak already
+# touched the old 480 GiB ceiling, with about 80 GiB LESS host tier resident
+# than the doubled pool leaves, and that peak is page cache from reading a
+# ~400 GB checkpoint at launch rather than steady-state use. So a limit sized
+# to steady state is hit while loading:
+#   480   GiB peak already observed at ratio 2 on the 4M pool
+#  + 80.1 GiB host tier added by doubling the device pool at unchanged ratio
+#  = 560 GiB arithmetic floor
+#   600 GiB = floor plus margin for the load-time page cache the peak is made
+#           of. The steady-state breakdown at this value is 192 GiB of
+#           host-resident Engram tables (four ranks at about 24 GiB each),
+#           160.3 GiB of HiCache host tier at ratio 2 on the 8,000,000-token
+#           device pool, and the remainder as process, pinned-transfer and
+#           weight-loading page-cache margin. See the pool key above for the
+#           pool-by-pool arithmetic.
+# 600G leaves 50G below Group A's 650G allocation, the ceiling that matters
+# here, so the raise does not strand a co-running job on memory.
+# The figure to size against is this job's OWN anon + shmem, because that is
+# what the cgroup accounting charges against --mem; page cache is reclaimable
+# and is not the quantity the request is compared with. Do NOT size to the node:
+# a request near RealMemory is an exclusive-node request in disguise, and
+# --mem=0 reads as "no limit" while reserving everything, so such a job cannot
+# start while anyone else holds memory and it head-of-line blocks the jobs
+# behind it. Never request the node's RealMemory.
+memory = "600G"
 # 18800-18809 are taken by the other profiles and by the router at 18802.
 port = 18810
 time_serve = "0"

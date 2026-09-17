@@ -400,6 +400,88 @@
     value justified by restart A's measured free device memory, with pool
     occupancy re-read at a stated width afterwards.</p>
 
+    <h3>Landing record — the device pool doubles, and the memory request rises
+    to the load-time peak</h3>
+
+    <p><strong>Lever 3 is committed as a profile change; the launch is
+    not.</strong> <code>max_total_tokens</code> moves
+    <strong>4,000,000 &#8594; 8,000,000</strong> in
+    <code>imas_ambix/agent/profiles/deepseek-v4-1-flash.toml</code>, with
+    <code>speculative_algorithm = "DSPARK"</code>,
+    <code>speculative_dspark_block_size = 5</code> and
+    <code>hicache_ratio = 2.0</code> all unchanged, whichever launch this
+    profile next drives. Commit <code>b557002</code>.</p>
+
+    <p><strong>The pre-change state was read rather than assumed.</strong> The
+    base revision's profile read <code>max_total_tokens = 4000000</code>, and
+    the generated launch command for that revision was recorded above as
+    emitting <code>--max-total-tokens 4000000</code> with <code>--mem=480G</code>.
+    Against the committed profile the generated command now emits
+    <code>--max-total-tokens 8000000</code> alongside
+    <code>--hicache-ratio 2.0</code>,
+    <code>--speculative-algorithm DSPARK</code> and
+    <code>--speculative-dspark-block-size 5</code>, and the header reads
+    <code>#SBATCH --mem=600G</code>.</p>
+
+    <p><strong>The host tier is the same lever's other half, and this is the
+    part a device-side reading would miss.</strong> <code>hicache_ratio</code>
+    multiplies the <em>device</em> pool, so doubling the pool doubles the host
+    tier at unchanged ratio. From the pool-by-pool figures the profile already
+    carried — five host pools per rank measuring
+    <strong>10.76&#160;GB per rank per unit of ratio on the 4M pool</strong>,
+    so 21.51&#160;GB/rank and 86.0&#160;GB across four ranks at ratio 2 — the
+    doubled pool asks <strong>172.1&#160;GB across four ranks</strong>, an
+    increment of <strong>86.0&#160;GB = 80.1&#160;GiB</strong> of host RAM.</p>
+
+    <table>
+      <thead><tr><th>Host-tier term</th><th>At the 4M pool</th><th>At 8M</th></tr></thead>
+      <tbody>
+        <tr><td>Engram host tables (pinned, four ranks)</td><td>192 GiB</td><td>192 GiB</td></tr>
+        <tr><td>HiCache host tier at ratio 2</td><td>80.1 GiB</td><td><strong>160.3 GiB</strong></td></tr>
+        <tr><td>Process, pinned transfer, page-cache margin</td><td>207.9 GiB</td><td><strong>127.7 GiB</strong></td></tr>
+        <tr><td>&#8212; steady-state margin at the 8M pool</td><td>207.9 GiB</td><td><strong>127.7 GiB</strong></td></tr>
+        <tr><td>&#8212; load-time peak at the 8M pool</td><td>480 GiB already touched</td><td><strong>560 GiB floor, request 600G</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Verdict: <code>memory</code> is RAISED to <code>"600G"</code>,
+    and raise is what the evidence says rather than what the margin says.</strong>
+    The steady-state arithmetic
+    <code>480 &#8722; 192 &#8722; 160.3 = 127.7&#160;GiB</code> is sound and is
+    not the binding constraint. The job's <code>memory.peak</code> already
+    touched the old 480&#160;GiB ceiling at ratio 2 on the <em>4M</em> pool —
+    with about 80&#160;GiB <em>less</em> host tier resident than the doubling
+    leaves — and that peak is page cache from reading a ~400&#160;GB checkpoint
+    at launch rather than steady-state use. A limit sized to steady state is
+    therefore hit while loading, which is what a 127.7&#160;GiB steady-state
+    margin does not answer:
+    <code>480 + 80.1 = 560&#160;GiB</code> is the arithmetic floor, and
+    <code>600G</code> carries margin above it for the load-time page cache the
+    peak is made of. The raise also stays below Group A's 650G allocation, the
+    ceiling that matters, so it does not strand a co-running job on memory. Both
+    the arithmetic and the verdict are committed in the profile beside the two
+    keys they justify, not only here.</p>
+
+    <p><strong>Suite delta is 4, and all four are assertion values in files
+    outside this node's write scope.</strong>
+    <code>tests/test_agent_pool_and_hicache.py</code> (two) and
+    <code>tests/test_agent_evaluation_pool.py</code> (two) each pin
+    <code>max_total_tokens == 4_000_000</code> and
+    <code>--max-total-tokens 4000000</code> for this profile, so they fail
+    against the committed value and read <code>4 failed, 3 passed</code>. They
+    are the same contract the earlier profile-settings landing waived, and they
+    are recorded as a follow-on rather than edited here.</p>
+
+    <p><strong>What is <em>not</em> done, and it is the launch.</strong> The
+    profile carries the doubled pool; no serve has started with it. The
+    measurement this section asks for — pool occupancy and per-card free memory
+    at a stated width — needs the 00:00–03:00&#160;UTC window, and expected
+    throughput change is zero. The measure is occupancy plus the absence of a
+    regression against restart 1's per-width medians from
+    <code>decode_bins.py</code>, <em>split by limb, never pooled</em>. Full
+    record:
+    <a href="/imas-ambix/evidence/archive/dsv41-serve-tuning-for-concurrency-landed#pool-increment-profile">pool increment evidence</a>.</p>
+
     <h2 id="s4a">§4a — How many restarts this is, and what each one measures</h2>
 
     <p><strong>Three expected, four if a result is ambiguous, five if the
