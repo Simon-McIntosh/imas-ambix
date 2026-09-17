@@ -380,7 +380,12 @@
     <code>memory.peak</code> already touched the old 480&#160;GiB ceiling at
     ratio 2 on the <em>4M</em> pool, with about 80&#160;GiB <em>less</em> host
     tier resident than this change leaves, and that peak is page cache from
-    reading a ~400&#160;GB checkpoint at launch rather than steady-state use. A
+    reading a ~400&#160;GB checkpoint at launch rather than steady-state use. The
+    peak reading behind that premise is recorded at revision
+    <code>7c706cf</code>, which carried it as the justification for an earlier
+    raise of this request; <code>e808a8e</code> dropped the sentence in the same
+    hunk that lowered the request to 480G, so the premise is unreadable in the
+    current file rather than uncorroborated. A
     limit sized to steady state is therefore hit while loading. The arithmetic,
     in GiB: <code>480</code> (peak already observed at ratio 2 on the 4M pool)
     <code>+ 80.1</code> (host tier this change adds inside the same limit)
@@ -410,6 +415,71 @@
     here: the same shape as the contract this profile's earlier settings landing
     waived, and they need the assertion values moved to <code>8_000_000</code>
     and <code>"--max-total-tokens 8000000"</code>.</p>
+
+  <h2 id="rollback-and-peak-citation">Rollback instruction and peak-premise
+  citation — profile comment corrections</h2>
+
+    <p><strong>Both defects are comment text in
+    <code>imas_ambix/agent/profiles/deepseek-v4-1-flash.toml</code>, and neither
+    moves a live setting.</strong> Fixed in commit <code>db092c7</code>.</p>
+
+    <table>
+      <thead><tr><th>Site</th><th>Before</th><th>After</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>DSpark rollback instruction (comment)</td>
+          <td><code>Keep hicache_ratio = 2.0 and memory = "480G"</code></td>
+          <td><code>Keep hicache_ratio = 2.0 and memory = "600G"</code>, with the reason clause extended to name why the preserved values are independent of DSpark</td>
+        </tr>
+        <tr>
+          <td>Load-time-peak premise, pool key (comment)</td>
+          <td>premise stated, no source named</td>
+          <td>cited to revision <code>7c706cf</code>, which recorded it, and to <code>e808a8e</code>, which dropped it in the same hunk that lowered the request to 480G</td>
+        </tr>
+        <tr>
+          <td>Same premise, <code>memory</code> key (comment)</td>
+          <td>premise restated, no source named</td>
+          <td>points at the same citation above</td>
+        </tr>
+        <tr>
+          <td>Any TOML setting</td>
+          <td>&#8212;</td>
+          <td><strong>unchanged</strong> — every added and removed line in the diff is a comment</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p><strong>The stale instruction mattered because of where it sat, not
+    because it was wrong about the history.</strong> The rollback text exists to
+    be followed after a speculative launch or generation refusal, and it is the
+    only place in the file where the memory value appears as an <em>instruction</em>
+    rather than as a justification. A reader who followed it would have restored
+    <code>480G</code> — the pre-increment request — while believing they had
+    preserved the landed configuration, and the surrounding justification for
+    <code>600G</code> sits 300 lines away under a different key.</p>
+
+    <p><strong>The premise's provenance was verifiable and had been mis-recorded
+    as absent.</strong> The peak observation is not an operator recollection: it
+    survives in the file's own history at revision <code>7c706cf</code>, line
+    402 there, as the stated reason for an earlier raise of this same request
+    from 480G to 720G. An earlier note recorded the sentence as
+    &ldquo;nowhere in the repository&rdquo;; it is absent from the <em>current</em>
+    file only because <code>e808a8e</code> removed it, in the same hunk that
+    lowered the request to 480G. Citing the revision removes that ambiguity in
+    the direction a reader needs: the claim is unreadable here, not
+    uncorroborated.</p>
+
+    <p><strong>Gate, reproduced on the corrected tree.</strong>
+    <code>uv run --no-sync imas-ambix agent serve deepseek-v4-1-flash
+    --dry-run</code> exits <strong>0</strong> and the generated script still
+    carries <code>#SBATCH --mem=600G</code> (line 8 of the emitted script) and
+    <code>--max-total-tokens 8000000</code> alongside
+    <code>--hicache-ratio 2.0</code>,
+    <code>--speculative-algorithm DSPARK</code> and
+    <code>--speculative-dspark-block-size 5</code>. The dry run was executed
+    from the worktree that produced it, so no job was submitted and the
+    kernel-patch bind path it prints is that worktree's; the launch itself
+    remains specified to come from the main checkout.</p>
 
   <h2 id="cost-model-refit">Cost-model refit from this serve's own decode intervals</h2>
 
