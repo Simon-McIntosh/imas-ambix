@@ -26,7 +26,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-17">
-<meta name="plan-version" content="10">
+<meta name="plan-version" content="11">
 <meta name="plan-commits" content="e808a8e3d89816a334f167b05eb4986afde532fd">
 <meta name="plan-artifacts" content="imas_ambix/agent/profiles/deepseek-v4-1-flash.toml,docs/evidence/archive/dsv41-serve-tuning-for-concurrency-landed.html">
 </head>
@@ -813,6 +813,42 @@
     <code>(running width, generation rate)</code> pairs from engine log
     intervals. The harvest node builds that parser once and every later reading
     consumes it.</p>
+
+    <h3>The load is ramped deliberately, which is a better experiment than waiting for one</h3>
+
+    <p><strong>Bring the fleets back slowly and record a curve, rather than
+    letting real traffic wander across widths and hoping it visits the right
+    ones.</strong> §4b sized two hours of loaded traffic because an
+    <em>uncontrolled</em> fleet needs that long to present 34 distinct widths —
+    one hour gave 21 and covered only low and mid. A ramp inverts that: the
+    widths are chosen instead of sampled, so each one is occupied on purpose and
+    for as long as it takes to accumulate decode intervals there.</p>
+
+    <p><strong>Two consequences, and the second is the one that shortens this
+    plan.</strong> The curve is denser and cleaner at the points the cost model
+    actually turns on, because §3's prediction is a <em>shape</em> — 2.41× at one
+    stream, 1.06× at the knee, 1.65× at width 34 — and a shape is established by
+    occupying its inflections, not by averaging over whatever arrived. And the
+    two-hour figure was a proxy for width coverage rather than a requirement in
+    itself, so a ramp that reaches its widths deliberately satisfies §4b's intent
+    in less wall clock. Hold each step long enough for the engine to log enough
+    decode intervals at that width to take a median, and step when it has.</p>
+
+    <table>
+      <thead><tr><th>Step</th><th>Width</th><th>Source</th><th>What it measures</th></tr></thead>
+      <tbody>
+        <tr><td>0</td><td><strong>1</strong></td><td>this session alone — no peer needed</td><td>The largest and cleanest prediction, <strong>2.41×</strong>, where the 17.8 ms floor is the entire cost and paying it once instead of 3.31 times is nearly free throughput. Also the acceptance-rate and draft-overhead reading, and free device memory once the workspace has actually allocated.</td></tr>
+        <tr><td>1</td><td>~4</td><td>nova, first tranche</td><td>The descent between the single-stream gain and the knee, which no single point can establish.</td></tr>
+        <tr><td>2</td><td><strong>~8</strong></td><td>nova</td><td>The predicted null, <strong>1.06×</strong>. This is the point whose misreading closed the question once already.</td></tr>
+        <tr><td>3</td><td>~16</td><td>nova at full width</td><td>The start of the return, predicted 1.10×.</td></tr>
+        <tr><td>4</td><td><strong>24+</strong></td><td>requires an additional fleet</td><td>The claim worth the restart: <strong>1.65×</strong> at width 34, where the expert union is already 41% saturated so verifying five times the tokens costs only 2.24× the bytes.</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Step 0 depends on nobody, so it is taken first and reported
+    before any peer is asked to move.</strong> It is minutes of work, it needs no
+    coordination, and if DSpark does not produce a single-stream gain on this
+    checkpoint then the widths above it are not worth anyone's traffic.</p>
 
     <h3>Where the load comes from</h3>
 
