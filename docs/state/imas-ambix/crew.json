@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-17T16:30:54",
+  "updated": "2026-09-17T17:01:21",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -586,18 +586,22 @@
         "id": "dsv41-relaunch-bridge",
         "harness": "codex",
         "role": "implement",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
+        "session_id": "01a0afc7-8a1c-7a60-9802-7c9ac6a45ac7",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "{\"alias\":\"sol5.6\",\"backend\":\"codex\",\"effort\":\"high\",\"launch\":\"cli\",\"model\":\"gpt-5.6-sol\",\"sandbox\":\"worktree-full\"}": "01a0afc7-8a1c-7a60-9802-7c9ac6a45ac7"
+        },
         "created": "2026-09-17"
       },
       {
         "id": "dsv41-restart-operator",
         "harness": "clive",
         "role": "implement",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
+        "session_id": "61e6492c-2045-470b-98e8-b83ff51890e8",
+        "session_model": "deepseek-v4.1-flash",
+        "sessions": {
+          "{\"alias\":\"dsv4.1-flash\",\"backend\":\"clive\",\"effort\":\"high\",\"launch\":\"cli\",\"local\":true,\"model\":\"deepseek-v4.1-flash\",\"sandbox\":\"worktree-full\",\"usable_input_window\":480000}": "61e6492c-2045-470b-98e8-b83ff51890e8"
+        },
         "created": "2026-09-17"
       },
       {
@@ -40024,6 +40028,206 @@
           "reason": null,
           "finding": null
         }
+      },
+      {
+        "run_id": "r-20260917T143114088825-serving-lane-relaunch",
+        "plan": "dsv41-serve-tuning-for-concurrency",
+        "section": "\u00a74",
+        "node": "serving-lane-relaunch",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 968,
+                "cached_input_tokens": 306240,
+                "input_tokens": 307210,
+                "output_tokens": 1089,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 308299,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "aeb652ee-2fb5-42fc-b5dc-1235d9ca4a0d",
+            "session_id": "dsv41-restart-20260917"
+          },
+          "done_when": "THE LANE IS DOWN RIGHT NOW: a previous node cancelled SLURM job 1272783 and died before relaunching, because it was running on clive which that job serves. squeue shows no deepseek job. Relaunch it. A report at /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/serving-lane-relaunch.md records: (1) the new job id, launched from the MAIN checkout /home/ITER/mcintos/Code/imas-ambix at origin/main, with the emitted launch line quoted showing '--max-total-tokens 8000000' and '#SBATCH --mem=600G'; (2) squeue confirming it RUNNING; (3) READINESS IS NOT THE GATE - a real completion of at least 400 generated tokens against the served endpoint returning HTTP 200, with token count and wall time; (4) per-card device free memory read AFTER that generation allocated the workspace, all four cards, stated against the 10.11 GiB worst measured workspace ask as an explicit margin ratio; (5) draft acceptance rate and mean accept length if the log carries them. ROLLBACK, pre-decided: if the launch or first generation dies on a workspace or memory allocation, set max_total_tokens to 4000000 but KEEP memory at 600G - do NOT revert the merge, which would also restore the 480G request whose load-time ceiling the raise exists to escape - relaunch and record that you did. Do NOT run on the clive/dsv4.1-flash backend for any step. Write the report before any long wait.",
+          "estimated_hours": null,
+          "goal": "bring the DSv4.1-Flash serving lane back up on the merged 8M/600G profile",
+          "id": "serving-lane-relaunch",
+          "lane_declaration": {
+            "backend": "codex",
+            "headroom": "known",
+            "metered": true,
+            "observed_at": "2026-09-17T14:31:14Z",
+            "read_at": "2026-09-17T14:31:16Z",
+            "resolved_backend": "codex",
+            "utilisation_pct": 92.0
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "backend declares no lane document",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260917T143114088825-serving-lane-relaunch/manifest.md",
+          "plan": "dsv41-serve-tuning-for-concurrency",
+          "requested_backend": "codex",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74",
+          "spec_level": "guided",
+          "time_budget": "45m",
+          "token_budget": null,
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/serving-lane-relaunch.md",
+            "docs/evidence/archive/dsv41-serve-tuning-for-concurrency-landed.html",
+            "docs/plans/dsv41-serve-tuning-for-concurrency.html"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "dsv41-relaunch-bridge",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-17T14:31:23Z",
+        "completed_at": "2026-09-17T14:49:35Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1092,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1092,
+        "stalled": false,
+        "time_budget": "45m",
+        "base_sha": "9c8a8b7edff8aa96ce2b2a0b874254f7010bc8cf",
+        "commits": [
+          "3605738607a0197f2ed5cfe981f65d367c719e85"
+        ],
+        "changed_lines": {
+          "added": 66,
+          "removed": 0,
+          "files": 2
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "direct chat completion against the served endpoint, 400+ generated tokens, plus post-generation per-card free memory read",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/Code/imas-ambix/deepseek-v4-1-flash-1273074.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260917T143114088825-serving-lane-relaunch/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a0afc7-8a1c-7a60-9802-7c9ac6a45ac7",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 9383424,
+            "cached_input_tokens_cumulative": 9383424,
+            "input_tokens": 9610233,
+            "input_tokens_cumulative": 9610233,
+            "output_tokens": 30973,
+            "output_tokens_cumulative": 30973,
+            "reasoning_output_tokens": 9750,
+            "reasoning_output_tokens_cumulative": 9750
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lane_receipt": {
+          "quota_state": "measured",
+          "observed_at": "2026-09-17T14:49:35Z",
+          "effective_context_window": 380000,
+          "quota_windows": [
+            {
+              "window_minutes": 10080,
+              "used_percent": 92.0,
+              "resets_at": 1789970251,
+              "observed_at": "2026-09-17T14:49:35Z"
+            }
+          ],
+          "notional_cost_usd": 39.8795,
+          "rate_basis": {
+            "model_identifier": "gpt-5.6-sol",
+            "input_per_million": 4.0,
+            "output_per_million": 20.0,
+            "as_of": "2026-09-09"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": null,
+        "throughput": {
+          "cumulative_cached_input_tokens": 9383424,
+          "cumulative_input_tokens": 9610233,
+          "detail": "model span bounded from the client rollout's tool spans; input cumulative summed across resets",
+          "generated_tokens": 40723,
+          "generation_seconds": 715.076,
+          "machine_seconds": 374.37,
+          "tokens_per_second": 56.95
+        },
+        "follow_on_paths": [
+          "imas_ambix/agent/AGENTS.md",
+          "4M/480G",
+          "8M/600G."
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/dsv41-restart-20260917/serving-lane-relaunch",
+          "session_id": "01a0afc7-8a1c-7a60-9802-7c9ac6a45ac7",
+          "session_source": "pointer",
+          "retained_at": "2026-09-17T14:49:35Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "tool_steps": 98.0,
+        "orientation_input_tokens": null,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -40074,16 +40278,16 @@
         "backend": "codex",
         "purpose": "dispatch",
         "opened_at": "2026-09-17T12:57:57Z",
-        "closed_at": null,
-        "held_seconds": null,
+        "closed_at": "2026-09-17T14:31:19Z",
+        "held_seconds": 5602,
         "utilisation_pct": 92.0,
         "resets_at": "2026-09-21T05:57:32Z",
         "effective_ceiling_pct": 92.0,
         "reason": "utilisation 92% with burn multiple 2.0x and projected exhaustion 2026-09-19T10:27:21Z is at or above the 92.0% ceiling for a dispatch (ceiling 100% less 5% resume reserve and 3% coordinator reserve); the account surface was read at 2026-09-17T12:57:54Z and is the operative reading Resolve with `reckon crew preflight`, then `reckon crew dispatch`; for an existing blocked run, use `reckon crew resume-ready`.",
-        "closed_by_purpose": null,
+        "closed_by_purpose": "dispatch",
         "resumption_fired": false
       }
     ],
-    "_version": 702
+    "_version": 706
   }
 }
