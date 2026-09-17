@@ -663,6 +663,48 @@
     generation did not die on workspace or memory allocation, so the pre-decided
     4M/600G rollback was not invoked. Full operational receipt:
     <code>/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/serving-lane-relaunch.md</code>.</p>
+  <h2 id="recipe-prose-drift">Deployment recipe prose — the superseded pair
+    in the text a deployment reads</h2>
+
+    <p><strong>Defect, reproduced before the repair.</strong> The DeepSeek V4.1 section of
+    <code>imas_ambix/agent/AGENTS.md</code> described the pre-increment
+    configuration after the profile had already been raised. At the base revision
+    the two figures lived in one paragraph:</p>
+
+<pre><code>1683: of Engram tables live in host RAM; the 4,000,000-token device pool is pinned
+1686: `hicache_ratio = 2.0` and `memory = "480G"`.</code></pre>
+
+    <p>The <code>grep -nE "4000000|4,000,000|480G" imas_ambix/agent/AGENTS.md</code>
+    that gates this node returned exactly those two lines at the base revision
+    and returns nothing after the repair. The committed profile disagrees with
+    both: <code>imas_ambix/agent/profiles/deepseek-v4-1-flash.toml</code> carries
+    <code>max_total_tokens = 8000000</code> (line 254) and
+    <code>memory = "600G"</code> (line 484), read from the file rather than
+    inferred.</p>
+
+    <table>
+      <thead><tr><th>Setting</th><th>Recipe prose, base revision</th><th>Committed profile</th></tr></thead>
+      <tbody>
+        <tr><td><code>max_total_tokens</code></td><td>4,000,000 (stated as a token count, key unnamed)</td><td><code>8000000</code></td></tr>
+        <tr><td><code>memory</code></td><td><code>"480G"</code></td><td><code>"600G"</code></td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Repair.</strong> The paragraph now names the key at the value it
+    carries — <code>max_total_tokens = 8000000</code> (8,000,000 tokens) — and
+    closes on <code>hicache_ratio = 2.0</code> and <code>memory = "600G"</code>,
+    the DSpark pair unchanged. Prose only: no source file and no live setting
+    moved, so the change cannot alter the launch or the running lane.</p>
+
+    <p><strong>Verification.</strong> The gate's own command,
+    <code>grep -nE "4000000|4,000,000|480G" imas_ambix/agent/AGENTS.md</code>,
+    exits 1 with no output (no occurrence remains at all, historical or
+    otherwise), and <code>grep -nE "8000000|8,000,000|600G"</code> returns lines
+    1684 and 1687 — the rewritten pair. The superseded shorthand <code>4M</code>
+    appears nowhere in the file in either spelling. Only one file in the
+    worktree is modified; the profile and every other path are untouched,
+    confirmed by <code>git status --porcelain</code>.</p>
+
   </main>
 </body>
 </html>
