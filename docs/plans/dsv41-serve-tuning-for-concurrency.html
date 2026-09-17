@@ -20,7 +20,7 @@
   <meta name="plan-sprint" content="S24">
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-tags" content="agent-serving,gpu-deployment,benchmarking">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;deferred&quot;,&quot;s7&quot;:&quot;done&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s4a&quot;:&quot;done&quot;,&quot;s4b&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;deferred&quot;,&quot;s7&quot;:&quot;done&quot;}">
   <meta name="plan-impl" content="0.0">
   <title>DSv4.1 Serve Tuning for Concurrency | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
@@ -53,11 +53,24 @@
       </tbody>
     </table>
 
-    <p><strong>The sustained figures this plan reasons from are the harvested
-    ones, not that gauge:</strong> <strong>330 tok/s</strong> aggregate output
-    sustained with a <strong>376.6 tok/s</strong> peak, <strong>27.0 tok/s</strong>
-    median per worker, TTFT 0.7–1.4 s, hit rate 96–98% under mixed real load and
-    rising with width rather than collapsing. Before the repair the same lane
+    <p><strong>Two instruments measured this lane and they do not agree, so
+    state which one each figure comes from.</strong> Mixing them is how a gain
+    ratio gets inflated:</p>
+
+    <table>
+      <thead><tr><th>Instrument</th><th>Aggregate</th><th>Per worker</th><th>Basis</th></tr></thead>
+      <tbody>
+        <tr><td>Receipt bins, harvested</td><td>330 sustained, 376.6 peak</td><td>27.0 median</td><td>a sample of binned intervals; the median is over <em>active</em> workers, so it excludes those prefilling</td></tr>
+        <tr><td><strong>The engine's decode log</strong></td><td><strong>429.6 at 34 concurrent</strong>, 375.8 at 16</td><td><strong>41.4 peak at 2–4</strong>, 12.6 at 34</td><td>27,454 intervals over 19.8 h, median per running-request count — the better instrument, and the one every prediction here is built on</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Every ratio in this plan compares engine-log to engine-log.</strong>
+    Quoting 710 tok/s against the 330 receipt figure would read as 2.15×
+    when the honest comparison is 710 against 429.6, which is 1.65×. The
+    receipt figures are kept because they are what the dashboard shows and what
+    earlier sessions recorded, not because they set the baseline. TTFT is 1.14 s
+    mean and the hit rate 96.7–97.7%; before the repair the same lane
     managed 32.9 tok/s aggregate at 10.0 s TTFT.</p>
 
     <p><strong>Two cards are not an option for this checkpoint, so no
@@ -345,6 +358,122 @@
     tier is the size claimed; restart B raises <code>max_total_tokens</code> to a
     value justified by restart A's measured free device memory, with pool
     occupancy re-read at a stated width afterwards.</p>
+
+    <h2 id="s4a">§4a — How many restarts this is, and what each one measures</h2>
+
+    <p><strong>Three expected, four if a result is ambiguous, five if the
+    speculative decoder refuses to start.</strong> Each restart costs about
+    460 s to ready and then needs <em>hours of loaded traffic</em> before it has
+    said anything — see §4b — so the wall clock is dominated by
+    the holds, not the launches. Plan for a day, not an afternoon.</p>
+
+    <table>
+      <thead><tr><th>#</th><th>What changes</th><th>What it measures</th><th>Hold</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>1</strong></td>
+          <td><code>speculative_algorithm = "dspark"</code>, <code>speculative_dspark_block_size = 5</code>, <code>hicache_ratio = 2.0</code>, <code>memory = "480G"</code></td>
+          <td>Whether DSpark starts on this checkpoint at all; draft acceptance and mean accept length; <strong>the drafter's own per-step cost</strong>; loaded free device memory once the workspace has allocated; and a refitted cost model.</td>
+          <td>≥ 2 h loaded</td>
+        </tr>
+        <tr>
+          <td><em>1b</em></td>
+          <td><em>Contingency only:</em> speculative settings removed</td>
+          <td>Nothing. It exists to bring the lane back inside the twelve-minute bound of §2 if restart 1 never answers.</td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td><strong>2</strong></td>
+          <td><code>max_total_tokens</code> 4M → a value sized from restart 1's measured free memory</td>
+          <td>That the larger pool does not regress the fit, and pool occupancy at the widths restart 1 reached.</td>
+          <td>≥ 2 h loaded</td>
+        </tr>
+        <tr>
+          <td><strong>3</strong></td>
+          <td><code>flashinfer_mxfp4_moe_precision</code> <code>fp8</code> → <code>default</code></td>
+          <td>The block-scale dequantisation tax at the widest contrast, W4A8 against W4A16. This is the arm that sets the expected Blackwell gain in the accelerator study.</td>
+          <td>≥ 2 h loaded</td>
+        </tr>
+        <tr>
+          <td><em>4</em></td>
+          <td><em>Only if 3 is ambiguous:</em> precision → <code>bf16</code></td>
+          <td>The middle of the three paths, to separate a small real effect from noise.</td>
+          <td>≥ 2 h loaded</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p><strong>Why they cannot be combined.</strong> Restarts 1 and 2 are
+    separated by the locked decision below: both are device-memory changes and
+    the speculative workspace allocates lazily, so a combined failure could not
+    be attributed. Restarts 3 and 4 differ from 1 in exactly one setting by
+    construction — an arm that moved two settings would measure neither.
+    Restart 1 doubles as the <code>fp8</code> arm of the precision sweep, which
+    is why the sweep costs one restart rather than three.</p>
+
+    <h2 id="s4b">§4b — Validation is real work, and there is deliberately no synthetic stress phase</h2>
+
+    <p><strong>Use real fleet traffic, and not as a compromise — here it
+    is the better instrument.</strong> The cost model separates the fixed floor
+    from the bandwidth term by fitting across <em>widths</em>, so it does not
+    need two arms to see equal load, which is the thing real traffic cannot
+    promise. What it needs is each arm seeing a <em>spread</em> of widths, which
+    real agent traffic supplies for free and a fixed-concurrency synthetic run
+    does not.</p>
+
+    <p><strong>Two hours of loaded traffic is enough, and that is measured
+    rather than assumed.</strong> Across 27,454 decode intervals from the serve
+    just retired:</p>
+
+    <table>
+      <thead><tr><th>Window of real traffic</th><th>Intervals</th><th>Distinct widths</th><th>Covers low / mid / high?</th></tr></thead>
+      <tbody>
+        <tr><td>1 h</td><td>2,563</td><td>21</td><td>low and mid only — <strong>not enough</strong></td></tr>
+        <tr><td><strong>2 h</strong></td><td>3,695</td><td><strong>34</strong></td><td><strong>all three</strong></td></tr>
+        <tr><td>4 h</td><td>6,654</td><td>34</td><td>all three</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>But it must be two hours of <em>loaded</em> traffic, and that is
+    a coordination dependency rather than a wait.</strong> The windows above are
+    the busy evening; the quiet hours produced one to three distinct widths,
+    from which no fit can be taken, and two of every twenty-four hours measured
+    had no requests at all. <strong>So the fleets have to be dispatching for
+    this plan to produce a result.</strong> The sessions whose workers died with
+    the lane should resume as soon as the endpoint answers — a restart
+    launched into a quiet lane will sit for hours and measure nothing.</p>
+
+    <p><strong>What to read per arm</strong>, all of it from the engine's own
+    log and metrics rather than a synthetic harness: the
+    <code>Decode batch</code> lines give (running, generation rate) pairs
+    continuously, from which the per-width medians and the refit follow; the
+    acceptance rate and mean accept length come from the speculative counters;
+    and loaded free device memory comes from the card sampler, not from the
+    startup <code>avail mem</code> line, which reads about 19 GB too generous.</p>
+
+    <p><strong>Critically, sample 1, 8 and 24 or above.</strong> §3 predicts
+    the speculative gain collapses to 1.06× near the knee and returns to
+    1.65× at high width. An arm read only around width 8 would reproduce the
+    recorded null and close the question wrongly for a second time.</p>
+
+    <p><strong>There is no synthetic stress phase, and that is a decision with a
+    cost rather than an omission.</strong> Adding a lazily-allocated speculative
+    workspace moves the failure edge, and where that edge now sits is
+    <em>unknown</em>. Walking to it is a legitimate experiment and it must not
+    be run here: the last ceiling probe on a shared serve killed four workers,
+    one holding 4.6M tokens across 65 turns with nothing committed, because at
+    the wrong memory split the engine does not queue and does not refuse
+    — it fails to serialise its own error and takes every in-flight
+    request with it. A probe needs a serve nobody needs, and cores are too
+    tight to run a second one beside this.</p>
+
+    <p><strong>So the edge stays unprobed on purpose, and the mitigation is to
+    watch the early signal instead of the cliff.</strong>
+    <code>max_running_requests</code> stays at 64 as the fence. The first signal
+    is <em>not</em> preemption: prefix-cache eviction precedes it and costs
+    throughput silently, so <code>num_preemptions_total</code> leaving zero is
+    already late. The reading that says this lane is in trouble is a
+    <strong>hit rate falling while pool occupancy climbs</strong>.</p>
 
     <h2 id="s5">§5 — What is deliberately not a lever, so nobody spends a window on it</h2>
 
