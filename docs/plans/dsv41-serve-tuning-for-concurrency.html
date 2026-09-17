@@ -21,14 +21,14 @@
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-tags" content="agent-serving,gpu-deployment,benchmarking">
   <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s4a&quot;:&quot;done&quot;,&quot;s4b&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;deferred&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;implementable&quot;}">
-  <meta name="plan-impl" content="0.125">
+  <meta name="plan-impl" content="0.43">
   <title>DSv4.1 Serve Tuning for Concurrency | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-17">
-<meta name="plan-version" content="13">
-<meta name="plan-commits" content="e808a8e3d89816a334f167b05eb4986afde532fd">
-<meta name="plan-artifacts" content="imas_ambix/agent/profiles/deepseek-v4-1-flash.toml,docs/evidence/archive/dsv41-serve-tuning-for-concurrency-landed.html">
+<meta name="plan-version" content="14">
+<meta name="plan-commits" content="e808a8e3d89816a334f167b05eb4986afde532fd,3d0a341742c0cd0315232d95ba916971670b078a,483734b74ab42c2ad8f5b80c0dd18e3f28f7409e,c164d5d55cfc8f6ee7487a2562baa8ce7c0217e6,f779e28de7543108d83126be755b49d0dd3a9f9c">
+<meta name="plan-artifacts" content="imas_ambix/agent/profiles/deepseek-v4-1-flash.toml,docs/evidence/archive/dsv41-serve-tuning-for-concurrency-landed.html,/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/dsv41-tune/reuse-map.md,/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/dsv41-tune/restart-one-launch.md">
 </head>
 <body>
   <main class="plan-doc">
@@ -1042,6 +1042,9 @@
 </div>
 <div class="r-comment" data-section="s3" data-id="c-run-r-20260917T091608473130-restart-one-launch" data-who="dsv41-launch-op" data-when="2026-09-17T09:54:54Z">
     <div class="r-comment-body"><p>DSpark generates on this checkpoint: width-1 median 108.465 tok/s = 3.055x the 35.5 baseline, mean accept length 3.550 against 3.31 assumed, acceptance 51.0%; workspace allocated 2390 MiB/card against ~12.9 GiB budgeted, leaving ~20 GB/card spare for the conditional pool increment; job 1272777 refused at startup on lowercase dspark and is retained as evidence; drafter per-step cost not exposed by the engine</p></div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-20260917-gate-launch" data-who="reckon-ship" data-when="2026-09-17T10:00:00Z">
+    <div class="r-comment-body">gate passed. DSpark GENERATES on this checkpoint - the first time it has been observed doing so. Job 1272783 ready in 485 s; width-1 median 108.465 tok/s over 38 intervals against the 35.5 baseline, a ratio of 3.055x where the model predicted 2.41x. Mean accept length 3.550 against the 3.31 the model assumed throughout, acceptance 51.0%. The lazily-allocated workspace cost 2390 MiB per card against about 12.9 GiB budgeted - 5.5 times smaller - so loaded free memory is 30789/30581/30581/30789 MiB and the measured 10.10 GB/card pool increment fits with roughly 20 GB spare. That figure sizes the conditional second restart and must be re-read at high width. Negative recorded: the engine does not expose the drafter per-step cost, which section 3 named as the dominant unknown, so it cannot be separated from aggregate throughput at any width. Job 1272777 is retained as evidence: it refused at startup in 42 s because SGLang compares speculative_algorithm case-sensitively against the literal tuple (EAGLE, DSPARK) and the profile emitted lowercase. Section stays open pending the cost-model refit.</div>
 </div>
 <div class="r-comment" data-section="s8" data-id="c-run-r-20260917T085934585418-serve-machinery-reuse-map" data-who="dsv41-reuse-scout" data-when="2026-09-17T09:08:14Z">
     <div class="r-comment-body"><p>7 of 8 capabilities already exist; the sole gap is a Decode-batch log harvester. Drain needs no new code: serving_receipts.sample_serving_metrics reads running/waiting and agent shutdown republishes the endpoint document a bare scancel would skip</p></div>
