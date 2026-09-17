@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-17T17:01:21",
+  "updated": "2026-09-17T17:24:53",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -566,9 +566,11 @@
         "id": "dsv41-profile-rollback",
         "harness": "clive",
         "role": "implement",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
+        "session_id": "5ccbc9f8-a031-40c3-93b0-88da7e51f2ce",
+        "session_model": "deepseek-v4.1-flash",
+        "sessions": {
+          "{\"alias\":\"dsv4.1-flash\",\"backend\":\"clive\",\"effort\":\"high\",\"launch\":\"cli\",\"local\":true,\"model\":\"deepseek-v4.1-flash\",\"sandbox\":\"worktree-full\",\"usable_input_window\":480000}": "5ccbc9f8-a031-40c3-93b0-88da7e51f2ce"
+        },
         "created": "2026-09-17"
       },
       {
@@ -40228,6 +40230,206 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260917T150157272143-serving-recipe-doc-drift",
+        "plan": "dsv41-serve-tuning-for-concurrency",
+        "section": "\u00a74",
+        "node": "serving-recipe-doc-drift",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1217,
+                "cached_input_tokens": 382232,
+                "input_tokens": 383451,
+                "output_tokens": 1111,
+                "reasoning_output_tokens": 284,
+                "total_tokens": 384562,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "aeb652ee-2fb5-42fc-b5dc-1235d9ca4a0d",
+            "session_id": "dsv41-restart-20260917"
+          },
+          "done_when": "imas_ambix/agent/AGENTS.md contains no occurrence of the superseded pool or memory values (4000000, 4,000,000, 4M, 480G) as a description of the CURRENT committed profile, and states max_total_tokens 8000000 with memory 600G wherever it previously stated the old pair; a historical sentence that explicitly describes a past configuration may keep its old figure only if it is unambiguously marked as past; 'grep -nE \"4000000|4,000,000|480G\" imas_ambix/agent/AGENTS.md' returns only such marked-historical lines or nothing at all; no other file is edited and no live setting anywhere is changed",
+          "estimated_hours": null,
+          "goal": "bring the serving-recipe prose in the agent AGENTS.md onto the committed 8M/600G profile",
+          "id": "serving-recipe-doc-drift",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-17T15:02:00Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no 'binding_observed'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260917T150157272143-serving-recipe-doc-drift/manifest.md",
+          "plan": "dsv41-serve-tuning-for-concurrency",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74",
+          "spec_level": "exact",
+          "time_budget": "20m",
+          "token_budget": null,
+          "write_paths": [
+            "imas_ambix/agent/AGENTS.md",
+            "docs/evidence/archive/dsv41-serve-tuning-for-concurrency-landed.html",
+            "docs/plans/dsv41-serve-tuning-for-concurrency.html"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "dsv41-profile-rollback",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "high",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "worktree-full",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-17T15:02:21Z",
+        "completed_at": "2026-09-17T15:23:07.045Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 1228,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 1246,
+        "stalled": false,
+        "time_budget": "20m",
+        "base_sha": "28655239adbd265744251dad23fc368251451c0e",
+        "commits": [
+          "621317d277d28beaf8449f91b8547d994f4a870d"
+        ],
+        "changed_lines": {
+          "added": 84,
+          "removed": 4,
+          "files": 3
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "grep -nE \"4000000|4,000,000|480G\" imas_ambix/agent/AGENTS.md",
+          "exit_status": 1,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260917T150157272143-serving-recipe-doc-drift/manifest.md",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260917T150157272143-serving-recipe-doc-drift/manifest.md",
+        "scope_changed": false,
+        "session_id": "5ccbc9f8-a031-40c3-93b0-88da7e51f2ce",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 2813891,
+            "input_tokens_cumulative": 2813891,
+            "output_tokens": 15393,
+            "output_tokens_cumulative": 15393,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-17T15:23:07.045Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": null,
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 2813891,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 1239.802,
+          "generated_tokens": 15393,
+          "generation_seconds": 1194.047,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 20.4,
+          "machine_seconds": 45.755,
+          "peak_input_tokens": 97688,
+          "tokens_per_second": 12.89,
+          "wall_tokens_per_second": 12.42
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/dsv41-restart-20260917/serving-recipe-doc-drift",
+          "session_id": "5ccbc9f8-a031-40c3-93b0-88da7e51f2ce",
+          "session_source": "pointer",
+          "retained_at": "2026-09-17T15:23:07.045Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "tool_steps": 44.0,
+        "orientation_input_tokens": 731041.0,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -40288,6 +40490,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 706
+    "_version": 708
   }
 }
