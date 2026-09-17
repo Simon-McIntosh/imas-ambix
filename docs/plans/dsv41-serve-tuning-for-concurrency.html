@@ -989,6 +989,39 @@
     has either landed a larger pool sized from that measurement or been recorded
     as refused by it.</p>
 
+    <h3>Landing record — deploy recipe and launch contract</h3>
+
+    <p><strong>The recipe is written where the next session reads it, and the
+    superseded launch contract is repaired.</strong> The draft recipe lands in
+    <code>imas_ambix/agent/AGENTS.md</code> as a
+    <em>DeepSeek V4.1 Flash Deployment</em> section. It states the launch
+    constraint (submit from the main checkout, because the generated script
+    binds the kernel patch and resolves the drain sidecar by absolute path from
+    its generation directory — check that no path in the submitted script
+    contains <code>.reckon-worktrees</code>), the case-sensitive
+    <code>speculative_algorithm</code> tuple with the engine's own refusal after
+    42&#160;s, readiness at 485&#160;s from <code>RUNNING</code> against the
+    startup log's 670.1&#160;s scheduler end-to-end, and the two drains sixty
+    times apart with the run-level one governing — read from
+    <code>serving_receipts.sample_serving_metrics</code> and stopped by
+    <code>imas-ambix agent shutdown</code> rather than <code>scancel</code>.</p>
+
+    <p><strong>The pinning test moved to the landed values.</strong>
+    <code>tests/test_agent_pool_and_hicache.py</code> asserted
+    <code>hicache_ratio == 8.0</code> and <code>memory == "720G"</code> — the
+    superseded host tier — so it failed against the committed profile. The
+    landed contract is <code>2.0</code> and <code>"480G"</code>, and two
+    assertions now pin the emitted speculative flags
+    (<code>--speculative-algorithm DSPARK</code>,
+    <code>--speculative-dspark-block-size 5</code>), which nothing covered
+    before. Commit <code>a96547d</code>. Full record:
+    <a href="/imas-ambix/evidence/archive/dsv41-serve-tuning-for-concurrency-landed#deploy-recipe-record">recipe evidence</a>.</p>
+
+    <!-- Appended directly to the plan HTML: reckon MCP writes were not
+         available to this detached worktree, and this node holds the plan
+         path exclusively. The plan-version and plan-modified meta lines are
+         left untouched so a merge does not conflict on them. -->
+
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
 <div class="r-dec" data-key="restart-grouping" data-choice="two-restarts" data-by="reckon-create" data-when="2026-09-17">
