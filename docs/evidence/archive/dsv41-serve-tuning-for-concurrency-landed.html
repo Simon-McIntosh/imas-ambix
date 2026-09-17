@@ -47,11 +47,13 @@
     readiness response is therefore not the gate; a real generation and the
     low, knee, and high-width readings remain operational work.</p>
 
-    <p><strong>The rollback is explicit before launch:</strong> remove
-    <code>speculative_algorithm</code> and
+    <p><strong>The profile-settings node initially recorded an over-broad
+    rollback:</strong> remove <code>speculative_algorithm</code> and
     <code>speculative_dspark_block_size</code>, restore
     <code>hicache_ratio = 8.0</code>, and restore
-    <code>memory = "720G"</code>.</p>
+    <code>memory = "720G"</code>. The launch node below reproduced and corrected
+    that instruction before submission: a speculative refusal must not undo the
+    independently measured host-tier reduction.</p>
 
     <p>The committed-file check parsed all four expected values, confirmed the
     refusal sentence absent, and found all three replacement markers — loaded
@@ -68,6 +70,42 @@
     <code>8.0</code> and <code>720G</code> values. That test file is outside this
     node's exclusive write scope and is preserved as a separate test-node
     follow-on rather than hidden or changed here.</p>
+
+    <h2 id="restart-one-launch">Restart-one launch</h2>
+
+    <p><strong>The serve was submitted from the main checkout and failed closed
+    before model loading.</strong> Commit <code>3d0a341</code> first limits a
+    rollback to the two speculative keys while retaining
+    <code>hicache_ratio = 2.0</code> and <code>memory = "480G"</code>. SLURM job
+    <code>1272777</code> then ran with
+    <code>WorkDir=/home/ITER/mcintos/Code/imas-ambix</code>; its submitted script
+    contains seven main-checkout paths and zero
+    <code>.reckon-worktrees</code> paths.</p>
+
+    <table>
+      <thead><tr><th>Gate</th><th>Measured result</th></tr></thead>
+      <tbody>
+        <tr><td>Allocation</td><td>4 H200, 12 CPUs, 480G; keyless port 18810</td></tr>
+        <tr><td>Running to terminal</td><td><strong>42 s</strong>, 11:20:56–11:21:38 CEST; job state <strong>FAILED</strong>, exit <code>1:0</code></td></tr>
+        <tr><td>First <code>/v1/models</code></td><td><strong>none</strong>; startup exited before the fifteen-minute readiness bound could be satisfied</td></tr>
+        <tr><td>Real generation</td><td><strong>not run</strong>; no ready endpoint existed, so no 300-token completion or post-generation health response was possible</td></tr>
+        <tr><td>Draft metrics</td><td><strong>not emitted</strong>; acceptance rate, mean accept length and per-step cost are absent because the speculative engine did not initialize</td></tr>
+      </tbody>
+    </table>
+
+    <p>The engine refusal was
+    <q>Only EAGLE and DSPARK speculative algorithms are supported for
+    DeepseekV4ForCausalLM</q>. The generated command supplied lowercase
+    <code>dspark</code>, and the model hook rejected it before weights loaded.
+    The last sidecar sample recorded 3, 5, 5 and 5 MiB used on cards 0–3 of
+    143,771 MiB each, leaving <strong>143,768, 143,766, 143,766 and 143,766
+    MiB free</strong>. This is a failure-time receipt, not loaded DSpark
+    headroom.</p>
+
+    <p><strong>No relaunch followed the failed bound.</strong> Job
+    <code>1272777</code> is terminal, port 18810 refuses connections, and the
+    full operational receipt is
+    <code>/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/dsv41-tune/restart-one-launch.md</code>.</p>
 
   </main>
 </body>
