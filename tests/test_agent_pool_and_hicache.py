@@ -14,12 +14,12 @@ def test_profile_sizes_device_and_host_cache_with_group_memory_margin() -> None:
     """The profile keeps reusable prefixes in host RAM without filling Group A."""
     profile = load_profile("deepseek-v4-1-flash")
 
-    assert profile.engine.max_total_tokens == 4_000_000
+    assert profile.engine.max_total_tokens == 8_000_000
     assert profile.engine.enable_hierarchical_cache is True
     assert profile.engine.hicache_ratio == 2.0
     assert profile.engine.hicache_write_policy == "write_through_selective"
     assert profile.engine.hicache_mem_layout == "page_first"
-    assert profile.slurm.memory == "480G"
+    assert profile.slurm.memory == "600G"
 
 
 def test_profile_declares_the_dspark_drafter_with_its_block_size() -> None:
@@ -40,8 +40,8 @@ def test_dry_run_carries_pool_hicache_and_memory_contract() -> None:
     result = CliRunner().invoke(main, SERVE_DRY_RUN)
 
     assert result.exit_code == 0, result.output
-    assert "#SBATCH --mem=480G" in result.output
-    assert "--max-total-tokens 4000000" in result.output
+    assert "#SBATCH --mem=600G" in result.output
+    assert "--max-total-tokens 8000000" in result.output
     assert "--enable-hierarchical-cache" in result.output
     assert "--hicache-ratio 2.0" in result.output
     assert "--hicache-write-policy write_through_selective" in result.output
