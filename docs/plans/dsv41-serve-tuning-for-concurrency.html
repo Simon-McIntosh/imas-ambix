@@ -26,7 +26,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-17">
-<meta name="plan-version" content="8">
+<meta name="plan-version" content="10">
 <meta name="plan-commits" content="e808a8e3d89816a334f167b05eb4986afde532fd">
 <meta name="plan-artifacts" content="imas_ambix/agent/profiles/deepseek-v4-1-flash.toml,docs/evidence/archive/dsv41-serve-tuning-for-concurrency-landed.html">
 </head>
@@ -775,12 +775,44 @@
     too short and it truncates work, too long and it wastes the window. Both
     numbers are already observable — non-terminal run pointers across the
     projects using the lane, and the running and queued request counters the
-    profile's Prometheus endpoint already publishes. The instrument this plan
-    needs reports <em>both</em>, so a restart is timed rather than guessed, and
-    it holds no authority to stop anything. That reading is also what makes the
-    cutover recordable: §2's done-when asks for the in-flight count at cutover,
-    and a drain that reports zero on both counters has produced exactly that
-    evidence.</p>
+    profile's Prometheus endpoint already publishes. That reading is also what
+    makes the cutover recordable: §2's done-when asks for the in-flight count at
+    cutover, and a drain that reports zero on both counters has produced exactly
+    that evidence.</p>
+
+    <p><strong>And the drain needs no new machinery, which was worth checking
+    before building any.</strong> The reuse scout measured seven of eight
+    required capabilities as already present.
+    <code>serving_receipts.sample_serving_metrics</code> declares exact aliases
+    for <code>num_requests_running</code> and <code>num_requests_waiting</code>
+    and scrapes them from <code>&lt;origin&gt;/metrics</code>;
+    <code>cli.shutdown</code> selects the profile's own jobs, cancels them, and
+    <em>republishes the endpoint document</em>, which a bare
+    <code>scancel</code> skips — so cancelling directly leaves the published
+    endpoint claiming a lane that is gone. A failed scrape returns
+    <code>None</code>, and <strong>none is not zero</strong>: a drain must not
+    read a failed read as quiescence. So the drain is a written procedure over
+    existing reads, not a component, and this run builds exactly one new thing.</p>
+
+    <h3>The whole run is six nodes, and the one new component is named</h3>
+
+    <p><strong>This is a two-step tuning exercise, not a serve matrix</strong>,
+    and the node list is stated so the remainder is legible rather than
+    open-ended: the profile settings; the reuse map; the launch; the harvest
+    after the loaded window; the pool restart, conditional on what the launch
+    measures; and the recipe record, which carries the drain procedure and
+    repairs the test that still pins the superseded settings.</p>
+
+    <p><strong>The single gap is a <code>Decode batch</code> log harvester.</strong>
+    A search for that marker across <code>imas_ambix/</code>,
+    <code>tests/</code> and <code>scripts/</code> returns zero executable
+    matches — the only hits are explanatory HTML in this plan and in the
+    accelerator study. The existing <code>receipt_bins</code> collector is not a
+    substitute and must not be presented as one: it bins differenced Prometheus
+    counters over sampling intervals, where §4b needs
+    <code>(running width, generation rate)</code> pairs from engine log
+    intervals. The harvest node builds that parser once and every later reading
+    consumes it.</p>
 
     <h3>Where the load comes from</h3>
 
@@ -799,6 +831,34 @@
     than from a knob here. It costs this plan no metered budget, so the
     two-hour window is affordable at all. And their workers are not ours to
     stop — which is the whole content of the drain above.</p>
+
+    <p><strong>The width actually on offer is about 15, not 24-plus, and that
+    was established by asking rather than by assuming.</strong> nova committed
+    8–12 concurrent streams within the first half hour and up to about 15 over
+    two hours, all genuine sprint work — four worker turns that died with the
+    lane and resume with fresh findings, three reviews and a census, and three
+    to five implement nodes behind those landings. It also supplied the right
+    unit: nova's nodes are long-turn, a hundred-plus assistant turns each, so
+    the count of concurrent <em>streams</em> is a better width figure than a
+    request rate. No efit coordinator was visible to either of us; efit and
+    imas-codex have both been asked.</p>
+
+    <p><strong>So restart 1 can test the distinctive half of §3's prediction and
+    probably not the other half — which is worth stating before the measurement
+    rather than after.</strong> The reachable band covers a single stream, the
+    knee, and the beginning of the climb; the return at 24–34 needs width nobody
+    has yet offered. That is a smaller result than the plan hoped for and it is
+    not a weak one, because <strong>the low-width end is where the prediction is
+    largest and cleanest</strong>: 2.41× at one stream against 1.06× at width 8.
+    A single-stream measurement is also the cheapest thing on this list and
+    depends on no peer at all.</p>
+
+    <p><strong>The trap this creates is precisely the one §4b named, arriving
+    from the other side.</strong> If the fleet delivers 8–15 and the harvest
+    reports a null there, that null is <em>what the model predicts</em> and is
+    not evidence against DSpark. Record it as a measurement at the widths
+    reached, never as a verdict on the lever — closing the question on a knee
+    reading is the exact mistake the V4-Flash null already caused once.</p>
 
     <p><strong>Contact is a request, never an instruction.</strong> A peer
     coordinator cannot be given authority and a relayed approval is not consent.
