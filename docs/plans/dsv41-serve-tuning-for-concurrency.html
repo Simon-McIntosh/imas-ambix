@@ -76,10 +76,35 @@
     So the device pool is no longer headroom for a hypothetical future width; it
     is a constraint roughly twice the width the lane already runs at.</p>
 
-    <h2 id="s2">§2 — The restart may not need a quiet window at all</h2>
+    <h2 id="s2">§2 — The window question is closed: the serve is already down</h2>
 
-    <p>The plan was scoped expecting to hunt for a lull. It probably does not
-    have to, and that is worth establishing before anyone schedules downtime.</p>
+    <p><strong>As of 2026-09-17 the lane drained and the serve was shut down, so
+    this section's original problem no longer exists.</strong> There is nothing
+    to rotate around, no dispatch to halt and no lull to find — the
+    restart is a cold launch. Everything below is kept because it is the record
+    of what a live rotation would have cost and because the duty-cycle table is
+    the instrument for the <em>next</em> restart, not this one.</p>
+
+    <p><strong>What binds now is cores, not cards.</strong> Four cards are free.
+    The group-A reservation holds thirty cores, of which the router keeps 2 and
+    two released one-card nova jobs keep 8 each, leaving roughly
+    <strong>12–14</strong>. The profile asks for <strong>12</strong>. So
+    the launch fits with almost no margin, and a job pending on
+    <code>Resources</code> after submission means cores rather than cards
+    — read the live ledger before blaming the GPU count.</p>
+
+    <p><strong>The rotation was also the safety net, and losing it changes the
+    risk.</strong> With the old engine still serving, a speculative decoder that
+    refused to start cost nothing. Now a failed launch means no lane at all
+    until a rollback completes. So the rollback needs a time bound rather than a
+    judgement call: <strong>if the serve has not answered
+    <code>/v1/models</code> within about twelve minutes</strong> — against
+    a measured 460 s to ready — relaunch without the speculative
+    settings to bring the lane back, and treat DSpark as a separate attempt
+    once traffic is flowing again.</p>
+
+    <p><em>The remainder of this section is the superseded rotation analysis,
+    retained for the next restart.</em></p>
 
     <p><strong>A zero-downtime rotation is supported and was demonstrated on
     2026-09-07.</strong> Bring the retuned serve up on its own port while the
@@ -190,12 +215,59 @@
     wall clock, because each of its tokens needs its own forward pass. The lever
     became feasible and worth pulling in the same repair.</p>
 
-    <p><strong>Expected gain, with its basis stated.</strong> On V4-Flash the
-    same mechanism measured <strong>45.3–46.4% draft acceptance at a mean accept
-    length of 3.31</strong>. Carrying that acceptance to this lane's decode puts
-    aggregate output at <strong>500–650 tok/s</strong> and per-worker at
-    <strong>40–55 tok/s</strong> — the one change in this plan that raises what a
-    single worker experiences rather than how many workers fit.</p>
+    <p><strong>The profile's own comment says this will not help, and that
+    objection has to be answered rather than ignored.</strong> It records
+    <q>prior experience on V4-Flash, where DSpark did not change throughput
+    materially</q>, alongside the capacity refusal. The capacity half is stale
+    — it reasons from a pool costing ~16 GiB of base plus 1.6 KiB/token,
+    where the running pool measures 10.10 GB for four million tokens — but
+    the <em>benefit</em> half is a recorded null on the sibling checkpoint and
+    this plan previously talked past it.</p>
+
+    <p><strong>The decode cost model reconciles the null with the acceptance
+    measurement, and predicts something falsifiable.</strong> Speculation
+    verifies k draft tokens in one forward pass, so it pays the 17.8 ms floor
+    once instead of k times — but the pass must read the expert union over
+    k×B tokens instead of B, and that union grows fast. Carrying the
+    measured 3.31 mean accept length at k=5 through
+    <code>ms = 17.8 + 0.257 × GB</code>, with a 10 ms allowance for the five
+    sequential draft steps:</p>
+
+    <table>
+      <thead><tr><th>Concurrent</th><th>Measured today</th><th>Verify pass reads</th><th>Predicted</th><th>Ratio</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>35.5 tok/s</td><td>43 GB</td><td>85 tok/s</td><td><strong>2.41×</strong></td></tr>
+        <tr><td>4</td><td>164.2</td><td>148 GB</td><td>201</td><td>1.22×</td></tr>
+        <tr><td>8</td><td>266.5</td><td>255 GB</td><td>283</td><td><strong>1.06×</strong></td></tr>
+        <tr><td>16</td><td>375.8</td><td>391 GB</td><td>412</td><td>1.10×</td></tr>
+        <tr><td>24</td><td>394.4</td><td>463 GB</td><td>541</td><td>1.37×</td></tr>
+        <tr><td>34</td><td>429.6</td><td>508 GB</td><td><strong>710</strong></td><td><strong>1.65×</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>The shape is the finding: the gain is large at a single stream,
+    collapses to nothing around the knee, and returns at high width.</strong> At
+    one stream the floor is the entire cost, so paying it once instead of 3.31
+    times is nearly free throughput. At width 8 the expert union goes from 12%
+    to 47% of the 384 experts — 3.9× the bytes for 5× the tokens
+    — and the bandwidth term eats the floor saving. At width 34 the union
+    is already 41% saturated, so verifying five times the tokens costs only
+    2.24× the bytes and the saving survives.</p>
+
+    <p><strong>So a null measured near the knee is exactly what this model
+    predicts, which is the most likely explanation of the V4-Flash result and
+    the reason a single-width test is worthless here.</strong> Measure at
+    <strong>1, 8 and 24 or above</strong>. A test at width 8 alone would
+    reproduce the recorded null and wrongly close the question for a second
+    time.</p>
+
+    <p><strong>The dominant unknown is the drafter's own cost, and it can make
+    this a regression.</strong> The 10 ms allowance above is an assumption, not a
+    measurement: five sequential draft steps over three layers
+    (<code>dspark_target_layer_ids [37, 38, 39]</code>, 128 experts at top-3).
+    At 25 ms the width-8 case becomes <strong>0.92×</strong> — slower
+    than today. Record the draft overhead per step, not only the acceptance
+    rate, or the result cannot be interpreted at the widths where it matters.</p>
 
     <p><strong>The caveat is specific and must not be softened: on V4.1 it
     previously could not start.</strong> That was at a pool leaving no room for
@@ -205,6 +277,20 @@
     starts and dies on the first real generation takes the lane with it — the
     lazy-allocation shape that has killed three serves on this node. So the
     acceptance test is a real generation, not a readiness probe.</p>
+
+    <p><strong>This is a profile edit and not a code change, which is what
+    makes it dispatchable in one session.</strong>
+    <code>speculative_algorithm</code> and
+    <code>speculative_dspark_block_size</code> already exist as SGLang-only
+    fields in <code>imas_ambix/agent/profile.py</code> and are already emitted
+    as <code>--speculative-algorithm</code> and
+    <code>--speculative-dspark-block-size</code> by
+    <code>imas_ambix/agent/slurm.py</code>. The values are
+    <code>"dspark"</code> and <code>5</code>, the second taken from the
+    checkpoint's own <code>dspark_block_size</code>. The draft module is fused
+    into the checkpoint at layers 37–39, so no separate draft path is
+    needed and the commented vLLM-shaped settings in the V4-Flash profile are
+    the wrong names for this engine.</p>
 
     <p><strong>Done when:</strong> DSpark is enabled in
     <code>imas_ambix/agent/profiles/deepseek-v4-1-flash.toml</code>, the serve
@@ -356,9 +442,11 @@
     mid-flight.</p>
 
     <p><strong>And the honest comparison is the reason this is deferred rather
-    than queued:</strong> §3 is expected to buy 500–650 tok/s on four cards for
-    the price of one restart, while §6 buys 660–750 for four more cards plus a
-    routing feature. Per card, DSpark wins outright.</p>
+    than queued:</strong> §3 is predicted to reach ~710 tok/s at width 34 on the
+    four cards we own for the price of one restart, while §6 buys
+    660–750 for four more cards plus a routing feature. Per card, DSpark
+    wins outright — and unlike §6 it attacks the latency floor, which
+    is the term no extra hardware reduces.</p>
 
     <h2 id="s7">§7 — The order, and what the whole plan is expected to be worth</h2>
 
@@ -371,7 +459,7 @@
       </thead>
       <tbody>
         <tr><td>—</td><td>Today, repaired lane</td><td>—</td><td>330 sustained / 377 peak</td><td>27.0 median</td><td><strong>measured</strong></td></tr>
-        <tr><td>1</td><td>DSpark speculative decoding</td><td>A</td><td><strong>500–650</strong></td><td><strong>40–55</strong></td><td>acceptance measured on V4-Flash; never yet started on V4.1</td></tr>
+        <tr><td>1</td><td>DSpark speculative decoding</td><td>A</td><td><strong>412 at width 16, ~710 at width 34</strong></td><td>25–21 per worker</td><td>cost-model prediction from measured acceptance; width-dependent, near-null at the knee, and contradicted by a recorded null on V4-Flash that the model explains</td></tr>
         <tr><td>2</td><td><code>hicache_ratio</code> 8.0 &#8594; 2.0</td><td>A</td><td>no change</td><td>no change</td><td>measured write-only: 100,308 writes, 56 reads</td></tr>
         <tr><td>3</td><td><code>max_total_tokens</code> 4M &#8594; 8M</td><td>B</td><td>no change today</td><td>no change today</td><td>removes a bound at ~50 concurrent, read live at 53% / 27</td></tr>
         <tr><td>4</td><td>Two TP4 replicas on eight cards</td><td>deferred</td><td>660–750</td><td>unchanged at best</td><td>gated on session-affinity routing</td></tr>
