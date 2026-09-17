@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-17T12:08:03",
+  "updated": "2026-09-17T12:38:02",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -37260,6 +37260,188 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260917T100806889701-deploy-recipe-record",
+        "plan": "dsv41-serve-tuning-for-concurrency",
+        "section": "\u00a78",
+        "node": "deploy-recipe-record",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1691,
+                "cached_input_tokens": 500084,
+                "input_tokens": 501777,
+                "output_tokens": 1089,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 502866,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "11e65032-39c1-40fd-943f-d18ea21d44df",
+            "session_id": "dsv41-tune-20260917"
+          },
+          "done_when": "uv run --no-sync pytest tests/test_agent_pool_and_hicache.py passes with the landed values hicache_ratio 2.0 and memory 480G and additionally pins the two emitted speculative flags; and imas_ambix/agent/AGENTS.md gains a DSv4.1 deployment section stating, each in terms a reader can act on without this plan: that a serve is submitted from the main checkout and never a detached worktree, because the generated script binds a kernel patch and resolves the drain sidecar by absolute path from wherever it was generated, the check being that no path in the submitted script contains .reckon-worktrees; that speculative_algorithm is compared case-sensitively by SGLang against the literal tuple EAGLE and DSPARK, lowercase rejected during model-specific startup resolution after 42 s, citing the arg_groups deepseek_v4_hook assertion; that readiness took 485 s from RUNNING on the launch carrying a draft module, against a 670 s scheduler end-to-end in the startup log; and that draining this lane means two different things sixty times apart, the run-level drain of roughly an hour during which peer nodes reach their own ends and the request-level drain of one to three minutes, with the run-level one governing, the reading taken from serving_receipts.sample_serving_metrics running and waiting gauges where a failed scrape returns None and none is not zero, and the stop performed by imas-ambix agent shutdown rather than scancel because shutdown republishes the endpoint document a bare cancel skips. Ruff must report no new findings over the two changed paths",
+          "estimated_hours": 1.0,
+          "goal": "The DSv4.1 launch, drain and restart procedure is written where the next session will find it, and the test that still pins the superseded settings is brought to the landed contract",
+          "id": "deploy-recipe-record",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-17T10:08:09Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no 'binding_observed'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260917T100806889701-deploy-recipe-record/manifest.md",
+          "plan": "dsv41-serve-tuning-for-concurrency",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a78",
+          "spec_level": "guided",
+          "time_budget": "45m",
+          "token_budget": null,
+          "write_paths": [
+            "tests/test_agent_pool_and_hicache.py",
+            "imas_ambix/agent/AGENTS.md",
+            "docs/evidence/archive/dsv41-serve-tuning-for-concurrency-landed.html",
+            "docs/plans/dsv41-serve-tuning-for-concurrency.html"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "dsv41-recipe-scribe",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "high",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "worktree-full",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-17T10:08:28Z",
+        "completed_at": "2026-09-17T10:34:01.973Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 1524,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 1533,
+        "stalled": false,
+        "time_budget": "45m",
+        "base_sha": "c20790b2cdb52fcc78d86ff7ded8b6cf8f448a0f",
+        "commits": [
+          "0611688bb67d80e4bc856a486cbd5072d42e4a6b",
+          "a96547d161119574ec1cde18daab06a7111d7850"
+        ],
+        "changed_lines": {
+          "added": 0,
+          "removed": 0,
+          "files": 0
+        },
+        "tests_added": 3,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/test_agent_pool_and_hicache.py",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260917T100806889701-deploy-recipe-record/pytest.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260917T100806889701-deploy-recipe-record/manifest.md",
+        "scope_changed": false,
+        "session_id": "b6a7501d-8fa5-4b8f-92a1-7ed46d8898fe",
+        "budget": {
+          "cost_usd": null,
+          "detail": "no events yet",
+          "headroom": "unknown",
+          "rate_limit_period_minutes": null,
+          "rate_limit_type": null,
+          "refusal": false,
+          "resets_at": null,
+          "surpassed_threshold": null,
+          "threshold_status": null,
+          "tokens": null,
+          "utilisation_pct": null
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-17T10:34:01.973Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": null,
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent_pool_and_hicache.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": {
+          "status": "underivable",
+          "reason": "model_span_unavailable_at_promotion"
+        },
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/dsv41-tune-20260917/deploy-recipe-record",
+          "session_id": "b6a7501d-8fa5-4b8f-92a1-7ed46d8898fe",
+          "session_source": "stream",
+          "retained_at": "2026-09-17T10:34:01.973Z"
+        },
+        "boundary_waiver": {
+          "reason": "the uncommitted plan-HTML edit is in a LIVE PEER worktree (decode-log-harvester), not a stray edit of this run: that node is mid-flight writing its own landing record to the plan path the dispatch contract grants every worker. This run's own worktree is clean and both its commits are merged at main. Waiting would mean serialising every promotion behind every concurrent worker's plan write, since all of them hold that path by contract",
+          "waived_paths": [
+            "docs/plans/dsv41-serve-tuning-for-concurrency.html in peer worktree /home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/dsv41-tune-20260917/decode-log-harvester"
+          ]
+        },
+        "resume_waiver": null,
+        "watch_override": null,
+        "tool_steps": 68.0,
+        "orientation_input_tokens": 983042.0,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -37306,6 +37488,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 672
+    "_version": 673
   }
 }
