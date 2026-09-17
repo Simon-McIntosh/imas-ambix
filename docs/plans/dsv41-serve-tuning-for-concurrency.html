@@ -21,12 +21,14 @@
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-tags" content="agent-serving,gpu-deployment,benchmarking">
   <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s4a&quot;:&quot;done&quot;,&quot;s4b&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;deferred&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;implementable&quot;}">
-  <meta name="plan-impl" content="0.0">
+  <meta name="plan-impl" content="0.125">
   <title>DSv4.1 Serve Tuning for Concurrency | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-17">
-<meta name="plan-version" content="5">
+<meta name="plan-version" content="7">
+<meta name="plan-commits" content="e808a8e3d89816a334f167b05eb4986afde532fd">
+<meta name="plan-artifacts" content="imas_ambix/agent/profiles/deepseek-v4-1-flash.toml,docs/evidence/archive/dsv41-serve-tuning-for-concurrency-landed.html">
 </head>
 <body>
   <main class="plan-doc">
@@ -642,6 +644,44 @@
     recorded, because the second nova job has since released. A job pending on
     <code>Resources</code> still means cores before it means cards.</p>
 
+    <h3>Three facts the launch depends on, each of which would otherwise be discovered by failing</h3>
+
+    <p><strong>The serve is submitted from the main checkout, never from a
+    worktree.</strong> Every one of the five serves since 2026-09-15 ran with
+    <code>WorkDir=/home/ITER/mcintos/Code/imas-ambix</code>, and that is not
+    incidental: the generated script binds
+    <code>imas_ambix/agent/kernel_patches/…/main_norm_rope.cuh</code> into the
+    container and resolves <code>scripts/slurm/drain_sidecar.sh</code>, both by
+    absolute path from the directory the script was generated in. A serve
+    submitted from a detached worktree therefore holds that worktree open for
+    its entire life, and reclaiming the worktree — which is ordinary
+    housekeeping — breaks a running lane. This is the same shape as a worktree
+    repointing the shared environment: a resource that looks local and is not.
+    <strong>Check it on the generated script rather than trusting it:</strong>
+    no path in the submitted script may contain
+    <code>.reckon-worktrees</code>.</p>
+
+    <p><strong>The readiness bound is fifteen minutes from the job entering
+    <code>RUNNING</code>, not the twelve §2 records.</strong> Two measurements of
+    this serve disagree — §2's 460 s to a first successful
+    <code>/v1/models</code>, and the profile's own
+    <code>scheduler end-to-end 670.1 s</code> from the startup log — and the
+    twelve-minute bound was set from the smaller. DSpark additionally loads a
+    draft module that no previous launch loaded, so the bound is taken off the
+    larger figure with margin. Measure it from <code>RUNNING</code> rather than
+    from submit, because time spent pending on <code>Resources</code> is a
+    queueing fact and says nothing about whether the engine will start.</p>
+
+    <p><strong>The rollback removes the speculative keys and nothing else.</strong>
+    The rollback line committed into the profile also restores
+    <code>hicache_ratio = 8.0</code> and <code>memory = "720G"</code>, and that
+    is wrong: followup <code>f-dsv41tune-01</code> states that a DSpark refusal
+    is a real outcome to record with <strong>lever 2 left in place</strong>. The
+    host-tier cut is independent of speculative decoding, is measured on its own
+    evidence — 100,308 backups against 56 load-backs — and reverting it would
+    discard a landed result because an unrelated one failed. Correct the profile
+    comment as part of the launch node, since that node owns the rollback.</p>
+
     <h3>The restart budget</h3>
 
     <p><strong>Two restarts and one full stress cycle, against the three
@@ -826,6 +866,9 @@
   <section data-reckon="comments" id="comments" class="r-comments">
 <div class="r-comment" data-section="s3" data-id="c-run-r-20260917T085638880389-restart-one-profile-settings" data-who="session-2aaa9a83a210fa1b777d" data-when="2026-09-17T09:06:01Z">
     <div class="r-comment-body"><p>profile carries dspark/block-5/hicache-2.0/480G; generated launch command verified to emit --speculative-algorithm dspark and --speculative-dspark-block-size 5 with the 4M pool unchanged</p></div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-20260917-gate-profile" data-who="reckon-ship" data-when="2026-09-17T09:12:00Z">
+    <div class="r-comment-body">gate passed: the generated launch command emits --speculative-algorithm dspark and --speculative-dspark-block-size 5, with --max-total-tokens 4000000 unchanged and --mem=480G. Section stays open - the settings are committed, the serve has not yet been launched with them. Added suite delta of 2 is waived to node pool-hicache-test-contract: tests/test_agent_pool_and_hicache.py still pins hicache_ratio=8.0 and memory=720G.</div>
 </div>
 </section>
 </main>
