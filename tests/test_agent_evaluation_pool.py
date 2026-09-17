@@ -12,7 +12,7 @@ def test_default_profile_resolves_the_bounded_pool() -> None:
     """The ordinary serve reserves per-request context headroom."""
     profile = load_profile("deepseek-v4-1-flash")
 
-    assert profile.engine.max_total_tokens == 4_000_000
+    assert profile.engine.max_total_tokens == 8_000_000
 
 
 def test_agent_serve_uses_the_bounded_pool_by_default() -> None:
@@ -30,4 +30,4 @@ def test_agent_serve_uses_the_bounded_pool_by_default() -> None:
     )
     assert job_name == "#SBATCH --job-name=deepseek-v4-1-flash"
     assert "@" not in job_name
-    assert "--max-total-tokens 4000000" in result.output
+    assert "--max-total-tokens 8000000" in result.output

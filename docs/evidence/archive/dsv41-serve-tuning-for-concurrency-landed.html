@@ -411,6 +411,66 @@
     waived, and they need the assertion values moved to <code>8_000_000</code>
     and <code>"--max-total-tokens 8000000"</code>.</p>
 
+    <h3 id="pool-contract-test-repair">Launch-contract test repair — the four
+    failures above, closed</h3>
+
+    <p><strong>The four failures reproduced before they were repaired, and the
+    reproduction is the evidence that the guard still fires.</strong> Against
+    the committed profile (<code>max_total_tokens = 8000000</code>,
+    <code>memory = "600G"</code>) with the base-revision test files restored, the
+    focused gate read <strong><code>4 failed, 3 passed</code></strong>, each
+    failure an <code>AssertionError</code> on a superseded literal —
+    <code>max_total_tokens == 4_000_000</code> at
+    <code>tests/test_agent_pool_and_hicache.py:17</code> and
+    <code>tests/test_agent_evaluation_pool.py:15</code>,
+    <code>"--max-total-tokens 4000000"</code> at
+    <code>tests/test_agent_pool_and_hicache.py:44</code> and
+    <code>tests/test_agent_evaluation_pool.py:33</code>,
+    <code>memory == "480G"</code> at
+    <code>tests/test_agent_pool_and_hicache.py:22</code>, and
+    <code>"#SBATCH --mem=480G"</code> at
+    <code>tests/test_agent_pool_and_hicache.py:43</code>. The same files at
+    <code>bd3047c</code> passed, because that revision's profile still read
+    <code>4000000</code> and <code>"480G"</code> — so the delta these tests
+    report is the profile increment, and not a behaviour change. No source and
+    no profile file was edited by the repair.</p>
+
+    <table>
+      <thead><tr><th>Assertion site</th><th>Superseded</th><th>Repointed to</th></tr></thead>
+      <tbody>
+        <tr><td><code>test_agent_pool_and_hicache.py:17</code></td><td><code>max_total_tokens == 4_000_000</code></td><td><code>== 8_000_000</code></td></tr>
+        <tr><td><code>test_*_pool_and_hicache.py:22</code></td><td><code>slurm.memory == "480G"</code></td><td><code>== "600G"</code></td></tr>
+        <tr><td><code>test_*_pool_and_hicache.py:43</code></td><td><code>"#SBATCH --mem=480G"</code></td><td><code>"#SBATCH --mem=600G"</code></td></tr>
+        <tr><td><code>test_*_pool_and_hicache.py:44</code></td><td><code>"--max-total-tokens 4000000"</code></td><td><code>"--max-total-tokens 8000000"</code></td></tr>
+        <tr><td><code>test_agent_evaluation_pool.py:15</code></td><td><code>max_total_tokens == 4_000_000</code></td><td><code>== 8_000_000</code></td></tr>
+        <tr><td><code>test_agent_evaluation_pool.py:33</code></td><td><code>"--max-total-tokens 4000000"</code></td><td><code>"--max-total-tokens 8000000"</code></td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Six sites were stale, not four.</strong> A grep for the emitted
+    string spellings (<code>"480G"</code>, <code>4000000</code>) finds four; the
+    two profile-object assertions use the underscore literal
+    <code>4_000_000</code> and pin the same superseded contract in the same two
+    files. Repairing only the four string-spelled sites leaves
+    <code>test_profile_sizes_device_and_host_cache_with_group_memory_margin</code>
+    and <code>test_default_profile_resolves_the_bounded_pool</code> failing on
+    their first assertion, at <code>2 failed, 5 passed</code> — so the
+    node's stated measure of <code>7 passed</code> is reachable only through all
+    six.</p>
+
+    <table>
+      <thead><tr><th>Gate</th><th>Command</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td>Reproduction, base-revision tests</td><td><code>pytest -q &lt;bd3047c copies of both files&gt;</code></td><td><strong>4 failed, 3 passed</strong> (<code>exit 1</code>)</td></tr>
+        <tr><td>Repair, focused gate</td><td><code>uv run --no-sync pytest -p no:cacheprovider -q tests/test_agent_pool_and_hicache.py tests/test_agent_evaluation_pool.py</code></td><td><strong>7 passed, 0 failed</strong> (<code>exit 0</code>)</td></tr>
+        <tr><td>Lint, changed files</td><td><code>uv run --no-sync ruff check tests/test_agent_pool_and_hicache.py tests/test_agent_evaluation_pool.py</code></td><td><code>All checks passed</code></td></tr>
+      </tbody>
+    </table>
+
+    <p>This gate measures the repair alone. The merged result — the committed
+    profile as it stands beside these tests at the merge head — belongs to a
+    separately dispatched verification node.</p>
+
   <h2 id="cost-model-refit">Cost-model refit from this serve's own decode intervals</h2>
 
     <p><strong>The published cost model was refitted from the speculative
