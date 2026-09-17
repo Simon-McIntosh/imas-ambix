@@ -144,9 +144,13 @@ cuda_graph_max_bs_decode = 64
 # saturates. Validate at low, knee and high widths; readiness alone is not the
 # gate because the workspace allocates on the first real generation.
 #
-# Rollback after a launch or generation refusal: remove both speculative keys,
-# restore hicache_ratio = 8.0, and restore memory = "720G".
-speculative_algorithm = "dspark"
+# Rollback after a launch or generation refusal: remove both speculative keys.
+# Keep hicache_ratio = 2.0 and memory = "480G": the host-tier reduction is an
+# independently measured cost saving and does not depend on DSpark succeeding.
+# SGLang compares this field case-sensitively against the literal accepted
+# values "EAGLE" and "DSPARK"; lowercase "dspark" is rejected during the
+# model-specific startup resolution.
+speculative_algorithm = "DSPARK"
 speculative_dspark_block_size = 5
 # The shared KV pool -- NOT the per-request context window, which stays at the
 # model's native 1,048,576 and cannot usefully go past it without RoPE

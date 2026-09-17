@@ -326,6 +326,17 @@
     prediction. The prior values are retained as the rollback line. Full
     record: <a href="/imas-ambix/evidence/archive/dsv41-serve-tuning-for-concurrency-landed#restart-one-profile-settings">profile-settings evidence</a>.</p>
 
+    <p><strong>Landing record — restart-one launch.</strong> Commit
+    <code>3d0a341</code> corrects the rollback to remove only the speculative
+    keys and retain the independent host-tier cut. Main-checkout SLURM job
+    <code>1272777</code> then failed after <strong>42 s</strong>, before model
+    load or readiness: SGLang rejected lowercase <code>dspark</code> and stated
+    that only <code>EAGLE</code> and <code>DSPARK</code> are supported. No
+    <code>/v1/models</code> response or real generation was possible, draft
+    metrics were not emitted, and the failed job was left stopped with nothing
+    relaunched. Full record:
+    <a href="/imas-ambix/evidence/archive/dsv41-serve-tuning-for-concurrency-landed#restart-one-launch">launch evidence</a>.</p>
+
     <h2 id="s4">§4 — Levers 2 and 3: give back host RAM, then buy device pool with what §3 leaves</h2>
 
     <p>These are one section because they are one argument about where memory
