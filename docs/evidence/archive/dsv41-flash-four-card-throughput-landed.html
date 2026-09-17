@@ -1124,11 +1124,36 @@
 
     <p><strong>The last row is the closest matched shape to the pre-repair heavy nodes
     and it finished in 89 minutes against their 146&ndash;272, at equal or greater
-    width.</strong> More tellingly, it finished <em>inside</em> its 90-minute advisory
-    budget, where all five pre-repair heavy nodes overran theirs by factors of 2.4 to
-    6.0. So the advisory budgets that were measured as wrong under the defect are
-    approximately correct again, which is a stronger statement than any ratio: they were
-    calibrated on a lane whose width penalty has since been removed.</p>
+    width.</strong> It also finished inside its 90-minute advisory budget, where all five
+    pre-repair heavy nodes overran theirs by 2.4 to 6.0 times.</p>
+
+    <p><strong>WITHDRAWN, on the overnight cohort: the claim that the advisory budgets
+    are approximately correct again does not survive.</strong> It was written on four
+    landings and the next thirteen contradict it. Of seventeen post-repair landings,
+    the four finishing before about 00:00Z came in at or under budget; the thirteen
+    finishing between 00:15Z and 01:15Z overran by <strong>2.6 to 8.8 times</strong>
+    &mdash; 224/60, 219/60, 226/60, 237/90, 253/90, 225/60, 231/45, 220/30, 245/45,
+    258/30, 264/30, 197/60, 204/45, 226/60 and 244/60 minutes against advisory &mdash;
+    with documentation nodes worst. Four points were not enough to carry a claim about
+    budgets, and the four happened to be the early ones.</p>
+
+    <p><strong>Two confounds mean those overruns are NOT established as the knee
+    arriving, and the coordinator raised both before they could be misread.</strong>
+    First, a usage-limit pause suspended that session from roughly 01:15Z to 03:35Z, and
+    idle time has not been separated from active time in the figures. Second, and more
+    corrosive, the whole cohort's gates were hollowed by a dead GHCR token: several nodes
+    spent tool time discovering that the test-data pull fails. That is a repository
+    defect rather than a lane one, it inflates wall time directly, and it means the gate
+    results of the affected landings cannot be read as green. The honest position is that
+    the later cohort's wall times measure a lane carrying a broken dependency at width
+    12&ndash;19, and no clean statement about budgets or about the knee can be taken from
+    them.</p>
+
+    <p><strong>What the overnight window does support is the capacity claim.</strong>
+    Seventeen landings and five plans shipped in the 4.75 hours from 20:30Z to 01:15Z is
+    about 3.6 nodes per lane-hour, against roughly 1.3&ndash;2.4 per lane-hour measured
+    before the repair. That figure does not depend on the budgets, on the gates, or on
+    attributing wall time.</p>
 
     <p><strong>What still bounds a node, and it is not the serve.</strong> The coordinator
     reports these nodes spending their wall clock in build and ctest on SLURM compute
