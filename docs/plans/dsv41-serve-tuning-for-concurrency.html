@@ -472,7 +472,12 @@
     touched the old 480&#160;GiB ceiling at ratio 2 on the <em>4M</em> pool —
     with about 80&#160;GiB <em>less</em> host tier resident than the doubling
     leaves — and that peak is page cache from reading a ~400&#160;GB checkpoint
-    at launch rather than steady-state use. A limit sized to steady state is
+    at launch rather than steady-state use. The peak reading behind that
+    premise is recorded in the profile at revision <code>7c706cf</code>, which
+    carried it as the justification for an earlier raise of this request;
+    <code>e808a8e</code> dropped the sentence in the same hunk that lowered the
+    request to 480G, so the claim rests on the history rather than on an
+    uncited assertion. A limit sized to steady state is
     therefore hit while loading, which is what a 127.7&#160;GiB steady-state
     margin does not answer:
     <code>480 + 80.1 = 560&#160;GiB</code> is the arithmetic floor, and
@@ -501,6 +506,46 @@
     <code>decode_bins.py</code>, <em>split by limb, never pooled</em>. Full
     record:
     <a href="/imas-ambix/evidence/archive/dsv41-serve-tuning-for-concurrency-landed#pool-increment-profile">pool increment evidence</a>.</p>
+
+    <h3>Landing record — the rollback instruction catches up with the landed
+    request, and the peak premise gets its revision</h3>
+
+    <p><strong>Two defects found in review of the increment, both in comment
+    text, and both fixed in the profile rather than here.</strong> Commit
+    <code>db092c7</code>.</p>
+
+    <p><strong>The DSpark rollback instruction still named the superseded
+    request.</strong> It read
+    <code>Keep hicache_ratio = 2.0 and memory = "480G"</code>, a value this
+    profile no longer carries, and it is the only place in the file where the
+    memory value appears as an instruction rather than a justification — so a
+    reader following it on a speculative refusal would have restored the
+    pre-increment request while believing they had preserved the landed one.
+    It now reads <code>memory = "600G"</code>, with the reason clause extended
+    to say why both preserved values are independent of DSpark.</p>
+
+    <p><strong>The raise's binding premise was uncited, and a reader could not
+    tell whether it was absent or merely unsupported.</strong> The premise —
+    that the job's <code>memory.peak</code> already touched the old
+    480&#160;GiB ceiling at ratio 2 on the 4M pool — is stated at the pool key
+    and again beside the <code>memory</code> key, and neither site named any
+    source. It is now cited at both, and here, to revision
+    <code>7c706cf</code>, which recorded the observation as the justification
+    for an earlier raise of this request; <code>e808a8e</code> dropped that
+    sentence in the same hunk that lowered the request to 480G, which is why
+    the claim is unreadable in the current file rather than uncorroborated.</p>
+
+    <p><strong>The gate is the done-when's own check, and it passes unchanged
+    because the change is comment text only.</strong>
+    <code>uv run --no-sync imas-ambix agent serve deepseek-v4-1-flash
+    --dry-run</code> exits 0 and still emits
+    <code>#SBATCH --mem=600G</code> with
+    <code>--max-total-tokens 8000000</code>, <code>--hicache-ratio 2.0</code>,
+    <code>--speculative-algorithm DSPARK</code> and
+    <code>--speculative-dspark-block-size 5</code>. A diff over the profile
+    returns thirteen added and five removed lines, every one of them a comment,
+    so no live setting moved. Full record:
+    <a href="/imas-ambix/evidence/archive/dsv41-serve-tuning-for-concurrency-landed#rollback-and-peak-citation">rollback and peak-citation evidence</a>.</p>
 
     <h2 id="s4a">§4a — How many restarts this is, and what each one measures</h2>
 
