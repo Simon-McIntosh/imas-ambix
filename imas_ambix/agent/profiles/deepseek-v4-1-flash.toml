@@ -116,7 +116,27 @@ moe_runner_backend = "flashinfer_mxfp4"
 # path should not carry that change's 2x weight-memory cost, because it
 # converts activations rather than duplicating weights, but the gain here is
 # UNMEASURED until this serve is compared against its own prior figures.
-flashinfer_mxfp4_moe_precision = "fp8"
+#
+# CURRENTLY HOLDING THE W4A16 ARM OF A ONE-VARIABLE COMPARISON. The value below
+# is "default", not the "fp8" the paragraphs above argue for, because that gain
+# is unmeasured on this serve and this arm measures it. Everything else is held
+# fixed: max_total_tokens 8000000, memory 600G, hicache_ratio 2.0, DSpark and
+# its block size unchanged.
+#
+# The measure is PREFILL, not decode. At 270 input tokens per output token the
+# expert GEMM cost lands on prefill, and a decode-side comparison would report
+# a null about a lever aimed somewhere it was never pointed. The instrument is
+# the uncached full-chunk bucket -- prefill batches with #new-token 16384 and
+# #cached-token 0, which is pure expert-GEMM work. Every other bucket is
+# dominated by cache hits (at #new-token 256 the cached fraction is 0.996) and
+# reports throughput figures that measure the cache rather than the kernel.
+#
+# fp8/W4A8 baseline this arm is compared against, from the two preceding jobs:
+#   job 1272783 (4M pool)  median 9,082 tok/s  IQR 7,872-11,622  n=278
+#   job 1273074 (8M pool)  median 8,609 tok/s  IQR 7,464-10,036  n=393
+#
+# ROLLBACK: restore "fp8" on this line and relaunch. Nothing else changes.
+flashinfer_mxfp4_moe_precision = "default"
 # Vendor-documented Hopper prefill win: decoder-side bounded replay measured
 # 1.56x prefill throughput on 8xH200.
 enable_decoder_swa_bounded_replay = true
