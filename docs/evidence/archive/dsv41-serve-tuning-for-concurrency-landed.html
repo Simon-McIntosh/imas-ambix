@@ -411,6 +411,78 @@
     waived, and they need the assertion values moved to <code>8_000_000</code>
     and <code>"--max-total-tokens 8000000"</code>.</p>
 
+  <h2 id="cost-model-refit">Cost-model refit from this serve's own decode intervals</h2>
+
+    <p><strong>The published cost model was refitted from the speculative
+    serve's own intervals at a fixed timestamp cutoff.</strong> Every figure
+    here traces to
+    <code>/home/ITER/mcintos/Code/imas-ambix/deepseek-v4-1-flash-1272783.log</code>,
+    filtered to <code>Decode batch</code> lines timestamped at or before
+    <code>2026-09-17 12:08:20</code> — <strong>608 decode intervals</strong>,
+    first 11:37:47, last 12:08:20. Job <code>1272783</code> was still running
+    while this was taken, so the cutoff is what makes the set fixed rather than
+    a moving one.</p>
+
+    <p>The published <code>ms = 17.8 + 0.257 × GB</code> becomes
+    <code><strong>ms = 8.338 + 0.30370 × GB</strong></code>, R-squared
+    <strong>0.96331</strong>, by unweighted least squares over the widths
+    carrying at least twenty decode intervals. Per-interval per-pass time is
+    <code>1000 × width × accept_len / gen_throughput</code>, median over
+    intervals at that width; <code>GB</code> is carried unchanged from the
+    published model (union of top-6 of 384 experts plus one shared, over the
+    5×width tokens a block-size-5 verify pass reads).</p>
+
+    <table>
+      <thead><tr><th>Width</th><th>Intervals</th><th>Accept len</th><th>Gen tok/s</th><th>GB</th><th>Measured ms</th><th>Original ms</th><th>Refit ms</th><th>Residual</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>40</td><td>3.585</td><td>111.08</td><td>42.6</td><td>29.85</td><td>28.75</td><td>21.27</td><td>+8.58</td></tr>
+        <tr><td>2</td><td>21</td><td>4.640</td><td>282.48</td><td>80.6</td><td>30.38</td><td>38.53</td><td>32.83</td><td>-2.45</td></tr>
+        <tr><td>3</td><td>61</td><td>4.380</td><td>300.65</td><td>115.8</td><td>41.69</td><td>47.57</td><td>43.51</td><td>-1.82</td></tr>
+        <tr><td>4</td><td>122</td><td>4.150</td><td>329.81</td><td>148.3</td><td>48.95</td><td>55.92</td><td>53.39</td><td>-4.43</td></tr>
+        <tr><td>5</td><td>131</td><td>4.120</td><td>351.29</td><td>178.4</td><td>56.28</td><td>63.64</td><td>62.51</td><td>-6.23</td></tr>
+        <tr><td>6</td><td>81</td><td>4.180</td><td>362.09</td><td>206.2</td><td>68.88</td><td>70.78</td><td>70.95</td><td>-2.07</td></tr>
+        <tr><td>7</td><td>92</td><td>4.185</td><td>372.50</td><td>231.8</td><td>78.73</td><td>77.38</td><td>78.74</td><td>-0.01</td></tr>
+        <tr><td>8</td><td>23</td><td>4.030</td><td>362.38</td><td>255.5</td><td>90.50</td><td>83.48</td><td>85.95</td><td>+4.55</td></tr>
+        <tr><td>9</td><td>20</td><td>3.970</td><td>360.33</td><td>277.5</td><td>96.49</td><td>89.11</td><td>92.61</td><td>+3.88</td></tr>
+      </tbody>
+    </table>
+
+    <img src="/imas-ambix/figures/dsv41-serve-tuning-for-concurrency/cost-model-refit.svg"
+         alt="Measured milliseconds per forward pass against gigabytes of expert weights read, with the original and refitted model lines on one axis. Nine fitted with three thin widths beyond, each labelled with its interval count, and a divider marking the last fitted width.">
+
+    <p><strong>Accept length is the measurement that forced the change, and it
+    was assumed flat.</strong> The published prediction carried 3.31 at every
+    width. Measured here it is 3.585 at width one, peaks at
+    <strong>4.640 at width two</strong>, and <strong>falls with width</strong>
+    to 4.030 at width eight, 3.970 at width nine and 3.615 by width
+    eleven. Because every ratio in the published table is linear in that
+    number, the assumption understated the low-width gain and overstated the
+    high-width one.</p>
+
+    <p><strong>The refit does not reproduce the predicted collapse.</strong>
+    Against the non-speculative baseline measured on the previous serve (job
+    <code>1272167</code>), the refitted ratio falls from 4.753 at width one to
+    a <strong>shallowest 1.312 at width 12.7</strong> and recovers; it
+    <strong>never falls below 1.2 at any width</strong>. The original model
+    predicted 1.06 near width eight. Ratio at width 34 is 1.932.</p>
+
+    <p><strong>What this fit does not license.</strong> The widths in the fit
+    span GB 42.6 to 277.5. Widths above nine are <strong>extrapolation</strong>,
+    and this serve never exceeded width eleven, so the high-width recovery and
+    the "never below 1.2" statement are model behaviour, not measurements. The
+    plan's own §4b asks for width 1, 8 and 24 or above for exactly this reason.
+    The fixed floor is <strong>not well identified</strong> as separate from the
+    slope on this data: refitting over different width subsets moves it from
+    12.44 to -3.16 ms, while the slope only moves from 0.267 to 0.356 ms/GB.
+    Report only the slope change as the substantial finding; the floor should be
+    treated as small and poorly determined. The width-one residual (+8.58 ms)
+    also shows the two-term linear form over-predicts the single-stream gain
+    (4.75 modelled against 3.055 measured at width one).</p>
+
+    <p>An independent usability finding is recorded in the node report: long
+    writes to the lane truncate mid-line at roughly 1.5 kB, released by
+    writing in small appended chunks. Full operational receipt:
+    <code>/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/dsv41-tune/cost-model-refit.md</code>.</p>
   </main>
 </body>
 </html>
