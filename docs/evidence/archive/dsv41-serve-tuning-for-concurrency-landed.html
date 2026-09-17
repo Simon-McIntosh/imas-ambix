@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="dsv41-serve-tuning-for-concurrency-landed">
+  <meta name="plan-title" content="DSv4.1 Serve Tuning for Concurrency — Landed Record">
+  <meta name="plan-summary" content="Cumulative execution record for the staged DeepSeek-V4.1-Flash serving changes">
+  <meta name="plan-status" content="active">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-tags" content="agent-serving,gpu-deployment,benchmarking">
+  <meta name="plan-evidence-for" content="dsv41-serve-tuning-for-concurrency">
+  <meta name="plan-verifies" content="dsv41-serve-tuning-for-concurrency#s3">
+  <title>DSv4.1 Serve Tuning for Concurrency — Landed Record | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="restart-one-profile-settings">Restart-one profile settings</h2>
+
+    <p><strong>The superseded refusal reproduced before the edit.</strong> At
+    base <code>8d30e0a</code>, the profile said
+    <q>Speculative decoding is NOT VIABLE on this four-card deployment</q>,
+    defined neither speculative-decoding key, and retained the larger host tier
+    and scheduler request shown below.</p>
+
+    <table>
+      <thead><tr><th>Setting</th><th>Prior value</th><th>Committed value</th></tr></thead>
+      <tbody>
+        <tr><td><code>speculative_algorithm</code></td><td>absent</td><td><code>"dspark"</code></td></tr>
+        <tr><td><code>speculative_dspark_block_size</code></td><td>absent</td><td><code>5</code></td></tr>
+        <tr><td><code>hicache_ratio</code></td><td><code>8.0</code></td><td><code>2.0</code></td></tr>
+        <tr><td><code>memory</code></td><td><code>"720G"</code></td><td><code>"480G"</code></td></tr>
+      </tbody>
+    </table>
+
+    <p>Commit <code>e808a8e</code> carries exactly the profile file. Its comment
+    now records the loaded reading that governs the attempt: about
+    <strong>33 GB free per card</strong> at 23–27 running requests against
+    DSpark's <strong>~12.9 GiB</strong> workspace ask, leaving roughly 20 GB.
+    It also records the width-dependent prediction: a large gain at one stream,
+    a near-null result around width eight, and a gain again at high width. A
+    readiness response is therefore not the gate; a real generation and the
+    low, knee, and high-width readings remain operational work.</p>
+
+    <p><strong>The rollback is explicit before launch:</strong> remove
+    <code>speculative_algorithm</code> and
+    <code>speculative_dspark_block_size</code>, restore
+    <code>hicache_ratio = 8.0</code>, and restore
+    <code>memory = "720G"</code>.</p>
+
+    <p>The committed-file check parsed all four expected values, confirmed the
+    refusal sentence absent, and found all three replacement markers — loaded
+    headroom, workspace ask, and width dependence. <code>git show --stat</code>
+    named <code>imas_ambix/agent/profiles/deepseek-v4-1-flash.toml</code> and no
+    other file.</p>
+
+    <p>A generated serve-script receipt independently carries
+    <code>#SBATCH --mem=480G</code>, <code>--hicache-ratio 2.0</code>,
+    <code>--speculative-algorithm dspark</code>, and
+    <code>--speculative-dspark-block-size 5</code>, while retaining the
+    four-million-token device pool. The focused legacy profile test reports
+    <strong>2 failed, 1 passed</strong>: both failures assert the superseded
+    <code>8.0</code> and <code>720G</code> values. That test file is outside this
+    node's exclusive write scope and is preserved as a separate test-node
+    follow-on rather than hidden or changed here.</p>
+
+  </main>
+</body>
+</html>

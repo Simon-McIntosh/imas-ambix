@@ -133,19 +133,21 @@ chunked_prefill_size = 16384
 # engine has no maximum queued-request limit.
 max_running_requests = 64
 cuda_graph_max_bs_decode = 64
-# Speculative decoding is NOT VIABLE on this four-card deployment, and the
-# reason is capacity rather than benefit. DSpark wants a ~12 GiB per-card
-# workspace on top of weights, Engram, KV pool and the TensorRT-LLM autotuner,
-# and it OOMed at every pool size worth running: at 14,999,808 tokens it asked
-# 12 GiB with 1.3 GiB free, and even at the smallest load-proven pool of
-# 3,485,952 it asked 12 GiB with 7.6 GiB free. Shrinking the pool further
-# cannot close a 4.4 GiB gap, because the pool's cost is ~16 GiB of fixed base
-# plus only ~1.6 KiB/token -- there is no room to buy.
+# DSpark now has a measured loaded memory budget: with 23-27 requests running,
+# each card retained about 33 GB free against the workspace's ~12.9 GiB ask,
+# leaving roughly 20 GB after allocation. That supersedes the earlier refusal,
+# which was measured against larger device pools with only 1.3-7.6 GiB free.
 #
-# This matches prior experience on V4-Flash, where DSpark did not change
-# throughput materially. Do not re-enable it here without either more cards or
-# a checkpoint whose experts are small enough to leave the Engram tables in
-# HBM; on this topology it cannot start, let alone help.
+# The expected benefit is width-dependent rather than uniformly positive. The
+# decode cost model predicts a large gain at one stream, a near-null result
+# around width eight, and a gain again at high width as the expert union
+# saturates. Validate at low, knee and high widths; readiness alone is not the
+# gate because the workspace allocates on the first real generation.
+#
+# Rollback after a launch or generation refusal: remove both speculative keys,
+# restore hicache_ratio = 8.0, and restore memory = "720G".
+speculative_algorithm = "dspark"
+speculative_dspark_block_size = 5
 # The shared KV pool -- NOT the per-request context window, which stays at the
 # model's native 1,048,576 and cannot usefully go past it without RoPE
 # rescaling. This is how many tokens the engine holds across all concurrent
@@ -201,29 +203,16 @@ max_total_tokens = 4000000
 # ranks, or roughly 49 GiB; it is deliberately less than the Engram host-table
 # allocation and preserves process and page-cache margin.
 enable_hierarchical_cache = true
-# Eight, raised from 2.0 on 2026-09-16, costed from the engine's own startup
-# allocation log. There are FIVE host pools per rank, not three, and the count
-# is the thing to get right -- at ratio 2 the log reads 4.68 GB
+# Two, restored from 8.0 because the host tier writes almost everything and
+# reads almost nothing: 100,308 backups against 56 load-backs. There are FIVE
+# host pools per rank, not three, and the count is the thing to get right -- at
+# ratio 2 the log reads 4.68 GB
 # 'deepseek_v4_c1' + 0.54 'c1_indexer' + 7.02 'deepseek_v4_c2' + 0.82
 # 'c2_indexer' + 8.45 'swa' = 21.51 GB/rank, so 86.0 GB across four ranks and
 # 10.76 GB/rank per unit of ratio. Every pool scales linearly
 # (full_host_pages = device_pages * ratio, no cap in the pool assembler), so
-# ratio 8 asks ~344 GB for a 32,000,000-token tier. Measured after the
-# restart: 320.8 GB of cgroup shmem, against 206.1 GB anon.
-#
-# `memory` is 720G because of that, and the number to size against is
-# anon + shmem, NOT memory.current. At ratio 8 memory.current reads ~715 GB of
-# the 720 GB limit and the serve is nowhere near death: ~185 GB of that is
-# reclaimable page cache from reading a ~400 GB checkpoint, while the
-# unreclaimable total is ~530 GB. Shared memory is charged to the cgroup's
-# `file` counter but cannot be reclaimed, so reading `file` as headroom
-# overstates it and reading `memory.current` as usage understates the margin.
-#
-# The evidence for raising it at all: under 28 concurrent real workers the
-# in-window prefix hit rate read 7.8% against 49.1% cumulative when the fleet
-# was narrower, with the 8M-token tier 99.9% full and 135.7M tokens evicted.
-# Workers carrying ~84k-token prompts were re-prefilling history they had
-# moments earlier, and prefill is 99.4% of this deployment's token work.
+# ratio 8 asked ~344 GB for a 32,000,000-token tier. The reduction frees about
+# 258 GB of host RAM; it is a cost change with no predicted throughput gain.
 #
 # Two figures for this tier have now been wrong in this repository, in opposite
 # directions, and both by the same mechanism -- a number written without the
@@ -233,7 +222,7 @@ enable_hierarchical_cache = true
 # measured figure is 86.0 GB at ratio 2. Count the pools before trusting a
 # per-token cost: `grep -c "Allocating .* host memory"` must equal pools x
 # ranks, which is 20 here.
-hicache_ratio = 8.0
+hicache_ratio = 2.0
 # Write only prefixes that demonstrate reuse into the host tier. This avoids
 # copying one-off prompts over PCIe while retaining the repeated agent context
 # that caused the device pool to turn over. page_first is the image's
@@ -409,20 +398,7 @@ cpus = 12
 # variable payload for the 4M-token device pool, and process, pinned-transfer,
 # and weight-loading page-cache margin. It remains 170G below Group A's 650G
 # allocation; never request the node's RealMemory.
-# 720G, raised from 480G to carry the ratio-8 host tier. Sized from the job's
-# own cgroup: memory.current read 287 GB at ratio 2, of which 54.7 GB was the
-# host tier, leaving ~232 GB of non-cache residency; ratio 8 adds ~164 GB on
-# top, for ~451 GB. The margin above that is deliberate -- memory.peak had
-# already touched the old 480 GB ceiling, which is load-time page cache from
-# reading a ~400 GB checkpoint rather than steady-state use, and a limit sized
-# to steady state would be hit while loading.
-#
-# Checked admissible before raising: the node carries 1,500 GB and peers held
-# ~200 GB, so 720G leaves the request well clear of RealMemory. Never size
-# this to the node -- `--mem=0` or a figure near 1,500 GB reads as "no limit"
-# and means "reserve everything", which cannot start while anyone else holds
-# memory and head-of-line blocks the queue behind it.
-memory = "720G"
+memory = "480G"
 # 18800-18809 are taken by the other profiles and by the router at 18802.
 port = 18810
 time_serve = "0"
