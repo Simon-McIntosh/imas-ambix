@@ -145,8 +145,10 @@ cuda_graph_max_bs_decode = 64
 # gate because the workspace allocates on the first real generation.
 #
 # Rollback after a launch or generation refusal: remove both speculative keys.
-# Keep hicache_ratio = 2.0 and memory = "480G": the host-tier reduction is an
-# independently measured cost saving and does not depend on DSpark succeeding.
+# Keep hicache_ratio = 2.0 and memory = "600G": the host-tier reduction is an
+# independently measured cost saving and the memory request is sized by the
+# load-time peak of the doubled device pool, so neither depends on DSpark
+# succeeding.
 # SGLang compares this field case-sensitively against the literal accepted
 # values "EAGLE" and "DSPARK"; lowercase "dspark" is rejected during the
 # model-specific startup resolution.
@@ -237,7 +239,11 @@ speculative_dspark_block_size = 5
 # not answer it: the job's memory.peak already touched the old 480 GiB ceiling
 # at ratio 2 on the 4M device pool, i.e. with about 80 GiB LESS host tier
 # resident than this change leaves, and that peak is page cache from reading a
-# ~400 GB checkpoint at launch rather than steady-state use. Arithmetic for the
+# ~400 GB checkpoint at launch rather than steady-state use. That observation
+# was recorded in this profile at revision 7c706cf, which carried it as the
+# justification for an earlier raise of this request; e808a8e dropped the
+# sentence in the same hunk that lowered the request to 480G, so it is missing
+# from this file rather than uncorroborated. Arithmetic for the
 # raise, all terms in GiB:
 #   480   peak already observed at ratio 2 on the 4M pool
 #  + 80.1 host tier this change adds inside the same limit (see HOST side)
@@ -452,8 +458,10 @@ cpus = 12
 # STEADY STATE. At ratio 2 on the 4M device pool this job's memory.peak already
 # touched the old 480 GiB ceiling, with about 80 GiB LESS host tier resident
 # than the doubled pool leaves, and that peak is page cache from reading a
-# ~400 GB checkpoint at launch rather than steady-state use. So a limit sized
-# to steady state is hit while loading:
+# ~400 GB checkpoint at launch rather than steady-state use. The peak reading
+# is the one recorded in this profile at revision 7c706cf, cited with the pool
+# key above; the request cannot be sized to steady state, because such a limit
+# is hit while loading:
 #   480   GiB peak already observed at ratio 2 on the 4M pool
 #  + 80.1 GiB host tier added by doubling the device pool at unchanged ratio
 #  = 560 GiB arithmetic floor
