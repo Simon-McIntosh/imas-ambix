@@ -562,6 +562,21 @@
     so no live setting moved. Full record:
     <a href="/imas-ambix/evidence/archive/dsv41-serve-tuning-for-concurrency-landed#rollback-and-peak-citation">rollback and peak-citation evidence</a>.</p>
 
+    <h3>Landing record — the merged pool profile is serving</h3>
+
+    <p><strong>Main-checkout job <code>1273074</code> is running the
+    8,000,000-token pool with a 600G host request.</strong> The emitted script
+    carried <code>--max-total-tokens 8000000</code> and
+    <code>#SBATCH --mem=600G</code>, and <code>squeue</code> confirmed the job
+    <code>RUNNING</code>. A direct keyless completion returned HTTP 200 with
+    <strong>600 generated tokens in 6.965 s</strong>. After that generation
+    allocated the speculative workspace, cards 0–3 retained
+    <strong>38,095 / 37,887 / 37,887 / 38,095 MiB</strong> free: the worst
+    card holds <strong>3.660×</strong> the 10.11 GiB workspace ask. Draft
+    acceptance was 37% and mean accept length 2.85. No memory rollback was
+    triggered. Full record:
+    <a href="/imas-ambix/evidence/archive/dsv41-serve-tuning-for-concurrency-landed#pool-relaunch">pool relaunch evidence</a>.</p>
+
     <h2 id="s4a">§4a — How many restarts this is, and what each one measures</h2>
 
     <p><strong>Three expected, four if a result is ambiguous, five if the
