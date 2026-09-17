@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-17T11:09:00",
+  "updated": "2026-09-17T11:10:54",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -36642,6 +36642,213 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260917T085638880389-restart-one-profile-settings",
+        "plan": "dsv41-serve-tuning-for-concurrency",
+        "section": "\u00a73",
+        "node": "restart-one-profile-settings",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1408,
+                "cached_input_tokens": 209905,
+                "input_tokens": 211315,
+                "output_tokens": 894,
+                "reasoning_output_tokens": 247,
+                "total_tokens": 212209,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "11e65032-39c1-40fd-943f-d18ea21d44df",
+            "session_id": "dsv41-tune-20260917"
+          },
+          "done_when": "A read of the committed imas_ambix/agent/profiles/deepseek-v4-1-flash.toml shows speculative_algorithm = \"dspark\", speculative_dspark_block_size = 5, hicache_ratio = 2.0 and memory = \"480G\"; git show --stat names that file and no other; the block asserting speculative decoding is NOT VIABLE is gone, replaced by prose stating the loaded 33 GB per-card headroom against DSpark's ~12.9 GiB ask and the width-dependence section 3 predicts; and the manifest records the exact prior values of all four settings as the rollback line",
+          "estimated_hours": 0.5,
+          "goal": "The DeepSeek-V4.1-Flash serve profile carries restart 1's four settings with its superseded speculative-decoding refusal comment rewritten to the measured position",
+          "id": "restart-one-profile-settings",
+          "lane_declaration": {
+            "backend": "codex",
+            "headroom": "known",
+            "metered": true,
+            "observed_at": "2026-09-17T08:56:39Z",
+            "read_at": "2026-09-17T08:56:41Z",
+            "resolved_backend": "codex",
+            "utilisation_pct": 87.0
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "backend declares no lane document",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260917T085638880389-restart-one-profile-settings/manifest.md",
+          "plan": "dsv41-serve-tuning-for-concurrency",
+          "requested_backend": "codex",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a73",
+          "spec_level": "exact",
+          "time_budget": "25m",
+          "token_budget": null,
+          "write_paths": [
+            "imas_ambix/agent/profiles/deepseek-v4-1-flash.toml",
+            "docs/evidence/archive/dsv41-serve-tuning-for-concurrency-landed.html",
+            "docs/plans/dsv41-serve-tuning-for-concurrency.html"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "session-2aaa9a83a210fa1b777d",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-17T08:57:18Z",
+        "completed_at": "2026-09-17T09:06:01Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 523,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 523,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "8d30e0a051a7c976f6411299f78775537b76d45e",
+        "commits": [
+          "e808a8e3d89816a334f167b05eb4986afde532fd"
+        ],
+        "changed_lines": {
+          "added": 23,
+          "removed": 47,
+          "files": 1
+        },
+        "tests_added": 0,
+        "gate": "passed",
+        "gate_check": {
+          "command": "imas-ambix agent serve deepseek-v4-1-flash --dry-run",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260917T085638880389-restart-one-profile-settings/profile-dry-run.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260917T085638880389-restart-one-profile-settings/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a0ae95-a899-7433-9bb5-5f2c2c766e17",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 4391424,
+            "cached_input_tokens_cumulative": 4391424,
+            "input_tokens": 4549026,
+            "input_tokens_cumulative": 4549026,
+            "output_tokens": 20941,
+            "output_tokens_cumulative": 20941,
+            "reasoning_output_tokens": 6427,
+            "reasoning_output_tokens_cumulative": 6427
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lane_receipt": {
+          "quota_state": "measured",
+          "observed_at": "2026-09-17T09:06:01Z",
+          "effective_context_window": 380000,
+          "quota_windows": [
+            {
+              "window_minutes": 10080,
+              "used_percent": 87.0,
+              "resets_at": 1789970251,
+              "observed_at": "2026-09-17T09:06:01Z"
+            }
+          ],
+          "notional_cost_usd": 18.6149,
+          "rate_basis": {
+            "model_identifier": "gpt-5.6-sol",
+            "input_per_million": 4.0,
+            "output_per_million": 20.0,
+            "as_of": "2026-09-09"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": null,
+        "throughput": {
+          "cumulative_cached_input_tokens": 4391424,
+          "cumulative_input_tokens": 4549026,
+          "detail": "model span bounded from the client rollout's tool spans; input cumulative summed across resets",
+          "generated_tokens": 27368,
+          "generation_seconds": 490.89,
+          "machine_seconds": 30.757,
+          "tokens_per_second": 55.75
+        },
+        "follow_on_paths": [
+          "tests/test_agent_pool_and_hicache.py"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/dsv41-tune-20260917/restart-one-profile-settings",
+          "session_id": "01a0ae95-a899-7433-9bb5-5f2c2c766e17",
+          "session_source": "pointer",
+          "retained_at": "2026-09-17T09:06:01Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "commit_list_shortfall": {
+          "kind": "presented_commits_subset_of_manifest",
+          "presented": 1,
+          "declared": 2,
+          "missing": [
+            "60016c4f2f09f235664f9b43f41ff92e7df0e0ce"
+          ],
+          "message": "run 'r-20260917T085638880389-restart-one-profile-settings' has a passing gate presenting 1 commit(s) of the 2 its manifest declares; missing: 60016c4f2f09f235664f9b43f41ff92e7df0e0ce. The out-of-scope boundary check runs against the presented commits, so an incomplete presentation narrows it. This is a report, not a refusal \u2014 present the full list, or the boundary check may not cover the node's work"
+        },
+        "tool_steps": 73.0,
+        "orientation_input_tokens": null,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -36688,6 +36895,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 666
+    "_version": 667
   }
 }
