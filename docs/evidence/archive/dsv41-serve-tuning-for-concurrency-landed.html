@@ -107,6 +107,54 @@
     full operational receipt is
     <code>/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/dsv41-tune/restart-one-launch.md</code>.</p>
 
+    <p><strong>The corrected spelling then loaded DSpark on the checkpoint for
+    the first time.</strong> The operator launched merged main commit
+    <code>e3adfca</code> as job <code>1272783</code>; it reached ready in
+    <strong>485 s</strong>, inside the fifteen-minute bound. The first rank's
+    timestamped receipt is <q>Draft checkpoint bundles a DSpark head; loading
+    draft arch DeepseekV4ForCausalLMDSpark.</q> at 11:30:21 CEST, with matching
+    receipts on the other three ranks.</p>
+
+    <table>
+      <thead><tr><th>Live measure</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td>Idle free memory, cards 0–3</td><td>33,179 / 32,971 / 32,971 / 33,179 MiB</td></tr>
+        <tr><td>One real completion</td><td>HTTP 200 in 30.2 s for a request capped at 384 output tokens; the engine survived and <code>/v1/models</code> answered afterwards</td></tr>
+        <tr><td>Width-one engine-log rate</td><td><strong>108.465 tok/s median</strong> over 38 decode intervals; <strong>3.055×</strong> the 35.5 tok/s non-DSpark baseline</td></tr>
+        <tr><td>Width-one speculation</td><td><strong>3.550</strong> mean accept length and <strong>51.0%</strong> mean accept rate; the plan assumed 3.31 tokens</td></tr>
+        <tr><td>Post-request speculative metrics</td><td>3.642105 accept length, 52.842% accept rate and 6 draft tokens; mixed width, kept separate from the width-one means</td></tr>
+        <tr><td>Post-generation free memory</td><td><strong>30,789 / 30,581 / 30,581 / 30,789 MiB</strong></td></tr>
+        <tr><td>Drafter per-step cost</td><td>not exposed by the enabled metric or log surface; no millisecond figure is claimed</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>The primary gate passes on workspace allocation and survival:</strong>
+    38 real width-one decode intervals ran; free memory moved by exactly
+    <strong>2,390 MiB (2.334 GiB) per card</strong> from idle to loaded;
+    <code>/v1/models</code> remained healthy; and the first request ran for 30.2 s
+    without killing the engine. The measured ask is substantially below the
+    approximately 12.9 GiB budget at this width, but it must be re-read at width
+    24 or above because workspace demand scales with prefill length and
+    concurrency.</p>
+
+    <p>A separately authorized corroborating request preserved its full JSON
+    response: HTTP 200 in 12.398205 s, <code>finish_reason="length"</code> and
+    <strong><code>usage.completion_tokens=384</code></strong>. The 2,319-byte
+    receipt is
+    <code>/home/ITER/mcintos/.config/reckon/crew/runs/r-20260917T091608473130-restart-one-launch/acceptance-response.json</code>
+    with SHA-256
+    <code>32b2075fb682dd808e5d57b828d1d4176603d369fb28df230a96b5ed0adb4e00</code>;
+    the endpoint remained healthy afterwards. No further completion was sent.</p>
+
+    <p><strong>The conditional pool restart fits on today's low-width
+    evidence.</strong> The lowest loaded reading leaves 30,581 MiB free per card;
+    the measured extra pool increment costs 10.10 GB per card, leaving about
+    <strong>20 GB per card spare</strong>. Re-read this at the ramp's top step
+    before treating it as a high-width margin. The drafter's per-step cost is
+    not exposed and therefore cannot be separated from aggregate throughput at
+    any width; the possible width-eight regression remains an instrumentation
+    limitation rather than an omitted measurement.</p>
+
   </main>
 </body>
 </html>
