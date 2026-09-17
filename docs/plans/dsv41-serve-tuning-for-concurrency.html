@@ -26,7 +26,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-17">
-<meta name="plan-version" content="12">
+<meta name="plan-version" content="13">
 <meta name="plan-commits" content="e808a8e3d89816a334f167b05eb4986afde532fd">
 <meta name="plan-artifacts" content="imas_ambix/agent/profiles/deepseek-v4-1-flash.toml,docs/evidence/archive/dsv41-serve-tuning-for-concurrency-landed.html">
 </head>
@@ -1039,6 +1039,9 @@
 </div>
 <div class="r-comment" data-section="s3" data-id="c-20260917-gate-profile" data-who="reckon-ship" data-when="2026-09-17T09:12:00Z">
     <div class="r-comment-body">gate passed: the generated launch command emits --speculative-algorithm dspark and --speculative-dspark-block-size 5, with --max-total-tokens 4000000 unchanged and --mem=480G. Section stays open - the settings are committed, the serve has not yet been launched with them. Added suite delta of 2 is waived to node pool-hicache-test-contract: tests/test_agent_pool_and_hicache.py still pins hicache_ratio=8.0 and memory=720G.</div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-run-r-20260917T091608473130-restart-one-launch" data-who="dsv41-launch-op" data-when="2026-09-17T09:54:54Z">
+    <div class="r-comment-body"><p>DSpark generates on this checkpoint: width-1 median 108.465 tok/s = 3.055x the 35.5 baseline, mean accept length 3.550 against 3.31 assumed, acceptance 51.0%; workspace allocated 2390 MiB/card against ~12.9 GiB budgeted, leaving ~20 GB/card spare for the conditional pool increment; job 1272777 refused at startup on lowercase dspark and is retained as evidence; drafter per-step cost not exposed by the engine</p></div>
 </div>
 <div class="r-comment" data-section="s8" data-id="c-run-r-20260917T085934585418-serve-machinery-reuse-map" data-who="dsv41-reuse-scout" data-when="2026-09-17T09:08:14Z">
     <div class="r-comment-body"><p>7 of 8 capabilities already exist; the sole gap is a Decode-batch log harvester. Drain needs no new code: serving_receipts.sample_serving_metrics reads running/waiting and agent shutdown republishes the endpoint document a bare scancel would skip</p></div>
