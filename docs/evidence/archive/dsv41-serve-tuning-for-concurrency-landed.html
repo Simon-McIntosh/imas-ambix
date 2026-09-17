@@ -612,6 +612,57 @@
     writes to the lane truncate mid-line at roughly 1.5 kB, released by
     writing in small appended chunks. Full operational receipt:
     <code>/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/dsv41-tune/cost-model-refit.md</code>.</p>
+
+    <h2 id="pool-relaunch">Merged pool-profile relaunch</h2>
+
+    <p><strong>The lane-down condition reproduced before submission.</strong>
+    The node ledger listed the two embedding jobs and the router, with no
+    DeepSeek serve. The replacement was generated and submitted from
+    <code>/home/ITER/mcintos/Code/imas-ambix</code>; main HEAD
+    <code>9c8a8b7</code> contains <code>origin/main</code>
+    <code>f8835be</code>, and the only local commit ahead is the crew-roster
+    registration. The serving profile is identical at both revisions.</p>
+
+    <p><strong>The emitted launch contract carries the merged settings and no
+    detached-worktree path.</strong> Its header contains
+    <code>#SBATCH --mem=600G</code>; the server command contains
+    <code>--max-total-tokens 8000000</code>,
+    <code>--hicache-ratio 2.0</code>,
+    <code>--speculative-algorithm DSPARK</code> and
+    <code>--speculative-dspark-block-size 5</code>. SLURM job
+    <code>1273074</code> entered <code>RUNNING</code> on four H200 cards with
+    <code>WorkDir=/home/ITER/mcintos/Code/imas-ambix</code> and the 600G
+    request. A direct anonymous model-catalog request returned HTTP 200 after
+    <strong>495 seconds</strong> from the RUNNING start.</p>
+
+    <p><strong>Readiness was not treated as the gate.</strong> A direct keyless
+    chat completion forced the lazy speculative workspace to allocate and
+    returned HTTP 200, response
+    <code>953c48a92b354fd7b135e8daee71690a</code>, with
+    <strong>600 completion tokens in 6.964764 seconds</strong> and
+    <code>finish_reason="length"</code>. The job remained RUNNING and the
+    model catalog continued to return HTTP 200 afterwards.</p>
+
+    <table>
+      <thead><tr><th>Card</th><th>Free after generation</th><th>Free / 10.11 GiB ask</th><th>Residual after another ask</th></tr></thead>
+      <tbody>
+        <tr><td>0</td><td>38,095 MiB (37.202 GiB)</td><td><strong>3.680×</strong></td><td>27.092 GiB</td></tr>
+        <tr><td>1</td><td>37,887 MiB (36.999 GiB)</td><td><strong>3.660×</strong></td><td>26.889 GiB</td></tr>
+        <tr><td>2</td><td>37,887 MiB (36.999 GiB)</td><td><strong>3.660×</strong></td><td>26.889 GiB</td></tr>
+        <tr><td>3</td><td>38,095 MiB (37.202 GiB)</td><td><strong>3.680×</strong></td><td>27.092 GiB</td></tr>
+      </tbody>
+    </table>
+
+    <p>The memory rows were read inside allocation <code>1273074</code>
+    immediately after the completion. The worst card therefore retained
+    <strong>3.660 times</strong> the 10.11 GiB worst measured workspace ask.
+    The post-generation metrics receipt recorded 233 speculative verification
+    calls, <strong>37% draft acceptance</strong> and
+    <strong>2.85 mean accept length</strong>; the final decode-log interval
+    independently carried the same 0.37 and 2.85 readings. The launch and first
+    generation did not die on workspace or memory allocation, so the pre-decided
+    4M/600G rollback was not invoked. Full operational receipt:
+    <code>/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/serving-lane-relaunch.md</code>.</p>
   </main>
 </body>
 </html>
