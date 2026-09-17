@@ -60,6 +60,14 @@
     rising with width rather than collapsing. Before the repair the same lane
     managed 32.9 tok/s aggregate at 10.0 s TTFT.</p>
 
+    <p><strong>Two cards are not an option for this checkpoint, so no
+    4→2→4 shuffle exists.</strong> The startup log measures resident
+    weights at <strong>74.09 GB per card</strong> at TP4 — 296.4 GB for the
+    model. Halving the rank count doubles the per-card share to 148.2 GB against
+    140.4 GB of capacity, so it does not fit before a single KV page, activation
+    buffer or workspace is allocated. The 510.3 GB on disk overstates it and the
+    resident figure is the one that decides; both refuse two cards.</p>
+
     <p><strong>Read the occupancy row as the headline, because it changes which
     lever is which.</strong> At 27 concurrent the 4M device pool is over half
     consumed. Prefix eviction — not preemption — is the first symptom of KV
@@ -101,14 +109,40 @@
     <code>nova-bank-drift-campaign</code> job holds 2, and 2 are free. So the
     rotation is available when the node is otherwise empty and not before.</p>
 
-    <p><strong>If the cards are not free, then a quiet window is needed, and it
-    is a coordination step rather than a search.</strong> The lane is driven by
-    two known coordinators, both of which staged their dispatch on request
-    during the saturation curve earlier in the night. The procedure is: ask the
-    efit and nova sessions to hold dispatch; watch <code>num_running_reqs</code>
-    fall toward 0 with <code>num_queue_reqs</code> at 0; restart; release
-    dispatch after readiness. Eight minutes of held dispatch, not a lull to be
-    found by waiting.</p>
+    <p><strong>And if the cards are not free, the quiet window already exists
+    on a schedule — it does not have to be negotiated.</strong> 3,004
+    twenty-second samples over 16.8 h give the lane's own duty cycle, and it is
+    strongly diurnal:</p>
+
+    <table>
+      <thead><tr><th>Hour (UTC)</th><th>Median running</th><th>p90</th><th>Samples idle</th></tr></thead>
+      <tbody>
+        <tr><td>21:00</td><td>29</td><td>32</td><td>0%</td></tr>
+        <tr><td>22:00</td><td>18</td><td>28</td><td>0%</td></tr>
+        <tr><td>23:00</td><td>2</td><td>6</td><td>23%</td></tr>
+        <tr><td><strong>00:00</strong></td><td><strong>0</strong></td><td>1</td><td><strong>84%</strong></td></tr>
+        <tr><td><strong>01:00</strong></td><td><strong>0</strong></td><td>0</td><td><strong>100%</strong></td></tr>
+        <tr><td><strong>02:00</strong></td><td><strong>0</strong></td><td>0</td><td><strong>100%</strong></td></tr>
+        <tr><td>03:00</td><td>0</td><td>6</td><td>61%</td></tr>
+        <tr><td>04:00</td><td>14</td><td>18</td><td>0%</td></tr>
+        <tr><td>05:00</td><td>26</td><td>29</td><td>0%</td></tr>
+      </tbody>
+    </table>
+
+    <p>Two consecutive hours at <strong>100% idle</strong>, inside a
+    <strong>98-minute contiguous stretch</strong> at two or fewer requests in
+    flight. 00:00–03:00 UTC is the window, it recurs, and it needs no
+    coordination at all — only that the restart be scheduled into it rather
+    than run when someone happens to be at the keyboard.</p>
+
+    <p><strong>A drain, if one is ever needed, is about a minute.</strong> Mean
+    end-to-end request latency over the night is <strong>54.6 s</strong> across
+    7,232 requests, and 51.4 s in the most recent window; mean output is 855
+    tokens. So holding dispatch and waiting for in-flight requests to retire
+    costs one to three minutes, not the tens of minutes a <em>run</em>-level
+    drain would — a worker between turns is not holding a request. Never
+    conflate the two: requests drain in a minute, runs drain when their node
+    ends.</p>
 
     <p><strong>Done when:</strong> the retune lands either through a rotation on
     a free four-card window or through a coordinated eight-minute hold, with the
@@ -128,9 +162,33 @@
     <p><strong>It was refused twice, for a reason that has since gone away.</strong>
     DSpark wants about 12 GiB per card of workspace, allocated lazily outside
     <code>mem_fraction_static</code>. At the 15M-token pool there was 1.3 GiB
-    free; at the 7.6 GB that followed, still not enough. The device budget now
-    reads <strong>52.04 GB free</strong>, because the pool came down to 4M. The
-    refusal was a memory fact, and the memory fact has changed.</p>
+    free; at the 7.6 GB that followed, still not enough. The refusal was a
+    memory fact, and the memory fact has changed — but the margin must be
+    read loaded, not idle:</p>
+
+    <table>
+      <thead><tr><th>Per-card free device memory</th><th>Reading</th><th>Source</th></tr></thead>
+      <tbody>
+        <tr><td>After startup, before traffic</td><td><strong>52.04 GB</strong></td><td>the engine's own <code>avail mem</code> at the end of CUDA-graph capture</td></tr>
+        <tr><td><strong>Under load at 23–27 concurrent</strong></td><td><strong>~33 GB</strong> (112,164 of 143,771 MiB used)</td><td>the card sampler, now</td></tr>
+      </tbody>
+    </table>
+
+    <p>The ~19 GB difference <em>is</em> the lazily-allocated workspace this
+    section is about, so the headroom DSpark has to fit inside is 33 GB and not
+    52. It still fits: 33 − 12.9 ≈ 20 GB. But the earlier figure was
+    an idle reading quoted as a budget, which is the same error as reading a
+    fleet's context right after a dispatch, and the tighter number is the one
+    that governs.</p>
+
+    <p><strong>What changed is not only the memory — it is the value.</strong>
+    Before the prefix repair this lane spent essentially its whole token budget
+    on prefill, so accelerating <em>decode</em> would have bought almost nothing.
+    Measured over the last 40 minutes, uncached prompt tokens are
+    <strong>2.3% of those presented</strong> and the engine generates 336 tok/s
+    against 1,178 tok/s of uncached prefill. Decode is now the phase that costs
+    wall clock, because each of its tokens needs its own forward pass. The lever
+    became feasible and worth pulling in the same repair.</p>
 
     <p><strong>Expected gain, with its basis stated.</strong> On V4-Flash the
     same mechanism measured <strong>45.3–46.4% draft acceptance at a mean accept
@@ -177,7 +235,10 @@
     concurrency lever, now load-bearing rather than speculative.</strong> §1's
     reading is the whole argument: 52–54% occupancy at 27 concurrent, ~79k
     tokens resident per request, so the pool binds near 50. Doubling it costs
-    about 10 GB per card and moves that bound to ~100, which is past anything
+    a measured rather than estimated amount — the startup log puts the 4M
+    pool at <strong>10.10 GB per card</strong>, so 9.9 KB per token across the
+    four ranks, and another 4M costs another 10.10 GB per card — and moves
+    that bound to ~100, which is past anything
     the dependency graph has ever offered. Expected throughput change at today's
     width: <strong>none</strong>. What it buys is the absence of silent eviction
     at the widths §3 and §6 make reachable.</p>
@@ -209,7 +270,7 @@
       <tbody>
         <tr>
           <td><code>chunked_prefill_size</code> (16,384)</td>
-          <td>Sized for the 200k–400k prefills of the pre-repair lane. With reuse at 99.5% the median <em>uncached</em> prefill is 700–1,000 tokens, two orders of magnitude under the current budget. It is not binding, so changing it cannot help.</td>
+          <td>Sized for the 200k–400k prefills of the pre-repair lane. With reuse repaired, mean <em>uncached</em> prefill measures 2,662–3,919 tokens per request over the last 40 minutes and 2 hours respectively — under a quarter of the 16,384 budget. It is not binding, so changing it cannot help. Worth re-reading if the cold-start tail grows: the whole-night mean is 23,234, which spans the pre-repair period and is <em>above</em> the budget.</td>
         </tr>
         <tr>
           <td><code>kv_cache_dtype</code></td>
@@ -264,9 +325,35 @@
     replica caches only the conversations it served. A worker whose turns
     alternate between replicas gets a cold prefix every time — the same 0%-reuse
     condition the router repair just fixed, arriving from a different direction
-    and costing eight cards instead of four. The router currently picks one
-    preferred upstream per model id, so affinity is new behaviour rather than a
-    configuration flag.</p>
+    and costing eight cards instead of four.</p>
+
+    <p><strong>It is a configuration, not a feature to build.</strong> The
+    serving container already carries <code>sglang_router</code> 0.3.2, whose
+    <em>default</em> policy is <code>cache_aware</code>: it maintains an
+    approximate radix tree of what each worker holds and sends a request to the
+    worker with the longest matching prefix, falling back to load balancing when
+    the match is under <code>--cache-threshold</code> (0.3) or when workers
+    diverge past <code>--balance-abs-threshold</code> (64 requests) and
+    <code>--balance-rel-threshold</code> (1.5×) together. Cheaper policies
+    for the same goal sit beside it — <code>consistent_hashing</code> and
+    <code>prefix_hash</code> pin by hash without tracking cache state —
+    and the prefill/decode split has its own <code>--prefill-policy</code> and
+    <code>--decode-policy</code>. So the gate below is satisfied by standing up
+    a tested upstream router in front of two engines, not by writing affinity
+    into <code>imas_ambix/agent/router.py</code>.</p>
+
+    <p><strong>And affinity is not the only way; it is the cheap way.</strong>
+    A conversation's KV at this lane's working context is 79,351 tokens
+    × 9.9 KB = <strong>0.80 GB</strong>, so moving one between replicas is
+    tens of milliseconds on any interconnect in this machine, against
+    <strong>~28 s</strong> to recompute it at the 2,820 tok/s uncached-prefill
+    rate the night actually sustained. Transfer beats recompute by roughly three
+    orders of magnitude, which is why shared-KV tiers exist at all
+    — <code>hicache_storage_backend</code> and the Mooncake-backed unified
+    cache linker are both present and unset in the running configuration. Pin
+    first, because pinning costs nothing and captures nearly all of it; reach
+    for transfer only when a replica dies, load skews, or a replica is added
+    mid-flight.</p>
 
     <p><strong>And the honest comparison is the reason this is deferred rather
     than queued:</strong> §3 is expected to buy 500–650 tok/s on four cards for
