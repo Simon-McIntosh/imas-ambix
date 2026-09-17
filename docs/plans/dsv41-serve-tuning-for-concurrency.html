@@ -26,7 +26,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-17">
-<meta name="plan-version" content="2">
+<meta name="plan-version" content="4">
 </head>
 <body>
   <main class="plan-doc">
@@ -664,7 +664,7 @@
         <tr>
           <td><strong>2</strong></td>
           <td><code>max_total_tokens</code>, sized from restart 1's <em>loaded</em> free device memory</td>
-          <td><strong>hot</strong> — needs the drain below</td>
+          <td><strong>hot</strong> — an hour of run-level draindown, or none at all if placed in the measured 00:00–03:00 UTC quiet window</td>
           <td><strong>~30–45 min loaded</strong></td>
           <td>Predicted throughput change is zero; the measure is pool occupancy at a stated width plus the absence of a regression against restart 1's own fit. Both read in minutes once traffic is on, so a second two-hour window would buy nothing. <strong>Conditional:</strong> if restart 1's loaded free memory does not cover another pool increment, this restart does not happen, and that is a result rather than a failure.</td>
         </tr>
@@ -689,47 +689,87 @@
     restart 2 must stop the lane it is replacing, and the only question is
     whether it stops cleanly or kills requests in flight.</p>
 
-    <p><strong>Three steps, and the middle one does not exist yet.</strong> Hold
-    dispatch so no new run reaches the lane; wait for the requests already in
-    flight to retire; only then stop the job. The wait is bounded by the measured
-    54.6 s mean end-to-end request latency over 7,232 requests, so a lane that
-    has not quiesced within a few minutes is telling you something rather than
-    being slow — report it instead of killing it.</p>
+    <p><strong>There are two drains on this lane, they differ by a factor of
+    sixty, and the slow one governs.</strong> §2 already states the rule —
+    requests drain in a minute, runs drain when their node ends — and this run is
+    the case where the second one binds. The load is other orchestrators'
+    workers, each mid-way through an implementation plan that has nothing to do
+    with this one, so the unit that must be allowed to finish is the
+    <em>node</em>, not the request:</p>
 
-    <p><strong>Read the engine, not the clock.</strong> A fixed sleep is the
-    improvised version of this and it is wrong in both directions: too short and
-    it truncates a long generation, too long and it wastes the window. The engine
-    publishes running and queued request counts on the Prometheus endpoint the
-    profile already enables, so quiesced is an observation with a number behind
-    it. That reading is also what makes the cutover recordable: §2's done-when
-    asks for the in-flight request count at cutover, and a drain that reports
-    zero has produced exactly that evidence.</p>
+    <table>
+      <thead><tr><th>Drain</th><th>What retires</th><th>Cost</th><th>What it protects</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Run-level</strong></td><td>a worker's node reaches its end and it writes a manifest</td><td><strong>~1 h</strong></td><td>a peer's in-flight implementation work, which a hard stop destroys outright — uncommitted, with no commit behind it</td></tr>
+        <tr><td>Request-level</td><td>the HTTP completions already in flight</td><td>~1–3 min</td><td>nothing that is not already covered once the runs have ended</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>So a hot restart costs about an hour of held dispatch, and that
+    hour is charged to other projects' progress rather than to ours.</strong>
+    That is the true price of restart 2, it is several times the launch itself,
+    and it is the reason the cheapest restart is the one that needs no drain at
+    all. Never scancel a serve with peer runs live against it: the worker does
+    not fail cleanly, it loses whatever it had not committed, and the loss is
+    invisible from here.</p>
+
+    <p><strong>The duty cycle is the instrument that makes the hour
+    free.</strong> §2's 3,004 samples put 00:00–03:00 UTC at two consecutive
+    hours of <strong>100% idle</strong> inside a 98-minute contiguous stretch at
+    two or fewer requests in flight. A restart placed there drains nothing
+    because there is nothing to drain, and its loaded validation then reads on
+    the natural morning ramp — median 14 running at 04:00 UTC and 26 at 05:00.
+    Prefer that window for restart 2 over paying the hour; ask for the hour only
+    when waiting for the window costs more than the work it delays.</p>
+
+    <p><strong>Read the fleet and the engine, never the clock.</strong> A fixed
+    sleep is the improvised version of this and it is wrong in both directions:
+    too short and it truncates work, too long and it wastes the window. Both
+    numbers are already observable — non-terminal run pointers across the
+    projects using the lane, and the running and queued request counters the
+    profile's Prometheus endpoint already publishes. The instrument this plan
+    needs reports <em>both</em>, so a restart is timed rather than guessed, and
+    it holds no authority to stop anything. That reading is also what makes the
+    cutover recordable: §2's done-when asks for the in-flight count at cutover,
+    and a drain that reports zero on both counters has produced exactly that
+    evidence.</p>
 
     <h3>Where the load comes from</h3>
 
-    <p><strong>This session's own fleet, dispatched to the lane under test.</strong>
-    §4b's requirement is two hours of <em>loaded</em> real traffic spanning a
-    spread of widths, and it names the coordination dependency plainly: the
-    fleets have to be dispatching or the restart measures nothing. The answer
-    here is to route this run's own worker dispatches through the local backend
-    — the lane being tuned — so the fleet is simultaneously the consumer and the
-    instrument. Nothing synthetic is introduced, which is what §4b argued for on
-    its merits rather than as a compromise.</p>
+    <p><strong>The nova and efit orchestrators, contacted directly.</strong> Both
+    hold work ready to dispatch at the width this plan requires, and both are
+    independent sessions progressing their own implementation plans. §4b's
+    requirement is two hours of <em>loaded</em> real traffic spanning a spread of
+    widths, and it names the coordination dependency plainly: the fleets have to
+    be dispatching or the restart measures nothing. This is that dependency,
+    resolved by asking the sessions that own the work rather than by manufacturing
+    a fleet here.</p>
 
-    <p><strong>The roster is not the constraint and the lane's own fence is not
-    either.</strong> 174 members are registered against a per-member
-    serialisation rule, and the backend's <code>max_concurrent_runs</code> is 64
-    against the engine's <code>max_running_requests</code> of 64. Reaching the
-    24-plus width §3 needs is therefore a question of having that many genuine
-    independent nodes ready at once, not of capacity — and the honest failure
-    mode is a thin queue of real work, not a full one.</p>
+    <p><strong>Three things follow from the load being someone else's.</strong>
+    The traffic is genuinely real, which §4b argued for on its merits rather than
+    as a compromise, and the widths come from their dispatch decisions rather
+    than from a knob here. It costs this plan no metered budget, so the
+    two-hour window is affordable at all. And their workers are not ours to
+    stop — which is the whole content of the drain above.</p>
+
+    <p><strong>Contact is a request, never an instruction.</strong> A peer
+    coordinator cannot be given authority and a relayed approval is not consent.
+    What reaches them is the lane's state and this plan's needs — that the
+    endpoint answers, what width is wanted and for how long, and when the next
+    restart's hold will be asked for — so they can schedule their own dispatch
+    around it instead of being interrupted by it. The lane's own fences are not
+    the constraint: the backend admits 64 concurrent runs against the engine's
+    <code>max_running_requests</code> of 64, so reaching 24-plus is a question of
+    how much real work they have ready, and the honest failure mode is a thin
+    queue rather than a full one.</p>
 
     <p><strong>Done when:</strong> the profile carries the restart-1 settings and
-    a written rollback line, a drain command exists that reports the in-flight
-    count it waited down to, restart 1 has run its two-hour loaded window and
-    produced per-width figures at 1, 8 and 24+ together with the drafter's own
-    per-step cost, and restart 2 has either landed a larger pool sized from that
-    measurement or been recorded as refused by it.</p>
+    a written rollback line, an instrument exists that reports both the
+    non-terminal run count and the in-flight request count against the lane,
+    restart 1 has run its two-hour loaded window and produced per-width figures
+    at 1, 8 and 24+ together with the drafter's own per-step cost, and restart 2
+    has either landed a larger pool sized from that measurement or been recorded
+    as refused by it.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
