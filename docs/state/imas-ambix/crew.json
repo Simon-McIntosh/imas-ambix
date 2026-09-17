@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-17T16:24:36",
+  "updated": "2026-09-17T16:25:06",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -39775,6 +39775,207 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260917T141817181081-pool-contract-test-repair",
+        "plan": "dsv41-serve-tuning-for-concurrency",
+        "section": "\u00a74",
+        "node": "pool-contract-test-repair",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1279,
+                "cached_input_tokens": 256792,
+                "input_tokens": 258073,
+                "output_tokens": 762,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 258835,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "aeb652ee-2fb5-42fc-b5dc-1235d9ca4a0d",
+            "session_id": "dsv41-restart-20260917"
+          },
+          "done_when": "'uv run --no-sync pytest -p no:cacheprovider -q tests/test_agent_pool_and_hicache.py tests/test_agent_evaluation_pool.py' reports 7 passed 0 failed, matching the 7 passed the base revision bd3047c reported before the increment landed; the four assertions repointed are test_agent_pool_and_hicache.py lines 22, 43 and 44 and test_agent_evaluation_pool.py line 33; each now asserts the value the committed profile carries rather than a literal copied from the old one, and no profile or source file is edited",
+          "estimated_hours": null,
+          "goal": "repoint the four assertions that pin the superseded 4M/480G pool contract at the landed 8M/600G one",
+          "id": "pool-contract-test-repair",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-17T14:18:18Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no numeric 'headroom'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260917T141817181081-pool-contract-test-repair/manifest.md",
+          "plan": "dsv41-serve-tuning-for-concurrency",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74",
+          "spec_level": "exact",
+          "time_budget": "25m",
+          "token_budget": null,
+          "write_paths": [
+            "tests/test_agent_pool_and_hicache.py",
+            "tests/test_agent_evaluation_pool.py",
+            "docs/evidence/archive/dsv41-serve-tuning-for-concurrency-landed.html",
+            "docs/plans/dsv41-serve-tuning-for-concurrency.html"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "dsv41-pool-test-repair",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "high",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "worktree-full",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-17T14:18:25Z",
+        "completed_at": "2026-09-17T14:21:53.750Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 200,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 208,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "e8d5038afdb0777621f4b46663552292b8814782",
+        "commits": [
+          "9cdf16beb57336b37eb72d7b06252b193cb274b5"
+        ],
+        "changed_lines": {
+          "added": 82,
+          "removed": 6,
+          "files": 4
+        },
+        "tests_added": 0,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest -p no:cacheprovider -q tests/test_agent_pool_and_hicache.py tests/test_agent_evaluation_pool.py",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260917T141817181081-pool-contract-test-repair/repair-after-gate.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260917T141817181081-pool-contract-test-repair/manifest.md",
+        "scope_changed": false,
+        "session_id": "2c2ca507-244e-4a7d-9c25-154039017600",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 2113825,
+            "input_tokens_cumulative": 2113825,
+            "output_tokens": 16221,
+            "output_tokens_cumulative": 16221,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-17T14:21:53.750Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": null,
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 2113825,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 204.566,
+          "generated_tokens": 16221,
+          "generation_seconds": 164.544,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 21.6,
+          "machine_seconds": 40.022,
+          "peak_input_tokens": 103612,
+          "tokens_per_second": 98.58,
+          "wall_tokens_per_second": 79.29
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest -p",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/dsv41-restart-20260917/pool-contract-test-repair",
+          "session_id": "2c2ca507-244e-4a7d-9c25-154039017600",
+          "session_source": "stream",
+          "retained_at": "2026-09-17T14:21:53.750Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "tool_steps": 36.0,
+        "orientation_input_tokens": 676842.0,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -39835,6 +40036,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 697
+    "_version": 698
   }
 }
