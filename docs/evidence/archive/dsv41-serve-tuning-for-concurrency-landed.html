@@ -326,13 +326,16 @@
   <h2 id="pool-increment-profile">Device-pool increment — profile settings and
   host-tier arithmetic</h2>
 
-    <p><strong>The change is one scalar, and the three settings beside it are
-    unchanged.</strong> <code>max_total_tokens</code> moves
-    <strong>4,000,000 &#8594; 8,000,000</strong> in
+    <p><strong>The pool doubles and the job's memory request rises with it; the
+    three settings beside them are unchanged.</strong>
+    <code>max_total_tokens</code> moves
+    <strong>4,000,000 &#8594; 8,000,000</strong> and <code>memory</code> moves
+    <strong>480G &#8594; 600G</strong> in
     <code>imas_ambix/agent/profiles/deepseek-v4-1-flash.toml</code>; the
     committed file still reads <code>speculative_algorithm = "DSPARK"</code>,
     <code>speculative_dspark_block_size = 5</code> and
-    <code>hicache_ratio = 2.0</code>. Commit <code>b557002</code>.</p>
+    <code>hicache_ratio = 2.0</code>. Commits <code>b557002</code> (pool) and
+    the memory raise.</p>
 
     <p><strong>The pre-change state, read rather than assumed.</strong> At the
     base revision <code>bd3047c</code> the profile read
@@ -346,7 +349,7 @@
 --hicache-mem-layout page_first ... --speculative-algorithm DSPARK \
 --speculative-dspark-block-size 5</code></pre>
 
-    <p>with the sbatch header unchanged at <code>#SBATCH --mem=480G</code>. The
+    <p>with the sbatch header at <code>#SBATCH --mem=600G</code>. The
     dry run resolves the profile from the worktree that generated it, so no job
     was submitted and the kernel-patch bind path it prints is that worktree's —
     the launch itself is specified to come from the main checkout.</p>
@@ -365,27 +368,35 @@
         <tr><td>Engram host tables (pinned, four ranks)</td><td>192 GiB</td><td>192 GiB</td></tr>
         <tr><td>HiCache host tier at ratio 2</td><td>80.1 GiB</td><td><strong>160.3 GiB</strong></td></tr>
         <tr><td>Process, pinned transfer, page-cache margin</td><td>207.9 GiB</td><td><strong>127.7 GiB</strong></td></tr>
-        <tr><td>Against the 480G request</td><td>fits</td><td><strong>fits, 127.7 GiB left</strong></td></tr>
+        <tr><td>Steady-state margin, 8M pool</td><td>207.9 GiB</td><td><strong>127.7 GiB</strong></td></tr>
+        <tr><td>Load-time peak, 8M pool</td><td>480 GiB already touched at ratio 2 on the 4M pool</td><td><strong>560 GiB floor — request 600G</strong></td></tr>
       </tbody>
     </table>
 
-    <p><strong>Verdict: <code>memory = "480G"</code> holds; no new value is
-    set.</strong> <code>480 &#8722; 192 &#8722; 160.3 = 127.7&#160;GiB</code> left
-    for process RSS, pinned-transfer buffers and the weight-loading page cache
-    across four ranks. The caveat travels with the verdict: this margin is the
-    one term no measurement bounds from either side, and the request's own
-    original breakdown recorded the HiCache component as <q>roughly 49 GiB</q>
-    from a per-token estimate where the enumerated pools measure 80.1&#160;GiB —
-    so the request was already about 31&#160;GiB light on that term at the 4M
-    pool and ran. The response to an OOM kill after the pool doubles is to read
-    <code>MaxRSS</code> and raise the request then, never pre-emptively.</p>
+    <p><strong>Verdict: <code>memory</code> is RAISED to <code>"600G"</code>. The
+    binding constraint is the load-time peak, not steady state.</strong> The
+    steady-state identity <code>480 &#8722; 192 &#8722; 160.3 = 127.7&#160;GiB</code>
+    is sound and does not answer the question: the job's
+    <code>memory.peak</code> already touched the old 480&#160;GiB ceiling at
+    ratio 2 on the <em>4M</em> pool, with about 80&#160;GiB <em>less</em> host
+    tier resident than this change leaves, and that peak is page cache from
+    reading a ~400&#160;GB checkpoint at launch rather than steady-state use. A
+    limit sized to steady state is therefore hit while loading. The arithmetic,
+    in GiB: <code>480</code> (peak already observed at ratio 2 on the 4M pool)
+    <code>+ 80.1</code> (host tier this change adds inside the same limit)
+    <code>= 560</code> (arithmetic floor), and <code>600G</code> is that floor
+    plus margin for the load-time page cache the peak is made of. The raise stays
+    below Group A's 650G allocation, the ceiling that matters, so it does not
+    strand a co-running job on memory. The governing sizing rule is unchanged:
+    size against the job's own <code>anon + shmem</code>, never against the
+    node's <code>RealMemory</code>.</p>
 
     <table>
       <thead><tr><th>Gate</th><th>Result</th></tr></thead>
       <tbody>
         <tr><td>Committed profile</td><td><code>max_total_tokens = 8000000</code>; DSPARK, block size 5, <code>hicache_ratio 2.0</code> unchanged</td></tr>
         <tr><td>Generated launch command</td><td>emits <code>--max-total-tokens 8000000</code> with <code>--hicache-ratio 2.0</code> and <code>--speculative-algorithm DSPARK</code></td></tr>
-        <tr><td>sbatch memory line</td><td><code>#SBATCH --mem=480G</code> — unchanged, per the verdict above</td></tr>
+        <tr><td>sbatch memory line</td><td><code>#SBATCH --mem=600G</code> — raised, per the verdict above</td></tr>
         <tr><td>Focused tests</td><td><code>uv run --no-sync pytest tests/test_agent_pool_and_hicache.py tests/test_agent_evaluation_pool.py</code> — <strong>4 failed, 3 passed</strong></td></tr>
       </tbody>
     </table>

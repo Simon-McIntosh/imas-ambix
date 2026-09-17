@@ -400,8 +400,8 @@
     value justified by restart A's measured free device memory, with pool
     occupancy re-read at a stated width afterwards.</p>
 
-    <h3>Landing record — the device pool doubles, and the memory request does
-    not have to</h3>
+    <h3>Landing record — the device pool doubles, and the memory request rises
+    to the load-time peak</h3>
 
     <p><strong>Lever 3 is committed as a profile change; the launch is
     not.</strong> <code>max_total_tokens</code> moves
@@ -420,8 +420,8 @@
     <code>--max-total-tokens 8000000</code> alongside
     <code>--hicache-ratio 2.0</code>,
     <code>--speculative-algorithm DSPARK</code> and
-    <code>--speculative-dspark-block-size 5</code>, and the header still reads
-    <code>#SBATCH --mem=480G</code>.</p>
+    <code>--speculative-dspark-block-size 5</code>, and the header reads
+    <code>#SBATCH --mem=600G</code>.</p>
 
     <p><strong>The host tier is the same lever's other half, and this is the
     part a device-side reading would miss.</strong> <code>hicache_ratio</code>
@@ -439,24 +439,28 @@
         <tr><td>Engram host tables (pinned, four ranks)</td><td>192 GiB</td><td>192 GiB</td></tr>
         <tr><td>HiCache host tier at ratio 2</td><td>80.1 GiB</td><td><strong>160.3 GiB</strong></td></tr>
         <tr><td>Process, pinned transfer, page-cache margin</td><td>207.9 GiB</td><td><strong>127.7 GiB</strong></td></tr>
-        <tr><td>&#8212; against the 480G request</td><td>fits</td><td><strong>fits, 127.7 GiB left</strong></td></tr>
+        <tr><td>&#8212; steady-state margin at the 8M pool</td><td>207.9 GiB</td><td><strong>127.7 GiB</strong></td></tr>
+        <tr><td>&#8212; load-time peak at the 8M pool</td><td>480 GiB already touched</td><td><strong>560 GiB floor, request 600G</strong></td></tr>
       </tbody>
     </table>
 
-    <p><strong>Verdict: <code>memory = "480G"</code> holds and is left
-    unchanged.</strong> <code>480 &#8722; 192 &#8722; 160.3 = 127.7&#160;GiB</code>
-    remains for process RSS, pinned-transfer buffers and the weight-loading page
-    cache across four ranks. Stated with its caveat rather than buried: that
-    remainder is the one term no measurement bounds from either side — the
-    request's own original breakdown recorded the HiCache component as
-    <q>roughly 49 GiB</q> from a per-token estimate where the enumerated pools
-    measure 80.1&#160;GiB, so the request was already 31&#160;GiB light on that
-    term at the 4M pool and ran. The instruction if this serve is OOM-killed
-    after the pool doubles is therefore to read <code>MaxRSS</code> and raise
-    the request then, not to raise it pre-emptively: every GiB held here is a
-    GiB the node cannot lend to a co-running job, which is the whole point of
-    lever 2. Both the arithmetic and the verdict are committed in the profile
-    beside the two keys they justify, not only here.</p>
+    <p><strong>Verdict: <code>memory</code> is RAISED to <code>"600G"</code>,
+    and raise is what the evidence says rather than what the margin says.</strong>
+    The steady-state arithmetic
+    <code>480 &#8722; 192 &#8722; 160.3 = 127.7&#160;GiB</code> is sound and is
+    not the binding constraint. The job's <code>memory.peak</code> already
+    touched the old 480&#160;GiB ceiling at ratio 2 on the <em>4M</em> pool —
+    with about 80&#160;GiB <em>less</em> host tier resident than the doubling
+    leaves — and that peak is page cache from reading a ~400&#160;GB checkpoint
+    at launch rather than steady-state use. A limit sized to steady state is
+    therefore hit while loading, which is what a 127.7&#160;GiB steady-state
+    margin does not answer:
+    <code>480 + 80.1 = 560&#160;GiB</code> is the arithmetic floor, and
+    <code>600G</code> carries margin above it for the load-time page cache the
+    peak is made of. The raise also stays below Group A's 650G allocation, the
+    ceiling that matters, so it does not strand a co-running job on memory. Both
+    the arithmetic and the verdict are committed in the profile beside the two
+    keys they justify, not only here.</p>
 
     <p><strong>Suite delta is 4, and all four are assertion values in files
     outside this node's write scope.</strong>

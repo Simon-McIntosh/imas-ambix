@@ -230,20 +230,21 @@ speculative_dspark_block_size = 5
 # 43.04 GB/rank, or 172.1 GB across four ranks. The increment is therefore
 # 86.0 GB = 80.1 GiB of host RAM.
 #
-# VERDICT on `memory` below: 480G HOLDS, and it is left unchanged. The request
-# as written is 192 GiB of pinned Engram host tables (four ranks at about
-# 24 GiB) plus 207.9 GiB of everything else. Substituting the measured tier
-# (80.1 GiB at 4M, not the 49 GiB the request was originally sized on) leaves
-# that "everything else" term at 207.9 GiB today, and the doubled tier takes it
-# to 127.7 GiB:
-#   480 - 192 (Engram) - 160.3 (HiCache tier at 8M/ratio 2) = 127.7 GiB
-# 127.7 GiB is left for process RSS, pinned-transfer buffers and the
-# weight-loading page cache across four ranks, and it is positive with room.
-# The honest caveat, stated rather than buried: that remainder is the one term
-# with no measurement bounding it from either side, so it is the term to watch
-# if this serve is OOM-killed after the pool doubles — read MaxRSS before
-# raising the request, and raise it then rather than pre-emptively, because
-# every GiB held here is a GiB the node cannot lend to a co-running job.
+# VERDICT on `memory` below: RAISED to 600G. The steady-state arithmetic — 480
+# GiB as 192 GiB of pinned Engram host tables plus the 160.3 GiB HiCache tier
+# at 8M/ratio 2 plus a 127.7 GiB remainder — is sound and is not what binds.
+# The binding constraint is the LOAD-TIME PEAK, and a steady-state margin does
+# not answer it: the job's memory.peak already touched the old 480 GiB ceiling
+# at ratio 2 on the 4M device pool, i.e. with about 80 GiB LESS host tier
+# resident than this change leaves, and that peak is page cache from reading a
+# ~400 GB checkpoint at launch rather than steady-state use. Arithmetic for the
+# raise, all terms in GiB:
+#   480   peak already observed at ratio 2 on the 4M pool
+#  + 80.1 host tier this change adds inside the same limit (see HOST side)
+#  = 560  arithmetic floor
+#   600  the floor plus margin for the load-time page cache the peak is made of
+# 600G also stays below Group A's 650G allocation, the ceiling that matters
+# here, so the raise does not strand a co-running job on memory.
 max_total_tokens = 8000000
 # Keep evicted shared prefixes in the engine's pinned host tier instead of
 # recomputing them through the 284B-parameter forward path. In the pinned
@@ -447,17 +448,32 @@ gpus = 4
 # request scaled off the card count strands co-running jobs on cores while the
 # cards they want sit idle.
 cpus = 12
-# The 480G request comprises 192 GiB committed to the two host-resident Engram
-# layers (four ranks at about 24 GiB each), 160.3 GiB of HiCache host tier at
-# ratio 2 on the 8,000,000-token device pool, and 127.7 GiB of process,
-# pinned-transfer, and weight-loading page-cache margin. This key is unchanged
-# by the device-pool doubling and does not need to rise with it — the
-# pool-by-pool arithmetic and the verdict are at the pool key above. It remains
-# 170G below Group A's 650G allocation; never request the node's RealMemory.
-# The one term with no measurement bounding it is that 127.7 GiB margin, so if
-# this serve is OOM-killed after the pool doubles, read MaxRSS before raising
-# this value rather than pre-emptively.
-memory = "480G"
+# 600G. THE BINDING CONSTRAINT ON THIS REQUEST IS THE LOAD-TIME PEAK, NOT
+# STEADY STATE. At ratio 2 on the 4M device pool this job's memory.peak already
+# touched the old 480 GiB ceiling, with about 80 GiB LESS host tier resident
+# than the doubled pool leaves, and that peak is page cache from reading a
+# ~400 GB checkpoint at launch rather than steady-state use. So a limit sized
+# to steady state is hit while loading:
+#   480   GiB peak already observed at ratio 2 on the 4M pool
+#  + 80.1 GiB host tier added by doubling the device pool at unchanged ratio
+#  = 560 GiB arithmetic floor
+#   600 GiB = floor plus margin for the load-time page cache the peak is made
+#           of. The steady-state breakdown at this value is 192 GiB of
+#           host-resident Engram tables (four ranks at about 24 GiB each),
+#           160.3 GiB of HiCache host tier at ratio 2 on the 8,000,000-token
+#           device pool, and the remainder as process, pinned-transfer and
+#           weight-loading page-cache margin. See the pool key above for the
+#           pool-by-pool arithmetic.
+# 600G leaves 50G below Group A's 650G allocation, the ceiling that matters
+# here, so the raise does not strand a co-running job on memory.
+# The figure to size against is this job's OWN anon + shmem, because that is
+# what the cgroup accounting charges against --mem; page cache is reclaimable
+# and is not the quantity the request is compared with. Do NOT size to the node:
+# a request near RealMemory is an exclusive-node request in disguise, and
+# --mem=0 reads as "no limit" while reserving everything, so such a job cannot
+# start while anyone else holds memory and it head-of-line blocks the jobs
+# behind it. Never request the node's RealMemory.
+memory = "600G"
 # 18800-18809 are taken by the other profiles and by the router at 18802.
 port = 18810
 time_serve = "0"
