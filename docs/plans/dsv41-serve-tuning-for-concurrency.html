@@ -26,7 +26,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-17">
-<meta name="plan-version" content="11">
+<meta name="plan-version" content="12">
 <meta name="plan-commits" content="e808a8e3d89816a334f167b05eb4986afde532fd">
 <meta name="plan-artifacts" content="imas_ambix/agent/profiles/deepseek-v4-1-flash.toml,docs/evidence/archive/dsv41-serve-tuning-for-concurrency-landed.html">
 </head>
@@ -849,6 +849,51 @@
     before any peer is asked to move.</strong> It is minutes of work, it needs no
     coordination, and if DSpark does not produce a single-stream gain on this
     checkpoint then the widths above it are not worth anyone's traffic.</p>
+
+    <p><strong>The ask is staged, nova first and then efit, one increment at a
+    time.</strong> Each step is a separate request to the session that owns the
+    work, so width rises in controlled increments rather than arriving all at
+    once — which is what makes a step a step rather than a surge. The order is
+    not arbitrary: nova has the deeper ready queue and nothing holding it, while
+    efit is under a lead-ordered hold, so step 4 additionally requires that hold
+    to lift or a new imas-codex sprint. Both are the lead's to decide and are
+    asked for at the moment they are needed, not assumed in advance.</p>
+
+    <h3>The ramp down is a second experiment, not the end of the first</h3>
+
+    <p><strong>Requests that survive a drain are the ones that have persisted
+    longest, so they carry the largest working context.</strong> At the same
+    nominal width, the descending limb therefore samples a systematically larger
+    mean context per resident request than the ascending limb did. That is not
+    noise to be averaged away — it is a second condition, arriving free, on an
+    axis the ascending limb cannot vary by itself.</p>
+
+    <p><strong>What it buys is the separation of two terms that uncontrolled
+    traffic confounds.</strong> §3's cost model puts the decode cost at
+    <code>ms = 17.8 + 0.257 × GB</code>, where the bandwidth term is driven by
+    the expert union over k×B tokens — a <em>width</em> effect. Attention work
+    and KV residency are <em>context</em> effects. Real traffic delivers whatever
+    context distribution it happens to bring, so a width-binned median silently
+    carries both. Two limbs at equal width with different mean context give the
+    context sensitivity directly, as the hysteresis between them.</p>
+
+    <p><strong>And the descending limb is where KV pressure shows first, which
+    makes it the reading restart 2 is sized from.</strong> Occupancy per resident
+    request is highest exactly when the long-context survivors are the ones left,
+    so if the 4M pool binds anywhere in this run it binds there. §1's arithmetic
+    puts the bound near 50 concurrent at ~79k tokens resident, and the drain
+    raises the second factor while lowering the first. Watch the pair §4b names —
+    <strong>hit rate falling while pool occupancy climbs</strong> — rather than
+    <code>num_preemptions_total</code>, which moves too late to be a warning. So
+    the drain is not dead time before a restart; it is the measurement that says
+    whether the pool needs doubling at all, and restart 2 is conditional on it.</p>
+
+    <p><strong>Two recording rules follow, and both are easy to lose.</strong>
+    Label every binned interval with its limb as well as its width: an interval
+    carrying only a width has discarded the one axis that separates the two
+    terms, and nothing downstream can recover it. And never average the limbs
+    together — a mean over a hysteresis describes no moment that actually
+    occurs, which is the same error as quoting a rate for a bursty process.</p>
 
     <h3>Where the load comes from</h3>
 
