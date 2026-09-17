@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="dsv41-serve-tuning-for-concurrency">
+  <meta name="plan-title" content="DSv4.1 Serve Tuning for Concurrency — Four Levers, Their Measured Basis, and the Restart That May Not Need a Quiet Window">
+  <meta name="plan-summary" content="Speculative decoding is the only real throughput lever; the host tier is a cost lever, the device pool a concurrency one, eight cards wait on affinity">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort-hours" content="5.0">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="orchestrator">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-capability-risk" content="moderate">
+  <meta name="plan-milestone" content="OPS">
+  <meta name="plan-sprint" content="S24">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-tags" content="agent-serving,gpu-deployment,benchmarking">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;deferred&quot;,&quot;s7&quot;:&quot;done&quot;}">
+  <meta name="plan-impl" content="0.0">
+  <title>DSv4.1 Serve Tuning for Concurrency | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — The baseline this plan tunes, and the reading taken while writing it</h2>
+
+    <p>The prefix-cache defect is repaired and the lane is working. Everything
+    below is measured against that repaired lane, not against the collapsed one,
+    and the distinction matters because the pre-repair figures made the device
+    pool look enormous and the host tier look useful. Both conclusions inverted
+    when reuse went from under 5% to over 99%. Full record:
+    <a href="/imas-ambix/evidence/archive/dsv41-flash-four-card-throughput-landed">the
+    four-card throughput evidence</a>.</p>
+
+    <p>A live reading taken while this plan was being written, three samples
+    one second apart on job <code>1272167</code>:</p>
+
+    <table>
+      <thead><tr><th>Quantity</th><th>Reading</th><th>What it constrains</th></tr></thead>
+      <tbody>
+        <tr><td>Concurrent requests</td><td><strong>27</strong> running, <strong>0</strong> queued, steady across all three samples</td><td>the lane is running well past the knee of ~20 without queueing</td></tr>
+        <tr><td>Device pool occupancy</td><td><strong>2.09–2.14M of 4.00M tokens — 52–54%</strong></td><td>the pool is the first thing that will bind, and it is already half gone</td></tr>
+        <tr><td>Implied working context</td><td>~<strong>79,000 tokens</strong> per resident request</td><td>4M / 79k &#8776; <strong>50 concurrent</strong> before the pool evicts</td></tr>
+        <tr><td>Prefix hit rate</td><td><strong>99.5%</strong></td><td>the repair holds at 27 concurrent; reuse is no longer the problem</td></tr>
+        <tr><td>Aggregate output</td><td>257 tok/s on one sample, 111 on the next two</td><td>the gauge is a last-batch figure, not a rate — see §5</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>The sustained figures this plan reasons from are the harvested
+    ones, not that gauge:</strong> <strong>330 tok/s</strong> aggregate output
+    sustained with a <strong>376.6 tok/s</strong> peak, <strong>27.0 tok/s</strong>
+    median per worker, TTFT 0.7–1.4 s, hit rate 96–98% under mixed real load and
+    rising with width rather than collapsing. Before the repair the same lane
+    managed 32.9 tok/s aggregate at 10.0 s TTFT.</p>
+
+    <p><strong>Read the occupancy row as the headline, because it changes which
+    lever is which.</strong> At 27 concurrent the 4M device pool is over half
+    consumed. Prefix eviction — not preemption — is the first symptom of KV
+    pressure on this stack, and it costs throughput silently: the lane pays in
+    recomputed prefill while <code>num_preemptions_total</code> has not moved.
+    So the device pool is no longer headroom for a hypothetical future width; it
+    is a constraint roughly twice the width the lane already runs at.</p>
+
+    <h2 id="s2">§2 — The restart may not need a quiet window at all</h2>
+
+    <p>The plan was scoped expecting to hunt for a lull. It probably does not
+    have to, and that is worth establishing before anyone schedules downtime.</p>
+
+    <p><strong>A zero-downtime rotation is supported and was demonstrated on
+    2026-09-07.</strong> Bring the retuned serve up on its own port while the
+    current one keeps serving, let the router move traffic on health, then stop
+    the old one. Two properties make it work, and both are in the code rather
+    than in an operator's care: the router collapses a duplicate model id onto
+    one upstream instead of refusing, and the endpoint document republishes on
+    both serve and shutdown.</p>
+
+    <p><strong>The equal-width tie-break is already correct, which the
+    demonstration did not prove.</strong> That rotation replaced two cards with
+    four, so the documented rule — prefer the widest — decided it. A retune is
+    four cards replacing four cards, and the width term is level.
+    <code>_preferred_owner</code> in <code>imas_ambix/agent/router.py</code>
+    resolves exactly this: level widths fall through to the later start stamp,
+    <q>which still favours the engine replacing its peer</q>, and it refuses to
+    choose only when both terms are indistinguishable. So the new serve wins the
+    tie by construction. This needed checking rather than assuming, because a
+    rotation that split traffic across two engines would give each of them half
+    the conversations and halve the prefix reuse — the §6 failure mode, arriving
+    unannounced during what was supposed to be a safe procedure.</p>
+
+    <p><strong>What the rotation actually costs is four free cards for about
+    eight minutes.</strong> Measured on the last restart: 460 s from submit to
+    the first successful <code>/v1/models</code>. The node is the constraint, not
+    the lane — at the time of writing the serve holds 4 cards, a
+    <code>nova-bank-drift-campaign</code> job holds 2, and 2 are free. So the
+    rotation is available when the node is otherwise empty and not before.</p>
+
+    <p><strong>If the cards are not free, then a quiet window is needed, and it
+    is a coordination step rather than a search.</strong> The lane is driven by
+    two known coordinators, both of which staged their dispatch on request
+    during the saturation curve earlier in the night. The procedure is: ask the
+    efit and nova sessions to hold dispatch; watch <code>num_running_reqs</code>
+    fall toward 0 with <code>num_queue_reqs</code> at 0; restart; release
+    dispatch after readiness. Eight minutes of held dispatch, not a lull to be
+    found by waiting.</p>
+
+    <p><strong>Done when:</strong> the retune lands either through a rotation on
+    a free four-card window or through a coordinated eight-minute hold, with the
+    method used and the in-flight request count at cutover recorded. A restart
+    that kills live requests without a recorded hold is a defect in this
+    section, not an acceptable cost.</p>
+
+    <h2 id="s3">§3 — Lever 1: DSpark speculative decoding, the only real throughput lever</h2>
+
+    <p><strong>Decode binds this lane and nothing else in the configuration
+    changes that.</strong> Per-worker output is 27.0 tok/s median against a
+    single-stream ceiling of 34.4; the pool is half empty, the queue is empty,
+    and reuse is at 99.5%. There is no prefill lever left to pull and no
+    admission lever worth pulling. What remains is emitting more than one token
+    per forward pass.</p>
+
+    <p><strong>It was refused twice, for a reason that has since gone away.</strong>
+    DSpark wants about 12 GiB per card of workspace, allocated lazily outside
+    <code>mem_fraction_static</code>. At the 15M-token pool there was 1.3 GiB
+    free; at the 7.6 GB that followed, still not enough. The device budget now
+    reads <strong>52.04 GB free</strong>, because the pool came down to 4M. The
+    refusal was a memory fact, and the memory fact has changed.</p>
+
+    <p><strong>Expected gain, with its basis stated.</strong> On V4-Flash the
+    same mechanism measured <strong>45.3–46.4% draft acceptance at a mean accept
+    length of 3.31</strong>. Carrying that acceptance to this lane's decode puts
+    aggregate output at <strong>500–650 tok/s</strong> and per-worker at
+    <strong>40–55 tok/s</strong> — the one change in this plan that raises what a
+    single worker experiences rather than how many workers fit.</p>
+
+    <p><strong>The caveat is specific and must not be softened: on V4.1 it
+    previously could not start.</strong> That was at a pool leaving no room for
+    the workspace, so the memory explanation covers it, but no one has seen
+    DSpark run on this checkpoint. Two failure shapes are possible and only one
+    is safe: a serve that refuses at startup costs nothing, while a serve that
+    starts and dies on the first real generation takes the lane with it — the
+    lazy-allocation shape that has killed three serves on this node. So the
+    acceptance test is a real generation, not a readiness probe.</p>
+
+    <p><strong>Done when:</strong> DSpark is enabled in
+    <code>imas_ambix/agent/profiles/deepseek-v4-1-flash.toml</code>, the serve
+    reaches ready, <em>and</em> a real multi-hundred-token generation completes;
+    with the measured draft acceptance rate, mean accept length, the device free
+    memory after the workspace has actually allocated, and per-worker plus
+    aggregate output under real load at a stated width. A rollback to the
+    committed profile is one edit and is written down before the restart, not
+    after it fails.</p>
+
+    <h2 id="s4">§4 — Levers 2 and 3: give back host RAM, then buy device pool with what §3 leaves</h2>
+
+    <p>These are one section because they are one argument about where memory
+    should sit, and two restarts because their risks do not belong together.</p>
+
+    <p><strong>Lever 2 — <code>hicache_ratio</code> 8.0 &#8594; 2.0. A cost lever
+    with no expected throughput change.</strong> The host tier writes and does
+    not read: <strong>100,308 backups against 56 load-backs</strong>. Every
+    evicted page is copied to host RAM at full rate and then recomputed through
+    the model anyway. At ratio 2 the tier is 86.0 GB across five pools per rank,
+    so ratio 8 is holding roughly <strong>344 GB</strong> for a store nothing
+    reads. Dropping to 2 frees about <strong>258 GB</strong> and takes the job's
+    <code>memory</code> request from 720G to 480G. Expected throughput change:
+    zero. Expected benefit: the node stops reserving a third of its RAM for
+    nothing, which is what makes §6 arithmetically possible at all.</p>
+
+    <p><strong>Lever 3 — <code>max_total_tokens</code> 4M &#8594; 8M. A
+    concurrency lever, now load-bearing rather than speculative.</strong> §1's
+    reading is the whole argument: 52–54% occupancy at 27 concurrent, ~79k
+    tokens resident per request, so the pool binds near 50. Doubling it costs
+    about 10 GB per card and moves that bound to ~100, which is past anything
+    the dependency graph has ever offered. Expected throughput change at today's
+    width: <strong>none</strong>. What it buys is the absence of silent eviction
+    at the widths §3 and §6 make reachable.</p>
+
+    <p><strong>Why lever 3 waits for a second restart, and this is the one
+    sequencing decision in the plan.</strong> DSpark's 12 GiB per card and the
+    pool's 10 GB per card are both device memory, and the budget takes both:
+    52 &#8722; 12 &#8722; 10 &#8776; 30 GB spare. But the DSpark workspace
+    allocates <em>lazily</em>, so its real footprint is unknown until a
+    generation runs, and putting two untested device allocations in one restart
+    is precisely the combination that has killed serves here. Lever 2 is
+    host-side and confounds nothing, so it rides with §3. Lever 3 is sized from
+    the free memory §3 actually measures.</p>
+
+    <p><strong>Done when:</strong> restart A carries §3 plus
+    <code>hicache_ratio = 2.0</code> and <code>memory = "480G"</code>, with the
+    host-tier allocation lines counted against pools &#215; ranks to confirm the
+    tier is the size claimed; restart B raises <code>max_total_tokens</code> to a
+    value justified by restart A's measured free device memory, with pool
+    occupancy re-read at a stated width afterwards.</p>
+
+    <h2 id="s5">§5 — What is deliberately not a lever, so nobody spends a window on it</h2>
+
+    <p>Each of these looks like a tuning opportunity and is not. Recording the
+    reason is the point: the next reader will otherwise re-propose them.</p>
+
+    <table>
+      <thead><tr><th>Candidate</th><th>Why it is not pulled</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>chunked_prefill_size</code> (16,384)</td>
+          <td>Sized for the 200k–400k prefills of the pre-repair lane. With reuse at 99.5% the median <em>uncached</em> prefill is 700–1,000 tokens, two orders of magnitude under the current budget. It is not binding, so changing it cannot help.</td>
+        </tr>
+        <tr>
+          <td><code>kv_cache_dtype</code></td>
+          <td>Already FP8. There is nothing to convert.</td>
+        </tr>
+        <tr>
+          <td><code>mem_fraction_static</code> 0.85 &#8594; 0.90</td>
+          <td>This is the trap, not the lever. DSpark's workspace allocates lazily <em>outside</em> the static fraction, so raising the fraction takes memory away from exactly the allocation §3 depends on. Lazy allocation has killed three serves on this node; on V4-Flash the equivalent move from 0.92 down to 0.85 <em>raised</em> throughput 1.7&#215; at unchanged width.</td>
+        </tr>
+        <tr>
+          <td><code>prompt_tokens_buckets</code></td>
+          <td>Observability only, and currently blind: the lowest bucket edge is 100,000, so with reuse repaired about 98% of traffic lands in one bucket. Worth re-edging when someone needs the histogram; it moves no tokens.</td>
+        </tr>
+        <tr>
+          <td><code>max_running_requests</code></td>
+          <td>64, against 27 observed and 0 queued. The engine is not refusing anything. A dispatch-side fence is the instrument that matters here, and it is already at 64.</td>
+        </tr>
+        <tr>
+          <td>The <code>gen_throughput</code> gauge as a rate</td>
+          <td>§1 read 257 then 111 then 111 within three seconds at unchanged concurrency. It reports the last batch, not a rate. Quote harvested sustained figures; never this gauge.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="s6">§6 — Eight cards are two TP4 replicas, and the routing has to land first</h2>
+
+    <p><strong>Deferred. Trigger: §3 has landed and the lane is measurably
+    saturating at its new knee.</strong> Recorded now because the eight-card
+    question will be asked again and the answer is already evidenced.</p>
+
+    <img src="/imas-ambix/figures/dsv41-serve-tuning-for-concurrency/eight-card-topology.svg"
+         alt="Eight H200 NVL cards drawn as two four-card NVLink islands joined by PCIe Gen5. Left: one TP8 replica, whose every-layer all-reduce crosses the PCIe bridge twice. Right: two independent TP4 replicas, one per island, with the router pinning a conversation to one replica.">
+
+    <p><strong>TP8 is refused on measured grounds, not on preference.</strong>
+    These are H200 <em>NVL</em> cards: the bridge joins four, and the two bridged
+    groups reach each other over PCIe Gen5 — <code>NV6</code> within a group,
+    measured on this node. A TP8 group's all-reduce therefore leaves NVLink and
+    comes back, twice per layer. The precedent is direct: V4-Flash from two cards
+    to eight gave <strong>+11.9% aggregate for &#8722;18.3% single-stream</strong>,
+    and GLM-5.2 at TP8 without MTP collapsed to 57.6 tok/s. Twice the silicon for
+    a slower token.</p>
+
+    <p><strong>Two TP4 replicas keep every all-reduce inside an island and
+    double the device pool.</strong> Expected aggregate <strong>660–750
+    tok/s</strong> with a knee around 40–54 concurrent. Host RAM fits once lever
+    2 has landed: two Engram allocations at 183 GiB plus two host tiers at 86 GB
+    is about <strong>636 GB</strong> of the node's ~1,300 GB available — which is
+    unaffordable at <code>hicache_ratio</code> 8.0 and comfortable at 2.0.</p>
+
+    <p><strong>The hard prerequisite is session-affinity routing, and without it
+    this option recreates tonight's defect at twice the cost.</strong> Each
+    replica caches only the conversations it served. A worker whose turns
+    alternate between replicas gets a cold prefix every time — the same 0%-reuse
+    condition the router repair just fixed, arriving from a different direction
+    and costing eight cards instead of four. The router currently picks one
+    preferred upstream per model id, so affinity is new behaviour rather than a
+    configuration flag.</p>
+
+    <p><strong>And the honest comparison is the reason this is deferred rather
+    than queued:</strong> §3 is expected to buy 500–650 tok/s on four cards for
+    the price of one restart, while §6 buys 660–750 for four more cards plus a
+    routing feature. Per card, DSpark wins outright.</p>
+
+    <h2 id="s7">§7 — The order, and what the whole plan is expected to be worth</h2>
+
+    <img src="/imas-ambix/figures/dsv41-serve-tuning-for-concurrency/throughput-ladder.svg"
+         alt="Horizontal range chart of expected aggregate output. Four cards today: 330 tok/s sustained, 377 peak, measured. Four cards with DSpark: 500 to 650 expected. Eight cards as two TP4 replicas: 660 to 750, twice the cards for less than DSpark buys. Eight cards with both: 1000 to 1300, marked as inference on inference. One TP8 replica on eight cards: about 370, refused.">
+
+    <table>
+      <thead>
+        <tr><th>#</th><th>Change</th><th>Restart</th><th>Aggregate</th><th>Per worker</th><th>Confidence</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>—</td><td>Today, repaired lane</td><td>—</td><td>330 sustained / 377 peak</td><td>27.0 median</td><td><strong>measured</strong></td></tr>
+        <tr><td>1</td><td>DSpark speculative decoding</td><td>A</td><td><strong>500–650</strong></td><td><strong>40–55</strong></td><td>acceptance measured on V4-Flash; never yet started on V4.1</td></tr>
+        <tr><td>2</td><td><code>hicache_ratio</code> 8.0 &#8594; 2.0</td><td>A</td><td>no change</td><td>no change</td><td>measured write-only: 100,308 writes, 56 reads</td></tr>
+        <tr><td>3</td><td><code>max_total_tokens</code> 4M &#8594; 8M</td><td>B</td><td>no change today</td><td>no change today</td><td>removes a bound at ~50 concurrent, read live at 53% / 27</td></tr>
+        <tr><td>4</td><td>Two TP4 replicas on eight cards</td><td>deferred</td><td>660–750</td><td>unchanged at best</td><td>gated on session-affinity routing</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>The answer to "what are the potential gains" is one number with
+    one caveat: about 1.5–2&#215; aggregate and 1.5–2&#215; per worker, all of it
+    from §3, and none of it certain until DSpark is seen to generate a token on
+    this checkpoint.</strong> Levers 2 and 3 are worth pulling and are expected
+    to change throughput by nothing — lever 2 gives back 258 GB of host RAM that
+    a read-free cache is holding, and lever 3 removes a pool bound the lane is
+    already halfway to. Presenting either as a throughput gain would be
+    dishonest, and presenting §6's 660–750 as the ceiling would omit that it
+    costs twice the cards for less than §3.</p>
+
+    <p><strong>What is not claimed:</strong> the compounded 1,000–1,300 tok/s on
+    the figure's dashed row is inference multiplied by inference and belongs in no
+    decision. No figure here has been measured on V4.1 with DSpark running,
+    because that has never happened.</p>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+      <div class="r-dec" data-key="restart-grouping" data-choice="two-restarts" data-by="reckon-create" data-when="2026-09-17">
+        <p class="r-dec-q">Do all three configuration levers ride one restart, or does the device pool wait for a second?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt chosen" data-value="two-restarts">two restarts — DSpark with the host-tier cut, pool second</button>
+          <button class="r-opt" data-value="one-restart">one restart — everything at once</button>
+        </p>
+        <p class="r-dec-rat">Locked from the record rather than from preference, because the two candidate changes compete for the same memory and one of them allocates lazily. DSpark asks about 12 GiB per card and the pool doubling about 10 GB per card, both device-side, against 52.04 GB free — so they fit on paper with roughly 30 GB spare. But the DSpark workspace is allocated at generation time outside mem_fraction_static, so its real footprint is unknown until a token is generated, and a lazily-allocated workspace meeting a just-doubled pool is the exact combination that has killed three serves on this node. A combined restart that dies on first generation also cannot say which change caused it. Lever 2 is host-side, frees 258 GB, confounds nothing and is a precondition for the eight-card option, so it rides with DSpark at no risk. Lever 3 is then sized from a measured number instead of an estimate. The cost of this choice is one extra restart window, which section 2 establishes may not require downtime at all.</p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+      <article class="r-fu" data-id="f-dsv41tune-01" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-09-17" data-recommends-skill="/reckon-ship dsv41-serve-tuning-for-concurrency" data-resolved-at="" data-resolved-by="">
+        <h4 class="r-fu-title">Land restart A — DSpark plus the host-tier cut — through a rotation if four cards are free, and prove it with a real generation</h4>
+        <div class="r-fu-body"><p><strong>Check the card ledger before scheduling anything.</strong> §2's finding is that the restart probably needs no quiet window: a four-card rotation on a spare port is supported, the equal-width tie-break in <code>_preferred_owner</code> resolves toward the incoming engine, and the cutover costs 460 s of overlap rather than any downtime. It needs four free cards. At the time of writing the node holds the 4-card serve plus a 2-card nova job, leaving 2 — so read <code>squeue -w 98dci4-gpu-0003</code> first, and fall back to a coordinated eight-minute dispatch hold with the efit and nova sessions only if the cards are not there.</p><p><strong>Restart A is DSpark plus <code>hicache_ratio = 2.0</code> plus <code>memory = "480G"</code>, and nothing else.</strong> The pool stays at 4M by decision — see the locked restart-grouping decision; do not fold §4's lever 3 in.</p><p><strong>Readiness is not the measure.</strong> DSpark's workspace allocates lazily at generation, so the acceptance test is a real multi-hundred-token completion, and the numbers to record are draft acceptance rate, mean accept length, device free memory <em>after</em> the workspace has allocated, and per-worker plus aggregate output at a stated concurrency width. The rollback to the committed profile is written down before the restart, not improvised after it. If DSpark refuses to start on this checkpoint a second time, that is a real outcome: record the memory figures beside the refusal and leave lever 2 in place.</p></div>
+        <pre class="r-fu-prompt">/reckon-ship dsv41-serve-tuning-for-concurrency</pre>
+      </article>
+    </section>
+
+    <section data-reckon="gates" id="gates" class="r-gates">
+      <h2><span class="sec">§</span> Evidence gates</h2>
+      <div class="r-gate" data-id="g-session-affinity" data-section="s6" data-gated-sections="s6" data-status="open" data-verdict="">
+        <h4 class="r-gate-measure">The router pins a conversation to one replica for the life of that conversation, demonstrated against two concurrently serving engines advertising the same model id, with per-replica prefix hit rate recorded for a multi-turn client.</h4>
+        <p class="r-gate-required-evidence">Per-replica prefix-cache hit rate across at least three turns of one conversation while both replicas are healthy, showing reuse on the pinned replica and no cold prefill caused by replica switching. A two-replica serve must not be launched before this exists: without affinity each replica caches only what it served, which reproduces the 0%-reuse condition the router repair just removed, at twice the card cost.</p>
+      </div>
+    </section>
+
+  </main>
+</body>
+</html>

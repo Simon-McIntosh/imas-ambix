@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 300" width="760" height="300" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
+  <g fill="#1a1a1c" font-size="13">
+    <text x="20" y="24" font-size="14" font-weight="600">Eight H200 NVL are two NVLink islands, not one fabric</text>
+    <text x="20" y="41" font-size="11.5" fill="#5f6368">The bridge joins four cards; the two bridged groups reach each other over PCIe Gen5. Measured on this node as NV6 within a group.</text>
+
+    <!-- ===== left panel: TP8 ===== -->
+    <text x="30" y="76" font-weight="600">One TP8 replica &#8212; refused</text>
+    <g>
+      <!-- island 1 -->
+      <rect x="30" y="92" width="130" height="46" fill="none" stroke="#c9ccd1"/>
+      <g font-size="11" text-anchor="middle" fill="#1a1a1c">
+        <rect x="38" y="104" width="24" height="22" fill="#eef2ff" stroke="#c7d2fe"/><text x="50" y="119">0</text>
+        <rect x="66" y="104" width="24" height="22" fill="#eef2ff" stroke="#c7d2fe"/><text x="78" y="119">1</text>
+        <rect x="94" y="104" width="24" height="22" fill="#eef2ff" stroke="#c7d2fe"/><text x="106" y="119">2</text>
+        <rect x="122" y="104" width="24" height="22" fill="#eef2ff" stroke="#c7d2fe"/><text x="134" y="119">3</text>
+      </g>
+      <text x="95" y="152" font-size="11" fill="#5f6368" text-anchor="middle">NVLink bridge</text>
+      <!-- island 2 -->
+      <rect x="200" y="92" width="130" height="46" fill="none" stroke="#c9ccd1"/>
+      <g font-size="11" text-anchor="middle" fill="#1a1a1c">
+        <rect x="208" y="104" width="24" height="22" fill="#eef2ff" stroke="#c7d2fe"/><text x="220" y="119">4</text>
+        <rect x="236" y="104" width="24" height="22" fill="#eef2ff" stroke="#c7d2fe"/><text x="248" y="119">5</text>
+        <rect x="264" y="104" width="24" height="22" fill="#eef2ff" stroke="#c7d2fe"/><text x="276" y="119">6</text>
+        <rect x="292" y="104" width="24" height="22" fill="#eef2ff" stroke="#c7d2fe"/><text x="304" y="119">7</text>
+      </g>
+      <text x="265" y="152" font-size="11" fill="#5f6368" text-anchor="middle">NVLink bridge</text>
+      <!-- pcie crossing -->
+      <path d="M160 108 L200 108" stroke="#dc2626" stroke-width="2"/>
+      <path d="M200 122 L160 122" stroke="#dc2626" stroke-width="2"/>
+      <path d="M196 104 L200 108 L196 112" fill="none" stroke="#dc2626" stroke-width="2"/>
+      <path d="M164 118 L160 122 L164 126" fill="none" stroke="#dc2626" stroke-width="2"/>
+      <text x="180" y="176" font-size="11.5" fill="#dc2626" text-anchor="middle">PCIe Gen5</text>
+      <text x="180" y="192" font-size="11.5" fill="#dc2626" text-anchor="middle">crossed twice per layer</text>
+      <text x="30" y="222" font-size="11.5" fill="#5f6368">Every all-reduce in the tensor-parallel group leaves</text>
+      <text x="30" y="238" font-size="11.5" fill="#5f6368">NVLink and comes back. One model, one prefix cache,</text>
+      <text x="30" y="254" font-size="11.5" fill="#5f6368">and a slower token than four cards produce.</text>
+    </g>
+
+    <line x1="375" y1="60" x2="375" y2="270" stroke="#e8eaed"/>
+
+    <!-- ===== right panel: 2 x TP4 ===== -->
+    <text x="405" y="76" font-weight="600">Two TP4 replicas &#8212; the option worth costing</text>
+    <g>
+      <rect x="405" y="92" width="130" height="46" fill="none" stroke="#c9ccd1"/>
+      <g font-size="11" text-anchor="middle">
+        <rect x="413" y="104" width="24" height="22" fill="#eef2ff" stroke="#c7d2fe"/><text x="425" y="119">0</text>
+        <rect x="441" y="104" width="24" height="22" fill="#eef2ff" stroke="#c7d2fe"/><text x="453" y="119">1</text>
+        <rect x="469" y="104" width="24" height="22" fill="#eef2ff" stroke="#c7d2fe"/><text x="481" y="119">2</text>
+        <rect x="497" y="104" width="24" height="22" fill="#eef2ff" stroke="#c7d2fe"/><text x="509" y="119">3</text>
+      </g>
+      <text x="470" y="152" font-size="11.5" font-weight="600">replica A</text>
+      <rect x="575" y="92" width="130" height="46" fill="none" stroke="#c9ccd1"/>
+      <g font-size="11" text-anchor="middle">
+        <rect x="583" y="104" width="24" height="22" fill="#eef2ff" stroke="#c7d2fe"/><text x="595" y="119">4</text>
+        <rect x="611" y="104" width="24" height="22" fill="#eef2ff" stroke="#c7d2fe"/><text x="623" y="119">5</text>
+        <rect x="639" y="104" width="24" height="22" fill="#eef2ff" stroke="#c7d2fe"/><text x="651" y="119">6</text>
+        <rect x="667" y="104" width="24" height="22" fill="#eef2ff" stroke="#c7d2fe"/><text x="679" y="119">7</text>
+      </g>
+      <text x="640" y="152" font-size="11.5" font-weight="600">replica B</text>
+      <!-- router -->
+      <rect x="500" y="186" width="110" height="26" fill="#ffffff" stroke="#2563eb"/>
+      <text x="555" y="203" font-size="11.5" text-anchor="middle" fill="#2563eb">router, :18802</text>
+      <path d="M525 186 L470 160" stroke="#2563eb" stroke-width="1.5"/>
+      <path d="M585 186 L640 160" stroke="#2563eb" stroke-width="1.5"/>
+      <text x="405" y="238" font-size="11.5" fill="#5f6368">No cross-island traffic, and twice the device pool. Each</text>
+      <text x="405" y="254" font-size="11.5" fill="#5f6368">replica caches only what it served, so the router must</text>
+      <text x="405" y="270" font-size="11.5" fill="#5f6368">pin a conversation to one replica or reuse falls to zero.</text>
+    </g>
+  </g>
+</svg>
