@@ -1680,10 +1680,11 @@ imas-ambix agent serve deepseek-v4-flash-2x   # 2× GPUs — share node with oth
 
 **Profile:** `deepseek-v4-1-flash` — SGLang, TP=4/EP=4 on four H200, MXFP4+FP8
 checkpoint, 512,000-token per-request context, keyless port 18810. The 183.1 GiB
-of Engram tables live in host RAM; the 4,000,000-token device pool is pinned
-rather than auto-sized. The committed tuning carries DSpark speculative decoding
-(`speculative_algorithm = "DSPARK"`, `speculative_dspark_block_size = 5`),
-`hicache_ratio = 2.0` and `memory = "480G"`.
+of Engram tables live in host RAM; the device pool is pinned rather than
+auto-sized, at `max_total_tokens = 8000000` (8,000,000 tokens). The committed
+tuning carries DSpark speculative decoding (`speculative_algorithm = "DSPARK"`,
+`speculative_dspark_block_size = 5`), `hicache_ratio = 2.0` and
+`memory = "600G"`.
 
 #### Launch from the main checkout, never from a generated worktree
 

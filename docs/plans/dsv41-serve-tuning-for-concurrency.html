@@ -577,6 +577,43 @@
     triggered. Full record:
     <a href="/imas-ambix/evidence/archive/dsv41-serve-tuning-for-concurrency-landed#pool-relaunch">pool relaunch evidence</a>.</p>
 
+    <h3>Landing record — the serving recipe catches up with the committed pair</h3>
+
+    <p><strong>Two paragraphs of the recipe prose still described the
+    superseded pair after the profile had been raised.</strong> The DeepSeek V4.1
+    deployment section of <code>imas_ambix/agent/AGENTS.md</code> read "the
+    <code>4,000,000</code>-token device pool is pinned rather than auto-sized",
+    naming no key, and closed on <code>hicache_ratio = 2.0</code> and
+    <code>memory = "480G"</code>. Both figures predate the pool increment, so a
+    reader following the deployment section would have expected a host request
+    and a device pool the committed profile does not set — the same drift the
+    rollback instruction carried, and it is the deployment section rather than a
+    comment, which is the text a deployment reads.</p>
+
+    <table>
+      <thead><tr><th>Setting</th><th>Recipe said</th><th>Committed profile</th></tr></thead>
+      <tbody>
+        <tr><td><code>max_total_tokens</code></td><td>4,000,000 (unnamed)</td><td><code>8000000</code></td></tr>
+        <tr><td><code>memory</code></td><td><code>"480G"</code></td><td><code>"600G"</code></td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>The fix is prose only, and the profile is not touched.</strong>
+    The paragraph now names the key at the value it carries —
+    <code>max_total_tokens = 8000000</code> (8,000,000 tokens) — and
+    <code>memory = "600G"</code> beside <code>hicache_ratio = 2.0</code>, the
+    DSpark pair unchanged. No source file and no live setting moved; the
+    committed profile already carried both values, so the documentation moves to
+    the same contract the launch-contract tests were repointed at.</p>
+
+    <p><strong>The measure is the gate's own grep.</strong>
+    <code>grep -nE "4000000|4,000,000|480G" imas_ambix/agent/AGENTS.md</code>
+    returns nothing, against two hits at the base revision (lines 1683 and 1686),
+    and <code>grep -nE "8000000|8,000,000|600G"</code> returns the two rewritten
+    lines. The superseded word <code>4M</code> appears nowhere in the file in
+    either spelling. Full record:
+    <a href="/imas-ambix/evidence/archive/dsv41-serve-tuning-for-concurrency-landed#recipe-prose-drift">recipe prose evidence</a>.</p>
+
     <h2 id="s4a">§4a — How many restarts this is, and what each one measures</h2>
 
     <p><strong>Three expected, four if a result is ambiguous, five if the
