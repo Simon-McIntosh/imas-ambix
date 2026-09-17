@@ -26,9 +26,9 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-17">
-<meta name="plan-version" content="12">
-<meta name="plan-commits" content="e808a8e3d89816a334f167b05eb4986afde532fd">
-<meta name="plan-artifacts" content="imas_ambix/agent/profiles/deepseek-v4-1-flash.toml,imas_ambix/agent/decode_bins.py,docs/evidence/archive/dsv41-serve-tuning-for-concurrency-landed.html">
+<meta name="plan-version" content="22">
+<meta name="plan-commits" content="e808a8e3d89816a334f167b05eb4986afde532fd,3d0a341742c0cd0315232d95ba916971670b078a,483734b74ab42c2ad8f5b80c0dd18e3f28f7409e,c164d5d55cfc8f6ee7487a2562baa8ce7c0217e6,f779e28de7543108d83126be755b49d0dd3a9f9c">
+<meta name="plan-artifacts" content="imas_ambix/agent/profiles/deepseek-v4-1-flash.toml,docs/evidence/archive/dsv41-serve-tuning-for-concurrency-landed.html,/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/dsv41-tune/reuse-map.md,/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/dsv41-tune/restart-one-launch.md">
 
 <meta name="plan-version" content="21">
 <meta name="plan-commits" content="e808a8e3d89816a334f167b05eb4986afde532fd,3d0a341742c0cd0315232d95ba916971670b078a,483734b74ab42c2ad8f5b80c0dd18e3f28f7409e,c164d5d55cfc8f6ee7487a2562baa8ce7c0217e6,f779e28de7543108d83126be755b49d0dd3a9f9c">
@@ -1198,6 +1198,9 @@
 </div>
 <div class="r-comment" data-section="s7" data-id="c-20260917-high-width-closed" data-who="reckon-ship" data-when="2026-09-17T10:48:00Z">
     <div class="r-comment-body">HIGH WIDTH CLOSED, on eight consecutive bins spanning the lane's actual operating point. Widths 21 through 28 read 1.03, 0.95, 1.01, 0.98, 0.97, 0.97, 0.95 and 0.99 against interpolated baselines, with 21 to 24 carrying 20, 38, 27 and 27 intervals and 25 to 28 carrying 11, 15, 18 and 9. The lane's own duty cycle peaks at a median of 29 concurrent, so this band IS the operating point rather than an extrapolation toward it. Three claims are now settled and one is retired. Settled: the speculative gain decays monotonically from 3.13x at a single stream to parity by width 21; it holds parity rather than inverting, across eight widths and roughly 170 intervals; and it does not recover at high width. Retired: the refit's predicted recovery to 1.93x at width 34 - the measured band sits either side of unity with no upward trend at all, and the two isolated outliers, 0.77x at width 29 on n=6 and 0.34x at width 31 on n=1, are thin bins rather than the onset of a decline. So the final shape is a decay to parity and a plateau there, which is neither model's prediction: the original expected a trough at 8 and a recovery, the refit expected a shallow dip and a recovery, and the lane does neither. A separate reading that matters for section 4: at width 30 the device pool is at 79 percent of 4,000,000 tokens, which puts the binding point near 38 concurrent and is within the duty cycle's own peak. That is the strongest justification yet for the pool doubling - not headroom for a hypothetical width, but a bound the lane reaches on an ordinary evening.</div>
+</div>
+<div class="r-comment" data-section="§4b" data-id="c-run-r-20260917T094626859296-decode-log-harvester" data-who="reckon-ship" data-when="2026-09-17T10:48:04.045Z">
+    <div class="r-comment-body"><p>Reusable Decode-batch harvester landed as imas_ambix/agent/decode_bins.py with 13 tests: per-width interval counts, median generation rate and median accept length, each split by an ascending or descending limb derived from the width trajectory rather than from the line. Finding: the descending median exceeds the ascending one at ALL 20 widths carrying both limbs, from width 3 upward - a large consistent hysteresis whose mechanism the harvest deliberately does not claim to settle</p></div>
 </div>
 </section>
 </main>
