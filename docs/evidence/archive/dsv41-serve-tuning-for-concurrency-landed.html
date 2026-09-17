@@ -323,6 +323,83 @@
     <p>The plan's §8 carries the matching landing record. The plan-version and
     plan-modified meta lines were left untouched.</p>
 
+  <h2 id="pool-increment-profile">Device-pool increment — profile settings and
+  host-tier arithmetic</h2>
+
+    <p><strong>The change is one scalar, and the three settings beside it are
+    unchanged.</strong> <code>max_total_tokens</code> moves
+    <strong>4,000,000 &#8594; 8,000,000</strong> in
+    <code>imas_ambix/agent/profiles/deepseek-v4-1-flash.toml</code>; the
+    committed file still reads <code>speculative_algorithm = "DSPARK"</code>,
+    <code>speculative_dspark_block_size = 5</code> and
+    <code>hicache_ratio = 2.0</code>. Commit <code>b557002</code>.</p>
+
+    <p><strong>The pre-change state, read rather than assumed.</strong> At the
+    base revision <code>bd3047c</code> the profile read
+    <code>max_total_tokens = 4000000</code> and the generated launch command was
+    recorded emitting <code>--max-total-tokens 4000000</code> with
+    <code>--mem=480G</code>. Against the committed profile, the generated
+    command now carries:</p>
+
+    <pre><code>--max-total-tokens 8000000 --enable-hierarchical-cache \
+--hicache-ratio 2.0 --hicache-write-policy write_through_selective \
+--hicache-mem-layout page_first ... --speculative-algorithm DSPARK \
+--speculative-dspark-block-size 5</code></pre>
+
+    <p>with the sbatch header unchanged at <code>#SBATCH --mem=480G</code>. The
+    dry run resolves the profile from the worktree that generated it, so no job
+    was submitted and the kernel-patch bind path it prints is that worktree's —
+    the launch itself is specified to come from the main checkout.</p>
+
+    <p><strong>The host tier doubles with the device pool, because
+    <code>hicache_ratio</code> multiplies the device pool.</strong> From the
+    per-rank figures the profile already carried — five host pools per rank
+    measuring 10.76&#160;GB per rank per unit of ratio on the 4M pool, so
+    21.51&#160;GB/rank and 86.0&#160;GB across four ranks at ratio 2 — the
+    doubled pool asks 172.1&#160;GB across four ranks. The increment is
+    therefore <strong>86.0&#160;GB = 80.1&#160;GiB</strong> of host RAM.</p>
+
+    <table>
+      <thead><tr><th>Host-tier term</th><th>At the 4M pool</th><th>At 8M</th></tr></thead>
+      <tbody>
+        <tr><td>Engram host tables (pinned, four ranks)</td><td>192 GiB</td><td>192 GiB</td></tr>
+        <tr><td>HiCache host tier at ratio 2</td><td>80.1 GiB</td><td><strong>160.3 GiB</strong></td></tr>
+        <tr><td>Process, pinned transfer, page-cache margin</td><td>207.9 GiB</td><td><strong>127.7 GiB</strong></td></tr>
+        <tr><td>Against the 480G request</td><td>fits</td><td><strong>fits, 127.7 GiB left</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Verdict: <code>memory = "480G"</code> holds; no new value is
+    set.</strong> <code>480 &#8722; 192 &#8722; 160.3 = 127.7&#160;GiB</code> left
+    for process RSS, pinned-transfer buffers and the weight-loading page cache
+    across four ranks. The caveat travels with the verdict: this margin is the
+    one term no measurement bounds from either side, and the request's own
+    original breakdown recorded the HiCache component as <q>roughly 49 GiB</q>
+    from a per-token estimate where the enumerated pools measure 80.1&#160;GiB —
+    so the request was already about 31&#160;GiB light on that term at the 4M
+    pool and ran. The response to an OOM kill after the pool doubles is to read
+    <code>MaxRSS</code> and raise the request then, never pre-emptively.</p>
+
+    <table>
+      <thead><tr><th>Gate</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td>Committed profile</td><td><code>max_total_tokens = 8000000</code>; DSPARK, block size 5, <code>hicache_ratio 2.0</code> unchanged</td></tr>
+        <tr><td>Generated launch command</td><td>emits <code>--max-total-tokens 8000000</code> with <code>--hicache-ratio 2.0</code> and <code>--speculative-algorithm DSPARK</code></td></tr>
+        <tr><td>sbatch memory line</td><td><code>#SBATCH --mem=480G</code> — unchanged, per the verdict above</td></tr>
+        <tr><td>Focused tests</td><td><code>uv run --no-sync pytest tests/test_agent_pool_and_hicache.py tests/test_agent_evaluation_pool.py</code> — <strong>4 failed, 3 passed</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>All four failures are stale assertion values, in files outside
+    this node's write scope, and none of them is a behaviour defect.</strong>
+    Each of the two files pins the superseded 4M contract for this same profile
+    — <code>max_total_tokens == 4_000_000</code> and
+    <code>"--max-total-tokens 4000000"</code> — so they fail on the committed
+    value by construction. They are reported as a follow-on rather than edited
+    here: the same shape as the contract this profile's earlier settings landing
+    waived, and they need the assertion values moved to <code>8_000_000</code>
+    and <code>"--max-total-tokens 8000000"</code>.</p>
+
   </main>
 </body>
 </html>

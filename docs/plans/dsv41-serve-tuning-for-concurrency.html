@@ -400,6 +400,84 @@
     value justified by restart A's measured free device memory, with pool
     occupancy re-read at a stated width afterwards.</p>
 
+    <h3>Landing record — the device pool doubles, and the memory request does
+    not have to</h3>
+
+    <p><strong>Lever 3 is committed as a profile change; the launch is
+    not.</strong> <code>max_total_tokens</code> moves
+    <strong>4,000,000 &#8594; 8,000,000</strong> in
+    <code>imas_ambix/agent/profiles/deepseek-v4-1-flash.toml</code>, with
+    <code>speculative_algorithm = "DSPARK"</code>,
+    <code>speculative_dspark_block_size = 5</code> and
+    <code>hicache_ratio = 2.0</code> all unchanged, whichever launch this
+    profile next drives. Commit <code>b557002</code>.</p>
+
+    <p><strong>The pre-change state was read rather than assumed.</strong> The
+    base revision's profile read <code>max_total_tokens = 4000000</code>, and
+    the generated launch command for that revision was recorded above as
+    emitting <code>--max-total-tokens 4000000</code> with <code>--mem=480G</code>.
+    Against the committed profile the generated command now emits
+    <code>--max-total-tokens 8000000</code> alongside
+    <code>--hicache-ratio 2.0</code>,
+    <code>--speculative-algorithm DSPARK</code> and
+    <code>--speculative-dspark-block-size 5</code>, and the header still reads
+    <code>#SBATCH --mem=480G</code>.</p>
+
+    <p><strong>The host tier is the same lever's other half, and this is the
+    part a device-side reading would miss.</strong> <code>hicache_ratio</code>
+    multiplies the <em>device</em> pool, so doubling the pool doubles the host
+    tier at unchanged ratio. From the pool-by-pool figures the profile already
+    carried — five host pools per rank measuring
+    <strong>10.76&#160;GB per rank per unit of ratio on the 4M pool</strong>,
+    so 21.51&#160;GB/rank and 86.0&#160;GB across four ranks at ratio 2 — the
+    doubled pool asks <strong>172.1&#160;GB across four ranks</strong>, an
+    increment of <strong>86.0&#160;GB = 80.1&#160;GiB</strong> of host RAM.</p>
+
+    <table>
+      <thead><tr><th>Host-tier term</th><th>At the 4M pool</th><th>At 8M</th></tr></thead>
+      <tbody>
+        <tr><td>Engram host tables (pinned, four ranks)</td><td>192 GiB</td><td>192 GiB</td></tr>
+        <tr><td>HiCache host tier at ratio 2</td><td>80.1 GiB</td><td><strong>160.3 GiB</strong></td></tr>
+        <tr><td>Process, pinned transfer, page-cache margin</td><td>207.9 GiB</td><td><strong>127.7 GiB</strong></td></tr>
+        <tr><td>&#8212; against the 480G request</td><td>fits</td><td><strong>fits, 127.7 GiB left</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Verdict: <code>memory = "480G"</code> holds and is left
+    unchanged.</strong> <code>480 &#8722; 192 &#8722; 160.3 = 127.7&#160;GiB</code>
+    remains for process RSS, pinned-transfer buffers and the weight-loading page
+    cache across four ranks. Stated with its caveat rather than buried: that
+    remainder is the one term no measurement bounds from either side — the
+    request's own original breakdown recorded the HiCache component as
+    <q>roughly 49 GiB</q> from a per-token estimate where the enumerated pools
+    measure 80.1&#160;GiB, so the request was already 31&#160;GiB light on that
+    term at the 4M pool and ran. The instruction if this serve is OOM-killed
+    after the pool doubles is therefore to read <code>MaxRSS</code> and raise
+    the request then, not to raise it pre-emptively: every GiB held here is a
+    GiB the node cannot lend to a co-running job, which is the whole point of
+    lever 2. Both the arithmetic and the verdict are committed in the profile
+    beside the two keys they justify, not only here.</p>
+
+    <p><strong>Suite delta is 4, and all four are assertion values in files
+    outside this node's write scope.</strong>
+    <code>tests/test_agent_pool_and_hicache.py</code> (two) and
+    <code>tests/test_agent_evaluation_pool.py</code> (two) each pin
+    <code>max_total_tokens == 4_000_000</code> and
+    <code>--max-total-tokens 4000000</code> for this profile, so they fail
+    against the committed value and read <code>4 failed, 3 passed</code>. They
+    are the same contract the earlier profile-settings landing waived, and they
+    are recorded as a follow-on rather than edited here.</p>
+
+    <p><strong>What is <em>not</em> done, and it is the launch.</strong> The
+    profile carries the doubled pool; no serve has started with it. The
+    measurement this section asks for — pool occupancy and per-card free memory
+    at a stated width — needs the 00:00–03:00&#160;UTC window, and expected
+    throughput change is zero. The measure is occupancy plus the absence of a
+    regression against restart 1's per-width medians from
+    <code>decode_bins.py</code>, <em>split by limb, never pooled</em>. Full
+    record:
+    <a href="/imas-ambix/evidence/archive/dsv41-serve-tuning-for-concurrency-landed#pool-increment-profile">pool increment evidence</a>.</p>
+
     <h2 id="s4a">§4a — How many restarts this is, and what each one measures</h2>
 
     <p><strong>Three expected, four if a result is ambiguous, five if the
