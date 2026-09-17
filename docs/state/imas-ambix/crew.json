@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-17T16:09:37",
+  "updated": "2026-09-17T16:14:00",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -38221,6 +38221,216 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260917T100105368173-cost-model-refit",
+        "plan": "dsv41-serve-tuning-for-concurrency",
+        "section": "\u00a73",
+        "node": "cost-model-refit",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 782,
+                "cached_input_tokens": 481064,
+                "input_tokens": 481848,
+                "output_tokens": 789,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 482637,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "11e65032-39c1-40fd-943f-d18ea21d44df",
+            "session_id": "dsv41-tune-20260917"
+          },
+          "done_when": "A report and an SVG figure at the write paths state: the accept length actually measured at each width against the 3.31 the model assumed; refitted values for the fixed floor and the bandwidth slope in ms per pass = floor + slope x GB of expert weights read, fitted only over widths carrying at least 20 decode intervals; a predicted-versus-measured row for every such width with its residual; and an explicit statement of whether the refitted model still predicts a decline at high width and at which width it first falls below 1.2x. The figure plots measured against both the original and the refitted prediction on one axis, with interval counts annotated so a thinly-sampled width is visibly thin. Every number traces to /home/ITER/mcintos/Code/imas-ambix/deepseek-v4-1-flash-1272783.log, and the report names which widths are too thin to fit and are excluded rather than silently averaged",
+          "estimated_hours": 1.0,
+          "goal": "One refit of the decode cost model from the measured accept length and measured per-width throughput, replacing the assumed 3.31 its published prediction was built on",
+          "id": "cost-model-refit",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-17T10:01:06Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no 'binding_observed'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260917T100105368173-cost-model-refit/manifest.md",
+          "plan": "dsv41-serve-tuning-for-concurrency",
+          "requested_backend": null,
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a73",
+          "spec_level": "guided",
+          "time_budget": "45m",
+          "token_budget": null,
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/dsv41-tune/cost-model-refit.md",
+            "docs/figures/dsv41-serve-tuning-for-concurrency/cost-model-refit.svg",
+            "docs/evidence/archive/dsv41-serve-tuning-for-concurrency-landed.html",
+            "docs/plans/dsv41-serve-tuning-for-concurrency.html"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "session-2aaa9a83a210fa1b777d",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "high",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "worktree-full",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-17T10:01:22Z",
+        "completed_at": "2026-09-17T11:28:07.157Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 5194,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 5205,
+        "stalled": false,
+        "time_budget": "45m",
+        "base_sha": "f4ec9d0a41a652f4e9ef32a2686f59868c3d35d8",
+        "commits": [
+          "aff82de206f6d10df030537c07bdabc796ef8d14",
+          "e49a48f456321e72b3644c705a5d4d7b4579a601"
+        ],
+        "changed_lines": {
+          "added": 0,
+          "removed": 0,
+          "files": 0
+        },
+        "tests_added": null,
+        "gate": "not-run",
+        "gate_check": null,
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260917T100105368173-cost-model-refit/manifest.md",
+        "scope_changed": false,
+        "session_id": "2a7ec443-3422-4e04-95df-a12ebb85c0d1",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 12402292,
+            "input_tokens_cumulative": 12402292,
+            "output_tokens": 49567,
+            "output_tokens_cumulative": 49567,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-17T11:28:07.157Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": {
+          "status": "parsed",
+          "scores": {
+            "durability": 13,
+            "evidence": 18,
+            "fit": 18,
+            "goal_fidelity": 19,
+            "scope_discipline": 20
+          },
+          "absent": [],
+          "total": 88
+        },
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 12569991,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 3909.783,
+          "generated_tokens": 56326,
+          "generation_seconds": 3840.522,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 34.7,
+          "machine_seconds": 69.261,
+          "peak_input_tokens": 166399,
+          "tokens_per_second": 14.67,
+          "wall_tokens_per_second": 14.41
+        },
+        "follow_on_paths": [
+          "1.5"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "resume",
+        "attempt": 2,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/dsv41-tune-20260917/cost-model-refit",
+          "session_id": "2a7ec443-3422-4e04-95df-a12ebb85c0d1",
+          "session_source": "pointer",
+          "retained_at": "2026-09-17T11:28:07.157Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "tool_steps": 33.0,
+        "orientation_input_tokens": 2923977.0,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -38281,6 +38491,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 688
+    "_version": 689
   }
 }
