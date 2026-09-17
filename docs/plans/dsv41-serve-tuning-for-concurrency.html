@@ -337,6 +337,24 @@
     relaunched. Full record:
     <a href="/imas-ambix/evidence/archive/dsv41-serve-tuning-for-concurrency-landed#restart-one-launch">launch evidence</a>.</p>
 
+    <p><strong>Landing record — corrected live launch and width one.</strong>
+    Main commit <code>e3adfca</code> launched as job <code>1272783</code>, loaded
+    the bundled DSpark head on all four ranks and reached ready in
+    <strong>485 s</strong>. A real 384-token-cap completion returned HTTP 200 in
+    30.2 s and the endpoint remained healthy; width-one decode measured
+    <strong>108.465 tok/s median</strong>, <strong>3.055×</strong> the 35.5 tok/s
+    baseline, with 3.550 mean accept length and 51.0% mean acceptance. Loaded
+    free memory remained 30,581–30,789 MiB per card. A durable corroborating
+    response then recorded <code>finish_reason="length"</code> and
+    <strong>384 completion tokens</strong>. The primary gate is the measured
+    2,390 MiB/card idle-to-loaded allocation plus continued endpoint health;
+    the token receipt independently passes the ≥300-output-token bound. The
+    roughly 30 GB/card loaded margin covers the measured 10.10 GB/card pool
+    increment with about 20 GB spare at low width, to be re-read at width 24+.
+    The drafter's per-step cost is not exposed and cannot be separated from the
+    aggregate at any width. Full record:
+    <a href="/imas-ambix/evidence/archive/dsv41-serve-tuning-for-concurrency-landed#restart-one-launch">launch evidence</a>.</p>
+
     <h2 id="s4">§4 — Levers 2 and 3: give back host RAM, then buy device pool with what §3 leaves</h2>
 
     <p>These are one section because they are one argument about where memory
