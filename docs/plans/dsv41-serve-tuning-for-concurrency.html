@@ -355,6 +355,26 @@
     aggregate at any width. Full record:
     <a href="/imas-ambix/evidence/archive/dsv41-serve-tuning-for-concurrency-landed#restart-one-launch">launch evidence</a>.</p>
 
+    <p><strong>Landing record — cost-model refit.</strong> Commit
+    <code>e49a48f</code> refits the decode cost model from this serve's own
+    decode intervals at a fixed timestamp cutoff (2026-09-17 12:08:20, 608
+    intervals, job <code>1272783</code>). The published
+    <code>ms = 17.8 + 0.257 × GB</code> becomes
+    <code>ms = 8.338 + 0.30370 × GB</code>, R-squared 0.963, fitted over the
+    nine widths carrying at least twenty decode intervals (1 to 9; widths 10
+    and 11 are too thin and are excluded rather than averaged). The measurement
+    that forced the change is <strong>accept length</strong>, assumed at 3.31
+    and measured 3.585 at width one, peaking at <strong>4.640 at width two,
+    then falling</strong> to 3.970 by width nine. The refit does not reproduce
+    the original model's collapse: it predicts a shallowest ratio of
+    <strong>1.312× at width 12.7</strong> and <strong>never falls below
+    1.2× at any width</strong>, where the original predicted 1.06× at width
+    eight. That high-width statement is extrapolation — this serve never
+    exceeded width eleven — and the fixed floor is <em>not</em> well identified
+    on this data (12.44 to -3.16 ms across width subsets) while the slope is
+    (0.267 to 0.356 ms/curve). Full record:
+    <a href="/imas-ambix/evidence/archive/dsv41-serve-tuning-for-concurrency-landed#cost-model-refit">refit evidence</a>.</p>
+
     <h2 id="s4">§4 — Levers 2 and 3: give back host RAM, then buy device pool with what §3 leaves</h2>
 
     <p>These are one section because they are one argument about where memory
