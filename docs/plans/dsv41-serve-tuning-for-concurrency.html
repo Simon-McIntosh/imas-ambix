@@ -26,7 +26,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-17">
-<meta name="plan-version" content="15">
+<meta name="plan-version" content="16">
 <meta name="plan-commits" content="e808a8e3d89816a334f167b05eb4986afde532fd,3d0a341742c0cd0315232d95ba916971670b078a,483734b74ab42c2ad8f5b80c0dd18e3f28f7409e,c164d5d55cfc8f6ee7487a2562baa8ce7c0217e6,f779e28de7543108d83126be755b49d0dd3a9f9c">
 <meta name="plan-artifacts" content="imas_ambix/agent/profiles/deepseek-v4-1-flash.toml,docs/evidence/archive/dsv41-serve-tuning-for-concurrency-landed.html,/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/dsv41-tune/reuse-map.md,/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/dsv41-tune/restart-one-launch.md">
 </head>
@@ -988,6 +988,78 @@
     at 1, 8 and 24+ together with the drafter's own per-step cost, and restart 2
     has either landed a larger pool sized from that measurement or been recorded
     as refused by it.</p>
+
+    <h2 id="s9">§9 — Two method findings from running this measurement, both of which cost something before they were named</h2>
+
+    <h3>A single draw from a noisy instrument is not a trend, and this lane produced three in ninety minutes</h3>
+
+    <p><strong>Three premature findings were reported and then withdrawn on
+    2026-09-17, all the same shape.</strong> They are recorded because the error
+    was not carelessness — each reading was correct, each was the best available
+    at the moment, and each was reported with its sample size stated:</p>
+
+    <table>
+      <thead><tr><th>Claim</th><th>Evidence it rested on</th><th>What it became</th></tr></thead>
+      <tbody>
+        <tr><td>"the predicted collapse is not appearing"</td><td>width 8 at <strong>n=2</strong>, reading 1.40×</td><td>n=19 reading 1.37×, n=24 reading 1.35× — the claim survived, but only after two reversals in between</td></tr>
+        <tr><td>"aggregate throughput is falling past width 7"</td><td>width 8 at <strong>n=11</strong> reading 308, widths 9 and 10 at n=2 and n=1</td><td>width 8 at n=24 reading 361 — the fall was an artefact of the bin</td></tr>
+        <tr><td>"the KV-pressure early-warning pair has appeared"</td><td><strong>one</strong> instantaneous gauge sample, hit rate 84.7% against occupancy 40%</td><td>99.8% at occupancy 42% — higher width, higher occupancy, no pressure</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>The third was the expensive one, and not because it was the most
+    wrong.</strong> The first two cost nothing but a correction, because they
+    were claims about this plan's own subject. The third was a
+    <em>diagnostic prior planted in three other fleets</em> — each was told to
+    read slow turns as the lane rather than as their own nodes, and each
+    accepted it. A width overshoot costs minutes; a wrong prior costs every
+    subsequent diagnosis in another session until something forces a re-test,
+    and nothing would have. <strong>Correct a propagated prior before correcting
+    anything that only affects your own record.</strong></p>
+
+    <p><strong>The operating rule this run adopted, stated so the next one does
+    not re-derive it:</strong> quote no width until it carries at least 20
+    intervals <em>and</em> its median has moved less than about 5% between two
+    successive reads. Above width 10 the scatter is much larger — adjacent
+    widths read 199 and 397 tok/s at n=4 and n=1 — so that band needs nearer 30.
+    For an instantaneous gauge, never report the first draw at all.</p>
+
+    <h3>A dispatch slot is not a unit of width, and only the engine can convert</h3>
+
+    <p><strong>Two fleets discovered this independently and from opposite
+    directions.</strong> One runs short graph-read nodes that occupy a slot
+    briefly and never sustain concurrency; another runs 90-to-180-minute nodes
+    that hold a slot for hours while sitting inside <code>srun</code> waiting on
+    a build, contributing nothing to the engine for those stretches. Same
+    conclusion: <strong>a fleet's dispatch count and this lane's decode width are
+    different quantities, and the ratio is a property of the work rather than a
+    constant.</strong></p>
+
+    <p><strong>The measurement was never wrong, but every forecast of it
+    was.</strong> Binning on the engine's own <code>#running-req</code> per
+    decode interval always measured true concurrency. What failed was predicting
+    that concurrency from fleet allocations — an arithmetic on a quantity that
+    does not exist, which produced ramp steps called against imagined widths.
+    Slot-based forecasting is retired; the engine is read instead.</p>
+
+    <p><strong>The asymmetry is the useful part, and the protocol follows from
+    it.</strong> The engine can see true concurrency and no fleet can see its own
+    contribution to it, so the division of labour is not negotiable: this lane
+    supplies the measurement, and what a peer fleet can usefully supply is
+    <strong>shape, declared at dispatch</strong> — node class, expected duration,
+    and whether the work is lane-bound or cluster-bound. Declared up front rather
+    than reconstructed afterwards, because reconstructing it means polling worker
+    streams, which is both expensive and the exact anti-pattern a transition
+    follower exists to remove. A fleet that says in advance "this one is a
+    read-only call-chain analysis with no build, sustaining width for its whole
+    life" has given the one fact the engine cannot produce.</p>
+
+    <p><strong>And an offer withdrawn is worth more than an instrument
+    fabricated.</strong> One coordinator offered live per-node compute-phase
+    marks, then retracted on finding it could only produce them by polling its
+    workers' streams, substituting post-hoc SLURM job ids and test wall times
+    from the manifests. Worse evidence, arriving later, and correct — where the
+    live version would have been a guess wearing a timestamp.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
