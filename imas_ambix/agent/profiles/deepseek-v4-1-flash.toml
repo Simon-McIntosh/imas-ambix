@@ -151,12 +151,22 @@ enable_metrics = true
 # halve the 32,768-token chunk to halve each transient prefill peak. This trades
 # some prefill rate for activation headroom; it does not alter the context cap.
 chunked_prefill_size = 16384
-# Keep at most 64 requests running in SGLang at once: this is twice the 32-way
-# load already known to work, but one quarter of the engine default 256 so its
-# scheduling structures leave burst headroom. Extra requests queue because the
-# engine has no maximum queued-request limit.
-max_running_requests = 64
-cuda_graph_max_bs_decode = 64
+# Cap running requests BELOW the pool's fill point and let the rest queue. The
+# 4M pool fills near 38-40 concurrent (79% full at width 30, implied 98,379
+# tokens per resident request), so 36 stays clear of eviction while sitting
+# above the 33-34 peak this lane has actually reached. Queueing costs nothing
+# in aggregate: throughput is FLAT from width 17 to 32 (4M slope +0.09 tok/s per
+# unit width, 95% CI spanning zero; both n>=20 fits negative), with queue depth
+# 0 at every interval in both pool configurations. So width above ~17 buys no
+# tokens, and an explicit bounded wait is strictly better than silent eviction
+# -- which in a prefill-dominated workload is expensive, because an evicted
+# prefix is re-prefilled.
+#
+# The graph ceiling matches the request cap because it cannot be exceeded once
+# max_running_requests binds, and CUDA graphs cost 5.74-5.84 GB per rank at a
+# ceiling of 64. Lowering it returns most of that to the workspace.
+max_running_requests = 36
+cuda_graph_max_bs_decode = 36
 # DSpark now has a measured loaded memory budget: with 23-27 requests running,
 # each card retained about 33 GB free against the workspace's ~12.9 GiB ask,
 # leaving roughly 20 GB after allocation. That supersedes the earlier refusal,
@@ -275,7 +285,23 @@ speculative_dspark_block_size = 5
 #   600  the floor plus margin for the load-time page cache the peak is made of
 # 600G also stays below Group A's 650G allocation, the ceiling that matters
 # here, so the raise does not strand a co-running job on memory.
-max_total_tokens = 8000000
+# REVERTED TO 4,000,000 on measured margin, not on the corruption question --
+# that closed separately: instances appear on both precision arms and both pool
+# sizes, so no configuration change correlates with them.
+#
+# The device pool is being traded for prefill workspace, because this lane is
+# prefill-dominated at 270 input tokens per output token and three serves have
+# already died on a workspace ask. Tightest free memory per card, from the
+# drain sidecar over the whole of each job:
+#
+#   4M pool (job 1272783)   20.72 GiB   2.05x the 10.11 GiB worst measured ask
+#   8M pool (job 1273074)   12.60 GiB   1.25x
+#
+# The second 4M bought concurrency the lane cannot convert into throughput, and
+# paid for it with the margin that long prefills draw on. At 4M the pool still
+# reads 83% full at width 32, which holds at the 33-34 peak observed, and the
+# request cap above keeps it clear of the fill point.
+max_total_tokens = 4000000
 # Keep evicted shared prefixes in the engine's pinned host tier instead of
 # recomputing them through the 284B-parameter forward path. In the pinned
 # image, DeepSeek-V4's hybrid cache rejects --hicache-size, so its host tier is
