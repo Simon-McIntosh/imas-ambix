@@ -344,21 +344,44 @@
 
     <h2 id="s7">§7 — Sequencing and scope boundaries</h2>
 
-    <p>§2 and §6 are disjoint in their write paths and may run together. §3 edits the same
-    recorder module as §2 and must follow it. §4 depends on the row shape §3 establishes.
-    §5 depends on the tiers §4 writes. §4, §5 and §6 each register a subcommand in
-    <code>cli.py</code>, so that file is serialised across them by the coordinator rather
-    than merged.</p>
+    <p><strong>Build and wiring are separate nodes, because conflating them serialises
+    work that has no dependency between it.</strong> Four of the five sections deliver a new
+    standalone module — the engine-family resolver, the node probes, the store and the
+    index — and each also needs a few lines wiring it into the recorder or the CLI. Only the
+    wiring collides: <code>serving_receipts.py</code> is claimed by three sections and
+    <code>cli.py</code> by three. Treating those collisions as dependencies makes a
+    five-deep chain out of work that is two deep.</p>
+
+    <p>So each section splits. Its <em>build</em> node writes and tests its own module
+    against a fixture, touching nothing another node claims, and every build node is
+    therefore concurrent with every other. Its <em>wire</em> node is a small edit into the
+    shared file, serialised behind the build it depends on. A build node is verifiable on
+    its own — a module with a fixture test is exactly the thing that can be — so the serial
+    tail carries only integration, which is where serialisation is actually earned.</p>
+
+    <p>Two real orderings survive the split and are not file artifacts. The probe, store and
+    index builds each need the row shape the engine-family resolver settles, so that
+    contract is fixed first and written down rather than discovered. And a wire node never
+    precedes its own build.</p>
+
+    <p><strong>Node size is a width lever, not only a scheduling one.</strong> The lane's
+    own capacity is its token pool divided by the mean context its workers carry, so an
+    over-large node costs width twice: it cannot run beside its siblings, and while it runs
+    it consumes the pool that would have carried them. Keeping a node to one module and one
+    fixture is what makes the fleet wide.</p>
 
     <table>
       <caption>Node ordering, scope and effort.</caption>
       <thead><tr><th>Node</th><th>Runs after</th><th>Primary new module</th><th>Effort</th></tr></thead>
       <tbody>
-        <tr><td>§2 engine families</td><td>—</td><td><code>engine_metrics.py</code></td><td>1.5 h</td></tr>
-        <tr><td>§3 cards, host, jobs</td><td>§2</td><td><code>node_probe.py</code></td><td>2.0 h</td></tr>
-        <tr><td>§4 rotation</td><td>§3</td><td><code>telemetry_store.py</code></td><td>2.0 h</td></tr>
-        <tr><td>§5 index and watcher</td><td>§4</td><td><code>telemetry_index.py</code>, <code>watch.py</code></td><td>3.0 h</td></tr>
-        <tr><td>§6 request receipts</td><td>— (parallel with §2)</td><td><code>request_receipts.py</code></td><td>2.5 h</td></tr>
+        <tr><td>§2 build — engine families</td><td>—</td><td><code>engine_metrics.py</code></td><td>1.0 h</td></tr>
+        <tr><td>§6 build — request receipts</td><td>—</td><td><code>request_receipts.py</code></td><td>1.5 h</td></tr>
+        <tr><td>§3 build — node probes</td><td>§2 row contract</td><td><code>node_probe.py</code></td><td>1.5 h</td></tr>
+        <tr><td>§4 build — tiered store</td><td>§2 row contract</td><td><code>telemetry_store.py</code></td><td>1.5 h</td></tr>
+        <tr><td>§5 build — reader index</td><td>§2 row contract</td><td><code>telemetry_index.py</code></td><td>2.0 h</td></tr>
+        <tr><td>§2–§4 wire — recorder</td><td>its own build</td><td><code>serving_receipts.py</code></td><td>1.0 h</td></tr>
+        <tr><td>§5 wire — watcher moves in</td><td>§5 build</td><td><code>watch.py</code>, <code>cli.py</code></td><td>1.5 h</td></tr>
+        <tr><td>§6 wire — router</td><td>§6 build</td><td><code>router.py</code></td><td>1.0 h</td></tr>
       </tbody>
     </table>
 
