@@ -22,8 +22,8 @@
   <title>DSv4.1-Flash Serve Characterisation | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-09-14">
-<meta name="plan-version" content="8">
+<meta name="plan-modified" content="2026-09-18">
+<meta name="plan-version" content="9">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;}">
 <meta name="plan-commits" content="c9138c7,1331ec1,e24d5d2">
 <meta name="plan-artifacts" content="docs/evidence/archive/dsv41-flash-serve-characterisation-landed.html,/work/projects/imas_gpu/agents/bench/dsv41_sweep.py,imas_ambix/agent/profiles/deepseek-v4-1-flash.toml">
@@ -159,10 +159,18 @@ hint: Wheels are available for `kt-kernel` (v0.7.0.post4) with ABI tag: `cp312`<
     <pre class="r-fu-prompt">/reckon-ship dsv41-flash-serve-characterisation §4</pre>
     <p class="r-fu-outcome"><p>Not done against this subject, and it should not be. The V4.1-Flash serve this plan characterises was taken down on 2026-09-14 by operator decision: the checkpoint is not suited to four cards and needs eight. The four-card deployment reverted to <code>deepseek-v4-flash</code>, so §4's endpoint no longer exists.</p><p>Dogfooding did happen, at greater scale than this section imagined, but against V4-Flash: four projects ran 26 concurrent live workers through the router on real work. Those findings live in <code>imas_ambix/agent/AGENTS.md</code> §3c rather than here, because they describe a different serve.</p></p>
     </article>
-<article class="r-fu" data-id="f-dsc-003" data-status="open" data-capability-version="1.0" data-capability-class="general" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-09-14" data-recommends-skill="/reckon-ship dsv41-flash-serve-characterisation §5" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-dsc-003" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-09-14" data-recommends-skill="/reckon-ship dsv41-flash-serve-characterisation §5" data-resolved-at="2026-09-18T13:29:36+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Split kt-kernel out and move the serving venv to 3.14</h4>
     <div class="r-fu-body"><p>§5, gated on the <code>kt-kernel-split</code> decision. A 3.14 sync fails today because kt-kernel ships cp312 wheels only and the ktransformers engine shares the sglang venv. Upstream allows 3.14 across PyTorch, SGLang and vLLM, so the constraint is local.</p><p>This removes a defect class rather than a defect: the repository formats to py314 syntax that the 3.12 serving interpreter cannot parse, which has now bitten four times.</p></div>
     <pre class="r-fu-prompt">/reckon-ship dsv41-flash-serve-characterisation §5</pre>
+    <p class="r-fu-outcome">Moved, not done — the work now belongs to serving-interpreter-version-split, and f-dsc-004 below is the pointer to it. It was moved because this plan is complete, and a followup carrying work on a completed plan is hidden rather than tracked: measured 2026-09-18, this plan was absent from all 27 entries of pending_work while this row read as open. The new plan verifies present in pending_work, which is the test that separates recording work from hiding it.
+
+Two further defects in the row itself. It described itself as gated on the kt-kernel-split decision, which had been locked four days earlier on 2026-09-14 as separate-ktransformers-env — so it advertised a blocker that no longer existed, and nothing re-reads a gate clause once its decision lands. And it carried the work rather than a pointer, which is the form that makes a row on a finished plan unfindable. What actually blocks it is authority: the rebuild stops a lane measured at 32 concurrent requests and zero headroom across four coordinators' fleets.</p>
+    </article>
+<article class="r-fu" data-id="f-dsc-004" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-ship" data-written-at="2026-09-18" data-recommends-skill="/reckon-ship serving-interpreter-version-split" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">The interpreter split is owned by serving-interpreter-version-split</h4>
+    <div class="r-fu-body">Pointer only — this row deliberately carries no work. The accelerator-kernel split and the serving-environment interpreter move are owned by <code>serving-interpreter-version-split</code>, whose own lifecycle is what surfaces them to every view that decides what runs next. Nothing here should be executed from this plan; it is complete and stays complete.</div>
+    <pre class="r-fu-prompt">/reckon-ship serving-interpreter-version-split</pre>
     </article>
 </section>
 

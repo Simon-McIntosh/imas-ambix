@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="serving-interpreter-version-split">
+  <meta name="plan-title" content="Serving Interpreter Split — give the accelerator kernel its own environment so the serve can follow the repository">
+  <meta name="plan-summary" content="One wheel with no build for the current interpreter pins the whole serving environment behind the repository it serves">
+  <meta name="plan-status" content="pending">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort-hours" content="4.0">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="orchestrator">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-capability-risk" content="elevated">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-tags" content="agent-serving,gpu-deployment">
+  <meta name="plan-informs" content="dsv41-flash-serve-characterisation">
+  <title>Serving Interpreter Split | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-09-18">
+<meta name="plan-version" content="1">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — Why this plan exists at all, which is the part worth reading</h2>
+    <p>This work was already written down. It sat as followup <code>f-dsc-003</code> on
+    <code>dsv41-flash-serve-characterisation</code>, a plan whose status is
+    <code>done</code> at an implementation fraction of 1.0 — and a followup on a completed
+    plan is not tracked work, it is <strong>hidden</strong> work. Reckon excludes a
+    completed plan from <code>pending_work</code>, from <code>ready_now</code>, and from
+    every open path, so the row rendered on its own page, satisfied every continuation
+    check, and appeared nowhere a human or an agent looks to decide what to do next.
+    Measured on 2026-09-18: the project reported 27 plans in <code>pending_work</code> and
+    the owning plan was not among them.</p>
+    <p>It had also acquired a second layer of invisibility. Its own text says it is
+    <em>"gated on the <code>kt-kernel-split</code> decision"</em> — and that decision was
+    locked on 2026-09-14, choice <code>separate-ktransformers-env</code>. So the row
+    announced a blocker that had already been removed four days earlier, and nothing
+    re-reads a gate clause once its decision lands. A reader skimming for actionable work
+    would have skipped it twice: once because its plan was finished, once because it said
+    it was blocked.</p>
+    <p>This plan exists so that neither is true any longer. It owns the work; its own
+    lifecycle is what makes the work visible.</p>
+
+    <h2 id="s2">§2 — The constraint is local, and it is one wheel</h2>
+    <p>Nothing upstream prevents the serving stack from running on the current interpreter.
+    The floor is set by a single dependency that publishes no build for it, and which
+    happens to share an environment with the engine that does the serving.</p>
+    <table>
+      <thead><tr><th>Component</th><th>Interpreter it allows</th><th>Where the limit comes from</th></tr></thead>
+      <tbody>
+        <tr><td>PyTorch</td><td>current</td><td>upstream, no local constraint</td></tr>
+        <tr><td>SGLang</td><td>current</td><td>upstream, no local constraint</td></tr>
+        <tr><td>vLLM</td><td>current</td><td>upstream, no local constraint</td></tr>
+        <tr><td><code>kt-kernel</code></td><td><strong>3.12 only</strong></td><td>publishes cp312 wheels and no others</td></tr>
+      </tbody>
+    </table>
+    <p>Because the <code>ktransformers</code> engine shares the SGLang environment, that
+    single row governs the whole serve. A sync to the current interpreter fails today, not
+    because the serving stack cannot run there, but because one accelerator kernel sharing
+    the environment cannot.</p>
+
+    <h2 id="s3">§3 — What this actually costs, which is a defect class rather than a defect</h2>
+    <p>The repository formats its sources to the syntax of the interpreter the project
+    targets. The serving environment parses them with an older one. So every time the
+    formatter emits syntax the serving interpreter predates, something that was correct in
+    the repository fails in the serve — <strong>and this has now happened four separate
+    times</strong>.</p>
+    <p>That is the argument for doing the work: each individual occurrence looks like a
+    small, quickly-fixed breakage, which is exactly why the underlying cause has survived
+    four of them. Repairing the fifth instance costs less than this plan; removing the
+    class is what this plan buys, and the class will keep producing instances at whatever
+    rate the formatter advances.</p>
+    <p>The remedy follows directly from §2. The kernel does not need to share an
+    environment with the engine — it needs to be reachable by it. Splitting them lets the
+    serving environment follow the repository while the kernel stays on the interpreter its
+    only published wheels support.</p>
+    <figure>
+      <svg viewBox="0 0 560 150" role="img" width="100%"
+           aria-label="One shared environment pinned to the older interpreter becomes two environments, one per component, each on the interpreter its dependencies allow."
+           xmlns="http://www.w3.org/2000/svg" font-family="system-ui, sans-serif">
+        <text x="0" y="14" font-size="13" fill="#111">now — one environment, floor set by its most constrained member</text>
+        <rect x="0" y="26" width="250" height="52" fill="none" stroke="#666" stroke-width="1"/>
+        <text x="12" y="46" font-size="13" fill="#111">serving engine</text>
+        <text x="12" y="66" font-size="13" fill="#111">accelerator kernel</text>
+        <text x="262" y="56" font-size="13" fill="#b34" >pinned 3.12</text>
+
+        <text x="0" y="106" font-size="13" fill="#111">after — split, each on the interpreter its own dependencies allow</text>
+        <rect x="0" y="116" width="120" height="28" fill="none" stroke="#666" stroke-width="1"/>
+        <text x="10" y="134" font-size="13" fill="#111">serving engine</text>
+        <text x="128" y="134" font-size="13" fill="#161">current</text>
+        <rect x="196" y="116" width="136" height="28" fill="none" stroke="#666" stroke-width="1"/>
+        <text x="206" y="134" font-size="13" fill="#111">accelerator kernel</text>
+        <text x="340" y="134" font-size="13" fill="#666">3.12</text>
+      </svg>
+      <figcaption>The floor is a property of the shared environment, not of the engine.
+      Separating the two lets each sit on the interpreter its own dependencies permit.</figcaption>
+    </figure>
+
+    <h2 id="s4">§4 — This needs a lane window, and that is the lead's to give</h2>
+    <p>Rebuilding the serving environment stops the lane. That lane is not idle
+    infrastructure: measured on 2026-09-18 it was carrying 32 concurrent requests at zero
+    headroom, serving worker fleets belonging to four separate coordinators across the
+    <code>nova</code>, <code>imas-efit</code>, <code>imas-codex</code> and
+    <code>imas-ambix</code> projects. Taking it down is an irreversible action on shared
+    infrastructure with an outward-facing effect on peers who did not ask for it, so it is
+    not something an agent schedules on its own initiative.</p>
+    <p>Hence <strong>no sprint membership, deliberately</strong>: this is explicit backlog
+    pending a drained-lane window, not work that was left unscheduled by omission. The
+    standing rule that a serving lane is never hard-stopped applies — the window is a drain
+    to a genuine zero held across samples, then the rebuild, and the plan should be
+    scheduled into whichever sprint is advancing when that window is granted.</p>
+
+    <h2 id="s5">§5 — Done-when</h2>
+    <ul>
+      <li>The accelerator kernel resolves from its own environment, and the serving
+      environment no longer contains it.</li>
+      <li>The serving environment syncs on the interpreter the repository targets, and the
+      sync is reproducible from the project files after removing the environment
+      entirely.</li>
+      <li>A source file carrying syntax the previous serving interpreter could not parse is
+      imported successfully by the serve, which is the direct measure of the defect class
+      being gone rather than a proxy for it.</li>
+      <li>A real generation succeeds against the rebuilt serve — a readiness probe is not
+      the measure — and the lane document reports a measured state afterwards.</li>
+      <li>The rebuild is recorded with the lane's drained-to-zero evidence beside it, so
+      the next window can be planned from what this one measured.</li>
+    </ul>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="kernel-environment-boundary" data-choice="separate-environments" data-by="Simon McIntosh" data-when="2026-09-14T09:08:15+00:00">
+    <p class="r-dec-q">Does the accelerator kernel keep sharing the serving engine&#x27;s environment, or get its own?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="separate-environments">separate-environments</button>
+      <button class="r-opt" data-value="keep-shared">keep-shared</button>
+      </p>
+    <p class="r-dec-rat">Carried forward already locked. This is the same call recorded as kt-kernel-split on dsv41-flash-serve-characterisation , chosen separate-ktransformers-env on 2026-09-14; it is restated here because the plan that holds it is complete and a locked decision on a finished plan is as hard to find as the work it unblocks. The reasoning is unchanged: the kernel needs to be reachable by the engine, not co-resident with it, and co-residency is the only thing imposing the interpreter floor.</p>
+    </div>
+</section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-sivs-01" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="elevated" data-written-by="reckon-create" data-written-at="2026-09-18" data-recommends-skill="/reckon-ship serving-interpreter-version-split" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Split the accelerator kernel out and move the serving environment to the repository&#x27;s interpreter</h4>
+    <div class="r-fu-body">Blocked on authority, not on work: the rebuild stops a lane measured carrying 32 concurrent requests at zero headroom for four coordinators' fleets, so it needs a drained-lane window the lead grants rather than one an agent takes. Everything else is settled — the boundary decision is locked, the constraint is a single dependency publishing no build for the current interpreter, and the cost of leaving it is a defect class that has already produced four separate breakages. When the window exists, schedule this into the sprint advancing at that time rather than back-filling a closed one.</div>
+    <pre class="r-fu-prompt">/reckon-ship serving-interpreter-version-split</pre>
+    </article>
+</section>
+  </main>
+</body>
+</html>
