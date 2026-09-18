@@ -176,9 +176,23 @@
     reading, so the row schema carries presence, and the recorder never writes a field it
     did not observe.</p>
 
+    <p><strong>There is a third copy, and it is the one that already works.</strong> The
+    reuse map found <code>imas_ambix/agent/lane.py::parse_lane_capacity</code> and its
+    <code>_parse_sglang_capacity</code> helper: the only code in this repository that
+    already reads <code>sglang:</code> names, complete with the rank-zero label discipline
+    the other readers lack. It is not a defect — it is the working precedent the shared
+    module should be built from. But it makes the count three rather than two, and landing
+    §2 without migrating it leaves the repository in exactly the two-implementations
+    condition this plan exists to repair, merely moved to a different pair. The module
+    absorbs <code>lane.py</code>'s mapping, and <code>lane.py</code> becomes its first
+    caller.</p>
+
     <p><strong>Write paths.</strong> <code>imas_ambix/agent/engine_metrics.py</code> (new),
     <code>imas_ambix/agent/serving_receipts.py</code>, <code>imas_ambix/agent/bench.py</code>,
-    <code>tests/test_engine_metrics.py</code> (new).</p>
+    <code>imas_ambix/agent/lane.py</code>, <code>tests/test_engine_metrics.py</code> (new).
+    The fixture pattern to extend is <code>tests/test_agent_lane_sglang.py</code>, which
+    already parameterises one code path across both families and the neither-family case
+    the presence rule needs.</p>
 
     <p><strong>Done when</strong> a live scrape of the running SGLang serve populates every
     canonical field; a recorded fixture of vLLM output populates the same fields through the
@@ -299,6 +313,14 @@
     in force</em>, because the served model is priced by time of day and a period billed at
     one instant's rate is wrong by the peak-to-off-peak ratio.</p>
 
+    <p><code>receipt_bins.collect_receipt_bins</code> and
+    <code>summarise_receipt_rows</code> already aggregate receipt rows and have no
+    production caller at all — only a test imports them. This index is the consumer they
+    were written for, and a reader that reimplements the aggregation would orphan them
+    permanently. Nothing else is available: no module anywhere under
+    <code>imas_ambix/</code> imports <code>sqlite3</code>, so the schema and the
+    offset-tracking tail are genuinely new.</p>
+
     <p><strong>Write paths.</strong> <code>imas_ambix/agent/telemetry_index.py</code> (new),
     <code>imas_ambix/agent/watch.py</code> (new — the ported watcher),
     <code>imas_ambix/agent/cli.py</code>, <code>tests/test_telemetry_index.py</code> (new),
@@ -334,8 +356,19 @@
     writer samples above a configured rate and records the sampling fraction on the rows it
     keeps, so totals scale honestly.</p>
 
+    <p>The response-side accounting already exists here and is not to be re-derived:
+    <code>bench.py::_stream_chat</code> reads <code>usage</code> out of an SSE stream and
+    times the first token from the first content delta, and <code>::_chat</code> does the
+    non-streaming equivalent. Both are clients consuming their own response, while the
+    router must tee bytes it is already relaying — so what is reused is the parse shape,
+    the field names and the first-token definition, and what is new is the tee. Sampling
+    with a recorded fraction is new, and <code>cached_tokens</code> has no existing parser
+    anywhere in the repository.</p>
+
     <p><strong>Write paths.</strong> <code>imas_ambix/agent/request_receipts.py</code> (new),
-    <code>imas_ambix/agent/router.py</code>, <code>tests/test_request_receipts.py</code> (new).</p>
+    <code>imas_ambix/agent/router.py</code>, <code>tests/test_request_receipts.py</code> (new).
+    Extend <code>tests/test_agent_router.py</code>'s existing harness rather than building a
+    second way to drive the router.</p>
 
     <p><strong>Done when</strong> every completed request through the router appears once in
     the stream; a failed or aborted request is recorded as such rather than dropped; the
