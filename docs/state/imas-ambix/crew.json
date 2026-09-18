@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-18T11:40:23",
+  "updated": "2026-09-18T11:43:46",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -40866,6 +40866,208 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260918T090512367402-serve-tuning-plateau-evidence",
+        "plan": "dsv41-serve-tuning-for-concurrency",
+        "section": "\u00a79",
+        "node": "serve-tuning-plateau-evidence",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 920,
+                "cached_input_tokens": 250715,
+                "input_tokens": 251637,
+                "output_tokens": 823,
+                "reasoning_output_tokens": 111,
+                "total_tokens": 252460,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "fe5e6227-20a2-4f56-b5dc-a8a8121122f9",
+            "session_id": "ambix-s24-local"
+          },
+          "done_when": "at the worktree head the file docs/figures/dsv41-serve-tuning-for-concurrency/decode-throughput-vs-width.svg is byte-identical to that same path in commit 2a9bf24f verified by cmp, the evidence record docs/evidence/archive/dsv41-serve-tuning-for-concurrency-landed.html carries a section whose id attribute is decode-throughput-vs-width stating the 4M slope +0.09 with its bootstrap interval and the 8M slope -0.55 with its bootstrap interval and the zero queue depth, and uv run --project /home/ITER/mcintos/Code/reckon reckon audit-doc on that evidence record reports zero ERROR lines",
+          "estimated_hours": null,
+          "goal": "Land the decode throughput against concurrency width evidence section and its figure onto the current head of the serve-tuning cumulative evidence record",
+          "id": "serve-tuning-plateau-evidence",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-18T09:05:13Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no 'binding_observed'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260918T090512367402-serve-tuning-plateau-evidence/manifest.md",
+          "plan": "dsv41-serve-tuning-for-concurrency",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "documentation",
+          "section": "\u00a79",
+          "spec_level": "exact",
+          "time_budget": "15m",
+          "token_budget": null,
+          "write_paths": [
+            "docs/evidence/archive/dsv41-serve-tuning-for-concurrency-landed.html",
+            "docs/figures/dsv41-serve-tuning-for-concurrency/decode-throughput-vs-width.svg",
+            "docs/plans/dsv41-serve-tuning-for-concurrency.html"
+          ]
+        },
+        "role": "documentation",
+        "spec_level": "exact",
+        "member": "dsv4-bench-spec-names",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "xhigh",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "worktree-full",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-18T09:05:18Z",
+        "completed_at": "2026-09-18T09:41:32.786Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 2127,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 2174,
+        "stalled": true,
+        "time_budget": "15m",
+        "base_sha": "d781fea618394f70e30ddc5802a005b0adb1b1e9",
+        "commits": [
+          "f2f139ee7b29654fd5c6b7a7dff4cf0d775873c7"
+        ],
+        "changed_lines": {
+          "added": 444,
+          "removed": 1,
+          "files": 3
+        },
+        "tests_added": 0,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --project /home/ITER/mcintos/Code/reckon reckon audit-doc docs/evidence/archive/dsv41-serve-tuning-for-concurrency-landed.html (re-run by the coordinator at the merged head); plus git rev-parse blob equality of both declared artifacts against 2a9bf24f",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260918T090512367402-serve-tuning-plateau-evidence/gate-auditdoc.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260918T090512367402-serve-tuning-plateau-evidence/manifest.md",
+        "scope_changed": false,
+        "session_id": "fa747ef7-8824-490a-ba7d-eb87d864fbf3",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 2308063,
+            "input_tokens_cumulative": 2308063,
+            "output_tokens": 21623,
+            "output_tokens_cumulative": 21623,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-18T09:41:32.786Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": null,
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 2308063,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 2170.1,
+          "generated_tokens": 21623,
+          "generation_seconds": 2157.293,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 23.2,
+          "machine_seconds": 12.807,
+          "peak_input_tokens": 111356,
+          "tokens_per_second": 10.02,
+          "wall_tokens_per_second": 9.96
+        },
+        "follow_on_paths": [
+          "/"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "documentation",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s24-local/serve-tuning-plateau-evidence",
+          "session_id": "fa747ef7-8824-490a-ba7d-eb87d864fbf3",
+          "session_source": "pointer",
+          "retained_at": "2026-09-18T09:41:32.786Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "tool_steps": 34.0,
+        "orientation_input_tokens": null,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -40940,6 +41142,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 719
+    "_version": 720
   }
 }
