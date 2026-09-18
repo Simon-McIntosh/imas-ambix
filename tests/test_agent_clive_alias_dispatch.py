@@ -151,7 +151,8 @@ class _Handler(BaseHTTPRequestHandler):
             ("message_stop", {"type": "message_stop"}),
         ]
         body = "".join(
-            f"event: {name}\ndata: {json.dumps(payload)}\n\n" for name, payload in events
+            f"event: {name}\ndata: {json.dumps(payload)}\n\n"
+            for name, payload in events
         ).encode()
         self._respond(body, content_type="text/event-stream")
 
