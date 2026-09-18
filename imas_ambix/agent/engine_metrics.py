@@ -159,6 +159,12 @@ LANE_SERIES: dict[str, dict[str, tuple[str, ...]]] = {
         # vLLM's pool size is a label on ``cache_config_info``, not a series.
         FAMILY_VLLM: (),
     },
+    "prefix_hit_rate": {
+        FAMILY_SGLANG: ("cache_hit_rate",),
+        # vLLM publishes no such gauge: its rate is the hits/queries ratio the
+        # caller computes from the two cumulative counters.
+        FAMILY_VLLM: (),
+    },
     "preemptions": {
         FAMILY_SGLANG: (),
         FAMILY_VLLM: ("num_preemptions_total",),
