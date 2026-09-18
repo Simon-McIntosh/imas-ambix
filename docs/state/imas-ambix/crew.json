@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-18T11:53:22",
+  "updated": "2026-09-18T12:38:54",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -491,9 +491,11 @@
         "harness": "clive",
         "id": "dsv4-router-catalog",
         "role": "implement",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {}
+        "session_id": "ea60c04e-c162-45c2-87e0-7f6002cc66de",
+        "session_model": "deepseek-v4.1-flash",
+        "sessions": {
+          "{\"alias\":\"dsv4.1-flash\",\"backend\":\"clive\",\"effort\":\"high\",\"launch\":\"cli\",\"local\":true,\"model\":\"deepseek-v4.1-flash\",\"sandbox\":\"worktree-full\",\"usable_input_window\":480000}": "ea60c04e-c162-45c2-87e0-7f6002cc66de"
+        }
       },
       {
         "id": "dsv41-decode-harvester",
@@ -41262,6 +41264,209 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260918T092700383788-clive-interactive-prompt-fence",
+        "plan": "clive-launch-modes",
+        "section": "\u00a73",
+        "node": "clive-interactive-prompt-fence",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 2172,
+                "cached_input_tokens": 267008,
+                "input_tokens": 269182,
+                "output_tokens": 559,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 269741,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "fe5e6227-20a2-4f56-b5dc-a8a8121122f9",
+            "session_id": "ambix-s24-local"
+          },
+          "done_when": "the new module tests/test_agent_clive_interactive.py passes under pytest, driving the generated launcher through a pseudo-terminal against a catalog of two releases, asserting one numbered stderr row per catalog item at 1-based indices with each row carrying that release's own label rather than an alias name, asserting that writing an index to the terminal selects that release as recorded by the fake harness environment, and the report states the passing pytest count plus the exit status of uv run --no-sync ruff check imas_ambix tests",
+          "estimated_hours": null,
+          "goal": "Fence the launcher numbered release prompt with a pseudo-terminal test that asserts the rendered rows",
+          "id": "clive-interactive-prompt-fence",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-18T09:27:00Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no 'binding_observed'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260918T092700383788-clive-interactive-prompt-fence/manifest.md",
+          "plan": "clive-launch-modes",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a73",
+          "spec_level": "guided",
+          "time_budget": "30m",
+          "token_budget": null,
+          "write_paths": [
+            "tests/test_agent_clive_interactive.py",
+            "docs/evidence/archive/clive-launch-modes-landed.html",
+            "docs/plans/clive-launch-modes.html"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "dsv41-pool-test-repair",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "high",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "worktree-full",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-18T09:27:08Z",
+        "completed_at": "2026-09-18T10:25:28.545Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 3483,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 3500,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "d781fea618394f70e30ddc5802a005b0adb1b1e9",
+        "commits": [
+          "2b1ec4975597818ec306b1f6ec5e8670f367f571",
+          "bf54a52015b856969e118517421266d6b7bd35e5"
+        ],
+        "changed_lines": {
+          "added": 289,
+          "removed": 3,
+          "files": 3
+        },
+        "tests_added": 6,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest -p no:cacheprovider tests/test_agent_clive_interactive.py -q (re-run by the coordinator at the merged head: 6 passed); uv run --no-sync ruff check imas_ambix tests (exit 0)",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260918T092700383788-clive-interactive-prompt-fence/gate-at-merged-head.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "Fenced the launcher's numbered release prompt through a pseudo-terminal, the one surface every existing launcher test structurally cannot reach because it captures pipes. Six tests; the worker also proved the fence fires by mutating the row label to the harness alias and showing the assertion rejects it. Scope stated honestly: this is the launcher's own prompt, not the harness picker, which stays human-gated.",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260918T092700383788-clive-interactive-prompt-fence/manifest.md",
+        "scope_changed": false,
+        "session_id": "d7d0fcef-81a0-4e4e-96ac-d27542d13a31",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 4795741,
+            "input_tokens_cumulative": 4795741,
+            "output_tokens": 16640,
+            "output_tokens_cumulative": 16640,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-18T10:25:28.545Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": null,
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 4795741,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 1567.366,
+          "generated_tokens": 16640,
+          "generation_seconds": 1518.879,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 33.0,
+          "machine_seconds": 48.487,
+          "peak_input_tokens": 158430,
+          "tokens_per_second": 10.96,
+          "wall_tokens_per_second": 10.62
+        },
+        "follow_on_paths": [
+          "docs/plans/multi-model-serving-capacity.html"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        },
+        "attempt_kind": "resume",
+        "attempt": 2,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s24-local/clive-interactive-prompt-fence",
+          "session_id": "d7d0fcef-81a0-4e4e-96ac-d27542d13a31",
+          "session_source": "pointer",
+          "retained_at": "2026-09-18T10:25:28.545Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "tool_steps": 41.0,
+        "orientation_input_tokens": 2087294.0,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -41336,6 +41541,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 721
+    "_version": 723
   }
 }
