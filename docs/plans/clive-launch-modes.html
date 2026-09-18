@@ -22,7 +22,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-18">
-<meta name="plan-version" content="21">
+<meta name="plan-version" content="22">
 <meta name="plan-commits" content="526195c8c059efe5f73439ae1fed626407f11322,5fd71b1b1e2d12c0e160816e24f3ca7055f718cf,cb5c6e12775124169e3402065a87c5e920a912ed,1c602d0ecc7f7fe1c03530bfe848266fd93b565b,c197e3d2f3ed6c57ecda748cebdd2262f5adfbcb,03bf0652e41fcf440c9254260e0f31221e132a89,8bea195">
 <meta name="plan-artifacts" content="imas_ambix/agent/clive.py,tests/test_agent_clive_modes.py,tests/test_agent_clive_picker.py,tests/test_agent_clive_dispatch_guidance.py">
 <meta name="plan-impl" content="0.99">
@@ -309,6 +309,17 @@ The slot roster is derived from the harness's own registration convention, a slo
 What is fenced is the declaration set the launcher exports in hybrid mode, not that the harness honours those declarations — the same boundary the remainder audit named for the observation clause. The hybrid branch imposes prerequisites no launcher unit test meets by default, so the module supplies them: the endpoint document and catalog card carrying the release string, a user manager promising the proxy is already active, a listening loopback port for the readiness probe, and a harness stub recording the environment it is handed.
 
 No production file changed: this node adds a fence and a record. It does not touch the plan-version or plan-modified meta lines, and it does not resolve its own followup or set a terminal status.</div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-20260918-hybrid-capability-closure" data-who="reckon-ship" data-when="2026-09-18T14:40:50+00:00">
+    <div class="r-comment-body">Closure facts. Gate re-run by the coordinator at the MERGED head across all five launcher contract modules: 29 passed, ruff check imas_ambix tests exit 0, audit-doc clean on this plan and on the evidence record. Merged as a clean three-file merge with no conflict.
+
+This closes the caveat, and it is worth recording that two independent nodes found it. The remainder audit noted the hybrid branch's custom-option declaration was set in code but unasserted, and marked it as not moving bullet 4's verdict; the arrival-fence worker listed the same thing under work that was not its own. Neither was wrong to leave it, and neither was in a position to see that the other had named it too. Bullet 4's wording is 'every slot the launcher sets', and in hybrid mode one of them was not covered.
+
+The fence now compares the declaration set against the slot roster as an EXACT set rather than by membership, across five slots, and derives that roster mechanically from the naming convention a slot follows, so a slot added later enters the roster without anyone remembering to extend the test. Control recorded: deleting one declaration makes the assertion reject while the unmodified launcher passes.
+
+The worker bounded its own claim correctly and the bound is the honest half of this: the fence covers what the launcher EXPORTS. Whether the harness reads those declarations, and what it does with a model carrying none, is harness-side and stays unmeasured — the same surface as bullet 3, and the same human at the same terminal.
+
+impl stays 0.99. This added coverage rather than closing a criterion the plan was missing, and the one criterion still open is the one no agent can close.</div>
 </div>
 </section>
 </main>
