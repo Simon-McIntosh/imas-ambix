@@ -26,6 +26,7 @@
         <tr><td>Local-alias statement</td><td><code>cb5c6e1</code></td><td>2/2; alias mapping unchanged</td></tr>
         <tr><td>Hybrid alias alignment</td><td><code>1c602d0</code></td><td>10/10; no hosted id on sonnet or haiku</td></tr>
         <tr><td>Legacy surface repair</td><td><code>c197e3d</code></td><td>183/183 with no production change</td></tr>
+        <tr><td>Interactive release prompt</td><td><code>2b1ec497</code></td><td>6/6; two releases rendered at their own indices; an aliased row label is caught</td></tr>
       </tbody>
     </table>
 
@@ -89,10 +90,40 @@
     fallback. Final measure: <code>tests/test_agent.py</code> 183/183, focused launcher
     suites 13/13.</p>
 
+    <h2 id="interactive-prompt">The launcher's numbered prompt, now fenced</h2>
+    <p>Two different things render a release list and only one of them was observable
+    from a test. The launcher's own numbered prompt is emitted by the generated script,
+    which decides interactivity from <code>[[ -t 0 ]]</code> and reads the answer back
+    from a descriptor pointing at that same terminal — so <code>--print</code> cannot
+    show it and neither can any run whose stdin is a pipe. Every launcher test that
+    captured pipes therefore observed nothing about the prompt, which is why it had never
+    been asserted.</p>
+    <p>Attaching the deployed script to a pseudo-terminal makes it observable. Against a
+    two-release catalog the prompt renders exactly two rows at 1-based indices, each
+    carrying its own release's label and no harness alias:</p>
+    <pre><code>Clive global models:
+  1) release-alpha · 2×H200 · fp8 · 512k ctx
+  2) release-beta · 4×H200 · int4 · 128k ctx
+Select model:</code></pre>
+    <p>Writing an index to the terminal selects that release, recorded as
+    <code>ANTHROPIC_MODEL</code> in the harness environment; an index outside the
+    catalog refuses with <code>1 through 2</code> and never starts the harness; and an
+    explicit <code>--model</code> renders no prompt at all. Six tests, passing.</p>
+    <p><strong>The fence was shown to fire, not merely to pass.</strong> A passing suite
+    cannot distinguish a guard that works from one that never runs, so the row's label
+    expression was replaced with the harness alias <code>claude-sonnet-5</code> in the
+    generated script and the same terminal driver was run against it. The mutated rows
+    read <code>1) claude-sonnet-5</code> and <code>2) claude-sonnet-5</code>,
+    which the label assertion rejects, while the same driver against the script as
+    generated renders both release labels and passes. The assertion is load-bearing
+    rather than incidentally true.</p>
+
     <h2 id="open">What is not proven here</h2>
-    <p>Curated rows are asserted to be generated correctly, not to <em>render</em>. A
-    non-interactive run cannot show a picker, so interactive confirmation remains
-    outstanding and requires a human at a terminal.</p>
+    <p>The launcher's numbered prompt is now asserted to render and to select. The
+    <strong>curated rows inside the harness picker</strong> are a different surface and
+    remain asserted only to be generated correctly, not to render: they are consumed by
+    the harness, which no headless node can drive to a picker, so confirming them still
+    requires a human at a terminal.</p>
 
   </main>
 </body>
