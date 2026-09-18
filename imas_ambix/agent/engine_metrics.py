@@ -374,7 +374,9 @@ class Histogram:
 
     def as_dict(self) -> dict[str, Any]:
         return {
-            "buckets": {str(bound): value for bound, value in sorted(self.buckets.items())},
+            "buckets": {
+                str(bound): value for bound, value in sorted(self.buckets.items())
+            },
             "count": self.count,
             "sum": self.total,
         }
@@ -406,7 +408,10 @@ class EngineMetrics:
             section["family"] = self.family
         if self.model_id is not None:
             section["model_id"] = self.model_id
-        for table, values in ((GAUGE_SERIES, self.gauges), (COUNTER_SERIES, self.counters)):
+        for table, values in (
+            (GAUGE_SERIES, self.gauges),
+            (COUNTER_SERIES, self.counters),
+        ):
             for name in table:
                 if name in values:
                     section[name] = values[name]
