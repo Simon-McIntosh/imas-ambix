@@ -167,7 +167,8 @@ enable_expert_parallel = true
 # SM120 recipe's "probabilistic". attention_config.use_fp4_indexer_cache is
 # Blackwell-oriented and left unset on these SM90 cards pending a measured win.
 #
-# DSPARK IS DISABLED, as an experiment with a measured baseline to return to.
+# DSPARK IS ENABLED. It was disabled as an experiment against a measured
+# baseline, the experiment concluded, and the drafter was exonerated.
 #
 # Its draft layers form their own KV cache group, flagged an eagle group, and
 # the multi-group prefix lookup requires EVERY group to report a nonzero hit --
@@ -199,11 +200,23 @@ enable_expert_parallel = true
 #   external (offload)         3.09%, zero in 89 of 149 intervals
 #   per-client generation      4.5 tok/s median at 17 running
 #
-# Restore these three lines if the hit rate does not move: the drafter is then
-# not what is suppressing it, and neither upstream patch is worth carrying.
-# speculative_method = "dspark"
-# speculative_num_tokens = 5
-# speculative_draft_sample_method = "greedy"
+# THE RESTORE CONDITION FIRED, so the three lines below are live again.
+# The condition was stated as: restore if the hit rate does not move, because
+# the drafter is then not what suppresses it and neither upstream patch is
+# worth carrying. It did not move -- the rate read 28.8% against the 25.7%
+# baseline above, inside the 17-40% band a non-vetoing drafter predicts and
+# nowhere near the 88.9-100% a gating veto predicts. So the veto reading is
+# refuted for this deployment and speculative decoding is taken back at no
+# measured cost to prefix reuse.
+#
+# What that does NOT establish: the upstream veto mechanism is real in the
+# code, on both the GPU coordinator and the offload connector. What is refuted
+# is that it binds HERE at this width and this traffic shape. If prefix reuse
+# ever collapses toward zero on this serve, comment these three lines again and
+# compare against the same baseline before reaching for either upstream patch.
+speculative_method = "dspark"
+speculative_num_tokens = 5
+speculative_draft_sample_method = "greedy"
 # Scheduler caps — raise both to exploit the 4×H200 KV cache budget.
 # At the default ``max_num_seqs=256`` only ~12% of KV cache is in use
 # (live measurement 2026-05-17), so the scheduler is the throughput
