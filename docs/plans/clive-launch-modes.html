@@ -22,7 +22,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-18">
-<meta name="plan-version" content="22">
+<meta name="plan-version" content="23">
 <meta name="plan-commits" content="526195c8c059efe5f73439ae1fed626407f11322,5fd71b1b1e2d12c0e160816e24f3ca7055f718cf,cb5c6e12775124169e3402065a87c5e920a912ed,1c602d0ecc7f7fe1c03530bfe848266fd93b565b,c197e3d2f3ed6c57ecda748cebdd2262f5adfbcb,03bf0652e41fcf440c9254260e0f31221e132a89,8bea195">
 <meta name="plan-artifacts" content="imas_ambix/agent/clive.py,tests/test_agent_clive_modes.py,tests/test_agent_clive_picker.py,tests/test_agent_clive_dispatch_guidance.py">
 <meta name="plan-impl" content="0.99">
@@ -260,6 +260,15 @@ impl 0.95 to 0.97. It is not 1.0 because §6 bullet 5's observation clause is st
 <p>Deliberately left alone, as <code>follow_ons</code> rather than in-scope edits: <code>tests/test_agent_clive_interactive.py</code> still carries a fourth private copy of the origin, and it sits outside this node's write fence; and each module still keeps its own <code>_catalog_item</code> card builder, whose keyword names and defaults diverge (<code>count</code> versus <code>accelerator_count</code>) enough that folding them together is a rename of about fourteen call sites rather than a fixture change.</p>
 <p>Node obligations honoured: this comment does not close the node, does not resolve the driving followup, and sets no terminal status; it does not touch the plan-version or plan-modified meta lines. The merge check at the merged head is a separate node's work.</p></div>
 </div>
+<div class="r-comment" data-section="s3" data-id="c-20260918-fixture-consolidation-closure" data-who="reckon-ship" data-when="2026-09-18T15:58:55+00:00">
+    <div class="r-comment-body">Closure facts. Gate re-run by the coordinator at the MERGED head: 29 passed across the five launcher contract modules — the exact count the measure pinned, unchanged from base, which is the whole point — plus 192 passed in tests/test_agent.py, the module that lost 60 lines, and ruff check imas_ambix tests exit 0. Net 90 insertions against 112 deletions.
+
+Why this was folded rather than waved through as tidying: the three copies had already diverged. tests/test_agent.py carried the general form taking a raw payload with status and response-header control, while the picker and dispatch-guidance modules each carried an identical convenience wrapper over a list. Choosing between them is a decision a worker cannot close, so it was closed at dispatch — payload form general, items form a thin wrapper — and the count was pinned so no behaviour could move inside a refactor.
+
+The hazard was concrete rather than aesthetic. The reuse map had already recorded that the list-taking wrappers run under captured pipes, so a test written against one of them passes without ever rendering a row. Three same-named fixtures with different reachability is how the next author picks the wrong one.
+
+Its manifest classified 'unreadable' and that was a format defect, not a work failure: it used a YAML list form and the non-standard status implemented-pending-review, while every deliverable was committed, the worktree was clean and the gate was green. The classification was not taken at face value in either direction — the commits were read and the gate re-run before promoting.</div>
+</div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20260901T114750299760-clive-local-alias-statement" data-who="s24-clive-modes" data-when="2026-09-01T11:53:09Z">
     <div class="r-comment-body"><p>Default local launch now states sonnet is the primary local worker, carrying that release's own accelerator count, family and exact max_model_len from its catalog card, plus the division of labour and the fact that local-only mode has no frontier slot. All four alias assignments unchanged. 2/2 tests</p></div>
 </div>
@@ -328,6 +337,36 @@ The fence now compares the declaration set against the slot roster as an EXACT s
 The worker bounded its own claim correctly and the bound is the honest half of this: the fence covers what the launcher EXPORTS. Whether the harness reads those declarations, and what it does with a model carrying none, is harness-side and stays unmeasured — the same surface as bullet 3, and the same human at the same terminal.
 
 impl stays 0.99. This added coverage rather than closing a criterion the plan was missing, and the one criterion still open is the one no agent can close.</div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-20260918-drain-ledger" data-who="reckon-ship" data-when="2026-09-18T16:00:00+00:00">
+    <div class="r-comment-body">DRAIN LEDGER — S24 @ 2026-09-18T16:00Z
+
+FOLDED, each with the node that took it:
+  reuse scout, the fence it specified        folded → clive-interactive-prompt-fence
+  audit, bullet 5 had no carrier             folded → local-alias-request-reaches-the-engine
+  audit + arrival worker, hybrid declaration  folded → hybrid-slot-capability-assertion
+  reuse scout, divergent catalog fixtures     folded → launcher-catalog-fixture-consolidation
+  arrival worker, restate the credential clause  folded → adjudication recorded in the s4 landing comment
+
+RESOLVED THIS SESSION as pointers whose target had already shipped:
+  f-gsw-03 (glm-53-serve-and-wiring)          foreign-owner → glm-parser-output-shape, shipped
+  f-sei-03 (serving-endpoint-indirection)     foreign-owner → glm-parser-output-shape, shipped
+  f-dsc-003 (dsv41-flash-serve-characterisation)  foreign-owner → serving-interpreter-version-split, created this session
+
+OPEN, each with its exemption and the concrete thing that makes it true:
+  f-mmsc-02 (multi-model-serving-capacity)    authority-required → a person at a terminal; the harness model picker is not this repository's surface
+  f-sivs-01 (serving-interpreter-version-split)  authority-required → a drained-lane window; the rebuild stops a lane measured at 32 concurrent across four coordinators' fleets
+  capability worker, harness-side reading     authority-required → same surface and same person as f-mmsc-02
+  f-dsc-004 (dsv41-flash-serve-characterisation)  foreign-owner → serving-interpreter-version-split
+  f-dsp-01 (dsv4-flash-dspark-four-card-serve)  foreign-owner → its own plan, which is not on the S24 roster; called stale earlier on the strength of impl 1.0, then found to have zero collapsed sections, so it is NOT verified stale and was deliberately not closed
+
+DISPOSED BY DECISION rather than deferred:
+  arrival worker, figure as a standalone asset  no work owed → inline SVG is the established form in this repository's evidence records
+
+  ---
+  rows: 14   foldable-remaining: 0   unreconciled-runs: 0 of this session's
+
+One live pointer remains in the project and it is not this session's: r-20260918T155731267687-reuse-map, session telemetry-spine, plan serve-telemetry-spine. A peer coordinator's run is not ours to dispose, so it is named here rather than given a disposition.</div>
 </div>
 </section>
 </main>
