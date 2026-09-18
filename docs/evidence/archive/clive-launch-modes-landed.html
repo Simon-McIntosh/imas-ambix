@@ -28,6 +28,7 @@
         <tr><td>Legacy surface repair</td><td><code>c197e3d</code></td><td>183/183 with no production change</td></tr>
         <tr><td>Interactive release prompt</td><td><code>2b1ec497</code></td><td>6/6; two releases rendered at their own indices; an aliased row label is caught</td></tr>
         <tr><td>Local-alias arrival fence</td><td><code>32b6b62</code></td><td>3/3; the inbound request names the local release, not the alias</td></tr>
+        <tr><td>Hybrid slot capabilities</td><td><code>d740487c</code></td><td>10/10; five hybrid slots each declare supported capabilities; deleting one declaration is caught</td></tr>
       </tbody>
     </table>
 
@@ -182,12 +183,43 @@ Select model:</code></pre>
     is absent, because a stub echoing its own argv restates the very boundary this fence
     exists to cross.</p>
 
+    <h2 id="hybrid-capabilities">Every hybrid slot declares its capabilities</h2>
+    <p>The capabilities fence covered the default lineup only, because it ran the
+    launcher in local mode, where all four aliases resolve to the one selected release.
+    The hybrid branch is the case with something to get wrong: it fills the slots from two
+    different places, taking <code>sonnet</code> and <code>haiku</code> from the first two
+    catalog releases and <code>opus</code>, <code>fable</code> and the custom model option
+    from the hosted set, so a slot added there is exactly where a declaration is easiest to
+    forget.</p>
+
+    <p>The test drives the generated launcher in hybrid mode and compares the declared
+    capability variables against the slot roster as an <strong>exact set</strong> rather than
+    a membership check. Five slots are covered, each carrying <code>thinking</code>: the
+    sonnet, haiku, opus and fable model slots, plus the custom model option. The roster is
+    derived from the harness's own registration convention — a slot variable is one that
+    carries a <code>_NAME</code> companion — so it is not a list the test restates, and a
+    slot arriving without its declaration enters the roster and cannot match the mapping.</p>
+
+    <p>The fence was shown to be load-bearing rather than merely green: deleting the custom
+    model option's capability declaration from the generated launcher makes the assertion
+    reject it, while the unmodified launcher passes. The hybrid branch imposes three
+    prerequisites no launcher unit test meets by default, and the module supplies them
+    rather than skipping the mode — the catalog card and endpoint document carrying the
+    release string, a user manager promising the proxy is already active, and a listening
+    loopback port for the readiness probe performed before the harness is launched.</p>
+
     <h2 id="open">What is not proven here</h2>
     <p>The launcher's numbered prompt is now asserted to render and to select. The
     <strong>curated rows inside the harness picker</strong> are a different surface and
     remain asserted only to be generated correctly, not to render: they are consumed by
     the harness, which no headless node can drive to a picker, so confirming them still
     requires a human at a terminal.</p>
+
+    <p>The same boundary applies to the capability declarations. What is asserted is the
+    declaration set the launcher <em>exports</em> in hybrid mode, which is the launcher's
+    own output rather than the harness's behaviour. Whether the harness reads those
+    declarations, and what it is handed when a model carries none, is harness-side and
+    remains unmeasured here: the fence protects the export, not the consumption.</p>
 
   </main>
 </body>
