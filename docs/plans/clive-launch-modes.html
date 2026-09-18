@@ -22,7 +22,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-18">
-<meta name="plan-version" content="17">
+<meta name="plan-version" content="18">
 <meta name="plan-commits" content="526195c8c059efe5f73439ae1fed626407f11322,5fd71b1b1e2d12c0e160816e24f3ca7055f718cf,cb5c6e12775124169e3402065a87c5e920a912ed,1c602d0ecc7f7fe1c03530bfe848266fd93b565b,c197e3d2f3ed6c57ecda748cebdd2262f5adfbcb,03bf0652e41fcf440c9254260e0f31221e132a89,8bea195">
 <meta name="plan-artifacts" content="imas_ambix/agent/clive.py,tests/test_agent_clive_modes.py,tests/test_agent_clive_picker.py,tests/test_agent_clive_dispatch_guidance.py">
 <meta name="plan-impl" content="0.95">
@@ -246,6 +246,9 @@ impl unchanged at 0.95: this node produced a map, not a shippable change. Sectio
     <div class="r-comment-body">clive-local-alias-statement landed — commit cb5c6e1; gate 'dispatch guidance contract' passed; measure 2/2 tests. The default local launch now tells the session that sonnet is the primary local worker, carrying that release's own validated accelerator count, family and exact max_model_len from its catalog card, plus the division of labour and the plain statement that local-only mode has no frontier slot. All four alias assignments are unchanged, because the statement describes the mapping rather than creating one.
 
 clive-hybrid-alias-alignment landed — commit 1c602d0; gate 'hybrid alias contract' passed; measure 10/10 tests. Landing the statement exposed an inherited contradiction: the hybrid branch mapped its local release to haiku and gave sonnet to a hosted model, so a session told sonnet is local in the default lineup would have reached a hosted model after switching mode — the exact confusion this mapping exists to remove. Hybrid now places the first local release on sonnet and the second on haiku with no hosted id on either, frontier slots keep the remaining aliases, and hybrid receives the same session statement. Default local generation is unchanged and implicit remains byte-identical to explicit.</div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-run-r-20260918T085702392753-s24-remainder-audit" data-who="reckon-ship" data-when="2026-09-18T09:51:27.688Z">
+    <div class="r-comment-body"><p>Five §6 bullets verdicted: 3 fenced, 2 open. Bullet 3&#x27;s rendering clause is authority-required and correctly not headlessly closable. Bullet 5&#x27;s observation clause has no test and no carrier: every launcher test stops at the exported-environment boundary, so the suite would still pass if the harness ignored the alias mapping entirely. Each fenced verdict&#x27;s cited test was executed at HEAD and passed.</p></div>
 </div>
 </section>
 </main>

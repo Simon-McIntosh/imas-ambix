@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-18T11:43:46",
+  "updated": "2026-09-18T11:53:22",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -41068,6 +41068,200 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260918T085702392753-s24-remainder-audit",
+        "plan": "clive-launch-modes",
+        "section": "\u00a76",
+        "node": "s24-remainder-audit",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1949,
+                "cached_input_tokens": 189020,
+                "input_tokens": 190971,
+                "output_tokens": 395,
+                "reasoning_output_tokens": 157,
+                "total_tokens": 191366,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "fe5e6227-20a2-4f56-b5dc-a8a8121122f9",
+            "session_id": "ambix-s24-local"
+          },
+          "done_when": "the report at the write path names all five s6 done-when bullets, gives each a verdict of fenced or open, cites a test file path plus test function name for every fenced verdict, and for every open bullet states whether a headless node could close it together with the mechanism it would use",
+          "estimated_hours": null,
+          "goal": "Report which of the five done-when items in section s6 of clive-launch-modes are fenced by tests at HEAD",
+          "id": "s24-remainder-audit",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-18T08:57:03Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no 'binding_observed'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260918T085702392753-s24-remainder-audit/manifest.md",
+          "plan": "clive-launch-modes",
+          "requested_backend": null,
+          "requires_decisions": [],
+          "role": "investigate",
+          "section": "\u00a76",
+          "spec_level": "guided",
+          "time_budget": "12m",
+          "token_budget": null,
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/s24-remainder-audit.md"
+          ]
+        },
+        "role": "investigate",
+        "spec_level": "guided",
+        "member": "session-92d6be926e352497969e",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "xhigh",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "read-only",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-18T08:57:26Z",
+        "completed_at": "2026-09-18T09:51:27.688Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 3219,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 3241,
+        "stalled": true,
+        "time_budget": "12m",
+        "base_sha": "aa9c993234c31d03dc5bc20a3632dc27c76086c0",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "UV_PROJECT_ENVIRONMENT=.../.venv PYTHONPATH=$PWD uv run --no-sync pytest -q -p no:cacheprovider tests/test_agent_clive_modes.py tests/test_agent_clive_picker.py tests/test_agent_clive_dispatch_guidance.py (19 passed); and tests/test_agent.py -k 'clive_readable_openrouter_key or clive_list_renders or clive_unreachable_catalog or clive_codex_receives' (5 passed, 187 deselected)",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260918T085702392753-s24-remainder-audit/s24-clive-suites.log",
+          "log_digest": "cf8e881f02c1d97a18a7347778a7a440e7d8c5ef5fc8178903246e0897f444dc"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260918T085702392753-s24-remainder-audit/manifest.md",
+        "scope_changed": false,
+        "session_id": "d3581757-4c03-45b6-8b68-8ca696967730",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 4290570,
+            "input_tokens_cumulative": 4290570,
+            "output_tokens": 34269,
+            "output_tokens_cumulative": 34269,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-18T09:51:27.688Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": null,
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 4290570,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 3235.104,
+          "generated_tokens": 34269,
+          "generation_seconds": 3200.481,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 25.7,
+          "machine_seconds": 34.623,
+          "peak_input_tokens": 123494,
+          "tokens_per_second": 10.71,
+          "wall_tokens_per_second": 10.59
+        },
+        "follow_on_paths": [
+          "tests/test_agent_clive_picker.py::test_every_declared_alias_has_supported_capabilities"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": false,
+          "matched_measure": null,
+          "override": false,
+          "role": "investigate",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": "investigate role; the audit is written outside the repository and no repository path changed",
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s24-local/s24-remainder-audit",
+          "session_id": "d3581757-4c03-45b6-8b68-8ca696967730",
+          "session_source": "pointer",
+          "retained_at": "2026-09-18T09:51:27.688Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "tool_steps": 55.0,
+        "orientation_input_tokens": 2086976.0,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -41142,6 +41336,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 720
+    "_version": 721
   }
 }
