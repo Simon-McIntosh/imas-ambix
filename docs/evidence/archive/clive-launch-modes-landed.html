@@ -29,6 +29,7 @@
         <tr><td>Interactive release prompt</td><td><code>2b1ec497</code></td><td>6/6; two releases rendered at their own indices; an aliased row label is caught</td></tr>
         <tr><td>Local-alias arrival fence</td><td><code>32b6b62</code></td><td>3/3; the inbound request names the local release, not the alias</td></tr>
         <tr><td>Hybrid slot capabilities</td><td><code>d740487c</code></td><td>10/10; five hybrid slots each declare supported capabilities; deleting one declaration is caught</td></tr>
+        <tr><td>Shared catalog fixture</td><td><code>fa3ea670</code></td><td>29 passed across the five launcher modules, unchanged; 112 lines of duplicated origin code removed against 73 added</td></tr>
       </tbody>
     </table>
 
@@ -207,6 +208,42 @@ Select model:</code></pre>
     rather than skipping the mode — the catalog card and endpoint document carrying the
     release string, a user manager promising the proxy is already active, and a listening
     loopback port for the readiness probe performed before the harness is launched.</p>
+
+    <h2 id="fixture">One catalog origin, shared by the launcher tests</h2>
+
+    <p>Three launcher modules each stood up their own closure over a
+    <code>ThreadingHTTPServer</code> to answer the release-catalog fetch the generated
+    script makes, and each recorded the requests it saw. The copies had drifted: one
+    yielded a <code>SiteConfig</code>, the others a bare address, so the same concept
+    lived under three interfaces. One module now serves every launcher test's catalog
+    origin and records what the launcher asked for.</p>
+
+    <p>The raw form is the general entry point and the items form is a thin wrapper over
+    it. Which module uses which:</p>
+
+    <table>
+      <thead><tr><th>Module</th><th>Entry point used</th><th>Lines removed</th><th>Lines added</th></tr></thead>
+      <tbody>
+        <tr><td><code>tests/test_agent.py</code></td><td><code>serve_catalog_items</code></td><td>48</td><td>12</td></tr>
+        <tr><td><code>tests/test_agent_clive_picker.py</code></td><td><code>serve_catalog_items</code></td><td>34</td><td>3</td></tr>
+        <tr><td><code>tests/test_agent_clive_dispatch_guidance.py</code></td><td><code>serve_catalog_items</code></td><td>30</td><td>2</td></tr>
+        <tr><td><code>tests/agent/catalog_fixture.py</code> (new)</td><td><code>serve_catalog</code>, wrapped by <code>serve_catalog_items</code></td><td>—</td><td>73</td></tr>
+      </tbody>
+    </table>
+
+    <p>Nothing in scope needs the raw form yet, so it is exposed because the plan asked
+    for the general shape rather than because a caller exercises it: a follow-on that
+    needs a non-200 answer or a redirect has it without standing up a fourth private
+    server. That is the difference between the <code>status</code> and
+    <code>response_headers</code> parameters existing on the entry point and a test
+    demonstrating them — the latter is not claimed here.</p>
+
+    <p>The fence that makes this a measurement rather than a pass: the combined five-module
+    run and <code>tests/test_agent.py</code>'s 192 both report the same numbers as before
+    the change, so a fixture that silently stopped serving the catalog would show up as a
+    failure rather than as a quieter test. The one assertion narrowed — a picker test
+    reading <code>requests[0]</code>, now <code>requests[0][1]</code> — is the recorded
+    entry being explicitly a (path, headers) pair.</p>
 
     <h2 id="open">What is not proven here</h2>
     <p>The launcher's numbered prompt is now asserted to render and to select. The

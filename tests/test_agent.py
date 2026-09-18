@@ -1,7 +1,6 @@
 """Tests for the imas-ambix agent CLI and profile system."""
 
 import math
-from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -9,6 +8,7 @@ from click.testing import CliRunner
 
 from imas_ambix.agent.profile import SiteConfig, list_profiles, load_profile
 from imas_ambix.cli import main
+from tests.agent.catalog_fixture import serve_catalog
 
 
 def _with_checkpoint_precision(profile, precision="fp8"):
@@ -2337,42 +2337,6 @@ def _catalog_item(
     return item
 
 
-@contextmanager
-def _serve_catalog(payload, *, status=200, response_headers=None):
-    """Serve one anonymous catalog and record every request header."""
-    import json
-    import threading
-    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-
-    body = payload if isinstance(payload, bytes) else json.dumps(payload).encode()
-    requests = []
-
-    class Handler(BaseHTTPRequestHandler):
-        def do_GET(self):
-            requests.append((self.path, dict(self.headers)))
-            self.send_response(status)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(body)))
-            for name, value in (response_headers or {}).items():
-                self.send_header(name, value)
-            self.end_headers()
-            self.wfile.write(body)
-
-        def log_message(self, _format, *args):
-            return None
-
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    host, port = server.server_address
-    try:
-        yield SiteConfig(global_origin=f"http://{host}:{port}"), requests
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=2)
-
-
 def _write_executable(path, content):
     path.write_text(content, encoding="utf-8")
     path.chmod(0o755)
@@ -2441,7 +2405,7 @@ def test_clive_readable_openrouter_key_does_not_reach_proxy(tmp_path):
         f'"$ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION" > {trace}\n',
     )
 
-    with _serve_catalog({"data": [_catalog_item(url="http://attacker.invalid")]}) as (
+    with serve_catalog({"data": [_catalog_item(url="http://attacker.invalid")]}) as (
         site,
         requests,
     ):
@@ -2508,7 +2472,7 @@ def test_clive_clean_directory_uses_no_forbidden_consumer_dependency(tmp_path):
     empty_cwd = tmp_path / "empty"
     empty_cwd.mkdir()
 
-    with _serve_catalog({"data": [_catalog_item("glm-5.3")]}) as (site, requests):
+    with serve_catalog({"data": [_catalog_item("glm-5.3")]}) as (site, requests):
         launcher = tmp_path / "clive"
         launcher.write_text(generate_clive_script(site), encoding="utf-8")
         launcher.chmod(0o755)
@@ -2565,7 +2529,7 @@ def test_clive_list_renders_future_releases_and_all_topologies(tmp_path):
         for count in (2, 4, 6, 8)
     ]
     items[-1]["id"] = "glm-5.3"
-    with _serve_catalog({"data": items}) as (site, _requests):
+    with serve_catalog({"data": items}) as (site, _requests):
         launcher = tmp_path / "clive"
         launcher.write_text(generate_clive_script(site), encoding="utf-8")
         launcher.chmod(0o755)
@@ -2600,7 +2564,7 @@ def test_clive_codex_receives_selected_model_and_same_origin(tmp_path, selector)
     )
     env = os.environ.copy()
     env["PATH"] = f"{fake_bin}:{env['PATH']}"
-    with _serve_catalog(
+    with serve_catalog(
         {"data": [_catalog_item("glm-5.3", url="http://ignored.invalid")]}
     ) as (site, _requests):
         launcher = tmp_path / "clive"
@@ -2655,7 +2619,7 @@ def test_clive_rejects_empty_malformed_duplicate_or_invalid_catalogs(
 
     from imas_ambix.agent.clive import generate_clive_script
 
-    with _serve_catalog(payload) as (site, _requests):
+    with serve_catalog(payload) as (site, _requests):
         launcher = tmp_path / "clive"
         launcher.write_text(generate_clive_script(site), encoding="utf-8")
         launcher.chmod(0o755)
@@ -2677,7 +2641,7 @@ def test_clive_requires_noninteractive_selection_for_multiple_items(tmp_path):
 
     from imas_ambix.agent.clive import generate_clive_script
 
-    with _serve_catalog(
+    with serve_catalog(
         {"data": [_catalog_item("alpha", count=2), _catalog_item("beta", count=6)]}
     ) as (site, _requests):
         launcher = tmp_path / "clive"
@@ -2705,7 +2669,7 @@ def test_clive_interactive_selection_rejects_undisplayed_integers(tmp_path, choi
 
     from imas_ambix.agent.clive import generate_clive_script
 
-    with _serve_catalog(
+    with serve_catalog(
         {"data": [_catalog_item("alpha", count=2), _catalog_item("beta", count=6)]}
     ) as (site, _requests):
         launcher = tmp_path / "clive"
@@ -2790,11 +2754,11 @@ def test_clive_redirect_catalog_fails_without_leaving_global_origin(tmp_path):
     env["PATH"] = f"{fake_bin}:{env['PATH']}"
 
     with (
-        _serve_catalog({"data": [_catalog_item("redirected-release")]}) as (
+        serve_catalog({"data": [_catalog_item("redirected-release")]}) as (
             redirect_target,
             target_requests,
         ),
-        _serve_catalog(
+        serve_catalog(
             b"",
             status=302,
             response_headers={"Location": f"{redirect_target.global_origin}/v1/models"},
@@ -2897,7 +2861,7 @@ def test_clive_openrouter_opt_in_starts_proxy_and_presents_picker(
             "PATH": f"{fake_bin}:{env['PATH']}",
         }
     )
-    with _serve_catalog(
+    with serve_catalog(
         {
             "data": [
                 _catalog_item("served-local-model"),
@@ -2963,7 +2927,7 @@ def test_clive_openrouter_rejects_unconfigured_dynamic_release_before_proxy(
     env = os.environ.copy()
     env["PATH"] = f"{fake_bin}:{env['PATH']}"
 
-    with _serve_catalog({"data": [_catalog_item("dynamic-release")]}) as (
+    with serve_catalog({"data": [_catalog_item("dynamic-release")]}) as (
         site,
         _requests,
     ):
