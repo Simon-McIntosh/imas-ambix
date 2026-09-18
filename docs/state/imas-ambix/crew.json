@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-18T17:57:03",
+  "updated": "2026-09-18T17:58:53",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -1754,9 +1754,11 @@
         "id": "telemetry-prior-art",
         "harness": "clive",
         "role": "investigate",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
+        "session_id": "825e3d11-d074-43c5-9481-d8b5bae97fe8",
+        "session_model": "deepseek-v4.1-flash",
+        "sessions": {
+          "{\"alias\":\"dsv4.1-flash\",\"backend\":\"clive\",\"effort\":\"xhigh\",\"launch\":\"cli\",\"local\":true,\"model\":\"deepseek-v4.1-flash\",\"sandbox\":\"read-only\",\"usable_input_window\":480000}": "825e3d11-d074-43c5-9481-d8b5bae97fe8"
+        },
         "created": "2026-09-18"
       },
       {
@@ -41877,6 +41879,209 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260918T144353544895-launcher-catalog-fixture-consolidation",
+        "plan": "clive-launch-modes",
+        "section": "\u00a73",
+        "node": "launcher-catalog-fixture-consolidation",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1326,
+                "cached_input_tokens": 459441,
+                "input_tokens": 460769,
+                "output_tokens": 676,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 461445,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "fe5e6227-20a2-4f56-b5dc-a8a8121122f9",
+            "session_id": "ambix-s24-local"
+          },
+          "done_when": "the three launcher test modules that define their own catalog fixture import it instead from one shared module under tests/agent/, that shared module exposes the raw-payload form carrying status and response-header control as the general entry point with a thin items wrapper over it, no test body changes its behaviour, and a combined run of tests/test_agent_clive_modes.py tests/test_agent_clive_picker.py tests/test_agent_clive_dispatch_guidance.py tests/test_agent_clive_interactive.py tests/test_agent_clive_alias_dispatch.py still reports exactly 29 passed while uv run --no-sync ruff check imas_ambix tests exits 0; the report states the net line count removed and names which entry point each module now uses",
+          "estimated_hours": null,
+          "goal": "Give the launcher tests one shared catalog fixture instead of three private copies",
+          "id": "launcher-catalog-fixture-consolidation",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-18T14:43:54Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no 'binding_observed'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260918T144353544895-launcher-catalog-fixture-consolidation/manifest.md",
+          "plan": "clive-launch-modes",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a73",
+          "spec_level": "guided",
+          "time_budget": "35m",
+          "token_budget": null,
+          "write_paths": [
+            "tests/agent",
+            "tests/test_agent.py",
+            "tests/test_agent_clive_picker.py",
+            "tests/test_agent_clive_dispatch_guidance.py",
+            "docs/evidence/archive/clive-launch-modes-landed.html",
+            "docs/plans/clive-launch-modes.html"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "dsv4-router-catalog",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "high",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "worktree-full",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-18T14:44:05Z",
+        "completed_at": "2026-09-18T15:56:09.248Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 4233,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 4324,
+        "stalled": true,
+        "time_budget": "35m",
+        "base_sha": "0108df4490c74a7cf315e96ca25bb48d9a353255",
+        "commits": [
+          "fa3ea6704cf18a1b6b9591917c0b5c213e03156b",
+          "81ab32fe38d260ec972ae483933e4e8630e8e57c"
+        ],
+        "changed_lines": {
+          "added": 135,
+          "removed": 112,
+          "files": 6
+        },
+        "tests_added": 0,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest -p no:cacheprovider -q over the five launcher contract modules (re-run by the coordinator at the merged head: 29 passed, the count the measure pinned); plus tests/test_agent.py 192 passed; uv run --no-sync ruff check imas_ambix tests exit 0",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260918T144353544895-launcher-catalog-fixture-consolidation/gate-at-merged-head.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "Three private catalog fixtures with already-divergent signatures replaced by one shared recording origin, 90 insertions against 112 deletions. The count measure held at exactly 29 across the five launcher modules and test_agent.py stayed at 192, so no behaviour moved inside the refactor. Its manifest classified unreadable on format, not on work: it used a YAML list form and the non-standard status implemented-pending-review, while every deliverable was committed and the gate was green.",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260918T144353544895-launcher-catalog-fixture-consolidation/manifest.md",
+        "scope_changed": false,
+        "session_id": "ea60c04e-c162-45c2-87e0-7f6002cc66de",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 7517309,
+            "input_tokens_cumulative": 9934835,
+            "output_tokens": 28623,
+            "output_tokens_cumulative": 38697,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-18T15:56:09.248Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": null,
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 10266130,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 4318.214,
+          "generated_tokens": 64549,
+          "generation_seconds": 4228.865,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 34.4,
+          "machine_seconds": 89.349,
+          "peak_input_tokens": 165031,
+          "tokens_per_second": 15.26,
+          "wall_tokens_per_second": 14.95
+        },
+        "dispute_count": "unknown",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s24-local/launcher-catalog-fixture-consolidation",
+          "session_id": "ea60c04e-c162-45c2-87e0-7f6002cc66de",
+          "session_source": "pointer",
+          "retained_at": "2026-09-18T15:56:09.248Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "tool_steps": 87.0,
+        "orientation_input_tokens": 1530884.0,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -41951,6 +42156,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 730
+    "_version": 732
   }
 }
