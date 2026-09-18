@@ -753,6 +753,69 @@
     by exactly 332 lines and able to cut a record in two. Full record:
     <a href="/imas-ambix/evidence/archive/dsv41-serve-tuning-for-concurrency-landed#decode-log-harvester">harvester evidence</a>.</p>
 
+    <h3>Landing record — the plateau is confirmed flat, and the pool increment is not its cause</h3>
+
+    <p><strong>Aggregate decode throughput is flat across concurrency widths
+    17–32 on both pool configurations, and increasing width buys no aggregate
+    tokens.</strong> The 4M-pool job's slope of per-width median throughput is
+    <strong>+0.09 tok/s per unit width</strong> (95 % stratified bootstrap CI
+    [−2.00, +2.69], whole-range gain −4.1 %). The 8M-pool job's is
+    <strong>−0.55</strong> (CI [−1.61, +0.34], gain +4.1 %). <code>#queue-req</code>
+    is 0 at every width, so the plateau is not admission queueing, and median
+    full-token occupancy rises with width on both arms (0.475 → 0.830 on 4M,
+    0.240 → 0.370 on 8M) while throughput does not move — which is the direct
+    counter-evidence to reading the plateau as a capacity limit.</p>
+
+    <table>
+      <thead><tr><th>Job</th><th>Pool</th><th>Intervals</th>
+      <th>Plateau median tok/s</th><th>IQR</th><th>Slope /width</th>
+      <th>95 % CI</th></tr></thead>
+      <tbody>
+        <tr><td>1272783</td><td>4,000,000</td><td>4,059</td><td>387.0</td>
+        <td>352.0–421.5</td><td>+0.09</td><td>[−2.00, +2.69]</td></tr>
+        <tr><td>1273074</td><td>8,000,000</td><td>1,003</td><td>370.7</td>
+        <td>331.3–403.4</td><td>−0.55</td><td>[−1.61, +0.34]</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>The 8M arm changed its answer as it filled, which is the finding
+    worth carrying forward.</strong> At 596 intervals it read a slope of
+    <strong>+5.38</strong> (CI [+2.39, +9.94]) — a CI excluding zero — and at
+    1,003 intervals the same arm reads <strong>−0.55</strong> (CI [−1.61,
+    +0.34]). The positive slope lived entirely in six low widths holding five to
+    seven intervals each and in a single width-17 ascending interval reading
+    74.3 tok/s. The 8M serve was still <code>RUNNING</code> at the analysis cut,
+    so that arm is a snapshot and the report says so. A read taken on the
+    smaller sample would have concluded that widening buys 17 %, and it did not.</p>
+
+    <p><strong>The limb split holds and it is a confound any refit must
+    carry.</strong> Descending exceeds ascending at 15 of 15 in-range widths on
+    the 4M job and 15 of 16 on the 8M job; pooled over 17–32 the medians are
+    400.6 against 363.2 tok/s on 4M (n 142 / 145) and 383.9 against 343.9 on 8M
+    (n 294 / 268). An unlabelled throughput figure quotes a mixture whose weight
+    depends on whether the lane was ramping up or down at the time.</p>
+
+    <p><strong>The pool increment did its job and is not implicated in the
+    plateau.</strong> Median full-token usage at width 32 is 0.830 of the 4M cap
+    against 0.370 of the 8M cap — 3,311,360 against 2,962,560 tokens — so the 4M
+    job ran within 17 % of a bound the 8M job now sits at a third of. What the
+    measurement cannot do is attribute anything to pool size: the two arms
+    differ in pool, window and the traffic mix those windows carried, all
+    together, and this node did not separate them. The premise that the jobs ran
+    on different days was wrong — both ran on 2026-09-17 in adjacent,
+    non-overlapping windows — but correcting it makes the confound tighter, not
+    looser, because the surviving differences are time of day and traffic mix.</p>
+
+    <p><strong>Baseline banked for a precision arm.</strong> On widths 21–30 —
+    the band where both arms carry at least twenty-one intervals — the fp8
+    medians are 368.7–409.5 tok/s (4M) and 349.3–388.8 (8M), and those are the
+    numbers a W4A16 arm has to beat. Widths 18–20 and 31–32 on the 4M job carry
+    n = 8–16 and are named as inadequate rather than quietly dropped. Full record
+    and per-width tables:
+    <a href="/imas-ambix/evidence/archive/dsv41-serve-tuning-for-concurrency-landed#decode-throughput-vs-width">decode throughput vs width evidence</a>;
+    figure
+    <a href="/imas-ambix/figures/dsv41-serve-tuning-for-concurrency/decode-throughput-vs-width.svg">aggregate decode throughput against concurrency width</a>.</p>
+
     <h2 id="s5">§5 — What is deliberately not a lever, so nobody spends a window on it</h2>
 
     <p>Each of these looks like a tuning opportunity and is not. Recording the

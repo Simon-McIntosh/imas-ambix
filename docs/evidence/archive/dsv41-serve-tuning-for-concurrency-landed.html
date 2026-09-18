@@ -705,6 +705,79 @@
     worktree is modified; the profile and every other path are untouched,
     confirmed by <code>git status --porcelain</code>.</p>
 
-  </main>
+  
+  <h2 id="decode-throughput-vs-width">Aggregate decode throughput against
+  concurrency width, both pool configurations</h2>
+
+  <p><strong>Two jobs, one quantity, no controlled arm.</strong> Job
+  <code>1272783</code> served the 4,000,000-token pool
+  (<code>deepseek-v4-1-flash-1272783.log</code>, 4,059 decode intervals, logged
+  2026-09-17 11:37:47 to 16:29:45 local). Job <code>1273074</code> served the
+  8,000,000-token pool (<code>deepseek-v4-1-flash-1273074.log</code>, 1,003
+  intervals at a cut of 2026-09-17 19:53 local). Zero malformed decode lines on
+  both. The two windows are adjacent and non-overlapping, but the 8M job was
+  still <code>RUNNING</code> at the cut, so its arm is a snapshot; the 4M job
+  had ended.</p>
+
+  <p><strong>Verdict.</strong> Throughput is flat across widths 17&#8211;32 on
+  both arms. The 4M job's slope of per-width median aggregate throughput is
+  <strong>+0.09 tok/s per width</strong> (95&#8239;% stratified bootstrap CI
+  &#8722;2.00 to +2.69, gain &#8722;4.1&#8239;%); the 8M job's is
+  <strong>&#8722;0.55</strong> (CI &#8722;1.61 to +0.34, gain +4.1&#8239;%).
+  <code>#queue-req</code> is 0 at every width, so the plateau is not admission
+  queueing.</p>
+
+  <p><strong>The 8M arm's earlier snapshot was not flat, and more data dissolved
+  the effect.</strong> At 596 intervals that arm read a slope of
+  <strong>+5.38</strong> (CI +2.39 to +9.94); at 1,003 intervals the same
+  quantity is <strong>&#8722;0.55</strong> (CI &#8722;1.61 to +0.34). The
+  positive slope lived entirely in six low widths holding five to seven
+  intervals each and in one width-17 ascending interval reading 74.3 tok/s, and
+  it does not survive adequate sampling. A read taken on the smaller sample
+  would have concluded that widening buys 17&#8239;%.</p>
+
+  <table>
+    <thead><tr><th>Job</th><th>Pool</th><th>Intervals</th><th>Widths</th>
+    <th>Plateau median, 17&#8211;32</th><th>IQR</th><th>Slope per width</th>
+    <th>95&#8239;% CI</th></tr></thead>
+    <tbody>
+      <tr><td>1272783</td><td>4,000,000</td><td>4,059</td><td>1&#8211;32</td>
+      <td><strong>387.0 tok/s</strong></td><td>352.0&#8211;421.5</td>
+      <td>+0.09</td><td>&#8722;2.00 to +2.69</td></tr>
+      <tr><td>1273074</td><td>8,000,000</td><td>1,003</td><td>1&#8211;34</td>
+      <td><strong>370.7 tok/s</strong></td><td>331.3&#8211;403.4</td>
+      <td>&#8722;0.55</td><td>&#8722;1.61 to +0.34</td></tr>
+    </tbody>
+  </table>
+
+  <p><strong>Limb split.</strong> Labelling each interval from its width
+  trajectory separates the two strata an unlabelled curve blends. Descending
+  exceeds ascending at 15 of 15 in-range widths on the 4M job and 15 of 16 on
+  the 8M job; pooled over 17&#8211;32 the medians are 400.6 against 363.2 tok/s
+  on 4M (n 142 / 145) and 383.9 against 343.9 on 8M (n 294 / 268). A throughput
+  figure quoted without its limb is quoting a mixture whose weight depends on
+  whether the lane was ramping up or down.</p>
+
+  <p><strong>The pool increment met its own target and changed no
+  throughput.</strong> Median full-token usage at width 32 is 0.830 of the 4M
+  pool against 0.370 of the 8M pool &#8212; 3,311,360 and 2,962,560 tokens
+  respectively, so the 4M job ran within 17&#8239;% of a cap the 8M job now sits
+  at about a third of. Occupancy rises with width on both arms while throughput
+  is flat, which is the direct counter-evidence to reading the plateau as a
+  capacity limit.</p>
+
+  <p><strong>Interpretation limit.</strong> Pool size, window and traffic mix
+  move together between the two arms as run, so nothing here separates them and
+  none of it supports a claim that the 8M pool causes or cures the plateau.</p>
+
+  <p><strong>Artifacts.</strong> Report:
+  <code>.config/reckon/crew/reports/imas-ambix/decode-plateau-confirmation.md</code>.
+  Figure:
+  <code>/imas-ambix/figures/dsv41-serve-tuning-for-concurrency/decode-throughput-vs-width.svg</code>.
+  Instrument: <code>imas_ambix/agent/decode_bins.py</code> plus a 4,000-draw
+  stratified bootstrap over intervals (seed 20260917). No source file, profile
+  or live setting changed.</p>
+
+</main>
 </body>
 </html>
