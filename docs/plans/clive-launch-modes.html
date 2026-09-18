@@ -299,6 +299,17 @@ One caveat that does not move a verdict: the hybrid branch sets a custom-option 
 
 impl unchanged at 0.95: this node produced verdicts, not a shippable change.</div>
 </div>
+<div class="r-comment" data-section="s6" data-id="c-run-r-20260918T133122072603-hybrid-slot-capability-assertion" data-who="hybrid-slot-capability-assertion" data-when="2026-09-18T14:11:14Z">
+    <div class="r-comment-body">hybrid-slot-capability-assertion landed — commit d740487c; gate 'the module passes under pytest' passed at 10/10 across tests/test_agent_clive_picker.py, whole-tree ruff check imas_ambix tests exit 0, and the assertion was shown to be load-bearing by deleting a declaration.
+
+This closes the one caveat the remainder audit recorded against the capabilities test: that test ran the default mode only, so the hybrid branch's own declaration was unasserted. The new test drives the generated launcher in hybrid mode and compares the declared capability variables against the slot roster as an exact set rather than a membership check. Five slots are covered, each carrying thinking: ANTHROPIC_DEFAULT_SONNET_MODEL resolving to the first catalog release, ANTHROPIC_DEFAULT_HAIKU_MODEL to the second, ANTHROPIC_DEFAULT_OPUS_MODEL to or-opus-4.8, ANTHROPIC_DEFAULT_FABLE_MODEL to or-glm-5.2, and ANTHROPIC_CUSTOM_MODEL_OPTION to or-gpt-5.5 — the last being the declaration the caveat named.
+
+The slot roster is derived from the harness's own registration convention, a slot variable being one that carries a NAME companion, rather than listed in the test. That is what makes an added slot fail the assertion: it enters the roster and, absent its declaration, cannot match the mapping. Deleting the custom model option declaration from the generated launcher makes the assertion reject it, so the fence is known to be load-bearing rather than merely green.
+
+What is fenced is the declaration set the launcher exports in hybrid mode, not that the harness honours those declarations — the same boundary the remainder audit named for the observation clause. The hybrid branch imposes prerequisites no launcher unit test meets by default, so the module supplies them: the endpoint document and catalog card carrying the release string, a user manager promising the proxy is already active, a listening loopback port for the readiness probe, and a harness stub recording the environment it is handed.
+
+No production file changed: this node adds a fence and a record. It does not touch the plan-version or plan-modified meta lines, and it does not resolve its own followup or set a terminal status.</div>
+</div>
 </section>
 </main>
 </body>
