@@ -418,6 +418,17 @@
       </tbody>
     </table>
 
+    <p><strong>Commit after each file that compiles, not once at the end.</strong> A worker
+    in print mode gets no turn after its last one, and the turn can end mid-statement.
+    Measured on this plan, 2026-09-18: both nodes of the first build wave held all their
+    work uncommitted, and one ended with a 233-line module truncated inside an expression
+    — real work whose only copy was an untracked file in a worktree, which is the one
+    state a reclaimed worktree destroys outright. The module was good, which is what made
+    the near-loss expensive rather than academic. A commit survives a turn ending and a
+    buffer does not, so the commit is the checkpoint: make one as soon as a file parses,
+    amend it as the file grows, and never let a compiling module sit unstaged while the
+    next one is written.</p>
+
     <p>Every section's gate is a unit or fixture test plus the whole-tree lint gate. No
     section's gate opens real corpus data, so none is heavy; the recorder's on-node cost
     measurement in §3 is the one reading that must be taken on the GPU node itself, against
