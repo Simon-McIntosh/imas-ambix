@@ -22,10 +22,10 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-18">
-<meta name="plan-version" content="20">
+<meta name="plan-version" content="21">
 <meta name="plan-commits" content="526195c8c059efe5f73439ae1fed626407f11322,5fd71b1b1e2d12c0e160816e24f3ca7055f718cf,cb5c6e12775124169e3402065a87c5e920a912ed,1c602d0ecc7f7fe1c03530bfe848266fd93b565b,c197e3d2f3ed6c57ecda748cebdd2262f5adfbcb,03bf0652e41fcf440c9254260e0f31221e132a89,8bea195">
 <meta name="plan-artifacts" content="imas_ambix/agent/clive.py,tests/test_agent_clive_modes.py,tests/test_agent_clive_picker.py,tests/test_agent_clive_dispatch_guidance.py">
-<meta name="plan-impl" content="0.97">
+<meta name="plan-impl" content="0.99">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;deferred&quot;,&quot;s6&quot;:&quot;implementable&quot;}">
 </head>
 <body>
@@ -263,6 +263,24 @@ impl 0.95 to 0.97. It is not 1.0 because §6 bullet 5's observation clause is st
 
 clive-hybrid-alias-alignment landed — commit 1c602d0; gate 'hybrid alias contract' passed; measure 10/10 tests. Landing the statement exposed an inherited contradiction: the hybrid branch mapped its local release to haiku and gave sonnet to a hosted model, so a session told sonnet is local in the default lineup would have reached a hosted model after switching mode — the exact confusion this mapping exists to remove. Hybrid now places the first local release on sonnet and the second on haiku with no hosted id on either, frontier slots keep the remaining aliases, and hybrid receives the same session statement. Default local generation is unchanged and implicit remains byte-identical to explicit.</div>
 </div>
+<div class="r-comment" data-section="s4" data-id="c-run-r-20260918T095453182628-local-alias-request-reaches-the-engine" data-who="local-alias-request-reaches-the-engine" data-when="2026-09-18T12:26:33Z">
+    <div class="r-comment-body">local-alias-request-reaches-the-engine landed — commits 0ce4e483 and 32b6b62c; gate 'the new module passes under pytest' passed at 3/3, whole-tree ruff check imas_ambix tests exit 0. The arrival gap the remainder audit left open on bullet 5 is closed. The new module stands a recording origin up on loopback, runs the generated launcher with the real harness binary so that a delegated request is issued under the sonnet alias, and asserts from the inbound request that the model named is the local release id and that no hosted credential is carried.
+
+What the recorded request shows: model = the local release id, never the alias string and never a hosted id; four credentials planted in the environment (ANTHROPIC_AUTH_TOKEN, ANTHROPIC_API_KEY, OPENROUTER_API_KEY, and an ANTHROPIC_BASE_URL aimed at a foreign origin) appear nowhere in the request; and a control run that rewrites the sonnet slot to a sentinel hosted id is reported as that sentinel, so a local reading is known to mean one. The module runs the real harness binary and skips with that reason when it is absent, because an argv-echoing stub restates the export boundary the launcher suite already fences.
+
+One clause of the node's measure does not hold as written and is recorded rather than quietly weakened: the fence asked for no Authorization header, and the harness must attach one — the request arrives as 'Authorization: Bearer clive-no-auth', the launcher's fixed non-secret placeholder, which is what stops the harness falling back to the operator's claude.ai login. The test asserts the credential-absence that clause stands for: any Authorization present must be exactly that placeholder, no x-api-key may be sent, and no planted credential may appear at all.
+
+No production file changed: this node adds a fence and a record. It does not touch the plan-version or plan-modified meta lines, and it does not resolve its own followup or set a terminal status.</div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-20260918-alias-arrival-closure" data-who="reckon-ship" data-when="2026-09-18T12:56:32+00:00">
+    <div class="r-comment-body">Closure facts and one adjudication. Gate re-run by the coordinator at the MERGED head: 9 passed across tests/test_agent_clive_alias_dispatch.py and tests/test_agent_clive_interactive.py, ruff check imas_ambix tests exit 0. Merged as c921bd1; the evidence record conflicted append-against-append and both sides were kept.
+
+This closes §6 bullet 5's observation clause, the one the remainder audit found had no test and no carrier. The fence now sits at the inbound request instead of the exported environment, and it carries its own control: rewriting the sonnet slot to a hosted sentinel makes the recording origin report that sentinel, so a local reading means something rather than being what the instrument emits regardless.
+
+ADJUDICATED, against my own node wording. The node's done-when required the arriving request to carry no Authorization header. Measured, the harness always attaches one: Bearer clive-no-auth, a fixed non-secret placeholder the launcher sets deliberately, and it is load-bearing because it is what stops the harness falling back to the operator's claude.ai login when no other credential is present. Satisfying the clause literally would have meant breaking a safety property to make a test pass. The worker asserted the property the clause stands for instead — four credentials planted in the parent environment appear nowhere in any recorded request, no x-api-key is sent, and the only Authorization is that placeholder, extracted from the generated launcher rather than hardcoded in the test — and it raised the discrepancy rather than resolving it quietly in either direction. The worker's reading is accepted; the fault was in the done-when I wrote.
+
+impl 0.97 to 0.99, and deliberately not 1.0. Every executable criterion is now fenced, but §6 bullet 3's rendering clause is not met: it needs a person at a terminal looking at the harness picker, which no node can produce. Setting 1.0 would drop this plan out of pending_work and make that human step invisible, which is the failure this session spent its drain removing. It stays at 0.99 and active until the lead runs that check.</div>
+</div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20260918T085702392753-s24-remainder-audit" data-who="reckon-ship" data-when="2026-09-18T09:51:27.688Z">
     <div class="r-comment-body"><p>Five §6 bullets verdicted: 3 fenced, 2 open. Bullet 3's rendering clause is authority-required and correctly not headlessly closable. Bullet 5's observation clause has no test and no carrier: every launcher test stops at the exported-environment boundary, so the suite would still pass if the harness ignored the alias mapping entirely. Each fenced verdict's cited test was executed at HEAD and passed.</p></div>
 </div>
@@ -280,15 +298,6 @@ OPEN, bullet 5's observation clause, which has no test and no carrier. This is t
 One caveat that does not move a verdict: the hybrid branch sets a custom-option capability declaration at clive.py:737 which the capabilities test does not assert, because that test runs the default mode only.
 
 impl unchanged at 0.95: this node produced verdicts, not a shippable change.</div>
-</div>
-<div class="r-comment" data-section="s4" data-id="c-run-r-20260918T095453182628-local-alias-request-reaches-the-engine" data-who="local-alias-request-reaches-the-engine" data-when="2026-09-18T12:26:33Z">
-    <div class="r-comment-body">local-alias-request-reaches-the-engine landed — commits 0ce4e483 and 32b6b62c; gate 'the new module passes under pytest' passed at 3/3, whole-tree ruff check imas_ambix tests exit 0. The arrival gap the remainder audit left open on bullet 5 is closed. The new module stands a recording origin up on loopback, runs the generated launcher with the real harness binary so that a delegated request is issued under the sonnet alias, and asserts from the inbound request that the model named is the local release id and that no hosted credential is carried.
-
-What the recorded request shows: model = the local release id, never the alias string and never a hosted id; four credentials planted in the environment (ANTHROPIC_AUTH_TOKEN, ANTHROPIC_API_KEY, OPENROUTER_API_KEY, and an ANTHROPIC_BASE_URL aimed at a foreign origin) appear nowhere in the request; and a control run that rewrites the sonnet slot to a sentinel hosted id is reported as that sentinel, so a local reading is known to mean one. The module runs the real harness binary and skips with that reason when it is absent, because an argv-echoing stub restates the export boundary the launcher suite already fences.
-
-One clause of the node's measure does not hold as written and is recorded rather than quietly weakened: the fence asked for no Authorization header, and the harness must attach one — the request arrives as 'Authorization: Bearer clive-no-auth', the launcher's fixed non-secret placeholder, which is what stops the harness falling back to the operator's claude.ai login. The test asserts the credential-absence that clause stands for: any Authorization present must be exactly that placeholder, no x-api-key may be sent, and no planted credential may appear at all.
-
-No production file changed: this node adds a fence and a record. It does not touch the plan-version or plan-modified meta lines, and it does not resolve its own followup or set a terminal status.</div>
 </div>
 </section>
 </main>
