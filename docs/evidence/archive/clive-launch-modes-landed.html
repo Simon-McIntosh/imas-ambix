@@ -27,6 +27,7 @@
         <tr><td>Hybrid alias alignment</td><td><code>1c602d0</code></td><td>10/10; no hosted id on sonnet or haiku</td></tr>
         <tr><td>Legacy surface repair</td><td><code>c197e3d</code></td><td>183/183 with no production change</td></tr>
         <tr><td>Interactive release prompt</td><td><code>2b1ec497</code></td><td>6/6; two releases rendered at their own indices; an aliased row label is caught</td></tr>
+        <tr><td>Local-alias arrival fence</td><td><code>32b6b62</code></td><td>3/3; the inbound request names the local release, not the alias</td></tr>
       </tbody>
     </table>
 
@@ -117,6 +118,69 @@ Select model:</code></pre>
     which the label assertion rejects, while the same driver against the script as
     generated renders both release labels and passes. The assertion is load-bearing
     rather than incidentally true.</p>
+    <h2 id="arrival">The alias measured where the request arrives</h2>
+    <p>The dispatch statement is fenced by reading the environment and arguments the
+    launcher exports, which is a statement about where a request <em>departs</em>. Nothing
+    in the suite crossed that boundary: every launcher test hands a recording stub its argv
+    and environment and stops there, so the suite would have passed unchanged had the
+    harness ignored the alias mapping entirely. That gap is now closed from the engine
+    side. A new module stands up a recording origin on loopback, runs the generated
+    launcher with the real harness binary on <code>PATH</code>, and asserts on the
+    inference request that arrives.</p>
+
+    <figure>
+      <svg viewBox="0 0 780 200" role="img" aria-label="The launcher writes an alias mapping across the export boundary the existing suite already fences; the harness then sends the inference request this fence measures to a recording origin.">
+        <defs>
+          <marker id="arrival-arrow" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+            <path d="M0,0 L7,3 L0,6 Z" fill="#5b6b7f"></path>
+          </marker>
+        </defs>
+        <rect x="200" y="34" width="230" height="122" rx="10" fill="none" stroke="#c9a227" stroke-dasharray="6 4"></rect>
+        <text x="315" y="26" text-anchor="middle" font-size="12" fill="#8a711c">already fenced: what the launcher exports</text>
+        <rect x="20" y="58" width="150" height="70" rx="8" fill="#eef2f7" stroke="#5b6b7f"></rect>
+        <text x="95" y="88" text-anchor="middle" font-size="13" fill="#1f2a37">clive launcher</text>
+        <text x="95" y="107" text-anchor="middle" font-size="11" fill="#5b6b7f">alias mapping → argv/env</text>
+        <rect x="245" y="58" width="150" height="70" rx="8" fill="#eef2f7" stroke="#5b6b7f"></rect>
+        <text x="320" y="88" text-anchor="middle" font-size="13" fill="#1f2a37">claude harness</text>
+        <text x="320" y="107" text-anchor="middle" font-size="11" fill="#5b6b7f">real binary, --model sonnet</text>
+        <rect x="560" y="58" width="200" height="70" rx="8" fill="#e8f4ec" stroke="#2f7a4d"></rect>
+        <text x="660" y="88" text-anchor="middle" font-size="13" fill="#1f2a37">recording origin</text>
+        <text x="660" y="107" text-anchor="middle" font-size="11" fill="#2f7a4d">127.0.0.1 — this fence</text>
+        <line x1="175" y1="93" x2="240" y2="93" stroke="#5b6b7f" stroke-width="2" marker-end="url(#arrival-arrow)"></line>
+        <line x1="400" y1="93" x2="554" y2="93" stroke="#2f7a4d" stroke-width="2" marker-end="url(#arrival-arrow)"></line>
+        <text x="477" y="83" text-anchor="middle" font-size="11" fill="#2f7a4d">inference request</text>
+      </svg>
+      <figcaption>The launcher writes the alias mapping and hands it over; the existing
+      fence reads that writing. This fence reads the other end — the request the harness
+      actually sends — so a local reading requires the mapping to have been resolved, not
+      merely exported.</figcaption>
+    </figure>
+
+    <p>Three properties are asserted from the recorded request. The model named is the local
+    release id, never the alias string and never a hosted id. Four credentials planted in
+    the environment (<code>ANTHROPIC_AUTH_TOKEN</code>, <code>ANTHROPIC_API_KEY</code>,
+    <code>OPENROUTER_API_KEY</code>, and an <code>ANTHROPIC_BASE_URL</code> pointing at a
+    foreign origin) appear nowhere in the request, headers or body. And a control run
+    rewrites the sonnet slot to a sentinel hosted id, which the recorder
+    <strong>does</strong> report — so a local reading is known to mean one rather than
+    being what the instrument emits regardless.</p>
+
+    <p><strong>One clause of the measure does not hold as written, and is recorded rather
+    than quietly weakened.</strong> The node asked that the request carry no
+    <code>Authorization</code> header. Measured, the harness must attach one, and the
+    launcher supplies the fixed non-secret placeholder it already carries for exactly this
+    reason: the request arrives bearing <code>Authorization: Bearer clive-no-auth</code>.
+    That placeholder is load-bearing rather than incidental — it is what stops the harness
+    falling back to the operator's claude.ai login when no other credential is present. The
+    test therefore asserts the credential-absence the clause stands for: any
+    <code>Authorization</code> present must be exactly that placeholder, no
+    <code>x-api-key</code> may be sent, and no planted credential may appear anywhere.</p>
+
+    <p>Measure: <code>tests/test_agent_clive_alias_dispatch.py</code> 3 passed at
+    <code>32b6b62</code>, whole-tree <code>ruff check imas_ambix tests</code> exit 0. The
+    module needs the real harness on <code>PATH</code> and skips with that reason when it
+    is absent, because a stub echoing its own argv restates the very boundary this fence
+    exists to cross.</p>
 
     <h2 id="open">What is not proven here</h2>
     <p>The launcher's numbered prompt is now asserted to render and to select. The
