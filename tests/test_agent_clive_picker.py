@@ -6,15 +6,13 @@ import json
 import os
 import socket
 import subprocess
-import threading
 from contextlib import contextmanager
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 
 from imas_ambix.agent.clive import generate_clive_script
 from imas_ambix.agent.litellm_service import LITELLM_PORT
-from imas_ambix.agent.profile import SiteConfig
+from tests.agent.catalog_fixture import serve_catalog_items
 
 CAPABILITY_SUFFIX = "_SUPPORTED_CAPABILITIES"
 
@@ -35,35 +33,6 @@ def _catalog_item(
             "checkpoint_precision": precision,
         },
     }
-
-
-@contextmanager
-def _serve_catalog(items: list[dict[str, object]]):
-    requests: list[dict[str, str]] = []
-
-    class Handler(BaseHTTPRequestHandler):
-        def do_GET(self):
-            requests.append(dict(self.headers.items()))
-            payload = json.dumps({"data": items}).encode()
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(payload)))
-            self.end_headers()
-            self.wfile.write(payload)
-
-        def log_message(self, _format, *_args):
-            return
-
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    host, port = server.server_address
-    try:
-        yield SiteConfig(global_origin=f"http://{host}:{port}"), requests
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=2)
 
 
 @contextmanager
@@ -115,7 +84,7 @@ def _run_launcher(
         (fake_bin / "systemctl").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
         (fake_bin / "systemctl").chmod(0o755)
 
-    with _serve_catalog(items) as (site, requests):
+    with serve_catalog_items(items) as (site, requests):
         site = site.model_copy(update={"preferred_release_id": preferred_release_id})
         launcher.write_text(
             generate_clive_script(
@@ -202,7 +171,7 @@ def test_each_release_gets_its_own_topology_and_context(tmp_path):
 
     assert result.returncode == 0, result.stderr
     assert len(requests) == 1
-    assert "Authorization" not in requests[0]
+    assert "Authorization" not in requests[0][1]
     assert settings["modelPicker"]["replaceBuiltInOptions"] is True
     assert settings["modelPicker"]["options"] == [
         {
