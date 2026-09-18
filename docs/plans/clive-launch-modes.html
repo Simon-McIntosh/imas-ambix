@@ -22,7 +22,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-18">
-<meta name="plan-version" content="18">
+<meta name="plan-version" content="19">
 <meta name="plan-commits" content="526195c8c059efe5f73439ae1fed626407f11322,5fd71b1b1e2d12c0e160816e24f3ca7055f718cf,cb5c6e12775124169e3402065a87c5e920a912ed,1c602d0ecc7f7fe1c03530bfe848266fd93b565b,c197e3d2f3ed6c57ecda748cebdd2262f5adfbcb,03bf0652e41fcf440c9254260e0f31221e132a89,8bea195">
 <meta name="plan-artifacts" content="imas_ambix/agent/clive.py,tests/test_agent_clive_modes.py,tests/test_agent_clive_picker.py,tests/test_agent_clive_dispatch_guidance.py">
 <meta name="plan-impl" content="0.95">
@@ -248,7 +248,22 @@ impl unchanged at 0.95: this node produced a map, not a shippable change. Sectio
 clive-hybrid-alias-alignment landed — commit 1c602d0; gate 'hybrid alias contract' passed; measure 10/10 tests. Landing the statement exposed an inherited contradiction: the hybrid branch mapped its local release to haiku and gave sonnet to a hosted model, so a session told sonnet is local in the default lineup would have reached a hosted model after switching mode — the exact confusion this mapping exists to remove. Hybrid now places the first local release on sonnet and the second on haiku with no hosted id on either, frontier slots keep the remaining aliases, and hybrid receives the same session statement. Default local generation is unchanged and implicit remains byte-identical to explicit.</div>
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20260918T085702392753-s24-remainder-audit" data-who="reckon-ship" data-when="2026-09-18T09:51:27.688Z">
-    <div class="r-comment-body"><p>Five §6 bullets verdicted: 3 fenced, 2 open. Bullet 3&#x27;s rendering clause is authority-required and correctly not headlessly closable. Bullet 5&#x27;s observation clause has no test and no carrier: every launcher test stops at the exported-environment boundary, so the suite would still pass if the harness ignored the alias mapping entirely. Each fenced verdict&#x27;s cited test was executed at HEAD and passed.</p></div>
+    <div class="r-comment-body"><p>Five §6 bullets verdicted: 3 fenced, 2 open. Bullet 3's rendering clause is authority-required and correctly not headlessly closable. Bullet 5's observation clause has no test and no carrier: every launcher test stops at the exported-environment boundary, so the suite would still pass if the harness ignored the alias mapping entirely. Each fenced verdict's cited test was executed at HEAD and passed.</p></div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-20260918-done-when-audit" data-who="reckon-ship" data-when="2026-09-18T09:53:24+00:00">
+    <div class="r-comment-body">s24-remainder-audit landed — gate 'focused launcher suites' passed; measure 19 passed across the three launcher contract files plus 5 passed and 187 deselected in tests/test_agent.py, exit 0 on both, logs retained on the run record. Every test cited for a fenced verdict was executed at this revision. No commit: investigate role.
+
+The five bullets verdict 3 fenced, 2 open, and in both open cases one half of the bullet is already fenced while the open half is the clause a repository unit test structurally cannot reach.
+
+FENCED. Bullet 1, by test_clive_readable_openrouter_key_does_not_reach_proxy, which executes the launcher rather than only generating it and requires the catalog probe to carry no Authorization header. Bullet 2, by the byte-identity test and by the one asserting --help states the axis and its default. Bullet 4, by test_every_declared_alias_has_supported_capabilities, whose exact-set assertion fails if a slot is added without its declaration.
+
+OPEN, bullet 3's rendering clause, and correctly not closable here: it asks for a person seeing the rows, so a driven harness would test the acceptance path rather than produce the confirmation. Carried by f-mmsc-02, authority-required.
+
+OPEN, bullet 5's observation clause, which has no test and no carrier. This is the load-bearing finding: every launcher test stops at the boundary the launcher itself writes, the exported environment and argv handed to a stub harness, so the suite would still pass if the harness ignored ANTHROPIC_DEFAULT_SONNET_MODEL entirely. What is fenced is the mapping the launcher hands over, never that a request arrives at the local engine under a delegated alias. The audit's design constraint on closing it is the sharp part: the record must come from the engine side, because a stub harness echoing its own argv restates the same boundary the suite already fences, which is exactly the measurement that would not have caught this.
+
+One caveat that does not move a verdict: the hybrid branch sets a custom-option capability declaration at clive.py:737 which the capabilities test does not assert, because that test runs the default mode only.
+
+impl unchanged at 0.95: this node produced verdicts, not a shippable change.</div>
 </div>
 </section>
 </main>
