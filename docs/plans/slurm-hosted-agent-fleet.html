@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="plan">
+  <meta name="plan-slug"      content="slurm-hosted-agent-fleet">
+  <meta name="plan-title"     content="SLURM-Hosted Agent Fleet — take the clive lane off the four-core login slice">
+  <meta name="plan-summary"   content="Host the clive fleet in a persistent rigel allocation instead of the shared login slice, which caps every session at four cores">
+  <meta name="plan-status"    content="draft">
+  <meta name="plan-roi"       content="high">
+  <meta name="plan-effort-hours" content="6.0">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="orchestrator">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-capability-risk" content="elevated">
+  <meta name="plan-milestone" content="OPS">
+  <meta name="plan-sprint"    content="S24">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-tags"      content="agent-serving">
+  <title>SLURM-Hosted Agent Fleet | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — What is wrong today</h2>
+    <p>The interactive agent fleet runs on the login node <code>98dci4-srv-1006</code>.
+    Up to thirty <code>clive</code> sessions live there at once, and each one carries a
+    <code>reckon mcp</code> and an <code>imas-codex serve</code> child, so the process
+    count is roughly three times the session count. All of them share one control-group
+    quota with every other thing the account runs on that host: editors, git, the docs
+    server, the reverse tunnels and the zellij servers themselves.</p>
+    <p>That quota is four cores. It is set site-wide by
+    <code>/etc/systemd/system/user-.slice.d/10-defaults.conf</code> as
+    <code>CPUQuota=400%</code>, alongside <code>MemoryMax=64G</code> and
+    <code>MemorySwapMax=0</code>. It is not a per-session budget and it does not grow
+    with the number of sessions; thirty sessions divide the same four cores that one
+    session would have had to itself.</p>
+    <p>The consequence is not a slow fleet but an unreliable one. Throttling does not
+    kill a process directly, yet everything with a deadline fails around it: model
+    context protocol startup handshakes, health probes, inter-process timeouts, and any
+    watchdog that treats a missed heartbeat as a dead peer. A fleet that is starved of
+    CPU looks exactly like a fleet that is intermittently broken.</p>
+
+    <h2 id="s2">§2 — The measurement</h2>
+    <p>Read from the account's own control group on the login node, against a node
+    uptime of 41 days:</p>
+    <table>
+      <thead>
+        <tr><th>Quantity</th><th>Value</th><th>What it means</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>cpu.max</code></td><td><code>400000 100000</code></td>
+            <td>Four cores for the entire user slice, not per session</td></tr>
+        <tr><td><code>nr_throttled</code></td><td>4,016,284</td>
+            <td>Scheduling periods in which the slice hit the ceiling and was stopped</td></tr>
+        <tr><td><code>throttled_usec</code></td><td>4,969,682,799,827</td>
+            <td>About 57.5 days of thread-time spent stalled at the quota</td></tr>
+        <tr><td>Capacity over the same window</td><td>~164 core-days</td>
+            <td>Four cores × 41 days; roughly a third of it was lost to throttling</td></tr>
+        <tr><td><code>MemoryMax</code></td><td>64 GB, no swap</td>
+            <td>Normal fleet draw is 7–11 GB; a runaway reached 44 GB and drove 529 cgroup kills</td></tr>
+      </tbody>
+    </table>
+    <p>Two independent observations sit beside this. First, the account has recorded
+    <code>oom_kill 529</code> in the slice's <code>memory.events</code>, all from a single
+    runaway episode in which the control group's out-of-memory killer reclaimed by
+    resident size and therefore selected the largest processes in the slice — the agent
+    sessions and the multiplexer servers — rather than the small shells that were
+    forking. Second, sessions have twice been lost in simultaneous clusters that the
+    memory counters do not explain, which is the subject of the separate instrumentation
+    now running on that host. Neither is caused by the CPU quota, but both are made more
+    likely by a slice that is permanently at its ceiling, and neither can be diagnosed
+    cleanly while the baseline is a starved machine.</p>
+
+    <h2 id="s3">§3 — Every partition we can submit to</h2>
+    <p>Surveyed with <code>sinfo</code>, <code>scontrol show partition</code> and
+    <code>squeue</code> on the ITER cluster. "Idle nodes" counts nodes with no allocated
+    CPUs at the time of survey; "draining" nodes are being taken out of service and are
+    unsafe hosts for a long-lived allocation.</p>
+    <table>
+      <thead>
+        <tr><th>Partition</th><th>Max time</th><th>Cores/node</th><th>RAM/node</th>
+            <th>Nodes</th><th>Idle nodes</th><th>Idle CPUs</th><th>Draining</th>
+            <th>Pending jobs</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>rigel</strong></td><td>UNLIMITED</td><td>28</td><td>128 GB</td>
+            <td>61</td><td><strong>51</strong></td><td><strong>1428</strong></td><td>0</td><td>0</td></tr>
+        <tr><td>sun</td><td>UNLIMITED</td><td>36</td><td>192 GB</td>
+            <td>140</td><td>20</td><td>720</td><td>14</td><td>0</td></tr>
+        <tr><td>sirius</td><td>UNLIMITED</td><td>36</td><td>512 GB</td>
+            <td>135</td><td>2</td><td>72</td><td>25</td><td>4</td></tr>
+        <tr><td>vega</td><td>UNLIMITED</td><td>56</td><td>512 GB</td>
+            <td>72</td><td>0</td><td>68</td><td>43</td><td>0</td></tr>
+        <tr><td>all</td><td>UNLIMITED</td><td>28–56</td><td>128–512 GB</td>
+            <td>409</td><td>74</td><td>2256</td><td>82</td><td>0</td></tr>
+        <tr><td>titan</td><td>UNLIMITED</td><td>20</td><td>256 GB</td>
+            <td>1</td><td>0</td><td>14</td><td>0</td><td>0</td></tr>
+        <tr><td>betelgeuse</td><td>UNLIMITED</td><td>64</td><td>1.5 TB</td>
+            <td>1</td><td>0</td><td>36</td><td>0</td><td>2</td></tr>
+        <tr><td>all_debug</td><td>1:00:00</td><td>36–56</td><td>192–512 GB</td>
+            <td>11</td><td>11</td><td>476</td><td>0</td><td>0</td></tr>
+        <tr><td>vega_debug</td><td>1:00:00</td><td>56</td><td>512 GB</td>
+            <td>4</td><td>4</td><td>224</td><td>0</td><td>0</td></tr>
+        <tr><td>sun_debug</td><td>1:00:00</td><td>36</td><td>192 GB</td>
+            <td>4</td><td>4</td><td>144</td><td>0</td><td>0</td></tr>
+        <tr><td>sirius_debug</td><td>1:00:00</td><td>36</td><td>512 GB</td>
+            <td>4</td><td>4</td><td>144</td><td>0</td><td>0</td></tr>
+        <tr><td>rigel_debug</td><td>1:00:00</td><td>—</td><td>—</td>
+            <td><strong>0</strong></td><td>0</td><td>0</td><td>—</td><td>—</td></tr>
+      </tbody>
+    </table>
+    <p><strong>Recommendation: rigel.</strong> It is the only partition that is
+    simultaneously long-lived and genuinely unloaded. Fifty-one of its sixty-one nodes
+    carry no allocation at all, its idle nodes report load between 0.00 and 0.14, it has
+    no pending queue, no draining nodes, and <code>MaxTime=UNLIMITED</code>. A single
+    node there is twenty-eight cores — seven times the whole account's present ceiling —
+    with 128 GB of memory against a normal fleet draw near 10 GB.</p>
+    <p><strong>There is no sixty-four-core CPU node to take.</strong> The only
+    sixty-four-core machine in the cluster is <code>98dci4-gpu-0003</code> itself, which
+    is the node we are trying to stop competing with. The closest CPU alternative is
+    vega at fifty-six cores and 512 GB, and vega is the worst-placed partition in the
+    table right now: zero idle nodes, twenty-seven fully allocated, and forty-three
+    draining. Sun and sirius sit between the two on cores but are both materially busier
+    than rigel and both carry draining nodes. If twenty-eight cores later prove tight,
+    vega is the escalation to re-survey rather than to assume.</p>
+    <p>Two traps worth recording. <code>rigel_debug</code> contains
+    <strong>zero nodes</strong>, so a job submitted there pends forever rather than
+    failing; and every <code>*_debug</code> partition caps at one hour, which would
+    destroy the fleet hourly and is therefore unusable for this purpose regardless of how
+    idle it looks.</p>
+
+    <h2 id="s4">§4 — Where the fleet should sit</h2>
+    <p>The fleet moves into a persistent single-node rigel allocation. The login node
+    keeps what it is good at — terminals, git, editors, and the zellij clients the
+    operator attaches with — and stops hosting the work. The GPU node keeps its
+    sixty-four cores for serving the model rather than for orchestrating the clients that
+    call it, which is the contention the lead identified.</p>
+    <p><img src="/imas-ambix/figures/slurm-hosted-agent-fleet/fleet-placement.svg"
+            alt="Current placement puts about thirty clive sessions on the login node under a four-core quota; the proposal moves them into a rigel allocation of twenty-eight cores while the login node keeps only terminals and betelgeuse keeps only serving."
+            style="max-width:100%;height:auto"></p>
+    <p>Figure — fleet placement today and as proposed. The failure mode the proposal
+    introduces is marked in the lower panel and is the subject of §5.</p>
+    <p>Reaching the allocation is a solved problem on this cluster: the account already
+    runs persistent jobs of exactly this shape, including <code>codex-neo4j</code> and
+    <code>codex-embed</code> at four days of elapsed time and <code>ambix-router</code>
+    at nearly two. With <code>pam_slurm_adopt</code>, an ssh connection to a node where
+    the account holds an allocation is adopted into that job's control group, so the
+    existing ssh and <code>cx</code> pattern carries over with a new host entry. The
+    current <code>cx titan</code> entry is not that entry: <code>titan</code> is
+    <code>98dci4-gpu-0002</code>, a twenty-core GPU node hosting the graph and embedding
+    services, and it is the wrong target for the fleet.</p>
+
+    <h2 id="s5">§5 — The risk this introduces, and why it is the whole design</h2>
+    <p>SLURM on this cluster runs <code>ProctrackType=proctrack/cgroup</code>. Every
+    process inside an allocation lives in the job's control group, and when the job ends
+    — time limit, <code>scancel</code>, node drain, preemption — SLURM kills that entire
+    group at once. Moving the fleet inside an allocation therefore creates a single
+    event that can terminate every session simultaneously.</p>
+    <p>That matters more than usual here, because simultaneous whole-fleet loss is the
+    symptom already under investigation on the login node. Today the zellij servers
+    survive those events and the sessions can be resurrected; inside an allocation the
+    servers would be in the control group too, and nothing would survive. The move must
+    not be made in a way that converts a recoverable failure into an unrecoverable one.</p>
+    <p>Three consequences follow, and they constrain the implementation rather than
+    merely warning about it. The allocation must be genuinely persistent and must not sit
+    on a draining node. The operator needs a deliberate, visible signal when the
+    allocation is approaching its end, because an agent fleet that vanishes without
+    warning is the failure we are trying to remove. And session state that matters —
+    plans, commits, manifests — must already be durable on shared storage before the
+    control group is torn down, which is the existing commit-and-push discipline rather
+    than anything new.</p>
+
+    <h2 id="s6">§6 — Which repository owns this</h2>
+    <p>The work splits across two owners and the split is clean.</p>
+    <p><strong>imas-ambix owns the node.</strong> This repository already coordinates the
+    compute resources the lane depends on: the GPU server, the SLURM access patterns, the
+    serving topology and the <code>clive</code> consumer surface, with the detail scoped
+    under <code>imas_ambix/agent/AGENTS.md</code>. The allocation that hosts the fleet is
+    another coordinated resource of the same kind, held beside the router and the model
+    server, and the contention being resolved is between them. Acquiring, holding,
+    monitoring and releasing the allocation belongs here.</p>
+    <p><strong>reckon owns the dispatch pattern.</strong> Crew dispatch, worker
+    placement, the run ledger and the worktree fleet are reckon's, and any change to how
+    a worker is launched or where it lands is a change to that contract rather than to
+    this one. If hosting the fleet in an allocation requires dispatch to learn a new
+    placement, that is a dependency to raise in reckon, not a thing to implement here.</p>
+    <p>The first implementation step below is deliberately shaped to test whether such a
+    change is needed at all. If the fleet can be hosted by moving where the operator
+    attaches, with dispatch unchanged, then reckon needs nothing and the boundary never
+    has to be crossed.</p>
+
+    <h2 id="s7">§7 — Implementation</h2>
+    <p>Ordered so that the cheapest reversible step answers the most expensive open
+    question first.</p>
+    <ol>
+      <li><strong>Size the allocation from measurement, not estimate.</strong> Sample the
+      account's actual CPU demand on the login node across a working session — the
+      recorder already on that host supplies process counts, and <code>cpu.stat</code>
+      supplies the throttled fraction. Done when a core count is justified by a measured
+      peak with headroom stated, rather than assumed from the node size.</li>
+
+      <li><strong>Hold a persistent rigel allocation and confirm it is reachable.</strong>
+      One node, the measured core count, no time limit, and not on a draining node.
+      Done when the job is running, an ssh connection lands in its control group, and the
+      allocation survives an operator disconnect.</li>
+
+      <li><strong>Run one session there end to end before moving any others.</strong> A
+      single zellij session inside the allocation, one clive worker, dispatching to the
+      router as it does today. Done when a real task completes with the model reached
+      over the network and no dependency on the login node beyond the terminal.</li>
+
+      <li><strong>Decide whether dispatch changes.</strong> From step three, record
+      whether reckon crew dispatch placed work correctly with no modification. Done when
+      the answer is written into this plan and, if it is no, a dependency plan is raised
+      in reckon naming the specific contract that must change.</li>
+
+      <li><strong>Give the allocation a visible lifetime.</strong> A status surface the
+      operator can read — remaining time, node, health — and a warning before it ends.
+      Done when an operator can answer "is my fleet about to disappear" without running
+      <code>squeue</code> by hand.</li>
+
+      <li><strong>Move the fleet and leave the login node thin.</strong> Done when the
+      login slice's throttled fraction over a working day is materially below the
+      measured baseline in §2, and that comparison is recorded here.</li>
+    </ol>
+    <p>Step six is the measure that decides whether this plan worked. The baseline is in
+    §2 and it is a ratio, not an absolute: what must fall is throttled thread-time as a
+    share of available capacity, sampled over a comparable working period.</p>
+
+    <h2 id="s8">§8 — The cheaper alternative that must be priced first</h2>
+    <p>Before building any of §7, the site could be asked to raise
+    <code>CPUQuota</code> for this account on the login node. It is a one-line change to
+    a drop-in file against a whole migration, and if it were granted it would remove the
+    measured throttling immediately.</p>
+    <p>It should be asked and it should not be waited for. It does not get the fleet off
+    a shared interactive host, so it leaves the account exposed to every other tenant on
+    that node and leaves the site's own guidance — that sustained work belongs on compute
+    — unsatisfied. Treat a raised quota as relief while §7 proceeds, not as a
+    substitute for it.</p>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+
+      <div class="r-dec" data-key="host-partition" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">Which partition hosts the fleet allocation?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="rigel">rigel — 28 cores, 51 of 61 nodes idle, no queue</button>
+          <button class="r-opt" data-value="vega">vega — 56 cores, but zero idle nodes and 43 draining</button>
+          <button class="r-opt" data-value="sun">sun — 36 cores, 20 idle nodes, 14 draining</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+
+      <div class="r-dec" data-key="allocation-shape" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">Does the whole fleet share one allocation, or does each lane hold its own?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="single">One shared allocation — simplest, but one job end takes every session</button>
+          <button class="r-opt" data-value="per-lane">One per lane — smaller blast radius, more to hold and monitor</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+
+      <div class="r-dec" data-key="quota-request" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">Do we raise a site request to increase the login-node CPUQuota in parallel with §7?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="yes">Yes — ask now, treat as relief not substitute</button>
+          <button class="r-opt" data-value="no">No — the migration is the fix, do not split attention</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+      <article class="r-fu" data-id="f-shaf-001" data-status="open"
+               data-capability-version="1.0" data-capability-class="general"
+               data-written-by="reckon-create" data-written-at="2026-09-19">
+        <h4 class="r-fu-title">Size the allocation from measured CPU demand</h4>
+        <div class="r-fu-body">
+          <p>Plan authored with the partition survey and the login-slice measurement in
+          place. The first executable step is §7.1: turn the measured demand into a
+          justified core count, so the allocation in §7.2 is sized from evidence rather
+          than from the node's shape. The session-loss recorder already running on
+          <code>98dci4-srv-1006</code> supplies process counts, and the slice's
+          <code>cpu.stat</code> supplies the throttled fraction to compare against
+          after the move.</p>
+        </div>
+        <pre class="r-fu-prompt">/reckon-ship slurm-hosted-agent-fleet §7</pre>
+      </article>
+    </section>
+
+  </main>
+</body>
+</html>
