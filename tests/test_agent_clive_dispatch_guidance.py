@@ -2,17 +2,15 @@
 
 from __future__ import annotations
 
-import json
 import os
 import socketserver
 import subprocess
 import threading
 from contextlib import ExitStack, contextmanager
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest.mock import patch
 
 from imas_ambix.agent.clive import generate_clive_script
-from imas_ambix.agent.profile import SiteConfig
+from tests.agent.catalog_fixture import serve_catalog_items
 
 
 def _catalog_item(
@@ -30,32 +28,6 @@ def _catalog_item(
             "checkpoint_precision": "int4",
         },
     }
-
-
-@contextmanager
-def _serve_catalog(items: list[dict[str, object]]):
-    class Handler(BaseHTTPRequestHandler):
-        def do_GET(self):
-            payload = json.dumps({"data": items}).encode()
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(payload)))
-            self.end_headers()
-            self.wfile.write(payload)
-
-        def log_message(self, _format, *_args):
-            return
-
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    host, port = server.server_address
-    try:
-        yield SiteConfig(global_origin=f"http://{host}:{port}")
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=2)
 
 
 @contextmanager
@@ -93,7 +65,7 @@ def _run_launcher(tmp_path, items, selected_model, *, mode="local"):
     (fake_bin / "systemctl").chmod(0o755)
 
     with ExitStack() as stack:
-        site = stack.enter_context(_serve_catalog(items))
+        site, _requests = stack.enter_context(serve_catalog_items(items))
         generator_options = {}
         arguments = [str(launcher), "--model", selected_model]
         if mode == "hybrid":

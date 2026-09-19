@@ -412,70 +412,726 @@ dimension 1024 reduced to 256 on output, L2-normalised.
 enforced it is `AMBIX_AGENT_API_KEY` in the shared `agents/.env`, and the engine
 accepts it **only** as `Authorization: Bearer` — never `x-api-key`.
 
-## 3c. Concurrency on the local lane — the router bounds it, not the model
+## 3c. Concurrency on the local lane — the engine schedules, nothing in front of it does
 
-**The ceiling that agent fleets hit is `AdmissionLimits` in
-`imas_ambix/agent/router.py`, and for most of 2026 it was six.** The shipped
-defaults are `max_in_flight = 2` and `max_queued = 4`; **2 + 4 = 6** concurrent
-requests, after which the router answers **HTTP 429** with
-`consumer queue full; retry after N seconds`. Raised to **16 in flight and 48
-queued** on 2026-09-06 after that arithmetic was traced to a fleet-wide worker
-die-off. Set them at launch, never in code:
+**The router does not bound concurrency and must never be made to again.** It
+resolves the upstream, merges the catalog, clamps output tokens against the
+engine's window, and relays. It is a stable address in front of a rotating
+serve, not a scheduler.
 
-```bash
-imas-ambix agent router --submit --port 18802 --max-in-flight 16 --max-queued 48
+**The engine is the scheduler, and it is the only correct one.** vLLM runs
+continuous batching with its own waiting queue, its own KV accounting and
+preemption under pressure; it is configured here at `max_num_seqs = 1024` with
+`max_num_batched_tokens = 32768`. It degrades by queueing, never by refusing, so
+a relay-side bound cannot protect it from anything — it can only refuse work the
+engine would have taken.
+
+**Why this is stated as a prohibition rather than a default.** A per-consumer
+admission filter lived in the router until 2026-09-14 with a ceiling of two in
+flight and four queued, keyed on client host joined with user-agent. Every
+harness process on one login node therefore resolved to a single bucket, so a
+whole fleet shared six request slots. Measured over a live afternoon: 402 of
+1,075 requests refused, **37.4%**, of which 252 were queue timeouts that each
+burned 30 seconds before failing — while the engine sat at **0.0% KV occupancy**
+with a 1024-sequence ceiling. Eight concurrent completions ran at **872 tok/s**
+direct against **110 tok/s** through the shared bucket.
+
+**The deployed ceiling was not the configured one, and nothing said so.** The
+filter had been deliberately set to sixteen in flight and forty-eight queued
+after an earlier fleet die-off, and the router measured here was running the
+code defaults of two and four. Eight concurrent requests from one consumer
+returned 6 x 200 and 2 x 429 in both repeats, which is exactly `2 + 4`. The
+mechanism: the launch command supplied the value, and the option's fallback was
+the dataclass default, so a relaunch that omitted the flag silently produced a
+router four times tighter than the one anyone had reasoned about. Two sessions'
+measurements of "the same" router were therefore both correct and described
+different systems -- 29,384 responses with zero refusals against 1,075 with
+37.4%.
+
+**A limit that lives only in an invocation will eventually be launched without
+it.** There was no log line, no warning, and nothing in the published document
+recording which value was in force. Prefer a configured default in code that a
+launch can raise, over a launch argument that a launch can forget; and where a
+bound matters, publish the value in force rather than leaving it inferable only
+from behaviour.
+
+**Its worst failure was not the throughput.** A worker that exhausted its
+context tried to compact, and the compaction request was refused by the queue —
+so a recoverable condition became a dead run, reported as `Prompt is too long —
+automatic compaction failed`. That message is true, is actionable, and points at
+node sizing rather than at the filter. A bound in front of the engine does not
+merely cost throughput; it corrupts the diagnosis of unrelated failures.
+
+**The only bound now is a file-descriptor guard.** `RouterApp` sets an explicit
+`TCPConnector(limit=2048)`, far above the engine's own running-sequence ceiling
+so the engine is always the binding constraint.
+
+**Deleting a limit does not remove it — it inherits the library's, which is
+lower and invisible.** `aiohttp.ClientSession` with no explicit connector
+defaults to **100** concurrent connections. Removing an explicit ceiling of 110
+would therefore have landed on 100, reproduced the symptom with no code left to
+blame, and sent the next investigator to measure the same wall with the
+admission filter already gone. Nothing logs it and no status code reports it;
+the queue simply forms inside the relay. Two sessions independently named this
+as the finding most likely to be rediscovered painfully.
+
+The rule generalises past this router and is worth applying whenever a bound is
+removed: **name the replacement ceiling explicitly, even when the intent is to
+have none.** An unset limit is not the absence of a limit, it is a limit chosen
+by somebody else, at a value nobody in this repository decided and no reader
+can see. Search the client library for its defaults before concluding that a
+removal removed anything.
+
+**The operational ceiling is activation memory, not the sequence cap — and at
+the right memory split there is no crash edge in the operational range at all.**
+Measured 2026-09-14 on the four-card V4-Flash serve by walking concurrency until
+it broke, at two values of `mem_fraction_static`:
+
+| concurrent short requests | at 0.92 | at 0.85 |
+|---|---|---|
+| 128 | 128/128, 1,451 tok/s | 128/128, **2,483 tok/s** |
+| 256 | **every request HTTP 500; EngineCore dead, endpoint gone** | 256/256, 2,954 tok/s |
+| 512 | — | 512/512, 3,231 tok/s |
+| 768 | — | 768/768, 3,802 tok/s |
+| 1024 | — | 1024/1024, 3,683 tok/s |
+| 1536 | — | 1536/1536, **4,789 tok/s** |
+
+At 0.92 the engine reached 141 running and died on `CUDA out of memory. Tried to
+allocate 1.51 GiB ... 1.19 GiB is free`, with **KV occupancy at 7.3%**. At 0.85
+no edge was found to 1536: engine peak **1023 running, 439 waiting, KV 53.0%,
+zero preemptions**. Above `max_num_seqs = 1024` it queues, which is the correct
+behaviour and not a failure.
+
+**What kills it is the allocation that lives OUTSIDE `mem_fraction_static`.**
+The fused-MoE workspace is allocated lazily at generation and scales with
+concurrency, so free memory after startup is not the margin. At 0.92 the split
+was wrong for this workload: 70.01 GiB per card of KV pool running at 3-7%
+occupancy, while the engine died wanting 1.5 GiB of activation space. Lowering
+the fraction to 0.85 returned ~9.8 GiB per card to that workspace and still left
+60.22 GiB of KV (2,200,283 tokens), far beyond the observed working set.
+
+**The oversized pool was costing throughput everywhere, not only at the edge.**
+The same 128 concurrent requests went from 1,451 to 2,483 tok/s — 1.7x — purely
+from the memory split. So a pool sized past the working set is not free
+insurance; it is paid for in tokens per second at every width. Size the pool to
+the measured working set and give the remainder to the workspace.
+
+**Quote that 1.7x only with its operating point.** It is `mem_fraction_static =
+0.85` on four H200 cards yielding a **2,200,283-token** KV pool, against a
+working set under a tenth of it. Without the pool figure beside it, 0.85 reads as
+a tuning preference that a later reader may nudge; with it, the number is a
+measured operating point and moving it is a decision about a quantity somebody
+measured.
+
+**Failure at the edge is not graceful, which is why a ceiling probe needs a
+disposable job.** At 0.92 there was no backpressure, no queueing and no 429 —
+the API server failed to serialise its own error (`ValidationError` on
+`ChatCompletionStreamResponse`) and shut down, taking every in-flight request
+with it. That ladder was run against a serve a live fleet was using and killed
+four of its workers, one holding 4.6M tokens over 65 turns with no commits.
+**Bisect a ceiling on a serve nobody needs.** The reasoning that permitted it is
+worth naming because it is seductive rather than careless: the engine queues
+rather than refuses, which was true at every width tested and false at the next
+one. *True at every width I have tested* is not *true at every width I am about
+to test*.
+
+**The short-request ceiling is NOT the agent-session ceiling, and the gap is two
+orders of magnitude.** The ladder above used 200-token completions, which barely
+touch the KV pool — 26 concurrent sat at 3.4% occupancy. Real agent traffic is
+about a hundred times heavier per request, so the ladder establishes that
+nothing breaks and says nothing about how many real sessions fit.
+
+**The fleet ceiling is a function, not a constant. Write down the arithmetic,
+never one of its answers:**
+
+    requests  =  KV pool tokens  /  mean working context per request
+    sessions  =  requests  /  requests-per-live-run
+
+Both denominators move with the node mix, so any single figure is wrong the next
+time it changes. Two measurements from the same serve on the same afternoon,
+which bracket the range rather than disagreeing:
+
+| observed | mean context | ceiling in requests | in live runs |
+|---|---|---|---|
+| Running 10-11 at KV 44-48% | ~89,000-105,000 | ~21-25 | — |
+| Running 10 at KV 26.7%, 12 live runs | ~58,800 | ~37 | ~45 at 0.83 req/run |
+
+The operationally useful form is the order of magnitude: **tens of sessions, not
+thousands.** Re-derive from `Running` against KV occupancy whenever the pool
+size or the working context length changes.
+
+**Do not impose a per-session seat cap. There is no evidenced one, and seats are
+the wrong unit.** The lane is one shared engine, so the only quantity that means
+anything is **tokens resident in the shared KV pool**, and a per-session
+allowance cannot be converted into it without knowing every other session's
+working context. Five sessions each holding to "six" is not a policy — it is
+either 30 sessions or 6, nobody can tell which, and no counter anywhere records
+the intent. That is the deleted admission filter reappearing as social
+convention, with strictly worse properties: unlogged, unenforced, and invisible
+to the engine it claims to protect.
+
+**What the data actually supports, as of 2026-09-14:** nothing has been observed
+to bind. Peak KV occupancy ever recorded is **53.0%**, `num_preemptions_total`
+has never left **0**, and sustained `Waiting` above zero has never been seen
+under real traffic. Live mixed load across four projects has run at 8-11
+concurrent sessions at 27-48% occupancy without touching anything. **The binding
+point is unmeasured**, so any seat number — six, twenty-five, forty-five — is an
+extrapolation wearing the costume of a limit.
+
+**So the instruction to a fleet is not a number, it is an instrument.** Dispatch
+to the width your dependency graph actually offers, and read the engine rather
+than a quota:
+
+| read | means |
+|---|---|
+| `Waiting` sustained above 0 across several polls | the scheduler is queueing; a single-poll wait is granularity, not pressure |
+| KV occupancy trending toward 100% | the pool is the constraint; re-derive the arithmetic above |
+| `num_preemptions_total` rising | saturated — recomputing, and the lane is silently slowing |
+
+Until one of those moves, the lane is not the limit and a self-imposed cap is
+costing throughput for no measured reason. If one of them does move, it is a
+global signal and the response is a global one, negotiated across the sessions
+sharing the lane — not a number each invents alone.
+
+**`process_alive: false` does not mean a worker died.** A node that submits a
+SLURM job and ends its turn by design reads exactly like a dead one. Measured
+2026-09-14: a run flagged `blocked` with a dead process and an eight-hour-old
+dispatch stamp turned out to have been **resumed fourteen times**, with fourteen
+commits on its worktree, parked on a GPU job its coordinator was watching. The
+dispatch stamp is when the run started, not when it last did work.
+
+So before treating a dead process as a casualty, ask whether its manifest names
+a job under blockers and whether anyone holds a watch on it. This one runs
+*against* the headroom bias above — it reports worse than reality rather than
+better — which is why it needs stating separately rather than folding into the
+same prior. **A pattern that absorbs its counterexamples stops being evidence
+and becomes a lens.**
+
+**Commits beyond the base outrank any classification. A run whose worktree
+carries them was never abandoned.** That fact lives in git and survives every
+manifest format, which no parsed status field does. Measured 2026-09-14: a run
+classified `abandoned` had in fact **completed cleanly** — terminal record
+`stop_reason end_turn`, a 5,805-byte manifest reading `status: complete`, a gate
+of 84 passed before and 90 after, two commits, clean tree. It went on to promote
+and merge with an independent review of 97/100.
+
+It read `abandoned` because its manifest put the status on its own line and the
+parser continues a value across following lines containing a colon-space, so it
+swallowed the commit lines — and having swallowed those, parsed `commits` to
+empty as well. **One defect took both fields**, so a detector comparing two
+fields for disagreement sees none. A sibling run in the same session wrote a
+perfectly complete manifest in markdown headings instead of colon lines: every
+required field present in the document, every one absent from the parse.
+
+The lesson is narrower than "read the contents". **Gathering the disconfirming
+evidence is not the same as acting on it.** The commits-ahead count was in hand,
+was correctly described as the recoverable case, and the classifier's label was
+believed anyway — so the advice given was `resume` where the evidence supported
+`reconcile`, which would have restarted a worker that had already delivered.
+
+**The field distinguishes four different states and names none of them.** A
+worker with no live process may have finished, parked deliberately, committed
+and then died, or genuinely failed. Measured across one day: every `abandoned`
+run had either committed cleanly or produced nothing, and nineteen SLURM parks
+were recorded with zero uses of any declared-wait field — so a parked run and a
+dead one are indistinguishable from the outside, in both directions. A
+coordinator misreads a healthy parked node as a casualty; an owner fails to wake
+one that was waiting. The durable fix is for a run to declare the job it waits
+on and for the follower to probe it, rather than for every reader to learn this.
+
+**Pair from run ids and `date -u`, never from a rendered pane or a scheduler
+quote.** At least two display surfaces on this workstation print LOCAL time and
+neither labels it: SLURM's `squeue`/`sacct` output, and the crew follower's
+ticker pane. Local is CEST, so a timestamp read off either and quoted with a `Z`
+is two hours adrift. Run ids of the form `r-YYYYMMDDTHHMMSS...` are UTC by
+construction and pair safely with an engine counter.
+
+Two sessions independently quoted a local time as `Z` within an hour, from the
+two different surfaces, and in both cases the beats that mattered were sound
+because they came from `date -u`. **The cost of guessing is a pairing error that
+does not look like a zone error — it looks like a real two-hour discrepancy
+between a run and an engine counter**, which is precisely the kind of artefact
+someone will then try to explain.
+
+**EVERY measurement error found on this lane runs toward APPARENT HEADROOM.**
+Three independent instances, none of which has ever flattered the lane in the
+direction of caution:
+
+| error | direction |
+|---|---|
+| a reading taken mid-settle | budget ~8x too generous |
+| a parser returning low utilisation on an unrecognised shape | looks idle |
+| a figure carrying an inherited denominator | looks under-used |
+
+Treat that as the prior when reading anything here: **when a lane figure and
+your instinct disagree, the figure is more likely to be optimistic than your
+instinct is to be paranoid.** A fourth instance should be assumed to exist and
+be looked for, rather than waited for.
+
+**Which is why a coordinator should size to its dependency graph rather than to
+the lane's figure — and that is not conservatism.** The graph's width is
+refused by a validator that has never been wrong in either direction; the lane's
+headroom is the one quantity that has been wrong in the same direction every
+time anyone checked it. Sizing to the graph is preferring the instrument that has
+not yet lied.
+
+**The ramp's own answer, measured 2026-09-14 with explicit authorisation to
+crash the serve.** Three coordinators tried to saturate the lane and could not:
+
+| coordinator | width offered | why |
+|---|---|---|
+| one | 0 | sprint scope complete; nothing dispatchable without manufacturing it |
+| another | 0 more | every file in the closure claimed by a live node |
+| a third | 2 running | `recovery.py` in three pending sections, `ticker.py` in two |
+| a fourth | 0 more | every ready node touches a file the live work holds, or depends on its result |
+
+The fourth had one node it *could* have cut — a docs-only evidence update — and
+declined on the grounds that it would be filler rather than load. That judgement
+is what makes the other four figures trustworthy: a fleet that will not
+manufacture work to fill a lane is a fleet whose reported width means
+something.
+
+The middle one attempted a real dispatch and was **refused by the scope
+validator**, not by policy or caution: `write scope 'reckon/_backends.py'
+conflicts with live claim held by run 'lane-account-reading'`. The lane at that
+moment reported `headroom 16`, `waiting 0`, `preemptions 0`, and would have
+taken the work without noticing.
+
+**Graph width is not fixed — it is a property of how the work is CUT, and that
+is the only lever anyone found today that actually moved it.** A fifth
+coordinator had reported everything downstream serialising on a single `docs/`
+write scope, one node at a time. It then re-partitioned an exhaustive
+plan-surface triage **by row ranges over a generated inventory** rather than by
+subject: every worker reads all 209 rows and disposes only its own range,
+writing to its own report file. One serial write scope became five parallel
+read-only ones, and the coverage is exhaustive by construction rather than by
+trust, because a merge node verifies the tiling by count. It then widened by two
+more where it previously had none.
+
+So "the graph binds" is a diagnosis, not a dead end. When width is the
+constraint, the question is whether the work can be cut along a different axis —
+**partition by a mechanical index over a generated inventory, not by subject** —
+and the test of a good cut is that coverage is checkable by arithmetic instead of
+by reading.
+
+**But some work admits no such cut, and forcing one is the filler failure in a
+better costume.** The distinction is in the shape of the work, not in the
+coordinator's ingenuity:
+
+| shape | tiles? | why |
+|---|---|---|
+| exhaustive disposal over a generated list | **yes** | the index already exists and coverage is verifiable by count |
+| feature implementation against named seams | **no** | each change is one coherent edit to one file |
+
+Measured the same afternoon: a coordinator asked whether its closure could be
+re-cut answered no and gave the reason. Its remaining work was six distinct
+behaviours in six distinct modules — a floor in one guard, a denominator in one
+reading, a marker in one view, a grouping in one schema, a meter, its captures.
+There was no inventory to tile, and splitting any of them by line range would
+have produced two workers writing one file, which is precisely what the scope
+validator exists to prevent.
+
+**So never read "re-partition by index" as a general remedy.** A coordinator who
+manufactures an index to satisfy it has invented filler with better paperwork.
+Ask whether the index already exists; if it has to be created to justify the
+split, the work is the shape that does not widen.
+
+**Check the roster before concluding anything about the lane — it binds first
+and looks nothing alike.** Two dispatches in that widening were refused for
+member reasons, not lane reasons: `--local` resolves backend `clive`, and a
+member declaring a different harness is refused against it, so free members were
+unusable until new ones were registered. A third was refused because its member
+already held an in-flight run — members serialise. **Registered members of the
+matching harness is a distinct ceiling below both the graph and the lane**, it is
+a one-line registration to lift, and a refusal there resembles a capacity limit
+closely enough to be mistaken for one. Exhaust it first; it is the cheapest of
+the three.
+
+**A refusal inside a batch of successes leaves no trace in a transition stream.**
+The follower showed only the dispatches that launched; the refused ones were
+invisible and were caught only by inspecting each dispatch result individually.
+This is the discriminate-on-the-event rule applied to a stream that reports
+arrivals rather than outcomes — a count of what started is not a count of what
+was asked for.
+
+So the binding constraint on this workstation is neither KV, nor admission, nor
+preemption: it is **the number of independent units of work a dependency graph
+offers at a given moment**, because two workers must never write one file. That
+is a property of the plan. No lifted ceiling, no deleted filter and no memory
+split moves it, and three sessions working in good faith could not fill a lane
+none of them could saturate.
+
+**The budget collapses in the first minute after a wave dispatches, so the
+worst moment to read it is immediately after dispatching.** Measured 2026-09-14
+across three consecutive 30-second samples with `running` unchanged at 19:
+
+| sample | mean context | budget | headroom |
+|---|---|---|---|
+| 16:21:21Z | 15,586 | 141 | 122 |
+| 16:21:51Z | ~62,865 | 35 | 16 |
+| 16:22:21Z | 73,121 | 30 | 14 |
+
+Nothing joined or left. The same nineteen requests went from their first tokens
+to their real working context, and the budget fell by a factor of five in thirty
+seconds. A freshly dispatched worker's first request carries almost no context,
+so a reading taken right after a dispatch catches the fleet at its lightest and
+reports a figure roughly eight times too generous — **at exactly the moment a
+coordinator would naturally take it**, and on the strength of which they would
+dispatch again. Prefer a reading taken BEFORE a dispatch to one taken after, and
+treat any reading on a just-widened fleet as provisional until it settles.
+
+**Read `lane_headroom` from `reckon flight`, never `headroom` from
+`crew preflight` — they are different quantities sharing a word.** Measured
+2026-09-15, both for the same backend at the same moment:
+
+| surface | field | value | what it means |
+|---|---|---|---|
+| `reckon flight` | `availability.clive.lane_headroom` | **131** | KV-pool headroom, from the lane document, 14.6 s old |
+| `crew preflight` | `state.headroom` | `"unknown"` | quota and rate-limit position, from the ledger |
+
+Preflight's figure is correctly `unknown` for a local unmetered lane — it emits
+no rate-limit events and never will — and its `observed_at` legitimately predates
+the serve restart, because nothing has written such an event. It is not stale and
+not broken; it answers a question that does not apply to this backend. A
+coordinator that reads it concludes the lane figure does not exist.
+
+`flight` is a read command, so it is consultable **before** a dispatch. That
+distinction matters: a figure recorded on a run after the fact tells the next
+reader what the lane was like, while sizing a wave needs it beforehand.
+
+**This is the fourth field this deployment has that answers a different question
+from the one its name invites** — alongside `kv_cache_usage_perc` counting cached
+blocks as free, `process_alive` conflating four states, and the engine's
+`block_size` reporting a post-layout minimum under a configuration field's name.
+In every case the number was true and answered a question nobody had asked.
+**A field name is not a specification: read what wrote it before acting on it.**
+
+**Pair an engine counter only with a WORKSTATION-WIDE run count.** The engine
+counts every fleet on the lane, so a per-project count paired against it
+inflates the ratio by however many other projects are running. Measured
+2026-09-14: reckon's own five runs against `Running: 10` gives 1.43, which reads
+as "above the band" and is meaningless — the twelve live runs at that instant
+were four nova, five reckon, two more reckon and one imas-codex. **A ratio above
+1.0 is the tell**, since it requires one turn issuing several concurrent
+requests; treat it as a pairing error until proven otherwise.
+
+**`kv_offloading_size` on this engine and model writes and never reads. Do not
+enable it without checking both counters.** Measured 2026-09-15 over 63 minutes
+at load:
+
+    vllm:kv_offload_total_bytes_total  GPU_to_CPU   24.1 TB   857.9 s transfer time
+    vllm:kv_offload_total_bytes_total  CPU_to_GPU    0 bytes    0.0 s, every latency bucket 0
+
+Not a low restore rate — **zero restores, and zero time**, so nothing has entered
+the read path even to be slow. Every evicted prefix is written to host RAM at
+full rate and then recomputed through 284B parameters anyway. The connector loads
+on all four ranks, `kv_role` is `kv_both` by construction rather than
+configuration, and the per-request `skip_reading_prefix_cache` applies only to
+`prompt_logprobs` requests, so none of those is the cause.
+
+**The cost is not neutral:** 128 GiB of host RAM held, and 858 s of transfer time
+in a 3,780 s window, for a store nothing reads.
+
+Two candidates remain and reading more source did not separate them: a
+self-sustaining eviction trap — the buffer turns over in about 56 s against turn
+gaps of 54 s and longer, `_maximal_prefix_lookup` walks from chunk 0, chunk 0 is
+always the first evicted, and because the lookup then fails the store is never
+accessed and chunk 0 is never refreshed — or a structural block in the read path
+for this model's hybrid attention. Both were later refuted by counters that were
+readable the whole time: `cpu_cache_usage_perc` at 17.8% kills the eviction trap
+because the buffer never filled, and 819 lookup-delay samples kill the
+structural block because the path is taken and misses. **The instrument that
+separates them is debug logging on the offloading scheduler, not another
+hypothesis**, and reaching for the logger earlier would have been cheaper than
+three rounds of source reading.
+
+**The general rule: a feature that reports work done is not reporting work
+useful.** The write counter climbing at 28 GB/s reads as healthy activity, and
+was the strongest possible evidence that something was wrong.
+
+**Read `External prefix cache hit rate` from the serve log — it IS this store's
+hit rate, and no counter arithmetic is needed.** It sits on the same throughput
+line as the ordinary hit rate:
+
+```
+Prefix cache hit rate: 24.1%, External prefix cache hit rate: 0.0%
 ```
 
-**The allowance is PER SOURCE IP — shared by every worker on one host, and
-multiplied by the number of hosts.** Admission is keyed on
-`_consumer_id(scope)`, which returns `scope["client"][0]`. Every clive worker
-dispatched from one login node is *one consumer* against one allowance, whatever
-project dispatched it — **but a second host gets its own full allowance.**
-Measured 2026-09-06: two client IPs (1,284 requests from one, 26 from another),
-and engine concurrency reached **17** against a configured 16, which is 16 from
-the busy host plus 1 from the other. **The lane-wide in-flight ceiling is
-therefore `max_in_flight × distinct client hosts`, not `max_in_flight`.** Check
-before sizing:
+Three sessions derived that second figure from transferred bytes across two days
+while the engine printed it once a logging interval. Before deriving a quantity
+from counters, grep the log for a line that states it.
 
-```bash
-grep -oE 'INFO: +[0-9.]+:' ambix-router-<job>.log | grep -oE '[0-9.]+' | sort -u
+**The buffer is a FILE IN `/dev/shm`, so its ceiling is that tmpfs and not the
+job's `--mem`.** Measured 2026-09-15: a 768 GiB request inside a 1000G job died
+at KV-connector init with `Insufficient space in /dev/shm: 786431 MiB required,
+591923 MiB free`. The tmpfs is 756 GiB — half of RAM, as tmpfs defaults — so
+that value was unsatisfiable at any `--mem`, and reading the flag as ordinary
+memory is what let an impossible number look generous. All four ranks share ONE
+mmap, so the size is a node total rather than per-rank.
+
+**A cancelled serve leaves its whole buffer behind, and the failure then lands
+one restart later on an innocent job.** A 128 GiB file from a `scancel`ed serve
+was still resident with no process mapping it; the node is not rebooted between
+serves, so nothing else reclaims it. The generated serve script now sweeps
+orphaned `vllm_offload_*.mmap` files at launch, scoped by ownership and by
+whether anything still maps the file so a concurrently serving profile is
+untouched. Without that sweep each restart consumes its buffer permanently and
+the *next* one fails for a reason that has nothing to do with it.
+
+**The group structure IS partially exposed, on the connector-creation line:**
+
+```
+KV offloading: EAGLE/MTP draft attention groups [2] detected.
+The trailing chunk of these groups will be excluded from offloading due to
+volatility.
 ```
 
-Three further consequences that cost a night to learn:
+So index 2 exists — at least three groups — and the speculative-decode group is
+partially excluded from offloading, which a plain `size / group_count` division
+does not model. The total is still not printed, so that arithmetic is a bound
+and not a figure. This is the fourth quantity on this deployment recorded as
+"not exposed" that turned out to be printed somewhere nobody had read.
 
-- **No project can see the binding quantity from its own ledger.** One session
-  measured its own maximum at four simultaneous runs and concluded the six-figure
-  could not apply, while another session's runs were consuming the same
-  allowance. Count clive runs *host-wide* or the number is meaningless.
-- **Sessions are not requests.** One turn issuing several parallel tool calls
-  bursts a limit of two on its own, so refusals were observed with as few as two
-  sessions live.
-- **A reckon-side concurrency ceiling and this one bound the same resource in
-  DIFFERENT UNITS, so setting both to the same number does not align them.**
-  Reckon's per-backend ceiling counts **live runs**; this one counts
-  **simultaneous requests**, and the ratio is variable — four agentic sessions
-  were measured producing two concurrent requests, because a worker spends most
-  of its wall clock between turns. A reckon ceiling of sixteen *runs* might
-  therefore produce only eight simultaneous requests and silently throttle the
-  lane to half its allowance while appearing to match. If both are set, the
-  tighter wins invisibly and nobody can tell which. **Reckon's stays unset by
-  default** — a number an operator cannot convert is a number they should not be
-  invited to set — and where it is set it is a coarse bound on how much work one
-  fleet may hold *open* against the lane, not a model of this queue.
+**A reading taken in the first minutes of a serve is measuring the warm-up, not
+the system.** Three figures were reported as findings on 2026-09-15 and all
+three dissolved:
 
-**The conversion between the two units, measured 2026-09-06 — and it is not a
-constant.** Joined samples across three fleets: 7-8 live clive runs produced 4-5
-simultaneous requests (0.5-0.7), while 15 live runs coincided with 15 running
-(near 1.0). An agentic worker spends most of its wall clock between turns, so
-the ratio is low when the fleet is small and **rises toward 1.0 as it grows**,
-because overlapping turns become likelier.
+| reported | what it was |
+|---|---|
+| 859,833 queries against **8** external lookups — "a different regime" | ninety seconds later, 2,501,521 against 1,972,113 |
+| resident store **pinned at 22.8 GiB** across a 4x size change | a coincidence of timing; a four-sample trajectory showed oscillation near zero |
+| external hit rate **0.07%** | cumulative since engine start; the windowed figure was **2.28%**, thirtyfold higher |
 
-**Convert a ceiling at 1.0, never at the low-end figure.** The observed band is
-0.5 to 1.0, and the conversion **shrinks exactly when it is being relied upon** —
-the moment a fleet is large enough for the ceiling to matter is the moment a run
-is worth close to a whole request. Sixteen in flight is therefore about sixteen
-runs at saturation, not the 23-32 the low end implies. The band is measured; the
-mechanism is inferred.
+The last one is the trap worth naming, because every counter here is cumulative
+since the engine started and there is no other form on offer. A store that was
+cold for the opening stretch has every one of those queries in its denominator
+forever, so **a cumulative figure understates current behaviour by however much
+warm-up it contains** — and it never stops doing so, it only dilutes. Three
+sessions each voided somebody else's cumulative comparison and then carried
+their own into a decision. Take a windowed delta at a stated concurrency, or do
+not quote a rate.
+
+**Two points cannot separate a plateau from a transient.** The 22.8 GiB reading
+was the most convincing wrong result of the day precisely because two
+independent readings agreed to within 30 MiB across a fourfold configuration
+change. Nothing about two agreeing points says what happened between them. Take
+a trajectory before naming a ceiling, and treat a suspiciously exact agreement
+as a reason to sample more rather than as confirmation.
+
+**The restores are BURSTY, so no window measures "the rate" — and a rising
+cumulative is not a warming curve.** Measured 2026-09-15 across three windows on
+one serve, all correct and all different:
+
+| window | concurrency | external hit rate |
+|---|---|---|
+| 784 s | 16-17 | 4.38% |
+| 120 s | 42-44 | 2.28% |
+| 76 s | 28-31 | **0%** — 1,057,060 queries, zero hits, 403 GB written |
+| ~90 s | 28-31 | 0.43% — the burst that arrived just after the row above |
+
+Two orders of magnitude across four correct measurements of one process, taken
+within half an hour. **A non-stationary process has no rate; report the window
+and what it contained.** The return here is not small, it is INTERMITTENT, and
+those are different objects deserving different names: a mean over this one
+describes no moment that actually occurs.
+
+Each of those four readings licensed a confident wrong verdict. The cumulative
+climbs during a burst and flattens after, so it reads as a store warming up —
+two sessions independently reported "climbing" within an hour of both having
+documented the cumulative trap, one of them in this file. And the zero window
+read as the path having stopped, which is the same error with the sign flipped:
+**"frozen" was a property of that window, not of the store**, and the next
+interval returned 148 MB.
+
+The single most misleading reading was the longest one. That 784 s window still
+contains roughly 90% of every byte the engine has ever restored, so the most
+carefully-taken measurement of the day sampled the interval holding the bulk of
+the phenomenon and reported it as the steady state — an outlier presented as a
+rate, by the session that had been most rigorous about everything else.
+
+**So measure a bursty process by its bursts, and the sampling shape that works
+needs no prior knowledge of the period.** A long window is not the answer —
+sizing one to contain several bursts requires knowing the burst period, which is
+the unknown. Sample the hit counter at a FIXED SHORT INTERVAL over several
+minutes and record the distribution of per-interval deltas: the quanta, the
+gaps, and how many. That answers how often and how big directly, and the mean
+falls out for free. Measured this way, six samples twenty seconds apart:
+
+```
+hits 464,640  464,640  489,216  489,216  489,216  513,792
+delta       0   +24,576        0        0  +24,576
+```
+
+Three empty intervals, two single restores. Over that 101 s the rate is 3.64%,
+which makes five windows in one afternoon at 4.38, 3.64, 2.28, 0.64 and 0
+percent.
+
+**`external_prefix_cache_hits_total` advances in multiples of the configured
+`block_size`**, 256 here — the steps above are 96 blocks, and a session
+measuring elsewhere saw 15. Two intervals advancing by an identical amount is
+two equal-sized restores, not a fixed quantum, and the inference it invites —
+that a hit count indifferent to its denominator means the rate measures load
+rather than the store — does not hold. Worth checking rather than assuming,
+because the artefact is striking and the wrong reading of it is a strong claim.
+
+Note also that a fixed-CONCURRENCY window is not the experiment either: one
+wave's width does not control the lane's, since every session shares the engine.
+
+What four sessions jointly support, and nothing more: the return path is
+functional and intermittent; roughly 9 GB returned in total against ~6 TB
+written; no window sampled so far estimates a rate; and between bursts the store
+sustains over 5 GB/s of writes and returns nothing.
+
+It also means a reading's concurrency label describes the READER's wave, not
+what produced the burst: every session shares one engine and one store, so four
+readings at different widths are four samples of one shared process rather than
+four conditions. Pooling them estimates the current level, never a concurrency
+response curve.
+
+**What survives about the offload store: size is not a lever.** Residency
+measured ~0.1-0.25 GiB at BOTH 128 GiB and 512 GiB configured, so what bounds it
+is the eviction order and not the capacity — both tiers evict in the same LRU
+order, so a host entry is discarded before anything asks for it again and
+restores land only in the window between store and eviction. Of the two claims
+in the upstream defect, that one fits and the capacity-division one does not:
+every candidate effective size sits orders of magnitude above what is ever
+resident. One clean 120 s window at 42-44 concurrent gave an external hit rate
+of **2.28%** (33,372 of 1,461,932 queries) against 509.9 GB written and 721.6 MB
+restored — a real but small return, bought with sustained host write bandwidth
+that nothing has yet measured against it.
+
+**Test a reuse mechanism with reuse-shaped traffic.** A review wave reads many
+distinct landed diffs, so nearly every prefill is genuinely novel and a zero
+restore count under it is consistent with a working offload. The counter looks
+identical either way, so the load's prefix profile has to be stated beside any
+verdict — a coordinator running that wave named the limitation unprompted, and
+it is not visible in the metrics.
+
+**The draft group's veto: the hypothesis, its prediction, and the evidence that
+can no longer be collected.** Recorded before the test ran, and before the
+offload counters were removed, because the supporting data becomes
+unrepeatable once the connector is gone.
+
+DSpark's draft layers form their own KV cache group, flagged an eagle group.
+The multi-group prefix lookup requires EVERY group to report a nonzero hit, so
+one group at zero short-circuits the whole request. Draft KV is recomputed from
+the target model rather than retained, so that group's blocks are sparse and
+discontinuous by construction. Upstream reports the real groups measuring
+88.9-100% once isolated from the veto. The same AND-convergence is reimplemented
+independently on BOTH lookup paths -- the GPU coordinator and the offload
+connector -- so the hypothesis covers both.
+
+**The point prediction, pre-registered.** If the veto gates the GPU path, the
+observed rate is a product of `P(un-vetoed)` and the un-vetoed rate:
+
+    observed 26.3%  =  P(un-vetoed) x 88.9-100%   ->  P = 0.26-0.30
+    predicted after DSpark is disabled: 88.9-100%, i.e. 3.4-3.8x
+    baseline NEVER exceeded 40.1% across 149 intervals
+    non-overlap gap: 48.8 points
+
+Three outcomes, and the third is the one both framings excluded by
+construction: landing in 17-40% means the veto was not gating this path;
+89-100% confirms it; **landing near 55% means a PARTIAL veto -- the draft group
+vetoing some requests rather than acting as a clean gate** -- so record the
+number rather than a verdict.
+
+**Pre-registered confound:** disabling speculative decoding changes the request
+stream itself, not only the lookup. No draft tokens means different sequence
+lengths and arrival timing, which moves prefix reuse independently of any veto.
+Hence compare BINNED BY WIDTH against the baseline bins rather than comparing
+two medians, and do not read a result in the 40-60% band as weak confirmation.
+
+**The evidence that is about to become uncollectable.** The strongest support
+the veto had that did NOT come from the upstream report was the SHAPE of the
+external-path data, and that counter ceases to exist when the connector is
+removed:
+
+| | internal path | external path |
+|---|---|---|
+| zero-hit intervals | **1 / 149 (0.7%)** | **89 / 149 (59.7%)** |
+| distribution | tight, unimodal, deciles 17-34 | intermittent bursts |
+| restore quanta | n/a | 15 blocks and 96 blocks, not a fixed unit |
+
+A capacity-or-eviction story predicts a LOW hit rate; it does not predict an
+INTERMITTENT one. Variable burst sizes separated by dead intervals fit "the rare
+intervals where the draft group happened to produce a consecutive run" far
+better than a full cache evicting in some order. That argument accounts for the
+shape of the data rather than only its level, which is why it displaced the
+eviction-order reading that two sessions had jointly settled on.
+
+**And interval dead-time does not transfer between the two paths.** It is an
+instrument for a rare countable event, not for a common proportion: at hundreds
+of requests per 20 s bin, "74% of requests vetoed to zero" and "every request
+hitting 26% of its prefix" produce the same aggregate, and the law of large
+numbers makes both tight. The discriminating quantity is the per-request
+distribution -- bimodal versus unimodal -- and vLLM exposes no metric for it. So
+a step confirms the veto while a null does NOT fully exonerate it; it shows only
+that the drafter was not the dominant term.
+
+**Prefix-cache eviction is the FIRST symptom of KV pressure, and it appears
+long before preemption.** Measured 2026-09-15 at 36 concurrent agent requests:
+hit rate down to 23-25%, KV occupancy 63-65%, **`num_preemptions_total` still
+zero**. The pool was already evicting cached prefixes to make room for active
+requests, so the lane was paying for it in recomputed tokens while the signal
+everyone was told to watch had not moved.
+
+    prefill queries   23,924 tok/s      of which recomputed  18,378 tok/s
+    generation            55-63 tok/s
+
+So **watch the hit rate, not only preemptions.** Preemption is the last resort;
+eviction happens first, costs throughput silently, and is the earlier warning.
+
+**A low hit rate is not evidence of a broken cache — occupancy is the
+discriminator.** The two cases look identical in the hit-rate figure alone:
+
+| | hit rate | pool occupancy | verdict |
+|---|---|---|---|
+| engine defect (V4.1, 2026-09-14) | 93.2% of prefills with **zero** cached tokens | **10%** | broken: failing with abundant room |
+| contention (2026-09-15) | 23-25% | **63%** | working: evicting under real pressure |
+
+A cache that misses while the pool is nearly empty is faulty. A cache that
+misses while the pool is two-thirds full is doing what a cache does. **Never
+diagnose a cache from its hit rate without reading occupancy beside it.**
+
+**Saturation degrades rather than failing.** vLLM preempts and recomputes, so
+the symptom is a lane that silently gets slower — no error, no status code, and
+nothing a worker manifest would attribute correctly. `num_preemptions_total` in
+the serve log is the instrument, and it is the first thing to read when a wave
+slows without explanation. Prefix-cache reuse offsets the arithmetic by however
+much context the sessions share; two sessions measured 30.4% and 31.5% hit rate
+on the same lane within minutes, which is close enough to serve as a cross-check
+that both are reading it the same way.
+
+**A request ceiling is not a fleet size, and the conversion is not a constant.**
+Reckon dispatches **live runs**; the engine counts **simultaneous requests**.
+Measured across three fleets: 7-8 live runs produced 4-5 simultaneous requests
+(0.5-0.7), while 15 live runs coincided with 15 running (near 1.0). A worker
+spends most of its wall clock between turns, so the ratio is low when the fleet
+is small and **rises toward 1.0 as it grows**, because overlapping turns become
+likelier. **Convert at 1.0, never at the low end** — the conversion shrinks
+exactly when it is being relied upon, since the moment a fleet is large enough
+for the ceiling to matter is the moment a run is worth close to a whole request.
+
+**Before sizing a fleet against any of this, check whether capacity is the
+binding constraint at all — it usually is not.** A deliberate pressure test told
+three fleets to run hot and the engine never exceeded **five** concurrent, with
+zero capacity waits and zero preemptions. What bound every fleet was **the width
+of its dependency graph**: the number of ready nodes that do not contend for the
+same files, since two workers must never write one file. Confirmed again
+2026-09-14, a coordinator partitioning its closure by exclusive file ownership
+got **four** independent nodes against a proven-good 128. That is a property of
+the plan, and no lifted ceiling moves it. The ceiling is for genuinely wide
+work — a fan-out over many independent files, a review sweep, a corpus pass —
+and for the aggregate of every fleet sharing the lane, not for a dependency
+chain four nodes deep.
+
+**Read concurrency from the engine, which reports it directly** — `running`,
+`waiting`, KV usage and prefix-cache hit rate, once per interval:
+
+```bash
+grep "Avg prompt throughput" <serve-log> | tail -3
+```
+
 
 **Any single spot reading of concurrency is a draw from a distribution, not a
 level.** Eight reads five seconds apart spanned **10 to 14** with the fleet
@@ -622,13 +1278,29 @@ two serves and the window is a coincidence.
 concrete form of "cards buy capacity, not speed".** Measured 2026-09-07 on the
 two-card serve:
 
-| Topology | pool (tokens) | `max_model_len` | `kv_cache_max_concurrency` |
-|---|---|---|---|
-| four-card | 2,554,833 – 2,557,835 | 1,048,576 | 2.44 |
-| **two-card** | **1,173,125** | 1,048,576 | **1.12** |
+**Every pool figure needs four attributes or it cannot be read**: topology,
+`max_model_len`, **`mem_fraction_static`**, and the date. All four have moved
+within a week, and a figure carrying fewer is not a fact about the system.
 
-(The four-card pool differs by ~3,000 tokens between two launches of the same
-profile, so treat it as approximate rather than a constant to check against.)
+| Date | Topology | `mem_fraction` | `max_model_len` | pool (tokens) | `max_concurrency` |
+|---|---|---|---|---|---|
+| **2026-09-14** | **four-card** | **0.85** | 1,048,576 | **2,200,283** | **2.098** |
+| 2026-09-07 | four-card | 0.92 | 1,048,576 | 2,554,833 – 2,557,835 | 2.44 |
+| 2026-09-07 | two-card | 0.92 | 1,048,576 | 1,173,125 | 1.12 |
+
+**The top row is current; the 0.92 rows are superseded and kept only for the
+comparison below.** The four-card pool also differed by ~3,000 tokens between two
+launches of one profile, so treat any of them as approximate rather than as a
+constant to assert against.
+
+**A bigger pool is not better, and this is the counter-intuitive part.** The
+reduction from 0.92 to 0.85 was a fix, not a concession. At 0.92 the pool ran at
+**3–7% occupancy** while the fused-MoE workspace — allocated lazily at generation
+time, **outside** the memory fraction — ran out of room and **killed the serve at
+256 concurrent**. Returning 9.8 GiB per card to that workspace also raised
+throughput **at unchanged width**: 1,451 → 2,483 tok/s at 128 concurrent. So an
+oversized pool is paid for in tokens per second everywhere, not only at the
+failure edge.
 
 A single full-context request consumes **89%** of the two-card pool, and KV was
 observed at **79% with one request running**. That is not a fault — vLLM preempts
@@ -1004,6 +1676,88 @@ imas-ambix agent serve deepseek-v4-flash      # 4× GPUs — 400+ tok/s target
 imas-ambix agent serve deepseek-v4-flash-2x   # 2× GPUs — share node with other work
 ```
 
+### DeepSeek V4.1 Flash Deployment (SGLang)
+
+**Profile:** `deepseek-v4-1-flash` — SGLang, TP=4/EP=4 on four H200, MXFP4+FP8
+checkpoint, 512,000-token per-request context, keyless port 18810. The 183.1 GiB
+of Engram tables live in host RAM; the device pool is pinned rather than
+auto-sized, at `max_total_tokens = 8000000` (8,000,000 tokens). The committed
+tuning carries DSpark speculative decoding (`speculative_algorithm = "DSPARK"`,
+`speculative_dspark_block_size = 5`), `hicache_ratio = 2.0` and
+`memory = "600G"`.
+
+#### Launch from the main checkout, never from a generated worktree
+
+Submit a serve from `/home/ITER/mcintos/Code/imas-ambix`. The generated script
+binds the SGLang kernel patch
+(`imas_ambix/agent/kernel_patches/…/main_norm_rope.cuh`) into the container and
+resolves `scripts/slurm/drain_sidecar.sh`, both by absolute path from the
+directory the script was generated in (`Path(__file__).resolve().parents[2]`). A
+serve submitted from a detached worktree therefore holds that worktree open for
+its entire life, and reclaiming it — ordinary housekeeping — breaks a running
+lane.
+
+Check the generated script rather than trusting it: **no path in the submitted
+script may contain `.reckon-worktrees`.**
+
+#### speculative_algorithm is compared case-sensitively
+
+SGLang compares `speculative_algorithm` case-sensitively against the literal
+tuple `("EAGLE", "DSPARK")` inside the model-specific startup resolution — the
+`arg_groups` hook the DeepSeek-V4 model module installs as
+`deepseek_v4_hook`. Lowercase `"dspark"` is rejected there, before weights load,
+about 42 s after the job enters `RUNNING`, with:
+
+```
+Only EAGLE and DSPARK speculative algorithms are supported for
+DeepseekV4ForCausalLM
+```
+
+Write the value uppercase.
+
+#### Readiness took 485 s from RUNNING, and the bound is fifteen minutes
+
+On the launch carrying the fused draft module, readiness took **485 s from
+`RUNNING`**, against the profile's own `scheduler end-to-end 670.1 s` in the
+startup log. Measure readiness from `RUNNING`, not from submit — time
+spent pending on `Resources` is a queueing fact that says nothing about whether
+the engine will start. The bound is fifteen minutes, not the smaller 460 s an
+earlier serve recorded, because loading the draft module adds work no previous
+launch did. Readiness is not the gate for DSpark: the fused-MoE workspace
+allocates lazily at generation, so validate with a real multi-hundred-token
+completion.
+
+#### Draining this lane — two drains sixty times apart, the slow one governing
+
+Stopping the lane means two different things, and confusing them kills peer
+work:
+
+| Drain | What retires | Cost | What it protects |
+|---|---|---|---|
+| **Run-level** | a worker's node reaches its end and it writes a manifest | **~1 h** | a peer's in-flight implementation work — uncommitted, with no commit behind it |
+| Request-level | the HTTP completions already in flight | ~1–3 min | nothing not already covered once the runs have ended |
+
+The **run-level drain governs**: the load is other orchestrators' workers, each
+mid-plan, so the unit that must be allowed to finish is the *node*, not the
+request. A hot restart therefore costs about an hour of held dispatch, charged
+to other projects. The duty cycle makes it free — 00:00–03:00 UTC is two
+independently observed hours of 100% idle.
+
+Read the fleet and the engine, never the clock. The non-terminal run pointers
+across the projects using the lane and the engine's running and waiting request
+counters are both observable, via
+`serving_receipts.sample_serving_metrics`, which declares exact aliases for
+`num_requests_running` and `num_requests_waiting` and scrapes them from
+`<origin>/metrics`. **A failed scrape returns `None`, and none is not
+zero** — a drain must never read a failed read as quiescence. A drain reporting
+zero on both counters is also the in-flight-count evidence a cutover records.
+
+Stop the lane with `imas-ambix agent shutdown`, never `scancel`. `shutdown`
+selects the profile's own jobs, cancels them, and *republishes the endpoint
+document*; a bare `scancel` skips the republish, so cancelling directly leaves
+the published endpoint claiming a lane that is gone. Never `scancel` a serve
+with peer runs live against it.
+
 ### MiniMax M2.7 Deployment
 
 **Engine:** SGLang native (full GPU serving, no CPU offloading)
@@ -1157,6 +1911,27 @@ Deployment facts — four-card INT4 only (measured 2026-08-26):
 - **The scheduler sequence cap is 64** — above the benchmark's maximum
   concurrency of 32, and low enough not to inflate CUDA-graph capture against a
   bf16 KV pool.
+- **A SEPARATE draft checkpoint needs its own quantization config, and vLLM
+  does not give it one.** Setting `speculative_model` to a distinct checkpoint
+  makes vLLM construct the draft MTP module from the *target* model's config —
+  including the target's quantization ignore list. Against a compressed draft
+  that selects unquantized expert parameters while the checkpoint holds packed
+  ones (`...experts.routed_experts.w13_weight_packed`, `w2_weight_packed`), so
+  the load fails or silently builds the wrong carriers. The fix is to derive
+  `model_config`, `load_config` and the quantization config from
+  `speculative_config.draft_model_config` before the draft module is built, and
+  the draft layer index must equal the target's `num_hidden_layers`.
+
+  **No current profile hits this**, because every speculative profile here uses
+  a method whose draft weights live in the target checkpoint (`mtp` for GLM,
+  `dspark` for DeepSeek-V4) and none sets `speculative_model`. An
+  implementation of the repair existed as a version-pinned monkey-patch of the
+  private `LLMBaseProposer._create_draft_vllm_config`, wrapping the API server
+  through `runpy`; it was dropped rather than carried, because a patch pinned to
+  one engine version that raises on every other is a latent startup failure
+  guarding a configuration nothing expresses. If a separate-draft checkpoint is
+  ever adopted, re-derive the fix against the engine version in use and check
+  first whether upstream has since fixed it.
 
 **Deploy:**
 ```bash

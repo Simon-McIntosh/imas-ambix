@@ -4,15 +4,17 @@ from __future__ import annotations
 
 import json
 import os
+import socket
 import subprocess
-import threading
 from contextlib import contextmanager
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 
 from imas_ambix.agent.clive import generate_clive_script
-from imas_ambix.agent.profile import SiteConfig
+from imas_ambix.agent.litellm_service import LITELLM_PORT
+from tests.agent.catalog_fixture import serve_catalog_items
+
+CAPABILITY_SUFFIX = "_SUPPORTED_CAPABILITIES"
 
 
 def _catalog_item(
@@ -34,32 +36,23 @@ def _catalog_item(
 
 
 @contextmanager
-def _serve_catalog(items: list[dict[str, object]]):
-    requests: list[dict[str, str]] = []
-
-    class Handler(BaseHTTPRequestHandler):
-        def do_GET(self):
-            requests.append(dict(self.headers.items()))
-            payload = json.dumps({"data": items}).encode()
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(payload)))
-            self.end_headers()
-            self.wfile.write(payload)
-
-        def log_message(self, _format, *_args):
-            return
-
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    host, port = server.server_address
+def _openrouter_proxy_port():
+    """Answer the readiness probe the hybrid branch makes before it starts the proxy."""
+    listener = socket.socket()
     try:
-        yield SiteConfig(global_origin=f"http://{host}:{port}"), requests
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            listener.bind(("127.0.0.1", LITELLM_PORT))
+        except OSError:
+            # The port already answers, so the launcher's probe succeeds
+            # without this listener and the test does not need to hold the
+            # port itself.
+            yield
+        else:
+            listener.listen(1)
+            yield
     finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=2)
+        listener.close()
 
 
 def _run_launcher(
@@ -68,6 +61,8 @@ def _run_launcher(
     selected_model=None,
     *,
     preferred_release_id=None,
+    mode="local",
+    openrouter_native_release=None,
 ):
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
@@ -82,23 +77,39 @@ def _run_launcher(
         encoding="utf-8",
     )
     (fake_bin / "claude").chmod(0o755)
+    if mode != "local":
+        # The hybrid branch asks the user manager for the proxy before it
+        # probes the port; the probe itself is answered by the listener
+        # opened below, not by this stub.
+        (fake_bin / "systemctl").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        (fake_bin / "systemctl").chmod(0o755)
 
-    with _serve_catalog(items) as (site, requests):
+    with serve_catalog_items(items) as (site, requests):
         site = site.model_copy(update={"preferred_release_id": preferred_release_id})
-        launcher.write_text(generate_clive_script(site), encoding="utf-8")
+        launcher.write_text(
+            generate_clive_script(
+                site,
+                mode=mode,
+                openrouter_native_release=openrouter_native_release,
+            ),
+            encoding="utf-8",
+        )
         launcher.chmod(0o755)
         environment = os.environ.copy()
         environment["PATH"] = f"{fake_bin}:{environment['PATH']}"
         command = [str(launcher)]
+        if mode != "local":
+            command.extend(("--mode", mode))
         if selected_model is not None:
             command.extend(("--model", selected_model))
-        result = subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-            check=False,
-            env=environment,
-        )
+        with _openrouter_proxy_port():
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                check=False,
+                env=environment,
+            )
 
     arguments = arguments_file.read_text(encoding="utf-8").splitlines()
     harness_environment = dict(
@@ -160,18 +171,20 @@ def test_each_release_gets_its_own_topology_and_context(tmp_path):
 
     assert result.returncode == 0, result.stderr
     assert len(requests) == 1
-    assert "Authorization" not in requests[0]
+    assert "Authorization" not in requests[0][1]
     assert settings["modelPicker"]["replaceBuiltInOptions"] is True
     assert settings["modelPicker"]["options"] == [
         {
             "model": "narrow-release",
             "label": "narrow-release",
             "description": "2×H200 · int4 · 512k context",
+            "behavesAs": "claude-sonnet-5",
         },
         {
             "model": "wide-release",
             "label": "wide-release",
             "description": "4×H200 · fp8 · 256k context",
+            "behavesAs": "claude-sonnet-5",
         },
     ]
     # The exported context is the input ceiling, not the served window, so the
@@ -292,3 +305,63 @@ def test_every_declared_alias_has_supported_capabilities(tmp_path):
     }
     for model_variable in model_variables:
         assert environment[f"{model_variable}_SUPPORTED_CAPABILITIES"] == "thinking"
+
+
+def test_every_hybrid_slot_declares_its_supported_capabilities(tmp_path):
+    items = [
+        _catalog_item(
+            "frontier-native-release",
+            accelerator_count=4,
+            max_model_len=1_048_576,
+        ),
+        _catalog_item(
+            "secondary-native-release",
+            accelerator_count=2,
+            max_model_len=524_288,
+        ),
+    ]
+
+    result, _settings, environment, _requests = _run_launcher(
+        tmp_path,
+        items,
+        "frontier-native-release",
+        mode="hybrid",
+        openrouter_native_release="frontier-native-release",
+    )
+
+    assert result.returncode == 0, result.stderr
+    # A slot variable carries a NAME companion, which is the harness's own
+    # model-registration convention. Deriving the roster from that rather than
+    # listing it here is what makes a newly added slot visible: it arrives in
+    # the roster and, absent its declaration, cannot match the mapping below.
+    roster = {name for name in environment if f"{name}_NAME" in environment}
+    declared = {
+        name[: -len(CAPABILITY_SUFFIX)]: value
+        for name, value in environment.items()
+        if name.startswith("ANTHROPIC_") and name.endswith(CAPABILITY_SUFFIX)
+    }
+
+    assert roster == {
+        "ANTHROPIC_DEFAULT_SONNET_MODEL",
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+        "ANTHROPIC_DEFAULT_OPUS_MODEL",
+        "ANTHROPIC_DEFAULT_FABLE_MODEL",
+        "ANTHROPIC_CUSTOM_MODEL_OPTION",
+    }
+    # Exact set, not membership: a slot that arrives without its declaration
+    # leaves this mapping short of the roster above, and one that arrives in a
+    # spelling the consumer does not read fails the comparison with it.
+    assert declared == {
+        "ANTHROPIC_DEFAULT_SONNET_MODEL": "thinking",
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL": "thinking",
+        "ANTHROPIC_DEFAULT_OPUS_MODEL": "thinking",
+        "ANTHROPIC_DEFAULT_FABLE_MODEL": "thinking",
+        "ANTHROPIC_CUSTOM_MODEL_OPTION": "thinking",
+    }
+    # The hybrid branch is the one that carries the hosted slots, so naming
+    # their models is what shows this exercised it rather than the local one.
+    assert environment["ANTHROPIC_DEFAULT_SONNET_MODEL"] == "frontier-native-release"
+    assert environment["ANTHROPIC_DEFAULT_HAIKU_MODEL"] == "secondary-native-release"
+    assert environment["ANTHROPIC_DEFAULT_OPUS_MODEL"] == "or-opus-4.8"
+    assert environment["ANTHROPIC_DEFAULT_FABLE_MODEL"] == "or-glm-5.2"
+    assert environment["ANTHROPIC_CUSTOM_MODEL_OPTION"] == "or-gpt-5.5"

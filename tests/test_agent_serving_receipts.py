@@ -124,8 +124,8 @@ SAMPLE_T1 = _metrics_text(
     per_pos=(9090.0, 6060.0, 4545.0, 2525.0, 2020.0),
 )
 
-T0 = _dt.datetime(2026, 9, 5, 12, 0, 0, tzinfo=_dt.UTC)
-T1 = T0 + _dt.timedelta(seconds=5)
+FIRST_SAMPLE_AT = _dt.datetime(2026, 9, 5, 12, 0, 0, tzinfo=_dt.UTC)
+SECOND_SAMPLE_AT = FIRST_SAMPLE_AT + _dt.timedelta(seconds=5)
 
 
 # ---------------------------------------------------------------------------
@@ -463,9 +463,9 @@ def test_receipt_row_over_live_four_card_window_is_nonzero_and_descending() -> N
     curr = sr._serving_snapshot(LIVE_METRICS_T1)
     row = sr.build_receipt_row(
         prev,
-        T0,
+        FIRST_SAMPLE_AT,
         curr,
-        T0 + _dt.timedelta(seconds=15),
+        FIRST_SAMPLE_AT + _dt.timedelta(seconds=15),
         job_id="1262921",
         profile_slug="deepseek-v4-flash",
         served_name="deepseek-v4-flash",
@@ -503,14 +503,14 @@ def test_receipt_row_on_lone_snapshot_has_no_throughput_yet() -> None:
         None,
         None,
         snapshot,
-        T0,
+        FIRST_SAMPLE_AT,
         job_id="1234567",
         profile_slug="deepseek-v4-flash",
         served_name="deepseek-v4-flash",
         gpus=4,
     )
 
-    assert row.timestamp == T0.isoformat()
+    assert row.timestamp == FIRST_SAMPLE_AT.isoformat()
     assert row.job_id == "1234567"
     assert row.profile_slug == "deepseek-v4-flash"
     assert row.served_name == "deepseek-v4-flash"
@@ -522,6 +522,9 @@ def test_receipt_row_on_lone_snapshot_has_no_throughput_yet() -> None:
     assert row.kv_cache_usage_perc == 0.12
     assert row.prefix_cache_queries_total == 984_123
     assert row.prefix_cache_hits_total == 812_004
+    assert row.prefix_cache_query_delta is None
+    assert row.prefix_cache_hit_delta is None
+    assert row.prefix_cache_hit_rate_interval is None
     # Cumulative ratio needs no second sample.
     assert row.prefix_cache_hit_rate == round(812_004 / 984_123, 4)
     # No prior spec-decode snapshot to difference against.
@@ -535,9 +538,9 @@ def test_receipt_row_over_a_window_computes_throughput_and_acceptance() -> None:
     curr = sr._serving_snapshot(SAMPLE_T1.decode())
     row = sr.build_receipt_row(
         prev,
-        T0,
+        FIRST_SAMPLE_AT,
         curr,
-        T1,
+        SECOND_SAMPLE_AT,
         job_id="1234567",
         profile_slug="deepseek-v4-flash",
         served_name="deepseek-v4-flash",
@@ -555,8 +558,12 @@ def test_receipt_row_over_a_window_computes_throughput_and_acceptance() -> None:
     assert row.spec_accepted_tokens == 300
     assert row.spec_acceptance_rate == round(300 / 500, 4)
     assert row.spec_num_accepted_per_pos == [90, 60, 45, 25, 20]
-    # Cumulative ratio at T1, not windowed.
+    assert row.prefix_cache_query_delta == 2_000
+    assert row.prefix_cache_hit_delta == 1_800
+    assert row.prefix_cache_hit_rate_interval == 0.9
+    # Cumulative ratio at the later sample, not windowed.
     assert row.prefix_cache_hit_rate == round(813_804 / 986_123, 4)
+    assert row.prefix_cache_hit_rate == 0.8253
 
 
 def test_receipt_row_zero_elapsed_reports_no_throughput() -> None:
@@ -564,9 +571,9 @@ def test_receipt_row_zero_elapsed_reports_no_throughput() -> None:
     curr = sr._serving_snapshot(SAMPLE_T1.decode())
     row = sr.build_receipt_row(
         prev,
-        T0,
+        FIRST_SAMPLE_AT,
         curr,
-        T0,  # same instant as the previous sample
+        FIRST_SAMPLE_AT,  # same instant as the previous sample
         job_id=None,
         profile_slug=None,
         served_name=None,
@@ -583,7 +590,7 @@ def test_receipt_row_serializes_to_json() -> None:
         None,
         None,
         snapshot,
-        T0,
+        FIRST_SAMPLE_AT,
         job_id="1234567",
         profile_slug="deepseek-v4-flash",
         served_name="deepseek-v4-flash",
@@ -605,7 +612,7 @@ def test_record_receipts_appends_one_row_per_successful_sample(
     receipts_path = tmp_path / "receipts.jsonl"
     # start, then one elapsed-check per iteration: 5s (continue), 10s (stop).
     clock = iter([0.0, 5.0, 10.0])
-    wall_clock = iter([T0, T1])
+    wall_clock = iter([FIRST_SAMPLE_AT, SECOND_SAMPLE_AT])
     slept: list[float] = []
 
     with patch("urllib.request.urlopen", _stub_urlopen([SAMPLE_T0, SAMPLE_T1])):
@@ -625,7 +632,13 @@ def test_record_receipts_appends_one_row_per_successful_sample(
     first = json.loads(lines[0])
     second = json.loads(lines[1])
     assert first["generation_throughput_toks_per_s"] is None
+    assert first["prefix_cache_query_delta"] is None
+    assert first["prefix_cache_hit_delta"] is None
+    assert first["prefix_cache_hit_rate_interval"] is None
     assert second["generation_throughput_toks_per_s"] is not None
+    assert second["prefix_cache_query_delta"] == 2_000
+    assert second["prefix_cache_hit_delta"] == 1_800
+    assert second["prefix_cache_hit_rate_interval"] == 0.9
     assert second["prefix_cache_hit_rate"] is not None
     assert slept == [5.0]
 
@@ -664,7 +677,7 @@ def test_record_receipts_is_append_only_across_invocations(tmp_path: Path) -> No
             duration_s=0.0,
             sleep=lambda _s: None,
             monotonic=lambda: next(clock_first),
-            now=lambda: T0,
+            now=lambda: FIRST_SAMPLE_AT,
         )
     first_pass = receipts_path.read_text(encoding="utf-8")
     assert len(first_pass.splitlines()) == 1
@@ -678,7 +691,7 @@ def test_record_receipts_is_append_only_across_invocations(tmp_path: Path) -> No
             duration_s=0.0,
             sleep=lambda _s: None,
             monotonic=lambda: next(clock_second),
-            now=lambda: T1,
+            now=lambda: SECOND_SAMPLE_AT,
         )
     second_pass = receipts_path.read_text(encoding="utf-8")
     lines = second_pass.splitlines()

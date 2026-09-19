@@ -172,7 +172,7 @@ def _semantic_identity_of(manifest_path: Path) -> str | None:
 
     try:
         manifest = MachineArtifactManifest.from_bytes(manifest_path.read_bytes())
-    except OSError, ValueError:
+    except (OSError, ValueError):
         return None
     try:
         return manifest.semantic_identity()

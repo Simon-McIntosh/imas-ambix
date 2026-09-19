@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="serve-telemetry-spine">
+  <meta name="plan-title" content="Serve Telemetry Spine">
+  <meta name="plan-summary" content="One on-node recorder generates serving telemetry; every reader derives from it instead of probing the cluster itself">
+  <meta name="plan-status" content="draft">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort-hours" content="11.0">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="orchestrator">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-sprint" content="S25">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-tags" content="agent-serving,gpu-deployment">
+  <title>Serve Telemetry Spine | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-09-18">
+<meta name="plan-version" content="3">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;done&quot;}">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — What exists, and what it is recording</h2>
+
+    <p>A serving recorder already runs with every serve.
+    <code>imas_ambix/agent/serving_receipts.py</code> is launched from the serve's own
+    SLURM script (<code>slurm.py</code>, the <code>_RECEIPTS_PATH</code> block), samples the
+    engine's <code>/metrics</code> every five seconds, and appends one JSON row per sample to
+    <code>/work/projects/imas_gpu/agents/receipts/&lt;slug&gt;-&lt;jobid&gt;.jsonl</code>. It starts
+    immediately after the engine process so the startup window is captured, tolerates the
+    engine not answering yet, and dies with the job. The architecture this plan needs is
+    therefore already in place. What it records is not.</p>
+
+    <p><strong>Measured on the running four-card DeepSeek-V4.1-Flash serve (job 1273253),
+    2026-09-18: fourteen of the recorder's twenty fields are null in every one of 13,791
+    rows.</strong></p>
+
+    <table>
+      <caption>Field coverage across the whole 19-hour record of one serve.</caption>
+      <thead>
+        <tr><th>Field group</th><th>Rows populated</th><th>Coverage</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Identity — timestamp, job, slug, served name, card count</td><td>13,791</td><td>100%</td></tr>
+        <tr><td>Throughput — generation and prompt tokens per second</td><td>13,790</td><td>100%</td></tr>
+        <tr><td>Load — requests running, requests waiting, KV-cache usage</td><td>0</td><td><strong>0%</strong></td></tr>
+        <tr><td>Prefix cache — queries, hits, per-interval deltas, hit rate</td><td>0</td><td><strong>0%</strong></td></tr>
+        <tr><td>Speculative decode — draft tokens, accepted tokens, acceptance rate, per-position</td><td>0</td><td><strong>0%</strong></td></tr>
+        <tr><td>GPU cards — utilisation, temperature, power, clocks</td><td>—</td><td><strong>not collected</strong></td></tr>
+        <tr><td>Host — CPU, RAM, node job table</td><td>—</td><td><strong>not collected</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p>The cause is a single defect with a long reach: the recorder reads metric names
+    through <code>imas_ambix.agent.bench</code>, which knows only the <code>vllm:</code>
+    namespace. This deployment serves under SGLang, whose series are named
+    <code>sglang:</code>. Two gauges survive because their names happen to match; everything
+    else silently records <code>null</code>. A reader that knows one engine family reports a
+    healthy serve as absent, and nothing anywhere raises — the file grows at 8.7 MB per
+    job-day and looks like a complete record.</p>
+
+    <p><strong>The same defect has already been paid for twice.</strong> The workstation
+    watcher <code>gpu-watch</code> carried its own independent scraper precisely because the
+    canonical one was blind, and that scraper then had to learn both families by hand. It
+    also grew its own parallel token ledger, its own price resolution and its own
+    utilisation arithmetic — a second implementation of this record, kept on a login node,
+    covering only the hours somebody happened to be watching. Metric-name knowledge living
+    in two places is what let the two drift apart, and no amount of care in either copy
+    fixes that.</p>
+
+    <h3 id="s1-why">Why the node is the right place to generate this</h3>
+
+    <p>The recorder runs inside the serve's SLURM allocation, on the GPU node. Verified on
+    that node: <code>nvidia-smi</code>, <code>squeue</code> and SQLite 3.46.1 are all present
+    and are ordinary local calls there. Every hard problem the login-node watcher has hit
+    this year dissolves at that location:</p>
+
+    <ul>
+      <li><strong>No <code>srun --overlap</code> step.</strong> The watcher spawns one
+      sampler step per owned job per session to read <code>nvidia-smi</code>. Steps are a
+      bounded per-job resource, and exhausting <code>MaxStepCount</code> locks
+      <code>--overlap</code> out for the life of the job.</li>
+      <li><strong>No orphaned samplers.</strong> Measured 2026-09-18: four sampler steps
+      outlived their parent by three hours, reparented to init, still polling
+      <code>nvidia-smi</code> once a second and each still holding a step against a job that
+      had no idea they were there.</li>
+      <li><strong>Continuous coverage.</strong> A login-node watcher observes only while
+      someone is looking. Utilisation over a week or a month cannot be answered from it at
+      all, and the honest response — declining to report a figure backed by a sliver of the
+      period — is the current behaviour.</li>
+    </ul>
+
+    <p>One limit is inherent and must be stated rather than designed around: the recorder
+    sits inside the serve's cgroup, so its <code>nvidia-smi</code> sees <em>the serve's</em>
+    cards. That is exactly the set the serving panel and the utilisation figure describe.
+    The node-wide eight-card view remains a separate concern with its own sampler.</p>
+
+    <h3 id="s1-shape">The shape being built</h3>
+
+    <svg viewBox="0 0 720 250" width="100%" role="img"
+         aria-label="Dataflow: an on-node recorder and the router append JSONL, which compacts through resolution tiers and is indexed by readers."
+         style="max-width:720px;font-family:system-ui,-apple-system,sans-serif">
+      <text x="8" y="18" font-size="13" font-weight="600" fill="#1a1a1a">GPU node — inside the serve allocation</text>
+      <rect x="8" y="28" width="196" height="92" fill="none" stroke="#c8c8cc" stroke-width="1"/>
+      <text x="20" y="48" font-size="13" fill="#1a1a1a">recorder (ticker)</text>
+      <text x="20" y="67" font-size="12" fill="#555">engine /metrics</text>
+      <text x="20" y="83" font-size="12" fill="#555">nvidia-smi · /proc</text>
+      <text x="20" y="99" font-size="12" fill="#555">squeue</text>
+      <text x="20" y="114" font-size="12" fill="#0b6e4f">every 5 s</text>
+
+      <rect x="8" y="140" width="196" height="56" fill="none" stroke="#c8c8cc" stroke-width="1"/>
+      <text x="20" y="160" font-size="13" fill="#1a1a1a">router</text>
+      <text x="20" y="178" font-size="12" fill="#555">one row per request</text>
+
+      <path d="M204 74 L268 74" stroke="#1a1a1a" stroke-width="1" marker-end="url(#a)"/>
+      <path d="M204 168 L268 168" stroke="#1a1a1a" stroke-width="1" marker-end="url(#a)"/>
+      <defs><marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6"
+        orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="#1a1a1a"/></marker></defs>
+
+      <text x="268" y="18" font-size="13" font-weight="600" fill="#1a1a1a">GPFS — append-only, lock-free</text>
+      <rect x="268" y="28" width="180" height="168" fill="none" stroke="#c8c8cc" stroke-width="1"/>
+      <text x="280" y="50" font-size="12" fill="#1a1a1a">raw 5 s</text>
+      <text x="280" y="66" font-size="11" fill="#777">current job · 2 days</text>
+      <path d="M288 76 L288 94" stroke="#0b6e4f" stroke-width="1" marker-end="url(#a)"/>
+      <text x="300" y="90" font-size="11" fill="#0b6e4f">compact</text>
+      <text x="280" y="110" font-size="12" fill="#1a1a1a">1-minute means</text>
+      <text x="280" y="126" font-size="11" fill="#777">5 weeks</text>
+      <path d="M288 136 L288 154" stroke="#0b6e4f" stroke-width="1" marker-end="url(#a)"/>
+      <text x="280" y="170" font-size="12" fill="#1a1a1a">1-hour means</text>
+      <text x="280" y="186" font-size="11" fill="#777">kept indefinitely</text>
+
+      <path d="M448 112 L512 112" stroke="#1a1a1a" stroke-width="1" marker-end="url(#a)"/>
+
+      <text x="512" y="18" font-size="13" font-weight="600" fill="#1a1a1a">Login node — derived, disposable</text>
+      <rect x="512" y="28" width="200" height="84" fill="none" stroke="#c8c8cc" stroke-width="1"/>
+      <text x="524" y="48" font-size="13" fill="#1a1a1a">SQLite index</text>
+      <text x="524" y="66" font-size="12" fill="#555">local disk · tailed by</text>
+      <text x="524" y="82" font-size="12" fill="#555">(path, inode, offset)</text>
+      <text x="524" y="101" font-size="12" fill="#777">rebuildable from source</text>
+      <path d="M612 112 L612 140" stroke="#1a1a1a" stroke-width="1" marker-end="url(#a)"/>
+      <rect x="512" y="148" width="200" height="48" fill="none" stroke="#c8c8cc" stroke-width="1"/>
+      <text x="524" y="168" font-size="13" fill="#1a1a1a">imas-ambix agent watch</text>
+      <text x="524" y="186" font-size="12" fill="#555">panels · ledger · cost</text>
+    </svg>
+    <p><em>One generator on the node; one append-only record; readers derive and never
+    probe the cluster themselves.</em></p>
+
+    <h2 id="s2">§2 — Teach the recorder both engine families</h2>
+
+    <p>Extract the engine-family knowledge that is currently split between
+    <code>bench.py</code> (vLLM names only) and the workstation watcher (both families, by
+    hand) into one module that owns the mapping from a family's series names to canonical
+    quantities. The recorder, <code>bench</code>, and every later reader resolve through it.
+    This is the load-bearing change: without it the two implementations drift apart again,
+    which is the mechanism that produced a 13,791-row record of nulls.</p>
+
+    <p>The canonical set must cover, for both <code>sglang:</code> and <code>vllm:</code>:
+    requests running and queued; KV-pool occupancy; prompt, generation and cached token
+    counters, with cached split by the tier that answered it; uncached prompt tokens; and
+    the time-to-first-token and inter-token-latency histograms. Where a family exposes a
+    quantity under a different decomposition — SGLang publishes cached tokens by
+    <code>cache_source</code> and prefill work under <code>prefill_effective_tokens_total</code>
+    — the module reconciles it to the canonical name rather than leaving the caller to
+    know which engine it is talking to.</p>
+
+    <p>A quantity absent from a family must be recorded as absent and be distinguishable
+    from a measured zero. The failure being repaired is exactly a null that reads as a
+    reading, so the row schema carries presence, and the recorder never writes a field it
+    did not observe.</p>
+
+    <p><strong>There is a third copy, and it is the one that already works.</strong> The
+    reuse map found <code>imas_ambix/agent/lane.py::parse_lane_capacity</code> and its
+    <code>_parse_sglang_capacity</code> helper: the only code in this repository that
+    already reads <code>sglang:</code> names, complete with the rank-zero label discipline
+    the other readers lack. It is not a defect — it is the working precedent the shared
+    module should be built from. But it makes the count three rather than two, and landing
+    §2 without migrating it leaves the repository in exactly the two-implementations
+    condition this plan exists to repair, merely moved to a different pair. The module
+    absorbs <code>lane.py</code>'s mapping, and <code>lane.py</code> becomes its first
+    caller.</p>
+
+    <p><strong>Write paths.</strong> <code>imas_ambix/agent/engine_metrics.py</code> (new),
+    <code>imas_ambix/agent/serving_receipts.py</code>, <code>imas_ambix/agent/bench.py</code>,
+    <code>imas_ambix/agent/lane.py</code>, <code>tests/test_engine_metrics.py</code> (new).
+    The fixture pattern to extend is <code>tests/test_agent_lane_sglang.py</code>, which
+    already parameterises one code path across both families and the neither-family case
+    the presence rule needs.</p>
+
+    <p><strong>Done when</strong> a live scrape of the running SGLang serve populates every
+    canonical field; a recorded fixture of vLLM output populates the same fields through the
+    same code path; a family that genuinely lacks a quantity yields an absent field rather
+    than a null or a zero; and <code>uv run --no-sync ruff check imas_ambix tests</code>
+    exits 0.</p>
+
+    <h2 id="s3">§3 — Record the cards, the host and the node's job table</h2>
+
+    <p>Add three local probes to the recorder's tick. All three are ordinary local calls at
+    the node and need no SLURM step.</p>
+
+    <ul>
+      <li><strong>Cards</strong> — per-card utilisation, temperature, power draw, power cap,
+      clocks and memory, from one <code>nvidia-smi</code> query, mapped to physical indices
+      through <code>SLURM_STEP_GPUS</code> so a card is labelled by the number the node knows
+      it by rather than by the step-relative ordering.</li>
+      <li><strong>Host</strong> — CPU busy fraction from <code>/proc/stat</code> and memory
+      from <code>/proc/meminfo</code>.</li>
+      <li><strong>Node job table</strong> — <code>squeue -w $(hostname)</code>, so what else
+      was resident is part of the record and a later reader can explain a slow hour without
+      re-deriving it from SLURM accounting.</li>
+    </ul>
+
+    <p>The row shape changes with this section. Today's <code>ReceiptRow</code> is a flat
+    dataclass of twenty fields, fourteen of them null; adding cards, host and jobs to a flat
+    row makes it sixty. Rows instead carry versioned, <em>sparse</em> sections —
+    <code>engine</code>, <code>cards</code>, <code>host</code>, <code>jobs</code> — each
+    omitted entirely when its probe did not run, so an absent source costs no bytes and
+    cannot be mistaken for a measurement. A schema version on every row is what lets the
+    index in §5 ingest old and new files together.</p>
+
+    <p>Sampling is staggered rather than uniform: the engine scrape stays on the five-second
+    tick, cards on the same tick (a single <code>nvidia-smi</code> call is cheap), and the
+    job table at a much lower rate, because it changes on the scale of minutes and costs a
+    SLURM RPC.</p>
+
+    <p><strong>Write paths.</strong> <code>imas_ambix/agent/node_probe.py</code> (new),
+    <code>imas_ambix/agent/serving_receipts.py</code>,
+    <code>tests/test_node_probe.py</code> (new).</p>
+
+    <p><strong>Done when</strong> a serve launched from the generated SLURM script writes
+    rows carrying card, host and job sections; a probe that fails or is unavailable omits its
+    section and the tick still completes; the recorder's added cost is under one percent of
+    one core, measured on the node; and the whole-tree lint gate exits 0.</p>
+
+    <h2 id="s4">§4 — Tiered rotation and compaction</h2>
+
+    <p>There is no rotation today: 44 files and 110 MB have accumulated, one per job,
+    forever. Growth is 8.7 MB per job-day at five-second resolution, which is affordable now
+    and is not a retention policy.</p>
+
+    <p>Three tiers, each a compaction of the one above:</p>
+
+    <table>
+      <caption>Resolution against age. A year of hourly trend costs a few megabytes.</caption>
+      <thead><tr><th>Tier</th><th>Resolution</th><th>Retained</th><th>Layout</th></tr></thead>
+      <tbody>
+        <tr><td>raw</td><td>5 s</td><td>~2 days</td><td>per job, rolled daily</td></tr>
+        <tr><td>minute</td><td>1 min means</td><td>~5 weeks</td><td>per month</td></tr>
+        <tr><td>hour</td><td>1 h means</td><td>indefinitely</td><td>per year</td></tr>
+      </tbody>
+    </table>
+
+    <p>Compaction must be correct about what it is averaging. Cumulative counters compact by
+    keeping the endpoint value, never by averaging — a mean of a monotonically rising counter
+    is meaningless, and the integrals in §5 difference endpoints. Gauges and utilisations
+    compact by a time-weighted mean, carrying the weight forward so a compacted row knows how
+    much observation stands behind it. A compacted row that cannot say how many raw samples
+    it represents cannot be integrated honestly at the next tier.</p>
+
+    <p>Compaction runs opportunistically inside the recorder, between samples, because the
+    recorder is idle there and needs no separate supervision. It is also exposed as a
+    subcommand so that a tier can be rebuilt, or caught up, while the serve is down. A
+    compaction is idempotent and never deletes a source tier until its successor has been
+    written and re-read.</p>
+
+    <p><strong>Write paths.</strong> <code>imas_ambix/agent/telemetry_store.py</code> (new),
+    <code>imas_ambix/agent/serving_receipts.py</code>, <code>imas_ambix/agent/cli.py</code>,
+    <code>tests/test_telemetry_store.py</code> (new).</p>
+
+    <p><strong>Done when</strong> a synthetic multi-day record compacts through all three
+    tiers with counter endpoints preserved and gauge means time-weighted; compaction is
+    idempotent under repeated runs; a crash mid-compaction loses no source data; the
+    subcommand rebuilds a tier from its source; and the lint gate exits 0.</p>
+
+    <h2 id="s5">§5 — The reader index, and the watcher moves in</h2>
+
+    <p>Readers derive; they do not probe. A reader builds a SQLite index on
+    <strong>local</strong> disk by tailing the record files it has not yet ingested, tracked
+    by path, inode and byte offset so a rolled or replaced file is detected rather than
+    re-read or skipped. The index is disposable by construction: it is rebuilt from the
+    JSONL on corruption, on a schema change, or on demand, and therefore can never itself be
+    a data loss. This is why the durable record stays append-only JSONL — that is the shape
+    that is correct on GPFS without locking, and SQLite's WAL mode is not available on a
+    network filesystem.</p>
+
+    <p>With an index the ledger becomes a query rather than an arithmetic layer:
+    period sums over differenced counter endpoints, and a time-weighted mean for
+    utilisation. Both are already specified and tested in the workstation watcher and move
+    across with it.</p>
+
+    <p><code>gpu-watch</code> moves into this repository as <code>imas-ambix agent
+    watch</code>, next to the producer it reads. Its panels are unchanged — the ranked
+    layout, the bar-for-every-percentage rule, the ledger with its one earned rule. What
+    changes underneath is that the serving figures, the serve's card readings and the whole
+    ledger come from the record instead of from live probes, so the subcommand no longer
+    spawns sampler steps for the serve's cards and no longer maintains a private ledger. The
+    node-wide GPU panel keeps its own sampler, and that sampler gains the cleanup this repair
+    proved it needed. The dotfiles repository keeps a thin launcher on <code>PATH</code> so
+    the command name does not move.</p>
+
+    <p>Two behaviours must survive the move, because both were bought with measurement.
+    Utilisation declines to report when too little of a period was observed, rather than
+    passing off the watcher's habits as the deployment's load — with a continuous on-node
+    recorder this will now almost always be satisfied, which is the point. And open-market
+    cost is resolved against a provider's published rates <em>per interval at the rate then
+    in force</em>, because the served model is priced by time of day and a period billed at
+    one instant's rate is wrong by the peak-to-off-peak ratio.</p>
+
+    <p><code>receipt_bins.collect_receipt_bins</code> and
+    <code>summarise_receipt_rows</code> already aggregate receipt rows and have no
+    production caller at all — only a test imports them. This index is the consumer they
+    were written for, and a reader that reimplements the aggregation would orphan them
+    permanently. Nothing else is available: no module anywhere under
+    <code>imas_ambix/</code> imports <code>sqlite3</code>, so the schema and the
+    offset-tracking tail are genuinely new.</p>
+
+    <p><strong>Write paths.</strong> <code>imas_ambix/agent/telemetry_index.py</code> (new),
+    <code>imas_ambix/agent/watch.py</code> (new — the ported watcher),
+    <code>imas_ambix/agent/cli.py</code>, <code>tests/test_telemetry_index.py</code> (new),
+    <code>tests/test_watch_panel.py</code> (new).</p>
+
+    <p><strong>Done when</strong> <code>imas-ambix agent watch</code> renders every panel
+    from the record; the index ingests incrementally across a rolled file and a restart
+    without double-counting or gaps; a deleted index rebuilds to identical query results;
+    the ledger's hour, day, week and month rows are all populated from a continuously
+    recorded serve; the watcher spawns no sampler step for the serve's cards; and the lint
+    gate exits 0.</p>
+
+    <h2 id="s6">§6 — Per-request receipts from the router</h2>
+
+    <p>Aggregate gauges answer how the lane is behaving; they cannot attribute. The router
+    is the only component that sees every call — it proxies each one and already carries
+    per-request hooks — so request-level receipts belong to it and not to the serve.</p>
+
+    <p>One append-only row per completed request: timestamp, model, upstream chosen, prompt
+    tokens, cached prompt tokens, completion tokens, time to first token, total duration, and
+    the caller hint the router already derives. Written to its own stream, on its own
+    rotation, under the same tiering rules, so the request record can be retained at a
+    different depth from the sampled one.</p>
+
+    <p>This is what turns cost from a lane-wide estimate into an attributable figure: which
+    workloads spent the tokens, what a given campaign cost, and which callers carry the
+    prompts whose cache misses show up as prefill on the cards. It is deliberately the last
+    section — it is the largest, it is a different producer, and every section before it is
+    useful without it.</p>
+
+    <p>Volume must be bounded by design rather than by hope: at the observed request rate a
+    full-fidelity row per call is small, but a pathological client can change that, so the
+    writer samples above a configured rate and records the sampling fraction on the rows it
+    keeps, so totals scale honestly.</p>
+
+    <p>The response-side accounting already exists here and is not to be re-derived:
+    <code>bench.py::_stream_chat</code> reads <code>usage</code> out of an SSE stream and
+    times the first token from the first content delta, and <code>::_chat</code> does the
+    non-streaming equivalent. Both are clients consuming their own response, while the
+    router must tee bytes it is already relaying — so what is reused is the parse shape,
+    the field names and the first-token definition, and what is new is the tee. Sampling
+    with a recorded fraction is new, and <code>cached_tokens</code> has no existing parser
+    anywhere in the repository.</p>
+
+    <p><strong>Write paths.</strong> <code>imas_ambix/agent/request_receipts.py</code> (new),
+    <code>imas_ambix/agent/router.py</code>, <code>tests/test_request_receipts.py</code> (new).
+    Extend <code>tests/test_agent_router.py</code>'s existing harness rather than building a
+    second way to drive the router.</p>
+
+    <p><strong>Done when</strong> every completed request through the router appears once in
+    the stream; a failed or aborted request is recorded as such rather than dropped; the
+    router's added per-request latency is under a millisecond at the p99, measured; sampling
+    above the configured rate records its fraction; and the lint gate exits 0.</p>
+
+    <h2 id="s7">§7 — Sequencing and scope boundaries</h2>
+
+    <p><strong>Build and wiring are separate nodes, because conflating them serialises
+    work that has no dependency between it.</strong> Four of the five sections deliver a new
+    standalone module — the engine-family resolver, the node probes, the store and the
+    index — and each also needs a few lines wiring it into the recorder or the CLI. Only the
+    wiring collides: <code>serving_receipts.py</code> is claimed by three sections and
+    <code>cli.py</code> by three. Treating those collisions as dependencies makes a
+    five-deep chain out of work that is two deep.</p>
+
+    <p>So each section splits. Its <em>build</em> node writes and tests its own module
+    against a fixture, touching nothing another node claims, and every build node is
+    therefore concurrent with every other. Its <em>wire</em> node is a small edit into the
+    shared file, serialised behind the build it depends on. A build node is verifiable on
+    its own — a module with a fixture test is exactly the thing that can be — so the serial
+    tail carries only integration, which is where serialisation is actually earned.</p>
+
+    <p>Two real orderings survive the split and are not file artifacts. The probe, store and
+    index builds each need the row shape the engine-family resolver settles, so that
+    contract is fixed first and written down rather than discovered. And a wire node never
+    precedes its own build.</p>
+
+    <p><strong>Node size is a width lever, not only a scheduling one.</strong> The lane's
+    own capacity is its token pool divided by the mean context its workers carry, so an
+    over-large node costs width twice: it cannot run beside its siblings, and while it runs
+    it consumes the pool that would have carried them. Keeping a node to one module and one
+    fixture is what makes the fleet wide.</p>
+
+    <table>
+      <caption>Node ordering, scope and effort.</caption>
+      <thead><tr><th>Node</th><th>Runs after</th><th>Primary new module</th><th>Effort</th></tr></thead>
+      <tbody>
+        <tr><td>§2 build — engine families</td><td>—</td><td><code>engine_metrics.py</code></td><td>1.0 h</td></tr>
+        <tr><td>§6 build — request receipts</td><td>—</td><td><code>request_receipts.py</code></td><td>1.5 h</td></tr>
+        <tr><td>§3 build — node probes</td><td>§2 row contract</td><td><code>node_probe.py</code></td><td>1.5 h</td></tr>
+        <tr><td>§4 build — tiered store</td><td>§2 row contract</td><td><code>telemetry_store.py</code></td><td>1.5 h</td></tr>
+        <tr><td>§5 build — reader index</td><td>§2 row contract</td><td><code>telemetry_index.py</code></td><td>2.0 h</td></tr>
+        <tr><td>§2–§4 wire — recorder</td><td>its own build</td><td><code>serving_receipts.py</code></td><td>1.0 h</td></tr>
+        <tr><td>§5 wire — watcher moves in</td><td>§5 build</td><td><code>watch.py</code>, <code>cli.py</code></td><td>1.5 h</td></tr>
+        <tr><td>§6 wire — router</td><td>§6 build</td><td><code>router.py</code></td><td>1.0 h</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Commit after each file that compiles, not once at the end.</strong> A worker
+    in print mode gets no turn after its last one, and the turn can end mid-statement.
+    Measured on this plan, 2026-09-18: both nodes of the first build wave held all their
+    work uncommitted, and one ended with a 233-line module truncated inside an expression
+    — real work whose only copy was an untracked file in a worktree, which is the one
+    state a reclaimed worktree destroys outright. The module was good, which is what made
+    the near-loss expensive rather than academic. A commit survives a turn ending and a
+    buffer does not, so the commit is the checkpoint: make one as soon as a file parses,
+    amend it as the file grows, and never let a compiling module sit unstaged while the
+    next one is written.</p>
+
+    <p>Every section's gate is a unit or fixture test plus the whole-tree lint gate. No
+    section's gate opens real corpus data, so none is heavy; the recorder's on-node cost
+    measurement in §3 is the one reading that must be taken on the GPU node itself, against
+    a live serve, and never on the login node.</p>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="store-shape" data-choice="jsonl-generator-derived-sqlite" data-by="Simon McIntosh" data-when="2026-09-18">
+    <p class="r-dec-q">Where does the durable record live, given a node-side writer, login-node readers, and GPFS?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="jsonl-generator-derived-sqlite">JSONL generator, derived SQLite index</button>
+      <button class="r-opt" data-value="sqlite-node-local-snapshot">SQLite on node NVMe, snapshotted</button>
+      <button class="r-opt" data-value="sqlite-on-gpfs">SQLite directly on GPFS</button>
+      </p>
+    <p class="r-dec-rat">SQLite&#x27;s WAL mode does not work on a network filesystem and
+        rollback-journal locking over GPFS carries a documented risk with a continuous
+        writer. An append-only JSONL write of a short line is atomic and lock-free, so the
+        durable record stays dumb and correct; the query layer becomes a local, disposable
+        index that is rebuilt from source rather than recovered.</p>
+    </div>
+<div class="r-dec" data-key="record-scope" data-choice="engine-cards-host-jobs-requests" data-by="Simon McIntosh" data-when="2026-09-18">
+    <p class="r-dec-q">What does the recorder capture?</p>
+    <p class="r-dec-rat">All four sources: repaired engine metrics, GPU cards, host CPU
+        and memory with the node&#x27;s job table, and per-request receipts from the router. The
+        node makes the first three free, and the fourth is what makes cost attributable
+        rather than lane-wide.</p>
+    </div>
+<div class="r-dec" data-key="watcher-home" data-choice="agent-subcommand" data-by="Simon McIntosh" data-when="2026-09-18">
+    <p class="r-dec-q">Where does the watcher live once it reads the record?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="agent-subcommand">imas-ambix agent watch</button>
+      <button class="r-opt" data-value="dotfiles-reader">stays in dotfiles, reads the store</button>
+      <button class="r-opt" data-value="split">split by panel ownership</button>
+      </p>
+    <p class="r-dec-rat">It moves next to the producer it reads. Duplicated
+        metric-name knowledge across two repositories is the mechanism that produced a
+        record of nulls; sharing one module is the repair, and it only works if both live
+        together. dotfiles keeps a thin launcher so the command name does not move.</p>
+    </div>
+<div class="r-dec" data-key="retention" data-choice="tiered-downsampling" data-by="Simon McIntosh" data-when="2026-09-18">
+    <p class="r-dec-q">How long is telemetry kept, and at what resolution?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="tiered-downsampling">tiered downsampling</button>
+      <button class="r-opt" data-value="fixed-window-raw">fixed window, raw only</button>
+      <button class="r-opt" data-value="keep-everything">keep everything</button>
+      </p>
+    <p class="r-dec-rat">Five-second detail is wanted for the recent hours and is
+        wasteful for a year. Tiering keeps the near past exact, costs a few megabytes for a
+        year of trend, and is what finally gives the month-scale utilisation figure real
+        coverage instead of a declined answer.</p>
+    </div>
+</section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-sts-001" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-09-18" data-recommends-skill="/reckon-ship serve-telemetry-spine" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Land the telemetry spine — five nodes, §2 and §6 first</h4>
+    <div class="r-fu-body">The recorder already runs with every serve and has recorded fourteen null fields across 13,791 rows, because it parses only vLLM metric names against an SGLang engine. §2 repairs that by giving both families one shared owner and is the prerequisite for everything downstream; §6 is disjoint in its write paths and runs beside it. §3 then adds the card, host and job-table probes the node makes free, §4 the rotation tiers, and §5 the reader index with the watcher moved in as an agent subcommand.</div>
+    <pre class="r-fu-prompt">/reckon-ship serve-telemetry-spine</pre>
+    </article>
+</section>
+
+  <section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="s1" data-id="c-run-r-20260918T155731267687-reuse-map" data-who="reckon-ship" data-when="2026-09-18T16:31:15.345Z">
+    <div class="r-comment-body"><p>Reuse map delivered and independently verified. Found a third in-repo engine reader the plan did not have in scope (lane.py parse_lane_capacity l.346), the response accounting §6 needs already present (bench.py _stream_chat l.628), and receipt_bins aggregation with only a test caller. All three resolved by symbol at HEAD before promotion.</p></div>
+</div>
+</section>
+</main>
+</body>
+</html>

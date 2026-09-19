@@ -22,6 +22,11 @@ _DRAIN_SIDECAR = (
     Path(__file__).resolve().parents[2] / "scripts" / "slurm" / "drain_sidecar.sh"
 )
 
+# Accelerator family for this site. Recorded on every registration, not only
+# on the vLLM catalog block, because routing now reads topology from the
+# registration rather than from whatever the engine can echo back.
+_ACCELERATOR_FAMILY = "H200"
+
 _MODEL_DIR_TOKEN = "__AMBIX_MODEL_DIR__"
 _PORT_TOKEN = "__AMBIX_PORT__"
 _CATALOG_MIDDLEWARE = "imas_ambix.agent.vllm_catalog.GlobalModelCatalogMiddleware"
@@ -103,10 +108,33 @@ def _render_shell_command(args: list[str]) -> str:
 def _build_sglang_args(profile: ModelProfile, site: SiteConfig) -> list[str]:
     """Build common SGLang launch_server arguments."""
     engine = profile.engine
+    auto_pool = engine.auto_size_kv_pool and engine.max_total_tokens is None
     max_tokens = engine.max_total_tokens or profile.model.max_context
-    python = str(site.python_path(profile.engine.type))
+    if engine.container is not None:
+        # Serve from the vendor image. The interpreter is the container's, not
+        # the engine venv's, so none of the host venv/LD_LIBRARY_PATH plumbing
+        # applies. --nv exposes the driver; the binds cover the weights on GPFS
+        # and the job-scoped scratch that TMPDIR points at (apptainer mounts
+        # $HOME itself, but neither of these).
+        interpreter = [
+            "apptainer",
+            "exec",
+            "--nv",
+            "--bind",
+            f"{site.base_dir}:{site.base_dir}",
+            "--bind",
+            "/scratch_local:/scratch_local",
+            engine.container.sif_path,
+            "python3",
+        ]
+        repo_root = Path(__file__).resolve().parents[2]
+        for bind in engine.container.binds:
+            source = repo_root / bind.source
+            interpreter[3:3] = ["--bind", f"{source}:{bind.target}:ro"]
+    else:
+        interpreter = [str(site.python_path(profile.engine.type))]
     args = [
-        python,
+        *interpreter,
         "-m",
         "sglang.launch_server",
         "--model",
@@ -119,8 +147,6 @@ def _build_sglang_args(profile: ModelProfile, site: SiteConfig) -> list[str]:
         str(engine.mem_fraction_static),
         "--chunked-prefill-size",
         str(engine.chunked_prefill_size),
-        "--max-total-tokens",
-        str(max_tokens),
         "--attention-backend",
         engine.attention_backend,
         "--host",
@@ -128,7 +154,22 @@ def _build_sglang_args(profile: ModelProfile, site: SiteConfig) -> list[str]:
         "--port",
         _PORT_TOKEN,
     ]
+    _append_option(args, "--max-running-requests", engine.max_running_requests)
 
+    # Omitted entirely when the profile asks the engine to size the pool, so
+    # SGLang computes it from the memory left after weights rather than from a
+    # figure derived here.
+    if not auto_pool:
+        _append_option(args, "--max-total-tokens", max_tokens)
+
+    _append_flag(
+        args,
+        "--enable-hierarchical-cache",
+        engine.enable_hierarchical_cache,
+    )
+    _append_option(args, "--hicache-ratio", engine.hicache_ratio)
+    _append_option(args, "--hicache-write-policy", engine.hicache_write_policy)
+    _append_option(args, "--hicache-mem-layout", engine.hicache_mem_layout)
     _append_flag(args, "--trust-remote-code", engine.trust_remote_code)
     _append_flag(args, "--enable-mixed-chunk", engine.enable_mixed_chunk)
     _append_flag(args, "--enable-p2p-check", engine.enable_p2p_check)
@@ -146,6 +187,11 @@ def _build_sglang_args(profile: ModelProfile, site: SiteConfig) -> list[str]:
     # Note: --enable-auto-tool-choice is vLLM-only; SGLang enables
     # tool calls automatically when --tool-call-parser is set.
     _append_option(args, "--moe-runner-backend", engine.moe_runner_backend)
+    _append_option(
+        args,
+        "--flashinfer-mxfp4-moe-precision",
+        engine.flashinfer_mxfp4_moe_precision,
+    )
     # SGLang's CLI uses --fp8-gemm-backend even though the internal
     # ServerArgs attribute is named fp8_gemm_runner_backend.
     _append_option(
@@ -153,13 +199,32 @@ def _build_sglang_args(profile: ModelProfile, site: SiteConfig) -> list[str]:
         "--fp8-gemm-backend",
         engine.fp8_gemm_runner_backend,
     )
+    _append_option(args, "--ep-size", engine.ep_size)
     _append_option(args, "--cuda-graph-max-bs", engine.cuda_graph_max_bs)
+    _append_option(
+        args,
+        "--cuda-graph-max-bs-decode",
+        engine.cuda_graph_max_bs_decode,
+    )
+    _append_flag(
+        args,
+        "--enable-decoder-swa-bounded-replay",
+        engine.enable_decoder_swa_bounded_replay,
+    )
+    _append_flag(args, "--enable-metrics", engine.enable_metrics)
     _append_flag(
         args,
         "--weight-loader-disable-mmap",
         engine.weight_loader_disable_mmap,
     )
     _append_option(args, "--kv-cache-dtype", engine.kv_cache_dtype)
+    _append_option(args, "--context-length", engine.context_length)
+    _append_option(args, "--speculative-algorithm", engine.speculative_algorithm)
+    _append_option(
+        args,
+        "--speculative-dspark-block-size",
+        engine.speculative_dspark_block_size,
+    )
 
     if engine.parsers.tool_call:
         _append_option(args, "--tool-call-parser", engine.parsers.tool_call)
@@ -167,6 +232,42 @@ def _build_sglang_args(profile: ModelProfile, site: SiteConfig) -> list[str]:
         _append_option(args, "--reasoning-parser", engine.parsers.reasoning)
 
     return args
+
+
+def engine_environment_problems(
+    profile: ModelProfile,
+    site: SiteConfig,
+) -> list[str]:
+    """Return the reasons a serve for *profile* cannot start, or an empty list.
+
+    Rendering a script does not need the environment to exist; submitting a job
+    does. Every serve runs the registry publish/write steps against the engine
+    venv's interpreter, so that interpreter is required even when the engine
+    itself runs from a container, and a container serve additionally needs its
+    image on disk because the GPU node has no egress to pull one.
+
+    Checking here turns a missing environment into a refusal at submit naming
+    the command that fixes it. Left unchecked it surfaces as a job that dies on
+    the compute node after the allocation is granted -- burning a queue slot and
+    reading as a serve fault rather than an unprovisioned environment.
+    """
+    problems: list[str] = []
+    python = site.python_path(profile.engine.type)
+    if not python.is_file():
+        problems.append(
+            f"Engine environment for {profile.engine.type!r} is not provisioned: "
+            f"no interpreter at {python}.\n"
+            f"  Provision it with: imas-ambix agent setup {profile.engine.type}"
+        )
+    container = profile.engine.container
+    if container is not None and not Path(container.sif_path).is_file():
+        problems.append(
+            f"Container image for {profile.slug!r} is missing: "
+            f"no file at {container.sif_path}.\n"
+            f"  Build it on a network-enabled partition with: "
+            f"apptainer pull {container.sif_path} docker://{container.image}"
+        )
+    return problems
 
 
 def _build_serve_command(profile: ModelProfile, site: SiteConfig) -> str:
@@ -215,6 +316,12 @@ def _build_serve_command(profile: ModelProfile, site: SiteConfig) -> str:
             _append_option(args, "--reasoning-parser", engine.parsers.reasoning)
         _append_option(args, "--max-num-seqs", engine.max_num_seqs)
         _append_option(args, "--max-num-batched-tokens", engine.max_num_batched_tokens)
+        # Only emitted above one: a profile that wants a single engine must
+        # produce the command it produced before this option existed, so an
+        # unrelated change cannot be attributed to it.
+        if engine.data_parallel > 1:
+            _append_option(args, "--data-parallel-size", engine.data_parallel)
+        _append_option(args, "--kv-offloading-size", engine.kv_offloading_size)
         if engine.kv_cache_dtype:
             _append_option(args, "--kv-cache-dtype", engine.kv_cache_dtype)
         # KV block size (MiniMax M3 MSA requires --block-size 128).
@@ -326,7 +433,7 @@ def generate_serve_script(
             raise ValueError("vLLM catalog serving requires model.checkpoint_precision")
         metadata = {
             profile.model.served_name: {
-                "accelerator_family": "H200",
+                "accelerator_family": _ACCELERATOR_FAMILY,
                 "accelerator_count": profile.slurm.gpus,
                 "checkpoint_precision": precision,
             }
@@ -396,7 +503,7 @@ def generate_serve_script(
         receipts_launch = "\n".join(
             [
                 f'_RECEIPTS_PATH="$_RECEIPTS_DIR/{profile.slug}-$SLURM_JOB_ID.jsonl"',
-                f'PYTHONPATH={shlex.quote(str(repo_root))}:${{PYTHONPATH:-}} \\',
+                f"PYTHONPATH={shlex.quote(str(repo_root))}:${{PYTHONPATH:-}} \\",
                 '    "$_REGISTRY_PYTHON" -m imas_ambix.agent.serving_receipts \\',
                 '    --base-url "http://$(hostname):$PORT" \\',
                 '    --receipts-path "$_RECEIPTS_PATH" \\',
@@ -414,8 +521,13 @@ def generate_serve_script(
     if is_kt:
         evictor_python = shlex.quote(str(site.python_path(profile.engine.type)))
         engine_venv = site.venv_path(profile.engine.type)
-        cu13_lib = shlex.quote(
-            str(engine_venv / "lib/python3.12/site-packages/nvidia/cu13/lib")
+        # Glob the interpreter directory rather than naming a version: the
+        # engine environment's Python follows its own requires-python, and a
+        # literal here silently pointed at a path that no longer existed after
+        # a version bump.
+        cu13_lib = (
+            f"$(echo {shlex.quote(str(engine_venv))}"
+            "/lib/python3.*/site-packages/nvidia/cu13/lib)"
         )
         fadvise_cmd = (
             f'{evictor_python} -c {shlex.quote(_FADVISE_DROP_CODE)} "$MODEL_DIR"'
@@ -553,9 +665,36 @@ def generate_serve_script(
     env_block = "\n".join(
         f"export {k}={shlex.quote(str(v))}" for k, v in profile.engine.env.items()
     )
-    site_packages = shlex.quote(
-        str(site.venv_path(profile.engine.type) / "lib/python3.12/site-packages")
+    # Resolved by the shell at run time, for the same reason as cu13_lib above.
+    site_packages = (
+        f"$(echo {shlex.quote(str(site.venv_path(profile.engine.type)))}"
+        "/lib/python3.*/site-packages)"
     )
+
+    # The engine venv's vendored CUDA and torch libraries belong on
+    # LD_LIBRARY_PATH only when the engine runs against that venv. Apptainer
+    # passes the host environment into the container, so exporting them for a
+    # container serve puts host torch and CUDA libraries ahead of the image's
+    # own on the loader path, where they are the wrong build for it. The
+    # registry steps still run outside the container against the host
+    # interpreter, so that path is resolved separately and stays.
+    host_engine_lib_block = ""
+    if profile.engine.container is None:
+        host_engine_lib_block = dedent(
+            f"""
+            # Expose vendored nvidia libs (cuDNN, cuSPARSELt, NCCL, etc.)
+            # installed by pip/uv into per-package subdirs under nvidia/.
+            _SITE={site_packages}
+            for _nv_lib in "$_SITE"/nvidia/*/lib; do
+                if [[ -d "$_nv_lib" ]]; then
+                    export LD_LIBRARY_PATH="${{_nv_lib}}:${{LD_LIBRARY_PATH:-}}"
+                fi
+            done
+            # PyTorch shared libs (libtorch.so, libc10.so, etc.) for engine
+            # C extensions
+            export LD_LIBRARY_PATH="${{_SITE}}/torch/lib:${{LD_LIBRARY_PATH:-}}"
+            """
+        ).strip()
 
     script_body = dedent(
         f"""
@@ -563,6 +702,36 @@ def generate_serve_script(
 
         export TMPDIR=/scratch_local/$SLURM_JOB_ID
         mkdir -p "$TMPDIR"
+
+        # Reclaim KV-offload buffers orphaned by an earlier serve.
+        #
+        # The offload store is a file in /dev/shm, not ordinary heap, so it is
+        # bounded by that tmpfs (756 GiB here, half of RAM) rather than by the
+        # job's --mem, and a cancelled serve leaves its buffer behind: measured
+        # 2026-09-15, a 128 GiB file survived the scancel with no process
+        # holding it. Nothing else reclaims these -- the node is not rebooted
+        # between serves -- so without this sweep each restart permanently
+        # consumes its own buffer's worth of shared memory and the NEXT restart
+        # fails at KV-connector init with "Insufficient space in /dev/shm".
+        # The failure is far from its cause: the buffer that fills the tmpfs
+        # belongs to a job that ended, and the job that dies is innocent.
+        #
+        # Scoped by ownership and by whether anything still maps the file, so a
+        # concurrently serving profile's buffer is left alone. A file we do not
+        # own is skipped before the holder test rather than relying on rm to
+        # fail, and an unreadable /proc entry (another user's process) cannot
+        # make a held file look free, because that file failed the -O test.
+        for _buf in /dev/shm/vllm_offload_*.mmap; do
+            [ -e "$_buf" ] || continue
+            [ -O "$_buf" ] || continue
+            if grep -qF "$(basename "$_buf")" /proc/*/maps 2>/dev/null; then
+                echo "offload buffer in use, leaving: $_buf"
+            else
+                echo "reclaiming orphaned offload buffer: $_buf"
+                rm -f "$_buf"
+            fi
+        done
+        df -h /dev/shm
 
         {sidecar_block}
 
@@ -572,16 +741,7 @@ def generate_serve_script(
 
         {catalog_env_block}
 
-        # Expose vendored nvidia libs (cuDNN, cuSPARSELt, NCCL, etc.)
-        # installed by pip/uv into per-package subdirs under nvidia/.
-        _SITE={site_packages}
-        for _nv_lib in "$_SITE"/nvidia/*/lib; do
-            if [[ -d "$_nv_lib" ]]; then
-                export LD_LIBRARY_PATH="${{_nv_lib}}:${{LD_LIBRARY_PATH:-}}"
-            fi
-        done
-        # PyTorch shared libs (libtorch.so, libc10.so, etc.) for vLLM C extensions
-        export LD_LIBRARY_PATH="${{_SITE}}/torch/lib:${{LD_LIBRARY_PATH:-}}"
+        {host_engine_lib_block}
 
         # TensorRT-LLM DeepGEMM kernel cache: use scratch-local to avoid GPFS
         # rename races when multiple TP workers compile cubins concurrently.
@@ -680,7 +840,8 @@ def generate_serve_script(
             --port "$PORT" \
             --job-id "$SLURM_JOB_ID" \
             --accelerator-count "${{SLURM_GPUS_ON_NODE:-{profile.slurm.gpus}}}" \
-            --checkpoint-precision {shlex.quote(checkpoint_precision)}
+            --checkpoint-precision {shlex.quote(checkpoint_precision)} \
+            --accelerator-family {shlex.quote(_ACCELERATOR_FAMILY)}
 
         {evictor_block}
 
@@ -726,29 +887,93 @@ def generate_serve_script(
     return "\n".join([*headers, "", script_body, ""])
 
 
+def generate_lane_refresher_script(
+    site: SiteConfig,
+    *,
+    origin: str,
+    interval: int = 30,
+    memory: str = "2G",
+) -> str:
+    """Generate a standing CPU job that republishes the shared lane reading.
+
+    Its own job rather than a thread inside the router or a session, for two
+    reasons measured on this workstation. A producer that dies with its
+    coordinator stops silently and looks exactly like a quiet lane. And a
+    consumer reading a document nobody refreshes gets a figure that is stale on
+    every read, which under the reader's own freshness rule degrades to
+    "unknown" permanently -- a feed that looks wired and carries nothing.
+    """
+    if interval < 5:
+        raise ValueError("interval must be at least 5 seconds")
+    if not origin.strip():
+        raise ValueError("origin must not be empty")
+    if not memory.strip():
+        raise ValueError("memory must not be empty")
+
+    headers = _sbatch_headers(
+        job_name="ambix-lane",
+        partition=site.partition,
+        account=site.account,
+        reservation=site.reservation,
+        gpus=0,
+        cpus=1,
+        memory=memory,
+        time_limit="0",
+        output_name="ambix-lane-%j.log",
+    )
+    headers.append("#SBATCH --comment=ambix-lane")
+    repo_root = Path(__file__).resolve().parents[2]
+    command = shlex.join(
+        [
+            str(site.python_path("vllm")),
+            "-c",
+            "from imas_ambix.cli import main; main()",
+            "agent",
+            "lane",
+            "--origin",
+            origin,
+            "--publish",
+            "--refresh",
+            str(interval),
+        ]
+    )
+    script_body = dedent(
+        f"""
+        set -euo pipefail
+
+        export TMPDIR=/scratch_local/$SLURM_JOB_ID
+        mkdir -p "$TMPDIR"
+        export PYTHONPATH={repo_root}:${{PYTHONPATH:-}}
+
+        echo "[$(date)] Publishing lane readings from {origin} every {interval}s"
+        exec {command}
+        """
+    ).strip()
+    return "\n".join(headers) + "\n\n" + script_body + "\n"
+
+
 def generate_router_script(
     site: SiteConfig,
     *,
     port: int,
     cpus: int = 2,
     memory: str = "8G",
-    max_in_flight: int = 2,
-    max_queued: int = 4,
-    retry_after_seconds: int = 5,
+    prefix_probe: bool = False,
 ) -> str:
-    """Generate a CPU-only SLURM script for the standing router endpoint."""
+    """Generate a CPU-only SLURM script for the standing router endpoint.
+
+    ``prefix_probe`` is written into the script rather than inherited from the
+    submitting shell, so the running job carries a visible record of whether the
+    diagnostic is on. A value that lives only in an invocation is a value nobody
+    can audit afterwards, which is how this router once ran at a quarter of its
+    configured admission ceiling without anyone being able to tell.
+    """
     if not 1 <= port <= 65535:
         raise ValueError("port must be between 1 and 65535")
     if cpus < 1:
         raise ValueError("cpus must be positive")
     if not memory.strip():
         raise ValueError("memory must not be empty")
-    if max_in_flight < 1:
-        raise ValueError("max_in_flight must be positive")
-    if max_queued < 0:
-        raise ValueError("max_queued must not be negative")
-    if retry_after_seconds < 1:
-        raise ValueError("retry_after_seconds must be positive")
 
     headers = _sbatch_headers(
         job_name="ambix-router",
@@ -774,13 +999,12 @@ def generate_router_script(
             "0.0.0.0",
             "--port",
             str(port),
-            "--max-in-flight",
-            str(max_in_flight),
-            "--max-queued",
-            str(max_queued),
-            "--retry-after-seconds",
-            str(retry_after_seconds),
         ]
+    )
+    probe_export = (
+        "export AMBIX_ROUTER_PREFIX_PROBE=1   # prompt-prefix divergence probe"
+        if prefix_probe
+        else "# prefix probe off"
     )
     script_body = dedent(
         f"""
@@ -789,7 +1013,7 @@ def generate_router_script(
         export TMPDIR=/scratch_local/$SLURM_JOB_ID
         mkdir -p "$TMPDIR"
         export PYTHONPATH={shlex.quote(str(repo_root))}:${{PYTHONPATH:-}}
-
+        {probe_export}
         echo "[$(date)] Starting keyless Ambix router on $(hostname):{port}"
         exec {command}
         """
@@ -797,11 +1021,25 @@ def generate_router_script(
     return "\n".join([*headers, "", script_body, ""])
 
 
-def generate_download_script(profile: ModelProfile, site: SiteConfig) -> str:
+def generate_download_script(
+    profile: ModelProfile,
+    site: SiteConfig,
+    *,
+    cpus: int = 4,
+    time_limit: str | None = None,
+) -> str:
     """Generate a SLURM batch script for downloading model weights.
 
     Downloads run on a standard compute partition (not the GPU partition)
     because GPU nodes may lack outbound network access.
+
+    *cpus* sizes both the allocation and the number of concurrent shard
+    transfers, which are the same quantity: each worker is one connection being
+    driven by one core. *time_limit* overrides the profile's own
+    ``time_download`` -- a debug partition caps wall clock at an hour, and a
+    request above a partition's limit pends forever rather than being trimmed
+    to fit. A transfer cut short by either is resumable, because the
+    already-fetched shards are complete files in the target directory.
     """
     model_dir = site.model_dir(profile)
     cache_dir = site.cache_dir(profile)
@@ -812,9 +1050,9 @@ def generate_download_script(profile: ModelProfile, site: SiteConfig) -> str:
         account=site.account,
         reservation=None,
         gpus=0,
-        cpus=4,
+        cpus=cpus,
         memory="16G",
-        time_limit=profile.slurm.time_download,
+        time_limit=time_limit or profile.slurm.time_download,
         output_name=f"download-{profile.slug}-%j.log",
     )
     download_command = shlex.join(
@@ -825,7 +1063,7 @@ def generate_download_script(profile: ModelProfile, site: SiteConfig) -> str:
             "--local-dir",
             _MODEL_DIR_TOKEN,
             "--max-workers",
-            "4",
+            str(cpus),
         ]
     ).replace(_MODEL_DIR_TOKEN, '"$MODEL_DIR"')
     script_body = dedent(
@@ -834,6 +1072,11 @@ def generate_download_script(profile: ModelProfile, site: SiteConfig) -> str:
 
         export TMPDIR=/tmp
         export HF_HOME={shlex.quote(str(cache_dir))}
+        # Rust-backed multipart transfer. The dependency is declared in every
+        # engine environment but does nothing unless this is set, and the
+        # difference decides whether a large checkpoint fits inside a bounded
+        # wall clock.
+        export HF_HUB_ENABLE_HF_TRANSFER=1
 
         MODEL_DIR={shlex.quote(str(model_dir))}
 

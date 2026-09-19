@@ -1507,7 +1507,7 @@ def _bounded_profile_lsq(
     lb = np.concatenate([np.zeros(k_dof), np.full(kp, -np.inf)])
     try:
         res = optimize.lsq_linear(a, b, bounds=(lb, np.full(k_dof + kp, np.inf)))
-    except ValueError, np.linalg.LinAlgError:
+    except (ValueError, np.linalg.LinAlgError):
         return None
     return res.x if np.isfinite(res.x).all() else None
 

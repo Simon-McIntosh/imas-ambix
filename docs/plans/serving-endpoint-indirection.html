@@ -23,8 +23,8 @@
   <title>Serving Endpoint Indirection | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-09-02">
-<meta name="plan-version" content="21">
+<meta name="plan-modified" content="2026-09-18">
+<meta name="plan-version" content="22">
 <meta name="plan-depends-on" content="glm-53-serve-and-wiring">
 <meta name="plan-commits" content="a1ebcaf193ebd31d3d220ef635bd8155574c0ffb,965f4e2f21e759a60efbd7ffa4dfec4f7c25fe38,892050cc9030b581379ac2a5c9739bf34a64655c,8cbc2f733d0c87b2e584ac1d1656315cf478ec5f,25b1be15de962c370731e481f5bf1b9ec14d84f3,b76d9cbfb26701fa98a54a2e34f7b74a327bbf0e,ad192c30f8a7c0671240bf6162226a315d510c16,03bf0652e41fcf440c9254260e0f31221e132a89">
 <meta name="plan-artifacts" content="imas_ambix/agent/router.py,imas_ambix/agent/registry.py,tests/test_agent_router.py,tests/test_agent_router_resolution.py,tests/test_agent_router_admission.py,tests/test_agent_serve_registry.py,docs/evidence/archive/serving-endpoint-indirection-landed.html">
@@ -227,10 +227,11 @@
     <pre class="r-fu-prompt">/reckon-ship clive-launch-modes</pre>
     <p class="r-fu-outcome">Folded and shipped in this session as commit 8bea195 on clive-launch-modes rather than handed over. The output reservation now derives from the selected release's own engine-reported context, so the 64k release exposes 49152 usable input tokens against the 33537-token prompt that previously overflowed by one token, and a context too small to hold both a prompt and a response fails before the harness starts. Verified on the deployed launcher. Continuation passes to glm-parser-output-shape as f-sei-03.</p>
     </article>
-<article class="r-fu" data-id="f-sei-03" data-status="open" data-written-by="reckon-ship" data-written-at="2026-09-01" data-recommends-skill="/reckon-ship glm-parser-output-shape" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-sei-03" data-status="resolved" data-written-by="reckon-ship" data-written-at="2026-09-01" data-recommends-skill="/reckon-ship glm-parser-output-shape" data-resolved-at="2026-09-18T09:56:17+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Frame the served engine&#x27;s reasoning and tool output correctly</h4>
     <div class="r-fu-body">Owned by <code>glm-parser-output-shape</code>. Observed while proving the served engine coherent, and neither defect blocks serving: a tool response carrying no thinking block still emits the reasoning parser's closing marker in its adjacent text, and a reasoning request consumed its whole output cap inside the thought without emitting a separate final text block. Both are about how the engine frames output rather than about routing, which is why they sit outside this plan.</div>
     <pre class="r-fu-prompt">/reckon-ship glm-parser-output-shape</pre>
+    <p class="r-fu-outcome">Done — no followup. The pointer is stale: glm-parser-output-shape, which owns both framing defects, is shipped at impl 1.0 — §2 for the closing think marker leaking into tool responses and §3 for reasoning consuming the whole output budget. Landed as dfe0b8f. This row and f-gsw-03 on glm-53-serve-and-wiring were the same pointer written twice; both named work that was already finished, and both read as open for seventeen days because nothing re-checks a pointer once its target ships.</p>
     </article>
 </section>
   <section data-reckon="comments" id="comments" class="r-comments">

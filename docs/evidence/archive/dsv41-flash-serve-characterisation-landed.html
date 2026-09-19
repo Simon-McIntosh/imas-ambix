@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="dsv41-flash-serve-characterisation-landed">
+  <meta name="plan-title" content="DSv4.1-Flash Serve Characterisation — Landed Record">
+  <meta name="plan-summary" content="Measured throughput envelope of the four-card V4.1-Flash serve, and why DSpark is not viable on it">
+  <meta name="plan-evidence-for" content="dsv41-flash-serve-characterisation">
+  <meta name="plan-verifies" content="dsv41-flash-serve-characterisation#s2,dsv41-flash-serve-characterisation#s3">
+  <meta name="plan-tags" content="agent-serving,gpu-deployment">
+  <title>DSv4.1-Flash Serve Characterisation — Landed Record | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-09-14">
+<meta name="plan-version" content="1">
+</head>
+<body>
+<main class="plan-doc">
+
+  <h2 id="s2">§2 — Concurrency sweep</h2>
+
+  <p>Measured 2026-09-14 against serve job 1270323: DeepSeek-V4.1-Flash on
+  4&times;H200, TP4/EP4, MXFP4 experts through FlashInfer, Engram tables host
+  resident, KV pool 14,999,808 tokens, no speculative decoding. Each level runs
+  <em>N</em> concurrent completions of 300 max tokens from a compute node.</p>
+
+  <table>
+    <thead><tr>
+      <th>Concurrency</th><th>Per-stream tok/s</th><th>Aggregate tok/s</th><th>Mean latency (s)</th>
+    </tr></thead>
+    <tbody>
+      <tr><td>1</td><td>33.5</td><td>33.5</td><td>8.95</td></tr>
+      <tr><td>2</td><td>36.0</td><td>71.9</td><td>8.33</td></tr>
+      <tr><td>4</td><td>33.6</td><td>134.1</td><td>8.94</td></tr>
+      <tr><td>8</td><td>24.7</td><td>197.7</td><td>12.14</td></tr>
+      <tr><td>16</td><td>17.0</td><td>270.7</td><td>17.66</td></tr>
+      <tr><td>32</td><td>11.0</td><td>350.8</td><td>27.33</td></tr>
+    </tbody>
+  </table>
+
+  <p><strong>The knee is at 4.</strong> Up to four concurrent streams the
+  per-stream rate is unchanged &mdash; 33.5 to 33.6 &mdash; while aggregate
+  scales linearly to 4&times;, so the first four workers are free. From eight
+  upward per-stream falls roughly as 1/concurrency while aggregate keeps rising,
+  which is a saturated device time-slicing rather than added capacity: past the
+  knee, concurrency buys throughput by spending latency one for one.</p>
+
+  <p>Aggregate had <strong>not</strong> saturated at 32 (270.7 to 350.8 for a
+  doubling), so the ceiling is above the range measured.</p>
+
+  <p><strong>Sizing guidance that follows:</strong> run a worker fleet at 4&ndash;8
+  concurrent. Below 4 the deployment is idle; above 8 worker wall-clock stretches
+  without the fleet finishing sooner.</p>
+
+  <p>The single-stream figure is the one that disappoints against the vendor's
+  300&ndash;507 tok/s per-client claim, and the gap is not closed by anything
+  available here &mdash; see &sect;3 and the note on quantisation below.</p>
+
+  <h2 id="s2d">§2 — Disposal of every claim derived from the withdrawn curve</h2>
+
+  <p><strong>Withdrawing a measurement and leaving the conclusions drawn from it
+  standing is a distinct error</strong>, and it survives precisely because a
+  conclusion reads as independent judgement once it is prose. The curve above was
+  withdrawn on 2026-09-14; the claims built on it were not, and stayed here for
+  hours afterwards. Each is disposed of explicitly.</p>
+
+  <table>
+    <thead><tr><th>Claim</th><th>Disposition</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>&ldquo;The knee is at 4&rdquo;</td>
+        <td><strong>WITHDRAWN.</strong> An artefact of the two defects. The
+        four-card serve holds 128 concurrent requests at 2,483&nbsp;tok/s and
+        1,536 at 4,789&nbsp;tok/s with no knee found.</td>
+      </tr>
+      <tr>
+        <td>&ldquo;Run a worker fleet at 4&ndash;8 concurrent&rdquo;</td>
+        <td><strong>WITHDRAWN, and it did harm.</strong> Wrong by two orders of
+        magnitude. Sessions reading this record found sizing advice here and
+        self-capped; 26 concurrent live workers across four projects later ran
+        with the engine at 53% KV occupancy and zero preemptions.</td>
+      </tr>
+      <tr>
+        <td>&ldquo;Below 4 the deployment is idle&rdquo;</td>
+        <td><strong>WITHDRAWN.</strong> Derived from the same curve.</td>
+      </tr>
+      <tr>
+        <td>&ldquo;Aggregate had not saturated at 32&rdquo;</td>
+        <td><strong>Survives, understated.</strong> True, and truer than written
+        &mdash; saturation was not reached at 1,536 either.</td>
+      </tr>
+      <tr>
+        <td>The roofline argument: fixed per-token cost, not bandwidth</td>
+        <td><strong>Survives.</strong> Independent of the curve, and it is what
+        made the caching diagnosis credible rather than correlational.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p><strong>No scaling correction can rescue any of the withdrawn rows.</strong>
+  Two defects were live and neither was visible from inside the measurement: the
+  router refused 37.4% of requests, and the engine&rsquo;s prefix caching had
+  stopped honouring reuse across turns. So the figures are not low, they are
+  <em>not measuring what their labels say</em>, and anything reasoned from them
+  needs disposal rather than adjustment.</p>
+
+  <p><strong>Replacement sizing guidance, and it is not a number.</strong>
+  Dispatch to the width your dependency graph offers and read the engine:
+  sustained <code>waiting</code> above zero, KV occupancy trending up, and
+  <code>num_preemptions_total</code> leaving zero. A shared budget derived live
+  from the engine is published by <code>imas-ambix agent lane</code>. Per-session
+  seat counts do not compose across a shared engine and must not be inferred from
+  this record. Full guidance: <code>imas_ambix/agent/AGENTS.md</code> &sect;3c.</p>
+
+  <h2 id="s2c">§2 — WITHDRAWN AS A CHARACTERISATION: measured through a caching defect</h2>
+
+  <p><strong>The curve above is real but it is not a property of this model on
+  this hardware.</strong> It was measured while the engine's prefix caching had
+  stopped working, so every number in it carries a per-turn cost that should not
+  have been there. Do not cite it as the deployment's capability.</p>
+
+  <p>The defect, counted from the serve's own log
+  (<code>deepseek-v4-1-flash-1270394.log</code>) and independently confirmed by a
+  peer session that found it first:</p>
+
+  <table>
+    <thead><tr><th>Measure</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td>Prefill batches with <code>#cached-token: 0</code></td><td><strong>1,364 of 1,464 (93.2%)</strong></td></tr>
+      <tr><td>Peak KV pool occupancy</td><td>0.10 &mdash; the pool was 90% empty</td></tr>
+      <tr><td>Cache hits by log decile</td><td>[0, 15, 53, 23, 2, 1, 0, 2, 4, 0]</td></tr>
+    </tbody>
+  </table>
+
+  <p><strong>It is not capacity eviction.</strong> The pool never rose above a
+  tenth, hits and misses shared the same median occupancy, and identical
+  back-to-back requests still cached at roughly 9.8&times; at the end of the
+  serve's life. Caching worked for the first third and then stopped honouring
+  reuse across turns, while continuing to work within a turn. A prefix that hit
+  after one second was gone after seventy-five seconds of live traffic.</p>
+
+  <p>The consequence is the whole throughput story: agent traffic re-prefilled
+  on the order of 100k tokens every turn, which is a fixed per-turn cost of
+  about 23 seconds. The fleet saw a median of 8.6 tok/s on this serve against
+  17.5&ndash;101.4 on the ten preceding days.</p>
+
+  <p><strong>This is the answer to a question this record previously left
+  open.</strong> The roofline argument in &sect;2 was right that the serve was
+  bound by fixed per-token cost rather than by bandwidth or arithmetic &mdash;
+  29&nbsp;ms per token against a ceiling in the high hundreds. Three candidate
+  causes were pursued from there: speculative decoding, MXFP4 dequantisation and
+  card count. The actual cause was in the serve's own log from the first minute,
+  and none of the three would have fixed it. The lesson is narrower than "measure
+  before optimising": the instrument that would have found this &mdash; counting
+  <code>#cached-token</code> in the log &mdash; cost one command and was never
+  run, while three restarts were spent on hypotheses.</p>
+
+  <p><strong>Attribution:</strong> most likely a defect in
+  <code>lmsysorg/sglang:dev-dsv41</code>, whose V4.1 support merged to sglang
+  main the same day this was deployed. Recorded as a suspected engine defect, not
+  as a tuning result, and not as a property of the checkpoint.</p>
+
+  <p>Peer-measured capability on the same serve while it was healthy, offered as
+  the honest curve: 44.5 tok/s at one stream, 39.7 each at four (144.8
+  aggregate), 37.3 each at eight (275.8 aggregate) &mdash; 84% batch efficiency
+  to eight streams, cold prefill 8,365 tok/s, and prefix caching demonstrably
+  working on demand at 41&times; on a repeated 116k-token prefix, correctly
+  invalidated by a single changed character.</p>
+
+  <h2 id="s3">§3 — DSpark is not viable on this topology</h2>
+
+  <p>Speculative decoding was enabled, measured, and withdrawn. It never
+  produced a throughput number, because it could not start: DSpark wants a
+  <strong>~12 GiB per-card workspace</strong> on top of weights, host-table
+  structures, KV pool and the TensorRT-LLM autotuner.</p>
+
+  <table>
+    <thead><tr><th>KV pool</th><th>Outcome with DSpark</th></tr></thead>
+    <tbody>
+      <tr><td>14,999,808</td><td>OOM at startup &mdash; asked 12.00 GiB, 1.3 GiB free</td></tr>
+      <tr><td>3,485,952 (smallest load-proven)</td><td>OOM at startup &mdash; asked 12.00 GiB, 7.6 GiB free</td></tr>
+    </tbody>
+  </table>
+
+  <p>Shrinking the pool cannot close the remaining 4.4 GiB, because the pool
+  costs roughly 16 GiB of fixed base plus only ~1.6 KiB per token &mdash; there
+  is almost nothing left to sell. This is consistent with prior experience on
+  V4-Flash, where DSpark did not change throughput materially; here it cannot
+  run at all. <strong>Do not re-enable without more cards, or a checkpoint whose
+  experts are small enough to leave the Engram tables in HBM.</strong></p>
+
+  <h2 id="s2a">Pool sizing — starting is not the test</h2>
+
+  <p>The most expensive lesson of the session. A 20,000,000-token pool started
+  cleanly, reported its pool, answered single-stream requests and showed 14.64
+  GiB free per card &mdash; then died under a real request with <code>SIGKILL
+  137</code>, FlashInfer's MXFP4 fused-MoE workspace asking 7.52 GiB against
+  6.91 GiB free. That workspace is allocated lazily at generation, so
+  free-memory-after-startup is not the margin; it is the margin before the
+  largest allocation the serve will ever make.</p>
+
+  <p>A ladder that tested whether the engine printed
+  <code>max_total_num_tokens</code> therefore recorded a pass for a
+  configuration that could not carry load, and the failure looked healthy until
+  something used it. Every pool figure here is now load-tested.</p>
+
+  <table>
+    <thead><tr><th>Pool</th><th>Starts</th><th>Serves under load</th></tr></thead>
+    <tbody>
+      <tr><td>3,485,952</td><td>yes</td><td>yes</td></tr>
+      <tr><td>14,999,808</td><td>yes</td><td><strong>yes &mdash; 32-way sweep, 0 OOM</strong></td></tr>
+      <tr><td>20,000,000</td><td>yes</td><td><strong>no</strong></td></tr>
+      <tr><td>auto-sized</td><td>no</td><td>&mdash;</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="s2b">Stability</h2>
+
+  <p>Ten-minute soak against job 1270323 after the 32-way sweep: <strong>10 of 10
+  health probes clean</strong> on both the serve and the router, live generations
+  returning throughout, zero OOM events, uptime 22 minutes. The one traceback in
+  the serve log is the registry publish step failing on a missing
+  <code>click</code> &mdash; an environment defect fixed separately, not a serve
+  fault.</p>
+
+  <h2 id="s5a">Withdrawn: W4A16 requantisation</h2>
+
+  <p>Recorded because the reasoning was wrong and the next reader should not
+  repeat it. W4A16 was proposed on the grounds that it would shrink the routed
+  experts enough to bring the Engram tables back into HBM within four cards.
+  <strong>The experts are already four-bit</strong> &mdash; MXFP4, 259.5 GiB for
+  ~545B parameters &mdash; so a four-bit requantisation frees nothing and the
+  memory argument does not exist. The premise came from carrying across the
+  GLM-5.3 precedent, where W4A8 replaced an <em>FP8</em> release and genuinely
+  halved it.</p>
+
+  <p>What survives is a narrower, untested claim: that Marlin-class INT4 kernels
+  might beat FlashInfer's MXFP4 dequantisation path on SM90. No V4.1 build in
+  that format exists, and the V4.1 model class carries no reference to
+  compressed-tensors, AWQ, GPTQ or Marlin, so the loader probably would not
+  accept one. The cheap version of the same experiment is to try a different
+  <code>moe_runner_backend</code>, which costs one restart and no
+  requantisation.</p>
+
+</main>
+</body>
+</html>

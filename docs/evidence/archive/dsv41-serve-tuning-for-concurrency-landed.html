@@ -1,0 +1,783 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="dsv41-serve-tuning-for-concurrency-landed">
+  <meta name="plan-title" content="DSv4.1 Serve Tuning for Concurrency — Landed Record">
+  <meta name="plan-summary" content="Cumulative execution record for the staged DeepSeek-V4.1-Flash serving changes">
+  <meta name="plan-status" content="active">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-tags" content="agent-serving,gpu-deployment,benchmarking">
+  <meta name="plan-evidence-for" content="dsv41-serve-tuning-for-concurrency">
+  <meta name="plan-verifies" content="dsv41-serve-tuning-for-concurrency#s3">
+  <title>DSv4.1 Serve Tuning for Concurrency — Landed Record | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="restart-one-profile-settings">Restart-one profile settings</h2>
+
+    <p><strong>The superseded refusal reproduced before the edit.</strong> At
+    base <code>8d30e0a</code>, the profile said
+    <q>Speculative decoding is NOT VIABLE on this four-card deployment</q>,
+    defined neither speculative-decoding key, and retained the larger host tier
+    and scheduler request shown below.</p>
+
+    <table>
+      <thead><tr><th>Setting</th><th>Prior value</th><th>Committed value</th></tr></thead>
+      <tbody>
+        <tr><td><code>speculative_algorithm</code></td><td>absent</td><td><code>"dspark"</code></td></tr>
+        <tr><td><code>speculative_dspark_block_size</code></td><td>absent</td><td><code>5</code></td></tr>
+        <tr><td><code>hicache_ratio</code></td><td><code>8.0</code></td><td><code>2.0</code></td></tr>
+        <tr><td><code>memory</code></td><td><code>"720G"</code></td><td><code>"480G"</code></td></tr>
+      </tbody>
+    </table>
+
+    <p>Commit <code>e808a8e</code> carries exactly the profile file. Its comment
+    now records the loaded reading that governs the attempt: about
+    <strong>33 GB free per card</strong> at 23–27 running requests against
+    DSpark's <strong>~12.9 GiB</strong> workspace ask, leaving roughly 20 GB.
+    It also records the width-dependent prediction: a large gain at one stream,
+    a near-null result around width eight, and a gain again at high width. A
+    readiness response is therefore not the gate; a real generation and the
+    low, knee, and high-width readings remain operational work.</p>
+
+    <p><strong>The profile-settings node initially recorded an over-broad
+    rollback:</strong> remove <code>speculative_algorithm</code> and
+    <code>speculative_dspark_block_size</code>, restore
+    <code>hicache_ratio = 8.0</code>, and restore
+    <code>memory = "720G"</code>. The launch node below reproduced and corrected
+    that instruction before submission: a speculative refusal must not undo the
+    independently measured host-tier reduction.</p>
+
+    <p>The committed-file check parsed all four expected values, confirmed the
+    refusal sentence absent, and found all three replacement markers — loaded
+    headroom, workspace ask, and width dependence. <code>git show --stat</code>
+    named <code>imas_ambix/agent/profiles/deepseek-v4-1-flash.toml</code> and no
+    other file.</p>
+
+    <p>A generated serve-script receipt independently carries
+    <code>#SBATCH --mem=480G</code>, <code>--hicache-ratio 2.0</code>,
+    <code>--speculative-algorithm dspark</code>, and
+    <code>--speculative-dspark-block-size 5</code>, while retaining the
+    four-million-token device pool. The focused legacy profile test reports
+    <strong>2 failed, 1 passed</strong>: both failures assert the superseded
+    <code>8.0</code> and <code>720G</code> values. That test file is outside this
+    node's exclusive write scope and is preserved as a separate test-node
+    follow-on rather than hidden or changed here.</p>
+
+    <h2 id="restart-one-launch">Restart-one launch</h2>
+
+    <p><strong>The serve was submitted from the main checkout and failed closed
+    before model loading.</strong> Commit <code>3d0a341</code> first limits a
+    rollback to the two speculative keys while retaining
+    <code>hicache_ratio = 2.0</code> and <code>memory = "480G"</code>. SLURM job
+    <code>1272777</code> then ran with
+    <code>WorkDir=/home/ITER/mcintos/Code/imas-ambix</code>; its submitted script
+    contains seven main-checkout paths and zero
+    <code>.reckon-worktrees</code> paths.</p>
+
+    <table>
+      <thead><tr><th>Gate</th><th>Measured result</th></tr></thead>
+      <tbody>
+        <tr><td>Allocation</td><td>4 H200, 12 CPUs, 480G; keyless port 18810</td></tr>
+        <tr><td>Running to terminal</td><td><strong>42 s</strong>, 11:20:56–11:21:38 CEST; job state <strong>FAILED</strong>, exit <code>1:0</code></td></tr>
+        <tr><td>First <code>/v1/models</code></td><td><strong>none</strong>; startup exited before the fifteen-minute readiness bound could be satisfied</td></tr>
+        <tr><td>Real generation</td><td><strong>not run</strong>; no ready endpoint existed, so no 300-token completion or post-generation health response was possible</td></tr>
+        <tr><td>Draft metrics</td><td><strong>not emitted</strong>; acceptance rate, mean accept length and per-step cost are absent because the speculative engine did not initialize</td></tr>
+      </tbody>
+    </table>
+
+    <p>The engine refusal was
+    <q>Only EAGLE and DSPARK speculative algorithms are supported for
+    DeepseekV4ForCausalLM</q>. The generated command supplied lowercase
+    <code>dspark</code>, and the model hook rejected it before weights loaded.
+    The last sidecar sample recorded 3, 5, 5 and 5 MiB used on cards 0–3 of
+    143,771 MiB each, leaving <strong>143,768, 143,766, 143,766 and 143,766
+    MiB free</strong>. This is a failure-time receipt, not loaded DSpark
+    headroom.</p>
+
+    <p><strong>No relaunch followed the failed bound.</strong> Job
+    <code>1272777</code> is terminal, port 18810 refuses connections, and the
+    full operational receipt is
+    <code>/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/dsv41-tune/restart-one-launch.md</code>.</p>
+
+    <h2 id="decode-log-harvester">Decode batch log harvester</h2>
+
+    <p><strong>The recorded gap reproduced at base.</strong> The plan states
+    that a search for the <code>Decode batch</code> marker across
+    <code>imas_ambix/</code>, <code>tests/</code> and <code>scripts/</code>
+    returns zero executable matches. At base <code>e3adfca</code> that is what
+    <code>git grep -c "Decode batch" HEAD -- imas_ambix tests scripts</code>
+    reports: exit status <strong>1</strong>, no match on any path. The existing
+    <code>receipt_bins</code> collector is a different instrument and does not
+    substitute for it — it bins differenced Prometheus counters over sampling
+    intervals, where this section needs <code>(running width, generation
+    rate)</code> pairs taken from engine log intervals.</p>
+
+    <p><strong>What was built.</strong> <code>imas_ambix/agent/decode_bins.py</code>
+    parses <code>Decode batch</code> lines into records carrying the interval
+    timestamp, the running width, the speculative accept length and rate, and
+    that step's generation throughput. Each record carries a <em>limb</em> —
+    whether the width was rising, falling or flat — derived from the width
+    trajectory across the log as the first difference against the preceding
+    interval, never from anything printed on the line. The earliest interval
+    has no predecessor and its limb stays unset; the report renders that group
+    as <code>unknown</code> rather than calling it flat, because a no-change
+    label would assert a comparison no interval made. The harvest reports, per
+    exact width, the interval count, the median generation rate and the median
+    accept length, each also split by limb.</p>
+
+    <p><strong>A decode line that cannot be parsed is reported, not
+    dropped.</strong> Each unreadable line lands with its line number and the
+    field that failed to match, so a harvest cannot present a smaller sample as
+    if it were the whole one. The line number <em>is</em> the check: it is only
+    populated by the refusal path, so a non-empty malformed list shows the
+    guard fired.</p>
+
+    <p><strong>A carriage return inflated the line count before the splitter
+    ran.</strong> The engine rewrites its shard-loading progress bar in place,
+    so this log carries <strong>332 bare carriage returns</strong>. Reading it
+    in text mode translates each one to a newline — inside
+    <code>Path.read_text</code>, before any splitting code is reached — so a
+    text-mode and a byte-mode read of the same frozen file disagree by exactly
+    the number of carriage returns it holds: <code>wc -l</code> reported
+    <strong>7,123</strong> while a text-mode read reported <strong>7,456</strong>.
+    The over-count equalling the carriage-return count exactly is the diagnosis
+    rather than a coincidence about it — the same population appearing once as
+    input and once as error. The inflation is not cosmetic: a rewritten progress
+    bar is one physical line, so an interval logged beside one would be cut in
+    two and then reported as malformed. The repair reads bytes and splits on
+    newlines alone, rounding off a trailing carriage return so that a CRLF log
+    counts one line per record. Verified against a frozen copy, where the
+    harvest's <code>lines read</code> and <code>wc -l</code> agree exactly.</p>
+
+    <p><strong>The gate values, read against a frozen snapshot of the live
+    serve log.</strong> Read at <code>2026-09-17T10:18:59Z</code>. The log
+    belongs to SLURM job <code>1272783</code>, which is <strong>still
+    running</strong> and still appending, so the snapshot was frozen first and
+    every instrument below read the same bytes; a later reader's line count will
+    differ, and the gate values will drift with it.</p>
+
+    <table>
+      <thead><tr><th>Measure</th><th>Required</th><th>Measured</th></tr></thead>
+      <tbody>
+        <tr><td>Width-1 intervals</td><td>≥ 30</td><td><strong>40</strong></td></tr>
+        <tr><td>Width-1 median generation rate</td><td>100–118 tok/s</td><td><strong>111.075 tok/s</strong></td></tr>
+        <tr><td>Width-1 median accept length</td><td>3.3–3.8</td><td><strong>3.585</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p>The width-1 group is itself split, and the split is the reason the limb
+    exists: 37 of the 40 intervals are <code>flat</code> at a median
+    <strong>110.450 tok/s</strong>, two are <code>descending</code> at
+    <strong>216.725</strong>, and one is <code>unknown</code> at
+    <strong>9.580</strong> — the log's first decode step, which is the
+    warm-up line a reader should not pool with the rest. Medians per exact
+    width, unsplit — widths 1 to 12 of the 683 intervals; the captured artifact
+    carries the full range to width 22:</p>
+
+    <table>
+      <thead><tr><th>Width</th><th>Intervals</th><th>Median gen tok/s</th><th>Median accept length</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>40</td><td>111.075</td><td>3.585</td></tr>
+        <tr><td>2</td><td>21</td><td>282.480</td><td>4.640</td></tr>
+        <tr><td>3</td><td>61</td><td>300.650</td><td>4.380</td></tr>
+        <tr><td>4</td><td>122</td><td>329.810</td><td>4.150</td></tr>
+        <tr><td>5</td><td>131</td><td>351.290</td><td>4.120</td></tr>
+        <tr><td>6</td><td>81</td><td>362.090</td><td>4.180</td></tr>
+        <tr><td>7</td><td>92</td><td>372.500</td><td>4.185</td></tr>
+        <tr><td>8</td><td>24</td><td>360.995</td><td>4.010</td></tr>
+        <tr><td>9</td><td>21</td><td>361.040</td><td>3.940</td></tr>
+        <tr><td>10</td><td>13</td><td>349.710</td><td>3.810</td></tr>
+        <tr><td>11</td><td>15</td><td>350.310</td><td>3.650</td></tr>
+        <tr><td>12</td><td>7</td><td>359.810</td><td>3.680</td></tr>
+      </tbody>
+    </table>
+
+    <p>Two readings the split makes visible, recorded without a verdict
+    because neither is this node's to settle. The <code>descending</code>
+    intervals sit consistently <em>above</em> the <code>ascending</code> ones
+    at the same width — at width 6, 415.910 against 314.270 tok/s, and the sign
+    holds at <strong>every</strong> width that carries both limbs — 20 of 20, across
+    the whole range from 3 upward. Whether that is the width trajectory
+    carrying information, or the two groups differing in some other way this
+    harvest does not record, is not decided here; it is a confound the fit has
+    to state rather than a finding. Separately, the width-1
+    <code>unknown</code> interval reads 9.580 tok/s against a
+    <code>flat</code> median of 110.450, so the unlabelled group is not
+    exchangeable with the rest and pooling it in silently is a choice the
+    report now makes visible.</p>
+
+    <p><strong>Tests and gates.</strong> <code>tests/test_agent_decode_bins.py</code>
+    covers a rising trajectory, a falling one, a flat one, a trajectory that
+    turns inside a single log, a malformed line (reported with its field and
+    line number, with the surrounding good lines still parsed), a
+    <code>Prefill batch</code> line — which also carries
+    <code>#running-req</code> and must NOT be read as a decode interval — the
+    progress-bar rewrite and a CRLF-terminated record, both of which fail
+    against a text-mode read, the per-width and per-limb medians, JSON
+    serialisability, interval order, and the width-1 spot values read from the
+    live log. Result: <strong>13 passed</strong>. The repo's whole-tree lint
+    gate <code>uv run --no-sync ruff check imas_ambix tests</code> exits
+    <strong>0</strong>, and the serving-interpreter parse guard passes
+    (2 passed, 7 deselected), which matters because this module sits under
+    <code>imas_ambix/agent/</code>.</p>
+
+    <p>Artifacts captured under
+    <code>~/.config/reckon/crew/runs/r-20260917T094626859296-decode-log-harvester/logs/</code>:
+    <code>decode-harvest-spot-run.txt</code> carries the harvest with its read
+    timestamp and frozen byte count, <code>decode-bins-tests.log</code> the
+    unit tests, <code>whole-tree-ruff.log</code> the lint gate and
+    <code>serving-python-parse-guard.log</code> the interpreter guard.</p>
+
+    <p><strong>The corrected spelling then loaded DSpark on the checkpoint for
+    the first time.</strong> The operator launched merged main commit
+    <code>e3adfca</code> as job <code>1272783</code>; it reached ready in
+    <strong>485 s</strong>, inside the fifteen-minute bound. The first rank's
+    timestamped receipt is <q>Draft checkpoint bundles a DSpark head; loading
+    draft arch DeepseekV4ForCausalLMDSpark.</q> at 11:30:21 CEST, with matching
+    receipts on the other three ranks.</p>
+
+    <table>
+      <thead><tr><th>Live measure</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td>Idle free memory, cards 0–3</td><td>33,179 / 32,971 / 32,971 / 33,179 MiB</td></tr>
+        <tr><td>One real completion</td><td>HTTP 200 in 30.2 s for a request capped at 384 output tokens; the engine survived and <code>/v1/models</code> answered afterwards</td></tr>
+        <tr><td>Width-one engine-log rate</td><td><strong>108.465 tok/s median</strong> over 38 decode intervals; <strong>3.055×</strong> the 35.5 tok/s non-DSpark baseline</td></tr>
+        <tr><td>Width-one speculation</td><td><strong>3.550</strong> mean accept length and <strong>51.0%</strong> mean accept rate; the plan assumed 3.31 tokens</td></tr>
+        <tr><td>Post-request speculative metrics</td><td>3.642105 accept length, 52.842% accept rate and 6 draft tokens; mixed width, kept separate from the width-one means</td></tr>
+        <tr><td>Post-generation free memory</td><td><strong>30,789 / 30,581 / 30,581 / 30,789 MiB</strong></td></tr>
+        <tr><td>Drafter per-step cost</td><td>not exposed by the enabled metric or log surface; no millisecond figure is claimed</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>The primary gate passes on workspace allocation and survival:</strong>
+    38 real width-one decode intervals ran; free memory moved by exactly
+    <strong>2,390 MiB (2.334 GiB) per card</strong> from idle to loaded;
+    <code>/v1/models</code> remained healthy; and the first request ran for 30.2 s
+    without killing the engine. The measured ask is substantially below the
+    approximately 12.9 GiB budget at this width, but it must be re-read at width
+    24 or above because workspace demand scales with prefill length and
+    concurrency.</p>
+
+    <p>A separately authorized corroborating request preserved its full JSON
+    response: HTTP 200 in 12.398205 s, <code>finish_reason="length"</code> and
+    <strong><code>usage.completion_tokens=384</code></strong>. The 2,319-byte
+    receipt is
+    <code>/home/ITER/mcintos/.config/reckon/crew/runs/r-20260917T091608473130-restart-one-launch/acceptance-response.json</code>
+    with SHA-256
+    <code>32b2075fb682dd808e5d57b828d1d4176603d369fb28df230a96b5ed0adb4e00</code>;
+    the endpoint remained healthy afterwards. No further completion was sent.</p>
+
+    <p><strong>The conditional pool restart fits on today's low-width
+    evidence.</strong> The lowest loaded reading leaves 30,581 MiB free per card;
+    the measured extra pool increment costs 10.10 GB per card, leaving about
+    <strong>20 GB per card spare</strong>. Re-read this at the ramp's top step
+    before treating it as a high-width margin. The drafter's per-step cost is
+    not exposed and therefore cannot be separated from aggregate throughput at
+    any width; the possible width-eight regression remains an instrumentation
+    limitation rather than an omitted measurement.</p>
+
+  <h2 id="deploy-recipe-record">Deploy recipe and launch contract</h2>
+
+    <p><strong>The superseded contract reproduced before the repair.</strong>
+    Against the committed profile, the focused launch-contract test reported
+    <strong>2 failed, 1 passed</strong>: both failures asserted the superseded
+    <code>hicache_ratio == 8.0</code> and <code>memory == "720G"</code>. The
+    committed profile reports <code>2.0</code> and <code>"480G"</code>. Commit
+    <code>a96547d</code> moves the assertions to the landed values and adds a
+    case that pins the two emitted speculative flags.</p>
+
+    <table>
+      <thead><tr><th>Measure</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td>Focused test</td><td><code>uv run --no-sync pytest tests/test_agent_pool_and_hicache.py</code> — <strong>5 passed</strong></td></tr>
+        <tr><td>Emitted flags pinned</td><td><code>--speculative-algorithm DSPARK</code>, <code>--speculative-dspark-block-size 5</code></td></tr>
+        <tr><td>Ruff, changed paths</td><td>clean (the only finding, a missing trailing newline, was fixed)</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>The recipe is committed where a later session reads it.</strong>
+    <code>imas_ambix/agent/AGENTS.md</code> gains a
+    <q>DeepSeek V4.1 Flash Deployment</q> section carrying the four facts the
+    launch depends on, each stated so it can be acted on without this plan: the
+    main-checkout submission constraint and its <code>.reckon-worktrees</code>
+    check; the case-sensitive <strong>EAGLE</strong>/<strong>DSPARK</strong>
+    tuple asserted by the engine's <code>arg_groups</code>
+    <code>deepseek_v4_hook</code> resolution, which rejected lowercase after
+    <strong>42&#160;s</strong>; readiness at <strong>485&#160;s from
+    <code>RUNNING</code></strong> against the startup log's 670.1&#160;s
+    scheduler end-to-end; and the run-level (~1&#160;h) versus request-level
+    (~1–3&#160;min) drains that differ sixtyfold, with the run-level one
+    governing, read from <strong>serving_receipts.sample_serving_metrics</strong>
+    (a failed scrape is <code>None</code>, and none is not zero) and stopped by
+    <strong>imas-ambix agent shutdown</strong> rather than <code>scancel</code>,
+    because shutdown republishes the endpoint document a bare cancel skips.</p>
+
+    <p>The plan's §8 carries the matching landing record. The plan-version and
+    plan-modified meta lines were left untouched.</p>
+
+  <h2 id="pool-increment-profile">Device-pool increment — profile settings and
+  host-tier arithmetic</h2>
+
+    <p><strong>The pool doubles and the job's memory request rises with it; the
+    three settings beside them are unchanged.</strong>
+    <code>max_total_tokens</code> moves
+    <strong>4,000,000 &#8594; 8,000,000</strong> and <code>memory</code> moves
+    <strong>480G &#8594; 600G</strong> in
+    <code>imas_ambix/agent/profiles/deepseek-v4-1-flash.toml</code>; the
+    committed file still reads <code>speculative_algorithm = "DSPARK"</code>,
+    <code>speculative_dspark_block_size = 5</code> and
+    <code>hicache_ratio = 2.0</code>. Commits <code>b557002</code> (pool) and
+    the memory raise.</p>
+
+    <p><strong>The pre-change state, read rather than assumed.</strong> At the
+    base revision <code>bd3047c</code> the profile read
+    <code>max_total_tokens = 4000000</code> and the generated launch command was
+    recorded emitting <code>--max-total-tokens 4000000</code> with
+    <code>--mem=480G</code>. Against the committed profile, the generated
+    command now carries:</p>
+
+    <pre><code>--max-total-tokens 8000000 --enable-hierarchical-cache \
+--hicache-ratio 2.0 --hicache-write-policy write_through_selective \
+--hicache-mem-layout page_first ... --speculative-algorithm DSPARK \
+--speculative-dspark-block-size 5</code></pre>
+
+    <p>with the sbatch header at <code>#SBATCH --mem=600G</code>. The
+    dry run resolves the profile from the worktree that generated it, so no job
+    was submitted and the kernel-patch bind path it prints is that worktree's —
+    the launch itself is specified to come from the main checkout.</p>
+
+    <p><strong>The host tier doubles with the device pool, because
+    <code>hicache_ratio</code> multiplies the device pool.</strong> From the
+    per-rank figures the profile already carried — five host pools per rank
+    measuring 10.76&#160;GB per rank per unit of ratio on the 4M pool, so
+    21.51&#160;GB/rank and 86.0&#160;GB across four ranks at ratio 2 — the
+    doubled pool asks 172.1&#160;GB across four ranks. The increment is
+    therefore <strong>86.0&#160;GB = 80.1&#160;GiB</strong> of host RAM.</p>
+
+    <table>
+      <thead><tr><th>Host-tier term</th><th>At the 4M pool</th><th>At 8M</th></tr></thead>
+      <tbody>
+        <tr><td>Engram host tables (pinned, four ranks)</td><td>192 GiB</td><td>192 GiB</td></tr>
+        <tr><td>HiCache host tier at ratio 2</td><td>80.1 GiB</td><td><strong>160.3 GiB</strong></td></tr>
+        <tr><td>Process, pinned transfer, page-cache margin</td><td>207.9 GiB</td><td><strong>127.7 GiB</strong></td></tr>
+        <tr><td>Steady-state margin, 8M pool</td><td>207.9 GiB</td><td><strong>127.7 GiB</strong></td></tr>
+        <tr><td>Load-time peak, 8M pool</td><td>480 GiB already touched at ratio 2 on the 4M pool</td><td><strong>560 GiB floor — request 600G</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Verdict: <code>memory</code> is RAISED to <code>"600G"</code>. The
+    binding constraint is the load-time peak, not steady state.</strong> The
+    steady-state identity <code>480 &#8722; 192 &#8722; 160.3 = 127.7&#160;GiB</code>
+    is sound and does not answer the question: the job's
+    <code>memory.peak</code> already touched the old 480&#160;GiB ceiling at
+    ratio 2 on the <em>4M</em> pool, with about 80&#160;GiB <em>less</em> host
+    tier resident than this change leaves, and that peak is page cache from
+    reading a ~400&#160;GB checkpoint at launch rather than steady-state use. The
+    peak reading behind that premise is recorded at revision
+    <code>7c706cf</code>, which carried it as the justification for an earlier
+    raise of this request; <code>e808a8e</code> dropped the sentence in the same
+    hunk that lowered the request to 480G, so the premise is unreadable in the
+    current file rather than uncorroborated. A
+    limit sized to steady state is therefore hit while loading. The arithmetic,
+    in GiB: <code>480</code> (peak already observed at ratio 2 on the 4M pool)
+    <code>+ 80.1</code> (host tier this change adds inside the same limit)
+    <code>= 560</code> (arithmetic floor), and <code>600G</code> is that floor
+    plus margin for the load-time page cache the peak is made of. The raise stays
+    below Group A's 650G allocation, the ceiling that matters, so it does not
+    strand a co-running job on memory. The governing sizing rule is unchanged:
+    size against the job's own <code>anon + shmem</code>, never against the
+    node's <code>RealMemory</code>.</p>
+
+    <table>
+      <thead><tr><th>Gate</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td>Committed profile</td><td><code>max_total_tokens = 8000000</code>; DSPARK, block size 5, <code>hicache_ratio 2.0</code> unchanged</td></tr>
+        <tr><td>Generated launch command</td><td>emits <code>--max-total-tokens 8000000</code> with <code>--hicache-ratio 2.0</code> and <code>--speculative-algorithm DSPARK</code></td></tr>
+        <tr><td>sbatch memory line</td><td><code>#SBATCH --mem=600G</code> — raised, per the verdict above</td></tr>
+        <tr><td>Focused tests</td><td><code>uv run --no-sync pytest tests/test_agent_pool_and_hicache.py tests/test_agent_evaluation_pool.py</code> — <strong>4 failed, 3 passed</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>All four failures are stale assertion values, in files outside
+    this node's write scope, and none of them is a behaviour defect.</strong>
+    Each of the two files pins the superseded 4M contract for this same profile
+    — <code>max_total_tokens == 4_000_000</code> and
+    <code>"--max-total-tokens 4000000"</code> — so they fail on the committed
+    value by construction. They are reported as a follow-on rather than edited
+    here: the same shape as the contract this profile's earlier settings landing
+    waived, and they need the assertion values moved to <code>8_000_000</code>
+    and <code>"--max-total-tokens 8000000"</code>.</p>
+
+  <h2 id="rollback-and-peak-citation">Rollback instruction and peak-premise
+  citation — profile comment corrections</h2>
+
+    <p><strong>Both defects are comment text in
+    <code>imas_ambix/agent/profiles/deepseek-v4-1-flash.toml</code>, and neither
+    moves a live setting.</strong> Fixed in commit <code>db092c7</code>.</p>
+
+    <table>
+      <thead><tr><th>Site</th><th>Before</th><th>After</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>DSpark rollback instruction (comment)</td>
+          <td><code>Keep hicache_ratio = 2.0 and memory = "480G"</code></td>
+          <td><code>Keep hicache_ratio = 2.0 and memory = "600G"</code>, with the reason clause extended to name why the preserved values are independent of DSpark</td>
+        </tr>
+        <tr>
+          <td>Load-time-peak premise, pool key (comment)</td>
+          <td>premise stated, no source named</td>
+          <td>cited to revision <code>7c706cf</code>, which recorded it, and to <code>e808a8e</code>, which dropped it in the same hunk that lowered the request to 480G</td>
+        </tr>
+        <tr>
+          <td>Same premise, <code>memory</code> key (comment)</td>
+          <td>premise restated, no source named</td>
+          <td>points at the same citation above</td>
+        </tr>
+        <tr>
+          <td>Any TOML setting</td>
+          <td>&#8212;</td>
+          <td><strong>unchanged</strong> — every added and removed line in the diff is a comment</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p><strong>The stale instruction mattered because of where it sat, not
+    because it was wrong about the history.</strong> The rollback text exists to
+    be followed after a speculative launch or generation refusal, and it is the
+    only place in the file where the memory value appears as an <em>instruction</em>
+    rather than as a justification. A reader who followed it would have restored
+    <code>480G</code> — the pre-increment request — while believing they had
+    preserved the landed configuration, and the surrounding justification for
+    <code>600G</code> sits 300 lines away under a different key.</p>
+
+    <p><strong>The premise's provenance was verifiable and had been mis-recorded
+    as absent.</strong> The peak observation is not an operator recollection: it
+    survives in the file's own history at revision <code>7c706cf</code>, line
+    402 there, as the stated reason for an earlier raise of this same request
+    from 480G to 720G. An earlier note recorded the sentence as
+    &ldquo;nowhere in the repository&rdquo;; it is absent from the <em>current</em>
+    file only because <code>e808a8e</code> removed it, in the same hunk that
+    lowered the request to 480G. Citing the revision removes that ambiguity in
+    the direction a reader needs: the claim is unreadable here, not
+    uncorroborated.</p>
+
+    <p><strong>Gate, reproduced on the corrected tree.</strong>
+    <code>uv run --no-sync imas-ambix agent serve deepseek-v4-1-flash
+    --dry-run</code> exits <strong>0</strong> and the generated script still
+    carries <code>#SBATCH --mem=600G</code> (line 8 of the emitted script) and
+    <code>--max-total-tokens 8000000</code> alongside
+    <code>--hicache-ratio 2.0</code>,
+    <code>--speculative-algorithm DSPARK</code> and
+    <code>--speculative-dspark-block-size 5</code>. The dry run was executed
+    from the worktree that produced it, so no job was submitted and the
+    kernel-patch bind path it prints is that worktree's; the launch itself
+    remains specified to come from the main checkout.</p>
+    <h3 id="pool-contract-test-repair">Launch-contract test repair — the four
+    failures above, closed</h3>
+
+    <p><strong>The four failures reproduced before they were repaired, and the
+    reproduction is the evidence that the guard still fires.</strong> Against
+    the committed profile (<code>max_total_tokens = 8000000</code>,
+    <code>memory = "600G"</code>) with the base-revision test files restored, the
+    focused gate read <strong><code>4 failed, 3 passed</code></strong>, each
+    failure an <code>AssertionError</code> on a superseded literal —
+    <code>max_total_tokens == 4_000_000</code> at
+    <code>tests/test_agent_pool_and_hicache.py:17</code> and
+    <code>tests/test_agent_evaluation_pool.py:15</code>,
+    <code>"--max-total-tokens 4000000"</code> at
+    <code>tests/test_agent_pool_and_hicache.py:44</code> and
+    <code>tests/test_agent_evaluation_pool.py:33</code>,
+    <code>memory == "480G"</code> at
+    <code>tests/test_agent_pool_and_hicache.py:22</code>, and
+    <code>"#SBATCH --mem=480G"</code> at
+    <code>tests/test_agent_pool_and_hicache.py:43</code>. The same files at
+    <code>bd3047c</code> passed, because that revision's profile still read
+    <code>4000000</code> and <code>"480G"</code> — so the delta these tests
+    report is the profile increment, and not a behaviour change. No source and
+    no profile file was edited by the repair.</p>
+
+    <table>
+      <thead><tr><th>Assertion site</th><th>Superseded</th><th>Repointed to</th></tr></thead>
+      <tbody>
+        <tr><td><code>test_agent_pool_and_hicache.py:17</code></td><td><code>max_total_tokens == 4_000_000</code></td><td><code>== 8_000_000</code></td></tr>
+        <tr><td><code>test_*_pool_and_hicache.py:22</code></td><td><code>slurm.memory == "480G"</code></td><td><code>== "600G"</code></td></tr>
+        <tr><td><code>test_*_pool_and_hicache.py:43</code></td><td><code>"#SBATCH --mem=480G"</code></td><td><code>"#SBATCH --mem=600G"</code></td></tr>
+        <tr><td><code>test_*_pool_and_hicache.py:44</code></td><td><code>"--max-total-tokens 4000000"</code></td><td><code>"--max-total-tokens 8000000"</code></td></tr>
+        <tr><td><code>test_agent_evaluation_pool.py:15</code></td><td><code>max_total_tokens == 4_000_000</code></td><td><code>== 8_000_000</code></td></tr>
+        <tr><td><code>test_agent_evaluation_pool.py:33</code></td><td><code>"--max-total-tokens 4000000"</code></td><td><code>"--max-total-tokens 8000000"</code></td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Six sites were stale, not four.</strong> A grep for the emitted
+    string spellings (<code>"480G"</code>, <code>4000000</code>) finds four; the
+    two profile-object assertions use the underscore literal
+    <code>4_000_000</code> and pin the same superseded contract in the same two
+    files. Repairing only the four string-spelled sites leaves
+    <code>test_profile_sizes_device_and_host_cache_with_group_memory_margin</code>
+    and <code>test_default_profile_resolves_the_bounded_pool</code> failing on
+    their first assertion, at <code>2 failed, 5 passed</code> — so the
+    node's stated measure of <code>7 passed</code> is reachable only through all
+    six.</p>
+
+    <table>
+      <thead><tr><th>Gate</th><th>Command</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td>Reproduction, base-revision tests</td><td><code>pytest -q &lt;bd3047c copies of both files&gt;</code></td><td><strong>4 failed, 3 passed</strong> (<code>exit 1</code>)</td></tr>
+        <tr><td>Repair, focused gate</td><td><code>uv run --no-sync pytest -p no:cacheprovider -q tests/test_agent_pool_and_hicache.py tests/test_agent_evaluation_pool.py</code></td><td><strong>7 passed, 0 failed</strong> (<code>exit 0</code>)</td></tr>
+        <tr><td>Lint, changed files</td><td><code>uv run --no-sync ruff check tests/test_agent_pool_and_hicache.py tests/test_agent_evaluation_pool.py</code></td><td><code>All checks passed</code></td></tr>
+      </tbody>
+    </table>
+
+    <p>This gate measures the repair alone. The merged result — the committed
+    profile as it stands beside these tests at the merge head — belongs to a
+    separately dispatched verification node.</p>
+
+  <h2 id="cost-model-refit">Cost-model refit from this serve's own decode intervals</h2>
+
+    <p><strong>The published cost model was refitted from the speculative
+    serve's own intervals at a fixed timestamp cutoff.</strong> Every figure
+    here traces to
+    <code>/home/ITER/mcintos/Code/imas-ambix/deepseek-v4-1-flash-1272783.log</code>,
+    filtered to <code>Decode batch</code> lines timestamped at or before
+    <code>2026-09-17 12:08:20</code> — <strong>608 decode intervals</strong>,
+    first 11:37:47, last 12:08:20. Job <code>1272783</code> was still running
+    while this was taken, so the cutoff is what makes the set fixed rather than
+    a moving one.</p>
+
+    <p>The published <code>ms = 17.8 + 0.257 × GB</code> becomes
+    <code><strong>ms = 8.338 + 0.30370 × GB</strong></code>, R-squared
+    <strong>0.96331</strong>, by unweighted least squares over the widths
+    carrying at least twenty decode intervals. Per-interval per-pass time is
+    <code>1000 × width × accept_len / gen_throughput</code>, median over
+    intervals at that width; <code>GB</code> is carried unchanged from the
+    published model (union of top-6 of 384 experts plus one shared, over the
+    5×width tokens a block-size-5 verify pass reads).</p>
+
+    <table>
+      <thead><tr><th>Width</th><th>Intervals</th><th>Accept len</th><th>Gen tok/s</th><th>GB</th><th>Measured ms</th><th>Original ms</th><th>Refit ms</th><th>Residual</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>40</td><td>3.585</td><td>111.08</td><td>42.6</td><td>29.85</td><td>28.75</td><td>21.27</td><td>+8.58</td></tr>
+        <tr><td>2</td><td>21</td><td>4.640</td><td>282.48</td><td>80.6</td><td>30.38</td><td>38.53</td><td>32.83</td><td>-2.45</td></tr>
+        <tr><td>3</td><td>61</td><td>4.380</td><td>300.65</td><td>115.8</td><td>41.69</td><td>47.57</td><td>43.51</td><td>-1.82</td></tr>
+        <tr><td>4</td><td>122</td><td>4.150</td><td>329.81</td><td>148.3</td><td>48.95</td><td>55.92</td><td>53.39</td><td>-4.43</td></tr>
+        <tr><td>5</td><td>131</td><td>4.120</td><td>351.29</td><td>178.4</td><td>56.28</td><td>63.64</td><td>62.51</td><td>-6.23</td></tr>
+        <tr><td>6</td><td>81</td><td>4.180</td><td>362.09</td><td>206.2</td><td>68.88</td><td>70.78</td><td>70.95</td><td>-2.07</td></tr>
+        <tr><td>7</td><td>92</td><td>4.185</td><td>372.50</td><td>231.8</td><td>78.73</td><td>77.38</td><td>78.74</td><td>-0.01</td></tr>
+        <tr><td>8</td><td>23</td><td>4.030</td><td>362.38</td><td>255.5</td><td>90.50</td><td>83.48</td><td>85.95</td><td>+4.55</td></tr>
+        <tr><td>9</td><td>20</td><td>3.970</td><td>360.33</td><td>277.5</td><td>96.49</td><td>89.11</td><td>92.61</td><td>+3.88</td></tr>
+      </tbody>
+    </table>
+
+    <img src="/imas-ambix/figures/dsv41-serve-tuning-for-concurrency/cost-model-refit.svg"
+         alt="Measured milliseconds per forward pass against gigabytes of expert weights read, with the original and refitted model lines on one axis. Nine fitted with three thin widths beyond, each labelled with its interval count, and a divider marking the last fitted width.">
+
+    <p><strong>Accept length is the measurement that forced the change, and it
+    was assumed flat.</strong> The published prediction carried 3.31 at every
+    width. Measured here it is 3.585 at width one, peaks at
+    <strong>4.640 at width two</strong>, and <strong>falls with width</strong>
+    to 4.030 at width eight, 3.970 at width nine and 3.615 by width
+    eleven. Because every ratio in the published table is linear in that
+    number, the assumption understated the low-width gain and overstated the
+    high-width one.</p>
+
+    <p><strong>The refit does not reproduce the predicted collapse.</strong>
+    Against the non-speculative baseline measured on the previous serve (job
+    <code>1272167</code>), the refitted ratio falls from 4.753 at width one to
+    a <strong>shallowest 1.312 at width 12.7</strong> and recovers; it
+    <strong>never falls below 1.2 at any width</strong>. The original model
+    predicted 1.06 near width eight. Ratio at width 34 is 1.932.</p>
+
+    <p><strong>What this fit does not license.</strong> The widths in the fit
+    span GB 42.6 to 277.5. Widths above nine are <strong>extrapolation</strong>,
+    and this serve never exceeded width eleven, so the high-width recovery and
+    the "never below 1.2" statement are model behaviour, not measurements. The
+    plan's own §4b asks for width 1, 8 and 24 or above for exactly this reason.
+    The fixed floor is <strong>not well identified</strong> as separate from the
+    slope on this data: refitting over different width subsets moves it from
+    12.44 to -3.16 ms, while the slope only moves from 0.267 to 0.356 ms/GB.
+    Report only the slope change as the substantial finding; the floor should be
+    treated as small and poorly determined. The width-one residual (+8.58 ms)
+    also shows the two-term linear form over-predicts the single-stream gain
+    (4.75 modelled against 3.055 measured at width one).</p>
+
+    <p>An independent usability finding is recorded in the node report: long
+    writes to the lane truncate mid-line at roughly 1.5 kB, released by
+    writing in small appended chunks. Full operational receipt:
+    <code>/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/dsv41-tune/cost-model-refit.md</code>.</p>
+
+    <h2 id="pool-relaunch">Merged pool-profile relaunch</h2>
+
+    <p><strong>The lane-down condition reproduced before submission.</strong>
+    The node ledger listed the two embedding jobs and the router, with no
+    DeepSeek serve. The replacement was generated and submitted from
+    <code>/home/ITER/mcintos/Code/imas-ambix</code>; main HEAD
+    <code>9c8a8b7</code> contains <code>origin/main</code>
+    <code>f8835be</code>, and the only local commit ahead is the crew-roster
+    registration. The serving profile is identical at both revisions.</p>
+
+    <p><strong>The emitted launch contract carries the merged settings and no
+    detached-worktree path.</strong> Its header contains
+    <code>#SBATCH --mem=600G</code>; the server command contains
+    <code>--max-total-tokens 8000000</code>,
+    <code>--hicache-ratio 2.0</code>,
+    <code>--speculative-algorithm DSPARK</code> and
+    <code>--speculative-dspark-block-size 5</code>. SLURM job
+    <code>1273074</code> entered <code>RUNNING</code> on four H200 cards with
+    <code>WorkDir=/home/ITER/mcintos/Code/imas-ambix</code> and the 600G
+    request. A direct anonymous model-catalog request returned HTTP 200 after
+    <strong>495 seconds</strong> from the RUNNING start.</p>
+
+    <p><strong>Readiness was not treated as the gate.</strong> A direct keyless
+    chat completion forced the lazy speculative workspace to allocate and
+    returned HTTP 200, response
+    <code>953c48a92b354fd7b135e8daee71690a</code>, with
+    <strong>600 completion tokens in 6.964764 seconds</strong> and
+    <code>finish_reason="length"</code>. The job remained RUNNING and the
+    model catalog continued to return HTTP 200 afterwards.</p>
+
+    <table>
+      <thead><tr><th>Card</th><th>Free after generation</th><th>Free / 10.11 GiB ask</th><th>Residual after another ask</th></tr></thead>
+      <tbody>
+        <tr><td>0</td><td>38,095 MiB (37.202 GiB)</td><td><strong>3.680×</strong></td><td>27.092 GiB</td></tr>
+        <tr><td>1</td><td>37,887 MiB (36.999 GiB)</td><td><strong>3.660×</strong></td><td>26.889 GiB</td></tr>
+        <tr><td>2</td><td>37,887 MiB (36.999 GiB)</td><td><strong>3.660×</strong></td><td>26.889 GiB</td></tr>
+        <tr><td>3</td><td>38,095 MiB (37.202 GiB)</td><td><strong>3.680×</strong></td><td>27.092 GiB</td></tr>
+      </tbody>
+    </table>
+
+    <p>The memory rows were read inside allocation <code>1273074</code>
+    immediately after the completion. The worst card therefore retained
+    <strong>3.660 times</strong> the 10.11 GiB worst measured workspace ask.
+    The post-generation metrics receipt recorded 233 speculative verification
+    calls, <strong>37% draft acceptance</strong> and
+    <strong>2.85 mean accept length</strong>; the final decode-log interval
+    independently carried the same 0.37 and 2.85 readings. The launch and first
+    generation did not die on workspace or memory allocation, so the pre-decided
+    4M/600G rollback was not invoked. Full operational receipt:
+    <code>/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/serving-lane-relaunch.md</code>.</p>
+  <h2 id="recipe-prose-drift">Deployment recipe prose — the superseded pair
+    in the text a deployment reads</h2>
+
+    <p><strong>Defect, reproduced before the repair.</strong> The DeepSeek V4.1 section of
+    <code>imas_ambix/agent/AGENTS.md</code> described the pre-increment
+    configuration after the profile had already been raised. At the base revision
+    the two figures lived in one paragraph:</p>
+
+<pre><code>1683: of Engram tables live in host RAM; the 4,000,000-token device pool is pinned
+1686: `hicache_ratio = 2.0` and `memory = "480G"`.</code></pre>
+
+    <p>The <code>grep -nE "4000000|4,000,000|480G" imas_ambix/agent/AGENTS.md</code>
+    that gates this node returned exactly those two lines at the base revision
+    and returns nothing after the repair. The committed profile disagrees with
+    both: <code>imas_ambix/agent/profiles/deepseek-v4-1-flash.toml</code> carries
+    <code>max_total_tokens = 8000000</code> (line 254) and
+    <code>memory = "600G"</code> (line 484), read from the file rather than
+    inferred.</p>
+
+    <table>
+      <thead><tr><th>Setting</th><th>Recipe prose, base revision</th><th>Committed profile</th></tr></thead>
+      <tbody>
+        <tr><td><code>max_total_tokens</code></td><td>4,000,000 (stated as a token count, key unnamed)</td><td><code>8000000</code></td></tr>
+        <tr><td><code>memory</code></td><td><code>"480G"</code></td><td><code>"600G"</code></td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Repair.</strong> The paragraph now names the key at the value it
+    carries — <code>max_total_tokens = 8000000</code> (8,000,000 tokens) — and
+    closes on <code>hicache_ratio = 2.0</code> and <code>memory = "600G"</code>,
+    the DSpark pair unchanged. Prose only: no source file and no live setting
+    moved, so the change cannot alter the launch or the running lane.</p>
+
+    <p><strong>Verification.</strong> The gate's own command,
+    <code>grep -nE "4000000|4,000,000|480G" imas_ambix/agent/AGENTS.md</code>,
+    exits 1 with no output (no occurrence remains at all, historical or
+    otherwise), and <code>grep -nE "8000000|8,000,000|600G"</code> returns lines
+    1684 and 1687 — the rewritten pair. The superseded shorthand <code>4M</code>
+    appears nowhere in the file in either spelling. Only one file in the
+    worktree is modified; the profile and every other path are untouched,
+    confirmed by <code>git status --porcelain</code>.</p>
+
+  
+  <h2 id="decode-throughput-vs-width">Aggregate decode throughput against
+  concurrency width, both pool configurations</h2>
+
+  <p><strong>Two jobs, one quantity, no controlled arm.</strong> Job
+  <code>1272783</code> served the 4,000,000-token pool
+  (<code>deepseek-v4-1-flash-1272783.log</code>, 4,059 decode intervals, logged
+  2026-09-17 11:37:47 to 16:29:45 local). Job <code>1273074</code> served the
+  8,000,000-token pool (<code>deepseek-v4-1-flash-1273074.log</code>, 1,003
+  intervals at a cut of 2026-09-17 19:53 local). Zero malformed decode lines on
+  both. The two windows are adjacent and non-overlapping, but the 8M job was
+  still <code>RUNNING</code> at the cut, so its arm is a snapshot; the 4M job
+  had ended.</p>
+
+  <p><strong>Verdict.</strong> Throughput is flat across widths 17&#8211;32 on
+  both arms. The 4M job's slope of per-width median aggregate throughput is
+  <strong>+0.09 tok/s per width</strong> (95&#8239;% stratified bootstrap CI
+  &#8722;2.00 to +2.69, gain &#8722;4.1&#8239;%); the 8M job's is
+  <strong>&#8722;0.55</strong> (CI &#8722;1.61 to +0.34, gain +4.1&#8239;%).
+  <code>#queue-req</code> is 0 at every width, so the plateau is not admission
+  queueing.</p>
+
+  <p><strong>The 8M arm's earlier snapshot was not flat, and more data dissolved
+  the effect.</strong> At 596 intervals that arm read a slope of
+  <strong>+5.38</strong> (CI +2.39 to +9.94); at 1,003 intervals the same
+  quantity is <strong>&#8722;0.55</strong> (CI &#8722;1.61 to +0.34). The
+  positive slope lived entirely in six low widths holding five to seven
+  intervals each and in one width-17 ascending interval reading 74.3 tok/s, and
+  it does not survive adequate sampling. A read taken on the smaller sample
+  would have concluded that widening buys 17&#8239;%.</p>
+
+  <table>
+    <thead><tr><th>Job</th><th>Pool</th><th>Intervals</th><th>Widths</th>
+    <th>Plateau median, 17&#8211;32</th><th>IQR</th><th>Slope per width</th>
+    <th>95&#8239;% CI</th></tr></thead>
+    <tbody>
+      <tr><td>1272783</td><td>4,000,000</td><td>4,059</td><td>1&#8211;32</td>
+      <td><strong>387.0 tok/s</strong></td><td>352.0&#8211;421.5</td>
+      <td>+0.09</td><td>&#8722;2.00 to +2.69</td></tr>
+      <tr><td>1273074</td><td>8,000,000</td><td>1,003</td><td>1&#8211;34</td>
+      <td><strong>370.7 tok/s</strong></td><td>331.3&#8211;403.4</td>
+      <td>&#8722;0.55</td><td>&#8722;1.61 to +0.34</td></tr>
+    </tbody>
+  </table>
+
+  <p><strong>Limb split.</strong> Labelling each interval from its width
+  trajectory separates the two strata an unlabelled curve blends. Descending
+  exceeds ascending at 15 of 15 in-range widths on the 4M job and 15 of 16 on
+  the 8M job; pooled over 17&#8211;32 the medians are 400.6 against 363.2 tok/s
+  on 4M (n 142 / 145) and 383.9 against 343.9 on 8M (n 294 / 268). A throughput
+  figure quoted without its limb is quoting a mixture whose weight depends on
+  whether the lane was ramping up or down.</p>
+
+  <p><strong>The pool increment met its own target and changed no
+  throughput.</strong> Median full-token usage at width 32 is 0.830 of the 4M
+  pool against 0.370 of the 8M pool &#8212; 3,311,360 and 2,962,560 tokens
+  respectively, so the 4M job ran within 17&#8239;% of a cap the 8M job now sits
+  at about a third of. Occupancy rises with width on both arms while throughput
+  is flat, which is the direct counter-evidence to reading the plateau as a
+  capacity limit.</p>
+
+  <p><strong>Interpretation limit.</strong> Pool size, window and traffic mix
+  move together between the two arms as run, so nothing here separates them and
+  none of it supports a claim that the 8M pool causes or cures the plateau.</p>
+
+  <p><strong>Artifacts.</strong> Report:
+  <code>.config/reckon/crew/reports/imas-ambix/decode-plateau-confirmation.md</code>.
+  Figure:
+  <code>/imas-ambix/figures/dsv41-serve-tuning-for-concurrency/decode-throughput-vs-width.svg</code>.
+  Instrument: <code>imas_ambix/agent/decode_bins.py</code> plus a 4,000-draw
+  stratified bootstrap over intervals (seed 20260917). No source file, profile
+  or live setting changed.</p>
+
+</main>
+</body>
+</html>

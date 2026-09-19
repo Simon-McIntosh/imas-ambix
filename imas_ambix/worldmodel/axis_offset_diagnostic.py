@@ -578,7 +578,7 @@ def score_shot(
             try:
                 d_r, d_z = signed_axis_offset_cm(nova_r, nova_z, efit_r, efit_z)
                 axis_distance = float(np.hypot(d_r, d_z))
-            except TypeError, ValueError:
+            except (TypeError, ValueError):
                 exclusion = "non_finite_axis"
             with suppress(TypeError, ValueError):
                 centroid_radial = signed_centroid_radial_offset_cm(

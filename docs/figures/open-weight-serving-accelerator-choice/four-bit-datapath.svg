@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1190 430" width="1190" height="430"
+     font-family="sans-serif" font-size="13" fill="#1a1a1a">
+  <style>
+    .box  { fill:#fff; stroke:#5a5a5a; stroke-width:1; }
+    .nat  { fill:#eef3f8; stroke:#1f5fa8; stroke-width:1.2; }
+    .emu  { fill:#fdf1ea; stroke:#b4531b; stroke-width:1; }
+    .lbl  { font-size:13px; }
+    .hdr  { font-size:14px; font-weight:600; }
+    .note { font-size:12px; fill:#5a5a5a; }
+    .arr  { stroke:#5a5a5a; stroke-width:1; fill:none; marker-end:url(#a); }
+    .arrn { stroke:#1f5fa8; stroke-width:1.4; fill:none; marker-end:url(#an); }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#5a5a5a"/>
+    </marker>
+    <marker id="an" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#1f5fa8"/>
+    </marker>
+  </defs>
+
+  <!-- Hopper lane -->
+  <text class="hdr" x="0" y="16">Hopper — SM90, what we run today</text>
+  <text class="note" x="0" y="34">no FP4 datapath in the tensor core, so the 4-bit checkpoint must be converted before it can be multiplied</text>
+
+  <rect class="box" x="0" y="48" width="168" height="58" rx="3"/>
+  <text x="12" y="70">MXFP4 expert</text>
+  <text x="12" y="88">weights, 259.5 GiB</text>
+
+  <path class="arr" d="M168,62 L232,62"/>
+  <path class="arr" d="M168,77 L232,129"/>
+  <path class="arr" d="M168,92 L232,196"/>
+
+  <rect class="emu" x="236" y="42" width="284" height="44" rx="3"/>
+  <text x="248" y="60">FlashInfer legacy: upcast activations</text>
+  <text x="248" y="77">to BF16, run BF16 MMA</text>
+  <rect class="emu" x="236" y="109" width="284" height="44" rx="3"/>
+  <text x="248" y="127">Marlin W4A16: dequantise weights</text>
+  <text x="248" y="144">to BF16 before the GEMM</text>
+  <rect class="nat" x="236" y="176" width="284" height="44" rx="3"/>
+  <text x="248" y="194">re-encode to block-FP8 at load,</text>
+  <text x="248" y="211">then the FP8 MoE kernel</text>
+
+  <path class="arr" d="M520,64 L588,84"/>
+  <path class="arr" d="M520,131 L588,96"/>
+  <path class="arrn" d="M520,198 L588,178"/>
+
+  <rect class="emu" x="592" y="62" width="200" height="44" rx="3"/>
+  <text x="604" y="80">BF16 tensor cores</text>
+  <text class="note" x="604" y="97">4-bit weights, 16-bit maths</text>
+  <rect class="nat" x="592" y="156" width="200" height="44" rx="3"/>
+  <text x="604" y="174">FP8 tensor cores</text>
+  <text class="note" x="604" y="191">the fast path Hopper does have</text>
+
+  <text class="note" x="800" y="80">what our serve uses:</text>
+  <text class="note" x="800" y="96">10.11 GiB of fused-MoE</text>
+  <text class="note" x="800" y="112">workspace at a 500k prefill</text>
+  <text class="note" x="800" y="174" fill="#1f5fa8">measured 1.38–1.53× prefill,</text>
+  <text class="note" x="800" y="190" fill="#1f5fa8">2.04× at 32 concurrent</text>
+  <text class="note" x="800" y="206" fill="#1f5fa8">(H20, TP4) — costs 2× weight</text>
+  <text class="note" x="800" y="222" fill="#1f5fa8">memory</text>
+
+  <line x1="0" y1="252" x2="1190" y2="252" stroke="#d8d8d8" stroke-width="1"/>
+
+  <!-- Blackwell lane -->
+  <text class="hdr" x="0" y="278">Blackwell — SM100</text>
+  <text class="note" x="0" y="296">the same checkpoint is multiplied in its stored format; block scales are applied by the hardware</text>
+
+  <rect class="box" x="0" y="310" width="168" height="58" rx="3"/>
+  <text x="12" y="332">MXFP4 / NVFP4</text>
+  <text x="12" y="350">expert weights</text>
+  <path class="arrn" d="M168,339 L232,339"/>
+  <rect class="nat" x="236" y="317" width="284" height="44" rx="3"/>
+  <text x="248" y="335">tcgen05.mma.kind::mxf4nvf4</text>
+  <text class="note" x="248" y="352">one instruction, no conversion pass</text>
+  <path class="arrn" d="M520,339 L588,339"/>
+  <rect class="nat" x="592" y="317" width="200" height="44" rx="3"/>
+  <text x="604" y="335">FP4 tensor cores</text>
+  <text class="note" x="604" y="352">5th generation, block-scaled</text>
+  <text class="note" x="800" y="330" fill="#1f5fa8">no emulation workspace,</text>
+  <text class="note" x="800" y="346" fill="#1f5fa8">no 2× weight penalty,</text>
+  <text class="note" x="800" y="362" fill="#1f5fa8">2× the arithmetic rate of FP8</text>
+
+  <text class="note" x="0" y="400">INT4 matrix instructions were native from SM75 to SM89 (Turing to Ada) and are emulated through INT8 on SM90. On SM100 an INT4 operand rides this same FP4 datapath.</text>
+  <text class="note" x="0" y="418">Blackwell is FP4-native, not INT4-native — the distinction decides which checkpoint format gets hardware acceleration.</text>
+</svg>

@@ -53,10 +53,39 @@ def test_four_card_serve_script_emits_dspark_recipe_flags() -> None:
 
 
 def test_four_card_gpu_variant_selection_matches_gpus_flag() -> None:
+    """Card count is tensor width times replica count, not tensor width alone.
+
+    Four cards carry two two-wide replicas rather than one four-wide engine,
+    so asserting a tensor width of four would pin one topology rather than the
+    invariant that makes a variant selection correct. The product is what must
+    equal the cards the scheduler is asked for; a variant whose product misses
+    the card count either strands a device or over-requests one.
+    """
     profile = load_profile("deepseek-v4-flash").for_gpus(4)
 
     assert profile.slurm.gpus == 4
-    assert profile.engine.tensor_parallel == 4
+    assert profile.engine.tensor_parallel * profile.engine.data_parallel == 4
+
+
+def test_every_gpu_variant_topology_fills_its_card_count() -> None:
+    """The product invariant holds for every declared variant, not just four.
+
+    The eight-card entry sets a tensor width of four precisely because the
+    replica count carries the other factor; carrying the card count straight
+    into tensor_parallel there would request sixteen devices.
+    """
+    base = load_profile("deepseek-v4-flash")
+
+    for gpus in sorted({2, 4, 8} | set(base.gpu_variants)):
+        profile = base.for_gpus(gpus)
+        product = profile.engine.tensor_parallel * profile.engine.data_parallel
+        assert profile.slurm.gpus == gpus, (
+            f"{gpus}-card variant declares {profile.slurm.gpus}"
+        )
+        assert product == gpus, (
+            f"{gpus}-card variant spreads over {product} devices "
+            f"(tp={profile.engine.tensor_parallel}, dp={profile.engine.data_parallel})"
+        )
 
 
 def test_four_card_serve_script_carries_full_native_context_window() -> None:

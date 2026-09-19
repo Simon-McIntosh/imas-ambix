@@ -166,11 +166,21 @@ def validate_catalog_item(item, *, expected=None):
         fail("global catalog contains an invalid release id")
     release_id = item["id"]
     metadata = item.get("ambix")
-    if not isinstance(metadata, dict):
+    if metadata is None and expected is not None:
+        # The engine carries no site metadata. That is not a fault: the block
+        # is launch-owned data echoed back through a middleware only some
+        # engines accept, and the endpoint document beside us already carries
+        # the same values from the serve's own registration. Requiring the
+        # engine to repeat them made this launcher refuse a healthy endpoint.
+        family = expected["accelerator_family"]
+        count = expected["accelerator_count"]
+        precision = expected["checkpoint_precision"]
+    elif not isinstance(metadata, dict):
         fail(f"release {release_id!r} has no ambix metadata")
-    family = metadata.get("accelerator_family")
-    count = metadata.get("accelerator_count")
-    precision = metadata.get("checkpoint_precision")
+    else:
+        family = metadata.get("accelerator_family")
+        count = metadata.get("accelerator_count")
+        precision = metadata.get("checkpoint_precision")
     if not valid_text(family):
         fail(f"release {release_id!r} has an invalid accelerator family")
     if type(count) is not int or count not in {2, 4, 6, 8}:
@@ -182,7 +192,7 @@ def validate_catalog_item(item, *, expected=None):
         type(max_context) is not int or max_context <= 0
     ):
         fail(f"release {release_id!r} has an invalid maximum context")
-    if expected is not None and (
+    if metadata is not None and expected is not None and (
         release_id != expected["model_id"]
         or family != expected["accelerator_family"]
         or count != expected["accelerator_count"]
@@ -273,11 +283,15 @@ def catalog_match(catalog, entry):
         return None
     match = matches[0]
     metadata = match.get("ambix")
-    if not isinstance(metadata, dict) or (
-        metadata.get("accelerator_family") != entry["accelerator_family"]
+    if match.get("max_model_len") != entry["max_context"]:
+        return None
+    # Absence is accepted; disagreement is not. A card that states a topology
+    # different from the document describes a different serve.
+    if metadata is not None and (
+        not isinstance(metadata, dict)
+        or metadata.get("accelerator_family") != entry["accelerator_family"]
         or metadata.get("accelerator_count") != entry["accelerator_count"]
         or metadata.get("checkpoint_precision") != entry["checkpoint_precision"]
-        or match.get("max_model_len") != entry["max_context"]
     ):
         return None
     return match
@@ -294,9 +308,33 @@ if legacy_origin:
         fail("global catalog must contain a model data list")
     if not payload["data"]:
         fail("global catalog contains no models")
+    # Topology comes from the site-owned endpoint document, and the catalog is
+    # read for liveness. An engine that cannot echo the site metadata back
+    # through its own card -- SGLang takes no middleware -- would otherwise be
+    # rejected here even while serving, which is the same refusal the router
+    # and the publisher stopped making. Best effort: if the document cannot be
+    # read, a card carrying its own block still validates on its own.
+    document_topology = {}
+    try:
+        with open(document_path, encoding="utf-8") as _doc:
+            _payload = json.load(_doc)
+        for _entry in _payload.get("endpoints") or []:
+            if isinstance(_entry, dict) and valid_text(_entry.get("model_id")):
+                document_topology[_entry["model_id"]] = _entry
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        document_topology = {}
+
     for catalog_item in payload["data"]:
+        _expected = None
+        if isinstance(catalog_item, dict) and catalog_item.get("ambix") is None:
+            _expected = document_topology.get(catalog_item.get("id"))
+            if _expected is None:
+                fail(
+                    f"release {catalog_item.get('id')!r} states no topology and the "
+                    "endpoint document carries none for it"
+                )
         release_id, family, count, precision, max_context = validate_catalog_item(
-            catalog_item
+            catalog_item, expected=_expected
         )
         if release_id in release_ids:
             fail(f"global catalog repeats release id {release_id!r}")
@@ -463,6 +501,15 @@ picker_settings = {
             {
                 "model": item["id"],
                 "label": item["id"],
+                # Map the served id onto a model the harness's catalog knows.
+                # Without it the harness reports the release as undescribed and
+                # falls back to an assumed context window; the launcher already
+                # exports the real window, so this silences a warning rather
+                # than changing behaviour -- but an undescribed model is also
+                # one whose capabilities the harness has to guess, and a
+                # warning printed on every healthy run is one nobody reads when
+                # it finally means something.
+                "behavesAs": "claude-sonnet-5",
                 "description": (
                     f'{item["count"]}×{item["family"]} · '
                     f'{item["precision"]} · '

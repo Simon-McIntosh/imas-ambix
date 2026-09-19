@@ -1,0 +1,1000 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="dsv41-flash-four-card-throughput">
+  <meta name="plan-title" content="DSv4.1-Flash Four-Card Throughput — Reopening Against a Measured Close">
+  <meta name="plan-summary" content="Four-card DSv4.1-Flash serve settled: decode flat across widths 17-32, never queued, cap 36 set from a measured duty cycle">
+  <meta name="plan-status" content="shipped">
+  <meta name="plan-roi" content="mid">
+  <meta name="plan-effort-hours" content="6.0">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="orchestrator">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-capability-risk" content="moderate">
+  <meta name="plan-milestone" content="OPS">
+  <meta name="plan-sprint" content="S24">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-tags" content="agent-serving,gpu-deployment,benchmarking">
+  <title>DSv4.1-Flash Four-Card Throughput | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-09-18">
+<meta name="plan-version" content="33">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s2a&quot;:&quot;done&quot;,&quot;s2b&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s3-paired&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;deferred&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;done&quot;}">
+<meta name="plan-artifacts" content="imas_ambix/agent/serving_receipts.py,imas_ambix/agent/receipt_bins.py,imas_ambix/agent/profiles/deepseek-v4-1-flash.toml,/home/ITER/mcintos/.config/reckon/crew/reports/four-card-reuse-map.md,/home/ITER/mcintos/.config/reckon/crew/reports/swa-index-width-attribution.md">
+<meta name="plan-impl" content="1.0">
+<meta name="plan-commits" content="e11215257d06725da0c70eda69bb786388595421,f777ce9afb6acb941e9aa2e2132837790e848217,b783a72c55b093f3c8b3347927d923346836387d,956c80b12d69a4e403e21c988d3059da65a4f363,d108cd78716aff8e0094d90fe6b6adfb4acdf9c0,15f2a3bf31b7d2ab294375d8ebb77eb8524f6837">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — This question was closed with measurements, and they must be read first</h2>
+
+    <p>V4.1-Flash already ran on these four cards. The plan
+    <code>dsv41-flash-serve-characterisation</code> took it to <code>done</code>
+    on 2026-09-14 after landing a single-stream sweep and a concurrency sweep,
+    and the serve was withdrawn by operator decision on the grounds that
+    <em>the checkpoint is not suited to four cards and needs eight</em>. Anyone
+    dispatching this plan reads that one first. Its numbers are not to be
+    re-measured:</p>
+
+    <table>
+      <thead>
+        <tr><th>Landed 2026-09-14</th><th>Value</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Topology</td><td>four H200, TP4/EP4, port 18810</td></tr>
+        <tr><td>KV pool</td><td><strong>14,999,808 tokens</strong></td></tr>
+        <tr><td>Single-stream decode</td><td><strong>34.4 tok/s</strong>, flat from 128 to 2,689 output tokens</td></tr>
+        <tr><td>Time to first token</td><td>131 ms, flat</td></tr>
+        <tr><td>Per-stream to concurrency 4</td><td>33.5–33.6 tok/s, aggregate linear to 134.1</td></tr>
+        <tr><td>Per-stream at 8 / 16 / 32</td><td>24.7 / 17.0 / 11.0, falling as 1/concurrency</td></tr>
+        <tr><td>Aggregate at 32</td><td>350.8 tok/s, not saturated; zero OOM; 10/10 health probes over ten minutes</td></tr>
+        <tr><td>DSpark speculative decoding</td><td>cannot start — wants ~12 GiB/card of workspace; 1.3 GiB free at the 15M pool</td></tr>
+      </tbody>
+    </table>
+
+    <p>So three things are settled and are not open questions for this plan.
+    <strong>It fits on four cards</strong> — the 614 GB minimum quoted elsewhere
+    is the vision-enabled figure, and text-only ran here with a pool five times
+    ours. <strong>Its unloaded decode rate is 34.4 tok/s.</strong> <strong>DSpark
+    is unavailable on this topology</strong> at any pool size the cards can fund.</p>
+
+    <h2 id="s2">§2 — The arithmetic that decides this before any work starts</h2>
+
+    <p>The target is 80 tok/s with a loaded value of 50. Read per worker — which
+    is the unit every baseline in this repository is expressed in, and what a
+    worker actually experiences — <strong>V4.1 cannot reach it on four cards, and
+    that follows from a measurement already taken.</strong> Loaded throughput
+    cannot exceed unloaded throughput, and V4.1's unloaded ceiling here is 34.4
+    tok/s. A loaded target of 50 is above its idle rate.</p>
+
+    <table>
+      <thead>
+        <tr><th></th><th>V4-Flash (current)</th><th>V4.1-Flash (measured 09-14)</th><th>Target</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Unloaded, per worker</td><td><strong>86.6</strong></td><td>34.4</td><td>80</td></tr>
+        <tr><td>Loaded, per worker</td><td>6.9–10.1 <em>(real traffic)</em></td><td>17.0 at 16 <em>(synthetic)</em></td><td><strong>50</strong></td></tr>
+        <tr><td>KV pool</td><td>2,818,154</td><td><strong>14,999,808</strong></td><td>—</td></tr>
+        <tr><td>Prefix hit rate</td><td>25.7%</td><td>unmeasured</td><td>—</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>The two loaded figures in that table are not comparable and must
+    not be quoted against each other.</strong> V4-Flash's 6.9–10.1 is real agent
+    traffic carrying 12,000–17,000 tok/s of prefill. V4.1's 17.0 is the synthetic
+    concurrency bench on a fixed 12-token prompt, which barely touches the KV
+    pool. Comparing them would credit V4.1 with an advantage that is entirely the
+    absence of prefill.</p>
+
+    <p>That non-comparability is the whole remaining question, and it is
+    <strong>§3</strong>.</p>
+
+    <h2 id="s2a">§2a — What changed between authoring this plan and dispatching it</h2>
+
+    <p>Five facts established on 2026-09-15 before any node was cut. They move
+    the cost, the running order, and the premise, so they are recorded here
+    rather than left in a session.</p>
+
+    <p><strong>The checkpoint is already resident.</strong>
+    <code>/work/projects/imas_gpu/agents/deepseek-v4-1-flash</code> holds 476 GiB
+    of weights and <code>imas_ambix/agent/profiles/deepseek-v4-1-flash.toml</code>
+    is committed beside it. The 511 GB download the decision rationale priced is
+    already paid; the only remaining cost is lane downtime.</p>
+
+    <p><strong>The committed V4.1 profile pins the wrong pool for this
+    experiment.</strong> It carries <code>max_total_tokens = 3485952</code>, the
+    smallest load-proven pool. §3's whole premise is the 5.3× pool advantage, and
+    3.49M against V4-Flash's 2,818,154 is 1.24× — serving at the committed value
+    would answer nothing. <strong>§3 must serve at 14,999,808</strong>, which is
+    the pool the landed evidence load-proved through a 32-way sweep with zero
+    OOM. 20,000,000 starts cleanly and then dies under real load; do not reach
+    for it.</p>
+
+    <p><strong>The live V4-Flash serve is a pre-registered experiment in
+    progress, not an idle baseline.</strong> Job <code>1271487</code> started
+    2026-09-15T15:40:11, forty-six seconds after the commit that disabled DSpark,
+    and reports <code>speculative_config=None</code>, TP4/DP1, pool 2,818,154. It
+    is the draft-group veto test. Note that the committed profile no longer
+    describes it — that file now carries a TP2/DP2 replica split which this serve
+    does not run — so <em>the configuration to record beside the comparison
+    numbers is the job's own, not the file's</em>.</p>
+
+    <p><strong>That test has already refuted its hypothesis, and the refutation
+    raises this plan's value.</strong> The serve reads a 28.8% cumulative prefix
+    hit rate. Its own pre-registration predicted 88.9–100% if the draft group
+    were gating lookups and 17–40% if it were not; 28.8% is inside the no-veto
+    band, and a 3.4–3.8× step cannot hide inside a cumulative figure. <strong>The
+    drafter was not what held the hit rate down.</strong> With the veto
+    eliminated and concurrency already ruled a floor rather than a slope, pool
+    turnover is the leading surviving explanation for this lane — and pool size
+    is exactly the variable §3 changes. The competing account of §3's premise
+    died; the premise did not.</p>
+
+    <p><strong>Consequently the harvest precedes the takedown, and that ordering
+    is binding.</strong> The cumulative figure settles the direction but is the
+    reading this plan already warns has misled four sessions; the pre-registered
+    comparison wants a windowed per-interval distribution binned by width, and
+    <em>it can only be taken while job 1271487 is alive</em>. Taking the serve
+    down first destroys a measurement whose supporting counters were themselves
+    recorded because they were about to become uncollectable. The lead's
+    authority covers stopping the serve to make room for V4.1; it is not
+    authority to discard data nobody can collect again. <strong>Harvest, then
+    take it down.</strong></p>
+
+    <p>The same harvest is what §6's last constraint asks for — it is the
+    V4-Flash side of §3's comparison, measured on the configuration actually
+    serving rather than on the stale bins quoted in §3's done-when. Those bins
+    (27.0% / 10.1 tok/s and 26.3% / 6.9 tok/s) were taken with DSpark enabled and
+    should be treated as historical once the harvest lands.</p>
+
+    <h2 id="s2b">§2b — The instruments §3's measure needs, and the two that do not exist</h2>
+
+    <p>A reuse survey at <code>da3c816</code> mapped the six capabilities §3
+    requires. Four reuse existing machinery and must not be re-authored; two do
+    not exist, and one of the two is not merely absent but actively wrong in a
+    way this plan already warned about in the abstract.</p>
+
+    <table>
+      <thead>
+        <tr><th>Capability</th><th>Verdict</th><th>Instrument</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Start / stop a named serve profile on SLURM</td><td>reuse</td><td><code>agent serve</code> and <code>agent shutdown</code>, <code>imas_ambix/agent/cli.py</code></td></tr>
+        <tr><td>Drive real multi-turn clive traffic at a chosen width</td><td>reuse</td><td>Reckon dispatch through the <code>clive</code> backend — real CLI workers, not <code>agent bench</code></td></tr>
+        <tr><td>Publish endpoint and lane documents through a swap</td><td>reuse, with a caution</td><td><code>imas_ambix/agent/registry.py</code>, <code>agent lane --publish</code></td></tr>
+        <tr><td>Restore the V4-Flash profile</td><td>reuse</td><td>the named-profile flow; the ready script republishes the endpoint</td></tr>
+        <tr><td><strong>Windowed per-interval prefix-cache hit rate</strong></td><td><strong>does not exist</strong></td><td>the recorder emits a lifetime ratio by design</td></tr>
+        <tr><td><strong>Decode and prefill binned by concurrency width</strong></td><td><strong>does not exist</strong></td><td>no joiner binds clive stream evidence to receipt intervals</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>The cumulative-ratio trap is in the code, not only in the
+    reading.</strong> <code>imas_ambix/agent/serving_receipts.py</code> computes
+    <code>prefix_cache_hit_rate</code> as a lifetime ratio and assigns that same
+    cumulative value to every emitted row, and a test codifies the behaviour. On
+    two controlled snapshots differing by +2,000 queries and +1,800 hits — an
+    interval truth of <strong>0.9000</strong> — the recorder reports
+    <strong>0.8253</strong>. That is the instrument four sessions read. It must be
+    repaired before either arm is measured, by <em>adding</em> interval delta
+    fields rather than redefining the existing cumulative field, so old rows stay
+    readable as what they were.</p>
+
+    <p><strong>Two operational findings that change the swap procedure.</strong>
+    <code>agent serve</code> exposes no pool-size option, so
+    <code>agent serve deepseek-v4-1-flash</code> cannot by itself produce the
+    14,999,808 pool §3 requires — the pool must become an explicit, reviewable
+    setting rather than a hand-edit at serve time. And the survey reported that
+    the standing lane refresher is a separate <code>ambix-lane</code> SLURM job
+    which a profile shutdown will not stop, so two refreshers would race and
+    re-publish the retired origin. <strong>That second finding is wrong for the
+    running system, and the correction follows.</strong></p>
+
+    <p><strong>Correction — the lane document is published by the router, so the
+    swap is simpler than the survey said.</strong> There is no
+    <code>ambix-lane</code> job in <code>squeue</code>, yet <code>lane.json</code>
+    is rewritten every thirty seconds. <code>RouterApp</code> carries an internal
+    publish task on a thirty-second interval, and its own comment gives the
+    reason it was moved there: a separate job "spent a core of a 30-core GPU
+    reservation on one HTTP read every thirty seconds, while a peer's GPU work
+    pended on Resources with two cards idle". The router "already survives serve
+    rotations", and its resolver is a supplier invoked afresh on every
+    resolution, so it re-reads the endpoint document rather than caching an
+    upstream. <strong>Leave the router running through the swap</strong> — job
+    <code>1271309</code> — and the lane reading follows the new serve within one
+    interval.</p>
+
+    <p><strong>Both mechanisms are real, which is the accurate version of this
+    and corrects a first attempt at the correction.</strong>
+    <code>generate_lane_refresher_script</code> is still in
+    <code>slurm.py</code> and is <em>reachable</em>:
+    <code>agent lane --submit --refresh N</code> calls it and submits a standing
+    <code>ambix-lane</code> job. It is a supported path, not dead code. An
+    earlier note here said nothing called it and that it should be deleted;
+    that was wrong, and deleting it would have removed a live CLI feature.</p>
+
+    <p>So the codebase carries two publication mechanisms whose docstrings argue
+    against each other, and the one in use is not the one that argues hardest.
+    <code>slurm.py</code> makes the case for a separate job in exactly the terms
+    the survey reported; <code>router.py</code> makes the opposite case, cites
+    the reservation core the separate job wasted, and is what actually runs. The
+    survey asked what the source says publishes the lane and got a true answer
+    about the mechanism that is available rather than the one that is running —
+    an aimed-instrument error, not carelessness, and one the source invites.</p>
+
+    <p><strong>The swap-time consequence is a precondition, not a
+    deletion.</strong> The scout's race is real but conditional: it needs an
+    <code>ambix-lane</code> job to exist, and none does. So before the swap,
+    require <code>squeue</code> to show no <code>ambix-lane</code> job, and if
+    one has appeared, stop it by its exact id — never with <code>--all</code>,
+    which would take the serving jobs too. Leave the router alone either way.</p>
+
+    <p><strong>Done when:</strong> the receipts recorder emits per-interval query
+    and hit deltas and an interval ratio alongside the retained cumulative
+    fields, with the 0.9000 case as a test; a collector joins real clive stream
+    evidence to receipt intervals and bins per-worker decode and prefill rate by
+    width, refusing synthetic benchmark records; and the 14,999,808 pool is
+    selectable through a reviewable setting. These are what make §3's done-when
+    measurable at all.</p>
+
+    <h3 id="interval-receipt-deltas">Receipt interval fields landed</h3>
+
+    <p><a href="/imas-ambix/evidence/archive/dsv41-flash-four-card-throughput-landed.html#interval-receipt-deltas">The cumulative evidence record</a>
+    records commit <code>e112152</code>: later receipt rows carry query and hit
+    deltas plus the interval hit rate, while first rows carry null interval
+    fields. The controlled snapshots prove the required split — 2,000 queries
+    and 1,800 hits yield an interval rate of <strong>0.9000</strong>, while the
+    retained cumulative <code>prefix_cache_hit_rate</code> remains
+    <strong>0.8253</strong>. The focused receipt suite passed 15 of 15 tests
+    before and after the change, and lint passed. The width-binned collector and
+    reviewable pool setting remain separate work in this section.</p>
+
+    <h2 id="s3">§3 — The one thing that was never measured</h2>
+
+    <p>The retired plan's §4 was to drive <em>real agent traffic</em> through
+    V4.1 with clive workers. It was closed unrun, correctly, because the serve
+    had been taken down by then. It is the only section of that plan that did not
+    land, and it is the only measurement that could overturn the close.</p>
+
+    <p>The reason it matters is specific rather than hopeful. This lane's
+    throughput problem is not decode — it is that the prefix cache returns 25.7%
+    where multi-turn agent traffic should approach 90%, so roughly three quarters
+    of every prompt is recomputed, and that recomputation is what evicts the next
+    session's prefix. Turnover is <code>pool ÷ prefill rate</code>: about 165
+    seconds on V4-Flash's 2.8M pool, which is inside a worker's think-and-tool
+    gap, so a prefix is often gone before its own next turn arrives.</p>
+
+    <p><strong>V4.1's pool is 5.3× larger.</strong> At the same prefill rate that
+    is roughly 880 seconds of prefix survival instead of 165 — comfortably beyond
+    an agent turn gap. If the hit rate rises accordingly, prefill volume falls,
+    and per-worker decode under real load rises toward the idle rate rather than
+    collapsing to a seventh of it.</p>
+
+    <p>So the genuine question is a trade with a measured cost and an unmeasured
+    benefit: <strong>V4.1 gives up 2.5× on raw decode and buys 5.3× on pool. On
+    real agent traffic, which wins?</strong> V4-Flash keeps 86.6 unloaded and
+    delivers 6.9–10.1 loaded; if V4.1 keeps a larger fraction of its 34.4, it
+    could deliver more under load while being far worse on paper.</p>
+
+    <p><strong>Done when:</strong> real clive workers have run sustained
+    multi-turn work against a V4.1 serve, with per-worker decode binned by
+    concurrency and the prefill rate recorded beside it, and a windowed internal
+    prefix-cache hit rate taken as a distribution of per-interval deltas at a
+    stated concurrency — not a cumulative ratio, which has misled four sessions
+    on this lane. The comparison bins are V4-Flash at 27.0% and 10.1 tok/s for
+    10–14 concurrent, and 26.3% and 6.9 tok/s for 15–19.</p>
+
+    <h3 id="s3-paired">§3a — The two arms must run the same traffic, and that has to be arranged in advance</h3>
+
+    <p>§3 compares a V4-Flash arm and a V4.1 arm. <strong>If each arm improvises
+    its own workload, the comparison measures the workload rather than the
+    serve</strong> — and nothing above says otherwise, which is how this would
+    have been missed. The measured problem on this lane is prefix reuse, and
+    prefix reuse is a property of the prompts: two task sets with different
+    context growth or different repetition produce different hit rates on an
+    identical engine. The arms are hours apart and on different checkpoints, so
+    the only thing that can hold the workload constant is a recorded artifact.</p>
+
+    <p><strong>The V4-Flash arm therefore produces two deliverables, and the
+    second is a prerequisite rather than a courtesy:</strong> the measurement,
+    and a <em>replayable task set</em> — the concrete agent tasks, their order,
+    their concurrency schedule, and the seed or fixture that makes the sequence
+    reproducible. The V4.1 arm replays that artifact rather than authoring its
+    own, and records that it did so. A V4.1 arm that cannot name the artifact it
+    replayed has not produced a comparison.</p>
+
+    <p>The generator is real clive sessions — multi-turn, real tool calls, real
+    context growth. It is explicitly <strong>not</strong> <code>agent bench</code>,
+    whose prompt is a fixed single turn that barely touches the KV pool and is
+    the exact shape §2 warns must not be compared against real traffic. The
+    fleet runs inside one SLURM allocation on a <code>*_debug</code> partition,
+    never on the login node.</p>
+
+    <p><strong>One run, three results.</strong> The V4-Flash arm is also the
+    post-measurement of the pre-registered draft-group veto test, whose baseline
+    was taken with DSpark enabled and whose current serve has it disabled. The
+    same windowed, width-binned instrument answers both questions, so the arm is
+    dispatched once and reports the veto verdict against its own pre-registered
+    bands alongside the comparison numbers.</p>
+
+    <h2 id="s4">§4 — Two structural handicaps, and whether either is removable</h2>
+
+    <p>The retired plan named three candidate causes for 34.4 tok/s against the
+    300–507 the vendor reports on their own stack. One has since been settled —
+    DSpark cannot start. The other two are properties of this checkpoint on
+    Hopper rather than settings, and they bound how much §3 can possibly
+    recover:</p>
+
+    <ul>
+      <li><strong>MXFP4 experts dequantise rather than using native FP4 tensor
+      cores</strong>, because H200 is SM90 and FP4 silicon arrived with
+      Blackwell. Not removable on this hardware at all.</li>
+
+      <li><strong>Engram tables gathered from host memory rather than HBM.</strong>
+      The tables are 196.6B parameters at FP8, about 183 GiB. Four cards hold
+      561 GB against a 511 GB checkpoint, so they cannot be resident; eight cards
+      at 1128 GB could. <em>This is the concrete content of "needs eight cards"</em>,
+      and it is the one handicap that a topology change would remove.</li>
+    </ul>
+
+    <p class="landed-summary"><span class="badge badge-shipped">✓ landed
+    2026-09-15</span> <strong>The third possibility is closed: the image carries
+    the fix.</strong> Read from the SIF's own SquashFS source rather than the
+    mutable tag — engine commit <code>da64c5cb</code>, <code>SWA_WINDOW = 128</code>
+    with <code>PAGE_INDEX_ALIGNED_SIZE = 64</code> giving a derived prefill row
+    width of 128 and zero occurrences of 1152 in the builder. The suspected 1152
+    is real and observable in the checkpoint config as vision 1024 plus text 128,
+    and the prefill builder does not use it. So §3's numbers carry no index-width
+    penalty and are attributable to the two structural handicaps above. Full
+    record:
+    <a href="/imas-ambix/evidence/archive/dsv41-flash-four-card-throughput-landed#swa-index-width">SWA
+    index-width attribution</a>.</p>
+
+    <h2 id="s7">§7 — The question was withdrawn and replaced by a decision</h2>
+
+    <p><strong>This plan stopped being an experiment on 2026-09-15.</strong> The
+    lead's direction, in their words: the V4 loaded numbers are already well
+    characterised and poor, and <em>"I want the better capability 4.1 with the
+    larger prefill cache"</em>. That is an adoption decision, not a hypothesis,
+    and it retires §3's comparison as the thing that decides anything. §5's
+    resolution table below is therefore <strong>overtaken</strong> — it describes
+    putting a verdict back to the lead, and the lead has gone first.</p>
+
+    <p>Three consequences, recorded because each changed what was being built.
+    <strong>The V4-Flash arm is cut</strong>, not deferred: this plan measures
+    nothing on the retired checkpoint, and the drafter-restore decision its data
+    would have served is already routed to the plan that owns it.
+    <strong>§3 survives as post-serve observation rather than as a gate</strong> —
+    worth recording once V4.1 carries real traffic, and no longer permitted to
+    hold anything shut. And the target moved with the framing: the aim is
+    <em>comparable loaded throughput, a little less being acceptable</em>, bought
+    against a better model and a 5.3× pool. The 80/50 figures were written for a
+    comparison that is no longer the question.</p>
+
+    <p><strong>What replaced it is a configuration problem, and it is the real
+    work.</strong> Serving V4.1 correctly the first time turned out to need four
+    things the plan had not asked for: the large pool as the profile's plain
+    default rather than behind a selector; a decision on whether the 2026-09-14
+    image carries reverted upstream code; the lane's advertised context window
+    corrected from 1,016,576 to a measured figure; and the lane's model and alias
+    keys reconciled with the served name.</p>
+
+    <h2 id="s8">§8 — The swap would have restored a lane that failed every request</h2>
+
+    <p>This is the finding that justifies not rushing the serve, and it was
+    surfaced by two peer coordinator sessions asking about a context window
+    rather than by anything this plan was looking for.</p>
+
+    <p><code>reckon/_backends.py:1295</code> passes the backend's
+    <code>model</code> key to the launcher as <code>--model</code>. The clive
+    block in flight config reads <code>model: deepseek-v4-flash</code> and
+    <code>alias: dsv4-flash</code>, and V4.1 serves as
+    <code>deepseek-v4.1-flash</code>. <strong>So every clive dispatch after the
+    swap would have requested a model the endpoint no longer offers — the lane
+    up, health probes green, every request failing.</strong></p>
+
+    <p><strong>And the obvious remedy would not have caught it.</strong>
+    <code>scripts/refresh_clive_context_window.py</code> exists precisely because
+    this value is a copy of a deployment property, and it rewrites
+    <code>usable_input_window</code> — one of the three stale keys. Running it
+    would have reconciled a third of the block while reporting success, which is
+    worse than not running it, because it would have retired the suspicion.</p>
+
+    <table>
+      <thead>
+        <tr><th>Key</th><th>Stale value</th><th>Fixed by the refresher today</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>usable_input_window</code></td><td>1,016,576</td><td>yes</td></tr>
+        <tr><td><code>model</code></td><td><code>deepseek-v4-flash</code></td><td><strong>no</strong></td></tr>
+        <tr><td><code>alias</code></td><td><code>dsv4-flash</code></td><td><strong>no</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>The window figure is 172,800, and the arithmetic is not the one to
+    carry in your head.</strong> 204,800 is the engine's context cap;
+    <code>imas_ambix/agent/clive.py:623-630</code> sets the output reservation to
+    <code>MAX_CONTEXT / 4</code> capped at 32,000, so at this cap the ceiling
+    binds, the reservation is 32,000, and the usable input window is 172,800. Below
+    a 128,000 window the quarter rule would govern instead — which is why the
+    refresher parses the reservation rather than hardcoding it, and why a
+    hand-computed figure is right today and wrong after the next change. Two
+    independent confirmations: flight config's own note records 172,800 being set
+    on 2026-09-14, and six rows in reckon's ledger carry that window under this
+    alias.</p>
+
+    <p><strong>The config note outlived the fix it describes.</strong> That note
+    sits sixty-eight lines above a live value of 1,016,576 — so the repair was
+    made, undone, and its account left standing over the value that reproduces
+    the failure, including the HTTP 400 refusals it warns about. A precise record
+    of a defect directly above the defect is worse than no record, because it
+    reads as current. <strong>Done when:</strong> one command reconciles all
+    three keys from the live endpoint, so the block cannot be two-thirds stale
+    again.</p>
+
+    <h3 id="lane-fetch-compression">Compressed metrics decode landed</h3>
+
+    <p>Commit <code>df58ea3</code> makes <code>fetch_lane_capacity</code> decode
+    declared <code>gzip</code> and <code>deflate</code> bodies before parsing the
+    Prometheus text. The controlled gzip receipt reproduced the base failure as
+    <code>ValueError: engine metrics carry no KV pool size</code>: replacement
+    UTF-8 decoding turned compressed bytes into text that carried no valid metric
+    samples. The fixture-backed regression compares the same SGLang receipt as
+    plain text and as a gzip response; both yield the same capacity. Four focused
+    lane tests passed and <code>ruff check imas_ambix tests</code> exited zero.</p>
+
+    <p>The live receipt was taken after restarting only the two-core router; the
+    four-card SGLang serve remained job <code>1271741</code>. A one-shot lane
+    fetch of <code>http://98dci4-gpu-0003.iter.org:18810</code> published
+    <code>state: measured</code> with <strong>4,000,000 pool tokens</strong>.
+    The router was then restored from the canonical checkout as job
+    <code>1271755</code>. Its separate direct <code>aiohttp</code> metrics loop,
+    outside this change's declared path, still reports the gzip
+    <code>UnicodeDecodeError</code>; that repair remains a follow-on rather than
+    evidence that this fetch path did not land.</p>
+
+    <h2 id="s8a">§8a — How to prove a bind-mounted kernel patch is in the compiled artifact</h2>
+
+    <p><strong>This is the measure that binds, and it is written down because two
+    weaker versions of it were accepted first.</strong> The subject is a one-line
+    patch to a JIT-compiled CUDA header bind-mounted over the container's copy.
+    The failure mode is specific: a patch present in the file and absent from the
+    compiled kernel looks identical to a working patch from every angle except
+    the one that matters, and the defect it exists to prevent is silent KV-cache
+    corruption under load — nothing crashes to tell you.</p>
+
+    <p><strong>First rejected version:</strong> show the patched file is bound and
+    the diff is one line. Satisfiable while the kernel never recompiles. It
+    asserts about the source, and the source is not what runs.</p>
+
+    <p><strong>Second rejected version:</strong> bind a deliberately broken copy
+    and show the compile fails naming that file. Better — it proves the bind
+    reaches the compiler — but only on a <em>cold</em> cache. It does not exclude
+    a warm cache populated before the bind existed, where the patched source is
+    read and a stale artifact is used regardless.</p>
+
+    <p><strong>Third rejected version, and the instructive one:</strong> using one
+    persistent cache directory, compile unpatched to artifact A, bind the patch,
+    compile to artifact B, and require <code>B ≠ A</code>. This has a hole that
+    is invisible until named: <em>"different" is also what a non-reproducible
+    build produces.</em> Embedded timestamps, absolute paths or a build id make
+    every compile differ, so <code>B ≠ A</code> passes without the cache having
+    been consulted at all, and the check reports success for a reason unrelated
+    to its claim.</p>
+
+    <p><strong>The rule the third version violates, stated generally because the
+    control is only its instance.</strong> Ask what a check does on the
+    <em>worst</em> input it could receive, not the expected one. If the answer is
+    "passes, and more emphatically", the check is measuring its own form rather
+    than its subject. That is a worse failure than a check that cannot fire and
+    than one that fires wrongly, because <strong>its pass probability rises with
+    the severity of the condition it exists to detect</strong> — it grows more
+    convincing as it grows more vacuous, so the evidence feels strongest exactly
+    where it is worth least. A compiler embedding a timestamp is the ideal
+    subject for an artifact-inequality measure and the one it can say nothing
+    about.</p>
+
+    <p><strong>The measure, with the control that closes it — one extra
+    compile:</strong></p>
+
+    <table>
+      <thead>
+        <tr><th>Step</th><th>Artifact</th><th>Requirement</th><th>What it establishes</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>compile unpatched</td><td>A</td><td>—</td><td>baseline</td></tr>
+        <tr><td>compile unpatched again</td><td>A&prime;</td><td><strong>A = A&prime;</strong></td><td><em>the control</em>: output is reproducible, so a later difference is attributable</td></tr>
+        <tr><td>bind patch, compile</td><td>B</td><td><strong>B &ne; A</strong></td><td><em>the measure</em>: the bind reached the compiled artifact</td></tr>
+      </tbody>
+    </table>
+
+    <p>Without the middle step, <code>B ≠ A</code> is consistent with both "the
+    patch was compiled" and "this compiler never emits the same bytes twice".
+    With it, the inequality can only come from the patch.</p>
+
+    <p><strong>And <code>A ≠ A′</code> is not a failed run — it is the finding.</strong>
+    A non-reproducible artifact means no patch can ever be proven present by
+    comparing artifacts, so verification must move to something derived from the
+    source rather than from artifact identity: a symbol, a constant, or an
+    instruction sequence the patch changes. Record that outcome as the result
+    rather than retrying for a pass.</p>
+
+    <p><strong>Two acceptable answers on the cache, and the second is better for
+    the fleet.</strong> If the cache key derives from a hash of the source, the
+    cache is content-addressed, a changed source can never hit a stale entry, and
+    demonstrating the key derivation settles the question outright. If it does
+    not, the bind is unsafe as a standing configuration and a fresh cache
+    directory per launch becomes <em>part of the deliverable</em> — not a
+    workaround to remember, because a rule with no check is how this class of
+    defect returns.</p>
+
+    <h2 id="s11">§11 — What this deployment can actually do, measured</h2>
+
+    <p><strong>V4.1-Flash serves on four H200 and is load-proven.</strong> Not
+    started-and-answered-a-toy: a 203,241-token agentic-shaped prefill — long
+    system prompt, 52 tool definitions, 170-turn history — returned in 30
+    seconds. Everything below is measured on this deployment rather than
+    inferred from the checkpoint or the vendor.</p>
+
+    <table>
+      <thead>
+        <tr><th>Quantity</th><th>Value</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Per-request context / usable input</td><td>512,000 / <strong>480,000</strong></td></tr>
+        <tr><td>Largest prefill absorbed</td><td><strong>511,993 tokens</strong>, 34 s</td></tr>
+        <tr><td>Widest measured concurrency</td><td><strong>32/32</strong> at 210k each, <strong>12/12</strong> at 415k each</td></tr>
+        <tr><td>Peak aggregate decode</td><td><strong>794 tok/s</strong> at width 32, short prompts</td></tr>
+        <tr><td>Peak aggregate prefill</td><td>12,248 tok/s at width 12</td></tr>
+        <tr><td>Smallest prefill that killed a serve</td><td>~300,000, before the headroom levers</td></tr>
+        <tr><td>Device KV pool</td><td>4,000,000 tokens (20.63 GB/card)</td></tr>
+        <tr><td>Host KV tier (hierarchical cache)</td><td><strong>8,000,000 tokens</strong>, ~172 GB across four ranks</td></tr>
+        <tr><td>Free HBM at ready</td><td>52.62 GB/card, with the levers applied</td></tr>
+        <tr><td>Weights (Engram host-offloaded)</td><td>72.73 GB/card</td></tr>
+        <tr><td>Startup to ready</td><td>~6 min warm, ~11 min cold</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Total KV capacity went UP, not down.</strong> The reclaim replaced
+    a 15M-token device pool with 4M device plus 8M host — 12M against 15M in
+    nominal capacity, while freeing 16.82 GB per card of HBM. The pool was not
+    sacrificed for headroom so much as relocated into memory that was sitting
+    unused, which is the one change tonight that was strictly better rather than
+    a trade.</p>
+
+    <h3 id="s11-ceiling">The context ceiling, and a claim withdrawn</h3>
+
+    <p><strong>This deployment's maximum is 512,000, not the checkpoint's
+    1,048,576.</strong> A 1,024,000 setting was committed and withdrawn the same
+    evening after measurement: it accepts a 300k request and dies serving it,
+    re-creating precisely the hazard §4's cap exists to prevent. The model's
+    maximum and the deployment's maximum are different numbers and were
+    conflated. 512,000 was then set on a measurement rather than on the
+    checkpoint's advertised window: a 511,993-token prefill served in 34 seconds
+    with roughly 16 GB of card memory still spare, and an over-cap request
+    refused cleanly with the serve surviving.</p>
+
+    <p><strong>Activation memory binds, not the workspace.</strong> The
+    fused-MoE workspace ask grows <em>sublinearly</em> — 9.00 GiB at ~300k
+    against 10.11 GiB at ~500k, twelve percent for sixty-seven percent more
+    tokens — while a single 203,241-token request consumes 37.1 GB of the 40.65
+    GB available. So per-token activation cost of roughly 183 KB is what sets
+    the ceiling. This is why the pool reclaim moved it and the context raise did
+    not: the reclaim added activation headroom, which is the scarce quantity.</p>
+
+    <p><strong>Concurrency is now measured, to width 32.</strong> Thirty-two
+    concurrent 210,240-token prefills all completed, demanding 1.68&times; the
+    nominal pool with a 4 MiB memory delta; twelve concurrent 415k prefills all
+    completed at 1.25&times;. Aggregate prefill throughput rises 1.0 / 1.91 /
+    2.77 across widths 4 / 8 / 12, so concurrency buys throughput rather than
+    only trading latency for it.</p>
+
+    <p><strong>Width 64 is not measured, and two readings that appeared to
+    measure it are withdrawn.</strong> Both reused payloads and so reported
+    cache replay &mdash; the larger 526,788 tok/s at a hit rate of 0.9989. The
+    genuine 64-wide run was killed mid-flight when the synthetic suite came down
+    for real traffic. 64 holds as a worker ceiling on structure rather than
+    evidence: the running batch is bounded at 64, the queue is unbounded so
+    surplus requests wait instead of failing, and a 16,384-token prefill bound
+    caps activation independently of width.</p>
+
+    <h3 id="s11-levers">The levers are spent, and the serve is open to real work</h3>
+
+    <p>Three changes shipped together and moved the ceiling 2.5&times;:
+    <code>expandable_segments</code> for allocator fragmentation, the prefill
+    chunk halved to 16,384, and the running-request bound cut from 256 to 64.
+    Shipped in one restart at the lead's direction, so the gain is unattributed
+    between them. <em>A different <code>moe_runner_backend</code> remains
+    unattractive</em>: the workspace is not the binding term, so replacing the
+    MoE runner would address the quantity that is not scarce.</p>
+
+    <p><strong>2026-09-16 08:30Z: the synthetic suite is down and the serve is
+    handed over.</strong> Drained to zero, prefix cache flushed to a 0.0 hit
+    rate so real traffic measures from clean, and answering through the routing
+    origin the launcher uses. <code>usable_input_window</code> was re-derived
+    from the live endpoint to 480,000 before any dispatch. The remaining figure
+    nobody has is the one that matters &mdash; per-worker throughput on real
+    agent turns, which carry prefill the synthetic decode sweep does not. Detail
+    in the
+    <a href="/imas-ambix/evidence/archive/dsv41-flash-four-card-throughput-landed#handover-to-real-traffic">handover record</a>.</p>
+
+    <h2 id="s10">§10 — The bring-up sequence</h2>
+
+    <p>Every step below exists because something was found the hard way today.
+    Run it in order; each check is cheap and each one guards a failure that is
+    silent if skipped.</p>
+
+    <table>
+      <thead>
+        <tr><th>#</th><th>Step</th><th>Guards</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td><code>squeue</code> shows no <code>ambix-lane</code> job</td>
+          <td>A standing refresher would race the router and re-publish the retired origin. None runs today, but the CLI can submit one, so this is a check rather than an assumption (§2b).</td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td>Leave the router job alone</td>
+          <td>It publishes the lane document from an internal task and re-reads the endpoint on every resolution, so it survives the rotation. Restarting it is unnecessary and costs the lane its publisher (§2b).</td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td>Warn peer sessions holding <code>--local</code> work</td>
+          <td>One peer had a live clive worker mid-gate and banked it on a minute's notice. Also tell them when it is <em>back</em> — the return edge is the expensive one for them to establish.</td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td><code>agent shutdown deepseek-v4-flash --yes</code></td>
+          <td>Its EXIT trap empties the endpoint document, which is what lets the router converge. Never <code>--all</code>: it would take the router and every other serve with it.</td>
+        </tr>
+        <tr>
+          <td>5</td>
+          <td><code>agent serve deepseek-v4-1-flash</code> — plain, no selector</td>
+          <td>The pool is the profile default now. Expect ~11 minutes to ready: weight load off GPFS dominates, so size any health-check patience accordingly.</td>
+        </tr>
+        <tr>
+          <td>6</td>
+          <td>Confirm from the serve's own <code>server_args</code>, not the profile</td>
+          <td><code>max_total_tokens</code> 14,999,808 and <code>context_length</code> 204,800. The profile is a statement of intent; the dump is what runs.</td>
+        </tr>
+        <tr>
+          <td>7</td>
+          <td>Run <code>scripts/refresh_clive_context_window.py</code></td>
+          <td>Reconciles <code>usable_input_window</code> and <code>model</code> from the live endpoint, and <code>alias</code> from its recorded mapping. <strong>Without this the lane is up and every dispatch fails</strong>, because the backend's model key is passed to the launcher as <code>--model</code> (§8).</td>
+        </tr>
+        <tr>
+          <td>8</td>
+          <td>Expect the window to read <strong>172,800</strong></td>
+          <td>Not 204,800. The engine cap less the launcher's output reservation. If the script reports something else, believe the script — it parses the reservation, and the formula's ceiling only binds above a 128,000 window.</td>
+        </tr>
+        <tr>
+          <td>9</td>
+          <td>Prove a real completion through the router, not just <code>/v1/models</code></td>
+          <td>A health probe answers while generation is broken. The endpoint returning 200 is necessary and not sufficient.</td>
+        </tr>
+        <tr>
+          <td>10</td>
+          <td>Tell the peers it is serving, with the measured window</td>
+          <td>Two independent sessions asked for this figure because the alias has already meant three different windows in their ledger.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p><strong>The restore path, unchanged and one command:</strong>
+    <code>agent shutdown deepseek-v4-1-flash --yes</code> then
+    <code>agent serve deepseek-v4-flash</code>, followed by step 7 again so the
+    lane block follows the rotation back. The V4-Flash profile in git at plan
+    start is the restore point.</p>
+
+    <h3 id="pool-and-hicache">Bounded device pool and host-tier prefix cache landed</h3>
+
+    <p><a href="/imas-ambix/evidence/archive/dsv41-flash-four-card-throughput-landed.html#pool-and-hicache">The cumulative evidence record</a>
+    records the candidate configuration: a 4,000,000-token device pool, a
+    two-times host HiCache tier, selective write-through, and a 480G SLURM
+    request. The pinned image establishes that DeepSeek-V4 rejects a fixed
+    <code>--hicache-size</code> and must be sized with
+    <code>--hicache-ratio</code>. The candidate has not been load-proven:
+    only a long-prefill serve can establish that; it is not launched by this
+    node.</p>
+    <h3 id="prefill-ceiling-calibrated">Calibrated native-context probe</h3>
+    <p>A disposable TP4 serve exposed the native 1,048,576-token context only
+    in an uncommitted worktree profile. Its server receipt held
+    <code>chunked_prefill_size=32768</code>; a direct tokenizer check proved the
+    request generator one-for-one before the result was read. The trustworthy
+    lower result is <strong>90,004 prompt tokens completed</strong>; the warmed
+    process then died at an approximately 135,004-token calibrated midpoint,
+    a 45,000-token operational bracket. This is deliberately not promoted to a
+    fresh-process ceiling because the midpoint followed the lower request in the
+    same process. The crucial attribution is stronger than the provisional
+    ceiling: idle headroom was 23.05 GiB per card, long prefill consumed roughly
+    21.6–22.0 GiB before a late 7.52 GiB fused-MoE workspace request, and the
+    repeated fixed-size workspace is consistent with chunk-bounded workspace
+    rather than total-sequence scaling. The context pin remains necessary
+    because activation memory, not the workspace alone, exhausts the card.
+    Full receipt: <a href="/imas-ambix/evidence/archive/dsv41-flash-four-card-throughput-landed.html#prefill-ceiling-calibrated">calibrated prefill evidence</a>.</p>
+
+    <h2 id="s9">§9 — There is no newer image for this checkpoint, and there cannot be one</h2>
+
+    <p><strong>Read this before ever "updating sglang" on this deployment. Doing
+    so would stop the model loading.</strong> The lead asked for the latest build
+    with all fixes; the answer is that we are already on it, and the reason is
+    structural rather than a matter of being current.</p>
+
+    <table>
+      <thead>
+        <tr><th>Question</th><th>Answer</th><th>How it was established</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>What commit does our image carry?</td><td><code>da64c5cb</code>, authored <strong>2026-09-11</strong></td><td>SIF label, then the commit's own author date</td></tr>
+        <tr><td>Is it on <code>main</code>?</td><td>No — <code>diverged</code>, 15 commits main lacks</td><td><code>compare</code> against main</td></tr>
+        <tr><td>Can <code>main</code> serve this checkpoint?</td><td><strong>No.</strong></td><td>no <code>deepseek_v41_vit.py</code>; <code>deepseek_v4.py</code> is 170,193 B on main against <strong>211,019 B</strong> at our commit</td></tr>
+        <tr><td>Is there a newer published image?</td><td>No — the <code>dev-dsv41</code> tag was last pushed <strong>2026-09-11</strong></td><td>registry tag listing; it matches the commit we run</td></tr>
+        <tr><td>Can we build from the branch?</td><td>No — the branch is <strong>deleted upstream</strong></td><td><code>branches/dev-dsv41</code> returns 404</td></tr>
+      </tbody>
+    </table>
+
+    <p>So the V4.1 support this deployment depends on lives on a feature branch
+    that was never merged to <code>main</code> and has since been removed. Our
+    image is the only artifact that can load
+    <code>DeepseekV41ForCausalLM</code>, and it is simultaneously the newest such
+    artifact in existence. <strong>"Upgrade to the latest release" is not a
+    conservative action here; it is the destructive one.</strong> The latest
+    release, v0.5.19 of 2026-09-05, predates V4.1 support entirely.</p>
+
+    <p><strong>The one fix that is reachable, and why it is reachable.</strong>
+    Upstream PR #38409 moves a single line: the read of <code>params.out_loc</code>
+    happens <em>before</em> the PDL barrier rather than after it, so the kernel
+    reads the K-cache output index while the predecessor kernel may still be
+    writing it. That is a race producing <strong>silent KV-cache corruption
+    under load</strong> — no crash, load-dependent, non-deterministic. It merged
+    to <code>main</code>, which we cannot take; but the affected kernel ships in
+    our image as <em>plain JIT source</em> with no precompiled objects anywhere
+    under the kernels tree, so the fix is a bind-mounted one-line patch rather
+    than a rebuild.</p>
+
+    <p><strong>A build date is not a commit date, and reading one as the other
+    cost this session two wrong recommendations.</strong> The SIF's
+    <code>build-date</code> label reads 2026-09-14 08:30; the code in it is from
+    09-11. On the wrong date the gap to main looked like 65 commits and a
+    one-day-old build, which supported a confident "rebuild through 2123aca" that
+    was given twice and was not actionable at all. The correct distance is 522
+    commits and <em>diverged</em>, which is a different kind of fact and points
+    the opposite way. <strong>Take the age of an artifact from the artifact's
+    contents, never from when it was packaged.</strong></p>
+
+    <h2 id="s5">§5 — Resolution <span class="badge">superseded by §7</span></h2>
+
+    <table>
+      <thead>
+        <tr><th>Outcome of §3</th><th>Action</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Loaded per-worker beats V4-Flash on real traffic</td>
+          <td>Record the number and the hit rate that produced it, and put the four-card decision back to the lead with both. This would overturn a close made on operator judgement, so it is reported rather than acted on unilaterally. Note that it can beat V4-Flash without reaching 50.</td>
+        </tr>
+        <tr>
+          <td>Loaded per-worker is no better than V4-Flash</td>
+          <td>Close the four-card V4.1 question permanently with a recorded measurement rather than a judgement, and say so in the profile so it is not reopened a fourth time. The pool advantage did not convert, and the decode handicap is structural on Hopper.</td>
+        </tr>
+        <tr>
+          <td>The hit rate does not rise despite the 5.3× pool</td>
+          <td>That is the more interesting negative and it belongs in the record whichever way the throughput lands: it would mean turnover is not what bounds the hit rate, which contradicts the current working model of this lane and would redirect the V4-Flash work that rests on it.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>In every branch the four cards end serving something. The V4-Flash profile
+    in git at plan start is the restore point and is one
+    <code>imas-ambix agent serve</code> away.</p>
+
+    <h2 id="s6">§6 — Constraints</h2>
+
+    <ul>
+      <li><strong>Taking V4-Flash down stops the local lane.</strong> The lead has
+      authorised it. Warn the peer coordinator sessions holding clive runs first;
+      recovery is <code>crew resume</code>, never redispatch, and promoting a
+      killed run destroys its resume path.</li>
+
+      <li><strong>Lower <code>max_num_seqs</code> for the evaluation.</strong>
+      Upstream reports a Triton illegal memory access in <code>dsv4_topk</code>
+      under high concurrency, mitigated by <code>max_num_seqs=256</code>. This
+      deployment runs 1024.</li>
+
+      <li><strong>Do not re-run the synthetic ladder.</strong> The concurrency
+      sweep is landed. A synthetic probe on this hardware once reached 8,479
+      tok/s aggregate at 1,023 concurrent and told us nothing about agent
+      sessions, while killing a serve and four workers.</li>
+
+      <li><strong>The V4-Flash baseline is moving.</strong> A data-parallel
+      replica split is staged and unmeasured; a memory-fraction return to 0.85
+      and a smaller prefill chunk are committed and unlanded. Record which
+      V4-Flash numbers the comparison used.</li>
+    </ul>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="target-unit" data-choice="per-worker" data-by="reckon-ship" data-when="2026-09-15T16:12:48+00:00">
+    <p class="r-dec-q">Is the 80 / 50 tok/s target per worker or per card?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="per-worker">per worker</button>
+      <button class="r-opt" data-value="per-card">per card</button>
+      </p>
+    <p class="r-dec-rat">Locked on the plan&#x27;s own argument, which needs no measurement: per worker is the unit every baseline in this repository is expressed in, it is what a worker experiences, and per-card decode is not a quantity the engine reports because a single request is served by all four cards at once. The consequence is accepted rather than worked around — the 50 tok/s loaded target is above V4.1&#x27;s measured 34.4 tok/s idle ceiling, so V4.1 cannot reach the target on four cards. Section 5 already provides for this: the live comparison is against V4-Flash&#x27;s loaded per-worker figures, and beating those without reaching 50 is a real outcome. Reading the target per card would let a synthetic aggregate clear a bar no worker ever experiences.</p>
+    </div>
+<div class="r-dec" data-key="worth-the-cards" data-choice="run-it" data-by="reckon-ship" data-when="2026-09-15T16:12:48+00:00">
+    <p class="r-dec-q">Given §2, is §3 worth the lane downtime and a 511 GB checkpoint?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="run-it">run §3</button>
+      <button class="r-opt" data-value="close-it">close on the landed evidence</button>
+      <button class="r-opt" data-value="eight-cards">defer to an eight-card window</button>
+      </p>
+    <p class="r-dec-rat">The lead authorised taking the four-card DSv4 serve down to serve this variant, which settles the lane-downtime half. Two facts found while scoping move the cost and the value in the same direction. The 511 GB download is already paid: the checkpoint is resident at /work/projects/imas_gpu/agents/deepseek-v4-1-flash, 476 GiB, with a committed serve profile beside it. And the competing explanation for this lane&#x27;s prefix hit rate has just been eliminated on the live serve — the draft-group veto test reads 28.8 percent, inside its own pre-registered no-veto band of 17-40 and nowhere near the 88.9-100 a gating veto predicted. Removing the drafter did not move the hit rate, so pool turnover is the leading remaining candidate, and pool size is precisely what section 3 varies.</p>
+    </div>
+</section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-dsv41t-01" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="imas-ambix-92" data-written-at="2026-09-15 16:45" data-recommends-skill="" data-resolved-at="2026-09-15T21:42:17+00:00" data-resolved-by="reckon-ship">
+    <h4 class="r-fu-title">Lock both decisions before any serve is touched</h4>
+    <div class="r-fu-body"><p>The target-unit decision determines whether this plan can pass at
+          all, and the worth-the-cards decision determines whether it runs. Both
+          are answerable from what is already recorded here — neither needs a
+          measurement — and locking them first avoids spending lane downtime and
+          a 511 GB download on a question whose answer is already arithmetic.</p>
+<p>Read <code>dsv41-flash-serve-characterisation</code> before
+          dispatching anything. Its §1 and §2 are landed and must not be
+          re-measured; its §4 is the only open experiment and is this plan's §3.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship dsv41-flash-four-card-throughput §3</pre>
+    <p class="r-fu-outcome">Both decisions locked at the start of the session, before any serve was touched, which is what this followup asked for. target-unit locked per-worker on the plan's own argument: it is the unit every baseline here uses and per-card decode is not a quantity the engine reports. worth-the-cards locked run-it, on the lead's takedown authority plus two facts found while scoping — the 511 GB download was already paid, and the competing explanation for the lane's prefix hit rate had just died on the live serve. The followup's premise then dissolved rather than being satisfied: it framed the choice as whether to spend lane downtime on an experiment, and the lead subsequently withdrew the experiment and asked for V4.1 to be adopted for its capability. Recorded in section 7.</p>
+    </article>
+<article class="r-fu" data-id="f-dsv41t-02" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-capability-verification="strict" data-written-by="reckon-ship" data-written-at="2026-09-15 16:50" data-recommends-skill="" data-resolved-at="2026-09-18T08:32:28+00:00" data-resolved-by="smc">
+    <h4 class="r-fu-title">The veto test&#x27;s own restore rule has fired, and three red tests are waiting on that decision</h4>
+    <div class="r-fu-body"><p><strong>Owned by <code>dsv4-flash-dspark-four-card-serve</code>, not by this plan.</strong> Recorded here because this session found it and must not act on it.</p><p>Three tests in <code>tests/test_agent_dspark_profile.py</code> fail at base and are unrelated to this plan's work: they assert the four-card V4-Flash profile's DSpark flags and its TP4/DP1 topology, both of which this afternoon's commits changed. The failures are real, attributable, and were carried unchanged through this plan's gates as a recorded delta of zero.</p><p>They should not be repaired by editing the assertions, because that would bake in a configuration the evidence says is about to be reverted. The commit that disabled DSpark stated its own restore rule — the settings stay commented in the file so that <em>restoring them is one edit if the hit rate does not move</em>. <strong>It did not move.</strong> The serve reads 28.8% against a 25.7–27.0% baseline, inside the pre-registered no-veto band of 17–40 and nowhere near the 88.9–100 a gating veto predicted. So the rule fires and the drafter should go back, at which point the three tests pass again without being touched.</p><p>This plan must not execute that: reverting the profile now would change the V4-Flash serve in the middle of the comparison it is the baseline for. Sequence it after the baseline arm is harvested.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship dsv4-flash-dspark-four-card-serve</pre>
+    <p class="r-fu-outcome"><p><strong>Re-verified today and still live — recorded as a pointer, because the work is not this plan's to carry.</strong> Ran <code>tests/test_agent_dspark_profile.py</code> on 2026-09-18: <strong>3 failed, 3 passed</strong>, the same three the card names, same cause — the tests assert TP4 on the four-card <code>deepseek-v4-flash</code> profile while it carries <code>tensor_parallel=2, data_parallel=2</code>.</p><p><strong>The card's reasoning stands and was not overtaken by anything this plan did.</strong> The veto test's own restore rule fired — hit rate 28.8% against a 25.7 to 27.0% baseline, inside the pre-registered no-veto band of 17 to 40 — so the DSpark settings should be restored rather than the assertions edited, at which point the three tests pass untouched.</p><p><strong>What changed is the owner's availability.</strong> <code>dsv4-flash-dspark-four-card-serve</code> is shipped at impl 1.0 and no longer appears in pending work, and this plan now closes too. <strong>These three tests have no tracked home and need one</strong> — either a new plan carrying the profile restore, or an explicit decision to accept them red, recorded as such. They stay visible as suite failures either way, which is why this is a loose end rather than a loss. Raised to the lead at closure rather than buried in a resolved card.</p><p><strong>done — no followup from this plan.</strong> The four-card throughput chain closes here: the concurrency question that <code>g-loaded-per-worker</code> failed as obsolete is now answered by the width-binned real-traffic harvest, and the serving configuration is settled. The DSpark test disposition above is foreign-owned and is queued to the lead, not to this plan.</p></p>
+    </article>
+<article class="r-fu" data-id="f-dsv41t-03" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-verification="strict" data-written-by="reckon-ship" data-written-at="2026-09-16" data-recommends-skill="/reckon-ship dsv41-flash-four-card-throughput §3" data-resolved-at="2026-09-18T08:32:28+00:00" data-resolved-by="smc">
+    <h4 class="r-fu-title">Harvest per-worker throughput from real traffic, and close the width-64 question with it rather than with another synthetic run</h4>
+    <div class="r-fu-body"><p><strong>The serve is handed over and the instruments are in place; what is missing is traffic through them.</strong> The synthetic suite came down at 08:30Z drained and flushed, so the receipt bins and the lane document now start from a clean prefix-cache measurement. Every throughput figure this plan holds is synthetic: 794 tok/s aggregate decode at width 32 on ~30-token prompts, and 6,396–12,248 tok/s aggregate prefill on 210k–415k payloads. Real agent turns carry both at once, which is why V4-Flash measures 6.9–10.1 tok/s per worker live against far higher synthetic figures.</p><p><strong>Measure from the receipt bins under real load, binned by concurrency width</strong>, recording per-worker decode, aggregate prefill, and the windowed prefix-hit distribution in the same bins. No synthetic load: this measure is real traffic only. Two things resolve as a by-product and should be stated explicitly rather than inferred — whether width 64 is actually safe, since the only 64-wide readings taken so far were cache replay and are withdrawn while the genuine run was killed mid-flight, and where the fleet size settles, which was asked to emerge from the evidence rather than from a hard limit.</p><p><strong>Ramp rather than opening at 64.</strong> 32/32 at 210k and 12/12 at 415k are measured; 64 is structural inference. A 4 → 8 → 16 ramp reads the lane document between steps, whose derived width will read low at first because the median context it holds is still the synthetic 434,176.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship dsv41-flash-four-card-throughput §3</pre>
+    <p class="r-fu-outcome"><p><strong>Answered from real traffic, which is what this card asked for.</strong> The width-binned harvest ran over the engine's own decode intervals under four peer fleets' live load, not a synthetic suite. Decode throughput is <strong>flat across concurrency widths 17 to 32</strong>: slope <strong>+0.09 tok/s per unit width with CI [-2.00, +2.69]</strong>, a confidence interval straddling zero across the whole served range.</p><p><strong>The width-64 question closes on a different fact than the one expected.</strong> <code>#queue-req</code> read <strong>0 at every interval in both jobs</strong>, so the lane never queued and never saturated in the range it actually operates — duty cycle median 29 against a cap of 36, peak 28. There is no knee to find below the cap because the traffic never reaches one.</p><p>The card's premise was right and is worth preserving: every figure the plan held was synthetic, and synthetic aggregate decode at width 32 (794 tok/s on ~30-token prompts) describes a workload this lane never sees. The real one is prefill-dominated at <strong>270 input tokens per output token</strong>.</p></p>
+    </article>
+<article class="r-fu" data-id="f-dsv41t-04" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-verification="strict" data-written-by="reckon-ship" data-written-at="2026-09-16" data-recommends-skill="/reckon-ship dsv41-flash-four-card-throughput §3" data-resolved-at="2026-09-18T08:32:28+00:00" data-resolved-by="smc">
+    <h4 class="r-fu-title">Set the fleet ceiling from the staged 1/2/4/8 saturation curve rather than from the inference standing in for it</h4>
+    <div class="r-fu-body"><p><strong>The ceiling of 8 now in the flight config is an inference and should not outlive the measurement that replaces it.</strong> Its basis is the synthetic sweep's per-stream knee at 4 plus the observed cache collapse at 28 workers. Both premises changed in the same restart that enabled it: the host tier is four times larger and the expert GEMM no longer upcasts, and each of those raises the width at which the lane saturates. So 8 is most likely conservative, and it is a <em>dispatch</em> fence rather than an engine one — <code>max_running_requests</code> is still 64 with an unbounded queue, so exceeding 8 would queue silently rather than fail, which is the failure the fence replaces.</p><p><strong>The curve is running under the imas-efit coordinator</strong> at widths 1, 2, 4, 8, ascending, each held for at least ten completed requests and twenty minutes, on a constant node class with tool use throughout, with no cache flush between phases — a real deployment is always warm, so flushing would measure a condition that never occurs. The known bias is that ascending order lets later phases inherit warmth, which flatters width 8; it runs in the direction of the hypothesis, so a degradation at 8 is still robust, and the per-phase hit rate is recorded so warmth is visible rather than assumed. A detached sampler writes the serve's cumulative counters every 20 s to <code>/work/projects/imas_gpu/logs/lane_saturation.csv</code>, so any phase is a subtraction between two timestamped rows and a missed mark costs nothing.</p><p><strong>Decide the ceiling on turns completed per worker per hour, not tok/s.</strong> Agentic wall clock here is bound by turn count and thinking volume rather than generation — 22–33 tok/s wall rates against 418.5 tok/s peak generation on this lane — so a curve denominated in tok/s would answer a question nobody asked. Raise the fence only where that figure is still rising, and extend to 12 and 16 if it is still rising at 8. The paired sub-question, with baselines already recorded: whether the malformed-tool-call rate tracks width, which separates lane overload from plain 4-bit model quality. nova-ca contributes one node inside the width-8 phase against its 19:6, 11:11 and 5:4 baselines.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship dsv41-flash-four-card-throughput §3</pre>
+    <p class="r-fu-outcome"><p><strong>Set from measurement, and the dispatch fence was retired in favour of an engine-side cap.</strong> The inferred ceiling of 8 is gone. <code>max_running_requests</code> and <code>cuda_graph_max_bs_decode</code> are both <strong>36</strong>, chosen against the lane's measured duty cycle — median 29 concurrent, peak 28, zero eager fallbacks — rather than against the synthetic per-stream knee at 4.</p><p><strong>The card correctly identified that 8 was conservative.</strong> All five fleets now dispatch at the full width of their plan DAGs and the lane absorbs it without queueing. Width above the cap queues rather than fails, which is the intended behaviour and the reason a separate dispatch fence is no longer needed: the engine holds the limit, not the coordinator.</p></p>
+    </article>
+</section>
+
+  <section data-reckon="gates" id="gates" class="r-gates">
+<h2><span class="sec">§</span> Evidence gates</h2>
+<div class="r-gate" data-id="g-baseline-harvested" data-section="s2a" data-gated-sections="s3" data-status="closed" data-verdict="passed">
+    <h4 class="r-gate-measure">The V4-Flash comparison baseline is recorded from live job 1271487 as a distribution of per-interval prefix-cache hit deltas binned by concurrency width, with per-worker decode and prefill rate in the same bins, and the job&#x27;s own served configuration beside it. Taken while the job is alive; the serve is not stopped before this lands.</h4>
+    <p class="r-gate-required-evidence">Per-interval hit-rate distribution and per-worker decode, binned by width, with interval count and bin widths stated, plus the recorded serve configuration (job id, TP/DP, speculative_config, pool tokens).</p>
+    <a class="r-gate-evidence" href="Retired rather than met, on the lead&#x27;s scope correction. This gate held section 3 shut until a fresh V4-Flash arm was measured; the lead withdrew the comparison entirely in favour of adopting V4.1 for its capability, so there is no arm to measure and no verdict to route. What the gate was also carrying is separately settled: the pre-registered draft-group veto reads 30.0 percent cumulative against a 25.7 to 27.0 baseline, inside its own no-veto band of 17 to 40 and far from the 88.9 to 100 a gating veto predicted, and a 3.4x step cannot hide inside a cumulative figure. NOT CLAIMED: no V4-Flash number was measured today, and the windowed confirmation is routed to the plan that owns the drafter decision.">Evidence</a>
+</div>
+<div class="r-gate" data-id="g-loaded-per-worker" data-section="s3" data-gated-sections="s5" data-status="closed" data-verdict="failed">
+    <h4 class="r-gate-measure">Loaded per-worker decode on a V4.1 serve at the 14,999,808 pool under sustained real clive traffic, binned by concurrency width, with the prefill rate and a windowed per-interval prefix-hit distribution recorded in the same bins, compared against the g-baseline-harvested bins.</h4>
+    <p class="r-gate-required-evidence">Per-worker tok/s and windowed hit-rate distribution for V4.1 in the same width bins as the V4-Flash harvest, stated as per-interval deltas rather than a cumulative ratio.</p>
+    <a class="r-gate-evidence" href="Failed as obsolete rather than unmet, and recorded so no one re-runs it as written. Its measure names loaded per-worker decode at the 14,999,808-token pool, and that pool is retired: the deployment now runs 4,000,000 device tokens plus an 8,000,000-token host tier, because the 15M pool left only 1.49 GiB outside the static budget and the fused-MoE workspace asks 7.52 GiB or more. So the configuration this gate measures no longer exists and a passing result against it would describe nothing. The question it guarded also changed owner: section 3 is post-serve observation rather than a gate, per section 7. What IS measured and recorded in section 11: a 203,241-token agentic prefill absorbed in 30 seconds, with the ceiling bracketed above by a fatal case near 300,000. What is NOT measured, and this gate&#x27;s real successor: anything at concurrency. Every figure tonight is single-stream.">Evidence</a>
+</div>
+<div class="r-gate" data-id="g-interval-instrument" data-section="s2b" data-gated-sections="s3" data-status="closed" data-verdict="passed">
+    <h4 class="r-gate-measure">The receipts recorder emits per-interval prefix-cache query and hit deltas and an interval ratio alongside the retained cumulative fields, and a collector bins per-worker decode and prefill rate by concurrency width from real clive stream evidence rather than synthetic benchmark records.</h4>
+    <p class="r-gate-required-evidence">A test asserting the interval ratio on the controlled two-snapshot case where the cumulative recorder reports 0.8253 and the interval truth is 0.9000, plus a width-binned collector run over real stream evidence showing its bins and its refusal of synthetic records.</p>
+    <a class="r-gate-evidence" href="All three instruments landed and pass together at the merged head: 19 tests across tests/test_agent_serving_receipts.py, tests/test_agent_evaluation_pool.py and tests/test_agent_receipt_bins.py, with whole-tree ruff clean and the three known DSpark failures unchanged. Interval ratio: the controlled two-snapshot case asserts 0.9000 while the retained cumulative field still reports 0.8253, now pinned to that literal. Width binning: receipt intervals group by their own recorded running count into the 10-14 and 15-19 comparison bins, reporting per-worker decode and prefill medians and the prefix-hit rate as a median with deciles. One clause of this gate&#x27;s required evidence was made moot rather than skipped, and that is recorded rather than glossed: it asked the collector to refuse synthetic benchmark records, which was written before the node was narrowed to read receipts alone. The collector has no path that ingests benchmark output at all, so the refusal is structural rather than a check it performs. Pool selection: deepseek-v4-1-flash@evaluation resolves 14,999,808 with the committed default unchanged at 3,485,952 and the weights directory still resolving through the unselected slug.">Evidence</a>
+</div>
+</section>
+<section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="s3" data-id="c-run-r-20260915T161636242522-four-card-reuse-map" data-who="four-card-reuse-scout" data-when="2026-09-15T16:26:56Z">
+    <div class="r-comment-body"><p>Reuse map delivered: four of six capabilities reuse existing instruments; two do not exist — the receipts recorder emits a cumulative hit rate by design, reproduced at 0.8253 where the windowed truth is 0.9000, and no joiner bins real clive traffic by concurrency width. Also found agent serve exposes no pool-size option and the standing ambix-lane refresher is a separate SLURM job that profile shutdown will not stop.</p></div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-s3-reuse-map" data-who="reckon-ship" data-when="2026-09-15T16:35:30+00:00">
+    <div class="r-comment-body">gate passed on the prior-art scout; section 3 remains open. Four of six capabilities reuse existing machinery. The two that do not exist are now section 2b with its own gate: the receipts recorder emits a lifetime ratio by design and reports 0.8253 where the two-snapshot interval truth is 0.9000, and nothing joins clive stream evidence to receipt intervals to bin by width. Section 3's measure is not takeable until both land.</div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-run-r-20260915T161645540251-swa-index-width-attribution" data-who="swa-width-attribution" data-when="2026-09-15T16:26:59Z">
+    <div class="r-comment-body"><p>Verdict carries-fix, read from the SIF's own SquashFS source rather than the mutable tag: engine commit da64c5cb, SWA_WINDOW 128 with PAGE_INDEX_ALIGNED_SIZE 64 gives a derived prefill row width of 128 and zero occurrences of 1152 in the builder. The 1152 control is real and observable in the checkpoint config as vision 1024 plus text 128, and the builder does not use it.</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-s4-landed" data-who="reckon-ship" data-when="2026-09-15T16:35:00+00:00">
+    <div class="r-comment-body">gate passed; section closed. Verdict carries-fix on engine commit da64c5cb, derived prefill SWA row width 128 with zero occurrences of 1152 in the builder, read from the SIF's own SquashFS source rather than the mutable tag. The 1152 control is observable in the checkpoint config as vision 1024 plus text 128 and is not used by the prefill builder, so the instrument saw the competing value and rejected it rather than failing to look. The two structural handicaps in this section remain open reference for interpreting section 3 and were not part of its done-when.</div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-run-r-20260915T172540294609-h200-serving-recipe" data-who="h200-serving-recipe" data-when="2026-09-15T17:46:30Z">
+    <div class="r-comment-body"><p>Central recommendation is unsound because the coordinator supplied a census with the wrong base. I read the SIF build-date label 2026-09-14 08:30 as the code's age; commit da64c5cb is actually from 2026-09-11, so the census covered 65 commits since 09-14 when the real distance to main is 522 with status diverged. The node certified faithfully against what it was given. WHAT DOES NOT STAND: rebuild through 2123aca is not actionable. That commit is on main, and main has no V4.1 support at all — no deepseek_v41_vit.py, and its deepseek_v4.py is 41KB smaller than ours — so a main-based image cannot load DeepseekV41ForCausalLM. Our image is the dev-dsv41 feature branch, whose Docker tag was last pushed 2026-09-11 and matches the commit we already run, and whose upstream branch is now deleted. There is no newer image for this checkpoint. WHAT STANDS AND IS VALUABLE: judging relevance against the real launch server_args rather than the profile; the clean negative that all four reverted changes are irrelevant to our active path; and the flashinfer_mxfp4_moe_precision fp8 A/B as a separate throughput follow-on. Classified malformed-node so it stays out of calibration: the worker's reasoning was sound on the inputs it had.</p></div>
+</div>
+<div class="r-comment" data-section="§2b" data-id="c-run-r-20260915T163247139914-interval-receipt-deltas" data-who="interval-receipt-deltas" data-when="2026-09-15T16:39:23Z">
+    <div class="r-comment-body"><p>Receipt rows now carry prefix_cache_query_delta, prefix_cache_hit_delta and prefix_cache_hit_rate_interval alongside the unchanged cumulative field. Controlled case proves both readings at once: 2,000 query and 1,800 hit deltas give an interval 0.9000 while the cumulative stays 0.8253, now pinned to that literal so a future redefinition breaks loudly. Interval fields are null on the first row and across a counter reset, which matters because this measurement spans a serve restart by design. Extended the existing controlled test rather than adding one, so both assertions sit on the same fixtures; suite stayed 15/15.</p></div>
+</div>
+<div class="r-comment" data-section="s2b" data-id="c-s2b-interval-verified" data-who="reckon-ship" data-when="2026-09-15T16:42:00+00:00">
+    <div class="r-comment-body">gate passed; section stays open pending the width-binned collector and the pool setting. Verified by reading the diff rather than the gate: the repair reuses the existing reset-safe counter-delta primitive, which returns null on a negative difference, so the interval fields are correctly null across a serve restart — the case this measurement spans by design. The node extended the existing controlled test instead of adding a new one, which is why the suite count stayed 15; that is better than what was asked, because both readings now sit on one set of fixtures, and it additionally pinned the cumulative value to the literal 0.8253 so a future redefinition breaks loudly.</div>
+</div>
+<div class="r-comment" data-section="s2b" data-id="c-run-r-20260915T163257733816-evaluation-pool-setting" data-who="evaluation-pool-setting" data-when="2026-09-15T16:40:15Z">
+    <div class="r-comment-body"><p>Named evaluation-pool selection landed in <code>b783a72</code>. The committed default still resolves to 3,485,952 tokens, while <code>deepseek-v4-1-flash@evaluation</code> resolves to the load-proven 14,999,808-token pool and a dry-run of <code>agent serve</code> carries both the selected job identity and <code>--max-total-tokens 14999808</code>. Focused loader and CLI coverage passed 5/5; whole-tree Ruff passed; the broader profile slice retained the same three pre-existing DSpark failures before and after, with zero added failures. Full record: <a href="/imas-ambix/evidence/archive/dsv41-flash-four-card-throughput-landed#evaluation-pool-setting">evaluation pool setting</a>.</p></div>
+</div>
+<div class="r-comment" data-section="s2b" data-id="c-run-r-20260915T164715246556-width-binned-collector" data-who="width-binned-collector" data-when="2026-09-15T16:54:00Z">
+    <div class="r-comment-body"><p>Commit <code>d108cd7</code> adds <code>receipt_bins.py</code>, which reads receipt JSONL directly and groups complete interval rows by their recorded <code>num_requests_running</code>. The default historical bins are inclusive 10–14 and 15–19; per-worker decode is each interval's generation throughput divided by its recorded running count, while prefill remains the interval rate. Prefix hits are reported as median plus p10–p90, never an interval mean. The fixture records two 10–14 intervals (median decode 16.0 tok/s per worker, prefill 600.0 tok/s, prefix median 0.50; p10 0.26 and p90 0.74), one 15–19 interval (10.0, 950.0, and all distribution values 0.90), and one null first-row interval visibly excluded. Focused collector, receipt, and evaluation-pool suites passed 19/19; whole-tree Ruff passed.</p></div>
+</div>
+<div class="r-comment" data-section="s2b" data-id="c-run-r-20260915T172513420092-profile-default-pool" data-who="profile-default-pool" data-when="2026-09-15T17:34:53Z">
+    <div class="r-comment-body"><p>Commit <code>12ca793</code> makes the load-proven 14,999,808-token pool the plain <code>deepseek-v4-1-flash</code> default and removes the named-setting field, resolution method, and <code>@</code>-selector parsing. The defect reproduced first: the plain dry run emitted 3,485,952 while the named selection emitted 14,999,808 under an <code>@evaluation</code> job name. After removal, the plain dry run exits 0 with <code>--max-total-tokens 14999808</code> and the exact job name <code>deepseek-v4-1-flash</code>; the removed selector exits 1 with <code>FileNotFoundError</code>. Focused pytest stayed 5/5 before and after, whole-tree Ruff exits 0, and the profile comment retains why 20,000,000 is rejected. Full record: <a href="/imas-ambix/evidence/archive/dsv41-flash-four-card-throughput-landed.html#profile-default-pool">plain profile pool default</a>.</p></div>
+</div>
+<div class="r-comment" data-section="s2b" data-id="c-run-r-20260915T173044420216-lane-config-reconcile" data-who="lane-config-reconcile" data-when="2026-09-15T17:31:07Z">
+    <div class="r-comment-body"><p>The flight refresher now reconciles clive's served model, ledger-consistent alias, and usable input window in one clive-block-scoped write. Base reproduction proved the former search rewrote an unrelated backend first while leaving clive at the retired checkpoint identity. The controlled 204,800-token case produces a 32,000-token reservation and 172,800 usable tokens; a 100,000-token case reads the launcher's 25,000 reservation and produces 75,000. Focused coverage passed 5/5 and scoped Ruff passed. The whole-tree Ruff command remains red with 273 pre-existing findings outside this node. Full record: <a href="/imas-ambix/evidence/archive/dsv41-flash-four-card-throughput-landed.html#clive-deployment-reconcile">clive deployment reconciliation</a>.</p></div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-s5-superseded" data-who="reckon-ship" data-when="2026-09-15T17:34:00+00:00">
+    <div class="r-comment-body">Superseded by section 7 and deliberately NOT resolved. This table routes a measured verdict back to the lead for a four-card adoption decision; the lead made that decision directly instead, so there is no verdict to route. Marked deferred rather than done because nothing in it was executed, and recording it as done would claim a comparison that was never run. Its third row keeps standing value on its own terms — a hit rate that fails to rise despite the 5.3x pool would contradict the working model of this lane — and that is now section 3's post-serve observation.</div>
+</div>
+<div class="r-comment" data-section="s8" data-id="c-s8-provenance" data-who="reckon-ship" data-when="2026-09-15T17:34:30+00:00">
+    <div class="r-comment-body">Provenance worth keeping: this was found by two peer coordinator sessions asking about a context window, not by anything this plan was looking for. One sent the measured figure, the other sent the config note around it; the note is what exposed that the refresher covers one key of three, because it explained WHY the value rots and thereby invited the question of what else in the block does. A number alone would have been acted on and would have restored a broken lane. The general shape is the aimed-instrument failure again, third time today on this plan: a true answer to the question asked, about the wrong subject.</div>
+</div>
+<div class="r-comment" data-section="s8" data-id="c-s8-alias-split" data-who="reckon-ship" data-when="2026-09-15T17:58:30+00:00">
+    <div class="r-comment-body">Correction to this section's own done-when, raised by a peer citing reckon's flight schema line 270: alias is the label rendered IN PLACE OF the model identifier, spelling decided by configuration with no schema default. Two of the three keys are deployment properties; alias is a naming decision that merely changes at the same instant. Deriving it would have written the model identifier into the field whose purpose is to replace it. The ledger already carries the drift this prevents: 284 rows pair deepseek-v4-flash with dsv4-flash and 11 pair deepseek-v4.1-flash with dsv4.1-flash, but one row served v4.1 while still labelled dsv4-flash. The inferred-from-config mechanism has therefore already produced a mislabelled row, so the case is measured rather than theoretical.</div>
+</div>
+<div class="r-comment" data-section="s8" data-id="c-run-r-20260915T175545649237-alias-declared-not-derived" data-who="alias-declared-not-derived" data-when="2026-09-15T17:55:45Z">
+    <div class="r-comment-body"><p>The clive refresher now treats alias as a recorded display decision rather than endpoint metadata. The base behavior reproduced: a V4.1 endpoint wrote the long served name into <code>alias</code>, replacing <code>dsv4-flash</code>. The mapping holds <code>deepseek-v4-flash → dsv4-flash</code> and <code>deepseek-v4.1-flash → dsv4.1-flash</code>; six existing ledger rows attest the V4.1 spelling. An unmapped served name exits non-zero, names the missing model, asks for a mapping, and leaves its fixture unchanged. Existing model and usable-window coverage remains green. Focused coverage passed 8/8 and scoped Ruff passed. Full record: <a href="/imas-ambix/evidence/archive/dsv41-flash-four-card-throughput-landed.html#clive-alias-mapping">declared clive aliases</a>.</p></div>
+</div>
+<div class="r-comment" data-section="s8" data-id="c-run-r-20260915T175430553939-kernel-pdl-patch" data-who="kernel-pdl-patch" data-when="2026-09-15T20:20:00+00:00">
+    <div class="r-comment-body"><p>Commit <code>a6aa2fc</code> adds a read-only launch-time overlay for the image's DeepSeek K norm/RoPE header. The direct image diff is exactly one deletion and one insertion: <code>params.out_loc[work_id]</code> now follows <code>PDLWaitPrimary&lt;kUsePDL&gt;()</code>. The dry run prints that bind. The H200 path is active: capability (9, 0) makes <code>is_arch_support_pdl()</code> true at the JIT factory call site. A deliberately broken bound header made <code>nvcc</code> fail at the mounted image path; the real header compiled cleanly with a fresh cache context and zero precompiled kernel binaries in the image tree. Focused coverage passed 5/5 and whole-tree Ruff passed. Full record: <a href="/imas-ambix/evidence/archive/dsv41-flash-four-card-throughput-landed.html#kernel-pdl-overlay">kernel PDL overlay evidence</a>.</p></div>
+</div>
+<div class="r-comment" data-section="s8" data-id="c-run-r-20260915T194915087105-lane-reader-sglang" data-who="lane-reader-sglang" data-when="2026-09-15T19:56:09Z">
+    <div class="r-comment-body"><p>Commits <code>9b955f0</code> and <code>b0c32e5</code> close the SGLang metrics parser gap. The live job 1271709 endpoint returned HTTP 200 with 1,102 lines, while the base reader refused it because only <code>vllm:</code> names matched. The retained fixture parses a 4,000,000-token rank-zero device pool, 8,000,000 / 55,552 hierarchical host-cache tokens, a direct 0.0 prefix hit rate, and <code>preemptions = null</code> because SGLang has no cumulative equivalent. Focused lane tests passed 31/31; <code>ruff check imas_ambix tests</code> exited 0. Full record: <a href="/imas-ambix/evidence/archive/dsv41-flash-four-card-throughput-landed.html#sglang-lane-reader">SGLang lane reader evidence</a>.</p></div>
+</div>
+<div class="r-comment" data-section="s8" data-id="c-run-r-20260915T202054044646-py312-parse-gate" data-who="py312-parse-gate" data-when="2026-09-15T20:25:50Z">
+    <div class="r-comment-body"><p>Serving Python <code>3.12.11</code> reproduced the syntax defect as <code>SyntaxError: multiple exception types must be parenthesized</code>. The initial full-package sweep parsed 286 of 295 modules and rejected nine files containing ten unparenthesized multiple-exception clauses. Commit <code>5ade84f</code> parenthesizes every clause and adds a gate that resolves the vLLM interpreter through <code>SiteConfig</code>, invokes it in a subprocess, and parses every <code>imas_ambix</code> module without importing service code. The post-repair sweep parsed 295 of 295 modules; its deliberately reverted copy fails at line 301 with the same message. Focused tests passed 2/2 and whole-tree Ruff exited 0. Full receipt: <a href="/imas-ambix/evidence/archive/dsv41-flash-four-card-throughput-landed.html#serving-interpreter-parse-gate">serving interpreter parse gate</a>.</p></div>
+</div>
+<div class="r-comment" data-section="s8" data-id="c-run-r-20260915T202054044646-py312-parse-gate" data-who="py312-parse-gate" data-when="2026-09-15T20:25:50Z">
+    <div class="r-comment-body"><p>Serving Python <code>3.12.11</code> reproduced the syntax defect as <code>SyntaxError: multiple exception types must be parenthesized</code>. The initial full-package sweep parsed 286 of 295 modules and rejected nine files containing ten unparenthesized multiple-exception clauses. Commit <code>5ade84f</code> parenthesizes every clause and adds a gate that resolves the vLLM interpreter through <code>SiteConfig</code>, invokes it in a subprocess, and parses every <code>imas_ambix</code> module without importing service code. The post-repair sweep parsed 295 of 295 modules; its deliberately reverted copy fails at line 301 with the same message. Focused tests passed 2/2 and whole-tree Ruff exited 0. Full receipt: <a href="/imas-ambix/evidence/archive/dsv41-flash-four-card-throughput-landed.html#serving-interpreter-parse-gate">serving interpreter parse gate</a>.</p></div>
+</div>
+<div class="r-comment" data-section="s8" data-id="c-run-r-20260915T213153049689-lane-publish-diagnostic" data-who="lane-publish-diagnostic" data-when="2026-09-15T21:45:00Z">
+    <div class="r-comment-body"><p>Commit <code>12d35c7</code> makes every unavailable lane publication externally diagnosable without changing the publisher's fail-safe behaviour. The base regression forced a refusal at <code>http://127.0.0.1:1/metrics</code>: it wrote <code>state unavailable</code> but failed because the router log had no warning. The repaired warning names that URL, <code>ClientConnectorError</code>, and <code>Cannot connect to host</code>; the focused regression passed 1/1 and <code>ruff check imas_ambix tests</code> exited 0. The broader router/lane slice retained one existing failure in <code>test_router_command_runs_injected_resolver_on_requested_port</code>, whose out-of-scope mock lacks the established <code>lane_document</code> keyword. Full receipt: <a href="/imas-ambix/evidence/archive/dsv41-flash-four-card-throughput-landed.html#lane-publisher-diagnostic">lane publisher diagnostics</a>.</p></div>
+</div>
+<div class="r-comment" data-section="s8" data-id="c-run-r-20260915T214046766092-lane-fetch-gzip" data-who="lane-fetch-gzip" data-when="2026-09-15T21:50:38Z">
+    <div class="r-comment-body"><p>The code change is correct and the node executed it faithfully; my brief pointed it at the wrong call site, so the live defect is unfixed. fetch_lane_capacity now decodes gzip, x-gzip and deflate with a fixture-backed equality test, and that path is what the CLI one-shot agent lane --publish uses, which is exactly why the node's one-shot demonstration wrote state measured. But the STANDING router never calls fetch_lane_capacity: grep counts zero in router.py, because _publish_lane does its own inline aiohttp session.get followed by response.text(), and that decode is still unguarded. Measured after merging and restarting: eight consecutive lane samples unavailable, with the router's own diagnostic still reporting the identical UnicodeDecodeError on byte 0x8b. My brief named a function rather than the behaviour, saying fetch_lane_capacity must read a compressed document instead of saying the router's lane publisher must tolerate one, and a correctly scoped node would have found both call sites. This is the fourth unvalidated-half-of-a-pair defect tonight and the clearest: two callers of one conceptual operation, one fixed, one not, and the verification exercised the fixed one. Classified malformed-node so it stays out of calibration; the successor fixes router.py's inline fetch.</p></div>
+</div>
+<div class="r-comment" data-section="s8" data-id="c-run-r-20260915T220136983037-router-inline-fetch" data-who="router-inline-fetch" data-when="2026-09-16T00:00:00+00:00">
+    <div class="r-comment-body"><p>Commit <code>3f3909d</code> routes the standing router publisher through the existing compressed-capacity reader in a worker thread. The controlled gzip response reproduced the raw publisher failure as <code>UnicodeDecodeError</code> on byte <code>0x8b</code>; the regression now publishes <code>state: measured</code> with 4,000,000 pool tokens. Focused lane and router coverage passed 3/3, whole-tree Ruff passed, and the broader slice moved from 32 to 33 passes while retaining only the same known <code>lane_document</code>-mock failure. The required live observation remains pending: the canonical checkout still holds the direct parser path, so the coordinator must integrate this commit before restarting the router and retaining eight timestamped measured samples over at least four minutes. Full record: <a href="/imas-ambix/evidence/archive/dsv41-flash-four-card-throughput-landed.html#router-compressed-publisher">standing router compressed-metrics evidence</a>.</p></div>
+</div>
+<div class="r-comment" data-section="s9" data-id="c-s9-lineage" data-who="reckon-ship" data-when="2026-09-15T17:58:00+00:00">
+    <div class="r-comment-body">The decisive check was content, not topology. Main's deepseek_v4.py is 170,193 bytes against 211,019 at our commit, and main has no deepseek_v41_vit.py, so main's inability to serve this checkpoint is a fact about files rather than an inference from a commit graph. That distinction mattered: a squash merge makes 15 missing commits look identical to 15 absent features, because behind_by counts commits rather than content. Reading the files is what separated those two possibilities, and the commit graph alone could not have.</div>
+</div>
+<div class="r-comment" data-section="s9" data-id="c-s9-lineage" data-who="reckon-ship" data-when="2026-09-15T17:58:00+00:00">
+    <div class="r-comment-body">The decisive check was content, not topology. Main's deepseek_v4.py is 170,193 bytes against 211,019 at our commit, and main has no deepseek_v41_vit.py, so main's inability to serve this checkpoint is a fact about files rather than an inference from a commit graph. That distinction mattered: a squash merge makes 15 missing commits look identical to 15 absent features, because behind_by counts commits rather than content. Reading the files is what separated those two possibilities, and the commit graph alone could not have.</div>
+</div>
+<div class="r-comment" data-section="s8a" data-id="c-run-r-20260915T175430553939-kernel-pdl-cache-key" data-who="kernel-pdl-patch" data-when="2026-09-15T20:35:00+00:00">
+    <div class="r-comment-body"><p>Persistent-cache verdict: content-addressed. The image JIT factory places the direct <code>main_norm_rope.cuh</code> source in its <code>BuildSpec</code>, and <code>compute_build_key</code> SHA-256 hashes every direct source before cache lookup. A cached leaf additionally records and re-hashes compiler-scanned dependency digests before reuse, with direct sources mandatory for publication. The bind changes the cache key, so an unpatched artifact cannot be reused. This JIT selects its root through <code>SGLANG_JIT_CACHE_DIR</code>; <code>SGLANG_CUTE_AOT_CACHE_DIR</code> is a separate cache and does not govern this compile. No per-launch cache override is required. Full record: <a href="/imas-ambix/evidence/archive/dsv41-flash-four-card-throughput-landed.html#kernel-pdl-cache-key">persistent cache key evidence</a>.</p></div>
+</div>
+<div class="r-comment" data-section="s10" data-id="c-run-r-20260915T182921965110-serve-metrics-enable" data-who="serve-metrics-enable" data-when="2026-09-15T18:37:57Z">
+    <div class="r-comment-body"><p>Commit <code>58525d8</code> adds a typed, false-by-default metrics setting, forwards it only to SGLang as the image-attested <code>--enable-metrics</code> flag, and enables it for the V4.1 profile. The base dry run carried <code>--max-total-tokens 14999808</code> but omitted the metrics flag; the changed dry run carries both. The V4-Flash vLLM dry run is byte-for-byte unchanged. Focused coverage passed 4/4 and whole-tree Ruff passed before and after. This closes a correctness gap rather than adding optional telemetry: the missing endpoint made the lane document report <code>state unavailable</code> while the scheduler reported headroom <code>unknown</code>, so one surface was over-cautious while the other was over-permissive. No serve was stopped or restarted and no SLURM job was submitted. Full record: <a href="/imas-ambix/evidence/archive/dsv41-flash-four-card-throughput-landed.html#serve-engine-metrics">SGLang metrics endpoint evidence</a>.</p></div>
+</div>
+<div class="r-comment" data-section="s10" data-id="c-run-r-20260915T183538016525-prefill-ceiling-bisect" data-who="prefill-ceiling-probe" data-when="2026-09-15T19:16:33Z">
+    <div class="r-comment-body"><p>The ceiling question is not answerable at this pool size, and that IS the finding. All three probe serves died on the identical allocation — a 7.52 GiB fused-MoE workspace against roughly 1.49 GiB free — on a 360k-repeat request, on a 180k-repeat request, and finally during the engine's own warmup with no request from us at all. The ask does not vary with prefill length, so there is no prefill-length boundary to bisect: at a 15M-token pool and mem_fraction_static 0.85 the allocator holds 138.21 of 139.80 GiB and the lazily-allocated workspace has nowhere to come from. My node asked for a bisection on an axis that does not govern the failure, which is a framing error of mine. Two findings stand and both are valuable. First, the node caught that repeat count is not a token count and refused to report a ceiling from an uncalibrated axis, where a lesser run would have published a confident meaningless number. Second, its receipt shows the engine's own reported avail mem is budget accounting rather than free HBM, which is why the 25.36 GB I read as headroom was not. The ceiling becomes measurable only after the pool shrinks; a successor node inherits its tokenizer-calibration approach. Stopped by me because its wait condition named a serve that had already died.</p></div>
+</div>
+<div class="r-comment" data-section="s10" data-id="c-run-r-20260915T191213922393-pool-and-hicache" data-who="pool-and-hicache" data-when="2026-09-15T19:28:06Z">
+    <div class="r-comment-body"><p>Device pool cut from 14,999,808 to 4,000,000 tokens and the hierarchical cache enabled, converting oversized KV pool into the per-request headroom the fused-MoE workspace draws from. Freed about 16.8 GiB per card against a fixed 7.52 GiB workspace ask, clearing it twice over. Established the image contract rather than assuming it: the DeepSeek-V4 cache path REJECTS --hicache-size and requires --hicache-ratio, so sizing via the wrong knob would have produced a serve that refused to start. Host request raised 420G to 480G, made of 192 GiB pinned Engram plus about 49 GiB of hicache payload across four ranks, leaving 170G under the 650G Group A allocation, with those components recorded in the profile rather than left as a magic number. Chose write_through_selective and page_first deliberately. Blocked correctly on a test file my brief omitted, the fifth time today I scoped a node to the surface I could see rather than the one the change had to reach. The pool value is a CANDIDATE recorded as such in the profile: load-proven only by a long prefill, which is mine to run.</p></div>
+</div>
+<div class="r-comment" data-section="s11" data-id="c-drain-ledger" data-who="reckon-ship" data-when="2026-09-16T00:40:00+00:00">
+    <div class="r-comment-body">DRAIN LEDGER — dsv41-flash-four-card-throughput @ 2026-09-16T00:40Z. Rows: 2. f-dsv41t-01 lock both decisions before any serve is touched — RESOLVED, both locked at session start and the followup's premise then dissolved when the lead withdrew the experiment. f-dsv41t-02 the drafter-restore decision and three red DSpark tests — foreign-owner, routed to dsv4-flash-dspark-four-card-serve, which owns the drafter decision; the restore rule has fired since the hit rate did not move, but executing it belongs to that plan. foldable-remaining: 0. unreconciled-runs: 0. live-pointers: 0. Fifteen nodes promoted. RECOVERY NOTE: the worktree audit found an unmerged commit 1528b6a in prefill-ceiling-bisect carrying calibrated prefill evidence, while its manifest recorded commits as empty because it was written before the node committed. A cleanup trusting the manifest would have destroyed it. It is merged. Content verified section by section after that merge rather than assumed from reachability; the plan-version meta regressed and the server re-advances it.</div>
+</div>
+<div class="r-comment" data-section="s11" data-id="c-run-context-memory-settings" data-who="context-memory-settings" data-when="2026-09-16T08:22:50+02:00">
+    <div class="r-comment-body"><p>Commit <code>3f670a6</code> carries all three measured-context headroom settings through one generated V4.1 SGLang command: <code>PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True</code>, <code>--chunked-prefill-size 16384</code>, and <code>--max-running-requests 64</code>. Base reproduction emitted the former 32,768-token chunk but neither allocator export nor request bound. The focused launch contract passed 6 tests; the existing pool and metrics tests stayed 4/4 before and after; whole-tree Ruff exited zero; and a V4-Flash base-versus-after dry-run diff is empty. The three settings are deliberately unattributed as a combination: all target the same transient-prefill constraint, where 203,241 tokens consumed 37.1 GB of 40.65 GB ready-state margin. No serve was started and no SLURM job was submitted. Full record: <a href="/imas-ambix/evidence/archive/dsv41-flash-four-card-throughput-landed.html#context-memory-settings">generated context-memory settings</a>.</p></div>
+</div>
+<div class="r-comment" data-section="s11" data-id="c-run-r-20260916T061738844616-context-headroom-levers" data-who="context-headroom-levers" data-when="2026-09-16T06:25:46Z">
+    <div class="r-comment-body"><p>All three headroom levers reach the launch command: PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True, --chunked-prefill-size 16384, and --max-running-requests 64. Carries the control that protects the other lane: the V4-Flash dry-run diff against the archived base is exit 0 and zero bytes, so an SGLang-only field did not perturb the vLLM command. 6 focused tests, existing launch tests 4 passed before and after, ruff clean. Recorded as unattributed by design: three levers at once means a later improvement cannot be assigned to one without further restarts, which the lead accepted when asking for all three.</p></div>
+</div>
+<div class="r-comment" data-section="_top" data-id="c-20260916T083536067943" data-who="" data-when="">
+    <div class="r-comment-body">DRAIN LEDGER — dsv41-flash-four-card-throughput @ 2026-09-16T08:45Z. Rows: 2. <strong>f-dsv41t-02</strong> the drafter-restore decision and three red DSpark tests — <em>foreign-owner</em>, unchanged: routed to dsv4-flash-dspark-four-card-serve, which owns the drafter decision. <strong>f-dsv41t-03</strong> harvest per-worker throughput from real traffic — <em>handed-off</em>: its measure is real agent traffic through the receipt bins, which cannot be manufactured by this session without re-creating the synthetic load that was just taken down. Not foldable, and deliberately not dispatched. foldable-remaining: 0. unreconciled-runs: 0. live-pointers: 0. NOTE ON A DEFECT FIXED IN PASSING: this file carried two plan-version meta tags, 25 and 24, so the parser read the older one and every text edit conflicted on the version it had just written. The earlier ledger row recorded the regression and expected the server to re-advance it; it does not, because the duplicate is what the server reads. Removed.</div>
+</div>
+<div class="r-comment" data-section="_top" data-id="c-20260916T124655809293" data-who="" data-when="">
+    <div class="r-comment-body"><p><strong>Three levers pulled on the lead's instruction, and the first real-traffic measurement that justified them.</strong> Under 28 concurrent real workers the serve gave <strong>30.1–43.7 tok/s aggregate output and 1.13–1.55 tok/s per client</strong> (two independent estimators, 285 s and 300 s windows, counters differenced). That reads as a broken serve and is not one: the same windows carried <strong>6,685 tok/s of computed prefill</strong>, inside the 6,396–12,248 tok/s band the synthetic sweep measured on this configuration. The fleet asks 270 input tokens per output token at a mean prompt of 83,814, so <strong>99.4% of the token work is prefill</strong> and output is a rounding error on top of it. 91.6% of that prefill was recomputation: in-window prefix hit rate 7.8% against 49.1% cumulative when the fleet was narrower, host tier 99.9% full, 135.7M tokens evicted, mean TTFT 17.6 s, mean end-to-end 205.6 s.</p><p><strong>Lever 1, no restart:</strong> <code>max_concurrent_runs: 8</code> on the clive backend. No backend in the flight config declared a ceiling at all before this, so roughly forty workers from several unrelated coordinators ran concurrently while none exceeded a limit of its own — the absence was the defect. <strong>Levers 2 and 3, one restart (job 1272167, ready in 460 s):</strong> <code>hicache_ratio</code> 2.0 → 8.0 for a 32,000,000-token host tier, and <code>flashinfer_mxfp4_moe_precision</code> <code>default</code> → <code>fp8</code>, which stops the MXFP4 experts being upcast to BF16 and reaches the FP8 tensor cores SM90 does have. The option had existed in the serving container all along at its default; FlashInfer is 0.6.18 against the path's stated floor of 0.6.18, so the floor is met rather than exceeded and a container rebuild below it would silently revert the path. Both verified in the engine's own <code>server_args</code>, not the profile.</p><p><strong>A corroborating result from the submitting side that reframes the question.</strong> The imas-efit coordinator reports its earlier 34-wide submission drained to <strong>seventeen runs with zero commits</strong>, sixteen with blocked or unreadable manifests, 1.4M–7.8M input tokens each over 23–89 tool calls; nova-ca independently measured malformed tool calls on three runs at ok:error of 19:6, 11:11 and 5:4. Two coordinators, different node classes. So the open question is not how throughput scales with width but <em>at what width this lane produces completed work at all</em>.</p><p><strong>Corrections this session owes.</strong> The host tier was recorded here as "~172 GB across four ranks" at ratio 2; I replaced that with 54.7 GB, and <em>that was also wrong</em> — the tier has five host pools per rank and I read the allocation log through a grep truncated at twelve lines, missing both <code>c2</code> pools. Measured truth is <strong>86.0 GB at ratio 2</strong> (21.51 GB/rank), so ratio 8 costs ~344 GB and measures 320.8 GB of cgroup shmem. The check that settles it is in the profile: the allocation-line count must equal pools times ranks, twenty here. Separately, <code>memory.current</code> is the wrong number to size against — it reads ~715 GB of the 720 GB limit while the unreclaimable total is ~530 GB, because shared memory is charged to the cgroup's file counter and cannot be reclaimed.</p></div>
+</div>
+</section>
+</main>
+</body>
+</html>

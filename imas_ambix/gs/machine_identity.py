@@ -243,7 +243,7 @@ def identity_for_table(table, *, registry: Any | None = None) -> MachineIdentity
     for shot in getattr(table, "shots", ()) or ():
         try:
             identity = identity_for_shot(int(shot), signature.key, registry=registry)
-        except MachineIdentityError, TypeError, ValueError:
+        except (MachineIdentityError, TypeError, ValueError):
             continue
         return identity
     return identity_for_representation(signature, registry=registry)

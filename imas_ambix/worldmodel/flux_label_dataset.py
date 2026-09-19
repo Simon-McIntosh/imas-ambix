@@ -558,7 +558,7 @@ class FluxLabelDataset:
                 continue
             try:
                 frame_times = _camera_times(level1_path, self._camera)
-            except KeyError, ValueError:
+            except (KeyError, ValueError):
                 dropped["missing_frame_times"] += eligible_count
                 continue
             query_times = np.asarray(

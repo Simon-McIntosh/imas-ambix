@@ -26,6 +26,10 @@
         <tr><td>Local-alias statement</td><td><code>cb5c6e1</code></td><td>2/2; alias mapping unchanged</td></tr>
         <tr><td>Hybrid alias alignment</td><td><code>1c602d0</code></td><td>10/10; no hosted id on sonnet or haiku</td></tr>
         <tr><td>Legacy surface repair</td><td><code>c197e3d</code></td><td>183/183 with no production change</td></tr>
+        <tr><td>Interactive release prompt</td><td><code>2b1ec497</code></td><td>6/6; two releases rendered at their own indices; an aliased row label is caught</td></tr>
+        <tr><td>Local-alias arrival fence</td><td><code>32b6b62</code></td><td>3/3; the inbound request names the local release, not the alias</td></tr>
+        <tr><td>Hybrid slot capabilities</td><td><code>d740487c</code></td><td>10/10; five hybrid slots each declare supported capabilities; deleting one declaration is caught</td></tr>
+        <tr><td>Shared catalog fixture</td><td><code>fa3ea670</code></td><td>29 passed across the five launcher modules, unchanged; 112 lines of duplicated origin code removed against 73 added</td></tr>
       </tbody>
     </table>
 
@@ -89,10 +93,170 @@
     fallback. Final measure: <code>tests/test_agent.py</code> 183/183, focused launcher
     suites 13/13.</p>
 
+    <h2 id="interactive-prompt">The launcher's numbered prompt, now fenced</h2>
+    <p>Two different things render a release list and only one of them was observable
+    from a test. The launcher's own numbered prompt is emitted by the generated script,
+    which decides interactivity from <code>[[ -t 0 ]]</code> and reads the answer back
+    from a descriptor pointing at that same terminal — so <code>--print</code> cannot
+    show it and neither can any run whose stdin is a pipe. Every launcher test that
+    captured pipes therefore observed nothing about the prompt, which is why it had never
+    been asserted.</p>
+    <p>Attaching the deployed script to a pseudo-terminal makes it observable. Against a
+    two-release catalog the prompt renders exactly two rows at 1-based indices, each
+    carrying its own release's label and no harness alias:</p>
+    <pre><code>Clive global models:
+  1) release-alpha · 2×H200 · fp8 · 512k ctx
+  2) release-beta · 4×H200 · int4 · 128k ctx
+Select model:</code></pre>
+    <p>Writing an index to the terminal selects that release, recorded as
+    <code>ANTHROPIC_MODEL</code> in the harness environment; an index outside the
+    catalog refuses with <code>1 through 2</code> and never starts the harness; and an
+    explicit <code>--model</code> renders no prompt at all. Six tests, passing.</p>
+    <p><strong>The fence was shown to fire, not merely to pass.</strong> A passing suite
+    cannot distinguish a guard that works from one that never runs, so the row's label
+    expression was replaced with the harness alias <code>claude-sonnet-5</code> in the
+    generated script and the same terminal driver was run against it. The mutated rows
+    read <code>1) claude-sonnet-5</code> and <code>2) claude-sonnet-5</code>,
+    which the label assertion rejects, while the same driver against the script as
+    generated renders both release labels and passes. The assertion is load-bearing
+    rather than incidentally true.</p>
+    <h2 id="arrival">The alias measured where the request arrives</h2>
+    <p>The dispatch statement is fenced by reading the environment and arguments the
+    launcher exports, which is a statement about where a request <em>departs</em>. Nothing
+    in the suite crossed that boundary: every launcher test hands a recording stub its argv
+    and environment and stops there, so the suite would have passed unchanged had the
+    harness ignored the alias mapping entirely. That gap is now closed from the engine
+    side. A new module stands up a recording origin on loopback, runs the generated
+    launcher with the real harness binary on <code>PATH</code>, and asserts on the
+    inference request that arrives.</p>
+
+    <figure>
+      <svg viewBox="0 0 780 200" role="img" aria-label="The launcher writes an alias mapping across the export boundary the existing suite already fences; the harness then sends the inference request this fence measures to a recording origin.">
+        <defs>
+          <marker id="arrival-arrow" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+            <path d="M0,0 L7,3 L0,6 Z" fill="#5b6b7f"></path>
+          </marker>
+        </defs>
+        <rect x="200" y="34" width="230" height="122" rx="10" fill="none" stroke="#c9a227" stroke-dasharray="6 4"></rect>
+        <text x="315" y="26" text-anchor="middle" font-size="12" fill="#8a711c">already fenced: what the launcher exports</text>
+        <rect x="20" y="58" width="150" height="70" rx="8" fill="#eef2f7" stroke="#5b6b7f"></rect>
+        <text x="95" y="88" text-anchor="middle" font-size="13" fill="#1f2a37">clive launcher</text>
+        <text x="95" y="107" text-anchor="middle" font-size="11" fill="#5b6b7f">alias mapping → argv/env</text>
+        <rect x="245" y="58" width="150" height="70" rx="8" fill="#eef2f7" stroke="#5b6b7f"></rect>
+        <text x="320" y="88" text-anchor="middle" font-size="13" fill="#1f2a37">claude harness</text>
+        <text x="320" y="107" text-anchor="middle" font-size="11" fill="#5b6b7f">real binary, --model sonnet</text>
+        <rect x="560" y="58" width="200" height="70" rx="8" fill="#e8f4ec" stroke="#2f7a4d"></rect>
+        <text x="660" y="88" text-anchor="middle" font-size="13" fill="#1f2a37">recording origin</text>
+        <text x="660" y="107" text-anchor="middle" font-size="11" fill="#2f7a4d">127.0.0.1 — this fence</text>
+        <line x1="175" y1="93" x2="240" y2="93" stroke="#5b6b7f" stroke-width="2" marker-end="url(#arrival-arrow)"></line>
+        <line x1="400" y1="93" x2="554" y2="93" stroke="#2f7a4d" stroke-width="2" marker-end="url(#arrival-arrow)"></line>
+        <text x="477" y="83" text-anchor="middle" font-size="11" fill="#2f7a4d">inference request</text>
+      </svg>
+      <figcaption>The launcher writes the alias mapping and hands it over; the existing
+      fence reads that writing. This fence reads the other end — the request the harness
+      actually sends — so a local reading requires the mapping to have been resolved, not
+      merely exported.</figcaption>
+    </figure>
+
+    <p>Three properties are asserted from the recorded request. The model named is the local
+    release id, never the alias string and never a hosted id. Four credentials planted in
+    the environment (<code>ANTHROPIC_AUTH_TOKEN</code>, <code>ANTHROPIC_API_KEY</code>,
+    <code>OPENROUTER_API_KEY</code>, and an <code>ANTHROPIC_BASE_URL</code> pointing at a
+    foreign origin) appear nowhere in the request, headers or body. And a control run
+    rewrites the sonnet slot to a sentinel hosted id, which the recorder
+    <strong>does</strong> report — so a local reading is known to mean one rather than
+    being what the instrument emits regardless.</p>
+
+    <p><strong>One clause of the measure does not hold as written, and is recorded rather
+    than quietly weakened.</strong> The node asked that the request carry no
+    <code>Authorization</code> header. Measured, the harness must attach one, and the
+    launcher supplies the fixed non-secret placeholder it already carries for exactly this
+    reason: the request arrives bearing <code>Authorization: Bearer clive-no-auth</code>.
+    That placeholder is load-bearing rather than incidental — it is what stops the harness
+    falling back to the operator's claude.ai login when no other credential is present. The
+    test therefore asserts the credential-absence the clause stands for: any
+    <code>Authorization</code> present must be exactly that placeholder, no
+    <code>x-api-key</code> may be sent, and no planted credential may appear anywhere.</p>
+
+    <p>Measure: <code>tests/test_agent_clive_alias_dispatch.py</code> 3 passed at
+    <code>32b6b62</code>, whole-tree <code>ruff check imas_ambix tests</code> exit 0. The
+    module needs the real harness on <code>PATH</code> and skips with that reason when it
+    is absent, because a stub echoing its own argv restates the very boundary this fence
+    exists to cross.</p>
+
+    <h2 id="hybrid-capabilities">Every hybrid slot declares its capabilities</h2>
+    <p>The capabilities fence covered the default lineup only, because it ran the
+    launcher in local mode, where all four aliases resolve to the one selected release.
+    The hybrid branch is the case with something to get wrong: it fills the slots from two
+    different places, taking <code>sonnet</code> and <code>haiku</code> from the first two
+    catalog releases and <code>opus</code>, <code>fable</code> and the custom model option
+    from the hosted set, so a slot added there is exactly where a declaration is easiest to
+    forget.</p>
+
+    <p>The test drives the generated launcher in hybrid mode and compares the declared
+    capability variables against the slot roster as an <strong>exact set</strong> rather than
+    a membership check. Five slots are covered, each carrying <code>thinking</code>: the
+    sonnet, haiku, opus and fable model slots, plus the custom model option. The roster is
+    derived from the harness's own registration convention — a slot variable is one that
+    carries a <code>_NAME</code> companion — so it is not a list the test restates, and a
+    slot arriving without its declaration enters the roster and cannot match the mapping.</p>
+
+    <p>The fence was shown to be load-bearing rather than merely green: deleting the custom
+    model option's capability declaration from the generated launcher makes the assertion
+    reject it, while the unmodified launcher passes. The hybrid branch imposes three
+    prerequisites no launcher unit test meets by default, and the module supplies them
+    rather than skipping the mode — the catalog card and endpoint document carrying the
+    release string, a user manager promising the proxy is already active, and a listening
+    loopback port for the readiness probe performed before the harness is launched.</p>
+
+    <h2 id="fixture">One catalog origin, shared by the launcher tests</h2>
+
+    <p>Three launcher modules each stood up their own closure over a
+    <code>ThreadingHTTPServer</code> to answer the release-catalog fetch the generated
+    script makes, and each recorded the requests it saw. The copies had drifted: one
+    yielded a <code>SiteConfig</code>, the others a bare address, so the same concept
+    lived under three interfaces. One module now serves every launcher test's catalog
+    origin and records what the launcher asked for.</p>
+
+    <p>The raw form is the general entry point and the items form is a thin wrapper over
+    it. Which module uses which:</p>
+
+    <table>
+      <thead><tr><th>Module</th><th>Entry point used</th><th>Lines removed</th><th>Lines added</th></tr></thead>
+      <tbody>
+        <tr><td><code>tests/test_agent.py</code></td><td><code>serve_catalog_items</code></td><td>48</td><td>12</td></tr>
+        <tr><td><code>tests/test_agent_clive_picker.py</code></td><td><code>serve_catalog_items</code></td><td>34</td><td>3</td></tr>
+        <tr><td><code>tests/test_agent_clive_dispatch_guidance.py</code></td><td><code>serve_catalog_items</code></td><td>30</td><td>2</td></tr>
+        <tr><td><code>tests/agent/catalog_fixture.py</code> (new)</td><td><code>serve_catalog</code>, wrapped by <code>serve_catalog_items</code></td><td>—</td><td>73</td></tr>
+      </tbody>
+    </table>
+
+    <p>Nothing in scope needs the raw form yet, so it is exposed because the plan asked
+    for the general shape rather than because a caller exercises it: a follow-on that
+    needs a non-200 answer or a redirect has it without standing up a fourth private
+    server. That is the difference between the <code>status</code> and
+    <code>response_headers</code> parameters existing on the entry point and a test
+    demonstrating them — the latter is not claimed here.</p>
+
+    <p>The fence that makes this a measurement rather than a pass: the combined five-module
+    run and <code>tests/test_agent.py</code>'s 192 both report the same numbers as before
+    the change, so a fixture that silently stopped serving the catalog would show up as a
+    failure rather than as a quieter test. The one assertion narrowed — a picker test
+    reading <code>requests[0]</code>, now <code>requests[0][1]</code> — is the recorded
+    entry being explicitly a (path, headers) pair.</p>
+
     <h2 id="open">What is not proven here</h2>
-    <p>Curated rows are asserted to be generated correctly, not to <em>render</em>. A
-    non-interactive run cannot show a picker, so interactive confirmation remains
-    outstanding and requires a human at a terminal.</p>
+    <p>The launcher's numbered prompt is now asserted to render and to select. The
+    <strong>curated rows inside the harness picker</strong> are a different surface and
+    remain asserted only to be generated correctly, not to render: they are consumed by
+    the harness, which no headless node can drive to a picker, so confirming them still
+    requires a human at a terminal.</p>
+
+    <p>The same boundary applies to the capability declarations. What is asserted is the
+    declaration set the launcher <em>exports</em> in hybrid mode, which is the launcher's
+    own output rather than the harness's behaviour. Whether the harness reads those
+    declarations, and what it is handed when a model carries none, is harness-side and
+    remains unmeasured here: the fence protects the export, not the consumption.</p>
 
   </main>
 </body>

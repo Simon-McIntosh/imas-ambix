@@ -21,11 +21,12 @@
   <title>Clive Launch Modes | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-09-01">
-<meta name="plan-version" content="15">
+<meta name="plan-modified" content="2026-09-18">
+<meta name="plan-version" content="23">
 <meta name="plan-commits" content="526195c8c059efe5f73439ae1fed626407f11322,5fd71b1b1e2d12c0e160816e24f3ca7055f718cf,cb5c6e12775124169e3402065a87c5e920a912ed,1c602d0ecc7f7fe1c03530bfe848266fd93b565b,c197e3d2f3ed6c57ecda748cebdd2262f5adfbcb,03bf0652e41fcf440c9254260e0f31221e132a89,8bea195">
 <meta name="plan-artifacts" content="imas_ambix/agent/clive.py,tests/test_agent_clive_modes.py,tests/test_agent_clive_picker.py,tests/test_agent_clive_dispatch_guidance.py">
-<meta name="plan-impl" content="0.95">
+<meta name="plan-impl" content="0.99">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;deferred&quot;,&quot;s6&quot;:&quot;implementable&quot;}">
 </head>
 <body>
   <main class="plan-doc">
@@ -221,7 +222,52 @@ Second, the operator steps ran. The endpoint document was published to a path wh
     <div class="r-comment-body"><p>Preferred release is an operator setting embedded into the generated launcher, with unset and absent-release both falling back to the existing prompt-and-selector behaviour rather than choosing arbitrarily. A five-row fixture proves every row label equals its native model id while each description retains family, count, precision and context. 24/24 focused, 183/183 legacy, lint clean</p></div>
 </div>
 <div class="r-comment" data-section="s3" data-id="c-run-r-20260901T210712140208-harness-origin-serves-every-release" data-who="s24-clive-modes" data-when="2026-09-01T21:18:07Z">
-    <div class="r-comment-body"><p>The harness base URL is now an origin serving every listed release when one is discoverable, so every picker row is reachable and in-session switching works; without such an origin the selected release&#x27;s own is kept so a single working model still beats none. The launcher never advertises a row it cannot reach. 26/26 focused, 183/183 legacy, lint clean</p></div>
+    <div class="r-comment-body"><p>The harness base URL is now an origin serving every listed release when one is discoverable, so every picker row is reachable and in-session switching works; without such an origin the selected release's own is kept so a single working model still beats none. The launcher never advertises a row it cannot reach. 26/26 focused, 183/183 legacy, lint clean</p></div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-run-r-20260918T090205552405-s24-interactive-fence-reuse" data-who="reckon-ship" data-when="2026-09-18T09:38:03.320Z">
+    <div class="r-comment-body"><p>Reuse map delivered: the bare-launch numbered prompt is headlessly fenceable via pty, only the in-harness picker needs a human. One pty site exists (tests/test_agent.py:2701), write-first so it fences refusals only; three helpers reusable verbatim, five named not-reusable because they run without a tty.</p></div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-20260918-interactive-fence-reuse" data-who="reckon-ship" data-when="2026-09-18T09:40:25+00:00">
+    <div class="r-comment-body">s24-interactive-fence-reuse landed — gate 'reuse map' passed; measure: report sha256 3b681f7 at 98 lines, every source citation spot-verified against clive.py and test_agent.py. No commit: investigate role, the map is written outside the repository.
+
+The finding corrects this plan. The interactive rendering item has been carried as one thing needing a human, and it is two things. The bare-launch numbered prompt IS headlessly fenceable: it is guarded by [[ -t 0 ]] at clive.py:107, takes its answer from fd 3 wired as 3&lt;&amp;0 at clive.py:109, and writes its rows and 'Select model: ' to STDERR at clive.py:455-458 — stdout is command-substituted into _CATALOG_RESULT and so is not free for assertions. Only the in-harness model picker genuinely needs a human, and that is the harness's own interface rather than this repository's code.
+
+The repository holds exactly one pseudo-terminal site, tests/test_agent.py:2701, and it writes the choice before reading, so it fences the two refusal strings and cannot assert a rendered row. _serve_catalog (2341), _catalog_item (2318) and _write_executable (2376) are reusable verbatim. Five candidates are named NOT reusable because they run under subprocess.run with no tty, so [[ -t 0 ]] is false and the prompt is structurally unreachable — reusing one would have produced a test that passes without ever rendering a row.
+
+impl unchanged at 0.95: this node produced a map, not a shippable change. Section s3 stays implementable until the fence test it specifies lands.</div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-run-r-20260918T092700383788-clive-interactive-prompt-fence" data-who="clive-interactive-prompt-fence" data-when="2026-09-18T09:27:00Z">
+    <div class="r-comment-body"><p>Interactive release prompt fenced — commit 2b1ec497; gate "interactive prompt contract" passed; measure 6 passed in tests/test_agent_clive_interactive.py, and the whole-tree <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0.</p>
+<p>The numbered prompt is rendered by the generated launcher, not by the generator: the script decides interactivity from <code>[[ -t 0 ]]</code> and reads the answer back from a descriptor pointing at that same terminal. That is why <code>--print</code> and every piped run cannot show it, and why the prompt had never been asserted — a launcher test with captured pipes observes nothing about it. The new tests attach the deployed script to a pseudo-terminal, write an explicit selection to the master side the way a person types one, and assert what a human sees there.</p>
+<p>Against a two-release catalog the prompt renders exactly two rows at 1-based indices, each carrying its own release's label — <code>release-alpha · 2×H200 · fp8 · 512k ctx</code> and <code>release-beta · 4×H200 · int4 · 128k ctx</code> — and no harness alias. Writing index 1 or 2 selects that release, recorded in the fake harness environment as <code>ANTHROPIC_MODEL</code>; an out-of-range index refuses with <code>1 through 2</code> and never starts the harness; and an explicit <code>--model</code> renders no prompt at all.</p>
+<p>The fence was shown to fire rather than merely to pass. Replacing the row's label expression with the harness alias <code>claude-sonnet-5</code> in the generated script makes the rows read <code>1) claude-sonnet-5</code> and <code>2) claude-sonnet-5</code>, which the label assertion rejects, while the same driver against the script as generated renders the two release labels and passes. A passing suite never shows that a fence fires; this run does.</p>
+<p>Scope, stated because it bounds the claim: this fences the launcher's own numbered prompt. The curated rows rendering inside the harness picker remain a human-at-a-terminal item and are not closed here.</p></div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-20260918-prompt-fence-closure" data-who="reckon-ship" data-when="2026-09-18T10:38:57+00:00">
+    <div class="r-comment-body">Closure facts the worker could not see. Gate 'interactive prompt contract' re-run by the coordinator at the MERGED head rather than accepted from the worker's base: 6 passed in tests/test_agent_clive_interactive.py and uv run --no-sync ruff check imas_ambix tests exit 0. Merged as 2d73f22; the plan file conflicted because this session had appended two comments while the worker appended its own, and both sides were kept.
+
+The mutation check is why this landing is trusted rather than believed. A passing suite never demonstrates that a fence can fail, so the worker replaced the row's label expression with the harness alias and recorded both readings: unmutated the rows render release-alpha and release-beta with their own topologies and the assertion stays quiet; mutated, both rows read claude-sonnet-5 and the assertion rejects them. That is the difference between a test that passes and a test that measures.
+
+Section s3 is now done. Its remaining relative, the curated rows rendering inside the harness picker, is not s3 work: it is §6 bullet 3, it belongs to a surface this repository does not own, and it stays carried by f-mmsc-02 as authority-required.
+
+impl 0.95 to 0.97. It is not 1.0 because §6 bullet 5's observation clause is still in flight as local-alias-request-reaches-the-engine, and the plan should not read complete while a criterion it names has no test.</div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-run-r-20260918T144353544895-launcher-catalog-fixture-consolidation" data-who="launcher-catalog-fixture-consolidation" data-when="2026-09-18T15:52:00Z">
+    <div class="r-comment-body"><p>Shared launcher catalog fixture landed — commit fa3ea670; gate "the three launcher modules share one catalog fixture" passed; measure: the combined run of <code>tests/test_agent_clive_modes.py tests/test_agent_clive_picker.py tests/test_agent_clive_dispatch_guidance.py tests/test_agent_clive_interactive.py tests/test_agent_clive_alias_dispatch.py</code> reports exactly 29 passed and <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0.</p>
+<p>What changed is the shape of the surface the launcher tests stand up, not what the launcher does. Three modules each defined their own closure over a <code>ThreadingHTTPServer</code> answering the release-catalog fetch the generated script makes, and each recorded the requests it saw; the copies had drifted, so one yielded a <code>SiteConfig</code> and the others yielded a bare address. The shared module <code>tests/agent/catalog_fixture.py</code> exposes <code>serve_catalog</code> as the general entry point — any payload, any status, any response headers, which is what an origin that redirects or refuses needs — with <code>serve_catalog_items</code> as a thin wrapper over it for a list of catalog cards. Each recorded request is kept as its path and its headers as sent, so a test asserting what the launcher asked for reads it from the same object it configured.</p>
+<p>Entry points now used: <code>tests/test_agent.py</code> and <code>tests/test_agent_clive_picker.py</code> and <code>tests/test_agent_clive_dispatch_guidance.py</code> import the items wrapper; nothing in scope needs the raw form yet, so it is the general entry point the plan asked for rather than a shape any current caller exercises — a follow-on that needs a non-200 or a redirect has it without a fourth private server. Lines: 112 removed from the three modules, 17 added back as call-site plumbing, against 73 lines for the shared module — net −22 lines across the change, with the duplication removed rather than moved.</p>
+<p>No test body changed its behaviour: the combined 29 and <code>tests/test_agent.py</code>'s 192 are the same tests as before, with one picker assertion narrowed from <code>requests[0]</code> to <code>requests[0][1]</code> because the recorded entry is now explicitly a (path, headers) pair.</p>
+<p>Deliberately left alone, as <code>follow_ons</code> rather than in-scope edits: <code>tests/test_agent_clive_interactive.py</code> still carries a fourth private copy of the origin, and it sits outside this node's write fence; and each module still keeps its own <code>_catalog_item</code> card builder, whose keyword names and defaults diverge (<code>count</code> versus <code>accelerator_count</code>) enough that folding them together is a rename of about fourteen call sites rather than a fixture change.</p>
+<p>Node obligations honoured: this comment does not close the node, does not resolve the driving followup, and sets no terminal status; it does not touch the plan-version or plan-modified meta lines. The merge check at the merged head is a separate node's work.</p></div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-20260918-fixture-consolidation-closure" data-who="reckon-ship" data-when="2026-09-18T15:58:55+00:00">
+    <div class="r-comment-body">Closure facts. Gate re-run by the coordinator at the MERGED head: 29 passed across the five launcher contract modules — the exact count the measure pinned, unchanged from base, which is the whole point — plus 192 passed in tests/test_agent.py, the module that lost 60 lines, and ruff check imas_ambix tests exit 0. Net 90 insertions against 112 deletions.
+
+Why this was folded rather than waved through as tidying: the three copies had already diverged. tests/test_agent.py carried the general form taking a raw payload with status and response-header control, while the picker and dispatch-guidance modules each carried an identical convenience wrapper over a list. Choosing between them is a decision a worker cannot close, so it was closed at dispatch — payload form general, items form a thin wrapper — and the count was pinned so no behaviour could move inside a refactor.
+
+The hazard was concrete rather than aesthetic. The reuse map had already recorded that the list-taking wrappers run under captured pipes, so a test written against one of them passes without ever rendering a row. Three same-named fixtures with different reachability is how the next author picks the wrong one.
+
+Its manifest classified 'unreadable' and that was a format defect, not a work failure: it used a YAML list form and the non-standard status implemented-pending-review, while every deliverable was committed, the worktree was clean and the gate was green. The classification was not taken at face value in either direction — the commits were read and the gate re-run before promoting.</div>
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20260901T114750299760-clive-local-alias-statement" data-who="s24-clive-modes" data-when="2026-09-01T11:53:09Z">
     <div class="r-comment-body"><p>Default local launch now states sonnet is the primary local worker, carrying that release's own accelerator count, family and exact max_model_len from its catalog card, plus the division of labour and the fact that local-only mode has no frontier slot. All four alias assignments unchanged. 2/2 tests</p></div>
@@ -233,6 +279,94 @@ Second, the operator steps ran. The endpoint document was published to a path wh
     <div class="r-comment-body">clive-local-alias-statement landed — commit cb5c6e1; gate 'dispatch guidance contract' passed; measure 2/2 tests. The default local launch now tells the session that sonnet is the primary local worker, carrying that release's own validated accelerator count, family and exact max_model_len from its catalog card, plus the division of labour and the plain statement that local-only mode has no frontier slot. All four alias assignments are unchanged, because the statement describes the mapping rather than creating one.
 
 clive-hybrid-alias-alignment landed — commit 1c602d0; gate 'hybrid alias contract' passed; measure 10/10 tests. Landing the statement exposed an inherited contradiction: the hybrid branch mapped its local release to haiku and gave sonnet to a hosted model, so a session told sonnet is local in the default lineup would have reached a hosted model after switching mode — the exact confusion this mapping exists to remove. Hybrid now places the first local release on sonnet and the second on haiku with no hosted id on either, frontier slots keep the remaining aliases, and hybrid receives the same session statement. Default local generation is unchanged and implicit remains byte-identical to explicit.</div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-run-r-20260918T095453182628-local-alias-request-reaches-the-engine" data-who="local-alias-request-reaches-the-engine" data-when="2026-09-18T12:26:33Z">
+    <div class="r-comment-body">local-alias-request-reaches-the-engine landed — commits 0ce4e483 and 32b6b62c; gate 'the new module passes under pytest' passed at 3/3, whole-tree ruff check imas_ambix tests exit 0. The arrival gap the remainder audit left open on bullet 5 is closed. The new module stands a recording origin up on loopback, runs the generated launcher with the real harness binary so that a delegated request is issued under the sonnet alias, and asserts from the inbound request that the model named is the local release id and that no hosted credential is carried.
+
+What the recorded request shows: model = the local release id, never the alias string and never a hosted id; four credentials planted in the environment (ANTHROPIC_AUTH_TOKEN, ANTHROPIC_API_KEY, OPENROUTER_API_KEY, and an ANTHROPIC_BASE_URL aimed at a foreign origin) appear nowhere in the request; and a control run that rewrites the sonnet slot to a sentinel hosted id is reported as that sentinel, so a local reading is known to mean one. The module runs the real harness binary and skips with that reason when it is absent, because an argv-echoing stub restates the export boundary the launcher suite already fences.
+
+One clause of the node's measure does not hold as written and is recorded rather than quietly weakened: the fence asked for no Authorization header, and the harness must attach one — the request arrives as 'Authorization: Bearer clive-no-auth', the launcher's fixed non-secret placeholder, which is what stops the harness falling back to the operator's claude.ai login. The test asserts the credential-absence that clause stands for: any Authorization present must be exactly that placeholder, no x-api-key may be sent, and no planted credential may appear at all.
+
+No production file changed: this node adds a fence and a record. It does not touch the plan-version or plan-modified meta lines, and it does not resolve its own followup or set a terminal status.</div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-20260918-alias-arrival-closure" data-who="reckon-ship" data-when="2026-09-18T12:56:32+00:00">
+    <div class="r-comment-body">Closure facts and one adjudication. Gate re-run by the coordinator at the MERGED head: 9 passed across tests/test_agent_clive_alias_dispatch.py and tests/test_agent_clive_interactive.py, ruff check imas_ambix tests exit 0. Merged as c921bd1; the evidence record conflicted append-against-append and both sides were kept.
+
+This closes §6 bullet 5's observation clause, the one the remainder audit found had no test and no carrier. The fence now sits at the inbound request instead of the exported environment, and it carries its own control: rewriting the sonnet slot to a hosted sentinel makes the recording origin report that sentinel, so a local reading means something rather than being what the instrument emits regardless.
+
+ADJUDICATED, against my own node wording. The node's done-when required the arriving request to carry no Authorization header. Measured, the harness always attaches one: Bearer clive-no-auth, a fixed non-secret placeholder the launcher sets deliberately, and it is load-bearing because it is what stops the harness falling back to the operator's claude.ai login when no other credential is present. Satisfying the clause literally would have meant breaking a safety property to make a test pass. The worker asserted the property the clause stands for instead — four credentials planted in the parent environment appear nowhere in any recorded request, no x-api-key is sent, and the only Authorization is that placeholder, extracted from the generated launcher rather than hardcoded in the test — and it raised the discrepancy rather than resolving it quietly in either direction. The worker's reading is accepted; the fault was in the done-when I wrote.
+
+impl 0.97 to 0.99, and deliberately not 1.0. Every executable criterion is now fenced, but §6 bullet 3's rendering clause is not met: it needs a person at a terminal looking at the harness picker, which no node can produce. Setting 1.0 would drop this plan out of pending_work and make that human step invisible, which is the failure this session spent its drain removing. It stays at 0.99 and active until the lead runs that check.</div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-run-r-20260918T085702392753-s24-remainder-audit" data-who="reckon-ship" data-when="2026-09-18T09:51:27.688Z">
+    <div class="r-comment-body"><p>Five §6 bullets verdicted: 3 fenced, 2 open. Bullet 3's rendering clause is authority-required and correctly not headlessly closable. Bullet 5's observation clause has no test and no carrier: every launcher test stops at the exported-environment boundary, so the suite would still pass if the harness ignored the alias mapping entirely. Each fenced verdict's cited test was executed at HEAD and passed.</p></div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-20260918-done-when-audit" data-who="reckon-ship" data-when="2026-09-18T09:53:24+00:00">
+    <div class="r-comment-body">s24-remainder-audit landed — gate 'focused launcher suites' passed; measure 19 passed across the three launcher contract files plus 5 passed and 187 deselected in tests/test_agent.py, exit 0 on both, logs retained on the run record. Every test cited for a fenced verdict was executed at this revision. No commit: investigate role.
+
+The five bullets verdict 3 fenced, 2 open, and in both open cases one half of the bullet is already fenced while the open half is the clause a repository unit test structurally cannot reach.
+
+FENCED. Bullet 1, by test_clive_readable_openrouter_key_does_not_reach_proxy, which executes the launcher rather than only generating it and requires the catalog probe to carry no Authorization header. Bullet 2, by the byte-identity test and by the one asserting --help states the axis and its default. Bullet 4, by test_every_declared_alias_has_supported_capabilities, whose exact-set assertion fails if a slot is added without its declaration.
+
+OPEN, bullet 3's rendering clause, and correctly not closable here: it asks for a person seeing the rows, so a driven harness would test the acceptance path rather than produce the confirmation. Carried by f-mmsc-02, authority-required.
+
+OPEN, bullet 5's observation clause, which has no test and no carrier. This is the load-bearing finding: every launcher test stops at the boundary the launcher itself writes, the exported environment and argv handed to a stub harness, so the suite would still pass if the harness ignored ANTHROPIC_DEFAULT_SONNET_MODEL entirely. What is fenced is the mapping the launcher hands over, never that a request arrives at the local engine under a delegated alias. The audit's design constraint on closing it is the sharp part: the record must come from the engine side, because a stub harness echoing its own argv restates the same boundary the suite already fences, which is exactly the measurement that would not have caught this.
+
+One caveat that does not move a verdict: the hybrid branch sets a custom-option capability declaration at clive.py:737 which the capabilities test does not assert, because that test runs the default mode only.
+
+impl unchanged at 0.95: this node produced verdicts, not a shippable change.</div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-run-r-20260918T133122072603-hybrid-slot-capability-assertion" data-who="hybrid-slot-capability-assertion" data-when="2026-09-18T14:11:14Z">
+    <div class="r-comment-body">hybrid-slot-capability-assertion landed — commit d740487c; gate 'the module passes under pytest' passed at 10/10 across tests/test_agent_clive_picker.py, whole-tree ruff check imas_ambix tests exit 0, and the assertion was shown to be load-bearing by deleting a declaration.
+
+This closes the one caveat the remainder audit recorded against the capabilities test: that test ran the default mode only, so the hybrid branch's own declaration was unasserted. The new test drives the generated launcher in hybrid mode and compares the declared capability variables against the slot roster as an exact set rather than a membership check. Five slots are covered, each carrying thinking: ANTHROPIC_DEFAULT_SONNET_MODEL resolving to the first catalog release, ANTHROPIC_DEFAULT_HAIKU_MODEL to the second, ANTHROPIC_DEFAULT_OPUS_MODEL to or-opus-4.8, ANTHROPIC_DEFAULT_FABLE_MODEL to or-glm-5.2, and ANTHROPIC_CUSTOM_MODEL_OPTION to or-gpt-5.5 — the last being the declaration the caveat named.
+
+The slot roster is derived from the harness's own registration convention, a slot variable being one that carries a NAME companion, rather than listed in the test. That is what makes an added slot fail the assertion: it enters the roster and, absent its declaration, cannot match the mapping. Deleting the custom model option declaration from the generated launcher makes the assertion reject it, so the fence is known to be load-bearing rather than merely green.
+
+What is fenced is the declaration set the launcher exports in hybrid mode, not that the harness honours those declarations — the same boundary the remainder audit named for the observation clause. The hybrid branch imposes prerequisites no launcher unit test meets by default, so the module supplies them: the endpoint document and catalog card carrying the release string, a user manager promising the proxy is already active, a listening loopback port for the readiness probe, and a harness stub recording the environment it is handed.
+
+No production file changed: this node adds a fence and a record. It does not touch the plan-version or plan-modified meta lines, and it does not resolve its own followup or set a terminal status.</div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-20260918-hybrid-capability-closure" data-who="reckon-ship" data-when="2026-09-18T14:40:50+00:00">
+    <div class="r-comment-body">Closure facts. Gate re-run by the coordinator at the MERGED head across all five launcher contract modules: 29 passed, ruff check imas_ambix tests exit 0, audit-doc clean on this plan and on the evidence record. Merged as a clean three-file merge with no conflict.
+
+This closes the caveat, and it is worth recording that two independent nodes found it. The remainder audit noted the hybrid branch's custom-option declaration was set in code but unasserted, and marked it as not moving bullet 4's verdict; the arrival-fence worker listed the same thing under work that was not its own. Neither was wrong to leave it, and neither was in a position to see that the other had named it too. Bullet 4's wording is 'every slot the launcher sets', and in hybrid mode one of them was not covered.
+
+The fence now compares the declaration set against the slot roster as an EXACT set rather than by membership, across five slots, and derives that roster mechanically from the naming convention a slot follows, so a slot added later enters the roster without anyone remembering to extend the test. Control recorded: deleting one declaration makes the assertion reject while the unmodified launcher passes.
+
+The worker bounded its own claim correctly and the bound is the honest half of this: the fence covers what the launcher EXPORTS. Whether the harness reads those declarations, and what it does with a model carrying none, is harness-side and stays unmeasured — the same surface as bullet 3, and the same human at the same terminal.
+
+impl stays 0.99. This added coverage rather than closing a criterion the plan was missing, and the one criterion still open is the one no agent can close.</div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-20260918-drain-ledger" data-who="reckon-ship" data-when="2026-09-18T16:00:00+00:00">
+    <div class="r-comment-body">DRAIN LEDGER — S24 @ 2026-09-18T16:00Z
+
+FOLDED, each with the node that took it:
+  reuse scout, the fence it specified        folded → clive-interactive-prompt-fence
+  audit, bullet 5 had no carrier             folded → local-alias-request-reaches-the-engine
+  audit + arrival worker, hybrid declaration  folded → hybrid-slot-capability-assertion
+  reuse scout, divergent catalog fixtures     folded → launcher-catalog-fixture-consolidation
+  arrival worker, restate the credential clause  folded → adjudication recorded in the s4 landing comment
+
+RESOLVED THIS SESSION as pointers whose target had already shipped:
+  f-gsw-03 (glm-53-serve-and-wiring)          foreign-owner → glm-parser-output-shape, shipped
+  f-sei-03 (serving-endpoint-indirection)     foreign-owner → glm-parser-output-shape, shipped
+  f-dsc-003 (dsv41-flash-serve-characterisation)  foreign-owner → serving-interpreter-version-split, created this session
+
+OPEN, each with its exemption and the concrete thing that makes it true:
+  f-mmsc-02 (multi-model-serving-capacity)    authority-required → a person at a terminal; the harness model picker is not this repository's surface
+  f-sivs-01 (serving-interpreter-version-split)  authority-required → a drained-lane window; the rebuild stops a lane measured at 32 concurrent across four coordinators' fleets
+  capability worker, harness-side reading     authority-required → same surface and same person as f-mmsc-02
+  f-dsc-004 (dsv41-flash-serve-characterisation)  foreign-owner → serving-interpreter-version-split
+  f-dsp-01 (dsv4-flash-dspark-four-card-serve)  foreign-owner → its own plan, which is not on the S24 roster; called stale earlier on the strength of impl 1.0, then found to have zero collapsed sections, so it is NOT verified stale and was deliberately not closed
+
+DISPOSED BY DECISION rather than deferred:
+  arrival worker, figure as a standalone asset  no work owed → inline SVG is the established form in this repository's evidence records
+
+  ---
+  rows: 14   foldable-remaining: 0   unreconciled-runs: 0 of this session's
+
+One live pointer remains in the project and it is not this session's: r-20260918T155731267687-reuse-map, session telemetry-spine, plan serve-telemetry-spine. A peer coordinator's run is not ours to dispose, so it is named here rather than given a disposition.</div>
 </div>
 </section>
 </main>

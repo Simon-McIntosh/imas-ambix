@@ -1,0 +1,538 @@
+# DeepSeek-V4.1-Flash — 552B backbone MoE, 8B/16B activated, 1M context
+#
+# A different architecture from V4-Flash, not a point release of it, so none of
+# the V4-Flash deployment findings carry over:
+#   * Causal Encoder-Decoder — 40 layers as a 20-layer causal encoder feeding a
+#     20-layer decoder, where V4-Flash is decoder-only.
+#   * CSA2 attention (Full / Reindex / Reuse modes), 64 query heads, 1 KV head.
+#   * 1 shared + 384 routed experts per MoE layer, 6 routed active per token;
+#     8B activated during prefill, 16B during decode.
+#   * Native multimodal — a DeepSeek-ViT tower feeds the same backbone through
+#     a two-layer MLP projector, rather than the bolt-on vision pack V4 used.
+#
+# Weights: 48 shards, 510.3 GB, MIT. Verified against the published blob sizes
+# rather than the index metadata, which disagrees with them:
+#   routed + DSpark experts (MXFP4)         259.5 GiB
+#   Engram tables (FP8)                     183.1 GiB
+#   attention, dense projections, routers      6.9 GiB
+#   embedding + LM head (BF16), norms (FP32)   3.9 GiB
+#   UE8M0 block scales                        21.9 GiB
+#                                     total  475.3 GiB
+#
+# The Engram tables are the whole memory story and have nothing to do with the
+# MoE: layers 1 and 14 each own a hash table of ~384M rows x 256 dims, 196.6B
+# parameters between them. They are why a model activating 8-16B parameters per
+# token still needs half a terabyte resident, and why the host-table setting
+# below is load-bearing rather than a tuning knob.
+#
+# Memory budget on 4xH200 (140.4 GiB each, 561.6 GiB total):
+#   Engram tables resident:  475.3 GiB weights -> 86 GiB spare. Fits, but the
+#                            margin is thin once CUDA graphs and the ViT land.
+#   Engram tables on host:   292.2 GiB weights -> 269 GiB spare, and ~46 GiB
+#                            per card handed back to the KV pool.
+#   KV is a rounding error either way — the compressed latents are stored in
+#   FP4 at 890 bytes/token, so the full 1M window costs ~0.89 GB.
+#
+# Measured on the first four-card serve, per rank:
+#   load weight begin        avail 138.72 GiB
+#   load weight end          avail  65.99 GiB   (weights 72.73 GiB/card)
+#   memory pool end          avail  49.05 GiB   (KV pool 16.94 GiB/card)
+#   decode CUDA graph end    avail  45.13 GiB   (graphs 1.33 GiB)
+# Four cards at 72.73 GiB is 290.9 GiB of weights against the 292.2 GiB the
+# host-table arithmetic predicts, so the offload does what it claims. The
+# Engram tables land as 2 layers x 4 ranks x ~24 GiB of pinned host memory,
+# 100% huge-page backed.
+#
+# Startup is dominated by reading the checkpoint off GPFS: load_weight 458.9 s,
+# kv_cache_allocation 6.6 s, decode graph capture 47.9 s, scheduler end-to-end
+# 670.1 s. Roughly eleven minutes from submit to first token; size any health
+# check's patience accordingly.
+#
+# Throughput not yet characterised here. The DeepSeek beta reported 300-507
+# tok/s output; that is the vendor's number on their own stack, not a
+# prediction for this deployment.
+#
+# License: MIT (fully permissive)
+
+[model]
+name = "DeepSeek-V4.1-Flash"
+hf_repo = "deepseek-ai/DeepSeek-V4.1-Flash"
+# Its own directory rather than sharing with V4-Flash: a different architecture
+# and a different shard count, so a shared directory would leave one release's
+# shards beside the other's index with no way to tell afterwards which
+# checkpoint a run actually loaded.
+weights_slug = "deepseek-v4-1-flash"
+served_name = "deepseek-v4.1-flash"
+checkpoint_precision = "mxfp4+fp8"
+size_gb = 510
+max_context = 1048576
+
+[engine]
+type = "sglang"
+# TP4 is the shape the vendor recipes exercise (GB300 and B200 at --tp 4
+# --ep-size 4; NVIDIA Dynamo at TP4/EP4 per worker). The published H200 recipe
+# is TP8/EP8, so TP4 ON H200 is this deployment's own composition of a
+# supported topology with the memory arithmetic above — the first thing to
+# verify at launch, not an inherited guarantee.
+#
+# TP4 also divides cleanly: 64 query heads / 4 = 16 per card. This is why a
+# six-card deployment is not expressible at all — 64 does not divide by 6 —
+# and why adding cards beyond four has to come through expert or data
+# parallelism rather than by widening TP.
+tensor_parallel = 4
+ep_size = 4
+# 0.85, and DO NOT raise it to use apparently-idle memory. This fraction is
+# the engine's budget for weights plus KV pool; the FlashInfer MXFP4 fused-MoE
+# workspace is allocated LAZILY AT GENERATION and comes from what is left
+# OUTSIDE it. Raising this to 0.95 to spend idle memory is what removed that
+# reserve, and the serve then died twice on the same allocation -- 7.52 GiB
+# wanted against 6.91 GiB free at a 20M pool, and against 7.34 GiB free at 15M.
+#
+# The workspace also scales with prefill length, which is why a short-prompt
+# concurrency sweep can pass at 32 streams and the next agentic request can
+# kill the serve: a clive worker sends a large system prompt and tool
+# definitions, and that is the shape that allocates. Size this against a long
+# prefill, never against short completions.
+mem_fraction_static = 0.85
+# This architecture's own attention kernel; "flashinfer" (the schema default,
+# and what V4-Flash uses) does not implement CSA2.
+attention_backend = "dsv4"
+# MXFP4 routed experts run on Hopper through FlashInfer's MXFP4 path, so the
+# experts stay at their shipped precision on these SM90 cards — no FP8
+# up-conversion pass and no second checkpoint.
+moe_runner_backend = "flashinfer_mxfp4"
+# Route the MXFP4 experts through FP8 activations instead of a BF16 upcast.
+# SM90 has no FP4 datapath, so the runner's `default` precision upcasts to
+# BF16 and pays a dequantisation pass on every expert GEMM; `fp8` selects
+# FlashInfer's Humming-style MXFP4-weight x FP8-activation kernels and reaches
+# the FP8 tensor cores this silicon does have. Requires FlashInfer >= 0.6.18;
+# the serving container carries exactly 0.6.18.
+#
+# Chosen as a prefill lever on measurement: real agent traffic on this serve
+# runs 270 input tokens per output token, so the expert GEMM cost lands almost
+# entirely on prefill. The comparable published change on Hopper -- a lossless
+# MXFP4-to-block-FP8 re-encode reaching the same tensor cores -- measured
+# 1.38-1.53x single-request prefill and 2.04x at 32 concurrent on TP4. This
+# path should not carry that change's 2x weight-memory cost, because it
+# converts activations rather than duplicating weights, but the gain here is
+# UNMEASURED until this serve is compared against its own prior figures.
+# MEASURED 2026-09-17, and the answer is that this lever does nothing at the
+# operating point. The W4A16 arm ran as job 1273217 against the W4A8 baseline
+# of jobs 1272783 and 1273074, one variable, pool and memory held. Instrument:
+# uncached full-chunk prefill -- batches carrying 16384 new tokens and zero
+# cached -- binned on concurrent #running-req, because the figure varies with
+# occupancy and with nothing else much (+/-7% across five hours of wildly
+# different traffic mix, +/-2.3% from 1 to 30 concurrent).
+#
+#   concurrency   n(W4A16)  W4A16      n(W4A8)  W4A8       delta
+#   0 (idle)          12    8,726 t/s      11   11,034 t/s  -20.9%
+#   1-9               78    8,427          67    8,519       -1.1%
+#   10-19             26    8,618         125    8,768       -1.7%
+#   20-29              0    not reached   146    8,534          -
+#
+# So W4A8 is better ONLY when the machine is idle, and the two are
+# indistinguishable under any real load. The published Hopper comparable this
+# setting was chosen on -- 1.38-1.53x single-request, 2.04x at 32 concurrent --
+# reproduces only in its single-request half. The 2.04x-at-concurrency claim is
+# NOT reproduced here, and the 20-29 bin was never reached, so it is untested
+# rather than refuted.
+#
+# fp8 is kept because it is never worse. Do not expect it to buy throughput at
+# width: aggregate decode is flat from width 17 to 32 with queue depth zero
+# throughout, so the bottleneck at the operating point is not this path.
+flashinfer_mxfp4_moe_precision = "fp8"
+# Vendor-documented Hopper prefill win: decoder-side bounded replay measured
+# 1.56x prefill throughput on 8xH200.
+enable_decoder_swa_bounded_replay = true
+# The lane publisher reads the engine's Prometheus endpoint to derive KV-pool
+# headroom. SGLang defaults that endpoint off, so the serve must opt in.
+enable_metrics = true
+# A 203,241-token prefill consumed 37.1 GB of the 40.65 GB free at ready, so
+# halve the 32,768-token chunk to halve each transient prefill peak. This trades
+# some prefill rate for activation headroom; it does not alter the context cap.
+chunked_prefill_size = 16384
+# Cap running requests BELOW the pool's fill point and let the rest queue. The
+# 4M pool fills near 38-40 concurrent (79% full at width 30, implied 98,379
+# tokens per resident request), so 36 stays clear of eviction while sitting
+# above the 33-34 peak this lane has actually reached. Queueing costs nothing
+# in aggregate: throughput is FLAT from width 17 to 32 (4M slope +0.09 tok/s per
+# unit width, 95% CI spanning zero; both n>=20 fits negative), with queue depth
+# 0 at every interval in both pool configurations. So width above ~17 buys no
+# tokens, and an explicit bounded wait is strictly better than silent eviction
+# -- which in a prefill-dominated workload is expensive, because an evicted
+# prefix is re-prefilled.
+#
+# The graph ceiling matches the request cap because it cannot be exceeded once
+# max_running_requests binds, and CUDA graphs cost 5.74-5.84 GB per rank at a
+# ceiling of 64. Lowering it returns most of that to the workspace.
+max_running_requests = 36
+cuda_graph_max_bs_decode = 36
+# DSpark now has a measured loaded memory budget: with 23-27 requests running,
+# each card retained about 33 GB free against the workspace's ~12.9 GiB ask,
+# leaving roughly 20 GB after allocation. That supersedes the earlier refusal,
+# which was measured against larger device pools with only 1.3-7.6 GiB free.
+#
+# The expected benefit is width-dependent rather than uniformly positive. The
+# decode cost model predicts a large gain at one stream, a near-null result
+# around width eight, and a gain again at high width as the expert union
+# saturates. Validate at low, knee and high widths; readiness alone is not the
+# gate because the workspace allocates on the first real generation.
+#
+# Rollback after a launch or generation refusal: remove both speculative keys.
+# Keep hicache_ratio = 2.0 and memory = "600G": the host-tier reduction is an
+# independently measured cost saving and the memory request is sized by the
+# load-time peak of the doubled device pool, so neither depends on DSpark
+# succeeding.
+# SGLang compares this field case-sensitively against the literal accepted
+# values "EAGLE" and "DSPARK"; lowercase "dspark" is rejected during the
+# model-specific startup resolution.
+speculative_algorithm = "DSPARK"
+speculative_dspark_block_size = 5
+# The shared KV pool -- NOT the per-request context window, which stays at the
+# model's native 1,048,576 and cannot usefully go past it without RoPE
+# rescaling. This is how many tokens the engine holds across all concurrent
+# requests at once, and leaving the two equal is the trap: one full-context
+# request would consume the whole pool, so agentic sessions at 100-300k would
+# fit only a handful.
+#
+# PINNED, and engine auto-sizing is the thing that must not be used here.
+# Handing the sizing to the allocator at this memory fraction died with
+# torch.OutOfMemoryError during scheduler init, at 139.57 GiB in use of a
+# 139.80 GiB card: it sizes the pool to fill the mem_fraction_static budget,
+# which leaves only the 5% outside that budget to cover CUDA graph capture,
+# activations and non-PyTorch allocations, and that is not enough. Auto-sizing
+# and a high static fraction are alternatives, not companions.
+#
+# Pool sizing is an empirical bracket, and STARTING IS NOT THE TEST. Measured,
+# per card:
+#   21.51 GiB /  3,485,952 tokens -- starts AND serves under load
+#   46.64 GiB / 20,000,000 tokens -- starts, then DIES under load
+#  ~60.7  GiB / auto-sized        -- OOM during scheduler init
+#
+# The 20M point is the one that matters. It started cleanly, reported its pool,
+# answered single-stream dispatches, and reported 14.64 GiB free per card -- and
+# then a real request killed it: SIGKILL 137, with FlashInfer's MXFP4 fused-MoE
+# workspace asking 7.52 GiB against 6.91 GiB free on GPU 1. That workspace is
+# allocated lazily at generation, not at startup, so free-memory-after-startup
+# is NOT the margin; it is the margin before the largest allocation the serve
+# will ever make. A configuration that starts and answers a smoke request can
+# still be unable to serve, and that failure looks healthy for as long as
+# nobody loads it.
+#
+# Size the shared device pool for the requests it must carry, not for the
+# largest value that starts. The pool must exceed expected concurrency times
+# per-request context; eight workers at 500,000 tokens each require 4,000,000
+# tokens, and the measured working context on this lane has come in ABOVE that
+# assumption rather than under it — see the doubling note below. If the
+# per-request context is reduced later, this pool can shrink further. The
+# observed pool cost is roughly a 16 GiB fixed base plus 1.6 KiB per token, so
+# reducing 14,999,808 to 4,000,000 frees about 16.8 GiB per card, not the
+# 27.5 GiB predicted by a zero-intercept extrapolation.
+#
+# This is a CANDIDATE until a long-prefill serve proves it under load; a clean
+# start does not prove it. Three probe deaths each requested the same fixed
+# 7.52 GiB fused-MoE workspace with only about 1.49 GiB free, including warmup
+# with no request. The freed 16.8 GiB per card clears that workspace requirement
+# more than twice over, so this change discriminates the memory split from the
+# runner: if long prefills still die, the workspace is not binding and
+# moe_runner_backend is the next separate lever to measure.
+#
+# 8,000,000, doubled from 4,000,000 on measured evidence. The 4M pool binds
+# nearer than the sizing assumption above: at width 30 it read 79% of
+# 4,000,000 tokens, and the implied working context is 98,379 tokens per
+# resident request against the 79,000 assumed here, so it fills near 38-40
+# concurrent rather than the 50 a 79k mean predicts — and the lane's own duty
+# cycle peaks at a median of 29. A pool that fills on an ordinary evening is a
+# concurrency bound, not headroom for a hypothetical width; doubling moves it
+# to roughly 80. Expected throughput change at today's width: none. What it
+# buys is the absence of silent eviction at widths the eight-card and
+# dependency-graph work make reachable.
+#
+# DEVICE side: the startup log puts the 4M pool at a measured 10.10 GB per
+# card, so another 4M costs another 10.10 GB per card. Per-card free memory at
+# sustained width 23-24 read 25.4-27.6 GiB across the last fifteen drain-sidecar
+# blocks, against an all-time worst of 23.0 GiB taken at width 10 or below —
+# flat in width, not falling — so the increment leaves about 16 GiB at the
+# operating point. That is device memory and it is unaffected by the job's
+# `memory` request below.
+#
+# HOST side, because hicache_ratio multiplies the DEVICE pool and doubles with
+# it. Measured pools per rank at ratio 2 on the 4M device pool, five of them:
+#   4.68 deepseek_v4_c1 + 0.54 c1_indexer + 7.02 deepseek_v4_c2
+#   + 0.82 c2_indexer + 8.45 swa = 21.51 GB/rank
+# so 10.76 GB per rank per unit of ratio, and 86.0 GB across four ranks at
+# ratio 2. Doubling the device pool doubles that tier for the same ratio:
+# 2 x 10.76 = 21.52 GB/rank per rank at ratio 2 on a 4M pool, doubled to
+# 43.04 GB/rank, or 172.1 GB across four ranks. The increment is therefore
+# 86.0 GB = 80.1 GiB of host RAM.
+#
+# VERDICT on `memory` below: RAISED to 600G. The steady-state arithmetic — 480
+# GiB as 192 GiB of pinned Engram host tables plus the 160.3 GiB HiCache tier
+# at 8M/ratio 2 plus a 127.7 GiB remainder — is sound and is not what binds.
+# The binding constraint is the LOAD-TIME PEAK, and a steady-state margin does
+# not answer it: the job's memory.peak already touched the old 480 GiB ceiling
+# at ratio 2 on the 4M device pool, i.e. with about 80 GiB LESS host tier
+# resident than this change leaves, and that peak is page cache from reading a
+# ~400 GB checkpoint at launch rather than steady-state use. That observation
+# was recorded in this profile at revision 7c706cf, which carried it as the
+# justification for an earlier raise of this request; e808a8e dropped the
+# sentence in the same hunk that lowered the request to 480G, so it is missing
+# from this file rather than uncorroborated. Arithmetic for the
+# raise, all terms in GiB:
+#   480   peak already observed at ratio 2 on the 4M pool
+#  + 80.1 host tier this change adds inside the same limit (see HOST side)
+#  = 560  arithmetic floor
+#   600  the floor plus margin for the load-time page cache the peak is made of
+# 600G also stays below Group A's 650G allocation, the ceiling that matters
+# here, so the raise does not strand a co-running job on memory.
+# REVERTED TO 4,000,000 on measured margin, not on the corruption question --
+# that closed separately: instances appear on both precision arms and both pool
+# sizes, so no configuration change correlates with them.
+#
+# The device pool is being traded for prefill workspace, because this lane is
+# prefill-dominated at 270 input tokens per output token and three serves have
+# already died on a workspace ask. Tightest free memory per card, from the
+# drain sidecar over the whole of each job:
+#
+#   4M pool (job 1272783)   20.72 GiB   2.05x the 10.11 GiB worst measured ask
+#   8M pool (job 1273074)   12.60 GiB   1.25x
+#
+# The second 4M bought concurrency the lane cannot convert into throughput, and
+# paid for it with the margin that long prefills draw on. At 4M the pool still
+# reads 83% full at width 32, which holds at the 33-34 peak observed, and the
+# request cap above keeps it clear of the fill point.
+max_total_tokens = 4000000
+# Keep evicted shared prefixes in the engine's pinned host tier instead of
+# recomputing them through the 284B-parameter forward path. In the pinned
+# image, DeepSeek-V4's hybrid cache rejects --hicache-size, so its host tier is
+# sized solely by the host-to-device pool ratio. At two times the
+# 8,000,000-token device pool the per-token estimate for that payload is about
+# 2 * 8,000,000 * 1.6 KiB across four ranks, or roughly 98 GiB — but the
+# ENUMERATED pools measure 160.3 GiB across four ranks at this ratio, so read
+# the measured figure rather than the estimate (see the pool key below for the
+# pool-by-pool arithmetic). Even at the measured size it is deliberately less
+# than the Engram host-table allocation and preserves process and page-cache
+# margin.
+enable_hierarchical_cache = true
+# Two, restored from 8.0 because the host tier writes almost everything and
+# reads almost nothing: 100,308 backups against 56 load-backs. There are FIVE
+# host pools per rank, not three, and the count is the thing to get right -- at
+# ratio 2 the log reads 4.68 GB
+# 'deepseek_v4_c1' + 0.54 'c1_indexer' + 7.02 'deepseek_v4_c2' + 0.82
+# 'c2_indexer' + 8.45 'swa' = 21.51 GB/rank, so 86.0 GB across four ranks and
+# 10.76 GB/rank per unit of ratio. Every pool scales linearly
+# (full_host_pages = device_pages * ratio, no cap in the pool assembler), so
+# ratio 8 asked ~344 GB for a 32,000,000-token tier. The reduction frees about
+# 258 GB of host RAM; it is a cost change with no predicted throughput gain.
+#
+# Two figures for this tier have now been wrong in this repository, in opposite
+# directions, and both by the same mechanism -- a number written without the
+# allocation log fully enumerated. It was once recorded as "~172 GB across four
+# ranks" (2x high), then as "54.7 GB" (missing the two 'c2' pools, because the
+# log was read through a truncated grep that cut off after twelve lines). The
+# measured figure is 86.0 GB at ratio 2. Count the pools before trusting a
+# per-token cost: `grep -c "Allocating .* host memory"` must equal pools x
+# ranks, which is 20 here.
+hicache_ratio = 2.0
+# Write only prefixes that demonstrate reuse into the host tier. This avoids
+# copying one-off prompts over PCIe while retaining the repeated agent context
+# that caused the device pool to turn over. page_first is the image's
+# kernel-I/O-compatible layout, stated here rather than inherited silently.
+hicache_write_policy = "write_through_selective"
+hicache_mem_layout = "page_first"
+# Per-request context capped at 200k, well below the model's native 1,048,576.
+# Measured on this four-card deployment: an agent-shaped request of 180,961
+# prefill tokens was absorbed, and one of roughly 360,000 asked 9.96 GiB
+# against 5.41 GiB free and killed the serve. Advertising the native window
+# therefore invited any long session to walk into a fatal request, and the
+# engine would have accepted it.
+#
+# Capping here rather than only in the launcher is what makes it safe: the
+# engine refuses an over-long request cleanly instead of exhausting the card,
+# and the figure then propagates on its own -- the catalog reports it as
+# max_model_len, the endpoint document carries it, and the launcher advertises
+# it. One source, no second place to go stale.
+#
+# 200k sits above the 180,961 proven here and below the ~360,000 known fatal;
+# the band between them is untested, and the ceiling additionally falls as
+# concurrency rises, because the workspace grows with both. Raise it only from
+# evidence taken on a disposable serve -- the measurement that found the
+# ceiling above did so by crossing it, and took the live endpoint down.
+# RAISED to 1,024,000 on 2026-09-15 by lead direction, from 204,800, after the
+# KV pool was cut from 14,999,808 to 4,000,000 tokens. That reclaim freed a
+# measured 16.82 GB per card into the space OUTSIDE mem_fraction_static, which
+# is where the FlashInfer MXFP4 fused-MoE workspace is allocated lazily at
+# generation. The old cap existed because that workspace asks a FIXED 7.52 GiB
+# and only 1.49 GiB was free at the 15M pool -- three probe serves died on that
+# same allocation, one of them during its own warmup with no request at all.
+#
+# 1,024,000 is 2.3% below the checkpoint's native 1,048,576 (config.json
+# max_position_embeddings, reached by YaRN factor 16 from a 65,536 base) and is
+# page-aligned at page_size 256. The launcher reserves MAX_CONTEXT/4 capped at
+# 32,000, so the cap binds and the usable input window is 992,000.
+#
+# The pool now bounds concurrency at full context: 4,000,000 tokens covers about
+# four requests at 1M each, with the 8M hicache host tier absorbing beyond that.
+# At realistic agentic sizes of 100-300k this does not bind. If per-request
+# context is raised further, raise the pool with it or accept host spill.
+# 204,800, reverted from a 1,024,000 attempt on 2026-09-15 after measurement.
+# The checkpoint's native window is 1,048,576, and that is the MODEL's maximum
+# rather than this DEPLOYMENT's. Measured on four H200 at a 4,000,000-token pool
+# with 40.65 GB free per card at ready:
+#   203,241 tokens  ABSORBED in 30 s, leaving only ~2 GB free -- 37.1 GB consumed
+#   167,527 tokens  absorbed in 26 s, ~30 GB consumed
+#   ~300,000 tokens FATAL, workspace asked 9.00 GiB
+#   ~500,000 tokens FATAL, workspace asked 10.11 GiB
+#
+# So the per-token cost is roughly 183 KB and the ceiling sits just above 203k,
+# with 204,800 the smallest page-aligned value above the proven point. The 1M
+# attempt was not merely optimistic, it re-created the hazard this cap exists to
+# prevent: the engine ACCEPTS a 300k request and then dies serving it, where a
+# cap refuses it cleanly with HTTP 400.
+#
+# The workspace ask grows SUBLINEARLY -- 9.00 GiB at 300k against 10.11 at 500k,
+# 12% for 67% more tokens -- so the workspace is not the binding term; prefill
+# activation memory is, and it grows far faster. Raising this cap therefore needs
+# activation headroom, not workspace headroom.
+#
+# EVERY figure above is single-stream. The ceiling falls as concurrency rises
+# because both terms grow with width, so treat 204,800 as a single-request bound
+# and size a fleet below it until a concurrency measurement exists.
+#
+# Untried lever: the OOM reports ~4.45 GiB reserved-but-unallocated by PyTorch
+# and suggests PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True. Recovering that
+# is about twice the margin left at 203k and is the one change that might raise
+# this ceiling rather than re-describe it.
+# 512,000 on 2026-09-16, raised from 204,800 on MEASURED evidence after the
+# three headroom levers landed. Page-aligned at page_size 256.
+#
+# Proven on four H200 at a 4,000,000-token pool with 51 GB free at ready:
+#   511,993 tokens  ABSORBED in 34 s, 8.3 GB incremental, ~16 GB still free
+#   409,635 tokens  absorbed in 76 s, 26.1 GB consumed from idle
+#   203,241 tokens  absorbed in 26 s, 2.4 GB incremental
+# The same 300k input that KILLED three serves before the levers is now
+# comfortably inside this cap. What changed: the pool reclaim freed 16.82 GB
+# per card, expandable_segments recovered the ~4.45 GiB the allocator was
+# losing to fragmentation, and halving the prefill chunk to 16,384 bounds the
+# transient peak. A 167k request cost ~30 GB before and 14.0 GB after.
+#
+# This also clears the real traffic peak that mattered: flight config records a
+# 356,574-token per-turn input that a 204,800 cap would refuse outright.
+#
+# THE REMAINING TRADE IS CONCURRENCY, NOT MEMORY. pool >= concurrency x context,
+# so 4,000,000 tokens covers about eight requests at this cap against nineteen
+# at 204,800, with the 8,000,000-token host tier behind it. The limit is left to
+# emerge rather than pinned: a full pool makes the engine queue and retract,
+# which is graceful, and max_running_requests bounds the running batch at 64
+# with an unbounded queue, so a larger fleet queues rather than failing.
+# max_prefill_tokens caps the prefill batch at 16,384 regardless of fleet size,
+# which is what keeps activation memory - the one exhaustion that is FATAL
+# rather than graceful - bounded independently of concurrency.
+#
+# Every figure above is single-stream. Concurrent large prefills are the
+# untested corner; raise nothing further until that is measured.
+context_length = 512000
+trust_remote_code = true
+
+# "auto" resolves to this architecture's own parsers rather than a generic
+# fallback: the engine reports reasoning_parser "deepseek-v41" and
+# tool_call_parser "deepseekv41" at startup. Naming them explicitly would pin a
+# spelling that belongs to the engine build, not to the checkpoint.
+[engine.parsers]
+tool_call = "auto"
+reasoning = "auto"
+
+# Startup logs "No HuggingFace chat template found" and falls back to the
+# 'string' content format. That line is COSMETIC for this model family and
+# there is nothing to fix: the checkpoint deliberately ships no chat_template,
+# carrying an encoding/ module instead, and chat is formatted by the engine's
+# own vendored encoder (srt/entrypoints/openai/encoding_dsv41.py).
+#
+# Supplying a chat template here would not silence it and would not change
+# behaviour -- it would simply be ignored. resolve_chat_encoding_spec()
+# dispatches on model_type == "deepseek_v41" BEFORE it ever inspects
+# tokenizer.chat_template; only the DeepseekV3 branch below it is conditional
+# on a template being absent. The warning is emitted by the template layer
+# this model does not use.
+#
+# Verified by behaviour, not just by reading: a tool-calling round trip
+# returns finish_reason "tool_calls" with a correctly named function and valid
+# JSON arguments, and a follow-up carrying the tool result is consumed
+# correctly. Naive string concatenation could not produce either.
+
+[engine.env]
+# Move the 183.1 GiB of Engram tables into one shared host-resident copy.
+# This is the setting that makes four cards comfortable rather than tight, and
+# it is close to free:
+#   * output is bitwise unchanged — the same FP8 values, gathered from host
+#     memory instead of HBM, so there is no quality question to evaluate;
+#   * it costs ~0.4-1.0% output throughput in the shared/local layout (the
+#     larger -1.4% to -7.7% figures belong to the Store-backed variant, which
+#     needs Mooncake and is not used here);
+#   * it removes the per-lookup all-reduce that row-sharding the tables across
+#     the TP group otherwise costs.
+# The price is ~200 GB of host RAM, which the [slurm] request below carries,
+# and a longer load. Huge-page backing keeps the gather cheap; without it the
+# ~1% figure will not reproduce.
+SGLANG_ENABLE_DSV41_ENGRAM_HOST_TABLE = "1"
+# The OOM receipt reported about 4.45 GiB reserved but unallocated and named
+# expandable segments as its remedy. Let the caching allocator reuse those
+# segments for transient prefill peaks rather than increasing steady-state use.
+# This ships with the smaller chunks and running bound as one unattributed
+# combination: any later improvement cannot be assigned to one lever without
+# separate restarts.
+PYTORCH_CUDA_ALLOC_CONF = "expandable_segments:True"
+
+# Serving runs from the vendor preview container, not from the sglang engine
+# venv. V4.1 support merged to sglang main on 2026-09-14 and is not
+# in any released wheel, so the 0.5.11 in the shared engine environment cannot
+# register this architecture at all. The image is the route the cookbook
+# documents, and pinning the digest keeps a re-pull from silently moving the
+# serving stack under a deployment that was measured against one build.
+[engine.container]
+image = "lmsysorg/sglang:dev-dsv41"
+sif_path = "/work/projects/imas_gpu/containers/sglang-dev-dsv41.sif"
+binds = [
+  { source = "imas_ambix/agent/kernel_patches/sglang-dev-dsv41/python/sglang/kernels/jit/csrc/deepseek_v4/main_norm_rope.cuh", target = "/sgl-workspace/sglang/python/sglang/kernels/jit/csrc/deepseek_v4/main_norm_rope.cuh" },
+]
+
+[slurm]
+gpus = 4
+# Matches the V4-Flash four-card serve. Cores do not scale with cards — one API
+# server, one engine core, one worker per rank, every worker mostly blocked on
+# the device — and the node carries two overlapping 30-core reservations, so a
+# request scaled off the card count strands co-running jobs on cores while the
+# cards they want sit idle.
+cpus = 12
+# 600G. THE BINDING CONSTRAINT ON THIS REQUEST IS THE LOAD-TIME PEAK, NOT
+# STEADY STATE. At ratio 2 on the 4M device pool this job's memory.peak already
+# touched the old 480 GiB ceiling, with about 80 GiB LESS host tier resident
+# than the doubled pool leaves, and that peak is page cache from reading a
+# ~400 GB checkpoint at launch rather than steady-state use. The peak reading
+# is the one recorded in this profile at revision 7c706cf, cited with the pool
+# key above; the request cannot be sized to steady state, because such a limit
+# is hit while loading:
+#   480   GiB peak already observed at ratio 2 on the 4M pool
+#  + 80.1 GiB host tier added by doubling the device pool at unchanged ratio
+#  = 560 GiB arithmetic floor
+#   600 GiB = floor plus margin for the load-time page cache the peak is made
+#           of. The steady-state breakdown at this value is 192 GiB of
+#           host-resident Engram tables (four ranks at about 24 GiB each),
+#           160.3 GiB of HiCache host tier at ratio 2 on the 8,000,000-token
+#           device pool, and the remainder as process, pinned-transfer and
+#           weight-loading page-cache margin. See the pool key above for the
+#           pool-by-pool arithmetic.
+# 600G leaves 50G below Group A's 650G allocation, the ceiling that matters
+# here, so the raise does not strand a co-running job on memory.
+# The figure to size against is this job's OWN anon + shmem, because that is
+# what the cgroup accounting charges against --mem; page cache is reclaimable
+# and is not the quantity the request is compared with. Do NOT size to the node:
+# a request near RealMemory is an exclusive-node request in disguise, and
+# --mem=0 reads as "no limit" while reserving everything, so such a job cannot
+# start while anyone else holds memory and it head-of-line blocks the jobs
+# behind it. Never request the node's RealMemory.
+memory = "600G"
+# 18800-18809 are taken by the other profiles and by the router at 18802.
+port = 18810
+time_serve = "0"
+time_download = "24:00:00"

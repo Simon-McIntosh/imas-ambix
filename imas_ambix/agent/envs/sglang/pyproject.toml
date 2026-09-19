@@ -1,7 +1,9 @@
-# Agent serving environment — SGLang engine (+ KTransformers)
+# Agent serving environment — SGLang engine
 #
-# Manages the GPU inference venv for SGLang-based model serving,
-# including KTransformers CPU-offloading support for oversized models.
+# Manages the GPU inference venv for SGLang-native model serving. KTransformers
+# CPU-offloading is served from its own environment (see
+# `imas_ambix/agent/envs/ktransformers/`), which is what keeps this one free of
+# the kernel's cp312 wheel pin.
 # Install on a node with network access (e.g. sirius partition):
 #
 #   cd /work/projects/imas_gpu/agents/sglang && uv sync
@@ -14,25 +16,47 @@ version = "0.1.0"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "sglang[srt]>=0.5.11",
-    "torch>=2.11",
+    # SGLang moved to CUDA 13 across its whole release range: every version
+    # from 0.5.11 up requires cuda-python>=13.0, and a +cu126 torch pins
+    # cuda-bindings<13, so the two cannot resolve together at any version. The
+    # torch floor follows sglang's own pin rather than the older >=2.11.
+    "torch>=2.13",
     "transformers>=5.6",
-    "kt-kernel",
     "flashinfer-python>=0.2.4",
     "sgl-kernel>=0.1.1",
     "huggingface-hub[hf_transfer]>=0.28",
     "openai>=2.0",
+    # The serve job runs `imas_ambix.agent.registry publish` under THIS
+    # interpreter, and that subcommand imports imas_ambix.agent.cli, which
+    # imports click at module scope. Without it the publish step fails and
+    # the generated script swallows it with `|| true`, so the endpoint
+    # document silently stops tracking the serve.
+    "click",
     "hf-transfer",
 ]
 
+# CUDA 13 wheels. cu132 and cu134 indexes also exist and would match the
+# node's CUDA 13.2.1 more exactly, but cu130 is the one to pin: it is
+# PyTorch's DEFAULT CUDA 13 build, and the default is what everything
+# downstream is tested against. Plain `pip install torch` resolves 2.14.0
+# against cuda-toolkit==13.0.3, so the newer indexes are opt-in variants
+# rather than a newer mainline. A cu130 build runs on the 13.2.1 driver
+# regardless, because CUDA is forward compatible across minor versions within
+# a major, so the exact match buys nothing at runtime and costs the
+# better-exercised path.
+#
+# Not a reason, though it looks like one: sgl-kernel ships a single abi3 wheel
+# with no CUDA or torch pin, and flashinfer-python is pure Python that JITs its
+# kernels. Neither constrains the choice.
 [[tool.uv.index]]
-name = "pytorch-cu126"
-url = "https://download.pytorch.org/whl/cu126"
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
 explicit = true
 
 [tool.uv.sources]
-torch = { index = "pytorch-cu126" }
-torchaudio = { index = "pytorch-cu126" }
-torchvision = { index = "pytorch-cu126" }
+torch = { index = "pytorch-cu130" }
+torchaudio = { index = "pytorch-cu130" }
+torchvision = { index = "pytorch-cu130" }
 
 [tool.uv]
 prerelease = "allow"

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import re
 import tempfile
@@ -18,6 +19,8 @@ from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
 from imas_ambix.agent.vllm_catalog import validate_catalog_metadata
+
+_LOGGER = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -36,9 +39,16 @@ class ServeRegistration:
     job_id: str
     accelerator_count: int
     checkpoint_precision: str
+    accelerator_family: str
 
     def __post_init__(self) -> None:
-        for name in ("model_id", "host", "job_id", "checkpoint_precision"):
+        for name in (
+            "model_id",
+            "host",
+            "job_id",
+            "checkpoint_precision",
+            "accelerator_family",
+        ):
             value = getattr(self, name)
             if not isinstance(value, str) or not value.strip():
                 raise ValueError(f"{name} must be a non-empty string")
@@ -246,13 +256,31 @@ def _endpoint_from_catalog(
             "endpoint catalog must contain the registered model exactly once"
         )
     item = matches[0]
-    metadata = validate_catalog_metadata({registration.model_id: item.get("ambix")})[
-        registration.model_id
-    ]
-    if metadata["accelerator_count"] != registration.accelerator_count:
-        raise ValueError("endpoint accelerator count disagrees with registration")
-    if metadata["checkpoint_precision"] != registration.checkpoint_precision:
-        raise ValueError("endpoint checkpoint precision disagrees with registration")
+    # Topology is taken from the registration, which the serving allocation
+    # writes from its own profile. That is the same launch-owned source the
+    # vLLM catalog middleware reads out of AMBIX_VLLM_CATALOG_METADATA before
+    # echoing it back through /v1/models, so reading it here loses no authority
+    # and is not a client-side inference -- it just stops requiring every
+    # engine to carry our own data back to us. An engine with no way to do so
+    # (SGLang takes no middleware) is then routable on the same terms.
+    #
+    # Where a card DOES carry the block, it still has to agree. A disagreement
+    # means the registration and the endpoint describe different serves, which
+    # is exactly the integrity failure the check exists to catch; absence means
+    # only that the engine has no channel for it.
+    card_metadata = item.get("ambix")
+    if card_metadata is not None:
+        metadata = validate_catalog_metadata({registration.model_id: card_metadata})[
+            registration.model_id
+        ]
+        if metadata["accelerator_count"] != registration.accelerator_count:
+            raise ValueError("endpoint accelerator count disagrees with registration")
+        if metadata["checkpoint_precision"] != registration.checkpoint_precision:
+            raise ValueError(
+                "endpoint checkpoint precision disagrees with registration"
+            )
+        if metadata["accelerator_family"] != registration.accelerator_family:
+            raise ValueError("endpoint accelerator family disagrees with registration")
     parsed = urlsplit(registration.origin)
     if parsed.hostname is None or parsed.port is None:
         raise ValueError("registration origin is incomplete")
@@ -260,7 +288,7 @@ def _endpoint_from_catalog(
         model_id=registration.model_id,
         host=parsed.hostname,
         port=parsed.port,
-        accelerator_family=str(metadata["accelerator_family"]),
+        accelerator_family=registration.accelerator_family,
         accelerator_count=registration.accelerator_count,
         checkpoint_precision=registration.checkpoint_precision,
         max_context=item.get("max_model_len"),
@@ -274,18 +302,52 @@ def build_endpoint_document(
 ) -> tuple[PublishedEndpoint, ...]:
     """Probe registrations anonymously and retain complete live endpoints."""
     endpoints: list[PublishedEndpoint] = []
-    seen_models: set[str] = set()
+    # model id -> (endpoint, the job id that registered it)
+    seen_models: dict[str, tuple[PublishedEndpoint, str]] = {}
     for registration in registrations:
         try:
             endpoint = _endpoint_from_catalog(
                 registration, fetch_catalog(registration.origin)
             )
-        except (OSError, TypeError, ValueError):
+        except (OSError, TypeError, ValueError) as error:
+            # Say why. Dropping a registration silently is how a whole routing
+            # lane can go unserviceable while every symptom points elsewhere:
+            # the document simply comes back short, callers see "no endpoints",
+            # and the reason is nowhere. Measured 2026-09-14 -- six runs across
+            # four sessions failed against a model id that looked wrong, when
+            # the endpoint had been dropped here for missing metadata.
+            _LOGGER.warning(
+                "dropping registration %s (job %s) at %s: %s",
+                registration.model_id,
+                registration.job_id,
+                registration.origin,
+                error,
+            )
             continue
-        if endpoint.model_id in seen_models:
-            raise ValueError(f"multiple live endpoints publish {endpoint.model_id!r}")
+        prior = seen_models.get(endpoint.model_id)
+        if prior is not None:
+            previous, previous_job = prior
+            # Two registrations claiming one model id is almost always a dead
+            # job whose successor took the port it released: both probe the one
+            # live serve, so both look current. Resolve to the later job rather
+            # than refusing, and never abort the build -- raising here empties
+            # the document for EVERY model, so one stale file takes the whole
+            # routing lane down while the serve it names is answering.
+            newer = registration.job_id > previous_job
+            keep = endpoint if newer else previous
+            keep_job = registration.job_id if newer else previous_job
+            _LOGGER.warning(
+                "duplicate registrations publish %s at %s and %s; keeping job %s",
+                endpoint.model_id,
+                previous.origin,
+                endpoint.origin,
+                keep_job,
+            )
+            endpoints[endpoints.index(previous)] = keep
+            seen_models[endpoint.model_id] = (keep, keep_job)
+            continue
         endpoints.append(endpoint)
-        seen_models.add(endpoint.model_id)
+        seen_models[endpoint.model_id] = (endpoint, registration.job_id)
     return tuple(sorted(endpoints, key=lambda endpoint: endpoint.model_id))
 
 
@@ -457,6 +519,7 @@ def _parser() -> argparse.ArgumentParser:
     write.add_argument("--job-id", required=True)
     write.add_argument("--accelerator-count", required=True, type=int)
     write.add_argument("--checkpoint-precision", required=True)
+    write.add_argument("--accelerator-family", required=True)
     remove = subparsers.add_parser("remove")
     remove.add_argument("--directory", required=True)
     remove.add_argument("--job-id", required=True)
@@ -478,6 +541,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 job_id=args.job_id,
                 accelerator_count=args.accelerator_count,
                 checkpoint_precision=args.checkpoint_precision,
+                accelerator_family=args.accelerator_family,
             ),
             args.directory,
         )
@@ -490,8 +554,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         site = SiteConfig.from_env()
         directory = args.directory or registration_directory(site.base_dir)
         output = args.output or site.endpoint_document
+        # Ask the scheduler which jobs are alive rather than assuming all of
+        # them are. A registration outliving its job is how the published
+        # catalog comes to name a serve that is gone, or to collide with the
+        # successor that took its port. If the query itself fails it returns
+        # nothing, which must not be read as "every job is dead" -- that would
+        # publish an empty document over a healthy lane, so fall back to
+        # retaining the records and let the origin probe decide.
+        live = {job["jobid"] for job in _running_jobs(site)}
+        job_is_running = (lambda job_id: job_id in live) if live else (lambda _: True)
         registrations = read_registrations(
-            directory, job_is_running=lambda _job_id: True
+            directory, job_is_running=job_is_running
         ).current
         endpoints = build_endpoint_document(
             registrations, fetch_catalog=_fetch_anonymous_catalog
@@ -499,9 +572,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         write_endpoint_document(
             endpoints,
             output,
-            routing_origins=discover_routing_origins(
-                endpoints, _running_jobs(site)
-            ),
+            routing_origins=discover_routing_origins(endpoints, _running_jobs(site)),
         )
     return 0
 

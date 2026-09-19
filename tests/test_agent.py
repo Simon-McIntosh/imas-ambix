@@ -1,6 +1,6 @@
 """Tests for the imas-ambix agent CLI and profile system."""
 
-from contextlib import contextmanager
+import math
 from pathlib import Path
 
 import pytest
@@ -8,6 +8,7 @@ from click.testing import CliRunner
 
 from imas_ambix.agent.profile import SiteConfig, list_profiles, load_profile
 from imas_ambix.cli import main
+from tests.agent.catalog_fixture import serve_catalog
 
 
 def _with_checkpoint_precision(profile, precision="fp8"):
@@ -44,7 +45,8 @@ def test_load_deepseek_v4_flash_profile():
     # is expected to move as new checkpoints ship.
     assert profile.model.hf_repo.startswith("deepseek-ai/DeepSeek-V4-Flash")
     assert profile.engine.type == "vllm"
-    assert profile.engine.tensor_parallel == 4
+    # Four cards, however they are split between tensor width and replicas.
+    assert profile.engine.tensor_parallel * profile.engine.data_parallel == 4
     assert profile.engine.ktransformers is None
     assert profile.engine.enable_auto_tool_choice is True
     assert profile.model.max_context == 1048576
@@ -528,8 +530,11 @@ def test_site_config_venv_paths():
     assert site.python_path("vllm").name == "python"
     assert site.hf_path("vllm").name == "hf"
     assert site.python_path("sglang").name == "python"
-    # ktransformers shares sglang env
-    assert site.env_dir("ktransformers") == site.env_dir("sglang")
+    # ktransformers has its OWN environment. It runs as an SGLang plugin, but
+    # sharing the venv pinned SGLang to kt-kernel's cp312-only wheels, which is
+    # what blocked the serving interpreter from moving.
+    assert site.env_dir("ktransformers") == Path(site.engine_env_root) / "ktransformers"
+    assert site.env_dir("ktransformers") != site.env_dir("sglang")
 
 
 def test_site_config_engine_isolation():
@@ -620,8 +625,7 @@ def test_generate_serve_script():
 def test_agent_serve_gpu_help_matches_core_scaling():
     result = CliRunner().invoke(main, ["agent", "serve", "--help"])
     assert (
-        result.exit_code == 0
-        and "Host cores do not scale with cards" in result.output
+        result.exit_code == 0 and "Host cores do not scale with cards" in result.output
     )
 
 
@@ -778,7 +782,9 @@ def test_card_count_override_never_inflates_host_cores(gpus):
     base = load_profile("deepseek-v4-flash")
     resolved = _scale_profile(base, gpus)
     assert resolved.slurm.gpus == gpus
-    assert resolved.engine.tensor_parallel == gpus
+    # Cards are the PRODUCT of the two parallel widths, so the card count lands
+    # on tensor_parallel only when the profile runs a single replica.
+    assert resolved.engine.tensor_parallel * resolved.engine.data_parallel == gpus
 
     # Cores come from exactly one of two places: a variant that declares them
     # for this topology, or the base inherited unchanged. Never a ratio.
@@ -844,9 +850,7 @@ def test_endpoint_requires_key_detects_enforcement(monkeypatch, code):
     from imas_ambix.agent.cli import _endpoint_requires_key
 
     def refuse(request, timeout):
-        raise urllib.error.HTTPError(
-            request.full_url, code, "denied", {}, None
-        )
+        raise urllib.error.HTTPError(request.full_url, code, "denied", {}, None)
 
     monkeypatch.setattr(urllib.request, "urlopen", refuse)
     assert _endpoint_requires_key("http://gpu-node:19123") is True
@@ -869,12 +873,19 @@ def test_engine_facts_report_the_allocated_card_count(monkeypatch):
     """Engine facts follow the running allocation, not the profile default."""
     from imas_ambix.agent.cli import _engine_facts, _scale_profile
 
+    def cards_from(facts: str) -> int:
+        """Recover the card count the facts line describes."""
+        width = next(p for p in facts.split(" · ") if p.startswith("TP="))
+        return math.prod(int(term.split("=")[1]) for term in width.split("×"))
+
     base = load_profile("deepseek-v4-flash")
-    assert f"TP={base.slurm.gpus}" in _engine_facts(base)
+    # The facts line must let a reader recover the CARDS, whatever split of
+    # tensor width and replicas the profile happens to use.
+    assert cards_from(_engine_facts(base)) == base.slurm.gpus
+
     resolved = _scale_profile(base, 2)
-    facts = _engine_facts(resolved)
-    assert "TP=2" in facts
-    assert f"TP={base.engine.tensor_parallel}" not in facts
+    assert cards_from(_engine_facts(resolved)) == 2
+    assert _engine_facts(resolved) != _engine_facts(base)
 
 
 def test_probe_endpoint_authenticated_metadata(monkeypatch):
@@ -2326,42 +2337,6 @@ def _catalog_item(
     return item
 
 
-@contextmanager
-def _serve_catalog(payload, *, status=200, response_headers=None):
-    """Serve one anonymous catalog and record every request header."""
-    import json
-    import threading
-    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-
-    body = payload if isinstance(payload, bytes) else json.dumps(payload).encode()
-    requests = []
-
-    class Handler(BaseHTTPRequestHandler):
-        def do_GET(self):
-            requests.append((self.path, dict(self.headers)))
-            self.send_response(status)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(body)))
-            for name, value in (response_headers or {}).items():
-                self.send_header(name, value)
-            self.end_headers()
-            self.wfile.write(body)
-
-        def log_message(self, _format, *args):
-            return None
-
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    host, port = server.server_address
-    try:
-        yield SiteConfig(global_origin=f"http://{host}:{port}"), requests
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=2)
-
-
 def _write_executable(path, content):
     path.write_text(content, encoding="utf-8")
     path.chmod(0o755)
@@ -2430,7 +2405,7 @@ def test_clive_readable_openrouter_key_does_not_reach_proxy(tmp_path):
         f'"$ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION" > {trace}\n',
     )
 
-    with _serve_catalog({"data": [_catalog_item(url="http://attacker.invalid")]}) as (
+    with serve_catalog({"data": [_catalog_item(url="http://attacker.invalid")]}) as (
         site,
         requests,
     ):
@@ -2490,14 +2465,14 @@ def test_clive_clean_directory_uses_no_forbidden_consumer_dependency(tmp_path):
         fake_bin / "claude",
         "#!/bin/bash\n"
         f'printf \'%s\\n\' "$ANTHROPIC_BASE_URL" "$ANTHROPIC_MODEL" > {trace}\n'
-        f'printf \'%s\\n\' "$@" >> {trace}\n',
+        f"printf '%s\\n' \"$@\" >> {trace}\n",
     )
     tempting_key = tmp_path / "consumer.env"
     tempting_key.write_text("AMBIX_AGENT_API_KEY=file-only-private-key\n")
     empty_cwd = tmp_path / "empty"
     empty_cwd.mkdir()
 
-    with _serve_catalog({"data": [_catalog_item("glm-5.3")]}) as (site, requests):
+    with serve_catalog({"data": [_catalog_item("glm-5.3")]}) as (site, requests):
         launcher = tmp_path / "clive"
         launcher.write_text(generate_clive_script(site), encoding="utf-8")
         launcher.chmod(0o755)
@@ -2554,7 +2529,7 @@ def test_clive_list_renders_future_releases_and_all_topologies(tmp_path):
         for count in (2, 4, 6, 8)
     ]
     items[-1]["id"] = "glm-5.3"
-    with _serve_catalog({"data": items}) as (site, _requests):
+    with serve_catalog({"data": items}) as (site, _requests):
         launcher = tmp_path / "clive"
         launcher.write_text(generate_clive_script(site), encoding="utf-8")
         launcher.chmod(0o755)
@@ -2589,7 +2564,7 @@ def test_clive_codex_receives_selected_model_and_same_origin(tmp_path, selector)
     )
     env = os.environ.copy()
     env["PATH"] = f"{fake_bin}:{env['PATH']}"
-    with _serve_catalog(
+    with serve_catalog(
         {"data": [_catalog_item("glm-5.3", url="http://ignored.invalid")]}
     ) as (site, _requests):
         launcher = tmp_path / "clive"
@@ -2620,7 +2595,14 @@ def test_clive_codex_receives_selected_model_and_same_origin(tmp_path, selector)
             {"data": [_catalog_item("same"), _catalog_item("same")]},
             "repeats release id",
         ),
-        ({"data": [{"id": "missing-metadata"}]}, "no ambix metadata"),
+        # Still rejected, but for the sharper reason: the card states no
+        # topology AND the endpoint document has none for it either. A card
+        # without the block is no longer fatal on its own, because the document
+        # is the site-owned source the launcher now prefers.
+        (
+            {"data": [{"id": "missing-metadata"}]},
+            "endpoint document carries none for it",
+        ),
         ({"data": [_catalog_item(count=3)]}, "accelerator count"),
         ({"data": [_catalog_item(count=True)]}, "accelerator count"),
         ({"data": [_catalog_item(count=2.0)]}, "accelerator count"),
@@ -2637,7 +2619,7 @@ def test_clive_rejects_empty_malformed_duplicate_or_invalid_catalogs(
 
     from imas_ambix.agent.clive import generate_clive_script
 
-    with _serve_catalog(payload) as (site, _requests):
+    with serve_catalog(payload) as (site, _requests):
         launcher = tmp_path / "clive"
         launcher.write_text(generate_clive_script(site), encoding="utf-8")
         launcher.chmod(0o755)
@@ -2659,7 +2641,7 @@ def test_clive_requires_noninteractive_selection_for_multiple_items(tmp_path):
 
     from imas_ambix.agent.clive import generate_clive_script
 
-    with _serve_catalog(
+    with serve_catalog(
         {"data": [_catalog_item("alpha", count=2), _catalog_item("beta", count=6)]}
     ) as (site, _requests):
         launcher = tmp_path / "clive"
@@ -2687,7 +2669,7 @@ def test_clive_interactive_selection_rejects_undisplayed_integers(tmp_path, choi
 
     from imas_ambix.agent.clive import generate_clive_script
 
-    with _serve_catalog(
+    with serve_catalog(
         {"data": [_catalog_item("alpha", count=2), _catalog_item("beta", count=6)]}
     ) as (site, _requests):
         launcher = tmp_path / "clive"
@@ -2772,11 +2754,11 @@ def test_clive_redirect_catalog_fails_without_leaving_global_origin(tmp_path):
     env["PATH"] = f"{fake_bin}:{env['PATH']}"
 
     with (
-        _serve_catalog({"data": [_catalog_item("redirected-release")]}) as (
+        serve_catalog({"data": [_catalog_item("redirected-release")]}) as (
             redirect_target,
             target_requests,
         ),
-        _serve_catalog(
+        serve_catalog(
             b"",
             status=302,
             response_headers={"Location": f"{redirect_target.global_origin}/v1/models"},
@@ -2879,7 +2861,7 @@ def test_clive_openrouter_opt_in_starts_proxy_and_presents_picker(
             "PATH": f"{fake_bin}:{env['PATH']}",
         }
     )
-    with _serve_catalog(
+    with serve_catalog(
         {
             "data": [
                 _catalog_item("served-local-model"),
@@ -2945,7 +2927,7 @@ def test_clive_openrouter_rejects_unconfigured_dynamic_release_before_proxy(
     env = os.environ.copy()
     env["PATH"] = f"{fake_bin}:{env['PATH']}"
 
-    with _serve_catalog({"data": [_catalog_item("dynamic-release")]}) as (
+    with serve_catalog({"data": [_catalog_item("dynamic-release")]}) as (
         site,
         _requests,
     ):

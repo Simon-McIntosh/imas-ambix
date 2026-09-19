@@ -8,7 +8,8 @@
 #   GPU: ~41 GB/card weights, leaves ~100 GB/card for KV cache
 #   KV: ultra-compact — 1 KV head × 512 dim × CSA/HCA compression
 #        → millions of tokens capacity at FP8 KV
-#   No CPU offloading needed — entire model fits on GPU
+#   Weights need no CPU offloading — the model fits on GPU. The KV cache is a
+#   different matter; see kv_offloading_size below.
 #
 # Throughput (measured 2026-06-04):
 #   TP=2 (2×H200): ~100 tok/s single-request decode, ~114 tok/s 8-way concurrent
@@ -44,19 +45,85 @@ max_context = 1048576
 
 [engine]
 type = "vllm"
-tensor_parallel = 4
+# Two replicas of two cards rather than one four-wide engine, on the same four
+# cards. The lane is step-budget-bound rather than pool-bound -- KV occupancy
+# has run 15-50% and never filled, while per-client generation tracks prefill
+# volume inversely and barely responds to width. One engine serialises every
+# request's prefill and decode into a single step budget, so a 32k prefill
+# chunk starves decode for every concurrent session; two replicas give that
+# budget once each.
+#
+# Expert weights stay sharded across all four ranks because expert parallelism
+# is enabled below, so this does not duplicate the 156 GiB checkpoint the way
+# two separate serves would -- that would have cost roughly 17% of the KV pool.
+# Replicas do synchronise at the MoE all-to-all and idle ranks are padded, so
+# the independence is partial; the gain is measured, not assumed.
+tensor_parallel = 2
+data_parallel = 2
 trust_remote_code = true
 enable_auto_tool_choice = true
-# Full native context window (1M) for the four-card base, matching the
-# two-card variant. This model's single compressed KV head does not shard
-# across tensor parallelism, so a four-card pool matches the two-card one:
-# the measured KV pool of 1313935 tokens is the same at either card count,
-# and comfortably holds the full window.
+# Full native context window (1M) for the four-card base.
+#
+# It does NOT match the two-card variant, despite what this comment said until
+# 2026-09-15. Weights shard across tensor parallelism, so TP2 puts roughly 82 GB
+# per card of weights against TP4's 41 and leaves far less room for KV: measured
+# at this fraction, 22.32 GiB of KV on two cards against 60.22 on four. A single
+# 1048576-token request needs 31.49 GiB, so the two-card variant REFUSES TO
+# START at this window and reports an estimated maximum length of 53,124 tokens.
+# Any sizing that assumes the pool is card-count-independent is wrong.
 max_total_tokens = 1048576
-# Above the 0.90 default so the full 1M window gets its pool. The single
-# compressed KV head does not shard across tensor parallelism, so the
-# four-card serve carries the measured 1313935-token pool of the two-card
-# serve at this fraction — a four-card pool matches the two-card one.
+# Above the 0.90 default so the full 1M window gets its pool.
+# Measured on four cards: 70.01 GiB of KV per card, 2557835 tokens total,
+# which vLLM reports as 2.44x maximum concurrency at a full 1048576-token
+# request. That figure is informational rather than an admission ceiling —
+# paged KV means a request consumes the blocks it actually fills, and agent
+# traffic asks for a fraction of the window.
+#
+# Lowered from 0.92 because the pool was never the constraint and the margin
+# outside it was. At 0.92 the serve carried 128 concurrent requests cleanly at
+# 1451 tok/s and died at 256: CUDA out of memory asking 1.51 GiB with 1.19 GiB
+# free, 141 requests running, and KV occupancy at 7.3%. So roughly 65 GiB per
+# card of pool sat idle while the engine ran out of room for the fused-MoE
+# workspace, which is allocated lazily at generation, scales with concurrency,
+# and lives OUTSIDE this fraction — free memory after startup is not the
+# margin, it is the margin before the largest allocation the serve will make.
+#
+# Raised to 0.92, with the condition it depends on stated beside it.
+#
+# THE CEILING IS MEASURED IN BOTH DIRECTIONS. At 0.92 this serve carried 128
+# concurrent requests cleanly at 1451 tok/s and DIED at 256: CUDA out of memory
+# asking 1.51 GiB with 1.19 GiB free, 141 running. The fused-MoE workspace is
+# allocated lazily at generation and lives OUTSIDE this fraction, so free memory
+# after startup is not the margin -- it is the margin before the largest
+# allocation the serve will make. How that workspace scales with concurrency is
+# OBSERVED, not understood; 256 was measured with short requests, and agent
+# traffic at 100k contexts may load it differently at the same request count.
+#
+# The operating cap is in the 36-concurrent range, which is 3.5x below the
+# proven-good 128 and 7x below the fatal 256. At that width the edge is not a
+# realistic exposure, and the pool is worth more than the margin.
+#
+# THE CAP IS NOT ENFORCED ANYWHERE. If it is removed, or a synthetic sweep is
+# pointed at this endpoint, return to 0.85 FIRST -- that is exactly how the 256
+# death was produced, by a ladder aimed at a serve a live fleet was using.
+#
+# This is layered with kv_offloading_size below rather than redundant with it: a
+# device-resident block is strictly faster than one restored over PCIe, so the
+# pool avoids eviction and the offload survives what eviction remains. Tier one
+# and tier two, not two attempts at the same thing.
+#
+# One contrary reading, recorded because the evidence is genuinely mixed: a peer
+# measured 17% cumulative hit rate at 0.92 against 28.2% at 0.85 and argued the
+# larger pool was worse. Inconclusive rather than decisive -- both are cumulative
+# counters over different eras, fleet sizes and workloads, and this serve's
+# recent delta rate (21-23%) runs below its own cumulative (28.6%).
+#
+# What does NOT bear on the decision, because the inference is appealing and
+# wrong: `kv_cache_usage_perc` is 1 - free_blocks/total, and vLLM keeps
+# cached-but-unreferenced blocks in the FREE queue as eviction candidates
+# (block_pool.py:44, 146, 711). A pool at 50% "usage" may be entirely full of
+# reusable cache about to be destroyed. Occupancy is not cache residency, and no
+# vLLM metric reports the latter.
 mem_fraction_static = 0.92
 kv_cache_dtype = "fp8"
 # Upstream recipe flags for this checkpoint family (recipes.vllm.ai + the
@@ -64,6 +131,27 @@ kv_cache_dtype = "fp8"
 # values for DeepSeek-V4; moe_backend "auto" lets vLLM pick the routed-expert
 # kernel, and expert parallelism is required alongside tensor parallelism for
 # this model's routed-expert layout.
+# This value IS in effect. The engine's exported `block_size` label reads 4, and
+# that is not our setting being overridden -- it is a different quantity under
+# the same name. After the KV cache is laid out, vllm/v1/engine/core.py:322
+# overwrites cache_config.block_size with the MINIMUM across kv_cache_groups,
+# and this checkpoint's hybrid CSA+HCA attention with its 128-token sliding
+# window allocates several groups of differing sizes. The label afterwards
+# reports the smallest group, not the configured value.
+#
+# Three checks establish that nothing coerced our 256, made 2026-09-15:
+#   * `user_specified_block_size=true`, and the platform's backend-preferred
+#     override is gated on NOT user-specified, so that path was skipped;
+#   * neither `_align_hybrid_block_size` nor the preferred-backend path logged
+#     its "Setting ... block size to %d" message, and both do when they fire;
+#   * 2,557,835 pool tokens over 75,000 blocks is 34.1 tokens per block, which
+#     is neither 4 nor 256 -- the signature of mixed group sizes.
+#
+# It could not have been the low-hit-rate cause in any case: smaller blocks make
+# prefix matching FINER, never coarser. Recorded at length because the reading
+# is the same trap as `kv_cache_usage_perc` counting cached blocks as free and
+# `process_alive` conflating four states -- a true value standing where the
+# expected one would be, under a name that invites the wrong question.
 block_size = 256
 tokenizer_mode = "deepseek_v4"
 moe_backend = "auto"
@@ -78,6 +166,54 @@ enable_expert_parallel = true
 # output, where draft acceptance matters more than sample diversity, over the
 # SM120 recipe's "probabilistic". attention_config.use_fp4_indexer_cache is
 # Blackwell-oriented and left unset on these SM90 cards pending a measured win.
+#
+# DSPARK IS ENABLED. It was disabled as an experiment against a measured
+# baseline, the experiment concluded, and the drafter was exonerated.
+#
+# Its draft layers form their own KV cache group, flagged an eagle group, and
+# the multi-group prefix lookup requires EVERY group to report a nonzero hit --
+# one group at zero short-circuits the whole request to zero. The draft group's
+# blocks are sparse and discontinuous by construction, because draft KV is
+# recomputed from the target model rather than retained, so it can essentially
+# never satisfy the consecutive-hit requirement and vetoes lookups for the
+# groups that could serve them. Upstream reports the real groups measuring
+# 88.9-100% once isolated from that veto, against the 25.7% measured here.
+#
+# The match to this deployment is exact -- same checkpoint, TP=4, fp8 KV,
+# block_size 256, dspark -- and the veto exists on BOTH lookup paths, the GPU
+# coordinator and the offload connector, as separate reimplementations of the
+# same AND-convergence. Fixes for each are open and unmerged upstream and are
+# Python-only, so they can be carried as patches; disabling the drafter removes
+# the vetoing group instead and costs no patch.
+#
+# WHAT THIS BUYS AND WHAT IT COSTS. Speculative decoding is given up; upstream
+# measures DSpark mean acceptance at 2.82 on k=5, so the loss is real but
+# modest. The test is cheap to read because the two hypotheses predict
+# different shapes: a veto predicts a STEP in the hit rate, independent of
+# fleet width, while pool crowding predicts a slope against concurrency. A
+# 50-minute sample over 149 intervals at 13-23 concurrent found the rate flat
+# at 24-27% with correlation +0.10, which is the floor a veto produces and not
+# the slope crowding produces.
+#
+# BASELINE TO COMPARE AGAINST, pooled over that sample:
+#   internal prefix hit rate  25.7%
+#   external (offload)         3.09%, zero in 89 of 149 intervals
+#   per-client generation      4.5 tok/s median at 17 running
+#
+# THE RESTORE CONDITION FIRED, so the three lines below are live again.
+# The condition was stated as: restore if the hit rate does not move, because
+# the drafter is then not what suppresses it and neither upstream patch is
+# worth carrying. It did not move -- the rate read 28.8% against the 25.7%
+# baseline above, inside the 17-40% band a non-vetoing drafter predicts and
+# nowhere near the 88.9-100% a gating veto predicts. So the veto reading is
+# refuted for this deployment and speculative decoding is taken back at no
+# measured cost to prefix reuse.
+#
+# What that does NOT establish: the upstream veto mechanism is real in the
+# code, on both the GPU coordinator and the offload connector. What is refuted
+# is that it binds HERE at this width and this traffic shape. If prefix reuse
+# ever collapses toward zero on this serve, comment these three lines again and
+# compare against the same baseline before reaching for either upstream patch.
 speculative_method = "dspark"
 speculative_num_tokens = 5
 speculative_draft_sample_method = "greedy"
@@ -86,11 +222,82 @@ speculative_draft_sample_method = "greedy"
 # (live measurement 2026-05-17), so the scheduler is the throughput
 # bottleneck, not hardware. Targeting ~80% KV utilization:
 #   * max_num_seqs = 1024 → 4× the running-sequences ceiling
-#   * max_num_batched_tokens = 32768 → matches the chunked prefill
+#   * max_num_batched_tokens = 8192 → smaller chunks, decode runs more often
 #     budget so the scheduler isn't starved when many long prompts
 #     queue up at the same time
 max_num_seqs = 1024
+# Held at 32768, after a lowering to 8192 was drafted and withdrawn unmeasured.
+#
+# This is the token budget for ONE scheduler iteration, shared between prefill
+# and decode: a decoding sequence contributes about one token per step (about
+# five under DSpark drafting), while a prefilling request claims a chunk of
+# whatever remains. Decode rate is running_sequences / step_latency, so a budget
+# stuffed with prefill lengthens every step and each sequence emits its token
+# less often. That is the mechanism behind 9.3 tok/s per worker.
+#
+# Lowering it was drafted at 8192 and withdrawn once, on the reasoning that the
+# recomputation volume would be removed at its source by the host-RAM offload
+# tier in the same restart. That tier never served a read and has been removed,
+# so the reason for withholding this is gone and the lever is taken.
+#
+# The argument is what the volume does to DECODE rather than to prefill. This
+# lane is prefill-bound, not concurrency-bound: pooled over 66,841 samples
+# across every serve, per-client generation tracks prefill volume inversely and
+# barely responds to width -- 16.4 tok/s at 20-24 concurrent where prefill was
+# 575, against 6.9 at 15-19 where prefill was 12,870. A step spent on a
+# 32,768-token prefill chunk is a step not spent decoding. A smaller chunk does
+# not reduce the total prefill work; it stops that work monopolising the step
+# budget, returning the scheduler to decode more often.
+#
+# The cost runs the other way and is real: larger batches use the device better,
+# so the genuine prefill that remains is processed less efficiently. That trade
+# has never been measured on this workload, which is why it lands against a
+# recorded baseline -- per-client 13.9 at width 10-14, internal hit rate 25.7%
+# pooled -- rather than being bundled with a second scheduler change.
 max_num_batched_tokens = 32768
+# KV offload to host RAM is DISABLED. This records why, so it is not re-enabled
+# on the same reasoning that first turned it on.
+#
+# The idea is sound and the problem it targets is real: an evicted prefix is
+# otherwise recomputed from scratch, and on a shared agent lane that is
+# self-sustaining, because the recomputation is itself what evicts the next
+# session's prefix. What the connector delivers on this model does not pay for
+# it.
+#
+# MEASURED over one serve lifetime, by four sessions reading independently:
+#   returned    ~9 GB in total
+#   written     ~6 TB, sustained above 4.6 GiB/s in the gaps between restores
+#   residency   0.11-0.23 GiB -- UNCHANGED at 128 GiB and at 512 GiB configured
+#
+# So size is not a lever. A fourfold change in the only setting that exists
+# moved residency by nothing, which means no value of it fixes this. What bounds
+# the store is the eviction ORDER rather than the capacity: both tiers evict in
+# the same LRU order, so a host entry is discarded before anything asks for it
+# again, and restores land only in the window between store and eviction.
+#
+# The return is INTERMITTENT rather than small, and that is a different object.
+# Five windows in one afternoon read 4.38, 3.64, 2.28, 0.64 and 0 percent, so a
+# mean over it describes no moment that actually occurs. If this is ever
+# re-measured, sample the distribution of per-interval deltas at a fixed short
+# interval; a ratio over a bursty process yields confident figures that
+# disagree, and a long window is not the remedy because sizing one requires
+# knowing the burst period.
+#
+# Two traps that cost real time and are not obvious from the setting's name:
+#   * the buffer is a FILE IN /dev/shm, so its ceiling is that tmpfs -- 756 GiB
+#     here, half of RAM -- and NOT the job's --mem. A 768 GiB request died at
+#     connector init inside a job holding 1000G, and raising --mem cannot help.
+#     All ranks share ONE mmap, so the figure is a node total, not per-rank.
+#   * a cancelled serve leaves its buffer resident with nothing mapping it, so a
+#     later launch fails against a tmpfs an earlier job filled -- one restart
+#     away from its cause, against a job that did nothing wrong. The serve
+#     script sweeps orphans before launch; that sweep is load-bearing and stays
+#     whether or not this setting is ever restored.
+#
+# Re-enable only against evidence that the upstream eviction order has changed,
+# and measure the return before paying the cost, because the cost is
+# unconditional and the return is not.
+# kv_offloading_size = <GiB>   -- deliberately unset
 
 [engine.env]
 # Route top-k/top-p sampling around the FlashInfer TopKMaskLogits kernel, which
@@ -114,7 +321,12 @@ reasoning = "deepseek_v4"
 [slurm]
 gpus = 4
 cpus = 12
-memory = "300G"
+# No offload buffer to cover, so this is the runtime alone. The bound is soft
+# rather than measured: a four-card serve ran inside 400G while also holding a
+# 128 GiB buffer, which puts the runtime at or under ~270 GiB without proving it
+# uses that much. 320G keeps a real margin over the upper bound rather than
+# trimming to a figure nobody has measured directly.
+memory = "320G"
 port = 18800
 time_serve = "0"
 time_download = "24:00:00"
@@ -130,8 +342,26 @@ time_download = "24:00:00"
 # different weights -- so only the topology and the KV budget move. This
 # attention keeps a single compressed KV head, which makes context cheap enough
 # that the full native window fits once the weights are spread over eight cards.
+# Two cards cannot carry two replicas: each would need the whole 156 GiB
+# checkpoint on one 140 GiB card, because replicas duplicate everything the
+# expert-parallel sharding does not cover. So the two-card topology is a single
+# engine two ranks wide, which is what the replica split degenerates to when
+# there is no room to split.
+[gpu_variants.2.engine]
+tensor_parallel = 2
+data_parallel = 1
+
+[gpu_variants.2.slurm]
+gpus = 2
+cpus = 8
+memory = "200G"
+
 [gpu_variants.8.engine]
-tensor_parallel = 8
+# Cards are tensor_parallel * data_parallel, so eight cards at two replicas is
+# a tensor width of four, not eight. Carrying the card count straight into
+# tensor_parallel here would have requested sixteen.
+tensor_parallel = 4
+data_parallel = 2
 max_total_tokens = 1048576
 
 [gpu_variants.8.slurm]

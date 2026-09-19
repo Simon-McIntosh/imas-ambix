@@ -103,6 +103,12 @@ dependencies = [
 
     # --- Utilities ---
     "openai>=2.0",
+    # The serve job runs `imas_ambix.agent.registry publish` under THIS
+    # interpreter, and that subcommand imports imas_ambix.agent.cli, which
+    # imports click at module scope. Without it the publish step fails and
+    # the generated script swallows it with `|| true`, so the endpoint
+    # document silently stops tracking the serve.
+    "click",
     "openai-harmony>=0.0.3",
     "anthropic>=0.71",
     "mistral_common[image]>=1.11",

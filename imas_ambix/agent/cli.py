@@ -18,7 +18,12 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from imas_ambix.agent.profile import SiteConfig, list_profiles, load_profile
+from imas_ambix.agent.profile import (
+    ModelProfile,
+    SiteConfig,
+    list_profiles,
+    load_profile,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -250,9 +255,29 @@ def _scale_profile(profile, gpus: int):
             "slurm": profile.slurm.model_copy(
                 update={"gpus": gpus, "memory": new_memory}
             ),
-            "engine": profile.engine.model_copy(update={"tensor_parallel": gpus}),
+            # --gpus names CARDS, and the cards are tensor_parallel *
+            # data_parallel. Assigning the card count straight to
+            # tensor_parallel silently multiplied the request by the replica
+            # count, so a `--gpus 4` on a two-replica profile asked for eight.
+            # Divide instead, and refuse a count the replicas do not divide
+            # rather than rounding to something nobody asked for.
+            "engine": profile.engine.model_copy(
+                update={"tensor_parallel": _tensor_width(profile, gpus)}
+            ),
         },
     )
+
+
+def _tensor_width(profile: ModelProfile, gpus: int) -> int:
+    """Tensor width for a card count, given the profile's replica count."""
+    replicas = profile.engine.data_parallel
+    if replicas > 1 and gpus % replicas:
+        raise click.BadParameter(
+            f"--gpus {gpus} is not divisible by the profile's "
+            f"data_parallel={replicas}; cards are tensor_parallel * "
+            f"data_parallel, so choose a multiple of {replicas}."
+        )
+    return max(1, gpus // replicas)
 
 
 @click.group()
@@ -351,13 +376,36 @@ def info(slug: str | None) -> None:
     is_flag=True,
     help="Print the SLURM script instead of submitting it.",
 )
-def download(slug: str | None, dry_run: bool) -> None:
+@click.option(
+    "--cpus",
+    type=int,
+    default=4,
+    show_default=True,
+    help="Cores to request, and concurrent shard transfers to run.",
+)
+@click.option(
+    "--time",
+    "time_limit",
+    default=None,
+    help=(
+        "Wall-clock limit, overriding the profile. Required below the "
+        "profile default on a debug partition, which caps at one hour and "
+        "pends a larger request forever. Transfers resume, so a truncated "
+        "download continues where it stopped."
+    ),
+)
+def download(
+    slug: str | None,
+    dry_run: bool,
+    cpus: int,
+    time_limit: str | None,
+) -> None:
     """Generate and submit a model download job."""
     from imas_ambix.agent.slurm import generate_download_script, submit_script
 
     profile = _load_profile(slug)
     site = SiteConfig.from_env()
-    script = generate_download_script(profile, site)
+    script = generate_download_script(profile, site, cpus=cpus, time_limit=time_limit)
 
     if dry_run:
         console.print(script, markup=False, highlight=False, soft_wrap=True)
@@ -490,6 +538,8 @@ def serve(
             script = script.replace(resolved_key, "****")
         console.print(script, markup=False, highlight=False, soft_wrap=True)
         return
+
+    _require_engine_environment(profile, site)
 
     holder = _running_ambix_job_on_port(site, resolved_port)
     if holder is not None:
@@ -708,9 +758,7 @@ def _same_node(first: str, second: str) -> bool:
     accept both orders of one being a suffix of the other.
     """
     return (
-        first == second
-        or first.endswith("." + second)
-        or second.endswith("." + first)
+        first == second or first.endswith("." + second) or second.endswith("." + first)
     )
 
 
@@ -816,8 +864,7 @@ def _resolve_log_job(selector: str | None, site: SiteConfig) -> dict[str, str]:
     matches = [
         job
         for job in _running_jobs(site)
-        if job["name"] == slug
-        and _serve_port(job.get("comment", "")) is not None
+        if job["name"] == slug and _serve_port(job.get("comment", "")) is not None
     ]
     if not matches:
         raise click.ClickException(
@@ -1041,21 +1088,16 @@ def _republish_endpoint_document(site: SiteConfig) -> Path | None:
         return write_endpoint_document(
             endpoints,
             site.endpoint_document,
-            routing_origins=discover_routing_origins(
-                endpoints, _running_jobs(site)
-            ),
+            routing_origins=discover_routing_origins(endpoints, _running_jobs(site)),
         )
     except (OSError, ValueError, click.ClickException) as error:
         console.print(
-            f"[yellow]warning: could not republish the endpoint document: "
-            f"{error}[/]"
+            f"[yellow]warning: could not republish the endpoint document: {error}[/]"
         )
         return None
 
 
-def _remove_cancelled_registrations(
-    site: SiteConfig, job_ids: Sequence[str]
-) -> None:
+def _remove_cancelled_registrations(site: SiteConfig, job_ids: Sequence[str]) -> None:
     """Delete the shared registration records of the cancelled serve jobs.
 
     A cancelled job's own EXIT trap removes its record when it runs, but a
@@ -1243,9 +1285,20 @@ def _router_port(comment: str) -> int | None:
     return _comment_port(comment, _ROUTER_COMMENT_PREFIX)
 
 
-def _running_ambix_job_on_port(
-    site: SiteConfig, port: int
-) -> dict[str, str] | None:
+def _require_engine_environment(profile: ModelProfile, site: SiteConfig) -> None:
+    """Refuse to submit a serve whose engine environment or image is missing.
+
+    Called at submit rather than at render, so ``--dry-run`` still prints a
+    script on a machine that has neither.
+    """
+    from imas_ambix.agent.slurm import engine_environment_problems
+
+    problems = engine_environment_problems(profile, site)
+    if problems:
+        raise click.ClickException("\n".join(problems))
+
+
+def _running_ambix_job_on_port(site: SiteConfig, port: int) -> dict[str, str] | None:
     """Return the running Ambix job that owns *port*, if one exists."""
     for job in _running_jobs(site):
         if job.get("state") != "RUNNING":
@@ -1392,6 +1445,9 @@ def _resolve_router_upstreams(site: SiteConfig, api_key: str | None) -> list[Ups
                 base_url=record.origin,
                 auth_header=auth_header,
                 model_id=record.model_id,
+                # Width from the record the serve wrote, so ranking does not
+                # depend on the engine echoing it back through its catalog.
+                accelerator_count=record.accelerator_count,
             )
         )
         seen_origins.add(record.origin.rstrip("/"))
@@ -1450,22 +1506,9 @@ def _resolve_router_upstreams(site: SiteConfig, api_key: str | None) -> list[Ups
     help="Host memory for a submitted router allocation.",
 )
 @click.option(
-    "--max-in-flight",
-    type=click.IntRange(min=1),
-    default=None,
-    help="Concurrent requests admitted per consumer.",
-)
-@click.option(
-    "--max-queued",
-    type=click.IntRange(min=0),
-    default=None,
-    help="Waiting requests retained per consumer.",
-)
-@click.option(
-    "--retry-after-seconds",
-    type=click.IntRange(min=1),
-    default=None,
-    help="Retry-After value returned when a consumer queue is full.",
+    "--prefix-probe",
+    is_flag=True,
+    help="Log where each caller's prompt stops matching its previous turn.",
 )
 def router_command(
     host: str,
@@ -1475,30 +1518,12 @@ def router_command(
     dry_run: bool,
     cpus: int,
     memory: str,
-    max_in_flight: int | None,
-    max_queued: int | None,
-    retry_after_seconds: int | None,
+    prefix_probe: bool,
 ) -> None:
     """Run or submit the multi-engine pass-through router."""
-    from imas_ambix.agent.router import (
-        AdmissionLimits,
-        DynamicUpstreamResolver,
-        serve_router,
-    )
+    from imas_ambix.agent.router import DynamicUpstreamResolver, serve_router
 
     site = SiteConfig.from_env()
-    defaults = AdmissionLimits()
-    limits = AdmissionLimits(
-        max_in_flight=(
-            defaults.max_in_flight if max_in_flight is None else max_in_flight
-        ),
-        max_queued=defaults.max_queued if max_queued is None else max_queued,
-        retry_after_seconds=(
-            defaults.retry_after_seconds
-            if retry_after_seconds is None
-            else retry_after_seconds
-        ),
-    )
     if submit or dry_run:
         from imas_ambix.agent.slurm import generate_router_script, submit_script
 
@@ -1512,9 +1537,7 @@ def router_command(
             port=port,
             cpus=cpus,
             memory=memory,
-            max_in_flight=limits.max_in_flight,
-            max_queued=limits.max_queued,
-            retry_after_seconds=limits.retry_after_seconds,
+            prefix_probe=prefix_probe,
         )
         if dry_run:
             console.print(script, markup=False, highlight=False, soft_wrap=True)
@@ -1533,13 +1556,14 @@ def router_command(
     resolver = DynamicUpstreamResolver(
         lambda: _resolve_router_upstreams(site, resolved_key)
     )
-    admission_was_set = any(
-        value is not None for value in (max_in_flight, max_queued, retry_after_seconds)
+    from pathlib import Path as _Path
+
+    serve_router(
+        resolver,
+        host=host,
+        port=port,
+        lane_document=_Path(site.endpoint_document).with_name("lane.json"),
     )
-    if admission_was_set:
-        serve_router(resolver, host=host, port=port, admission_limits=limits)
-    else:
-        serve_router(resolver, host=host, port=port)
 
 
 def _resolve_live_route(
@@ -1664,9 +1688,16 @@ def _engine_facts(profile) -> str:
     # Served context = max_total_tokens when set (the real cap), else the
     # model's theoretical max_context.
     served_ctx = e.max_total_tokens or profile.model.max_context
+    # Replicas are named alongside the tensor width because the CARD COUNT is
+    # their product: a bare "TP=2" on a four-card serve reads as two cards,
+    # which is the same trap as a field whose name invites a different question
+    # than the one it answers.
+    width = f"TP={e.tensor_parallel}"
+    if e.data_parallel > 1:
+        width = f"{width}×DP={e.data_parallel}"
     parts = [
         engine_label,
-        f"TP={e.tensor_parallel}",
+        width,
         f"ctx {_fmt_context(served_ctx)}",
     ]
     if e.kv_cache_dtype:
@@ -1823,8 +1854,14 @@ def key_command(reveal: bool, rotate: bool, yes: bool) -> None:
         console.print(f"[yellow]Profile '{default}' not found — restart manually.[/]")
         return
 
-    port = site.default_port
+    # The profile's own port, as ``serve`` uses; the site default only when it
+    # declares none. Rotating a key must not also move the endpoint.
+    port = profile.slurm.port if profile.slurm.port is not None else site.default_port
     user = os.environ.get("USER") or getpass.getuser()
+
+    # Before cancelling anything: a rotation that tears the serve down and then
+    # cannot bring it back leaves no endpoint at all.
+    _require_engine_environment(profile, site)
 
     # Cancel active serve jobs
     result = subprocess.run(
@@ -2121,8 +2158,24 @@ def restart(
             }
         )
     site = SiteConfig.from_env()
-    resolved_port = port if port is not None else site.default_port
+    # Same precedence as ``serve``: an explicit flag, then the profile's own
+    # declared port, then the site default. Skipping the profile here put a
+    # restarted serve on a different port from the one ``serve`` had given it,
+    # so the registration, the router and the profile disagreed about where the
+    # model lived -- and on a site default that another profile already owns.
+    resolved_port = (
+        port
+        if port is not None
+        else profile.slurm.port
+        if profile.slurm.port is not None
+        else site.default_port
+    )
     resolved_key = _resolve_serve_auth(auth, api_key, site)
+
+    # Before cancelling anything: a restart that stops the running serve and
+    # then cannot start the replacement leaves no endpoint at all.
+    if not dry_run:
+        _require_engine_environment(profile, site)
 
     # Find active serve jobs for this profile
     user = os.environ.get("USER") or getpass.getuser()
@@ -2376,9 +2429,7 @@ def bench(
     default=None,
     help="API key for authenticated endpoints (or set AMBIX_AGENT_API_KEY).",
 )
-@click.option(
-    "--interval", type=float, default=5.0, help="Seconds between samples."
-)
+@click.option("--interval", type=float, default=5.0, help="Seconds between samples.")
 @click.option(
     "--duration",
     "duration_s",
@@ -2687,6 +2738,26 @@ def _engine_pyproject(engine: str) -> str:
     return pkg.read_text(encoding="utf-8")
 
 
+def _engine_python_version(engine: str) -> str:
+    """Return the Python minor version an engine environment declares.
+
+    The setup job must build the venv against the interpreter the engine's own
+    ``requires-python`` names. Pinning a literal version here instead meant the
+    declaration and the build could disagree silently -- raising the floor in
+    the pyproject changed nothing, because the sync still asked for the old
+    interpreter.
+    """
+    import re
+
+    source = _engine_pyproject(engine)
+    match = re.search(r'requires-python\s*=\s*"[^"]*?>=\s*(\d+\.\d+)', source)
+    if not match:
+        raise click.ClickException(
+            f"engine {engine!r} declares no parsable requires-python floor"
+        )
+    return match.group(1)
+
+
 def _metadata_version_command(package: str, label: str, *, ok: bool = False) -> str:
     """Return a shell command that reports installed package metadata."""
     values = f"{label!r}, m.version({package!r})"
@@ -2724,6 +2795,10 @@ def _engine_runtime_check_script(
     lines += [
         f"#SBATCH --account={site.account}",
         f"#SBATCH --dependency=afterok:{dependency_job_id}",
+        # Without this a failed install leaves the verification pending on an
+        # unsatisfiable dependency forever, where it reads to an operator as a
+        # hung job rather than as a consequence. Observed twice.
+        "#SBATCH --kill-on-invalid-dep=yes",
         "#SBATCH --ntasks=1",
         "#SBATCH --cpus-per-task=1",
         "#SBATCH --mem=1G",
@@ -2773,6 +2848,131 @@ def _engine_runtime_check_script(
 
     lines += ["", 'echo "=== Runtime verification complete ==="', ""]
     return "\n".join(lines)
+
+
+@agent.command()
+@click.option(
+    "--origin",
+    default=None,
+    help="Serve origin to read; defaults to the published endpoint.",
+)
+@click.option(
+    "--publish",
+    is_flag=True,
+    help="Write the reading beside the endpoint document for other sessions.",
+)
+@click.option(
+    "--refresh",
+    type=click.IntRange(min=5),
+    default=None,
+    help="Republish every N seconds instead of reading once.",
+)
+@click.option(
+    "--submit",
+    is_flag=True,
+    help="Submit the refresher as a standing SLURM job instead of running it.",
+)
+def lane(origin: str | None, publish: bool, refresh: int | None, submit: bool) -> None:
+    """Report the shared lane's concurrency budget from live engine counters.
+
+    One engine serves every session on the workstation, so the quantity that
+    composes across them is tokens resident in the shared KV pool rather than a
+    seat count. Every figure here is read from the engine at the moment of
+    asking -- the pool size included -- so nothing can go stale against the
+    process it describes.
+
+    The budget is advisory. It never refuses a request: the engine queues and
+    preempts rather than failing, and a second scheduler in front of it can only
+    turn away work the engine would have taken.
+    """
+    import json
+    from pathlib import Path
+
+    from imas_ambix.agent.lane import (
+        detect_settling,
+        fetch_lane_capacity,
+        write_lane_document,
+        write_unavailable_document,
+    )
+
+    site = SiteConfig.from_env()
+    resolved = origin
+    if resolved is None:
+        document = json.loads(Path(site.endpoint_document).read_text(encoding="utf-8"))
+        endpoints = document.get("endpoints") or []
+        if not endpoints:
+            raise click.ClickException(
+                "no endpoint is published; pass --origin to read a serve directly"
+            )
+        first = endpoints[0]
+        resolved = f"http://{first['host']}:{first['port']}"
+
+    document_path = Path(site.endpoint_document).with_name("lane.json")
+
+    if submit:
+        if refresh is None:
+            raise click.ClickException("--submit requires --refresh N")
+        from imas_ambix.agent.slurm import (
+            generate_lane_refresher_script,
+            submit_script,
+        )
+
+        script = generate_lane_refresher_script(site, origin=resolved, interval=refresh)
+        try:
+            job_id = submit_script(script)
+        except RuntimeError as error:
+            raise click.ClickException(str(error)) from error
+        console.print(
+            f"Submitted lane refresher job {job_id} reading {resolved} "
+            f"every {refresh}s."
+        )
+        return
+
+    if refresh is None:
+        try:
+            capacity = fetch_lane_capacity(resolved)
+        except (OSError, ValueError) as error:
+            raise click.ClickException(f"could not read {resolved}: {error}") from error
+        console.print(capacity.summary(), markup=False, highlight=False)
+        if publish:
+            written = write_lane_document(capacity, document_path)
+            console.print(f"\npublished {written}", markup=False, highlight=False)
+        return
+
+    # Standing refresh. A consumer reading a document nobody refreshes gets a
+    # stale figure on every read, which under the reader's own freshness rule
+    # degrades to "unknown" permanently -- the feed looks wired and carries
+    # nothing. This must run as its own long-lived job rather than inside a
+    # session: a producer that dies with its coordinator stops silently and
+    # looks exactly like a quiet lane.
+    import time
+
+    # Held across polls so settling can be detected here rather than inferred
+    # by every reader separately. The producer is the only party that sees
+    # consecutive samples, so the qualifier belongs where the polling is.
+    previous = None
+    while True:
+        try:
+            capacity = fetch_lane_capacity(resolved)
+        except (OSError, ValueError) as error:
+            # Publish the failure rather than leaving the last good reading to
+            # age into a lie. A reader can distinguish "could not measure, here
+            # is why" from a figure whose vintage merely slipped.
+            write_unavailable_document(str(error), document_path)
+            previous = None
+            console.print(f"unavailable: {error}", markup=False, highlight=False)
+        else:
+            settling = detect_settling(previous, capacity)
+            write_lane_document(capacity, document_path, settling=settling)
+            bound = " (upper bound, settling)" if settling else ""
+            console.print(
+                f"{capacity.running} running · headroom {capacity.headroom}"
+                f"{bound} · binding {capacity.binding_observed}",
+                markup=False,
+                highlight=False,
+            )
+            previous = capacity
+        time.sleep(refresh)
 
 
 @agent.command()
@@ -2914,9 +3114,23 @@ def setup(engine: str, dry_run: bool) -> None:
             "",
         ]
 
+    version = _engine_python_version(engine)
     lines += [
+        "# Resolve BEFORE touching the environment. `uv sync` recreates .venv",
+        "# and only then resolves, so a dependency failure destroys a working",
+        "# environment on its way to reporting itself -- measured: a Python",
+        "# bump that could never resolve left an empty venv where a serving",
+        "# one had been, and the endpoint's registry steps broke with it.",
+        "# `uv lock` answers the same question and touches no environment.",
+        f"if ! uv lock --python {version} 2>&1 | tail -40; then",
+        '    echo "ERROR: dependencies do not resolve for this engine at'
+        f' Python {version}." >&2',
+        '    echo "The existing environment has NOT been modified." >&2',
+        "    exit 1",
+        "fi",
+        "",
         "# uv sync creates/updates .venv and installs all dependencies",
-        "uv sync --python 3.12 -v 2>&1 | tail -50",
+        f"uv sync --python {version} -v 2>&1 | tail -50",
     ]
 
     # vLLM: install the renamed wheel into the synced venv

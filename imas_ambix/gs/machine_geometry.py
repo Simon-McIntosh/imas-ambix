@@ -224,7 +224,7 @@ def _project_operator_geometry(
 
             try:
                 resolved = identity_for_table(kernel)
-            except MachineIdentityError, ImportError, OSError, TypeError, ValueError:
+            except (MachineIdentityError, ImportError, OSError, TypeError, ValueError):
                 pass
             else:
                 physical_digest = resolved.physical_digest

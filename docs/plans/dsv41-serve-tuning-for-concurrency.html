@@ -1,0 +1,1583 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="dsv41-serve-tuning-for-concurrency">
+  <meta name="plan-title" content="DSv4.1 Serve Tuning for Concurrency — Four Levers, Their Measured Basis, and a Cold Launch Off a Drained Lane">
+  <meta name="plan-summary" content="Speculative decoding is the only real throughput lever; the pool went to 8M, was measured, and came back to 4M for prefill headroom">
+  <meta name="plan-status" content="shipped">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort-hours" content="5.0">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="orchestrator">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-capability-risk" content="moderate">
+  <meta name="plan-milestone" content="OPS">
+  <meta name="plan-sprint" content="S24">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-tags" content="agent-serving,gpu-deployment,benchmarking">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s4a&quot;:&quot;done&quot;,&quot;s4b&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;deferred&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;done&quot;}">
+  <meta name="plan-impl" content="1.0">
+  <title>DSv4.1 Serve Tuning for Concurrency | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-09-18">
+<meta name="plan-version" content="48">
+<meta name="plan-commits" content="e808a8e3d89816a334f167b05eb4986afde532fd,3d0a341742c0cd0315232d95ba916971670b078a,483734b74ab42c2ad8f5b80c0dd18e3f28f7409e,c164d5d55cfc8f6ee7487a2562baa8ce7c0217e6,f779e28de7543108d83126be755b49d0dd3a9f9c">
+<meta name="plan-artifacts" content="imas_ambix/agent/profiles/deepseek-v4-1-flash.toml,docs/evidence/archive/dsv41-serve-tuning-for-concurrency-landed.html,/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/dsv41-tune/reuse-map.md,/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/dsv41-tune/restart-one-launch.md">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — The baseline this plan tunes, and the reading taken while writing it</h2>
+
+    <p>The prefix-cache defect is repaired and the lane is working. Everything
+    below is measured against that repaired lane, not against the collapsed one,
+    and the distinction matters because the pre-repair figures made the device
+    pool look enormous and the host tier look useful. Both conclusions inverted
+    when reuse went from under 5% to over 99%. Full record:
+    <a href="/imas-ambix/evidence/archive/dsv41-flash-four-card-throughput-landed">the
+    four-card throughput evidence</a>.</p>
+
+    <p>A live reading taken while this plan was being written, three samples
+    one second apart on job <code>1272167</code>:</p>
+
+    <table>
+      <thead><tr><th>Quantity</th><th>Reading</th><th>What it constrains</th></tr></thead>
+      <tbody>
+        <tr><td>Concurrent requests</td><td><strong>27</strong> running, <strong>0</strong> queued, steady across all three samples</td><td>the lane is running well past the knee of ~20 without queueing</td></tr>
+        <tr><td>Device pool occupancy</td><td><strong>2.09–2.14M of 4.00M tokens — 52–54%</strong></td><td>the pool is the first thing that will bind, and it is already half gone</td></tr>
+        <tr><td>Implied working context</td><td>~<strong>79,000 tokens</strong> per resident request</td><td>4M / 79k &#8776; <strong>50 concurrent</strong> before the pool evicts</td></tr>
+        <tr><td>Prefix hit rate</td><td><strong>99.5%</strong></td><td>the repair holds at 27 concurrent; reuse is no longer the problem</td></tr>
+        <tr><td>Aggregate output</td><td>257 tok/s on one sample, 111 on the next two</td><td>the gauge is a last-batch figure, not a rate — see §5</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Two instruments measured this lane and they do not agree, so
+    state which one each figure comes from.</strong> Mixing them is how a gain
+    ratio gets inflated:</p>
+
+    <table>
+      <thead><tr><th>Instrument</th><th>Aggregate</th><th>Per worker</th><th>Basis</th></tr></thead>
+      <tbody>
+        <tr><td>Receipt bins, harvested</td><td>330 sustained, 376.6 peak</td><td>27.0 median</td><td>a sample of binned intervals; the median is over <em>active</em> workers, so it excludes those prefilling</td></tr>
+        <tr><td><strong>The engine's decode log</strong></td><td><strong>429.6 at 34 concurrent</strong>, 375.8 at 16</td><td><strong>41.4 peak at 2–4</strong>, 12.6 at 34</td><td>27,454 intervals over 19.8 h, median per running-request count — the better instrument, and the one every prediction here is built on</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Every ratio in this plan compares engine-log to engine-log.</strong>
+    Quoting 710 tok/s against the 330 receipt figure would read as 2.15×
+    when the honest comparison is 710 against 429.6, which is 1.65×. The
+    receipt figures are kept because they are what the dashboard shows and what
+    earlier sessions recorded, not because they set the baseline. TTFT is 1.14 s
+    mean and the hit rate 96.7–97.7%; before the repair the same lane
+    managed 32.9 tok/s aggregate at 10.0 s TTFT.</p>
+
+    <p><strong>Two cards are not an option for this checkpoint, so no
+    4→2→4 shuffle exists.</strong> The startup log measures resident
+    weights at <strong>74.09 GB per card</strong> at TP4 — 296.4 GB for the
+    model. Halving the rank count doubles the per-card share to 148.2 GB against
+    140.4 GB of capacity, so it does not fit before a single KV page, activation
+    buffer or workspace is allocated. The 510.3 GB on disk overstates it and the
+    resident figure is the one that decides; both refuse two cards.</p>
+
+    <p><strong>Read the occupancy row as the headline, because it changes which
+    lever is which.</strong> At 27 concurrent the 4M device pool is over half
+    consumed. Prefix eviction — not preemption — is the first symptom of KV
+    pressure on this stack, and it costs throughput silently: the lane pays in
+    recomputed prefill while <code>num_preemptions_total</code> has not moved.
+    So the device pool is no longer headroom for a hypothetical future width; it
+    is a constraint roughly twice the width the lane already runs at.</p>
+
+    <h2 id="s2">§2 — The window question is closed: the serve is already down</h2>
+
+    <p><strong>As of 2026-09-17 the lane drained and the serve was shut down, so
+    this section's original problem no longer exists.</strong> There is nothing
+    to rotate around, no dispatch to halt and no lull to find — the
+    restart is a cold launch. Everything below is kept because it is the record
+    of what a live rotation would have cost and because the duty-cycle table is
+    the instrument for the <em>next</em> restart, not this one.</p>
+
+    <p><strong>What binds now is cores, not cards.</strong> Four cards are free.
+    The group-A reservation holds thirty cores, of which the router keeps 2 and
+    two released one-card nova jobs keep 8 each, leaving roughly
+    <strong>12–14</strong>. The profile asks for <strong>12</strong>. So
+    the launch fits with almost no margin, and a job pending on
+    <code>Resources</code> after submission means cores rather than cards
+    — read the live ledger before blaming the GPU count.</p>
+
+    <p><strong>The rotation was also the safety net, and losing it changes the
+    risk.</strong> With the old engine still serving, a speculative decoder that
+    refused to start cost nothing. Now a failed launch means no lane at all
+    until a rollback completes. So the rollback needs a time bound rather than a
+    judgement call: <strong>if the serve has not answered
+    <code>/v1/models</code> within about twelve minutes</strong> — against
+    a measured 460 s to ready — relaunch without the speculative
+    settings to bring the lane back, and treat DSpark as a separate attempt
+    once traffic is flowing again.</p>
+
+    <p><em>The remainder of this section is the superseded rotation analysis,
+    retained for the next restart.</em></p>
+
+    <p><strong>A zero-downtime rotation is supported and was demonstrated on
+    2026-09-07.</strong> Bring the retuned serve up on its own port while the
+    current one keeps serving, let the router move traffic on health, then stop
+    the old one. Two properties make it work, and both are in the code rather
+    than in an operator's care: the router collapses a duplicate model id onto
+    one upstream instead of refusing, and the endpoint document republishes on
+    both serve and shutdown.</p>
+
+    <p><strong>The equal-width tie-break is already correct, which the
+    demonstration did not prove.</strong> That rotation replaced two cards with
+    four, so the documented rule — prefer the widest — decided it. A retune is
+    four cards replacing four cards, and the width term is level.
+    <code>_preferred_owner</code> in <code>imas_ambix/agent/router.py</code>
+    resolves exactly this: level widths fall through to the later start stamp,
+    <q>which still favours the engine replacing its peer</q>, and it refuses to
+    choose only when both terms are indistinguishable. So the new serve wins the
+    tie by construction. This needed checking rather than assuming, because a
+    rotation that split traffic across two engines would give each of them half
+    the conversations and halve the prefix reuse — the §6 failure mode, arriving
+    unannounced during what was supposed to be a safe procedure.</p>
+
+    <p><strong>What the rotation actually costs is four free cards for about
+    eight minutes.</strong> Measured on the last restart: 460 s from submit to
+    the first successful <code>/v1/models</code>. The node is the constraint, not
+    the lane — at the time of writing the serve holds 4 cards, a
+    <code>nova-bank-drift-campaign</code> job holds 2, and 2 are free. So the
+    rotation is available when the node is otherwise empty and not before.</p>
+
+    <p><strong>And if the cards are not free, the quiet window already exists
+    on a schedule — it does not have to be negotiated.</strong> 3,004
+    twenty-second samples over 16.8 h give the lane's own duty cycle, and it is
+    strongly diurnal:</p>
+
+    <table>
+      <thead><tr><th>Hour (UTC)</th><th>Median running</th><th>p90</th><th>Samples idle</th></tr></thead>
+      <tbody>
+        <tr><td>21:00</td><td>29</td><td>32</td><td>0%</td></tr>
+        <tr><td>22:00</td><td>18</td><td>28</td><td>0%</td></tr>
+        <tr><td>23:00</td><td>2</td><td>6</td><td>23%</td></tr>
+        <tr><td><strong>00:00</strong></td><td><strong>0</strong></td><td>1</td><td><strong>84%</strong></td></tr>
+        <tr><td><strong>01:00</strong></td><td><strong>0</strong></td><td>0</td><td><strong>100%</strong></td></tr>
+        <tr><td><strong>02:00</strong></td><td><strong>0</strong></td><td>0</td><td><strong>100%</strong></td></tr>
+        <tr><td>03:00</td><td>0</td><td>6</td><td>61%</td></tr>
+        <tr><td>04:00</td><td>14</td><td>18</td><td>0%</td></tr>
+        <tr><td>05:00</td><td>26</td><td>29</td><td>0%</td></tr>
+      </tbody>
+    </table>
+
+    <p>Two consecutive hours at <strong>100% idle</strong>, inside a
+    <strong>98-minute contiguous stretch</strong> at two or fewer requests in
+    flight. 00:00–03:00 UTC is the window, it recurs, and it needs no
+    coordination at all — only that the restart be scheduled into it rather
+    than run when someone happens to be at the keyboard.</p>
+
+    <p><strong>A drain, if one is ever needed, is about a minute.</strong> Mean
+    end-to-end request latency over the night is <strong>54.6 s</strong> across
+    7,232 requests, and 51.4 s in the most recent window; mean output is 855
+    tokens. So holding dispatch and waiting for in-flight requests to retire
+    costs one to three minutes, not the tens of minutes a <em>run</em>-level
+    drain would — a worker between turns is not holding a request. Never
+    conflate the two: requests drain in a minute, runs drain when their node
+    ends.</p>
+
+    <p><strong>Done when:</strong> the retune lands either through a rotation on
+    a free four-card window or through a coordinated eight-minute hold, with the
+    method used and the in-flight request count at cutover recorded. A restart
+    that kills live requests without a recorded hold is a defect in this
+    section, not an acceptable cost.</p>
+
+    <h2 id="s3">§3 — Lever 1: DSpark speculative decoding, the only real throughput lever</h2>
+
+    <p><strong>Decode binds this lane and nothing else in the configuration
+    changes that.</strong> Per-worker output is 27.0 tok/s median against a
+    single-stream ceiling of 34.4; the pool is half empty, the queue is empty,
+    and reuse is at 99.5%. There is no prefill lever left to pull and no
+    admission lever worth pulling. What remains is emitting more than one token
+    per forward pass.</p>
+
+    <p><strong>It was refused twice, for a reason that has since gone away.</strong>
+    DSpark wants about 12 GiB per card of workspace, allocated lazily outside
+    <code>mem_fraction_static</code>. At the 15M-token pool there was 1.3 GiB
+    free; at the 7.6 GB that followed, still not enough. The refusal was a
+    memory fact, and the memory fact has changed — but the margin must be
+    read loaded, not idle:</p>
+
+    <table>
+      <thead><tr><th>Per-card free device memory</th><th>Reading</th><th>Source</th></tr></thead>
+      <tbody>
+        <tr><td>After startup, before traffic</td><td><strong>52.04 GB</strong></td><td>the engine's own <code>avail mem</code> at the end of CUDA-graph capture</td></tr>
+        <tr><td><strong>Under load at 23–27 concurrent</strong></td><td><strong>~33 GB</strong> (112,164 of 143,771 MiB used)</td><td>the card sampler, now</td></tr>
+      </tbody>
+    </table>
+
+    <p>The ~19 GB difference <em>is</em> the lazily-allocated workspace this
+    section is about, so the headroom DSpark has to fit inside is 33 GB and not
+    52. It still fits: 33 − 12.9 ≈ 20 GB. But the earlier figure was
+    an idle reading quoted as a budget, which is the same error as reading a
+    fleet's context right after a dispatch, and the tighter number is the one
+    that governs.</p>
+
+    <p><strong>What changed is not only the memory — it is the value.</strong>
+    Before the prefix repair this lane spent essentially its whole token budget
+    on prefill, so accelerating <em>decode</em> would have bought almost nothing.
+    Measured over the last 40 minutes, uncached prompt tokens are
+    <strong>2.3% of those presented</strong> and the engine generates 336 tok/s
+    against 1,178 tok/s of uncached prefill. Decode is now the phase that costs
+    wall clock, because each of its tokens needs its own forward pass. The lever
+    became feasible and worth pulling in the same repair.</p>
+
+    <p><strong>The profile's own comment says this will not help, and that
+    objection has to be answered rather than ignored.</strong> It records
+    <q>prior experience on V4-Flash, where DSpark did not change throughput
+    materially</q>, alongside the capacity refusal. The capacity half is stale
+    — it reasons from a pool costing ~16 GiB of base plus 1.6 KiB/token,
+    where the running pool measures 10.10 GB for four million tokens — but
+    the <em>benefit</em> half is a recorded null on the sibling checkpoint and
+    this plan previously talked past it.</p>
+
+    <p><strong>The decode cost model reconciles the null with the acceptance
+    measurement, and predicts something falsifiable.</strong> Speculation
+    verifies k draft tokens in one forward pass, so it pays the 17.8 ms floor
+    once instead of k times — but the pass must read the expert union over
+    k×B tokens instead of B, and that union grows fast. Carrying the
+    measured 3.31 mean accept length at k=5 through
+    <code>ms = 17.8 + 0.257 × GB</code>, with a 10 ms allowance for the five
+    sequential draft steps:</p>
+
+    <table>
+      <thead><tr><th>Concurrent</th><th>Measured today</th><th>Verify pass reads</th><th>Predicted</th><th>Ratio</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>35.5 tok/s</td><td>43 GB</td><td>85 tok/s</td><td><strong>2.41×</strong></td></tr>
+        <tr><td>4</td><td>164.2</td><td>148 GB</td><td>201</td><td>1.22×</td></tr>
+        <tr><td>8</td><td>266.5</td><td>255 GB</td><td>283</td><td><strong>1.06×</strong></td></tr>
+        <tr><td>16</td><td>375.8</td><td>391 GB</td><td>412</td><td>1.10×</td></tr>
+        <tr><td>24</td><td>394.4</td><td>463 GB</td><td>541</td><td>1.37×</td></tr>
+        <tr><td>34</td><td>429.6</td><td>508 GB</td><td><strong>710</strong></td><td><strong>1.65×</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>The shape is the finding: the gain is large at a single stream,
+    collapses to nothing around the knee, and returns at high width.</strong> At
+    one stream the floor is the entire cost, so paying it once instead of 3.31
+    times is nearly free throughput. At width 8 the expert union goes from 12%
+    to 47% of the 384 experts — 3.9× the bytes for 5× the tokens
+    — and the bandwidth term eats the floor saving. At width 34 the union
+    is already 41% saturated, so verifying five times the tokens costs only
+    2.24× the bytes and the saving survives.</p>
+
+    <p><strong>So a null measured near the knee is exactly what this model
+    predicts, which is the most likely explanation of the V4-Flash result and
+    the reason a single-width test is worthless here.</strong> Measure at
+    <strong>1, 8 and 24 or above</strong>. A test at width 8 alone would
+    reproduce the recorded null and wrongly close the question for a second
+    time.</p>
+
+    <p><strong>The dominant unknown is the drafter's own cost, and it can make
+    this a regression.</strong> The 10 ms allowance above is an assumption, not a
+    measurement: five sequential draft steps over three layers
+    (<code>dspark_target_layer_ids [37, 38, 39]</code>, 128 experts at top-3).
+    At 25 ms the width-8 case becomes <strong>0.92×</strong> — slower
+    than today. Record the draft overhead per step, not only the acceptance
+    rate, or the result cannot be interpreted at the widths where it matters.</p>
+
+    <p><strong>The caveat is specific and must not be softened: on V4.1 it
+    previously could not start.</strong> That was at a pool leaving no room for
+    the workspace, so the memory explanation covers it, but no one has seen
+    DSpark run on this checkpoint. Two failure shapes are possible and only one
+    is safe: a serve that refuses at startup costs nothing, while a serve that
+    starts and dies on the first real generation takes the lane with it — the
+    lazy-allocation shape that has killed three serves on this node. So the
+    acceptance test is a real generation, not a readiness probe.</p>
+
+    <p><strong>This is a profile edit and not a code change, which is what
+    makes it dispatchable in one session.</strong>
+    <code>speculative_algorithm</code> and
+    <code>speculative_dspark_block_size</code> already exist as SGLang-only
+    fields in <code>imas_ambix/agent/profile.py</code> and are already emitted
+    as <code>--speculative-algorithm</code> and
+    <code>--speculative-dspark-block-size</code> by
+    <code>imas_ambix/agent/slurm.py</code>. The values are
+    <code>"dspark"</code> and <code>5</code>, the second taken from the
+    checkpoint's own <code>dspark_block_size</code>. The draft module is fused
+    into the checkpoint at layers 37–39, so no separate draft path is
+    needed and the commented vLLM-shaped settings in the V4-Flash profile are
+    the wrong names for this engine.</p>
+
+    <p><strong>Done when:</strong> DSpark is enabled in
+    <code>imas_ambix/agent/profiles/deepseek-v4-1-flash.toml</code>, the serve
+    reaches ready, <em>and</em> a real multi-hundred-token generation completes;
+    with the measured draft acceptance rate, mean accept length, the device free
+    memory after the workspace has actually allocated, and per-worker plus
+    aggregate output under real load at a stated width. A rollback to the
+    committed profile is one edit and is written down before the restart, not
+    after it fails.</p>
+
+    <p><strong>Landing record — restart-one profile settings.</strong> Commit
+    <code>e808a8e</code> enables <code>dspark</code> with block size 5, restores
+    <code>hicache_ratio = 2.0</code> and <code>memory = "480G"</code>, and
+    replaces the superseded capacity refusal with the loaded 33 GB per-card
+    margin against DSpark's ~12.9 GiB ask and this section's width-dependent
+    prediction. The prior values are retained as the rollback line. Full
+    record: <a href="/imas-ambix/evidence/archive/dsv41-serve-tuning-for-concurrency-landed#restart-one-profile-settings">profile-settings evidence</a>.</p>
+
+    <p><strong>Landing record — restart-one launch.</strong> Commit
+    <code>3d0a341</code> corrects the rollback to remove only the speculative
+    keys and retain the independent host-tier cut. Main-checkout SLURM job
+    <code>1272777</code> then failed after <strong>42 s</strong>, before model
+    load or readiness: SGLang rejected lowercase <code>dspark</code> and stated
+    that only <code>EAGLE</code> and <code>DSPARK</code> are supported. No
+    <code>/v1/models</code> response or real generation was possible, draft
+    metrics were not emitted, and the failed job was left stopped with nothing
+    relaunched. Full record:
+    <a href="/imas-ambix/evidence/archive/dsv41-serve-tuning-for-concurrency-landed#restart-one-launch">launch evidence</a>.</p>
+
+    <p><strong>Landing record — corrected live launch and width one.</strong>
+    Main commit <code>e3adfca</code> launched as job <code>1272783</code>, loaded
+    the bundled DSpark head on all four ranks and reached ready in
+    <strong>485 s</strong>. A real 384-token-cap completion returned HTTP 200 in
+    30.2 s and the endpoint remained healthy; width-one decode measured
+    <strong>108.465 tok/s median</strong>, <strong>3.055×</strong> the 35.5 tok/s
+    baseline, with 3.550 mean accept length and 51.0% mean acceptance. Loaded
+    free memory remained 30,581–30,789 MiB per card. A durable corroborating
+    response then recorded <code>finish_reason="length"</code> and
+    <strong>384 completion tokens</strong>. The primary gate is the measured
+    2,390 MiB/card idle-to-loaded allocation plus continued endpoint health;
+    the token receipt independently passes the ≥300-output-token bound. The
+    roughly 30 GB/card loaded margin covers the measured 10.10 GB/card pool
+    increment with about 20 GB spare at low width, to be re-read at width 24+.
+    The drafter's per-step cost is not exposed and cannot be separated from the
+    aggregate at any width. Full record:
+    <a href="/imas-ambix/evidence/archive/dsv41-serve-tuning-for-concurrency-landed#restart-one-launch">launch evidence</a>.</p>
+
+    <p><strong>Landing record — cost-model refit.</strong> Commit
+    <code>e49a48f</code> refits the decode cost model from this serve's own
+    decode intervals at a fixed timestamp cutoff (2026-09-17 12:08:20, 608
+    intervals, job <code>1272783</code>). The published
+    <code>ms = 17.8 + 0.257 × GB</code> becomes
+    <code>ms = 8.338 + 0.30370 × GB</code>, R-squared 0.963, fitted over the
+    nine widths carrying at least twenty decode intervals (1 to 9; widths 10
+    and 11 are too thin and are excluded rather than averaged). The measurement
+    that forced the change is <strong>accept length</strong>, assumed at 3.31
+    and measured 3.585 at width one, peaking at <strong>4.640 at width two,
+    then falling</strong> to 3.970 by width nine. The refit does not reproduce
+    the original model's collapse: it predicts a shallowest ratio of
+    <strong>1.312× at width 12.7</strong> and <strong>never falls below
+    1.2× at any width</strong>, where the original predicted 1.06× at width
+    eight. That high-width statement is extrapolation — this serve never
+    exceeded width eleven — and the fixed floor is <em>not</em> well identified
+    on this data (12.44 to -3.16 ms across width subsets) while the slope is
+    (0.267 to 0.356 ms/curve). Full record:
+    <a href="/imas-ambix/evidence/archive/dsv41-serve-tuning-for-concurrency-landed#cost-model-refit">refit evidence</a>.</p>
+
+    <h2 id="s4">§4 — Levers 2 and 3: give back host RAM, then buy device pool with what §3 leaves</h2>
+
+    <p>These are one section because they are one argument about where memory
+    should sit, and two restarts because their risks do not belong together.</p>
+
+    <p><strong>Lever 2 — <code>hicache_ratio</code> 8.0 &#8594; 2.0. A cost lever
+    with no expected throughput change.</strong> The host tier writes and does
+    not read: <strong>100,308 backups against 56 load-backs</strong>. Every
+    evicted page is copied to host RAM at full rate and then recomputed through
+    the model anyway. At ratio 2 the tier is 86.0 GB across five pools per rank,
+    so ratio 8 is holding roughly <strong>344 GB</strong> for a store nothing
+    reads. Dropping to 2 frees about <strong>258 GB</strong> and takes the job's
+    <code>memory</code> request from 720G to 480G. Expected throughput change:
+    zero. Expected benefit: the node stops reserving a third of its RAM for
+    nothing, which is what makes §6 arithmetically possible at all.</p>
+
+    <p><strong>Lever 3 — <code>max_total_tokens</code> 4M &#8594; 8M. A
+    concurrency lever, now load-bearing rather than speculative.</strong> §1's
+    reading is the whole argument: 52–54% occupancy at 27 concurrent, ~79k
+    tokens resident per request, so the pool binds near 50. Doubling it costs
+    a measured rather than estimated amount — the startup log puts the 4M
+    pool at <strong>10.10 GB per card</strong>, so 9.9 KB per token across the
+    four ranks, and another 4M costs another 10.10 GB per card — and moves
+    that bound to ~100, which is past anything
+    the dependency graph has ever offered. Expected throughput change at today's
+    width: <strong>none</strong>. What it buys is the absence of silent eviction
+    at the widths §3 and §6 make reachable.</p>
+
+    <p><strong>Why lever 3 waits for a second restart, and this is the one
+    sequencing decision in the plan.</strong> DSpark's 12 GiB per card and the
+    pool's 10 GB per card are both device memory, and the budget takes both:
+    52 &#8722; 12 &#8722; 10 &#8776; 30 GB spare. But the DSpark workspace
+    allocates <em>lazily</em>, so its real footprint is unknown until a
+    generation runs, and putting two untested device allocations in one restart
+    is precisely the combination that has killed serves here. Lever 2 is
+    host-side and confounds nothing, so it rides with §3. Lever 3 is sized from
+    the free memory §3 actually measures.</p>
+
+    <p><strong>Done when:</strong> restart A carries §3 plus
+    <code>hicache_ratio = 2.0</code> and <code>memory = "480G"</code>, with the
+    host-tier allocation lines counted against pools &#215; ranks to confirm the
+    tier is the size claimed; restart B raises <code>max_total_tokens</code> to a
+    value justified by restart A's measured free device memory, with pool
+    occupancy re-read at a stated width afterwards.</p>
+
+    <h3>Landing record — the device pool doubles, and the memory request rises
+    to the load-time peak</h3>
+
+    <p><strong>Lever 3 is committed as a profile change; the launch is
+    not.</strong> <code>max_total_tokens</code> moves
+    <strong>4,000,000 &#8594; 8,000,000</strong> in
+    <code>imas_ambix/agent/profiles/deepseek-v4-1-flash.toml</code>, with
+    <code>speculative_algorithm = "DSPARK"</code>,
+    <code>speculative_dspark_block_size = 5</code> and
+    <code>hicache_ratio = 2.0</code> all unchanged, whichever launch this
+    profile next drives. Commit <code>b557002</code>.</p>
+
+    <p><strong>The pre-change state was read rather than assumed.</strong> The
+    base revision's profile read <code>max_total_tokens = 4000000</code>, and
+    the generated launch command for that revision was recorded above as
+    emitting <code>--max-total-tokens 4000000</code> with <code>--mem=480G</code>.
+    Against the committed profile the generated command now emits
+    <code>--max-total-tokens 8000000</code> alongside
+    <code>--hicache-ratio 2.0</code>,
+    <code>--speculative-algorithm DSPARK</code> and
+    <code>--speculative-dspark-block-size 5</code>, and the header reads
+    <code>#SBATCH --mem=600G</code>.</p>
+
+    <p><strong>The host tier is the same lever's other half, and this is the
+    part a device-side reading would miss.</strong> <code>hicache_ratio</code>
+    multiplies the <em>device</em> pool, so doubling the pool doubles the host
+    tier at unchanged ratio. From the pool-by-pool figures the profile already
+    carried — five host pools per rank measuring
+    <strong>10.76&#160;GB per rank per unit of ratio on the 4M pool</strong>,
+    so 21.51&#160;GB/rank and 86.0&#160;GB across four ranks at ratio 2 — the
+    doubled pool asks <strong>172.1&#160;GB across four ranks</strong>, an
+    increment of <strong>86.0&#160;GB = 80.1&#160;GiB</strong> of host RAM.</p>
+
+    <table>
+      <thead><tr><th>Host-tier term</th><th>At the 4M pool</th><th>At 8M</th></tr></thead>
+      <tbody>
+        <tr><td>Engram host tables (pinned, four ranks)</td><td>192 GiB</td><td>192 GiB</td></tr>
+        <tr><td>HiCache host tier at ratio 2</td><td>80.1 GiB</td><td><strong>160.3 GiB</strong></td></tr>
+        <tr><td>Process, pinned transfer, page-cache margin</td><td>207.9 GiB</td><td><strong>127.7 GiB</strong></td></tr>
+        <tr><td>&#8212; steady-state margin at the 8M pool</td><td>207.9 GiB</td><td><strong>127.7 GiB</strong></td></tr>
+        <tr><td>&#8212; load-time peak at the 8M pool</td><td>480 GiB already touched</td><td><strong>560 GiB floor, request 600G</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Verdict: <code>memory</code> is RAISED to <code>"600G"</code>,
+    and raise is what the evidence says rather than what the margin says.</strong>
+    The steady-state arithmetic
+    <code>480 &#8722; 192 &#8722; 160.3 = 127.7&#160;GiB</code> is sound and is
+    not the binding constraint. The job's <code>memory.peak</code> already
+    touched the old 480&#160;GiB ceiling at ratio 2 on the <em>4M</em> pool —
+    with about 80&#160;GiB <em>less</em> host tier resident than the doubling
+    leaves — and that peak is page cache from reading a ~400&#160;GB checkpoint
+    at launch rather than steady-state use. The peak reading behind that
+    premise is recorded in the profile at revision <code>7c706cf</code>, which
+    carried it as the justification for an earlier raise of this request;
+    <code>e808a8e</code> dropped the sentence in the same hunk that lowered the
+    request to 480G, so the claim rests on the history rather than on an
+    uncited assertion. A limit sized to steady state is
+    therefore hit while loading, which is what a 127.7&#160;GiB steady-state
+    margin does not answer:
+    <code>480 + 80.1 = 560&#160;GiB</code> is the arithmetic floor, and
+    <code>600G</code> carries margin above it for the load-time page cache the
+    peak is made of. The raise also stays below Group A's 650G allocation, the
+    ceiling that matters, so it does not strand a co-running job on memory. Both
+    the arithmetic and the verdict are committed in the profile beside the two
+    keys they justify, not only here.</p>
+
+    <p><strong>Suite delta is 4, and all four are assertion values in files
+    outside this node's write scope.</strong>
+    <code>tests/test_agent_pool_and_hicache.py</code> (two) and
+    <code>tests/test_agent_evaluation_pool.py</code> (two) each pin
+    <code>max_total_tokens == 4_000_000</code> and
+    <code>--max-total-tokens 4000000</code> for this profile, so they fail
+    against the committed value and read <code>4 failed, 3 passed</code>. They
+    are the same contract the earlier profile-settings landing waived, and they
+    are recorded as a follow-on rather than edited here.</p>
+
+    <p><strong>What is <em>not</em> done, and it is the launch.</strong> The
+    profile carries the doubled pool; no serve has started with it. The
+    measurement this section asks for — pool occupancy and per-card free memory
+    at a stated width — needs the 00:00–03:00&#160;UTC window, and expected
+    throughput change is zero. The measure is occupancy plus the absence of a
+    regression against restart 1's per-width medians from
+    <code>decode_bins.py</code>, <em>split by limb, never pooled</em>. Full
+    record:
+    <a href="/imas-ambix/evidence/archive/dsv41-serve-tuning-for-concurrency-landed#pool-increment-profile">pool increment evidence</a>.</p>
+
+    <p><strong>The suite delta above is closed: the launch-contract tests are
+    repointed at the committed contract and the focused gate reads
+    <code>7 passed, 0 failed</code>.</strong> The stale assertions lived in the
+    two files the paragraph above names, and each now pins the value the
+    committed profile carries — <code>max_total_tokens</code> at
+    <code>8_000_000</code> and <code>memory</code> at <code>"600G"</code> — on
+    both the loaded profile and the emitted dry-run command. No profile and no
+    source file was edited: the repair moves the test to the contract rather
+    than the contract back to the test. Six assertions were stale, not the four
+    a grep for the emitted string spellings finds
+    (<code>"480G"</code> / <code>4000000</code>): two more in the same files
+    assert the same superseded <code>4_000_000</code> dividend against the
+    loaded profile object, and the named four alone cannot produce the stated
+    <code>7 passed</code>. Full record:
+    <a href="/imas-ambix/evidence/archive/dsv41-serve-tuning-for-concurrency-landed#pool-increment-profile">pool increment evidence</a>.</p>
+    <h3>Landing record — the rollback instruction catches up with the landed
+    request, and the peak premise gets its revision</h3>
+
+    <p><strong>Two defects found in review of the increment, both in comment
+    text, and both fixed in the profile rather than here.</strong> Commit
+    <code>db092c7</code>.</p>
+
+    <p><strong>The DSpark rollback instruction still named the superseded
+    request.</strong> It read
+    <code>Keep hicache_ratio = 2.0 and memory = "480G"</code>, a value this
+    profile no longer carries, and it is the only place in the file where the
+    memory value appears as an instruction rather than a justification — so a
+    reader following it on a speculative refusal would have restored the
+    pre-increment request while believing they had preserved the landed one.
+    It now reads <code>memory = "600G"</code>, with the reason clause extended
+    to say why both preserved values are independent of DSpark.</p>
+
+    <p><strong>The raise's binding premise was uncited, and a reader could not
+    tell whether it was absent or merely unsupported.</strong> The premise —
+    that the job's <code>memory.peak</code> already touched the old
+    480&#160;GiB ceiling at ratio 2 on the 4M pool — is stated at the pool key
+    and again beside the <code>memory</code> key, and neither site named any
+    source. It is now cited at both, and here, to revision
+    <code>7c706cf</code>, which recorded the observation as the justification
+    for an earlier raise of this request; <code>e808a8e</code> dropped that
+    sentence in the same hunk that lowered the request to 480G, which is why
+    the claim is unreadable in the current file rather than uncorroborated.</p>
+
+    <p><strong>The gate is the done-when's own check, and it passes unchanged
+    because the change is comment text only.</strong>
+    <code>uv run --no-sync imas-ambix agent serve deepseek-v4-1-flash
+    --dry-run</code> exits 0 and still emits
+    <code>#SBATCH --mem=600G</code> with
+    <code>--max-total-tokens 8000000</code>, <code>--hicache-ratio 2.0</code>,
+    <code>--speculative-algorithm DSPARK</code> and
+    <code>--speculative-dspark-block-size 5</code>. A diff over the profile
+    returns thirteen added and five removed lines, every one of them a comment,
+    so no live setting moved. Full record:
+    <a href="/imas-ambix/evidence/archive/dsv41-serve-tuning-for-concurrency-landed#rollback-and-peak-citation">rollback and peak-citation evidence</a>.</p>
+
+    <h3>Landing record — the merged pool profile is serving</h3>
+
+    <p><strong>Main-checkout job <code>1273074</code> is running the
+    8,000,000-token pool with a 600G host request.</strong> The emitted script
+    carried <code>--max-total-tokens 8000000</code> and
+    <code>#SBATCH --mem=600G</code>, and <code>squeue</code> confirmed the job
+    <code>RUNNING</code>. A direct keyless completion returned HTTP 200 with
+    <strong>600 generated tokens in 6.965 s</strong>. After that generation
+    allocated the speculative workspace, cards 0–3 retained
+    <strong>38,095 / 37,887 / 37,887 / 38,095 MiB</strong> free: the worst
+    card holds <strong>3.660×</strong> the 10.11 GiB workspace ask. Draft
+    acceptance was 37% and mean accept length 2.85. No memory rollback was
+    triggered. Full record:
+    <a href="/imas-ambix/evidence/archive/dsv41-serve-tuning-for-concurrency-landed#pool-relaunch">pool relaunch evidence</a>.</p>
+
+    <h3>Landing record — the serving recipe catches up with the committed pair</h3>
+
+    <p><strong>Two paragraphs of the recipe prose still described the
+    superseded pair after the profile had been raised.</strong> The DeepSeek V4.1
+    deployment section of <code>imas_ambix/agent/AGENTS.md</code> read "the
+    <code>4,000,000</code>-token device pool is pinned rather than auto-sized",
+    naming no key, and closed on <code>hicache_ratio = 2.0</code> and
+    <code>memory = "480G"</code>. Both figures predate the pool increment, so a
+    reader following the deployment section would have expected a host request
+    and a device pool the committed profile does not set — the same drift the
+    rollback instruction carried, and it is the deployment section rather than a
+    comment, which is the text a deployment reads.</p>
+
+    <table>
+      <thead><tr><th>Setting</th><th>Recipe said</th><th>Committed profile</th></tr></thead>
+      <tbody>
+        <tr><td><code>max_total_tokens</code></td><td>4,000,000 (unnamed)</td><td><code>8000000</code></td></tr>
+        <tr><td><code>memory</code></td><td><code>"480G"</code></td><td><code>"600G"</code></td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>The fix is prose only, and the profile is not touched.</strong>
+    The paragraph now names the key at the value it carries —
+    <code>max_total_tokens = 8000000</code> (8,000,000 tokens) — and
+    <code>memory = "600G"</code> beside <code>hicache_ratio = 2.0</code>, the
+    DSpark pair unchanged. No source file and no live setting moved; the
+    committed profile already carried both values, so the documentation moves to
+    the same contract the launch-contract tests were repointed at.</p>
+
+    <p><strong>The measure is the gate's own grep.</strong>
+    <code>grep -nE "4000000|4,000,000|480G" imas_ambix/agent/AGENTS.md</code>
+    returns nothing, against two hits at the base revision (lines 1683 and 1686),
+    and <code>grep -nE "8000000|8,000,000|600G"</code> returns the two rewritten
+    lines. The superseded word <code>4M</code> appears nowhere in the file in
+    either spelling. Full record:
+    <a href="/imas-ambix/evidence/archive/dsv41-serve-tuning-for-concurrency-landed#recipe-prose-drift">recipe prose evidence</a>.</p>
+
+    <h2 id="s4a">§4a — How many restarts this is, and what each one measures</h2>
+
+    <p><strong>Three expected, four if a result is ambiguous, five if the
+    speculative decoder refuses to start.</strong> Each restart costs about
+    460 s to ready and then needs <em>hours of loaded traffic</em> before it has
+    said anything — see §4b — so the wall clock is dominated by
+    the holds, not the launches. Plan for a day, not an afternoon.</p>
+
+    <table>
+      <thead><tr><th>#</th><th>What changes</th><th>What it measures</th><th>Hold</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>1</strong></td>
+          <td><code>speculative_algorithm = "dspark"</code>, <code>speculative_dspark_block_size = 5</code>, <code>hicache_ratio = 2.0</code>, <code>memory = "480G"</code></td>
+          <td>Whether DSpark starts on this checkpoint at all; draft acceptance and mean accept length; <strong>the drafter's own per-step cost</strong>; loaded free device memory once the workspace has allocated; and a refitted cost model.</td>
+          <td>≥ 2 h loaded</td>
+        </tr>
+        <tr>
+          <td><em>1b</em></td>
+          <td><em>Contingency only:</em> speculative settings removed</td>
+          <td>Nothing. It exists to bring the lane back inside the twelve-minute bound of §2 if restart 1 never answers.</td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td><strong>2</strong></td>
+          <td><code>max_total_tokens</code> 4M → a value sized from restart 1's measured free memory</td>
+          <td>That the larger pool does not regress the fit, and pool occupancy at the widths restart 1 reached.</td>
+          <td>≥ 2 h loaded</td>
+        </tr>
+        <tr>
+          <td><strong>3</strong></td>
+          <td><code>flashinfer_mxfp4_moe_precision</code> <code>fp8</code> → <code>default</code></td>
+          <td>The block-scale dequantisation tax at the widest contrast, W4A8 against W4A16. This is the arm that sets the expected Blackwell gain in the accelerator study.</td>
+          <td>≥ 2 h loaded</td>
+        </tr>
+        <tr>
+          <td><em>4</em></td>
+          <td><em>Only if 3 is ambiguous:</em> precision → <code>bf16</code></td>
+          <td>The middle of the three paths, to separate a small real effect from noise.</td>
+          <td>≥ 2 h loaded</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p><strong>Why they cannot be combined.</strong> Restarts 1 and 2 are
+    separated by the locked decision below: both are device-memory changes and
+    the speculative workspace allocates lazily, so a combined failure could not
+    be attributed. Restarts 3 and 4 differ from 1 in exactly one setting by
+    construction — an arm that moved two settings would measure neither.
+    Restart 1 doubles as the <code>fp8</code> arm of the precision sweep, which
+    is why the sweep costs one restart rather than three.</p>
+
+    <h2 id="s4b">§4b — Validation is real work, and there is deliberately no synthetic stress phase</h2>
+
+    <p><strong>Use real fleet traffic, and not as a compromise — here it
+    is the better instrument.</strong> The cost model separates the fixed floor
+    from the bandwidth term by fitting across <em>widths</em>, so it does not
+    need two arms to see equal load, which is the thing real traffic cannot
+    promise. What it needs is each arm seeing a <em>spread</em> of widths, which
+    real agent traffic supplies for free and a fixed-concurrency synthetic run
+    does not.</p>
+
+    <p><strong>Two hours of loaded traffic is enough, and that is measured
+    rather than assumed.</strong> Across 27,454 decode intervals from the serve
+    just retired:</p>
+
+    <table>
+      <thead><tr><th>Window of real traffic</th><th>Intervals</th><th>Distinct widths</th><th>Covers low / mid / high?</th></tr></thead>
+      <tbody>
+        <tr><td>1 h</td><td>2,563</td><td>21</td><td>low and mid only — <strong>not enough</strong></td></tr>
+        <tr><td><strong>2 h</strong></td><td>3,695</td><td><strong>34</strong></td><td><strong>all three</strong></td></tr>
+        <tr><td>4 h</td><td>6,654</td><td>34</td><td>all three</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>But it must be two hours of <em>loaded</em> traffic, and that is
+    a coordination dependency rather than a wait.</strong> The windows above are
+    the busy evening; the quiet hours produced one to three distinct widths,
+    from which no fit can be taken, and two of every twenty-four hours measured
+    had no requests at all. <strong>So the fleets have to be dispatching for
+    this plan to produce a result.</strong> The sessions whose workers died with
+    the lane should resume as soon as the endpoint answers — a restart
+    launched into a quiet lane will sit for hours and measure nothing.</p>
+
+    <p><strong>What to read per arm</strong>, all of it from the engine's own
+    log and metrics rather than a synthetic harness: the
+    <code>Decode batch</code> lines give (running, generation rate) pairs
+    continuously, from which the per-width medians and the refit follow; the
+    acceptance rate and mean accept length come from the speculative counters;
+    and loaded free device memory comes from the card sampler, not from the
+    startup <code>avail mem</code> line, which reads about 19 GB too generous.</p>
+
+    <p><strong>Critically, sample 1, 8 and 24 or above.</strong> §3 predicts
+    the speculative gain collapses to 1.06× near the knee and returns to
+    1.65× at high width. An arm read only around width 8 would reproduce the
+    recorded null and close the question wrongly for a second time.</p>
+
+    <p><strong>There is no synthetic stress phase, and that is a decision with a
+    cost rather than an omission.</strong> Adding a lazily-allocated speculative
+    workspace moves the failure edge, and where that edge now sits is
+    <em>unknown</em>. Walking to it is a legitimate experiment and it must not
+    be run here: the last ceiling probe on a shared serve killed four workers,
+    one holding 4.6M tokens across 65 turns with nothing committed, because at
+    the wrong memory split the engine does not queue and does not refuse
+    — it fails to serialise its own error and takes every in-flight
+    request with it. A probe needs a serve nobody needs, and cores are too
+    tight to run a second one beside this.</p>
+
+    <p><strong>So the edge stays unprobed on purpose, and the mitigation is to
+    watch the early signal instead of the cliff.</strong>
+    <code>max_running_requests</code> stays at 64 as the fence. The first signal
+    is <em>not</em> preemption: prefix-cache eviction precedes it and costs
+    throughput silently, so <code>num_preemptions_total</code> leaving zero is
+    already late. The reading that says this lane is in trouble is a
+    <strong>hit rate falling while pool occupancy climbs</strong>.</p>
+
+    <p><strong>Landing record — decode log harvester.</strong> The instrument
+    this section requires landed as <code>imas_ambix/agent/decode_bins.py</code>:
+    a reusable harvester that turns <code>Decode batch</code> lines into
+    per-exact-width records carrying the interval timestamp, the running width,
+    the accept length and rate, and the
+    (<code>running, generation rate</code>) pair, each labelled
+    <code>ascending</code>, <code>descending</code>, <code>flat</code> or
+    <code>unknown</code> from the width trajectory rather than from anything
+    printed on the line. A line that cannot be parsed is reported with its line
+    number and the field that failed, never dropped. Run against the live serve
+    log it reports width 1 at <strong>40 intervals</strong>, median generation
+    rate <strong>111.075 tok/s</strong> and median accept length
+    <strong>3.585</strong> against 683 intervals and zero malformed lines. Two
+    readings it makes visible without settling either: the width-1 group is 37
+    <code>flat</code> intervals at 110.450 tok/s beside a single unlabelled
+    opening interval at 9.580, so the first decode step must not be pooled; and
+    the <code>descending</code> median exceeds the <code>ascending</code> one at
+    all 20 widths carrying both, which any refit has to state as a confound. Found and repaired in the same
+    work: a text-mode read converted the log's 332 bare carriage returns — the
+    loader rewriting its progress bar in place — into newlines, over-counting it
+    by exactly 332 lines and able to cut a record in two. Full record:
+    <a href="/imas-ambix/evidence/archive/dsv41-serve-tuning-for-concurrency-landed#decode-log-harvester">harvester evidence</a>.</p>
+
+    <h3>Landing record — the plateau is confirmed flat, and the pool increment is not its cause</h3>
+
+    <p><strong>Aggregate decode throughput is flat across concurrency widths
+    17–32 on both pool configurations, and increasing width buys no aggregate
+    tokens.</strong> The 4M-pool job's slope of per-width median throughput is
+    <strong>+0.09 tok/s per unit width</strong> (95 % stratified bootstrap CI
+    [−2.00, +2.69], whole-range gain −4.1 %). The 8M-pool job's is
+    <strong>−0.55</strong> (CI [−1.61, +0.34], gain +4.1 %). <code>#queue-req</code>
+    is 0 at every width, so the plateau is not admission queueing, and median
+    full-token occupancy rises with width on both arms (0.475 → 0.830 on 4M,
+    0.240 → 0.370 on 8M) while throughput does not move — which is the direct
+    counter-evidence to reading the plateau as a capacity limit.</p>
+
+    <table>
+      <thead><tr><th>Job</th><th>Pool</th><th>Intervals</th>
+      <th>Plateau median tok/s</th><th>IQR</th><th>Slope /width</th>
+      <th>95 % CI</th></tr></thead>
+      <tbody>
+        <tr><td>1272783</td><td>4,000,000</td><td>4,059</td><td>387.0</td>
+        <td>352.0–421.5</td><td>+0.09</td><td>[−2.00, +2.69]</td></tr>
+        <tr><td>1273074</td><td>8,000,000</td><td>1,003</td><td>370.7</td>
+        <td>331.3–403.4</td><td>−0.55</td><td>[−1.61, +0.34]</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>The 8M arm changed its answer as it filled, which is the finding
+    worth carrying forward.</strong> At 596 intervals it read a slope of
+    <strong>+5.38</strong> (CI [+2.39, +9.94]) — a CI excluding zero — and at
+    1,003 intervals the same arm reads <strong>−0.55</strong> (CI [−1.61,
+    +0.34]). The positive slope lived entirely in six low widths holding five to
+    seven intervals each and in a single width-17 ascending interval reading
+    74.3 tok/s. The 8M serve was still <code>RUNNING</code> at the analysis cut,
+    so that arm is a snapshot and the report says so. A read taken on the
+    smaller sample would have concluded that widening buys 17 %, and it did not.</p>
+
+    <p><strong>The limb split holds and it is a confound any refit must
+    carry.</strong> Descending exceeds ascending at 15 of 15 in-range widths on
+    the 4M job and 15 of 16 on the 8M job; pooled over 17–32 the medians are
+    400.6 against 363.2 tok/s on 4M (n 142 / 145) and 383.9 against 343.9 on 8M
+    (n 294 / 268). An unlabelled throughput figure quotes a mixture whose weight
+    depends on whether the lane was ramping up or down at the time.</p>
+
+    <p><strong>The pool increment did its job and is not implicated in the
+    plateau.</strong> Median full-token usage at width 32 is 0.830 of the 4M cap
+    against 0.370 of the 8M cap — 3,311,360 against 2,962,560 tokens — so the 4M
+    job ran within 17 % of a bound the 8M job now sits at a third of. What the
+    measurement cannot do is attribute anything to pool size: the two arms
+    differ in pool, window and the traffic mix those windows carried, all
+    together, and this node did not separate them. The premise that the jobs ran
+    on different days was wrong — both ran on 2026-09-17 in adjacent,
+    non-overlapping windows — but correcting it makes the confound tighter, not
+    looser, because the surviving differences are time of day and traffic mix.</p>
+
+    <p><strong>Baseline banked for a precision arm.</strong> On widths 21–30 —
+    the band where both arms carry at least twenty-one intervals — the fp8
+    medians are 368.7–409.5 tok/s (4M) and 349.3–388.8 (8M), and those are the
+    numbers a W4A16 arm has to beat. Widths 18–20 and 31–32 on the 4M job carry
+    n = 8–16 and are named as inadequate rather than quietly dropped. Full record
+    and per-width tables:
+    <a href="/imas-ambix/evidence/archive/dsv41-serve-tuning-for-concurrency-landed#decode-throughput-vs-width">decode throughput vs width evidence</a>;
+    figure
+    <a href="/imas-ambix/figures/dsv41-serve-tuning-for-concurrency/decode-throughput-vs-width.svg">aggregate decode throughput against concurrency width</a>.</p>
+
+    <h2 id="s5">§5 — What is deliberately not a lever, so nobody spends a window on it</h2>
+
+    <p>Each of these looks like a tuning opportunity and is not. Recording the
+    reason is the point: the next reader will otherwise re-propose them.</p>
+
+    <table>
+      <thead><tr><th>Candidate</th><th>Why it is not pulled</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>chunked_prefill_size</code> (16,384)</td>
+          <td>Sized for the 200k–400k prefills of the pre-repair lane. With reuse repaired, mean <em>uncached</em> prefill measures 2,662–3,919 tokens per request over the last 40 minutes and 2 hours respectively — under a quarter of the 16,384 budget. It is not binding, so changing it cannot help. Worth re-reading if the cold-start tail grows: the whole-night mean is 23,234, which spans the pre-repair period and is <em>above</em> the budget.</td>
+        </tr>
+        <tr>
+          <td><code>kv_cache_dtype</code></td>
+          <td>Already FP8. There is nothing to convert.</td>
+        </tr>
+        <tr>
+          <td><code>mem_fraction_static</code> 0.85 &#8594; 0.90</td>
+          <td>This is the trap, not the lever. DSpark's workspace allocates lazily <em>outside</em> the static fraction, so raising the fraction takes memory away from exactly the allocation §3 depends on. Lazy allocation has killed three serves on this node; on V4-Flash the equivalent move from 0.92 down to 0.85 <em>raised</em> throughput 1.7&#215; at unchanged width.</td>
+        </tr>
+        <tr>
+          <td><code>prompt_tokens_buckets</code></td>
+          <td>Observability only, and currently blind: the lowest bucket edge is 100,000, so with reuse repaired about 98% of traffic lands in one bucket. Worth re-edging when someone needs the histogram; it moves no tokens.</td>
+        </tr>
+        <tr>
+          <td><code>max_running_requests</code></td>
+          <td>64, against 27 observed and 0 queued. The engine is not refusing anything. A dispatch-side fence is the instrument that matters here, and it is already at 64.</td>
+        </tr>
+        <tr>
+          <td>The <code>gen_throughput</code> gauge as a rate</td>
+          <td>§1 read 257 then 111 then 111 within three seconds at unchanged concurrency. It reports the last batch, not a rate. Quote harvested sustained figures; never this gauge.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="s6">§6 — Eight cards are two TP4 replicas, and the routing has to land first</h2>
+
+    <p><strong>Deferred. Trigger: §3 has landed and the lane is measurably
+    saturating at its new knee.</strong> Recorded now because the eight-card
+    question will be asked again and the answer is already evidenced.</p>
+
+    <img src="/imas-ambix/figures/dsv41-serve-tuning-for-concurrency/eight-card-topology.svg"
+         alt="Eight H200 NVL cards drawn as two four-card NVLink islands joined by PCIe Gen5. Left: one TP8 replica, whose every-layer all-reduce crosses the PCIe bridge twice. Right: two independent TP4 replicas, one per island, with the router pinning a conversation to one replica.">
+
+    <p><strong>TP8 is refused on measured grounds, not on preference.</strong>
+    These are H200 <em>NVL</em> cards: the bridge joins four, and the two bridged
+    groups reach each other over PCIe Gen5 — <code>NV6</code> within a group,
+    measured on this node. A TP8 group's all-reduce therefore leaves NVLink and
+    comes back, twice per layer. The precedent is direct: V4-Flash from two cards
+    to eight gave <strong>+11.9% aggregate for &#8722;18.3% single-stream</strong>,
+    and GLM-5.2 at TP8 without MTP collapsed to 57.6 tok/s. Twice the silicon for
+    a slower token.</p>
+
+    <p><strong>Two TP4 replicas keep every all-reduce inside an island and
+    double the device pool.</strong> Expected aggregate <strong>660–750
+    tok/s</strong> with a knee around 40–54 concurrent. Host RAM fits once lever
+    2 has landed: two Engram allocations at 183 GiB plus two host tiers at 86 GB
+    is about <strong>636 GB</strong> of the node's ~1,300 GB available — which is
+    unaffordable at <code>hicache_ratio</code> 8.0 and comfortable at 2.0.</p>
+
+    <p><strong>The hard prerequisite is session-affinity routing, and without it
+    this option recreates tonight's defect at twice the cost.</strong> Each
+    replica caches only the conversations it served. A worker whose turns
+    alternate between replicas gets a cold prefix every time — the same 0%-reuse
+    condition the router repair just fixed, arriving from a different direction
+    and costing eight cards instead of four.</p>
+
+    <p><strong>It is a configuration, not a feature to build.</strong> The
+    serving container already carries <code>sglang_router</code> 0.3.2, whose
+    <em>default</em> policy is <code>cache_aware</code>: it maintains an
+    approximate radix tree of what each worker holds and sends a request to the
+    worker with the longest matching prefix, falling back to load balancing when
+    the match is under <code>--cache-threshold</code> (0.3) or when workers
+    diverge past <code>--balance-abs-threshold</code> (64 requests) and
+    <code>--balance-rel-threshold</code> (1.5×) together. Cheaper policies
+    for the same goal sit beside it — <code>consistent_hashing</code> and
+    <code>prefix_hash</code> pin by hash without tracking cache state —
+    and the prefill/decode split has its own <code>--prefill-policy</code> and
+    <code>--decode-policy</code>. So the gate below is satisfied by standing up
+    a tested upstream router in front of two engines, not by writing affinity
+    into <code>imas_ambix/agent/router.py</code>.</p>
+
+    <p><strong>And affinity is not the only way; it is the cheap way.</strong>
+    A conversation's KV at this lane's working context is 79,351 tokens
+    × 9.9 KB = <strong>0.80 GB</strong>, so moving one between replicas is
+    tens of milliseconds on any interconnect in this machine, against
+    <strong>~28 s</strong> to recompute it at the 2,820 tok/s uncached-prefill
+    rate the night actually sustained. Transfer beats recompute by roughly three
+    orders of magnitude, which is why shared-KV tiers exist at all
+    — <code>hicache_storage_backend</code> and the Mooncake-backed unified
+    cache linker are both present and unset in the running configuration. Pin
+    first, because pinning costs nothing and captures nearly all of it; reach
+    for transfer only when a replica dies, load skews, or a replica is added
+    mid-flight.</p>
+
+    <p><strong>And the honest comparison is the reason this is deferred rather
+    than queued:</strong> §3 is predicted to reach ~710 tok/s at width 34 on the
+    four cards we own for the price of one restart, while §6 buys
+    660–750 for four more cards plus a routing feature. Per card, DSpark
+    wins outright — and unlike §6 it attacks the latency floor, which
+    is the term no extra hardware reduces.</p>
+
+    <h2 id="s7">§7 — The order, and what the whole plan is expected to be worth</h2>
+
+    <img src="/imas-ambix/figures/dsv41-serve-tuning-for-concurrency/throughput-ladder.svg"
+         alt="Horizontal range chart of expected aggregate output. Four cards today: 330 tok/s sustained, 377 peak, measured. Four cards with DSpark: 500 to 650 expected. Eight cards as two TP4 replicas: 660 to 750, twice the cards for less than DSpark buys. Eight cards with both: 1000 to 1300, marked as inference on inference. One TP8 replica on eight cards: about 370, refused.">
+
+    <table>
+      <thead>
+        <tr><th>#</th><th>Change</th><th>Restart</th><th>Aggregate</th><th>Per worker</th><th>Confidence</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>—</td><td>Today, repaired lane</td><td>—</td><td>330 sustained / 377 peak</td><td>27.0 median</td><td><strong>measured</strong></td></tr>
+        <tr><td>1</td><td>DSpark speculative decoding</td><td>A</td><td><strong>412 at width 16, ~710 at width 34</strong></td><td>25–21 per worker</td><td>cost-model prediction from measured acceptance; width-dependent, near-null at the knee, and contradicted by a recorded null on V4-Flash that the model explains</td></tr>
+        <tr><td>2</td><td><code>hicache_ratio</code> 8.0 &#8594; 2.0</td><td>A</td><td>no change</td><td>no change</td><td>measured write-only: 100,308 writes, 56 reads</td></tr>
+        <tr><td>3</td><td><code>max_total_tokens</code> 4M &#8594; 8M</td><td>B</td><td>no change today</td><td>no change today</td><td>removes a bound at ~50 concurrent, read live at 53% / 27</td></tr>
+        <tr><td>4</td><td>Two TP4 replicas on eight cards</td><td>deferred</td><td>660–750</td><td>unchanged at best</td><td>gated on session-affinity routing</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>The answer to "what are the potential gains" is one number with
+    one caveat: about 1.5–2&#215; aggregate and 1.5–2&#215; per worker, all of it
+    from §3, and none of it certain until DSpark is seen to generate a token on
+    this checkpoint.</strong> Levers 2 and 3 are worth pulling and are expected
+    to change throughput by nothing — lever 2 gives back 258 GB of host RAM that
+    a read-free cache is holding, and lever 3 removes a pool bound the lane is
+    already halfway to. Presenting either as a throughput gain would be
+    dishonest, and presenting §6's 660–750 as the ceiling would omit that it
+    costs twice the cards for less than §3.</p>
+
+    <p><strong>What is not claimed:</strong> the compounded 1,000–1,300 tok/s on
+    the figure's dashed row is inference multiplied by inference and belongs in no
+    decision. No figure here has been measured on V4.1 with DSpark running,
+    because that has never happened.</p>
+
+    <h2 id="s8">§8 — This run's scope: four cards, two restarts, one stress cycle, and a drain that is built rather than improvised</h2>
+
+    <p><strong>Four cards, and the eight-card question is not opened.</strong>
+    The node carries five free cards against the four this serve takes, so a
+    second TP4 replica cannot be stood up and a TP8 group cannot be tried
+    either. §6 stays deferred on card availability as well as on its routing
+    gate, and nothing in this run measures it.</p>
+
+    <p><strong>The deliverable is a deploy recipe, not only a measurement.</strong>
+    A number nobody can reproduce next week is not what is being asked for. What
+    lands is a committed profile whose comments state what governs, plus a
+    written launch, drain and restart procedure a later session can follow
+    without re-deriving any of it.</p>
+
+    <p><strong>The card and core ledger, read 2026-09-17 before scheduling
+    anything.</strong> Group A holds 30 cores; the router keeps 2 and one
+    one-card <code>nova-shape-response</code> job keeps 8, leaving 20 against the
+    profile's 12. The node has 3 of 8 cards allocated, so 5 are free against the
+    4 this serve wants. Both fit with margin — a change from the 12–14 cores §2
+    recorded, because the second nova job has since released. A job pending on
+    <code>Resources</code> still means cores before it means cards.</p>
+
+    <h3>Three facts the launch depends on, each of which would otherwise be discovered by failing</h3>
+
+    <p><strong>The serve is submitted from the main checkout, never from a
+    worktree.</strong> Every one of the five serves since 2026-09-15 ran with
+    <code>WorkDir=/home/ITER/mcintos/Code/imas-ambix</code>, and that is not
+    incidental: the generated script binds
+    <code>imas_ambix/agent/kernel_patches/…/main_norm_rope.cuh</code> into the
+    container and resolves <code>scripts/slurm/drain_sidecar.sh</code>, both by
+    absolute path from the directory the script was generated in. A serve
+    submitted from a detached worktree therefore holds that worktree open for
+    its entire life, and reclaiming the worktree — which is ordinary
+    housekeeping — breaks a running lane. This is the same shape as a worktree
+    repointing the shared environment: a resource that looks local and is not.
+    <strong>Check it on the generated script rather than trusting it:</strong>
+    no path in the submitted script may contain
+    <code>.reckon-worktrees</code>.</p>
+
+    <p><strong>The readiness bound is fifteen minutes from the job entering
+    <code>RUNNING</code>, not the twelve §2 records.</strong> Two measurements of
+    this serve disagree — §2's 460 s to a first successful
+    <code>/v1/models</code>, and the profile's own
+    <code>scheduler end-to-end 670.1 s</code> from the startup log — and the
+    twelve-minute bound was set from the smaller. DSpark additionally loads a
+    draft module that no previous launch loaded, so the bound is taken off the
+    larger figure with margin. Measure it from <code>RUNNING</code> rather than
+    from submit, because time spent pending on <code>Resources</code> is a
+    queueing fact and says nothing about whether the engine will start.</p>
+
+    <p><strong>The rollback removes the speculative keys and nothing else.</strong>
+    The rollback line committed into the profile also restores
+    <code>hicache_ratio = 8.0</code> and <code>memory = "720G"</code>, and that
+    is wrong: followup <code>f-dsv41tune-01</code> states that a DSpark refusal
+    is a real outcome to record with <strong>lever 2 left in place</strong>. The
+    host-tier cut is independent of speculative decoding, is measured on its own
+    evidence — 100,308 backups against 56 load-backs — and reverting it would
+    discard a landed result because an unrelated one failed. Correct the profile
+    comment as part of the launch node, since that node owns the rollback.</p>
+
+    <h3>The restart budget</h3>
+
+    <p><strong>Two restarts and one full stress cycle, against the three
+    restarts and three cycles §4a scoped.</strong> The saving is not a shortcut:
+    it comes from two of the three changes predicting <em>no throughput change at
+    all</em>, and a change whose predicted effect is zero does not need the
+    instrument that resolves a width-dependent one. Only restart 1 carries a
+    throughput hypothesis, so only restart 1 earns the two-hour loaded window
+    §4b sized.</p>
+
+    <table>
+      <thead><tr><th>#</th><th>What changes</th><th>Cold or hot</th><th>Loaded hold</th><th>Why that hold</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>1</strong></td>
+          <td><code>speculative_algorithm</code>, <code>speculative_dspark_block_size</code>, <code>hicache_ratio</code> 8.0 → 2.0, <code>memory</code> 720G → 480G</td>
+          <td><strong>cold</strong> — the lane is already down, so there is nothing to drain</td>
+          <td><strong>≥ 2 h loaded</strong>, widths 1, 8 and 24+</td>
+          <td>The only arm with a throughput hypothesis, and §3 predicts it is <em>width-dependent</em> — near-null at the knee, large at both ends. A single-width read would reproduce the V4-Flash null and close the question wrongly a second time.</td>
+        </tr>
+        <tr>
+          <td><em>1b</em></td>
+          <td><em>Contingency:</em> speculative settings removed</td>
+          <td>—</td>
+          <td>none</td>
+          <td>Exists only to bring the lane back inside §2's twelve-minute bound. It measures nothing.</td>
+        </tr>
+        <tr>
+          <td><strong>2</strong></td>
+          <td><code>max_total_tokens</code>, sized from restart 1's <em>loaded</em> free device memory</td>
+          <td><strong>hot</strong> — an hour of run-level draindown, or none at all if placed in the measured 00:00–03:00 UTC quiet window</td>
+          <td><strong>~30–45 min loaded</strong></td>
+          <td>Predicted throughput change is zero; the measure is pool occupancy at a stated width plus the absence of a regression against restart 1's own fit. Both read in minutes once traffic is on, so a second two-hour window would buy nothing. <strong>Conditional:</strong> if restart 1's loaded free memory does not cover another pool increment, this restart does not happen, and that is a result rather than a failure.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p><strong>What this budget gives up, stated rather than hidden.</strong> The
+    MoE precision sweep of <code>flashinfer_mxfp4_moe_precision</code> — §4a's
+    restart 3 and followup <code>f-dsv41tune-02</code> — is not in this run. It
+    is a genuine measurement, and it is a measurement <em>for the accelerator
+    study</em> rather than a term in the deploy recipe: whichever value wins, the
+    recipe is stable either way. It needs a restart and a full two-hour loaded
+    window of its own, and it is sequenced after the recipe is settled rather
+    than folded into it.</p>
+
+    <h3>The drain, which restart 2 needs and restart 1 does not</h3>
+
+    <p><strong>A rotation is unavailable for restart 2, so the drain is
+    load-bearing rather than a nicety.</strong> §2's zero-downtime rotation needs
+    four free cards to stand the new engine beside the old one. Once restart 1
+    lands, the serve holds four of the five free cards and one remains. So
+    restart 2 must stop the lane it is replacing, and the only question is
+    whether it stops cleanly or kills requests in flight.</p>
+
+    <p><strong>There are two drains on this lane, they differ by a factor of
+    sixty, and the slow one governs.</strong> §2 already states the rule —
+    requests drain in a minute, runs drain when their node ends — and this run is
+    the case where the second one binds. The load is other orchestrators'
+    workers, each mid-way through an implementation plan that has nothing to do
+    with this one, so the unit that must be allowed to finish is the
+    <em>node</em>, not the request:</p>
+
+    <table>
+      <thead><tr><th>Drain</th><th>What retires</th><th>Cost</th><th>What it protects</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Run-level</strong></td><td>a worker's node reaches its end and it writes a manifest</td><td><strong>~1 h</strong></td><td>a peer's in-flight implementation work, which a hard stop destroys outright — uncommitted, with no commit behind it</td></tr>
+        <tr><td>Request-level</td><td>the HTTP completions already in flight</td><td>~1–3 min</td><td>nothing that is not already covered once the runs have ended</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>So a hot restart costs about an hour of held dispatch, and that
+    hour is charged to other projects' progress rather than to ours.</strong>
+    That is the true price of restart 2, it is several times the launch itself,
+    and it is the reason the cheapest restart is the one that needs no drain at
+    all. Never scancel a serve with peer runs live against it: the worker does
+    not fail cleanly, it loses whatever it had not committed, and the loss is
+    invisible from here.</p>
+
+    <p><strong>The duty cycle is the instrument that makes the hour
+    free.</strong> §2's 3,004 samples put 00:00–03:00 UTC at two consecutive
+    hours of <strong>100% idle</strong> inside a 98-minute contiguous stretch at
+    two or fewer requests in flight. A restart placed there drains nothing
+    because there is nothing to drain, and its loaded validation then reads on
+    the natural morning ramp — median 14 running at 04:00 UTC and 26 at 05:00.
+    Prefer that window for restart 2 over paying the hour; ask for the hour only
+    when waiting for the window costs more than the work it delays.</p>
+
+    <p><strong>Read the fleet and the engine, never the clock.</strong> A fixed
+    sleep is the improvised version of this and it is wrong in both directions:
+    too short and it truncates work, too long and it wastes the window. Both
+    numbers are already observable — non-terminal run pointers across the
+    projects using the lane, and the running and queued request counters the
+    profile's Prometheus endpoint already publishes. That reading is also what
+    makes the cutover recordable: §2's done-when asks for the in-flight count at
+    cutover, and a drain that reports zero on both counters has produced exactly
+    that evidence.</p>
+
+    <p><strong>And the drain needs no new machinery, which was worth checking
+    before building any.</strong> The reuse scout measured seven of eight
+    required capabilities as already present.
+    <code>serving_receipts.sample_serving_metrics</code> declares exact aliases
+    for <code>num_requests_running</code> and <code>num_requests_waiting</code>
+    and scrapes them from <code>&lt;origin&gt;/metrics</code>;
+    <code>cli.shutdown</code> selects the profile's own jobs, cancels them, and
+    <em>republishes the endpoint document</em>, which a bare
+    <code>scancel</code> skips — so cancelling directly leaves the published
+    endpoint claiming a lane that is gone. A failed scrape returns
+    <code>None</code>, and <strong>none is not zero</strong>: a drain must not
+    read a failed read as quiescence. So the drain is a written procedure over
+    existing reads, not a component, and this run builds exactly one new thing.</p>
+
+    <h3>The whole run is six nodes, and the one new component is named</h3>
+
+    <p><strong>This is a two-step tuning exercise, not a serve matrix</strong>,
+    and the node list is stated so the remainder is legible rather than
+    open-ended: the profile settings; the reuse map; the launch; the harvest
+    after the loaded window; the pool restart, conditional on what the launch
+    measures; and the recipe record, which carries the drain procedure and
+    repairs the test that still pins the superseded settings.</p>
+
+    <p><strong>The single gap is a <code>Decode batch</code> log harvester.</strong>
+    A search for that marker across <code>imas_ambix/</code>,
+    <code>tests/</code> and <code>scripts/</code> returns zero executable
+    matches — the only hits are explanatory HTML in this plan and in the
+    accelerator study. The existing <code>receipt_bins</code> collector is not a
+    substitute and must not be presented as one: it bins differenced Prometheus
+    counters over sampling intervals, where §4b needs
+    <code>(running width, generation rate)</code> pairs from engine log
+    intervals. The harvest node builds that parser once and every later reading
+    consumes it.</p>
+
+    <h3>The load is ramped deliberately, which is a better experiment than waiting for one</h3>
+
+    <p><strong>Bring the fleets back slowly and record a curve, rather than
+    letting real traffic wander across widths and hoping it visits the right
+    ones.</strong> §4b sized two hours of loaded traffic because an
+    <em>uncontrolled</em> fleet needs that long to present 34 distinct widths —
+    one hour gave 21 and covered only low and mid. A ramp inverts that: the
+    widths are chosen instead of sampled, so each one is occupied on purpose and
+    for as long as it takes to accumulate decode intervals there.</p>
+
+    <p><strong>Two consequences, and the second is the one that shortens this
+    plan.</strong> The curve is denser and cleaner at the points the cost model
+    actually turns on, because §3's prediction is a <em>shape</em> — 2.41× at one
+    stream, 1.06× at the knee, 1.65× at width 34 — and a shape is established by
+    occupying its inflections, not by averaging over whatever arrived. And the
+    two-hour figure was a proxy for width coverage rather than a requirement in
+    itself, so a ramp that reaches its widths deliberately satisfies §4b's intent
+    in less wall clock. Hold each step long enough for the engine to log enough
+    decode intervals at that width to take a median, and step when it has.</p>
+
+    <table>
+      <thead><tr><th>Step</th><th>Width</th><th>Source</th><th>What it measures</th></tr></thead>
+      <tbody>
+        <tr><td>0</td><td><strong>1</strong></td><td>this session alone — no peer needed</td><td>The largest and cleanest prediction, <strong>2.41×</strong>, where the 17.8 ms floor is the entire cost and paying it once instead of 3.31 times is nearly free throughput. Also the acceptance-rate and draft-overhead reading, and free device memory once the workspace has actually allocated.</td></tr>
+        <tr><td>1</td><td>~4</td><td>nova, first tranche</td><td>The descent between the single-stream gain and the knee, which no single point can establish.</td></tr>
+        <tr><td>2</td><td><strong>~8</strong></td><td>nova</td><td>The predicted null, <strong>1.06×</strong>. This is the point whose misreading closed the question once already.</td></tr>
+        <tr><td>3</td><td>~16</td><td>nova at full width</td><td>The start of the return, predicted 1.10×.</td></tr>
+        <tr><td>4</td><td><strong>24+</strong></td><td>requires an additional fleet</td><td>The claim worth the restart: <strong>1.65×</strong> at width 34, where the expert union is already 41% saturated so verifying five times the tokens costs only 2.24× the bytes.</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Step 0 depends on nobody, so it is taken first and reported
+    before any peer is asked to move.</strong> It is minutes of work, it needs no
+    coordination, and if DSpark does not produce a single-stream gain on this
+    checkpoint then the widths above it are not worth anyone's traffic.</p>
+
+    <p><strong>The ask is staged, nova first and then efit, one increment at a
+    time.</strong> Each step is a separate request to the session that owns the
+    work, so width rises in controlled increments rather than arriving all at
+    once — which is what makes a step a step rather than a surge. The order is
+    not arbitrary: nova has the deeper ready queue and nothing holding it, while
+    efit is under a lead-ordered hold, so step 4 additionally requires that hold
+    to lift or a new imas-codex sprint. Both are the lead's to decide and are
+    asked for at the moment they are needed, not assumed in advance.</p>
+
+    <h3>The ramp down is a second experiment, not the end of the first</h3>
+
+    <p><strong>Requests that survive a drain are the ones that have persisted
+    longest, so they carry the largest working context.</strong> At the same
+    nominal width, the descending limb therefore samples a systematically larger
+    mean context per resident request than the ascending limb did. That is not
+    noise to be averaged away — it is a second condition, arriving free, on an
+    axis the ascending limb cannot vary by itself.</p>
+
+    <p><strong>What it buys is the separation of two terms that uncontrolled
+    traffic confounds.</strong> §3's cost model puts the decode cost at
+    <code>ms = 17.8 + 0.257 × GB</code>, where the bandwidth term is driven by
+    the expert union over k×B tokens — a <em>width</em> effect. Attention work
+    and KV residency are <em>context</em> effects. Real traffic delivers whatever
+    context distribution it happens to bring, so a width-binned median silently
+    carries both. Two limbs at equal width with different mean context give the
+    context sensitivity directly, as the hysteresis between them.</p>
+
+    <p><strong>And the descending limb is where KV pressure shows first, which
+    makes it the reading restart 2 is sized from.</strong> Occupancy per resident
+    request is highest exactly when the long-context survivors are the ones left,
+    so if the 4M pool binds anywhere in this run it binds there. §1's arithmetic
+    puts the bound near 50 concurrent at ~79k tokens resident, and the drain
+    raises the second factor while lowering the first. Watch the pair §4b names —
+    <strong>hit rate falling while pool occupancy climbs</strong> — rather than
+    <code>num_preemptions_total</code>, which moves too late to be a warning. So
+    the drain is not dead time before a restart; it is the measurement that says
+    whether the pool needs doubling at all, and restart 2 is conditional on it.</p>
+
+    <p><strong>Two recording rules follow, and both are easy to lose.</strong>
+    Label every binned interval with its limb as well as its width: an interval
+    carrying only a width has discarded the one axis that separates the two
+    terms, and nothing downstream can recover it. And never average the limbs
+    together — a mean over a hysteresis describes no moment that actually
+    occurs, which is the same error as quoting a rate for a bursty process.</p>
+
+    <h3>Where the load comes from</h3>
+
+    <p><strong>The nova and efit orchestrators, contacted directly.</strong> Both
+    hold work ready to dispatch at the width this plan requires, and both are
+    independent sessions progressing their own implementation plans. §4b's
+    requirement is two hours of <em>loaded</em> real traffic spanning a spread of
+    widths, and it names the coordination dependency plainly: the fleets have to
+    be dispatching or the restart measures nothing. This is that dependency,
+    resolved by asking the sessions that own the work rather than by manufacturing
+    a fleet here.</p>
+
+    <p><strong>Three things follow from the load being someone else's.</strong>
+    The traffic is genuinely real, which §4b argued for on its merits rather than
+    as a compromise, and the widths come from their dispatch decisions rather
+    than from a knob here. It costs this plan no metered budget, so the
+    two-hour window is affordable at all. And their workers are not ours to
+    stop — which is the whole content of the drain above.</p>
+
+    <p><strong>The width actually on offer is about 15, not 24-plus, and that
+    was established by asking rather than by assuming.</strong> nova committed
+    8–12 concurrent streams within the first half hour and up to about 15 over
+    two hours, all genuine sprint work — four worker turns that died with the
+    lane and resume with fresh findings, three reviews and a census, and three
+    to five implement nodes behind those landings. It also supplied the right
+    unit: nova's nodes are long-turn, a hundred-plus assistant turns each, so
+    the count of concurrent <em>streams</em> is a better width figure than a
+    request rate. No efit coordinator was visible to either of us; efit and
+    imas-codex have both been asked.</p>
+
+    <p><strong>So restart 1 can test the distinctive half of §3's prediction and
+    probably not the other half — which is worth stating before the measurement
+    rather than after.</strong> The reachable band covers a single stream, the
+    knee, and the beginning of the climb; the return at 24–34 needs width nobody
+    has yet offered. That is a smaller result than the plan hoped for and it is
+    not a weak one, because <strong>the low-width end is where the prediction is
+    largest and cleanest</strong>: 2.41× at one stream against 1.06× at width 8.
+    A single-stream measurement is also the cheapest thing on this list and
+    depends on no peer at all.</p>
+
+    <p><strong>The trap this creates is precisely the one §4b named, arriving
+    from the other side.</strong> If the fleet delivers 8–15 and the harvest
+    reports a null there, that null is <em>what the model predicts</em> and is
+    not evidence against DSpark. Record it as a measurement at the widths
+    reached, never as a verdict on the lever — closing the question on a knee
+    reading is the exact mistake the V4-Flash null already caused once.</p>
+
+    <p><strong>Contact is a request, never an instruction.</strong> A peer
+    coordinator cannot be given authority and a relayed approval is not consent.
+    What reaches them is the lane's state and this plan's needs — that the
+    endpoint answers, what width is wanted and for how long, and when the next
+    restart's hold will be asked for — so they can schedule their own dispatch
+    around it instead of being interrupted by it. The lane's own fences are not
+    the constraint: the backend admits 64 concurrent runs against the engine's
+    <code>max_running_requests</code> of 64, so reaching 24-plus is a question of
+    how much real work they have ready, and the honest failure mode is a thin
+    queue rather than a full one.</p>
+
+    <p><strong>Done when:</strong> the profile carries the restart-1 settings and
+    a written rollback line, an instrument exists that reports both the
+    non-terminal run count and the in-flight request count against the lane,
+    restart 1 has run its two-hour loaded window and produced per-width figures
+    at 1, 8 and 24+ together with the drafter's own per-step cost, and restart 2
+    has either landed a larger pool sized from that measurement or been recorded
+    as refused by it.</p>
+
+    <h3>Landing record — deploy recipe and launch contract</h3>
+
+    <p><strong>The recipe is written where the next session reads it, and the
+    superseded launch contract is repaired.</strong> The draft recipe lands in
+    <code>imas_ambix/agent/AGENTS.md</code> as a
+    <em>DeepSeek V4.1 Flash Deployment</em> section. It states the launch
+    constraint (submit from the main checkout, because the generated script
+    binds the kernel patch and resolves the drain sidecar by absolute path from
+    its generation directory — check that no path in the submitted script
+    contains <code>.reckon-worktrees</code>), the case-sensitive
+    <code>speculative_algorithm</code> tuple with the engine's own refusal after
+    42&#160;s, readiness at 485&#160;s from <code>RUNNING</code> against the
+    startup log's 670.1&#160;s scheduler end-to-end, and the two drains sixty
+    times apart with the run-level one governing — read from
+    <code>serving_receipts.sample_serving_metrics</code> and stopped by
+    <code>imas-ambix agent shutdown</code> rather than <code>scancel</code>.</p>
+
+    <p><strong>The pinning test moved to the landed values.</strong>
+    <code>tests/test_agent_pool_and_hicache.py</code> asserted
+    <code>hicache_ratio == 8.0</code> and <code>memory == "720G"</code> — the
+    superseded host tier — so it failed against the committed profile. The
+    landed contract is <code>2.0</code> and <code>"480G"</code>, and two
+    assertions now pin the emitted speculative flags
+    (<code>--speculative-algorithm DSPARK</code>,
+    <code>--speculative-dspark-block-size 5</code>), which nothing covered
+    before. Commit <code>a96547d</code>. Full record:
+    <a href="/imas-ambix/evidence/archive/dsv41-serve-tuning-for-concurrency-landed#deploy-recipe-record">recipe evidence</a>.</p>
+
+    <!-- Appended directly to the plan HTML: reckon MCP writes were not
+         available to this detached worktree, and this node holds the plan
+         path exclusively. The plan-version and plan-modified meta lines are
+         left untouched so a merge does not conflict on them. -->
+
+    <h2 id="s9">§9 — Two method findings from running this measurement, both of which cost something before they were named</h2>
+
+    <h3>A single draw from a noisy instrument is not a trend, and this lane produced three in ninety minutes</h3>
+
+    <p><strong>Three premature findings were reported and then withdrawn on
+    2026-09-17, all the same shape.</strong> They are recorded because the error
+    was not carelessness — each reading was correct, each was the best available
+    at the moment, and each was reported with its sample size stated:</p>
+
+    <table>
+      <thead><tr><th>Claim</th><th>Evidence it rested on</th><th>What it became</th></tr></thead>
+      <tbody>
+        <tr><td>"the predicted collapse is not appearing"</td><td>width 8 at <strong>n=2</strong>, reading 1.40×</td><td>n=19 reading 1.37×, n=24 reading 1.35× — the claim survived, but only after two reversals in between</td></tr>
+        <tr><td>"aggregate throughput is falling past width 7"</td><td>width 8 at <strong>n=11</strong> reading 308, widths 9 and 10 at n=2 and n=1</td><td>width 8 at n=24 reading 361 — the fall was an artefact of the bin</td></tr>
+        <tr><td>"the KV-pressure early-warning pair has appeared"</td><td><strong>one</strong> instantaneous gauge sample, hit rate 84.7% against occupancy 40%</td><td>99.8% at occupancy 42% — higher width, higher occupancy, no pressure</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>The third was the expensive one, and not because it was the most
+    wrong.</strong> The first two cost nothing but a correction, because they
+    were claims about this plan's own subject. The third was a
+    <em>diagnostic prior planted in three other fleets</em> — each was told to
+    read slow turns as the lane rather than as their own nodes, and each
+    accepted it. A width overshoot costs minutes; a wrong prior costs every
+    subsequent diagnosis in another session until something forces a re-test,
+    and nothing would have. <strong>Correct a propagated prior before correcting
+    anything that only affects your own record.</strong></p>
+
+    <p><strong>The operating rule this run adopted, stated so the next one does
+    not re-derive it:</strong> quote no width until it carries at least 20
+    intervals <em>and</em> its median has moved less than about 5% between two
+    successive reads. Above width 10 the scatter is much larger — adjacent
+    widths read 199 and 397 tok/s at n=4 and n=1 — so that band needs nearer 30.
+    For an instantaneous gauge, never report the first draw at all.</p>
+
+    <h3>A dispatch slot is not a unit of width, and only the engine can convert</h3>
+
+    <p><strong>Two fleets discovered this independently and from opposite
+    directions.</strong> One runs short graph-read nodes that occupy a slot
+    briefly and never sustain concurrency; another runs 90-to-180-minute nodes
+    that hold a slot for hours while sitting inside <code>srun</code> waiting on
+    a build, contributing nothing to the engine for those stretches. Same
+    conclusion: <strong>a fleet's dispatch count and this lane's decode width are
+    different quantities, and the ratio is a property of the work rather than a
+    constant.</strong></p>
+
+    <p><strong>The measurement was never wrong, but every forecast of it
+    was.</strong> Binning on the engine's own <code>#running-req</code> per
+    decode interval always measured true concurrency. What failed was predicting
+    that concurrency from fleet allocations — an arithmetic on a quantity that
+    does not exist, which produced ramp steps called against imagined widths.
+    Slot-based forecasting is retired; the engine is read instead.</p>
+
+    <p><strong>The asymmetry is the useful part, and the protocol follows from
+    it.</strong> The engine can see true concurrency and no fleet can see its own
+    contribution to it, so the division of labour is not negotiable: this lane
+    supplies the measurement, and what a peer fleet can usefully supply is
+    <strong>shape, declared at dispatch</strong> — node class, expected duration,
+    and whether the work is lane-bound or cluster-bound. Declared up front rather
+    than reconstructed afterwards, because reconstructing it means polling worker
+    streams, which is both expensive and the exact anti-pattern a transition
+    follower exists to remove. A fleet that says in advance "this one is a
+    read-only call-chain analysis with no build, sustaining width for its whole
+    life" has given the one fact the engine cannot produce.</p>
+
+    <p><strong>And an offer withdrawn is worth more than an instrument
+    fabricated.</strong> One coordinator offered live per-node compute-phase
+    marks, then retracted on finding it could only produce them by polling its
+    workers' streams, substituting post-hoc SLURM job ids and test wall times
+    from the manifests. Worse evidence, arriving later, and correct — where the
+    live version would have been a guess wearing a timestamp.</p>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="restart-grouping" data-choice="two-restarts" data-by="reckon-create" data-when="2026-09-17">
+    <p class="r-dec-q">Do all three configuration levers ride one restart, or does the device pool wait for a second?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="two-restarts">two restarts — DSpark with the host-tier cut, pool second</button>
+      <button class="r-opt" data-value="one-restart">one restart — everything at once</button>
+      </p>
+    <p class="r-dec-rat">Locked from the record rather than from preference, because the two candidate changes compete for the same memory and one of them allocates lazily. DSpark asks about 12 GiB per card and the pool doubling about 10 GB per card, both device-side, against 52.04 GB free — so they fit on paper with roughly 30 GB spare. But the DSpark workspace is allocated at generation time outside mem_fraction_static, so its real footprint is unknown until a token is generated, and a lazily-allocated workspace meeting a just-doubled pool is the exact combination that has killed three serves on this node. A combined restart that dies on first generation also cannot say which change caused it. Lever 2 is host-side, frees 258 GB, confounds nothing and is a precondition for the eight-card option, so it rides with DSpark at no risk. Lever 3 is then sized from a measured number instead of an estimate. The cost of this choice is one extra restart window, which section 2 establishes may not require downtime at all.</p>
+    </div>
+<div class="r-dec" data-key="restart-budget" data-choice="two-restarts-one-cycle" data-by="reckon-ship" data-when="2026-09-17">
+    <p class="r-dec-q">How many restarts does this run spend, and which of them earn a full two-hour loaded window?</p>
+    <p class="r-dec-ctx">Section 4a scoped three restarts, each holding two hours of loaded traffic before it has said anything, which is a full day of wall clock. The lead asked for the restart count to be budgeted carefully on the grounds that not every restart needs a full real-work stress cycle.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="two-restarts-one-cycle">two restarts, one full stress cycle - speculative decoding measured properly, the pool validated briefly, the precision sweep sequenced out</button>
+      <button class="r-opt" data-value="three-restarts-three-cycles">three restarts, a full two-hour loaded window each, as section 4a scoped</button>
+      <button class="r-opt" data-value="one-combined-restart">one restart carrying every change at once</button>
+      </p>
+    <p class="r-dec-rat">The hold length should follow the hypothesis, and only one of the three changes has one. Section 3 predicts speculative decoding is width-dependent - near-null at the knee and large at both ends - so its arm needs the spread of widths that only two hours of real traffic supplies, and a single-width read would reproduce the recorded V4-Flash null and close the question wrongly a second time. The pool doubling and the host-tier cut both predict no throughput change at all; the pool&#x27;s measure is occupancy at a stated width plus the absence of a regression against restart 1&#x27;s own fit, and both read within minutes of traffic arriving. Buying a second two-hour window for a predicted null is spending the scarce resource on the cheap question. The precision sweep is left out rather than shortened, because it does carry a throughput hypothesis and shortening it would produce exactly the ambiguous result that costs a fourth restart - and it measures a term in the accelerator study rather than in the deploy recipe, which is stable whichever value wins. One combined restart is refused for the reason already locked under restart-grouping: two lazily-allocated device-memory changes in one launch cannot be attributed when they fail. The residual risk accepted is that restart 2 lands on a briefer measurement than restart 1, so a small pool-induced regression could hide inside it; the mitigation is that its measure is occupancy rather than throughput, and occupancy is read directly rather than inferred.</p>
+    </div>
+</section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-dsv41tune-01" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-09-17" data-recommends-skill="/reckon-ship dsv41-serve-tuning-for-concurrency" data-resolved-at="2026-09-17T10:57:49+00:00" data-resolved-by="reckon-ship">
+    <h4 class="r-fu-title">Land restart A — DSpark plus the host-tier cut — through a rotation if four cards are free, and prove it with a real generation</h4>
+    <div class="r-fu-body"><p><strong>Check the card ledger before scheduling anything.</strong> §2's finding is that the restart probably needs no quiet window: a four-card rotation on a spare port is supported, the equal-width tie-break in <code>_preferred_owner</code> resolves toward the incoming engine, and the cutover costs 460 s of overlap rather than any downtime. It needs four free cards. At the time of writing the node holds the 4-card serve plus a 2-card nova job, leaving 2 — so read <code>squeue -w 98dci4-gpu-0003</code> first, and fall back to a coordinated eight-minute dispatch hold with the efit and nova sessions only if the cards are not there.</p><p><strong>Restart A is DSpark plus <code>hicache_ratio = 2.0</code> plus <code>memory = "480G"</code>, and nothing else.</strong> The pool stays at 4M by decision — see the locked restart-grouping decision; do not fold §4's lever 3 in.</p><p><strong>Readiness is not the measure.</strong> DSpark's workspace allocates lazily at generation, so the acceptance test is a real multi-hundred-token completion, and the numbers to record are draft acceptance rate, mean accept length, device free memory <em>after</em> the workspace has allocated, and per-worker plus aggregate output at a stated concurrency width. The rollback to the committed profile is written down before the restart, not improvised after it. If DSpark refuses to start on this checkpoint a second time, that is a real outcome: record the memory figures beside the refusal and leave lever 2 in place.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship dsv41-serve-tuning-for-concurrency</pre>
+    <p class="r-fu-outcome">LANDED, on the second attempt, as a cold launch rather than a rotation. The card ledger read five free against four needed and twenty group-A cores against the profile's twelve, so no quiet window and no coordinated hold were required. Restart A carried DSpark plus hicache_ratio 2.0 plus memory 480G and nothing else, with the pool held at 4M by the locked restart-grouping decision. Job 1272777 refused at startup in 42 s because SGLang compares speculative_algorithm case-sensitively against the literal tuple (EAGLE, DSPARK) and the profile emitted lowercase - the safe failure shape, costing no lane. Job 1272783 reached ready 485 s from RUNNING, inside the fifteen-minute bound, and loaded the DSpark draft on all four ranks, which had never been observed on this checkpoint. Readiness was correctly not the measure: a real 384-token completion returned HTTP 200 with finish_reason length, the serve survived it, and the lazily-allocated workspace measured 2390 MiB per card against about 12.9 GiB budgeted. The numbers this followup asked for: draft acceptance 51.0 percent; mean accept length 3.550 at width 1 against the 3.31 assumed, rising to 4.64 at width 2 and falling to about 3.7 by width 22; loaded free memory 30789/30581/30581/30789 MiB after the workspace allocated, and 25.4 to 27.6 GiB per card at sustained width 23 to 24; and per-worker plus aggregate output across widths 1 to 31 - 111.1 tok/s at width 1 for 3.13x, 329.8 at width 4 for 2.01x, 361.0 at width 8 for 1.35x, and parity across eight consecutive bins from 21 to 28 where the lane's duty cycle actually peaks. The rollback was written down before the restart and then corrected: as committed it also reverted the host-tier cut, which this followup's own text forbids, so lever 2 is now preserved on a speculative refusal. One negative recorded: the engine does not expose the drafter's per-step cost, named earlier as the dominant unknown, so it cannot be separated from aggregate throughput at any width. Next: the pool increment of section 4 is sized and justified but not taken - it is deferred to the measured 00:00-03:00 UTC idle window, which costs no draindown, and its followup carries the sizing.</p>
+    </article>
+<article class="r-fu" data-id="f-dsv41tune-02" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-09-17" data-recommends-skill="/reckon-ship dsv41-serve-tuning-for-concurrency" data-resolved-at="2026-09-17T14:28:59+00:00" data-resolved-by="reckon-ship">
+    <h4 class="r-fu-title">Sweep the MoE precision option, because it measures a tax worth hundreds of thousands of euros</h4>
+    <div class="r-fu-body"><p><strong>This is a fifth lever, and it is the cheapest decision-relevant measurement available.</strong> The decode cost on these four cards fits <code>ms per pass = 17.8 + 0.257 × GB of expert weights read</code> over eleven concurrency levels, and that slope is <strong>3.9 TB/s of effective bandwidth against 19.2 TB/s of nameplate — 20% of peak</strong>. The leading candidate for the missing 80% is the block-scale dequantisation our checkpoint forces: it declares <code>weight_block_size [32,32]</code> with <code>scale_fmt ue8m0</code>, and Hopper applies such scales in software around the tensor core where Blackwell applies them inside it.</p><p><strong>The sweep tests that without buying anything.</strong> <code>flashinfer_mxfp4_moe_precision</code> takes <code>default</code> (W4A16), <code>bf16</code> and the <code>fp8</code> (W4A8) now in force, which distribute work between the dequantisation path and the tensor core differently. Record aggregate and per-request output at a fixed concurrency width for each value, plus the per-pass time at two widths so the fit can be re-run per arm. A large movement localises the tax and sets the expected Blackwell gain at roughly 2.9×; no movement narrows it to the nameplate ratio of 2.2× and makes H200 SXM competitive on price per delivered token.</p><p><strong>Sequence it after the speculative-decoding arm and hold everything else fixed</strong>, including the pool, so the arms differ in one setting. Also free and worth taking whenever eight cards are next allocated for any reason: set <code>NCCL_DEBUG=INFO</code> on that launch. It settles whether the eight cards are two NVLink islands, which is a pillar of the accelerator study's form-factor argument and has never been measurable while the serve holds four.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship dsv41-serve-tuning-for-concurrency</pre>
+    <p class="r-fu-outcome">Closed on the datapath, not on a sweep. The precision arm cannot be run on SM90 as the followup imagined it: read from the CONTAINER sglang the serve actually executes (/sgl-workspace/sglang, image lmsysorg/sglang:dev-dsv41), the only SM90 comparison site is mxfp4.py:428 `== "fp8"`, and the bf16/default branch at mxfp4.py:1663-1676 sits after the SM90 early return and never runs on these cards. So bf16 and default resolve to one identical cutlass_fused_moe call with identical kwargs — bf16 is INERT relative to default here, and there are two distinct datapaths, not three: fp8 = W4A8 Humming MXFP4-weight x FP8-activation, default = W4A16 MXFP4-weight x BF16-activation. The serve was confirmed holding fp8 from its own server_args dump plus per-layer 'FlashInfer SM90 CUTLASS W4A8' lines, not merely from the profile. The lead declined the default/W4A16 arm on 2026-09-17: H200 is FP8-native and W4A16 moves the expert GEMM off the card's fastest datapath onto BF16 at roughly half the dense rate with twice the activation bytes, so the arm has a predicted direction rather than an open one and is not worth a production outage. With default declined and bf16 inert, no arm remains. TRAP RECORDED for any future citation work: the venv at ~/.local/share/ambix/engine-envs/sglang/.venv is sglang 0.5.18, declares Literal["default","bf16"] with no fp8 at all, and is NOT the served program. Full record: crew report moe-precision-datapath.md, run r-20260917T134503254958.</p>
+    </article>
+<article class="r-fu" data-id="f-dsv41tune-03" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-ship" data-written-at="2026-09-17" data-recommends-skill="/reckon-ship dsv41-serve-tuning-for-concurrency" data-resolved-at="2026-09-18T08:30:21+00:00" data-resolved-by="smc">
+    <h4 class="r-fu-title">Take the pool increment in the quiet window — it is sized, justified and deliberately not taken today</h4>
+    <div class="r-fu-body"><p><strong>Everything this needs is measured; what it lacks is a window.</strong> The device pool doubling was conditional on restart 1's loaded free memory, and that condition is met with margin. Per-card free memory at sustained width 23 to 24 reads <strong>25.4 to 27.6 GiB</strong> across the last fifteen drain-sidecar blocks, against an all-time worst of 23.0 GiB taken at width 10 or below — <em>flat in width, not falling</em>, which is the opposite of what was feared. The increment costs a measured 10.10 GB (9.40 GiB) per card, leaving about <strong>16 GiB</strong> at the operating point.</p><p><strong>And it is justified on its merits rather than merely affordable.</strong> At width 30 the pool read <strong>79% of 4,000,000 tokens</strong>, and the implied working context is <strong>98,379 tokens per resident request</strong> against the 79,000 §1 assumed — so the pool binds near <strong>38 to 40 concurrent</strong>, not the 50 §1 predicted, and the lane's own duty cycle peaks at a median of 29. This is a bound the lane reaches on an ordinary evening, not headroom for a hypothetical width. Doubling moves it to about 80.</p><p><strong>Why it was not taken today, and this is a scheduling choice rather than a blocker.</strong> Restart 2 is hot: the serve holds four of the five free cards, so §2's zero-downtime rotation has nowhere to stand a second engine. Stopping it means the <em>run-level</em> drain of roughly an hour, charged to three peer fleets mid-plan. The measured 00:00–03:00 UTC window is two consecutive hours at 100% idle and costs <strong>no draindown at all</strong>, and its loaded validation then reads on the natural morning ramp — median 14 running at 04:00 UTC and 26 at 05:00. Spending an hour of three projects' progress to avoid a thirteen-hour wait is the wrong trade.</p><p><strong>What to do:</strong> raise <code>max_total_tokens</code> to 8,000,000 in <code>imas_ambix/agent/profiles/deepseek-v4-1-flash.toml</code>, launch from the main checkout per the recipe now in <code>imas_ambix/agent/AGENTS.md</code>, and re-read pool occupancy and per-card free memory at a stated width on the morning ramp. Expected throughput change: <strong>none</strong>. The measure is occupancy at a stated width plus the absence of a regression against restart 1's own per-width medians, which <code>imas_ambix/agent/decode_bins.py</code> now produces reproducibly — <em>split by limb, never pooled</em>.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship dsv41-serve-tuning-for-concurrency</pre>
+    <p class="r-fu-outcome"><p><strong>Taken, measured, and deliberately reverted — this card is superseded by its own result.</strong> The increment went in at the 14:43Z restart on 2026-09-17 and ran a full evening at 8,000,000 device tokens. It was reverted to 4,000,000 the same day (commit <code>41ad64fe</code>) on measured grounds, not preference.</p><p><strong>What decided it was prefill headroom, not decode.</strong> The drain sidecar's tightest per-card free memory reads <strong>20.72 GiB at 4M against 12.60 GiB at 8M</strong>, measured under load rather than at idle. The worst observed prefill ask is 10.11 GiB, so 4M holds a <strong>2.05x</strong> margin where 8M holds <strong>1.25x</strong>. The pool was bought back as prefill workspace.</p><p><strong>And the concurrency the pool was meant to buy is not the binding constraint.</strong> Decode throughput is flat across widths 17 to 32: slope <strong>+0.09 tok/s per unit width, CI [-2.00, +2.69]</strong>, and <code>#queue-req</code> read <strong>0 at every interval in both jobs</strong>. Nothing was ever waiting on pool space at the lane's actual duty cycle, whose median is 29 against a cap of 36. Excess width queues rather than stalls, which is the intended behaviour.</p><p>The card's original reasoning was sound when written. The fault was leaving it standing after its own experiment returned.</p></p>
+    </article>
+<article class="r-fu" data-id="f-dsv41tune-04" data-status="resolved" data-written-by="reckon-ship" data-written-at="2026-09-17T14:30:00Z" data-recommends-skill="/reckon-ship dsv41-flash-four-card-throughput" data-resolved-at="2026-09-18T08:30:21+00:00" data-resolved-by="smc">
+    <h4 class="r-fu-title">Settle the eight-card NVLink island question on the next eight-card allocation</h4>
+    <div class="r-fu-body"><p><strong>Carried forward from the precision followup, whose other half closed on the datapath.</strong> This item never depended on the precision sweep and is still live and still free.</p><p>Whenever eight cards are next allocated for any reason, set <code>NCCL_DEBUG=INFO</code> on that launch. It settles whether the eight cards are two NVLink islands or one, which is a pillar of the accelerator study's form-factor argument and has never been measurable while the serve holds four. It costs one environment variable on a launch that is happening anyway.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship dsv41-flash-four-card-throughput</pre>
+    <p class="r-fu-outcome"><p><strong>Not pursued — the four-card deployment is the settled one.</strong> The eight-card NVLink island question arises only on the two-replica route, which requires session affinity in the router (gate <code>g-session-affinity</code>, closed unmet) and a second engine advertising the same model id. GLM-5.3, that second engine, is blocked upstream on vLLM PR 53906.</p><p>The question is recorded rather than deleted because it remains the right question <em>if</em> eight cards are ever allocated: it is the topology half of a decision whose routing half must land first.</p></p>
+    </article>
+<article class="r-fu" data-id="f-dsv41tune-05" data-status="resolved" data-written-by="reckon-ship" data-written-at="2026-09-17T15:05:00Z" data-recommends-skill="/reckon-ship dsv41-serve-tuning-for-concurrency" data-resolved-at="2026-09-18T08:30:21+00:00" data-resolved-by="smc">
+    <h4 class="r-fu-title">Re-test the MoE precision arm against a banked high-concurrency baseline, and check the untuned FP8 kernel config beside it</h4>
+    <div class="r-fu-body"><p><strong>Trigger: a high-concurrency baseline is banked on <code>fp8</code> covering widths past 24.</strong> Do not attempt this before then. At the time of writing the new job had 26 decode intervals against 2,906 banked on the old pool, and the region past width 24 is exactly where the existing data is thin.</p><p><strong>Why this reopens a question recorded as closed.</strong> f-dsv41tune-02 was resolved on the datapath: <code>bf16</code> is inert on SM90 and the lead declined <code>default</code>/W4A16 on the reasoning that an FP8-native H200 should not be moved onto a BF16 datapath. That reasoning used PEAK DENSE ARITHMETIC RATES, which is the wrong figure of merit. Decode here is bandwidth-bound, not compute-bound — the plan's own fit is <code>ms per pass = 17.8 + 0.257 × GB of expert weights read</code>, a slope in GB read — and the weights are MXFP4 in BOTH arms, so identical bytes leave HBM. Only activations differ, and at modest width activations are small against weights. The arm therefore has a genuinely open direction, not a predicted one.</p><p><strong>Three things now point toward <code>default</code> rather than away.</strong> The <code>fp8</code> Humming path does extra per-GEMM work, converting activations in-kernel and threading three additional scale tensors. <code>default</code>/W4A16 is the older, better-travelled CUTLASS mixed-input path. And the engine announces <code>Using default W8A8 Block FP8 kernel config. Performance might be sub-optimal! Config file not found</code> 44 times per launch — on the FP8 path the serve currently selects. If <code>fp8</code> runs untuned kernels while <code>default</code> runs a tuned one, the theoretical advantage is erased or reversed.</p><p><strong>The margin objection that blocked this has collapsed and must not be reused.</strong> The handoff predicted 11.3 GiB of headroom at 8M, a 1.12x ratio against the 10.11 GiB worst workspace ask. Measured after the workspace allocated: 37.0-37.2 GiB per card, worst-card 3.66x, with 26.9 GiB spare after reserving another full ask.</p><p><strong>Check the kernel config first, because it is free and may answer the same question.</strong> Establish whether a tuned config exists for this shape before spending an outage on the precision arm. It needs no restart to investigate, and it sits on the bandwidth gap the whole plan is chasing — 3.9 TB/s effective against 19.2 TB/s nameplate.</p><p><strong>Two method requirements.</strong> Bin on the engine's own decode-batch <code>#running-req</code>, never on dispatch slots, sessions or connections — a worker blocked on a database read or inside <code>srun</code> holds a slot and contributes zero. And label the limb: the descending-limb median exceeds the ascending one at all twenty widths measured, so any single-limb throughput number carries an unlabelled limb.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship dsv41-serve-tuning-for-concurrency</pre>
+    <p class="r-fu-outcome"><p><strong>Closed with the limit on the fp8 conclusion stated rather than quietly dropped.</strong> The precision arm was measured on <em>uncached full-chunk prefill at matched concurrency</em>, and fp8 was never worse: idle <strong>-20.9%</strong> (n=12 vs 11), width 1-9 <strong>-1.1%</strong> (n=78 vs 67), width 10-19 <strong>-1.7%</strong> (n=26 vs 125). Width 20-29 was never reached on the W4A16 arm, which is exactly why this card existed.</p><p><strong>What remains untested is decode, and decode is the published claim.</strong> The vendor's +12% figure is a decode figure; every number above is prefill. So the retained setting rests on a prefill measurement plus a hardware argument — H200 is Hopper SM90 and FP8-native, while <code>default</code> resolves to W4A16 and dequantises to BF16 at roughly half dense rate — and not on a decode measurement.</p><p>Closed on the lead's call that the serve is as fast as a four-card H200 deployment is going to be. Re-open only if a decode-side regression is suspected; the arm is cheap to re-run and the profile line is one edit.</p><p><strong>done — no followup.</strong> The tuning chain closes here: the four lever questions are each answered or explicitly not pursued, and the serving configuration is settled at 4,000,000 device tokens, fp8 W4A8, cap 36. No successor invocation is queued from this plan.</p></p>
+    </article>
+</section>
+
+    <section data-reckon="gates" id="gates" class="r-gates">
+<h2><span class="sec">§</span> Evidence gates</h2>
+<div class="r-gate" data-id="g-session-affinity" data-section="s6" data-gated-sections="s6" data-status="closed" data-verdict="failed">
+    <h4 class="r-gate-measure">The router pins a conversation to one replica for the life of that conversation, demonstrated against two concurrently serving engines advertising the same model id, with per-replica prefix hit rate recorded for a multi-turn client.</h4>
+    <p class="r-gate-required-evidence">Per-replica prefix-cache hit rate across at least three turns of one conversation while both replicas are healthy, showing reuse on the pinned replica and no cold prefill caused by replica switching. A two-replica serve must not be launched before this exists: without affinity each replica caches only what it served, which reproduces the 0%-reuse condition the router repair just removed, at twice the card cost.</p>
+    <a class="r-gate-evidence" href="Closed unmet rather than passed, because the configuration it guards is not being built. The measure requires two concurrently serving engines advertising one model id, which is the two-replica route over eight cards. The settled deployment is four cards serving a single engine, and the second engine that would have made the pair, GLM-5.3, is itself blocked upstream on vLLM PR 53906 — so no pair can be stood up to measure against. The guard the gate encodes remains correct and is retained as the precondition on any future two-replica serve: without affinity each replica caches only what it served, reproducing a zero-reuse condition at twice the card cost. This is not a negative result about affinity. At four cards the question has no subject.">Evidence</a>
+</div>
+</section>
+
+  <section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="s3" data-id="c-run-r-20260917T085638880389-restart-one-profile-settings" data-who="session-2aaa9a83a210fa1b777d" data-when="2026-09-17T09:06:01Z">
+    <div class="r-comment-body"><p>profile carries dspark/block-5/hicache-2.0/480G; generated launch command verified to emit --speculative-algorithm dspark and --speculative-dspark-block-size 5 with the 4M pool unchanged</p></div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-20260917-gate-profile" data-who="reckon-ship" data-when="2026-09-17T09:12:00Z">
+    <div class="r-comment-body">gate passed: the generated launch command emits --speculative-algorithm dspark and --speculative-dspark-block-size 5, with --max-total-tokens 4000000 unchanged and --mem=480G. Section stays open - the settings are committed, the serve has not yet been launched with them. Added suite delta of 2 is waived to node pool-hicache-test-contract: tests/test_agent_pool_and_hicache.py still pins hicache_ratio=8.0 and memory=720G.</div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-run-r-20260917T091608473130-restart-one-launch" data-who="dsv41-launch-op" data-when="2026-09-17T09:54:54Z">
+    <div class="r-comment-body"><p>DSpark generates on this checkpoint: width-1 median 108.465 tok/s = 3.055x the 35.5 baseline, mean accept length 3.550 against 3.31 assumed, acceptance 51.0%; workspace allocated 2390 MiB/card against ~12.9 GiB budgeted, leaving ~20 GB/card spare for the conditional pool increment; job 1272777 refused at startup on lowercase dspark and is retained as evidence; drafter per-step cost not exposed by the engine</p></div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-20260917-gate-launch" data-who="reckon-ship" data-when="2026-09-17T10:00:00Z">
+    <div class="r-comment-body">gate passed. DSpark GENERATES on this checkpoint - the first time it has been observed doing so. Job 1272783 ready in 485 s; width-1 median 108.465 tok/s over 38 intervals against the 35.5 baseline, a ratio of 3.055x where the model predicted 2.41x. Mean accept length 3.550 against the 3.31 the model assumed throughout, acceptance 51.0%. The lazily-allocated workspace cost 2390 MiB per card against about 12.9 GiB budgeted - 5.5 times smaller - so loaded free memory is 30789/30581/30581/30789 MiB and the measured 10.10 GB/card pool increment fits with roughly 20 GB spare. That figure sizes the conditional second restart and must be re-read at high width. Negative recorded: the engine does not expose the drafter per-step cost, which section 3 named as the dominant unknown, so it cannot be separated from aggregate throughput at any width. Job 1272777 is retained as evidence: it refused at startup in 42 s because SGLang compares speculative_algorithm case-sensitively against the literal tuple (EAGLE, DSPARK) and the profile emitted lowercase. Section stays open pending the cost-model refit.</div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-20260917-refit-extrapolation-fails" data-who="reckon-ship" data-when="2026-09-17T10:40:00Z">
+    <div class="r-comment-body">THE REFIT IS SOUND WHERE IT WAS FITTED AND ITS EXTRAPOLATION IS FALSIFIED - by data collected after its own cutoff, on this same serve. The refit lands ms per pass = 8.338 + 0.30370 x GB, R-squared 0.96331, halving the floor from 17.8 ms and raising the slope from 0.257, which drops effective bandwidth from 3.89 to 3.29 TB/s. It was fitted honestly and transparently: only the nine widths carrying at least 20 intervals, all of them 1 to 9, against a stated cutoff of 12:08:20 local over 608 intervals. Its headline prediction is a shallowest ratio of about 1.31x near width 12, never below 1.2x anywhere in 1 to 40, and 1.93x AT WIDTH 34. That last figure is the problem: widths 21 to 24 were measured after the cutoff and read 1.04x, 0.98x, 1.06x and 1.00x against interpolated baselines, with width 22 solid at n=35. So the refit over-predicts by roughly a factor of two at the only widths where anyone has now looked. BOTH MODELS NOW FAIL AT HIGH WIDTH, IN OPPOSITE DIRECTIONS: the original predicted a collapse to 1.06x near width 8 that did not happen, and the refit predicts a recovery to 1.93x at 34 that is not happening either. The common defect is that both are fitted or reasoned on the low-width half and extrapolated across the knee. What the refit does establish, and it is worth keeping, is the mechanism: every ratio in the published table is linear in mean accept length, the published prediction assumed 3.31 at every width, and the measurement is 3.585 at width 1, peaking at 4.640 at width 2, falling to 3.615 by width 11 and about 3.76 by width 22. An assumption that is too low at the narrow end and too high at the wide end mis-states the curve in both directions at once, which is exactly the shape of both failures. Do not quote 1.93x at width 34 anywhere. The defensible statement is the measurement: 3.13x at width 1, 2.01x at 4, 1.35x at 8, parity from 21 to 24.</div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-run-r-20260917T100105368173-cost-model-refit" data-who="reckon-ship" data-when="2026-09-17T11:28:07.157Z">
+    <div class="r-comment-body"><p>decode cost-model refit: floor 8.338 ms, slope 0.30370 ms/GB, R2 0.96331; measured accept len 3.585/4.640/3.970 at width 1/2/9 against the assumed 3.31; no test-suite gate for this node, review total 88</p></div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-run-r-20260917T134113271753-review-of-cost-model-refit" data-who="reckon-ship" data-when="2026-09-17T13:55:54.609Z">
+    <div class="r-comment-body"><p>review parsed, five dimensions, total 88</p></div>
+</div>
+<div class="r-comment" data-section="s8" data-id="c-run-r-20260917T085934585418-serve-machinery-reuse-map" data-who="dsv41-reuse-scout" data-when="2026-09-17T09:08:14Z">
+    <div class="r-comment-body"><p>7 of 8 capabilities already exist; the sole gap is a Decode-batch log harvester. Drain needs no new code: serving_receipts.sample_serving_metrics reads running/waiting and agent shutdown republishes the endpoint document a bare scancel would skip</p></div>
+</div>
+<div class="r-comment" data-section="s8" data-id="c-run-r-20260917T100806889701-deploy-recipe-record" data-who="reckon-ship" data-when="2026-09-17T10:34:01.973Z">
+    <div class="r-comment-body"><p>Deploy recipe written into imas_ambix/agent/AGENTS.md as an 81-line DSv4.1 section: main-checkout submission with the .reckon-worktrees check, the case-sensitive EAGLE/DSPARK tuple with the engine's own refusal text, readiness 485 s from RUNNING under a fifteen-minute bound, and the run-level versus request-level drain read from sample_serving_metrics and stopped by agent shutdown rather than scancel. Launch-contract test moved to hicache_ratio 2.0 and memory 480G and now pins both speculative flags as a pair; 5 passed, ruff clean</p></div>
+</div>
+<div class="r-comment" data-section="s8" data-id="c-20260917-limb-hysteresis" data-who="reckon-ship" data-when="2026-09-17T10:54:00Z">
+    <div class="r-comment-body">THE LIMB HYSTERESIS IS REAL, LARGE AND CONSISTENT, AND ITS MECHANISM IS NOT THE ONE PREDICTED. The harvester bins every decode interval by width AND by an ascending or descending limb derived from the width trajectory, and the result is unambiguous: the DESCENDING median exceeds the ascending one at ALL TWENTY widths carrying both limbs, from width 3 upward. Twenty out of twenty in one direction is not noise. This is the measurement the ramp-down was designed to produce, and it succeeded - the descending limb is a second condition rather than the end of the first, exactly as argued. But the SIGN is the opposite of the reasoning that motivated it. The prediction was that requests surviving a drain carry the largest working context, and longer context should cost throughput, so the descending limb should read LOWER at equal width. It reads higher, everywhere. The most likely mechanism, stated as a hypothesis and not as a finding: the ASCENDING limb is where new requests arrive, so its intervals are contaminated by prefill competing with decode for the same forward passes, while the descending limb has no arrivals and is closer to pure decode. On that reading the hysteresis measures prefill interference on the way up rather than context length on the way down, and the context effect - if present - is buried under it or has the opposite sign to the interference. The harvest deliberately does not settle this, and its own note is the correct one: whether the trajectory carries information or the groups differ in something this harvest does not record is not established. What would settle it is recording mean context per resident request alongside each interval, which the decode line does not carry and the Prometheus gauges do. That is a followup, not a claim. The operational consequence stands regardless of mechanism, and it is the one to act on: NEVER pool the limbs. A width-binned median that mixes them averages two populations that differ systematically at every width in the range, and the resulting number describes neither.</div>
+</div>
+<div class="r-comment" data-section="s8" data-id="c-20260918-plateau-evidence-rejoined" data-who="reckon-ship" data-when="2026-09-18T09:43:48+00:00">
+    <div class="r-comment-body">serve-tuning-plateau-evidence landed — commit f2f139e, merged as 72997ea; gate 'audit-doc on the evidence record' passed, re-run by the coordinator at the merged head rather than taken from the worker: zero ERROR lines, exit 0, on both the evidence record and this plan.
+
+What this closes is a record defect, not new measurement. This plan was already shipped at impl 1.0, and its most substantive result — decode throughput flat across widths 17 to 32, with #queue-req reading 0 at every width — existed in no reachable revision of the repository. It had been committed as 2a9bf24f inside the decode-plateau-confirmation worktree and never merged, so the figure decode-throughput-vs-width.svg was absent from the tree and from disk, and the cumulative evidence record ended before the section that carried the numbers. The plan prose had survived by a separate route, which is what made the gap invisible: the conclusion was readable while its evidence was not.
+
+Rejoined by content rather than by cherry-pick, because 2a9bf24f is not an ancestor of the dispatched base. Both artifacts verify byte-identical to that lineage — evidence blob 7c6c2084, figure blob ee18957d — so the rejoin is exact rather than reconstructed. Content was confirmed present at the merged head, which is the fact that matters; reachability of the commit is not the same statement.
+
+The result now readable: the 4M-pool slope is +0.09 tok/s per unit width with a 95 percent stratified bootstrap interval of -2.00 to +2.69, and the 8M-pool slope is -0.55 with an interval of -1.61 to +0.34. The earlier 8M snapshot read +5.38 with an interval excluding zero at 596 intervals and did not survive to 1,003.</div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-20260917-pool-sizing-shrinks" data-who="reckon-ship" data-when="2026-09-17T10:12:00Z">
+    <div class="r-comment-body">RESTART 2 IS NOT YET JUSTIFIED, and the reason is that its sizing number shrinks every time the reading gets more honest. Four readings of the same quantity, each superseding the last: section 3's idle figure 52.04 GB free per card; section 3's loaded figure at 23-27 concurrent on the OLD engine, about 33 GB; the launch node's loaded figure on the new engine at width 1 to 5, 30789 MiB (30.1 GiB); and the drain sidecar's worst case over 860 samples at widths up to about 10, 23,521 MiB free, or 23.0 GiB. The pool increment costs a measured 10.10 GB = 9.40 GiB per card, so the current honest margin is 13.6 GiB rather than the 20 GB the low-width reading implied. It still fits. But every one of these four readings was taken at a width below the 27-34 this lane historically ran at, and both terms that consume the margin - prefill activation and the lazily-allocated speculative workspace - grow with width AND with prefill length. So the trend is monotonically downward as the measurement approaches the operating point, which is exactly the prior recorded in the agent guidance: every measurement error found on this lane has run toward APPARENT HEADROOM. Do not size restart 2 from any of these figures. The reading it needs is the sidecar worst case at sustained width 24 or above, and if that width is never reached today then the honest outcome is that restart 2 is deferred for want of its sizing measurement rather than attempted on an extrapolation. Source: /work/projects/imas_gpu/logs/drain-sidecar-1272783.smi, card total 143,771 MiB.</div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-20260917-pool-sizing-resolved" data-who="reckon-ship" data-when="2026-09-17T10:25:00Z">
+    <div class="r-comment-body">RESOLVED, and it reverses the previous comment's caution rather than confirming it. That comment held restart 2 unjustified because every sizing reading had been taken below the operating width and each more honest reading had been smaller than the last, so the trend looked monotonically downward. The width-24 reading is now in and the trend does NOT continue: per-card free memory at sustained width 23 to 24 reads 25.4 to 27.6 GiB across the last fifteen sidecar blocks, against an all-time worst of 23.0 GiB recorded at width 10 or below. Memory is FLAT in width, not falling. The measured pool increment of 10.10 GB (9.40 GiB) therefore leaves about 16.0 GiB per card at the operating point, and the fear that the margin would evaporate as width approached 27 to 34 is not supported. Two readings make restart 2 justified on its merits rather than merely affordable: the device pool is at 59 percent (2,361,088 of 4,000,000 tokens) at width 24, and the implied working context is 98,379 tokens per resident request against the 79,000 section 1 assumed, so the pool binds near 40 concurrent rather than the 50 section 1 predicted. Doubling moves that bound to about 80. Prefix hit rate is 98.8 percent and preemptions remain zero, so the pool is not yet hurting - it is simply the next thing that will. Recorded so the reversal is legible: the earlier caution was correct as a refusal to extrapolate, and wrong in its guess about which direction the extrapolation would go.</div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-run-r-20260917T125923190772-pool-increment-profile" data-who="reckon-ship" data-when="2026-09-17T13:12:07.162Z">
+    <div class="r-comment-body"><p>profile carries max_total_tokens 8000000 and memory 600G; dry-run emits both; suite delta +4 waived to a repair node</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-run-r-20260917T134443655825-review-of-pool-increment-profile" data-who="reckon-ship" data-when="2026-09-17T13:56:33.905Z">
+    <div class="r-comment-body"><p>review parsed, total 76, 3 findings incl. the false test-delta clause and the stale 480G rollback instruction</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-run-r-20260917T134503254958-moe-precision-datapath" data-who="reckon-ship" data-when="2026-09-17T13:56:32.545Z">
+    <div class="r-comment-body"><p>fp8=W4A8 Humming, default=W4A16, bf16 INERT on SM90 (identical call to default); serve confirmed holding fp8 from its own server_args dump; the venv sglang 0.5.18 is not the served program, the container tree is</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-run-r-20260917T141726894420-profile-rollback-consistency" data-who="reckon-ship" data-when="2026-09-17T14:21:37.730Z">
+    <div class="r-comment-body"><p>rollback instruction now names memory 600G; peak premise cited to 7c706cf (removed by e808a8e), citation independently verified; comments only, no live setting moved</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-run-r-20260917T141817181081-pool-contract-test-repair" data-who="reckon-ship" data-when="2026-09-17T14:21:53.750Z">
+    <div class="r-comment-body"><p>7 passed 0 failed, restoring the base-revision count; six stale assertions repaired, not the four the brief named</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-20260917T1430-integration" data-who="reckon-ship" data-when="2026-09-17T14:30:00Z">
+    <div class="r-comment-body">Integration beat. The increment's three commits (b557002 pool, e225611 record, 36c0cd1 memory) and the cost-model refit's two (e49a48f figure, aff82de record) were committed in their worktrees and had NEVER been merged, so main still generated the 4M/480G launch the serve was already running and a restart would have relaunched the identical profile. All five merged with --no-ff; content verified at HEAD rather than by reachability alone, per the dropped-merge rule. Two review findings repaired before the restart: the DSpark rollback instruction still named memory = 480G, the value whose load-time ceiling the raise exists to escape (db092c7), and the raise's binding premise was uncited — now cited to 7c706cf, dropped by e808a8e, and that citation independently verified. Six stale test assertions repointed, not the four the brief named; focused gate 7 passed 0 failed. crew verify-gate re-ran all three gates at the integrated head: finding null on each, integrated_verdict passed. The manifest clause 'delta unchanged from before this change' was FALSE (+4 against base bd3047c) and was caught only by independent review, which is the case for reading a worker's diff rather than trusting its gate.</div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-20260917T1435-selfcancel" data-who="reckon-ship" data-when="2026-09-17T14:35:00Z">
+    <div class="r-comment-body">OUTAGE, and the rule it yields. The first restart attempt cancelled SLURM job 1272783 (EXIT=0) and then died mid-turn with a synthetic zero-token assistant message, leaving the serving lane DOWN with no relaunch. Cause: the node was routed to the local lane, and the local lane is clive serving deepseek-v4.1-flash, which IS job 1272783. The worker cancelled the backend it was itself executing on, so it could not reach its own relaunch step. RULE: a node whose action removes a backend must never be routed to that backend. This node satisfied all eight dispatch properties - single goal, demonstrable measure, enumerated write paths, declared spec level - and the contract has no property that detects a self-cancelling dependency, so being well-formed was not protective. The operator instruction in force ('use codex background workers to bridge server restart, else use the local lane') encoded exactly this constraint and was misread as a routing preference rather than a structural requirement; the else-clause is for work that does not take the lane down. Recovery ran off-lane on codex as serving-lane-relaunch, with the budget reserves released under an explicit operator drain authorisation. The failed run was discarded on operator authority, so this comment is its only record.</div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-20260917T1450-relaunch" data-who="reckon-ship" data-when="2026-09-17T14:50:00Z">
+    <div class="r-comment-body">Lane relaunched on the merged profile and the generation gate PASSED. Job 1273074, ready 16:43:28 CEST (~530 s from RUNNING, against restart A's 485 s), launched from the main checkout. Independent confirmation, not the worker's word: scontrol reports MinMemoryNode=600G, the engine's own log carries 'max_total_tokens': 8000000, 43 layers logged CUTLASS W4A8, and /health returns 200. A real 600-token completion passed (656 total), exceeding the 400-token requirement, forcing the lazy speculative workspace to allocate. Draft acceptance rate 0.37, mean accept length 2.85, 99.23 tok/s at width one. No rollback triggered.
+
+THE MARGIN FIGURE THAT DROVE THE RESTART-GROUPING DECISION WAS WRONG BY ~3x. The handoff predicted 11.3 GiB at 8M, a 1.12x ratio against the 10.11 GiB worst measured workspace ask, and that thinness was the stated reason the precision arm could not ride with the pool increment. Measured post-workspace free memory is 37.20 / 37.00 / 37.00 / 37.20 GiB across the four cards: worst-card margin 3.660x, with 26.889 GiB still free after reserving another full ask. The decoupling decision was still right on process grounds, but its quantitative premise does not survive measurement and must not be reused as a constraint.
+
+FP8 KERNEL CONFIG WARNING, recorded as a candidate for the missing 80%. Both the old job 1272783 and the new 1273074 emit exactly 44 instances of 'Using default W8A8 Block FP8 kernel config. Performance might be sub-optimal! Config file not found at /sgl-workspace/sglang/python/sglang/kernels...'. Identical across both, so it is pre-existing and was not introduced by the increment. It matters because the plan's central open question is 3.9 TB/s effective against 19.2 TB/s nameplate, and an untuned per-shape kernel config is a second candidate explanation that has never been on the lever list, requires no outage to evaluate, and sits on the same FP8 path the serve currently selects.
+
+WIDTH COMES FROM DISPATCH, NOT FROM PEER SESSIONS. Peer interactive sessions were asked to load the lane; imas-ambix-0e replied that it is itself served BY this lane, so its turns already count as load and it has nothing to redirect. Interactive sessions are load, not a source of it. The only lever that raises observed width is crew/clive workers dispatched against the endpoint doing real work.</div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-run-r-20260917T143114088825-serving-lane-relaunch" data-who="reckon-ship" data-when="2026-09-17T14:49:35Z">
+    <div class="r-comment-body"><p>lane up as job 1273074 on the merged 8M/600G profile; real 600-token completion in 6.96s HTTP 200; post-workspace free 37.0-37.2 GiB per card, worst-card 3.66x the 10.11 GiB worst ask against a predicted 1.12x; accept rate 0.37, accept len 2.85; no rollback</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-20260917T1505-drain" data-who="reckon-ship" data-when="2026-09-17T15:05:00Z">
+    <div class="r-comment-body">DRAIN LEDGER — dsv41-serve-tuning-for-concurrency @ 2026-09-17T15:05:00Z\n  f-dsv41tune-02 MoE precision sweep            folded → moe-precision-datapath (resolved on the datapath; bf16 inert on SM90)\n  precision re-test on a real baseline          folded → f-dsv41tune-05 (trigger-gated; direction is open, not predicted)\n  untuned FP8 block kernel config, 44x/launch   folded → f-dsv41tune-05 (companion check, needs no outage)\n  NCCL_DEBUG eight-card NVLink island question  foreign-owner → dsv41-flash-four-card-throughput (f-dsv41tune-04)\n  review finding 1, stale 480G rollback line    folded → profile-rollback-consistency (db092c7)\n  review finding 2, uncited peak premise        folded → profile-rollback-consistency (cited 7c706cf, verified)\n  review finding 3, false test-delta clause     folded → pool-contract-test-repair (+4 waived on the ledger row)\n  merged-result verification, test-repair       folded → crew verify-gate at integrated head, finding null on all three\n  serving recipe prose still says 4M/480G       folded → serving-recipe-doc-drift (in flight)\n  ---\n  rows: 9   foldable-remaining: 0   unreconciled-runs: 0 at the time of writing (one node in flight)\n\nSECTION RECLASSIFICATION. s3 done: the speculative question closed at a monotonic decay from 3.13x at one stream to parity by width 21, then a plateau across eight bins to width 24, no inversion. s4 done: levers 2 and 3 are exactly what landed today, host RAM to 600G and device pool to 8M, merged and verified live. s2 done: its own question is closed. s4b and s8 remain implementable and are the live validation — four peer fleets are generating that traffic now, measured at 14-15 concurrent with queue depth 0 against a 64 ceiling. impl 0.71 → 0.7778 on a declared denominator of 9.\n\nMETHOD NOTE for whoever reads this baseline. Peer interactive sessions are load, not a source of it — one of them is itself served by this lane. Observed width comes only from dispatched fleets, and a dispatch slot is not decode width: efit reports 8 slots that are perhaps 4 sustained streams, because its build-heavy nodes sit inside srun contributing zero. A cross-fleet tally of slots would have overstated concurrency by roughly double, exactly as this session's own sum-of-intentions estimate of 25-28 overstated a measured 14-15.</div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-run-r-20260917T150157272143-serving-recipe-doc-drift" data-who="reckon-ship" data-when="2026-09-17T15:23:07.045Z">
+    <div class="r-comment-body"><p>serving recipe prose now states max_total_tokens 8000000 and memory 600G; the superseded pair returns no match where the base revision returned lines 1683 and 1686; prose only</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-20260917T1530-negativegate" data-who="reckon-ship" data-when="2026-09-17T15:30:00Z">
+    <div class="r-comment-body">FINDING ACCEPTED AND WHY, plus a reckon tooling defect it exposes. `reckon crew verify-gate` reported integrated_verdict FAILED for serving-recipe-doc-drift at the merged head. The finding is SPURIOUS and the gate genuinely holds.\n\nThe node's gate is a NEGATIVE check: `grep -nE "4000000|4,000,000|480G" imas_ambix/agent/AGENTS.md`, which PASSES when it matches nothing and therefore exits 1. The run was promoted with --gate-exit-status 1 stating exactly that. verify-gate re-ran the command, observed exit 1, and applied the conventional exit-zero-is-pass rule, so it inverted the verdict.\n\nVerified at the integrated revision rather than argued: the grep returns no output at HEAD, `git show HEAD:imas_ambix/agent/AGENTS.md | grep -c` for the superseded pair returns 0, and the replacements are present at lines 1684 (max_total_tokens 8000000) and 1687 (memory 600G). The base revision returned lines 1683 and 1686, so the change is real and the negative condition is satisfied.\n\nTHE DEFECT, worth carrying to reckon: verify-gate cannot express an inverted gate. It stores --gate-exit-status on the ledger row but does not use it as the success predicate when re-running, so every negative gate -- a grep for an absence, a check that a banned pattern is gone, a lint that must find nothing -- will produce a false FAILED at the integrated head. The failure mode is the dangerous direction for a different reason than usual: it cries wolf on correct work, which trains a reader to dismiss verify-gate findings, and the next one may be real. The three earlier gates this session were positive checks and returned finding null correctly, so the surface works; it is specifically the inverted predicate that is unhandled.</div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-20260917T2015-pool-reverted" data-who="reckon-ship" data-when="2026-09-17T20:15:00Z">
+    <div class="r-comment-body">POOL REVERTED TO 4M AND CONCURRENCY CAPPED AT 36. Job 1273253, ready 20:00:14Z, verified from the engine rather than the flags: server_args reads precision fp8, max_total_tokens 4000000, max_running_requests 36, with 43 expert layers on CUTLASS W4A8 and zero W4A16. Real 139,322-token generation returned 760 tokens byte-exact.\n\nWHY THE INCREMENT WAS GIVEN BACK. It is not a response to the corruption question, which closed separately on chronology. This lane runs 270 input tokens per output token, so it is prefill-dominated, and prefill is what asks for workspace — three serves have already died on a workspace ask. Tightest free memory per card, from the drain sidecar over the whole of each job:\n  4M pool (job 1272783)  20.72 GiB   2.05x the 10.11 GiB worst measured ask\n  8M pool (job 1273074)  12.60 GiB   1.25x\nThe second 4M bought concurrency this lane cannot convert into throughput — aggregate decode is flat from width 17 to 32, slope +0.09 tok/s per unit width with a CI spanning zero, queue depth 0 at every interval in both configurations — and paid for it with the margin long prefills draw on. THE INCREMENT ITSELF WAS NOT WRONG: it did exactly what b557002 claimed, moving occupancy at width 32 from 83% to 38% with the absolute working set unchanged. It bought insurance against widths this lane never reaches, and the premium turned out to be the wrong currency.\n\nTHE CAP IS NEW AND UNTESTED. 36 sits above the 33-34 peak observed and below the 38-40 fill point, so excess queues rather than evicting. On a flat curve that costs nothing in aggregate, and an explicit bounded wait beats silent eviction because an evicted prefix is re-prefilled. But queue depth has been 0 all day, so the queueing path has never actually run. The graph ceiling matches the cap because it cannot be exceeded once the cap binds, and graphs cost 5.74-5.84 GB per rank at a ceiling of 64.\n\nMEMORY STAYS AT 600G. Sized for the 8M host tier and generous at 4M, but the job's load-time peak already touched 480 GiB, so lowering it is the one change here that would bite.\n\nTHE DRAIN, because the previous one destroyed work. Six consecutive zero samples over three minutes plus three independent confirmations before scancel, with zero requests in flight. The zero BROKE TWICE while counting, at 19:44 and 19:47 with one request each time — a single-sample check would have cut live work on both occasions and looked entirely defensible doing it. All five fleets reached zero on their own; the 148-minute tail I had committed to waiting for finished at 78.</div>
+</div>
+<div class="r-comment" data-section="s7" data-id="c-20260917-the-answer" data-who="reckon-ship" data-when="2026-09-17T10:29:00Z">
+    <div class="r-comment-body">THE ANSWER, on solid bins at both ends of the curve. Enable DSpark. Measured against this lane's own pre-DSpark engine-log baselines, all bins at n&gt;=20: width 1, 111.1 tok/s against 35.5, a ratio of 3.13x on n=40; width 4, 329.8 against 164.2, 2.01x on n=122; width 8, 361.0 against 266.5, 1.35x on n=24; width 22, 377.1 against an interpolated 389.8, about 0.97x on n=28. The gain therefore decays monotonically from just over three times at a single stream to PARITY by width 22, and it does not invert - the large net loss this session twice suspected on thin bins never appeared once the bins were filled. State the width-22 baseline as interpolated between the measured 375.8 at width 16 and 394.4 at width 24, because it is, and parity is a claim inside that interpolation's uncertainty rather than a measured equality. The recommendation follows from the duty cycle rather than from any single width: this lane spends two consecutive hours a day at zero concurrent and peaks near a median of 29, so it lives at both ends of this curve. A lever worth 3.13x when the lane is narrow and costing nothing when it is wide is worth enabling, and the honest form of the claim is that its value is concentrated at low width rather than that it is worth 1.5 to 2x everywhere - which is what section 7 predicted and is not what the lane does. The mechanism is visible in the same data: mean accept length is 4.64 at width 2 and falls monotonically to 3.72 by width 21, so the drafter gets less accurate exactly as the expert union grows, and the two terms compound rather than offset.</div>
+</div>
+<div class="r-comment" data-section="s7" data-id="c-20260917-high-width-closed" data-who="reckon-ship" data-when="2026-09-17T10:48:00Z">
+    <div class="r-comment-body">HIGH WIDTH CLOSED, on eight consecutive bins spanning the lane's actual operating point. Widths 21 through 28 read 1.03, 0.95, 1.01, 0.98, 0.97, 0.97, 0.95 and 0.99 against interpolated baselines, with 21 to 24 carrying 20, 38, 27 and 27 intervals and 25 to 28 carrying 11, 15, 18 and 9. The lane's own duty cycle peaks at a median of 29 concurrent, so this band IS the operating point rather than an extrapolation toward it. Three claims are now settled and one is retired. Settled: the speculative gain decays monotonically from 3.13x at a single stream to parity by width 21; it holds parity rather than inverting, across eight widths and roughly 170 intervals; and it does not recover at high width. Retired: the refit's predicted recovery to 1.93x at width 34 - the measured band sits either side of unity with no upward trend at all, and the two isolated outliers, 0.77x at width 29 on n=6 and 0.34x at width 31 on n=1, are thin bins rather than the onset of a decline. So the final shape is a decay to parity and a plateau there, which is neither model's prediction: the original expected a trough at 8 and a recovery, the refit expected a shallow dip and a recovery, and the lane does neither. A separate reading that matters for section 4: at width 30 the device pool is at 79 percent of 4,000,000 tokens, which puts the binding point near 38 concurrent and is within the duty cycle's own peak. That is the strongest justification yet for the pool doubling - not headroom for a hypothetical width, but a bound the lane reaches on an ordinary evening.</div>
+</div>
+<div class="r-comment" data-section="§4b" data-id="c-run-r-20260917T094626859296-decode-log-harvester" data-who="reckon-ship" data-when="2026-09-17T10:48:04.045Z">
+    <div class="r-comment-body"><p>Reusable Decode-batch harvester landed as imas_ambix/agent/decode_bins.py with 13 tests: per-width interval counts, median generation rate and median accept length, each split by an ascending or descending limb derived from the width trajectory rather than from the line. Finding: the descending median exceeds the ascending one at ALL 20 widths carrying both limbs, from width 3 upward - a large consistent hysteresis whose mechanism the harvest deliberately does not claim to settle</p></div>
+</div>
+<div class="r-comment" data-section="§4b" data-id="c-run-r-20260917T161651054548-decode-plateau-confirmation" data-who="reckon-ship" data-when="2026-09-17T18:11:19.545Z">
+    <div class="r-comment-body"><p>DELIVERED 4 of 5 analyses and the verdict: throughput FLAT across widths 17-32, 4M slope +0.09 tok/s/width CI [-2.00,+2.69] spanning zero, both n&gt;=20 fits negative, queue-req 0 at every width in both jobs; limb hysteresis reproduced 15/15 widths +10.3%; occupancy table shows the ABSOLUTE working set unchanged (3.31M vs 3.01M tokens at width 32) with only the denominator doubled. NOT delivered: the figure and item 5, the explicit fp8 baseline table. It also corrected the brief's false premise that the two jobs ran on different days and refused to read 4M-vs-8M as a pool effect. MALFORMED: I budgeted five analyses plus a figure at 40m; it ran 114m and I stopped it to clear the drain.</p></div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-run-r-20260917T130446323429-load-log-tuning-audit" data-who="reckon-ship" data-when="2026-09-17T13:14:04.190Z">
+    <div class="r-comment-body"><p>11/11 settings decided: 9 leave-unchanged, 2 not-determinable; 2906 decode intervals widths 1-32, queue depth 0 at all of them, 250/3676 prefill batches clamped at 16384, tightest per-card free 21217 MiB of 143771</p></div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-run-r-20260917T134540645632-review-of-load-log-tuning-audit" data-who="reckon-ship" data-when="2026-09-17T14:01:44.953Z">
+    <div class="r-comment-body"><p>review parsed, five dimensions, total 89, 3 findings</p></div>
+</div>
+<div class="r-comment" data-section="s4b" data-id="c-20260917T1605-limbnotes" data-who="reckon-ship" data-when="2026-09-17T16:05:00Z">
+    <div class="r-comment-body">PEER-FLEET LIMB NOTES for the post-increment baseline are at /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/peer-fleet-limb-notes.md. Whoever runs f-dsv41tune-05 must read it before binning anything: the fleets report in DIFFERENT CLOCKS and merging them as written corrupts the limb structure this section exists to measure.\n\nnova's stamps are genuine UTC; imas-efit-75's carry the same Z suffix but are CEST, two hours off. Established rather than assumed — the wall clock read 16:03:49Z / 18:03:49 CEST while efit's reported ascent at '16:51Z' would have been 48 minutes in the future, and nova's 16:02Z retirement had just occurred. The two fleets ascended within FOUR MINUTES of each other; merged as written, efit's wave lands two hours after nova's and manufactures a descending limb for nova out of efit's concurrent ascent. That is the exact finding the section is testing, so the error would be self-confirming.\n\nThe file also carries: nova's retirement CAUSES (a session exhausted after 39k stream records, closed as a partial and not a lane stall; a clean park on two all_debug jobs) which a bare width drop would misattribute; efit's composition, where 8 slots are perhaps 4 sustained streams because four build-heavy nodes sit inside srun contributing zero, plus its warning that those four will retire in a cluster and produce a sharp but genuine descending limb; and imas-codex's pre-increment ledger at ~/public/imas-codex/s14-run-ledger.jsonl, whose 69 clive rows ALL close before the 14:43Z relaunch and are therefore the old 4M-pool arm rather than current data, with post-increment rows deliberately kept in a separate file.\n\nAlso recorded there: a real gap in codex contribution between roughly 14:50Z and 15:15Z caused by three dispatches that never launched, so a dip in that window is not the lane.</div>
+</div>
+<div class="r-comment" data-section="s4b" data-id="c-20260917T1915-precision-arm" data-who="reckon-ship" data-when="2026-09-17T19:15:00Z">
+    <div class="r-comment-body">PRECISION ARM MEASURED AND REVERTED. Job 1273217 held W4A16 (`flashinfer_mxfp4_moe_precision = default`) against the W4A8 baseline of jobs 1272783 and 1273074, one variable, pool at 8M and memory at 600G held fixed. The arm was confirmed at the kernel level rather than from the flag: the engine's own server_args read 'default' AND 43 expert layers logged CUTLASS W4A16 against zero W4A8. That check matters because the morning's precision probe established that a legal flag value can be inert on SM90 — bf16 resolves to the identical kernel call as default there.\n\nINSTRUMENT. Uncached full-chunk prefill: batches carrying 16384 new tokens and ZERO cached, binned on concurrent #running-req. Chosen because every other bucket measures the cache rather than the kernel — at 256 new tokens the cached fraction is 0.996 and reported throughput reaches 345,000 tok/s. The bucket proved robust to traffic composition: within 7% across five hours of radically different fleet mix, and within 2.3% from 1 to 30 concurrent. That robustness is what made the arm valid despite imas-efit contributing nothing to it.\n\nRESULT, matched concurrency:\n  conc 0 (idle)   W4A16 8,726 (n=12)  W4A8 11,034 (n=11)  -20.9%\n  conc 1-9        W4A16 8,427 (n=78)  W4A8  8,519 (n=67)   -1.1%\n  conc 10-19      W4A16 8,618 (n=26)  W4A8  8,768 (n=125)  -1.7%\n  conc 20-29      not reached         W4A8  8,534 (n=146)      -\n\nSo W4A8 leads ONLY when the machine is idle, on the thinnest samples in the set, and the two are indistinguishable under any real load. fp8 restored because it is never worse.\n\nSCOPE OF THE CLAIM, and this is a correction to how the coordinator first wrote it. The result is PREFILL. The conclusion was initially recorded as 'the lever does nothing at the operating point', which is a claim about the lever and broader than the evidence. The profile cites TWO published comparables: 1.38-1.53x single-request prefill, and separately +12% OUTPUT throughput (decode). Only the prefill half was tested. The decode comparison had two matched widths with n&gt;=8 and they contradicted each other (+0.4% at width 17, -18.0% at width 18), so decode is UNTESTED RATHER THAN ANSWERED. The 2.04x-at-32-concurrent claim is likewise untested, because the 20-29 bin was never reached.\n\nWHAT WAS LEARNED ABOUT METHOD, because it nearly cost the experiment. Reading the profile's own comment BEFORE flipping is what redirected this from decode to prefill; a decode-side A/B would have produced a clean, well-instrumented NULL about a lever aimed somewhere nobody looked, and it would have been banked. And the first measurement taken on the new arm — an identical 139,322-token payload, 53.09 s on fp8 against 22.49 s on default, a paired 2.36x — was entirely an artifact of the fp8 run competing with 15-30 concurrent requests while the default run had a freshly drained lane. The engine's own per-batch figure pointed the other way. A comparison is only paired in the dimensions actually held fixed, and lane occupancy is one of them.</div>
+</div>
+<div class="r-comment" data-section="s9" data-id="c-run-r-20260918T090512367402-serve-tuning-plateau-evidence" data-who="reckon-ship" data-when="2026-09-18T09:41:32.786Z">
+    <div class="r-comment-body"><p>Re-landed the decode-plateau evidence section and its throughput-vs-width figure, which existed only inside a detached worktree and were absent from every reachable revision. Both artifacts are byte-identical to the orphaned lineage's blobs (7c6c2084, ee18957d); audit-doc OK with zero ERRORs at the merged head.</p></div>
+</div>
+</section>
+</main>
+</body>
+</html>

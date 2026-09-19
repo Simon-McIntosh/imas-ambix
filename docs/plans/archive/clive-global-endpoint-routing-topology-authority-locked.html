@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="clive-global-endpoint-routing-topology-authority-locked">
+  <meta name="plan-title" content="Topology Authority — Locked State Before Reopening">
+  <meta name="plan-summary" content="Frozen snapshot of topology-authority as locked on 2026-08-26, before the 2026-09-14 reopen">
+  <meta name="plan-status" content="archived">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-tags" content="agent-serving,gpu-deployment">
+  <title>Topology Authority — Locked State Before Reopening | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="r-doc">
+  <h1>Topology Authority — Locked State Before Reopening</h1>
+  <p>Immutable snapshot of the <code>topology-authority</code> decision on
+  <a href="/imas-ambix/plans/clive-global-endpoint-routing">clive-global-endpoint-routing</a>
+  as it stood at plan version 50, taken before the decision was reopened and
+  re-locked on 2026-09-14. Recorded so the superseded contract stays readable
+  rather than being overwritten.</p>
+
+  <h2 id="s1">§1 · The decision as locked on 2026-08-26</h2>
+  <table>
+    <thead><tr><th>Field</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td>Key</td><td><code>topology-authority</code></td></tr>
+      <tr><td>Question</td><td>Where does the 2×, 4×, 6×, or 8× H200 distinction come from?</td></tr>
+      <tr><td>Choice</td><td><code>server-catalog-metadata</code></td></tr>
+      <tr><td>Rationale</td><td>From site-owned metadata in the global model response, separate from the release model id and never inferred client-side.</td></tr>
+      <tr><td>Locked by</td><td>Simon McIntosh, 2026-08-26</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="s2">§2 · Why it was reopened</h2>
+  <p>The choice was implemented by injecting launch-owned metadata into the
+  serving process as <code>AMBIX_VLLM_CATALOG_METADATA</code> and having the
+  engine echo it back through <code>/v1/models</code>. The engine contributed no
+  knowledge: it was a courier for data the launcher already owned and already
+  wrote to the serve's <code>ServeRegistration</code> at the same moment, from
+  the same profile.</p>
+  <p>Because the echo depended on an ASGI middleware that only vLLM accepts, an
+  engine without that channel could be healthy, serving and answering tool calls
+  while every consumer refused it. The wording — <em>in the global model
+  response</em> — was therefore load-bearing in a way its stated reason was not:
+  the reason required only that the metadata be site-owned and never inferred
+  client-side, which a registration written by the serve satisfies.</p>
+  <p>The superseding decision keeps the protection and drops the transport. See
+  the live plan for the re-locked choice and its rationale.</p>
+</main>
+</body>
+</html>

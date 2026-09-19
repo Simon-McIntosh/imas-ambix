@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 # -- Model identity ----------------------------------------------------------
 
@@ -80,6 +80,42 @@ class ParsersConfig(BaseModel):
     reasoning: str | None = None
 
 
+class ContainerBind(BaseModel):
+    """A read-only repository file mounted at an image path for a serve."""
+
+    source: str
+    target: str
+
+    @model_validator(mode="after")
+    def _bind_paths_are_unambiguous(self) -> ContainerBind:
+        """Require a repository-relative source and an absolute image target."""
+        source = Path(self.source)
+        if source.is_absolute() or ".." in source.parts:
+            raise ValueError("container bind source must be repository-relative")
+        if not Path(self.target).is_absolute():
+            raise ValueError("container bind target must be absolute")
+        return self
+
+
+class ContainerConfig(BaseModel):
+    """Serve this model from a container image instead of an engine venv.
+
+    Some architectures land in an engine's main branch well before they reach a
+    released wheel, and the shared engine environments track releases. Declaring
+    an image here routes the serve through ``apptainer exec --nv`` against
+    :attr:`sif_path`, leaving every other profile on the venv path untouched.
+
+    :attr:`image` is the upstream reference the SIF was built from. It is
+    recorded so a deployment can say what it is running rather than only where
+    the file sits; the serve reads :attr:`sif_path` and never pulls, because the
+    GPU node has no egress.
+    """
+
+    image: str
+    sif_path: str
+    binds: list[ContainerBind] = []
+
+
 class EngineConfig(BaseModel):
     """Inference engine configuration.
 
@@ -91,20 +127,125 @@ class EngineConfig(BaseModel):
     - ``"vllm"`` — vLLM native serving.
     """
 
+    # A misspelled or unsupported key is a configuration error, not something
+    # to drop. Pydantic's default is to ignore extras, which meant a profile
+    # could declare a flag the engine never received and read as configured --
+    # measured with DSpark, where the serve would have run without speculative
+    # decoding while the profile said otherwise.
+    model_config = ConfigDict(extra="forbid")
+
     type: Literal["ktransformers", "sglang", "vllm"]
     tensor_parallel: int = 4
+    # Engine replicas sharing the cards, vLLM's ``--data-parallel-size``. The
+    # card count is tensor_parallel * data_parallel, so 2 and 2 fill four cards
+    # with two replicas rather than one four-wide engine.
+    #
+    # It exists because this serve is step-budget-bound rather than
+    # pool-bound: one engine serialises every request's prefill and decode into
+    # a single step budget, so a long prefill chunk starves decode for every
+    # concurrent session. Replicas give that budget once each.
+    #
+    # On a MoE with ``enable_expert_parallel``, expert weights stay sharded
+    # across all ranks rather than being duplicated per replica, so this does
+    # NOT cost the KV pool the way running separate serves would. Replicas do
+    # synchronise at the MoE all-to-all and idle ranks are padded with dummy
+    # batches, so the independence is partial and the gain has to be measured
+    # rather than assumed. 1 keeps a single engine.
+    data_parallel: int = 1
+    # Expert-parallel width for SGLang's ``--ep-size``. Distinct from
+    # ``enable_expert_parallel`` below, which is vLLM's boolean switch. A MoE
+    # layer with hundreds of routed experts is sharded by this rather than by
+    # tensor parallelism; ``None`` keeps the SGLang default. SGLang-only.
+    ep_size: int | None = None
     mem_fraction_static: float = 0.90
     attention_backend: str = "flashinfer"
     trust_remote_code: bool = True
     enable_mixed_chunk: bool = True
     enable_p2p_check: bool = True
     chunked_prefill_size: int = 32768
+    # SGLang queues requests beyond this engine-side running bound rather than
+    # rejecting them when its queue limit remains unset. ``None`` preserves the
+    # engine default. SGLang-only.
+    max_running_requests: int | None = None
     cuda_graph_max_bs: int | None = None
+    # Separate decode-side CUDA-graph batch ceiling
+    # (``--cuda-graph-max-bs-decode``). Architectures that split prefill and
+    # decode into different graphs size them independently; ``None`` keeps the
+    # SGLang default. SGLang-only.
+    cuda_graph_max_bs_decode: int | None = None
+    # Bounded replay on the decoder half of an encoder-decoder stack
+    # (``--enable-decoder-swa-bounded-replay``). Measured by the vendor at 1.56x
+    # prefill throughput on 8xH200 for DeepSeek-V4.1. SGLang-only.
+    enable_decoder_swa_bounded_replay: bool = False
+    # Publish SGLang's Prometheus endpoint (``--enable-metrics``). SGLang
+    # defaults this off; vLLM exposes metrics by default and does not consume
+    # this setting.
+    enable_metrics: bool = False
+    # SGLang speculative decoding. Distinct from the vLLM ``speculative_method``
+    # family below, which emits --speculative-config; SGLang takes
+    # --speculative-algorithm and its own per-algorithm options. Keeping both
+    # names is deliberate: a profile that set the vLLM key on an SGLang engine
+    # would silently emit nothing. SGLang-only.
+    speculative_algorithm: str | None = None
+    speculative_dspark_block_size: int | None = None
     disable_cuda_graph: bool = False
     disable_piecewise_cuda_graph: bool = False
     disable_custom_all_reduce: bool = False
+    # Per-request context the ENGINE enforces (``--context-length``), distinct
+    # from max_total_tokens, which is the shared pool across requests. Set this
+    # below the model's native window when the native window is not reachable
+    # in practice: the MXFP4 fused-MoE prefill workspace grows with prefill
+    # length, so a request far inside the advertised context can still exhaust
+    # the card. Capping at the engine turns that from an OOM that kills the
+    # serve into a clean refusal of one request. ``None`` keeps the model's own
+    # value. SGLang-only.
+    context_length: int | None = None
     max_total_tokens: int | None = None
-    moe_runner_backend: Literal["auto", "triton", "triton_kernel"] | None = None
+    # Keep evicted reusable prefix pages in pinned host RAM. SGLang's
+    # ``hicache_ratio`` is the host-to-device KV-pool ratio; a configured
+    # ratio is preferable to its engine default because it makes the host-RAM
+    # reservation reviewable with the profile. DeepSeek-V4's hybrid cache does
+    # not support a fixed ``hicache_size`` and rejects that option.
+    enable_hierarchical_cache: bool = False
+    hicache_ratio: float | None = None
+    hicache_write_policy: Literal[
+        "write_back", "write_through", "write_through_selective"
+    ] = "write_through"
+    hicache_mem_layout: Literal[
+        "layer_first",
+        "page_first",
+        "page_first_direct",
+        "page_first_kv_split",
+        "page_head",
+    ] = "page_first"
+    # Let the engine size the KV pool from the memory actually left after
+    # weights, instead of passing a figure. ``max_total_tokens`` otherwise
+    # falls back to the model's full context, which is a per-request limit and
+    # a poor pool size -- it makes one full-context request consume everything.
+    # Sizing it by hand means extrapolating a per-token cost that is mostly a
+    # fixed base, so the engine's own allocator is the better estimator.
+    # SGLang-only; ignored when ``max_total_tokens`` is set.
+    auto_size_kv_pool: bool = False
+    # ``flashinfer_mxfp4`` is what keeps MXFP4 routed experts at their shipped
+    # precision on SM90, where there are no FP4 tensor cores — without it the
+    # experts need an FP8 conversion pass and a second checkpoint.
+    moe_runner_backend: (
+        Literal["auto", "triton", "triton_kernel", "flashinfer_mxfp4"] | None
+    ) = None
+    # Computation precision inside the FlashInfer MXFP4 MoE runner. ``default``
+    # upcasts activations to BF16, which is the only thing SM90 can do with a
+    # 4-bit weight through that path; ``fp8`` selects the Humming-style
+    # MXFP4-weight x FP8-activation kernels, reaching the FP8 tensor cores
+    # Hopper does have. It needs FlashInfer >= 0.6.18 -- the serving container
+    # carries exactly 0.6.18, so the floor is met rather than exceeded, and a
+    # container rebuild below that version silently reverts the path.
+    #
+    # This is a prefill lever, which is what makes it worth the field: measured
+    # on real agent traffic, 99.4% of this deployment's token work is prefill
+    # (270 input tokens per output token at a mean prompt of 83,814), so the
+    # dequantisation cost sits on the dominant term. Only meaningful alongside
+    # ``moe_runner_backend = "flashinfer_mxfp4"``.
+    flashinfer_mxfp4_moe_precision: Literal["default", "bf16", "fp8"] | None = None
     # CLI flag is `--fp8-gemm-backend` but the ServerArgs attribute
     # SGLang uses internally is `fp8_gemm_runner_backend`; mirror the
     # internal name here. Allowed values match SGLang's argparse.
@@ -147,6 +288,16 @@ class EngineConfig(BaseModel):
     # available HBM. Only forwarded for the vLLM engine type.
     max_num_seqs: int | None = None
     max_num_batched_tokens: int | None = None
+    # Host-RAM buffer for evicted prefix blocks, in GiB summed across tensor
+    # ranks. Unset means vLLM recomputes an evicted prefix from scratch, which
+    # is what makes a shared agent lane self-defeating: the recomputation is
+    # itself what evicts the next session's prefix. Measured 2026-09-15 on the
+    # four-card serve -- 22,557 tok/s of prefill against 190 of generation, of
+    # which 18,863 tok/s was recomputation, and a 2,200,283-token pool turning
+    # over completely every 98 s against turn gaps of about the same length.
+    # Restoring a block over PCIe costs far less than a forward pass through
+    # 284B parameters.
+    kv_offloading_size: float | None = None
     # vLLM Multi-Token-Prediction (MTP) speculative decoding. When
     # ``speculative_method`` is set, the serve command emits
     # ``--speculative-config.method`` and
@@ -180,7 +331,22 @@ class EngineConfig(BaseModel):
     # FlashInfer top-k kernel on this H200 + vLLM build. Values are stringified.
     env: dict[str, str] = {}
     ktransformers: KTransformersConfig | None = None
+    container: ContainerConfig | None = None
     parsers: ParsersConfig = ParsersConfig()
+
+    @model_validator(mode="after")
+    def _parallelism_is_positive(self) -> EngineConfig:
+        """Refuse a parallel width below one rather than silently clamping it.
+
+        Both widths multiply into the card count, so a zero or negative value
+        would produce a request for no cards or a nonsensical one, and pydantic
+        would otherwise carry it to the engine untouched.
+        """
+        if self.tensor_parallel < 1:
+            raise ValueError("tensor_parallel must be at least 1")
+        if self.data_parallel < 1:
+            raise ValueError("data_parallel must be at least 1")
+        return self
 
     @model_validator(mode="after")
     def _absent_speculation_is_none(self) -> EngineConfig:
@@ -370,7 +536,15 @@ class SiteConfig(BaseModel):
             default_port=int(os.environ.get("AMBIX_AGENT_PORT", "18800")),
             gpu_host=os.environ.get("AMBIX_AGENT_GPU_HOST", "98dci4-gpu-0003"),
             global_origin=os.environ.get(
-                "AMBIX_AGENT_GLOBAL_URL", "http://98dci4-gpu-0003:18800"
+                # The ROUTER, not a serve port. This origin is baked into the
+                # generated clive launcher as ANTHROPIC_BASE_URL, so it must
+                # name the multi-engine front door rather than whichever serve
+                # happened to hold 18800 when the default was written. It had
+                # gone stale exactly that way: `clive --list` kept working
+                # because it reads the endpoint document, while a clive session
+                # dialled a dead port and failed with unrecognized_model.
+                "AMBIX_AGENT_GLOBAL_URL",
+                "http://98dci4-gpu-0003:18802",
             ),
             endpoint_document_path=os.environ.get(
                 "AMBIX_AGENT_ENDPOINT_DOCUMENT", _default_endpoint_document_path()
@@ -386,11 +560,11 @@ class SiteConfig(BaseModel):
     def _engine_key(self, engine_type: str) -> str:
         """Map engine type to venv directory name.
 
-        ``ktransformers`` shares the ``sglang`` venv since it runs
-        as an SGLang plugin.
+        Every engine type names its own environment. ``ktransformers`` runs as
+        an SGLang plugin but is NOT served from the ``sglang`` environment:
+        its ``kt-kernel`` dependency publishes cp312 wheels only, and sharing
+        the environment would pin SGLang to that interpreter too.
         """
-        if engine_type == "ktransformers":
-            return "sglang"
         return engine_type
 
     def env_dir(self, engine_type: str) -> Path:
@@ -551,7 +725,7 @@ def load_profile(slug: str) -> ModelProfile:
     """Load and validate a model profile by slug.
 
     Variant profiles that declare ``_base = "<other-slug>"`` inherit all
-    settings from the named profile and override only the keys they specify.
+    values from the named profile and override only the keys they specify.
     The ``model.weights_slug`` field is automatically set to the root-of-chain
     slug so that ``SiteConfig.model_dir()`` resolves to the correct weights
     directory without re-downloading.

@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="dsv41-flash-serve-characterisation">
+  <meta name="plan-title" content="DSv4.1-Flash Serve Characterisation">
+  <meta name="plan-summary" content="Retired: the V4.1-Flash serve this characterised was withdrawn from the four-card deployment">
+  <meta name="plan-status" content="done">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort-hours" content="5.0">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="orchestrator">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-capability-risk" content="moderate">
+  <meta name="plan-sprint" content="S24">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-tags" content="agent-serving,gpu-deployment">
+  <title>DSv4.1-Flash Serve Characterisation | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-09-18">
+<meta name="plan-version" content="9">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;}">
+<meta name="plan-commits" content="c9138c7,1331ec1,e24d5d2">
+<meta name="plan-artifacts" content="docs/evidence/archive/dsv41-flash-serve-characterisation-landed.html,/work/projects/imas_gpu/agents/bench/dsv41_sweep.py,imas_ambix/agent/profiles/deepseek-v4-1-flash.toml">
+<meta name="plan-impl" content="1.0">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — What is deployed, and the one number we have</h2>
+    <p>DeepSeek-V4.1-Flash serves on four H200 cards at TP4/EP4, port 18810,
+    behind the router on 18802, with the launcher listing it. The deployment
+    itself is settled and recorded in
+    <a href="/imas-ambix/plans/clive-global-endpoint-routing">clive-global-endpoint-routing</a>;
+    this plan is about what it actually delivers under load.</p>
+
+    <p>The single measurement taken so far is a single-stream decode sweep, and
+    it is the reason this plan exists:</p>
+
+    <table>
+      <thead><tr><th>Output tokens</th><th>Decode tok/s</th><th>TTFT (ms)</th></tr></thead>
+      <tbody>
+        <tr><td>128</td><td>34.7</td><td>131</td></tr>
+        <tr><td>512</td><td>34.4</td><td>131</td></tr>
+        <tr><td>1024</td><td>34.4</td><td>131</td></tr>
+        <tr><td>2048</td><td>34.3</td><td>132</td></tr>
+        <tr><td>2689</td><td>34.3</td><td>133</td></tr>
+      </tbody>
+    </table>
+
+    <p>Flat at <strong>34.4 tok/s</strong> with a 131 ms time-to-first-token.
+    The DeepSeek beta reported 300&ndash;507 tok/s, on their own serving stack.
+    A single-stream figure and an aggregate figure are not comparable, which is
+    precisely why §2 exists &mdash; but a 9&times; gap is large enough that it
+    should not be assumed away as a concurrency artefact before it is measured.</p>
+
+    <p>Three candidate causes, in the order they are cheap to test: speculative
+    decoding is off (§3), the MXFP4 experts run through a dequantisation path
+    rather than native FP4 tensor cores because H200 is SM90, and the Engram
+    tables are gathered from host memory rather than HBM. Only the first is a
+    setting; the other two are properties of running this checkpoint on Hopper.</p>
+
+    <section id="s2" class="section-landed">
+      <header><span class="badge badge-shipped">&#10003; landed 2026-09-14</span>
+        <h2>&sect;2 &mdash; Concurrency sweep</h2></header>
+      <p class="landed-summary">Swept concurrency 1&ndash;32 against serve 1270323 at a
+        14,999,808-token pool. Per-stream holds 33.5&ndash;33.6 tok/s to concurrency 4
+        while aggregate scales linearly to 134.1; beyond 8 per-stream falls as
+        1/concurrency (24.7 / 17.0 / 11.0) while aggregate climbs to 350.8 and has not
+        saturated. Knee at 4; fleet sizing 4&ndash;8. Survived 32-way with zero OOM, then
+        10/10 health probes over a ten-minute soak. Full record:
+        <a href="/imas-ambix/evidence/archive/dsv41-flash-serve-characterisation-landed#s2">&sect;2 landed</a>.</p>
+    </section>
+
+    <section id="s3" class="section-landed">
+      <header><span class="badge badge-shipped">&#10003; landed 2026-09-14</span>
+        <h2>&sect;3 &mdash; DSpark speculative decoding</h2></header>
+      <p class="landed-summary">Withdrawn, and never measured, because it cannot start on
+        this topology: DSpark wants ~12 GiB per card of workspace and OOMed at every usable
+        pool &mdash; 12.00 GiB asked against 1.3 GiB free at 15M, and against 7.6 GiB free at
+        the smallest load-proven 3.49M. The pool cannot fund a 4.4 GiB gap at ~16 GiB fixed
+        plus ~1.6 KiB/token. Recorded in the profile as not to re-enable without more cards
+        or smaller experts. Full record:
+        <a href="/imas-ambix/evidence/archive/dsv41-flash-serve-characterisation-landed#s3">&sect;3 landed</a>.</p>
+    </section>
+
+    <h2 id="s4">§4 — Dogfood through clive workers</h2>
+    <p>Synthetic benchmarks measure token rates; they do not measure whether the
+    deployment is usable for the work it exists to do. Drive real agent
+    workloads through <code>clive</code> against this endpoint and record what
+    breaks.</p>
+
+    <p>Agent traffic differs from the benchmark in ways that matter: long and
+    growing contexts rather than a fixed 12-token prompt, tool calls in a loop,
+    structured output, and bursty concurrency. The tool-calling path has been
+    verified once by hand &mdash; a call and its result round trip correctly
+    &mdash; but never under sustained multi-turn load.</p>
+
+    <p><strong>Done when:</strong> several clive workers have completed real
+    tasks against the endpoint, with observed failure modes, context-growth
+    behaviour and tool-call reliability recorded; and any defect found is either
+    fixed or carried as a followup naming it.</p>
+
+    <h2 id="s5">§5 — Serving interpreter: split kt-kernel out, then move to 3.14</h2>
+    <p>The repository targets Python 3.14 and Ruff formats to it, which rewrites
+    exception tuples into PEP 758's unparenthesised form. The serving venv is
+    3.12, where that form is a <code>SyntaxError</code>. The repository's own
+    guidance records this as having recurred three times; it recurred a fourth
+    time on 2026-09-14 when a directory-scoped formatter run rewrote the vLLM
+    middleware modules, which would have broken every vLLM serve at import.</p>
+
+    <p>Moving the serving environment to 3.14 removes the whole class rather than
+    documenting it again. Upstream permits it: PyTorch publishes cp314 wheels,
+    SGLang requires only <code>&gt;=3.10</code>, and vLLM allows
+    <code>&lt;3.15</code>. The blocker is local &mdash; a 3.14 sync fails with:</p>
+
+    <pre>all versions of kt-kernel have no wheels with a matching Python version tag (e.g., `cp314`)
+hint: Wheels are available for `kt-kernel` (v0.7.0.post4) with ABI tag: `cp312`</pre>
+
+    <p><code>kt-kernel</code> belongs to KTransformers CPU offload, and
+    <code>SiteConfig._engine_key</code> maps the <code>ktransformers</code> engine
+    onto the <code>sglang</code> venv, so one environment must satisfy both. Plain
+    SGLang serving does not need the kernel at all.</p>
+
+    <p><strong>Done when:</strong> the decision below is locked, the split (or
+    its alternative) is implemented, a 3.14 environment builds and passes its
+    runtime verification, and no serving-loaded module fails to parse under the
+    interpreter that will run it.</p>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="kt-kernel-split" data-choice="separate-ktransformers-env" data-by="" data-when="2026-09-14T09:08:15+00:00">
+    <p class="r-dec-q">How should the serving environment reach Python 3.14 when kt-kernel is cp312-only?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="separate-ktransformers-env">separate-ktransformers-env</button>
+      <button class="r-opt" data-value="kt-kernel-optional-extra">kt-kernel-optional-extra</button>
+      <button class="r-opt" data-value="stay-on-3-12">stay-on-3-12</button>
+      </p>
+    <p class="r-dec-rat">Give the ktransformers engine its own environment so the sglang environment can move to Python 3.14 on its own schedule. The shared venv exists only because SiteConfig._engine_key maps ktransformers onto sglang, and that mapping now couples the engine actually serving production traffic to kt-kernel&#x27;s cp312-only wheels. Rejected kt-kernel-optional-extra: one environment would resolve at 3.14, but the KT profiles then need an install step outside the declared dependencies, which is the kind of thing that is forgotten and then diagnosed as a broken environment. Rejected stay-on-3-12: free today, and it leaves armed a trap that has fired four times -- the repository formats to PEP 758 syntax the 3.12 serving interpreter cannot parse, most recently rewriting the vLLM middleware modules in a way that would have broken every vLLM serve at import. Accepted cost: a second engine environment of roughly 9 GiB, which is the price of letting the live engine move without waiting on a legacy kernel&#x27;s wheel matrix.</p>
+    </div>
+</section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-dsc-001" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-09-14" data-recommends-skill="/reckon-ship dsv41-flash-serve-characterisation §2" data-resolved-at="2026-09-14T10:11:22+00:00" data-resolved-by="reckon-ship">
+    <h4 class="r-fu-title">Sweep concurrency and settle DSpark</h4>
+    <div class="r-fu-body"><p>§2 and §3 together, because they share an instrument and each answers the other's question: the sweep is meaningless without knowing whether speculative decoding is on, and DSpark cannot be judged from a single-stream figure alone. Run <code>imas-ambix agent bench --category concurrency</code> against the live endpoint, then repeat with DSpark enabled, and keep whichever configuration wins at the concurrency the lane actually sees.</p><p>The single-stream baseline to beat is 34.4 tok/s at 131 ms TTFT.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship dsv41-flash-serve-characterisation §2</pre>
+    <p class="r-fu-outcome"><p>Both settled. <strong>§2 concurrency sweep:</strong> the knee is at 4 — per-stream holds at 33.5-33.6 tok/s to concurrency 4 while aggregate scales linearly to 134.1, then per-stream falls as 1/concurrency (24.7 / 17.0 / 11.0 at 8 / 16 / 32) while aggregate keeps climbing to 350.8 and has still not saturated. Fleet sizing that follows is 4-8 concurrent workers.</p><p><strong>§3 DSpark: withdrawn, not measured, because it cannot start.</strong> It wants ~12 GiB per card of workspace and OOMed at every usable pool — asking 12.00 GiB with 1.3 GiB free at a 15M pool and with 7.6 GiB free at the smallest load-proven 3.49M pool. The pool cannot be shrunk to close a 4.4 GiB gap because its cost is ~16 GiB fixed plus ~1.6 KiB/token. Consistent with prior V4-Flash experience; recorded in the profile as not to be re-enabled without more cards or smaller experts.</p><p>Full record with the pool-sizing lesson and the withdrawn W4A16 reasoning: <a href="/imas-ambix/evidence/archive/dsv41-flash-serve-characterisation-landed">landed evidence</a>. Chain continues at §4 and §5.</p></p>
+    </article>
+<article class="r-fu" data-id="f-dsc-002" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-tool-autonomy="autonomous" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-09-14" data-recommends-skill="/reckon-ship dsv41-flash-serve-characterisation §4" data-resolved-at="2026-09-14T18:46:25+00:00" data-resolved-by="imas-ambix-92">
+    <h4 class="r-fu-title">Dogfood the endpoint with clive workers</h4>
+    <div class="r-fu-body"><p>§4. Drive real agent tasks through <code>clive</code> against this endpoint rather than synthetic prompts, and record what breaks: context growth, tool-call reliability across many turns, structured output, and behaviour under bursty concurrency. The tool path is verified once by hand and never under sustained load.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship dsv41-flash-serve-characterisation §4</pre>
+    <p class="r-fu-outcome"><p>Not done against this subject, and it should not be. The V4.1-Flash serve this plan characterises was taken down on 2026-09-14 by operator decision: the checkpoint is not suited to four cards and needs eight. The four-card deployment reverted to <code>deepseek-v4-flash</code>, so §4's endpoint no longer exists.</p><p>Dogfooding did happen, at greater scale than this section imagined, but against V4-Flash: four projects ran 26 concurrent live workers through the router on real work. Those findings live in <code>imas_ambix/agent/AGENTS.md</code> §3c rather than here, because they describe a different serve.</p></p>
+    </article>
+<article class="r-fu" data-id="f-dsc-003" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-09-14" data-recommends-skill="/reckon-ship dsv41-flash-serve-characterisation §5" data-resolved-at="2026-09-18T13:29:36+00:00" data-resolved-by="reckon-ship">
+    <h4 class="r-fu-title">Split kt-kernel out and move the serving venv to 3.14</h4>
+    <div class="r-fu-body"><p>§5, gated on the <code>kt-kernel-split</code> decision. A 3.14 sync fails today because kt-kernel ships cp312 wheels only and the ktransformers engine shares the sglang venv. Upstream allows 3.14 across PyTorch, SGLang and vLLM, so the constraint is local.</p><p>This removes a defect class rather than a defect: the repository formats to py314 syntax that the 3.12 serving interpreter cannot parse, which has now bitten four times.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship dsv41-flash-serve-characterisation §5</pre>
+    <p class="r-fu-outcome">Moved, not done — the work now belongs to serving-interpreter-version-split, and f-dsc-004 below is the pointer to it. It was moved because this plan is complete, and a followup carrying work on a completed plan is hidden rather than tracked: measured 2026-09-18, this plan was absent from all 27 entries of pending_work while this row read as open. The new plan verifies present in pending_work, which is the test that separates recording work from hiding it.
+
+Two further defects in the row itself. It described itself as gated on the kt-kernel-split decision, which had been locked four days earlier on 2026-09-14 as separate-ktransformers-env — so it advertised a blocker that no longer existed, and nothing re-reads a gate clause once its decision lands. And it carried the work rather than a pointer, which is the form that makes a row on a finished plan unfindable. What actually blocks it is authority: the rebuild stops a lane measured at 32 concurrent requests and zero headroom across four coordinators' fleets.</p>
+    </article>
+<article class="r-fu" data-id="f-dsc-004" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-ship" data-written-at="2026-09-18" data-recommends-skill="/reckon-ship serving-interpreter-version-split" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">The interpreter split is owned by serving-interpreter-version-split</h4>
+    <div class="r-fu-body">Pointer only — this row deliberately carries no work. The accelerator-kernel split and the serving-environment interpreter move are owned by <code>serving-interpreter-version-split</code>, whose own lifecycle is what surfaces them to every view that decides what runs next. Nothing here should be executed from this plan; it is complete and stays complete.</div>
+    <pre class="r-fu-prompt">/reckon-ship serving-interpreter-version-split</pre>
+    </article>
+</section>
+
+  <section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="s2" data-id="c-sweep-20260914" data-who="reckon-ship" data-when="2026-09-14T12:10:00Z">
+    <div class="r-comment-body"><p>Sweep landed against serve 1270323 at a 14,999,808-token pool: 33.5 / 36.0 / 33.6 / 24.7 / 17.0 / 11.0 tok/s per stream at concurrency 1 / 2 / 4 / 8 / 16 / 32, aggregate 33.5 to 350.8. Serve survived 32-way with zero OOM events, then held 10 of 10 health probes over a ten-minute soak with live generations. The measurement was taken by the coordinator directly while diagnosing a serve outage rather than by the dispatched node, whose endpoint was restarted six times beneath it; that run is reconciled as not-run with its two correct findings preserved.</p></div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-run-r-20260914T101305786843-ktransformers-env-split" data-who="session-d0425c5e57073f92e189" data-when="2026-09-14T10:13:29.513Z">
+    <div class="r-comment-body"><p>Died after 14 seconds without reaching the model. Not a worker fault and not a model fault: the shared clive launcher baked a stale global origin, so the session dialled a dead port 18800 while the serve was on 18810 behind the router on 18802, and the harness reported unrecognized_model. The launcher now points at the router, takes topology from the endpoint document, and describes the served model to the harness catalog; a launcher session verified end to end before redispatch.</p></div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-run-r-20260914T110631398814-ktransformers-env-split" data-who="session-d0425c5e57073f92e189" data-when="2026-09-14T11:39:04.572Z">
+    <div class="r-comment-body"><p>Worker ran 32 minutes on the clive lane and was lost when the coordinator killed the serve underneath it: a ceiling probe searching for the largest absorbable prefill found the limit by crossing it, and took the endpoint down. Not a worker fault and not a lane fault. The serve now enforces a 204800-token context cap, so an over-long request returns HTTP 400 instead of exhausting the card; redispatched against that.</p></div>
+</div>
+</section>
+</main>
+</body>
+</html>
