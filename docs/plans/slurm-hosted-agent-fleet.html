@@ -121,7 +121,11 @@
     no pending queue, no draining nodes, and <code>MaxTime=UNLIMITED</code>. A single
     node there is twenty-eight cores — seven times the whole account's present ceiling —
     with 128 GB of memory against a normal fleet draw near 10 GB.</p>
-    <p><strong>There is no sixty-four-core CPU node to take.</strong> The only
+    <p><strong>There is no sixty-four-core CPU node to take, and this is the one place
+    the plan does not give the lead the number asked for.</strong> A rigel node is
+    twenty-eight cores — two sockets of fourteen, hyperthreading off — with 128 GB, so
+    holding one whole node yields twenty-eight, not sixty-four. It is still seven times
+    the four-core ceiling the entire account shares today. The only
     sixty-four-core machine in the cluster is <code>98dci4-gpu-0003</code> itself, which
     is the node we are trying to stop competing with. The closest CPU alternative is
     vega at fifty-six cores and 512 GB, and vega is the worst-placed partition in the
@@ -146,6 +150,36 @@
             style="max-width:100%;height:auto"></p>
     <p>Figure — fleet placement today and as proposed. The failure mode the proposal
     introduces is marked in the lower panel and is the subject of §5.</p>
+    <p>The login node keeps only the zellij terminals and the job monitors that link
+    to the compute. Nothing else runs there: no agent sessions, no model context
+    protocol servers, no dispatch. That is the whole of its remaining job.</p>
+
+    <h3 id="s4a">Reachability, measured rather than assumed</h3>
+    <p>The placement is worthless if a session on a compute node cannot reach the
+    serving lane, so this was tested on a real rigel node rather than reasoned about.
+    From <code>98dci4-clu-2017</code>, against the router origin that <code>clive</code>
+    is built for:</p>
+    <table>
+      <thead><tr><th>Target</th><th>Result</th><th>Connect</th></tr></thead>
+      <tbody>
+        <tr><td><code>http://98dci4-gpu-0003:18802/v1/models</code> — router origin</td>
+            <td>HTTP 200, catalog returned</td><td>1.8 ms (33.6 ms total)</td></tr>
+        <tr><td><code>http://98dci4-gpu-0003:18810/v1/models</code> — engine direct</td>
+            <td>HTTP 200</td><td>0.77 ms</td></tr>
+      </tbody>
+    </table>
+    <p>The catalog came back naming <code>deepseek-v4.1-flash</code> at a
+    <code>max_model_len</code> of 512,000, which is the live lane rather than a cached
+    document. Sub-two-millisecond connect times put the compute node and the GPU node on
+    the same fabric, so the lane needs no tunnel, no forwarded port and no change to the
+    origin the launcher already embeds. A session hosted on rigel reaches the H200 lane
+    exactly as one on the login node does.</p>
+    <p>One operational detail surfaced by the same run: a job step on a compute node
+    cannot write the login node's runtime directory and falls back with
+    <code>Unable to create TMPDIR [/run/user/39486]</code>. The allocation must set
+    <code>TMPDIR</code> explicitly, as the repository's compute guidance already
+    requires.</p>
+
     <p>Reaching the allocation is a solved problem on this cluster: the account already
     runs persistent jobs of exactly this shape, including <code>codex-neo4j</code> and
     <code>codex-embed</code> at four days of elapsed time and <code>ambix-router</code>
@@ -199,16 +233,16 @@
     <p>Ordered so that the cheapest reversible step answers the most expensive open
     question first.</p>
     <ol>
-      <li><strong>Size the allocation from measurement, not estimate.</strong> Sample the
-      account's actual CPU demand on the login node across a working session — the
-      recorder already on that host supplies process counts, and <code>cpu.stat</code>
-      supplies the throttled fraction. Done when a core count is justified by a measured
-      peak with headroom stated, rather than assumed from the node size.</li>
+      <li><strong>Record the throttling baseline before anything moves.</strong> The
+      figures in §2 are one reading; take a second across a normal working day so the
+      comparison in step six is against a range rather than a point. The recorder already
+      on the login node supplies process counts and <code>cpu.stat</code> supplies the
+      throttled fraction. Done when a baseline share is written into this plan.</li>
 
-      <li><strong>Hold a persistent rigel allocation and confirm it is reachable.</strong>
-      One node, the measured core count, no time limit, and not on a draining node.
-      Done when the job is running, an ssh connection lands in its control group, and the
-      allocation survives an operator disconnect.</li>
+      <li><strong>Hold the interactive reservation on one whole rigel node.</strong>
+      Twenty-eight cores, 128 GB, no time limit, not on a draining node, with
+      <code>TMPDIR</code> set. Done when the job is running, an ssh connection lands in
+      its control group, and the allocation survives an operator disconnect.</li>
 
       <li><strong>Run one session there end to end before moving any others.</strong> A
       single zellij session inside the allocation, one clive worker, dispatching to the
@@ -247,32 +281,32 @@
     <section data-reckon="decisions" id="decisions" class="r-decisions">
       <h2><span class="sec">§</span> Decisions</h2>
 
-      <div class="r-dec" data-key="host-partition" data-choice="" data-by="" data-when="">
+      <div class="r-dec" data-key="host-partition" data-choice="rigel" data-by="Simon McIntosh" data-when="2026-09-19">
         <p class="r-dec-q">Which partition hosts the fleet allocation?</p>
         <p class="r-dec-opts">
           <button class="r-opt" data-value="rigel">rigel — 28 cores, 51 of 61 nodes idle, no queue</button>
           <button class="r-opt" data-value="vega">vega — 56 cores, but zero idle nodes and 43 draining</button>
           <button class="r-opt" data-value="sun">sun — 36 cores, 20 idle nodes, 14 draining</button>
         </p>
-        <p class="r-dec-rat"></p>
+        <p class="r-dec-rat">Locked to rigel by the lead, conditional on free capacity, which the survey confirms: 51 of 61 nodes carry no allocation, idle load reads 0.00 to 0.14, there is no pending queue and nothing is draining. Reachability to the serving lane was then measured from a rigel node rather than assumed — see §4.</p>
       </div>
 
-      <div class="r-dec" data-key="allocation-shape" data-choice="" data-by="" data-when="">
+      <div class="r-dec" data-key="allocation-shape" data-choice="single" data-by="Simon McIntosh" data-when="2026-09-19">
         <p class="r-dec-q">Does the whole fleet share one allocation, or does each lane hold its own?</p>
         <p class="r-dec-opts">
           <button class="r-opt" data-value="single">One shared allocation — simplest, but one job end takes every session</button>
           <button class="r-opt" data-value="per-lane">One per lane — smaller blast radius, more to hold and monitor</button>
         </p>
-        <p class="r-dec-rat"></p>
+        <p class="r-dec-rat">Locked to one node, held whole, managed as an interactive reservation. The lead's figure of sixty-four cores is not available on any CPU partition: a whole rigel node is twenty-eight cores and 128 GB. vega is the only larger CPU node at fifty-six, and it is the most contended partition in the survey with zero idle nodes and forty-three draining, so it is not a candidate while rigel sits empty. If twenty-eight proves tight the escalation is to re-survey vega, not to assume it.</p>
       </div>
 
-      <div class="r-dec" data-key="quota-request" data-choice="" data-by="" data-when="">
+      <div class="r-dec" data-key="quota-request" data-choice="no" data-by="Simon McIntosh" data-when="2026-09-19">
         <p class="r-dec-q">Do we raise a site request to increase the login-node CPUQuota in parallel with §7?</p>
         <p class="r-dec-opts">
           <button class="r-opt" data-value="yes">Yes — ask now, treat as relief not substitute</button>
           <button class="r-opt" data-value="no">No — the migration is the fix, do not split attention</button>
         </p>
-        <p class="r-dec-rat"></p>
+        <p class="r-dec-rat">Declined by the lead. The fleet moves to an interactive reservation on compute, so the login node stops carrying the work rather than being granted a larger share of it. The login node keeps only the zellij terminals and the job monitors that link to the compute.</p>
       </div>
     </section>
 
@@ -283,13 +317,12 @@
                data-written-by="reckon-create" data-written-at="2026-09-19">
         <h4 class="r-fu-title">Size the allocation from measured CPU demand</h4>
         <div class="r-fu-body">
-          <p>Plan authored with the partition survey and the login-slice measurement in
-          place. The first executable step is §7.1: turn the measured demand into a
-          justified core count, so the allocation in §7.2 is sized from evidence rather
-          than from the node's shape. The session-loss recorder already running on
-          <code>98dci4-srv-1006</code> supplies process counts, and the slice's
-          <code>cpu.stat</code> supplies the throttled fraction to compare against
-          after the move.</p>
+          <p>All three decisions are locked: rigel, one whole node held as an
+          interactive reservation, and no site quota request. Reachability from a rigel
+          node to the H200 lane is measured and recorded in §4, so the placement is no
+          longer an assumption. The first executable step is §7.1 — take a throttling
+          baseline across a normal working day, so the comparison that decides whether
+          this worked is against a range rather than the single reading in §2.</p>
         </div>
         <pre class="r-fu-prompt">/reckon-ship slurm-hosted-agent-fleet §7</pre>
       </article>
