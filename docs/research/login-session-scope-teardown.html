@@ -289,7 +289,36 @@ systemd[1]:      Starting User Manager for UID 39486...        &lt;- 1-2 seconds
     so they narrow the window during a terminal-only dropout — but they originate from the
     same machine, so they die with it, which is exactly when the count reaches zero.</p>
 
-    <h3 id="s6c">Why it surfaced when it did — unresolved, with the evidence that bounds it</h3>
+    <h3 id="s6d">Why it surfaced when it did — resolved</h3>
+    <p>The teardown stops <strong>live</strong> session scopes and leaves
+    <strong>abandoned</strong> ones alone. A scope is abandoned once the connection that
+    created it closes, so a multiplexer server is vulnerable only while the connection it
+    was born in is still open. After that it is permanently safe, because nothing will
+    stop a scope logind has already released.</p>
+    <p>That is why the same teardown is sometimes harmless and sometimes total. Servers
+    that have been running for a day or more were born in connections long since closed;
+    their scopes read <code>abandoned</code> and the teardown cannot reach them. Measured
+    on three live servers, every one of them sits in an abandoned scope, and every one has
+    survived multiple teardowns.</p>
+    <p>The transcripts make the change visible. Across the two teardowns on the morning of
+    2026-09-18, <strong>27 agent sessions wrote both before and after</strong> — they were
+    untouched, with three ending near the first and none near the second. At the teardown
+    two days later only three survived. The mechanism did not change between those dates;
+    the <em>placement</em> of every multiplexer server did.</p>
+    <p>A multiplexer upgrade at 07:05 that morning is what moved them. Replacing the binary
+    forces every server to restart, so a set of servers that had drifted into abandoned
+    scopes over days was recreated all at once inside the connections that were open at
+    that moment. From then until those connections closed, every one of them was exposed,
+    and the first teardown that arrived — that evening — took the lot. The upgrade is not
+    a defect and the multiplexer's own log shows a clean signalled shutdown with no panic;
+    what it did was relocate every long-running server from a safe control group into a
+    vulnerable one simultaneously.</p>
+    <p>The exposure is therefore self-healing and recurring: a new session is at risk for
+    as long as the connection that created it stays open, and safe afterwards. The
+    dangerous pattern is the ordinary one — start a session, leave the connection open,
+    and let the machine sleep.</p>
+
+    <h3 id="s6c">Supporting evidence for the timing</h3>
     <p>Neither the mechanism nor its precondition is new. The system software predates the
     failures by more than a year, and the login record shows the precondition occurring
     routinely: counting moments where three or more terminals ended in the same second
