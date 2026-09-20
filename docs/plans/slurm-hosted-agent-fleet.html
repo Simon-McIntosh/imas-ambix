@@ -4,12 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"   content="imas-ambix">
-  <meta name="reckon-type"    content="plan">
-  <meta name="plan-slug"      content="slurm-hosted-agent-fleet">
-  <meta name="plan-title"     content="SLURM-Hosted Agent Fleet — take the clive lane off the four-core login slice">
-  <meta name="plan-summary"   content="Host the clive fleet in a persistent rigel allocation instead of the shared login slice, which caps every session at four cores">
-  <meta name="plan-status"    content="draft">
-  <meta name="plan-roi"       content="high">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="slurm-hosted-agent-fleet">
+  <meta name="plan-title" content="SLURM-Hosted Agent Fleet — take the clive lane off the four-core login slice">
+  <meta name="plan-summary" content="Host the clive fleet in a persistent rigel allocation instead of the shared login slice, which caps every session at four cores">
+  <meta name="plan-status" content="draft">
+  <meta name="plan-roi" content="high">
   <meta name="plan-effort-hours" content="6.0">
   <meta name="plan-capability-version" content="1.0">
   <meta name="plan-capability-class" content="orchestrator">
@@ -17,12 +17,14 @@
   <meta name="plan-capability-verification" content="strict">
   <meta name="plan-capability-risk" content="elevated">
   <meta name="plan-milestone" content="OPS">
-  <meta name="plan-sprint"    content="S24">
-  <meta name="plan-owner"     content="Simon McIntosh">
-  <meta name="plan-tags"      content="agent-serving">
+  <meta name="plan-sprint" content="S24">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-tags" content="agent-serving">
   <title>SLURM-Hosted Agent Fleet | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-09-20">
+<meta name="plan-version" content="1">
 </head>
 <body>
   <main class="plan-doc">
@@ -239,6 +241,19 @@
       on the login node supplies process counts and <code>cpu.stat</code> supplies the
       throttled fraction. Done when a baseline share is written into this plan.</li>
 
+      <li><strong>Put the multiplexer servers in user units as the interim fix.</strong>
+      This is available today and does not wait on the allocation. A login session scope
+      is signalled across its whole control group when it is stopped, so a multiplexer
+      server started through an ssh command dies with the connection that spawned it
+      however detached it looks — the measured mechanism is in
+      <a href="/imas-ambix/login-session-scope-teardown">the session-scope teardown
+      record</a>. Starting the server with
+      <code>systemd-run --user --unit=&lt;name&gt; --collect</code> places it under
+      <code>user@&lt;uid&gt;.service</code> instead, outside every session scope. Done when
+      a server's <code>/proc/&lt;pid&gt;/cgroup</code> reads
+      <code>user@…/app.slice</code> rather than <code>session-….scope</code>, and it and
+      its panes survive the connection that created them going away.</li>
+
       <li><strong>Hold the interactive reservation on one whole rigel node.</strong>
       Twenty-eight cores, 128 GB, no time limit, not on a draining node, with
       <code>TMPDIR</code> set. Done when the job is running, an ssh connection lands in
@@ -279,54 +294,47 @@
     substitute for it.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-
-      <div class="r-dec" data-key="host-partition" data-choice="rigel" data-by="Simon McIntosh" data-when="2026-09-19">
-        <p class="r-dec-q">Which partition hosts the fleet allocation?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="rigel">rigel — 28 cores, 51 of 61 nodes idle, no queue</button>
-          <button class="r-opt" data-value="vega">vega — 56 cores, but zero idle nodes and 43 draining</button>
-          <button class="r-opt" data-value="sun">sun — 36 cores, 20 idle nodes, 14 draining</button>
-        </p>
-        <p class="r-dec-rat">Locked to rigel by the lead, conditional on free capacity, which the survey confirms: 51 of 61 nodes carry no allocation, idle load reads 0.00 to 0.14, there is no pending queue and nothing is draining. Reachability to the serving lane was then measured from a rigel node rather than assumed — see §4.</p>
-      </div>
-
-      <div class="r-dec" data-key="allocation-shape" data-choice="single" data-by="Simon McIntosh" data-when="2026-09-19">
-        <p class="r-dec-q">Does the whole fleet share one allocation, or does each lane hold its own?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="single">One shared allocation — simplest, but one job end takes every session</button>
-          <button class="r-opt" data-value="per-lane">One per lane — smaller blast radius, more to hold and monitor</button>
-        </p>
-        <p class="r-dec-rat">Locked to one node, held whole, managed as an interactive reservation. The lead's figure of sixty-four cores is not available on any CPU partition: a whole rigel node is twenty-eight cores and 128 GB. vega is the only larger CPU node at fifty-six, and it is the most contended partition in the survey with zero idle nodes and forty-three draining, so it is not a candidate while rigel sits empty. If twenty-eight proves tight the escalation is to re-survey vega, not to assume it.</p>
-      </div>
-
-      <div class="r-dec" data-key="quota-request" data-choice="no" data-by="Simon McIntosh" data-when="2026-09-19">
-        <p class="r-dec-q">Do we raise a site request to increase the login-node CPUQuota in parallel with §7?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="yes">Yes — ask now, treat as relief not substitute</button>
-          <button class="r-opt" data-value="no">No — the migration is the fix, do not split attention</button>
-        </p>
-        <p class="r-dec-rat">Declined by the lead. The fleet moves to an interactive reservation on compute, so the login node stops carrying the work rather than being granted a larger share of it. The login node keeps only the zellij terminals and the job monitors that link to the compute.</p>
-      </div>
-    </section>
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="host-partition" data-choice="rigel" data-by="Simon McIntosh" data-when="2026-09-19">
+    <p class="r-dec-q">Which partition hosts the fleet allocation?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="rigel">rigel — 28 cores, 51 of 61 nodes idle, no queue</button>
+      <button class="r-opt" data-value="vega">vega — 56 cores, but zero idle nodes and 43 draining</button>
+      <button class="r-opt" data-value="sun">sun — 36 cores, 20 idle nodes, 14 draining</button>
+      </p>
+    <p class="r-dec-rat">Locked to rigel by the lead, conditional on free capacity, which the survey confirms: 51 of 61 nodes carry no allocation, idle load reads 0.00 to 0.14, there is no pending queue and nothing is draining. Reachability to the serving lane was then measured from a rigel node rather than assumed — see §4.</p>
+    </div>
+<div class="r-dec" data-key="allocation-shape" data-choice="single" data-by="Simon McIntosh" data-when="2026-09-19">
+    <p class="r-dec-q">Does the whole fleet share one allocation, or does each lane hold its own?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="single">One shared allocation — simplest, but one job end takes every session</button>
+      <button class="r-opt" data-value="per-lane">One per lane — smaller blast radius, more to hold and monitor</button>
+      </p>
+    <p class="r-dec-rat">Locked to one node, held whole, managed as an interactive reservation. The lead&#x27;s figure of sixty-four cores is not available on any CPU partition: a whole rigel node is twenty-eight cores and 128 GB. vega is the only larger CPU node at fifty-six, and it is the most contended partition in the survey with zero idle nodes and forty-three draining, so it is not a candidate while rigel sits empty. If twenty-eight proves tight the escalation is to re-survey vega, not to assume it.</p>
+    </div>
+<div class="r-dec" data-key="quota-request" data-choice="no" data-by="Simon McIntosh" data-when="2026-09-19">
+    <p class="r-dec-q">Do we raise a site request to increase the login-node CPUQuota in parallel with §7?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="yes">Yes — ask now, treat as relief not substitute</button>
+      <button class="r-opt chosen" data-value="no">No — the migration is the fix, do not split attention</button>
+      </p>
+    <p class="r-dec-rat">Declined by the lead. The fleet moves to an interactive reservation on compute, so the login node stops carrying the work rather than being granted a larger share of it. The login node keeps only the zellij terminals and the job monitors that link to the compute.</p>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups</h2>
-      <article class="r-fu" data-id="f-shaf-001" data-status="open"
-               data-capability-version="1.0" data-capability-class="general"
-               data-written-by="reckon-create" data-written-at="2026-09-19">
-        <h4 class="r-fu-title">Size the allocation from measured CPU demand</h4>
-        <div class="r-fu-body">
-          <p>All three decisions are locked: rigel, one whole node held as an
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-shaf-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-09-19" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Size the allocation from measured CPU demand</h4>
+    <div class="r-fu-body"><p>All three decisions are locked: rigel, one whole node held as an
           interactive reservation, and no site quota request. Reachability from a rigel
           node to the H200 lane is measured and recorded in §4, so the placement is no
           longer an assumption. The first executable step is §7.1 — take a throttling
           baseline across a normal working day, so the comparison that decides whether
-          this worked is against a range rather than the single reading in §2.</p>
-        </div>
-        <pre class="r-fu-prompt">/reckon-ship slurm-hosted-agent-fleet §7</pre>
-      </article>
-    </section>
+          this worked is against a range rather than the single reading in §2.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship slurm-hosted-agent-fleet §7</pre>
+    </article>
+</section>
 
   </main>
 </body>

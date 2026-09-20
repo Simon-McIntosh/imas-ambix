@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type"  content="doc">
+  <meta name="plan-slug"    content="login-session-scope-teardown">
+  <meta name="plan-title"   content="Why the Agent Fleet Dies With the Connection That Started It">
+  <meta name="plan-summary" content="Instrumented: a login session scope is signalled cgroup-wide, killing every process born in it however detached">
+  <meta name="plan-tags"    content="agent-serving">
+  <meta name="plan-informs" content="slurm-hosted-agent-fleet">
+  <title>Why the Agent Fleet Dies With the Connection That Started It | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — The symptom, and why it resisted diagnosis</h2>
+    <p>Three times over two days the entire agent fleet on the login node
+    <code>98dci4-srv-1006</code> ended simultaneously: eighteen sessions at 19:56:22 and
+    again at 22:36:23 on 2026-09-18, and nine processes at 02:31:11 on 2026-09-20. Each
+    time the multiplexer sessions were left behind in a state that looked survivable, the
+    agents inside them were gone, and nothing in the kernel log, the scheduler or the
+    memory counters explained it.</p>
+    <p>The first two were reconstructed hours afterwards from file modification times,
+    which is why they produced three plausible and wrong hypotheses in succession. The
+    third was recorded as it happened by two purpose-built instruments, which named the
+    signal, its delivery mechanism and every victim in one reading, and narrowed the
+    remaining unknown to a single question. The difference between those two experiences is the main
+    engineering lesson here and is recorded in §6.</p>
+
+    <h2 id="s2">§2 — What the instruments recorded</h2>
+    <p>A signal canary — a shell that traps every catchable signal, logs which one
+    arrived, and deliberately does not die — was running in three multiplexer panes: one
+    in the live <code>nova</code> session and two in a session with no client attached at
+    all. At the moment of the event all three logged the same pair:</p>
+<pre>02:31:11.782  marker(3559642) received SIGTERM      &lt;- unattached session
+02:31:11.782  marker(3559640) received SIGTERM      &lt;- unattached session
+02:31:11.783  marker(293705)  received SIGTERM      &lt;- attached session
+02:31:12.785  marker(3559642) received SIGHUP
+02:31:12.785  marker(3559640) received SIGHUP
+02:31:12.785  marker(293705)  received SIGHUP</pre>
+    <p>SIGTERM, then SIGHUP 1.003 seconds later, to all three within one millisecond of
+    each other. Two of those panes were in a session nobody was looking at, which already
+    rules out a terminal hangup reaching a foreground job.</p>
+    <p>A second instrument sampling process topology every five seconds recorded what
+    actually died: nine processes, comprising three agent workers that were fully
+    detached (parent <code>1</code>, own session id, <strong>no controlling
+    terminal</strong>), two agents inside multiplexer panes, two multiplexer
+    <em>servers</em>, two multiplexer clients — and the recorder itself, which caught the
+    same SIGTERM through its own handler and wrote <code>recorder stopped</code> before
+    exiting.</p>
+    <p>Processes with no controlling terminal died. That is the observation that
+    eliminates every terminal-based explanation at once.</p>
+
+    <h2 id="s3">§3 — What it is not, each excluded by a measurement</h2>
+    <table>
+      <thead><tr><th>Hypothesis</th><th>The measurement that excludes it</th></tr></thead>
+      <tbody>
+        <tr><td>Memory exhaustion / out-of-memory kill</td>
+            <td><code>memory.current</code> 6.38 GB of 64 GB and <code>pids.current</code>
+            101 at the instant of the kill; <code>oom_kill</code> 529
+            <strong>byte-identical before and after</strong>. The node was running at low
+            concurrency.</td></tr>
+        <tr><td>CPU-quota throttling killing processes</td>
+            <td>Throttling stalls a process, it never signals one. Real and serious in its
+            own right, but not a killer.</td></tr>
+        <tr><td>Terminal hangup propagating to pane children</td>
+            <td>Two of the three canaries were in a session with no client, and three of
+            the dead workers had <code>tty=?</code>.</td></tr>
+        <tr><td>A site reaper, cron job or idle-session killer</td>
+            <td>No entry in <code>/etc/cron.d</code>, no arbiter, no logind idle action,
+            and no system timer anywhere near the event. The signal lands 0.78 s after the
+            final logout, not on a schedule.</td></tr>
+        <tr><td>Scheduler epilog cleaning up after a job</td>
+            <td><code>Epilog = (null)</code>; the login node carries no allocation.</td></tr>
+        <tr><td><strong>A client detaching</strong></td>
+            <td><strong>Tested directly.</strong> A detached marker was started inside a
+            dedicated login session, then that session's client was killed outright. The
+            marker received <em>no signal</em> and was still running afterwards; the scope
+            went to <code>SubState=abandoned</code>, which is precisely what
+            <code>KillUserProcesses=no</code> promises.</td></tr>
+      </tbody>
+    </table>
+    <p>That last row matters most, because it is the intuitive answer and it is wrong. One
+    connection dropping — a closed laptop, a dead VPN, a killed terminal — abandons its
+    scope and leaves everything inside it running.</p>
+
+    <h2 id="s4">§4 — The mechanism</h2>
+    <p>Every login session gets a systemd scope, and on this host those scopes are
+    configured:</p>
+<pre>session-*.scope     KillSignal=15 (SIGTERM)   SendSIGHUP=yes   KillMode=control-group
+user@39486.service  ActiveEnterTimestamp = Sun 2026-09-20 02:31:12 CEST</pre>
+    <p><code>KillSignal</code> and <code>SendSIGHUP</code> together produce exactly the
+    SIGTERM-then-SIGHUP pair the canary caught. <code>KillMode=control-group</code> is why
+    it reached everything: the signal goes to <strong>every process in the scope's control
+    group</strong>, not to a foreground process group and not down a terminal. And the
+    user manager re-entered active at 02:31:12 — the same second as the SIGHUP — because
+    lingering is enabled and it was restarted immediately after being stopped.</p>
+    <p>The blast radius is one scope, and a scope is wider than it looks. A multiplexed
+    SSH connection carries several terminals — the sshd process at the time of the event
+    was serving <code>pts/1</code>, <code>pts/15</code> and <code>pts/18</code> — and puts
+    all of them, plus everything ever launched through any of them, in a single control
+    group. Two scopes were signalled at 02:31:11, and between them they held both
+    multiplexer servers that died, the agents in their panes, the detached workers and the
+    recorder.</p>
+    <p><strong>What issued the stop is not yet established, and it should not be guessed
+    at.</strong> Four of this account's scopes currently read
+    <code>SubState=abandoned</code>, which is what <code>KillUserProcesses=no</code>
+    produces when a session ends; two of them still hold multiplexer servers that have run
+    for two days. So an abandoned scope is plainly survivable, and the controlled test in
+    §3 reproduced that abandonment with no signal at all. Something stopped the two scopes
+    that died while leaving the two older abandoned ones alone, and the difference between
+    them is not visible from user space. The system journal would name the caller; it is
+    readable only by root on this host, so closing that last gap needs either elevated
+    access or a question to the site.</p>
+    <p>That gap does not change the remedy. Whatever issues the stop, it addresses a
+    control group, so what decides a process's fate is which control group it was born
+    in — and that is entirely within our control.</p>
+    <p>Which branch of the control-group tree a process sat in decided whether it lived:</p>
+<pre>user-39486.slice
+├─ session-136289.scope   opened Sep 18 13:27, still active   ambix multiplexer server    SURVIVED
+├─ session-136452.scope   opened Sep 18 14:36, still active   reckon multiplexer server   SURVIVED
+├─ session-138854.scope   tied to the terminals that closed   nova server + its agents    KILLED
+├─ session-138964.scope   tied to the terminals that closed   second server + its agents  KILLED
+└─ user@39486.service
+   └─ app.slice
+      └─ session-loss-recorder.service      &lt;- placed here after the event; outside every scope</pre>
+    <p>The survivors were not more robust. They were simply born in older scopes that
+    happened to still be open.</p>
+
+    <h2 id="s5">§5 — Why everything that looked detached was not</h2>
+    <p><code>setsid</code>, <code>nohup</code>, and a subprocess launched with
+    <code>start_new_session=True</code> all detach a process from its controlling terminal
+    and give it a new POSIX session. <strong>None of them move it out of the systemd
+    control group it was started in.</strong> A worker can have parent <code>1</code>, its
+    own session id and no terminal, and still be sitting in the login scope of the SSH
+    connection that spawned its grandparent — which is exactly what the recorder captured.</p>
+    <p>This is why the crew dispatcher's <code>start_new_session=True</code>, which is
+    correct and worth keeping, bought nothing here; why the multiplexer's whole purpose —
+    outliving the client — did not protect the servers; and why a recorder started with
+    <code>setsid nohup</code> was killed alongside what it was watching. Detachment in the
+    process sense and detachment in the cgroup sense are different properties, and only
+    the second one was ever relevant.</p>
+
+    <h2 id="s6">§6 — The fix, and the instrumentation lesson</h2>
+    <p><strong>A long-lived process must not be born in a login session scope.</strong>
+    Two placements achieve that, and they are not equivalent.</p>
+    <p>The immediate one is a transient user unit. Starting the recorder with
+    <code>systemd-run --user --unit=&lt;name&gt; --collect &lt;command&gt;</code> put it at
+    <code>user@39486.service/app.slice/&lt;name&gt;.service</code> instead of the caller's
+    scope, verified by reading <code>/proc/&lt;pid&gt;/cgroup</code>. Anything the operator
+    means to outlive a terminal — the multiplexer servers above all, since everything else
+    is their child — belongs there. One caveat is unresolved and must not be glossed:
+    <code>user@39486.service</code> itself restarted during the event, so a user unit is
+    better placed but not yet proven immune. The recorder now runs there and will answer
+    that question at the next occurrence.</p>
+    <p>The durable one is a scheduler allocation. A job's control group is owned by the
+    node daemon and sits entirely outside the login manager's session lifecycle, so
+    closing a terminal — or closing all of them — cannot reach it. That is the placement
+    the fleet-hosting plan already adopts, and this diagnosis is independent evidence for
+    it: the failure being escaped is not resource contention but session lifetime.</p>
+    <p>The instrumentation lesson is worth as much as the fix. Two events were
+    reconstructed from modification times and produced three confident wrong answers,
+    because an mtime records that something ended and never what ended it. The third was
+    answered in a single reading by two cheap instruments: a process that traps signals
+    and refuses to die names the sender's intent, and a five-second sampler of process
+    topology names the victims and their control-group placement. Neither is clever. Both
+    had to exist <em>before</em> the event, which is the only hard part.</p>
+
+  </main>
+</body>
+</html>
