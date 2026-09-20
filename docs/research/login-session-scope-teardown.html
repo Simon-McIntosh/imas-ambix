@@ -169,11 +169,24 @@ user@39486.service  ActiveEnterTimestamp = Sun 2026-09-20 02:31:12 CEST</pre>
     not been touched since 17 July 2023; the slice drop-in carrying the resource caps was
     last written 21 March 2026 and sets no kill policy; and the node has been up since
     8 August 2026 with no reboot. The behaviour is not new.</p>
-    <p>What changed is on our side. A fleet of roughly thirty agent sessions, long-lived
-    multiplexed connections carrying several terminals each, and worker processes expected
-    to outlive the connection that spawned them are all recent. Every one of them makes a
-    session scope's lifetime load-bearing in a way it never was when the same host was
-    used for an editor and a shell.</p>
+    <p><strong>Nor is it load.</strong> An earlier draft of this record attributed the
+    change to our own scaling — thirty concurrent sessions, multiplexed connections,
+    workers outliving their connection. That is a real description of the CPU-quota
+    problem and it does not apply here: fewer than five agent processes were running when
+    the 02:31 event fired, and the memory and task counters confirm it. Concurrency is
+    irrelevant to this failure and the claim is withdrawn.</p>
+    <p>So neither the host nor our load explains the timing, which leaves the trigger
+    genuinely unidentified. What has been excluded by inspection rather than by argument:
+    no <code>pam_exec</code> hook on session close anywhere in <code>/etc/pam.d</code>; no
+    cleanup script under <code>/usr/local</code>, <code>/opt/*/bin</code> or
+    <code>/etc/profile.d</code> that signals user processes; a root crontab carrying only
+    a configuration-management scan on Sunday at 01:07 and an upload at reboot; no sshd
+    client-alive setting; and nothing in the kernel ring buffer for the window. Three
+    privileged agents do run as root on the node — an endpoint-protection service, a log
+    forwarder and a metrics agent — and the first of those is the class of thing that can
+    terminate a process. There is no evidence that it did, and it is named here only
+    because it was wrong to exclude third-party software as confidently as an earlier
+    draft did.</p>
 
     <h2 id="s5">§5 — Why everything that looked detached was not</h2>
     <p><code>setsid</code>, <code>nohup</code>, and a subprocess launched with
@@ -206,6 +219,22 @@ user@39486.service  ActiveEnterTimestamp = Sun 2026-09-20 02:31:12 CEST</pre>
     closing a terminal — or closing all of them — cannot reach it. That is the placement
     the fleet-hosting plan already adopts, and this diagnosis is independent evidence for
     it: the failure being escaped is not resource contention but session lifetime.</p>
+    <h3 id="s6a">The instrument that was missing</h3>
+    <p>Three rounds of signal logging narrowed the sender to "something with permission"
+    and then stopped, because a trap handler records <em>which</em> signal arrived and
+    cannot record who sent it. Blocking the signals and collecting them with
+    <code>sigwaitinfo()</code> returns the kernel's siginfo instead, which carries the
+    sending process id and uid, and whose <code>si_code</code> separates a deliberate
+    <code>kill()</code> from a signal the kernel raised. A probe doing this is armed in
+    three different control groups — a pane of a session that has been hit before, a pane
+    of one that came through untouched, and a user unit that the placement fix says should
+    never be signalled at all. The next occurrence names the sender instead of describing
+    it.</p>
+    <p>A faster route exists and costs one request: the journal on that node is readable
+    only by <code>adm</code>, <code>systemd-journal</code> or <code>wheel</code>, verified
+    rather than assumed. Either adding the account to one of those groups, or asking the
+    site to read the logind journal for 02:31:11 on 2026-09-20, would answer today what
+    the probe answers at the next failure.</p>
     <p>The instrumentation lesson is worth as much as the fix. Two events were
     reconstructed from modification times and produced three confident wrong answers,
     because an mtime records that something ended and never what ended it. The third was
