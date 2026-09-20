@@ -54,6 +54,30 @@
     exiting.</p>
     <p>Processes with no controlling terminal died. That is the observation that
     eliminates every terminal-based explanation at once.</p>
+    <p><strong>The sampler records that a process vanished, never why</strong>, so not all
+    nine are attributable to the signal. The canary is the instrument that proves
+    signalling, and it covered two scopes. Of the nine, the two multiplexer servers, the
+    agents in their panes, the detached workers and the recorder were all inside those two
+    scopes. One further agent sat in a pane of a multiplexer server that survived, and
+    since a server demonstrably does not survive this signal (§4a), its scope cannot have
+    been signalled — so that one disappearance is a coincidence of timing and is left
+    unattributed rather than folded into the count.</p>
+
+    <h3 id="s2a">The session looks like it survived. It did not.</h3>
+    <p>The most confusing part of the symptom is that the multiplexer session comes back
+    afterwards with its tabs and layout intact, showing a pane that reads
+    <code>Waiting to run: claude --resume</code> with <code>&lt;ENTER&gt; run</code>
+    beneath it. That reads as though the session lived and only the process inside it was
+    killed, which is the wrong way round and sent this investigation down two blind
+    alleys.</p>
+    <p>It is resurrection, not survival. This account runs with
+    <code>session_serialization true</code>, <code>serialize_pane_viewport true</code> and
+    <code>scrollback_lines_to_serialize 50000</code>, so the multiplexer continuously
+    writes each session's layout and scrollback to disk. When the server is killed the
+    session is gone; the next attach rebuilds it from that file and offers to re-run each
+    pane's recorded command rather than restarting it. The restored layout is a
+    photograph, not a survivor — which is also why the work inside is not resumed and why
+    the pane waits for a keypress.</p>
 
     <h2 id="s3">§3 — What it is not, each excluded by a measurement</h2>
     <table>
@@ -89,6 +113,14 @@
     scope and leaves everything inside it running.</p>
 
     <h2 id="s4">§4 — The mechanism</h2>
+    <h3 id="s4a">A multiplexer server does not survive this signal</h3>
+    <p>Measured directly, because the whole account turns on it. A throwaway session was
+    created with one pane, then SIGTERM was sent to the server and the pane process
+    together, as a control-group signal would deliver it. Both died and the session
+    disappeared from the listing. So a server that is still running after one of these
+    events was never signalled — its scope was not among those stopped — and server
+    survival is a reliable read on which scopes were hit.</p>
+
     <p>Every login session gets a systemd scope, and on this host those scopes are
     configured:</p>
 <pre>session-*.scope     KillSignal=15 (SIGTERM)   SendSIGHUP=yes   KillMode=control-group
@@ -130,6 +162,18 @@ user@39486.service  ActiveEnterTimestamp = Sun 2026-09-20 02:31:12 CEST</pre>
       └─ session-loss-recorder.service      &lt;- placed here after the event; outside every scope</pre>
     <p>The survivors were not more robust. They were simply born in older scopes that
     happened to still be open.</p>
+
+    <h3 id="s4b">Nothing changed on the host</h3>
+    <p>The natural suspicion is a recent change to the login node, and the dates rule it
+    out. systemd is 252-14.el9_2.3, installed 2 April 2025; <code>logind.conf</code> has
+    not been touched since 17 July 2023; the slice drop-in carrying the resource caps was
+    last written 21 March 2026 and sets no kill policy; and the node has been up since
+    8 August 2026 with no reboot. The behaviour is not new.</p>
+    <p>What changed is on our side. A fleet of roughly thirty agent sessions, long-lived
+    multiplexed connections carrying several terminals each, and worker processes expected
+    to outlive the connection that spawned them are all recent. Every one of them makes a
+    session scope's lifetime load-bearing in a way it never was when the same host was
+    used for an editor and a shell.</p>
 
     <h2 id="s5">§5 — Why everything that looked detached was not</h2>
     <p><code>setsid</code>, <code>nohup</code>, and a subprocess launched with
