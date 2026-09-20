@@ -266,6 +266,48 @@ systemd[1]:      Starting User Manager for UID 39486...        &lt;- 1-2 seconds
     rather than assumed. Either adding the account to one of those groups, or asking the
     site to read the logind journal for 02:31:11 on 2026-09-20, would answer today what
     the probe answers at the next failure.</p>
+    <h3 id="s6b">What is in place, and what it does not cover</h3>
+    <p>The teardown fires when the account's session count reaches zero. Every session
+    normally originates from one workstation, so they end together whenever it sleeps or
+    loses the network, and the count reaches zero every time. A session anchored somewhere
+    that never sleeps removes that precondition without needing the linger defect fixed
+    first.</p>
+    <p>A one-CPU scheduler job on an idle partition holds an SSH session to the login node
+    and reconnects on a ten-second loop if it drops. It runs inside the job's control
+    group, owned by the node daemon, so the teardown it prevents cannot reach the thing
+    preventing it. With it running the count falls to one rather than to zero, and
+    <code>loginctl</code> shows an active session whose remote host is a compute node
+    rather than the workstation.</p>
+    <p>Three limits, stated because a prop that is believed to be a cure is worse than no
+    prop. It does not repair lingering, so the defect remains and the site request stands.
+    It fails silently if the job ends — a cancellation is not requeued, though a node
+    failure is — so the job's presence is now something worth checking whenever sessions
+    die again. And it defends the user slice rather than leaving it, which is what the
+    allocation in the fleet-hosting plan does instead; that remains the durable answer.</p>
+    <p>A tunnel from the workstation is not a substitute. Those connections are
+    independent of the terminal multiplexer's shared master and do hold their own sessions,
+    so they narrow the window during a terminal-only dropout — but they originate from the
+    same machine, so they die with it, which is exactly when the count reaches zero.</p>
+
+    <h3 id="s6c">Why it surfaced when it did — unresolved, with the evidence that bounds it</h3>
+    <p>Neither the mechanism nor its precondition is new. The system software predates the
+    failures by more than a year, and the login record shows the precondition occurring
+    routinely: counting moments where three or more terminals ended in the same second
+    gives <strong>114 events across 29 days</strong>, on every working day since the record
+    begins. What did change is the size of those events, from three or four terminals
+    ending together through early September to five and six from the middle of the month.
+    More terminals riding one connection means a single drop takes a larger share of the
+    account's sessions.</p>
+    <p>That is suggestive and it is not proof, so it is recorded as such. One query
+    separates the two candidate explanations, and it needs privileged journal access:</p>
+<pre>journalctl -u user@&lt;uid&gt;.service --since "2026-08-10" | grep -c "Exit the Session"
+journalctl -u user@&lt;uid&gt;.service --since "2026-08-10" | grep    "Exit the Session"</pre>
+    <p>A teardown count that is high and evenly spread over weeks means the trigger did not
+    change and what changed is what the teardown now destroys, because long-lived agent
+    work on that node is recent. A count that begins abruptly in mid-September means the
+    connection topology changed and that is where to look next. Until one of those is
+    observed, the question stays open.</p>
+
     <p>The instrumentation lesson is worth as much as the fix. Two events were
     reconstructed from modification times and produced three confident wrong answers,
     because an mtime records that something ended and never what ended it. The third was
