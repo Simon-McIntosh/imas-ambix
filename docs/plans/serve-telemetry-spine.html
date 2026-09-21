@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="serve-telemetry-spine">
   <meta name="plan-title" content="Serve Telemetry Spine">
   <meta name="plan-summary" content="One on-node recorder generates serving telemetry; every reader derives from it instead of probing the cluster itself">
-  <meta name="plan-status" content="draft">
+  <meta name="plan-status" content="active">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort-hours" content="11.0">
   <meta name="plan-capability-version" content="1.0">
@@ -18,12 +18,15 @@
   <meta name="plan-sprint" content="S25">
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-tags" content="agent-serving,gpu-deployment">
+  <meta name="plan-standalone" content="Repairs a recorder this repository already ships and runs; it consumes no other plan&#x27;s evidence and gates none.">
   <title>Serve Telemetry Spine | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-09-18">
-<meta name="plan-version" content="3">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;done&quot;}">
+<meta name="plan-modified" content="2026-09-21">
+<meta name="plan-version" content="4">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;}">
+<meta name="plan-commits" content="c23be8f8,f5c3c91f,493e0281,f743fcea,0f9ce03f,b1696d31,0e9a656c,bacf490f">
+<meta name="plan-impl" content="0.4">
 </head>
 <body>
   <main class="plan-doc">
@@ -463,10 +466,7 @@
       <button class="r-opt" data-value="dotfiles-reader">stays in dotfiles, reads the store</button>
       <button class="r-opt" data-value="split">split by panel ownership</button>
       </p>
-    <p class="r-dec-rat">It moves next to the producer it reads. Duplicated
-        metric-name knowledge across two repositories is the mechanism that produced a
-        record of nulls; sharing one module is the repair, and it only works if both live
-        together. dotfiles keeps a thin launcher so the command name does not move.</p>
+    <p class="r-dec-rat">Re-opened once the shared module had landed and the duplication could have been retired without moving anything — a watcher that reads the record needs no engine-family knowledge at all, so the coupling that first justified the move had dissolved. Re-affirmed on the stronger ground: the watcher watches this project&#x27;s own dispatch to the GPUs, and this repository currently owns that serving infrastructure, so the tool belongs with the thing it watches rather than with the person who runs it. Whether GPU management belongs in a machine-learning repository at all is a separate question, and deliberately not this plan&#x27;s. dotfiles keeps a thin launcher so the command name does not move.</p>
     </div>
 <div class="r-dec" data-key="retention" data-choice="tiered-downsampling" data-by="Simon McIntosh" data-when="2026-09-18">
     <p class="r-dec-q">How long is telemetry kept, and at what resolution?</p>
@@ -497,6 +497,7 @@
 </div>
 <div class="r-comment" data-section="s2" data-id="c-run-r-20260918T163433981573-engine-names" data-who="reckon-ship" data-when="2026-09-18T20:25:00.000Z">
     <div class="r-comment-body"><p><strong>§2 landed (node <code>engine-names</code>).</strong> <code>imas_ambix/agent/engine_metrics.py</code> now owns the family-to-canonical mapping for <code>sglang:</code> and <code>vllm:</code>, and both the recorder and <code>lane.py</code> resolve through it, so the working SGLang reader that lived in <code>lane.py</code> is now the shared module's first caller rather than a third copy. The absent-not-null rule is enforced and asserted: a quantity a family does not publish has no key at all, a published zero survives, and a mutated reader that records unobserved quantities reproduces the original defect (<code>prefix_cache_queries: None</code>) — the assertion the new test forbids. Live evidence: one recorder sample against the running SGLang serve on <code>98dci4-gpu-0003:18810</code> carried every canonical field, with the prefix-cache keys absent as SGLang publishes none. Gates: 31 passed across the new test file plus the lane and receipts suites, and <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0. Full record with the figure: <code>docs/evidence/archive/serve-telemetry-spine-landed.html</code>.</p><p><strong>Remaining in §2's write paths.</strong> <code>bench.py</code> still carries its own exposition parser and spec-decode name tables, so one duplicate of the mapping survives; delegating <code>_spec_decode_snapshot</code> to <code>read_metrics(text).spec_decode</code> and deleting the superseded privates is mechanical and outside this node's done-when.</p></div>
+</div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20260918T163515833211-request-receipts" data-who="request-receipts" data-when="2026-09-18T19:50:00Z">
     <div class="r-comment-body"><p>The router now tees its own relay and appends one receipt row per completed request to <code>requests.jsonl</code> beside the endpoint document, so the tee never buffers the body the client receives. <code>StreamAccounting</code> mirrors the field names and the first-token definition of <code>bench.py::_stream_chat</code> and is asserted against it on the same bytes rather than re-deriving them; <code>cached_tokens</code> is read out of <code>usage.prompt_tokens_details</code>, which nothing else in the repository parsed. Five requests through the real router yield exactly five fully populated rows; an aborted caller yields one row marked aborted and a 500 yields one marked failed, both rather than none. Above the configured 20 rows/s the sink stamps the fraction it kept on every row it writes, so totals scale back honestly. Added work measured over 200 requests: median 27.9-31.3 µs, p99 41.1-105.8 µs, against the 1 ms budget. Read paths are derived from the relay's own <code>lane_document</code>, so no change to <code>cli.py</code> is needed; the evidence doc carries the figures.</p></div>
 </div>
