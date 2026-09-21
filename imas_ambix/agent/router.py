@@ -293,16 +293,24 @@ class RouterApp:
         method = scope.get("method")
         path = scope.get("path")
         if method == "GET" and path == "/v1/models":
-            await self._serve_catalog(scope, send, began)
+            await self._serve_catalog(scope, receive, send, began)
             return
         if method != "POST" or path not in self._ROUTED_PATHS:
             await self._json_error(
-                send, scope, 404, "unsupported router path", began=began
+                scope, receive, send, 404, "unsupported router path", began=began
             )
             return
 
         body, disconnected = await self._request_body(receive)
         if disconnected:
+            # The caller left while still uploading, so no engine was asked
+            # anything and no answer was ever sent. That is an outcome the
+            # record owes rather than an early return: the request did reach
+            # the router and die there, and without a row its only trace is a
+            # server-side connection teardown.
+            self._record_self_answer(
+                scope, "", began, http_status=None, caller_gone=True
+            )
             return
         try:
             payload = json.loads(body)
@@ -311,13 +319,23 @@ class RouterApp:
             json.JSONDecodeError,
         ):
             await self._json_error(
-                send, scope, 400, "request body must be valid JSON", began=began
+                scope,
+                receive,
+                send,
+                400,
+                "request body must be valid JSON",
+                began=began,
             )
             return
         model_id = payload.get("model") if isinstance(payload, Mapping) else None
         if not isinstance(model_id, str) or not model_id:
             await self._json_error(
-                send, scope, 400, "request body must contain a model id", began=began
+                scope,
+                receive,
+                send,
+                400,
+                "request body must contain a model id",
+                began=began,
             )
             return
 
@@ -330,8 +348,9 @@ class RouterApp:
         ]
         if not owners:
             await self._json_error(
-                send,
                 scope,
+                receive,
+                send,
                 404,
                 f"unknown model id: {model_id}",
                 model_id=model_id,
@@ -341,8 +360,9 @@ class RouterApp:
         selected = _preferred_owner(owners)
         if selected is None:
             await self._json_error(
-                send,
                 scope,
+                receive,
+                send,
                 409,
                 f"duplicate model id: {model_id}",
                 model_id=model_id,
@@ -553,12 +573,21 @@ class RouterApp:
         return _Catalog(upstream=upstream, payload=payload, cards=tuple(cards))
 
     async def _serve_catalog(
-        self, scope: Mapping[str, Any], send: Send, began: float
+        self,
+        scope: Mapping[str, Any],
+        receive: Receive,
+        send: Send,
+        began: float,
     ) -> None:
         catalogs = await self._reachable_catalogs()
         if not catalogs:
             await self._json_error(
-                send, scope, 503, "no upstream catalogs are reachable", began=began
+                scope,
+                receive,
+                send,
+                503,
+                "no upstream catalogs are reachable",
+                began=began,
             )
             return
         owners = [
@@ -585,8 +614,9 @@ class RouterApp:
             cards.append(card)
         if duplicates:
             await self._json_error(
-                send,
                 scope,
+                receive,
+                send,
                 409,
                 f"duplicate model id: {', '.join(sorted(duplicates))}",
                 began=began,
@@ -595,7 +625,8 @@ class RouterApp:
         payload = dict(catalogs[0].payload)
         payload["data"] = cards
         body = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode()
-        await self._response(
+        caller_gone = await self._response(
+            receive,
             send,
             200,
             [
@@ -606,7 +637,9 @@ class RouterApp:
         )
         # The listing names no model and is served from the merged catalogs, so
         # the row records what it answered without an engine behind it.
-        self._record_self_answer(scope, 200, "", began)
+        self._record_self_answer(
+            scope, "", began, http_status=200, caller_gone=caller_gone
+        )
 
     async def _relay(
         self,
@@ -791,29 +824,48 @@ class RouterApp:
     def _record_self_answer(
         self,
         scope: Mapping[str, Any],
-        http_status: int,
         model_id: str,
         began: float,
+        *,
+        http_status: int | None,
+        caller_gone: bool,
     ) -> None:
         """Record a request this process answered without relaying it.
 
         A request refused before any engine was chosen -- an unroutable path, a
         body that is not JSON, a missing, unknown or ambiguous model id -- and
         the catalog listing are answered here, so no engine served them and
-        there is no usage to report. They belong in the record anyway: a record
-        of what the router served that holds only what it forwarded overstates
-        every engine's share of the traffic and omits precisely the requests a
-        caller reports as broken, whose only other trace is a log line. The row
-        carries the model id the caller named, and the empty string for the
-        catalog listing, which names none.
+        there is no usage to report. So is a caller that left while still
+        uploading, for which no answer was ever sent. They belong in the record
+        anyway: a record of what the router served that holds only what it did
+        not forward omits precisely the requests a caller reports as broken,
+        whose only other trace is a log line. The row carries the model id the
+        caller named, and the empty string where none was ever read.
 
         The upstream is the self-answered sentinel rather than an engine origin,
         so a reader attributing rows per upstream never folds the router's own
         answers into a sink's traffic.
+
+        The status is what the caller got, not what the router decided.
+
+        ``http_status`` is the status the router composed, or None when the
+        caller had gone before any answer was sent. ``caller_gone`` is the
+        departure the answer's own send observed -- the caller's side of the
+        exchange, which the router's own status line does not describe: a
+        refusal answered to a caller that is no longer there is not the same
+        event as a refusal received, and recording both as ``failed`` makes the
+        record unable to distinguish a caller that got an empty answer from one
+        that got nothing.
         """
+        if caller_gone or http_status is None:
+            status = STATUS_ABORTED
+        elif 200 <= http_status < 300:
+            status = STATUS_COMPLETED
+        else:
+            status = STATUS_FAILED
         self._record_receipt(
             accounting=StreamAccounting(),
-            status=STATUS_COMPLETED if 200 <= http_status < 300 else STATUS_FAILED,
+            status=status,
             model_id=model_id,
             upstream=SELF_ANSWERED_UPSTREAM,
             caller_hint=self._caller_hint(scope),
@@ -940,17 +992,44 @@ class RouterApp:
 
     @staticmethod
     async def _response(
-        send: Send, status: int, headers: list[tuple[bytes, bytes]], body: bytes
-    ) -> None:
-        await send(
-            {"type": "http.response.start", "status": status, "headers": headers}
-        )
-        await send({"type": "http.response.body", "body": body})
+        receive: Receive,
+        send: Send,
+        status: int,
+        headers: list[tuple[bytes, bytes]],
+        body: bytes,
+    ) -> bool:
+        """Send an answer this process composed, and report if the caller had gone.
+
+        The departure is read on the same channel the relay reads, and read
+        while the answer is still unsent: an ASGI server reports a completed
+        response on that channel as well, so a watch allowed to outlive the
+        send cannot tell a caller that left from one that is simply done, and
+        every answer would be recorded the same way. The status line is what
+        the router decided, and this tells the row whether anyone received it.
+
+        Returns True when the caller had already gone, so the row says what
+        happened to the request rather than what the router intended.
+        """
+        watcher = asyncio.create_task(RouterApp._wait_for_disconnect(receive))
+        try:
+            await send(
+                {"type": "http.response.start", "status": status, "headers": headers}
+            )
+            # One turn of the loop, so a watcher that has an answer to give --
+            # the caller is already gone -- gives it before the body is sent.
+            await asyncio.sleep(0)
+            caller_gone = watcher.done()
+            await send({"type": "http.response.body", "body": body})
+        finally:
+            watcher.cancel()
+            await asyncio.gather(watcher, return_exceptions=True)
+        return caller_gone
 
     async def _json_error(
         self,
-        send: Send,
         scope: Mapping[str, Any],
+        receive: Receive,
+        send: Send,
         status: int,
         detail: str,
         *,
@@ -966,7 +1045,8 @@ class RouterApp:
         body = json.dumps(
             {"error": {"message": detail}}, separators=(",", ":")
         ).encode()
-        await self._response(
+        caller_gone = await self._response(
+            receive,
             send,
             status,
             [
@@ -975,7 +1055,9 @@ class RouterApp:
             ],
             body,
         )
-        self._record_self_answer(scope, status, model_id, began)
+        self._record_self_answer(
+            scope, model_id, began, http_status=status, caller_gone=caller_gone
+        )
 
 
 def create_router_app(

@@ -37,6 +37,7 @@ from imas_ambix.agent.router import (
 )
 from tests.test_agent_router import (
     Resolver,
+    _body,
     _card,
     _invoke,
     _server,
@@ -582,11 +583,15 @@ def test_a_request_the_router_answers_itself_is_recorded(tmp_path: Path) -> None
 
         assert rows[0]["status"] == STATUS_FAILED
         assert rows[0]["model"] == "nope"
-        assert rows[0]["upstream"] == SELF_ANSWERED_UPSTREAM
+        # Written out rather than read from the module under test: a sentinel
+        # assertion held by the constant it checks follows that constant
+        # wherever it goes, including to an engine origin, which is the one
+        # value it exists to be distinguishable from.
+        assert rows[0]["upstream"] == "(router)"
 
         assert rows[1]["status"] == STATUS_COMPLETED
         assert rows[1]["model"] == ""
-        assert rows[1]["upstream"] == SELF_ANSWERED_UPSTREAM
+        assert rows[1]["upstream"] == "(router)"
 
         assert rows[2]["status"] == STATUS_FAILED
         assert rows[2]["model"] == ""
@@ -668,3 +673,119 @@ def test_a_receipt_setting_that_is_not_positive_stops_the_launch(
     monkeypatch.setenv(RECEIPT_WINDOW_S_ENV, "0")
     with pytest.raises(ValueError):
         RouterApp(Resolver([engine]), request_receipts_path=Path("requests.jsonl"))
+
+
+def test_the_self_answered_sentinel_is_the_value_a_reader_sums_around() -> None:
+    """The sentinel's value is stated here, once, and nowhere else by reference.
+
+    Every row assertion in this module names the literal, so this is the single
+    place that fails loudly if the constant moves. A reader attributing rows per
+    upstream splits traffic on this value: a row carrying an engine origin for a
+    request no engine served folds the router's own answers into that engine's
+    share, and a constant asserted against itself cannot notice.
+    """
+    assert SELF_ANSWERED_UPSTREAM == "(router)"
+
+
+async def _invoke_over(
+    app: RouterApp, method: str, path: str, incoming: Sequence[SendMessage]
+) -> list[SendMessage]:
+    """Drive the app with a receive channel already holding the given messages.
+
+    ``_invoke`` always hands over a complete ``http.request`` first, so it
+    cannot express a caller that stops part-way or one that is already gone.
+    """
+
+    messages = list(incoming)
+    sent: list[SendMessage] = []
+
+    async def receive() -> SendMessage:
+        return messages.pop(0)
+
+    async def send(message: SendMessage) -> None:
+        sent.append(message)
+
+    await app(
+        {
+            "type": "http",
+            "method": method,
+            "path": path,
+            "raw_path": path.encode(),
+            "query_string": b"",
+            "headers": [(b"content-type", b"application/json")],
+        },
+        receive,
+        send,
+    )
+    return sent
+
+
+def test_a_caller_that_leaves_while_uploading_its_request_is_recorded(
+    tmp_path: Path,
+) -> None:
+    """A request that dies on the way in leaves a row saying so.
+
+    Nothing is answered, so nothing is received -- but the request did reach the
+    router and stop there, and an outcome dropped from the record is an outcome
+    a caller reports as an unexplained hang.
+    """
+
+    async def exercise() -> None:
+        receipts = tmp_path / "requests.jsonl"
+        engine = _sse_engine()
+        async with (
+            _server(engine) as engine_url,
+            _router_with_receipts([Upstream(engine_url)], receipts) as app,
+        ):
+            head = json.dumps({"model": "streamer", "messages": []}).encode()
+            sent = await _invoke_over(
+                app,
+                "POST",
+                "/v1/chat/completions",
+                [
+                    {"type": "http.request", "body": head[:10], "more_body": True},
+                    {"type": "http.disconnect"},
+                ],
+            )
+            assert sent == [], sent
+
+        rows = _read_rows(receipts)
+        assert len(rows) == 1
+        assert rows[0]["status"] == STATUS_ABORTED
+        assert rows[0]["upstream"] == "(router)"
+        assert rows[0]["model"] == ""
+
+    asyncio.run(exercise())
+
+
+def test_a_self_answered_request_whose_caller_had_gone_is_recorded_as_aborted(
+    tmp_path: Path,
+) -> None:
+    """The row says what the caller received, not what the router composed.
+
+    The catalog listing is still built and handed to the server, because the
+    router composes it whether or not anyone is listening. Recording that as a
+    completed answer puts rows in the record for requests no caller received,
+    which is the same confusion as recording a truncated relay as complete.
+    """
+
+    async def exercise() -> None:
+        receipts = tmp_path / "requests.jsonl"
+        engine = _sse_engine()
+        async with (
+            _server(engine) as engine_url,
+            _router_with_receipts([Upstream(engine_url)], receipts) as app,
+        ):
+            sent = await _invoke_over(
+                app, "GET", "/v1/models", [{"type": "http.disconnect"}]
+            )
+            assert _status(sent) == 200
+            assert _body(sent)
+
+        rows = _read_rows(receipts)
+        assert len(rows) == 1
+        assert rows[0]["status"] == STATUS_ABORTED
+        assert rows[0]["upstream"] == "(router)"
+        assert rows[0]["model"] == ""
+
+    asyncio.run(exercise())
