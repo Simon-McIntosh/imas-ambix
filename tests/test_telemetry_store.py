@@ -82,10 +82,18 @@ _LANDING_RECORD = (
 # Tier geometry the suite expects, written out rather than read from the store.
 # An expectation computed from the thing it checks is green under any change to
 # it: a case that took its row count, window length and declared weight from
-# TIER_WINDOW_SECONDS stayed green while TIER_HOUR moved from 3600 to 1800. The
-# store's own table is read in exactly one place,
+# TIER_WINDOW_SECONDS stayed green while TIER_HOUR moved from 3600 to 1800. This
+# table is held against the store in one place,
 # test_the_store_publishes_the_tier_windows_these_numbers_are_written_against,
-# which holds it against the numbers below.
+# which asserts the windows and that the two tables cover the same tiers -- so a
+# tier added or retuned in the store reddens there instead of reaching the entry
+# point, whose parser offers every tier as a choice.
+#
+# The store's table has one other reader: the landing-record case reads the two
+# windows to derive the figures it matches against the record. That is the right
+# direction for it -- the record is the artifact under test and the store is its
+# authority -- and it is the reason the pin case compares key sets rather than
+# resting on this table to describe what the store offers.
 _EXPECTED_TIER_GEOMETRY = {
     # window seconds, rows over the fixture's span, samples behind each row
     TIER_MINUTE: (60, 4_320, 3),
@@ -442,14 +450,20 @@ def test_a_source_tier_survives_its_successor(tmp_path, record):
 
 
 def test_the_store_publishes_the_tier_windows_these_numbers_are_written_against():
-    """The store's own window table, read in one place.
+    """The store's window table, held against the geometry written out above.
 
-    Everything else here writes its tier geometry out, from
-    _EXPECTED_TIER_GEOMETRY, so an edit to the table lands as one named failure
-    rather than silently moving the expectations that exist to hold the store.
-    The written row counts are the fixture's own span read at those windows and
-    are checked against it, so a change of span cannot leave them stale.
+    The assertions are separate on purpose. The two windows say what the
+    store compacts at; the key-set comparison says which tiers it offers, and the
+    entry point's parser takes its choices straight from that table, so a tier
+    added there becomes a tier an operator can select with nothing behind it. The
+    written row counts are the fixture's own span read at those windows, so a
+    change of span cannot leave them stale either.
+
+    The table has a second reader -- the landing-record case derives the figures
+    it matches against the record from the two windows. That does not weaken the
+    claim made here, which is about coverage, not about being the only reader.
     """
+    assert set(_EXPECTED_TIER_GEOMETRY) == set(TIER_WINDOW_SECONDS)
     assert TIER_WINDOW_SECONDS[TIER_MINUTE] == 60
     assert TIER_WINDOW_SECONDS[TIER_HOUR] == 3_600
 
