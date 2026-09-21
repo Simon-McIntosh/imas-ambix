@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-21T18:29:17",
+  "updated": "2026-09-21T18:59:47",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -58241,6 +58241,257 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260921T053443850077-scrape-fixture",
+        "plan": "serve-telemetry-spine",
+        "section": "\u00a72",
+        "node": "scrape-fixture",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 399,
+                "cached_input_tokens": 785705,
+                "input_tokens": 786106,
+                "output_tokens": 49,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 786155,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "98f13dbe-0703-4abd-a5e4-65bfdb2eeee2",
+            "session_id": "telemetry-spine"
+          },
+          "done_when": "tests/data/sglang_metrics_sample.txt holds a real scrape captured from the running serve at 98dci4-gpu-0003:18810; a test reads that file from disk, not an embedded copy, and asserts every canonical field section 2 of the plan names resolves from it through engine_metrics; the test fails if a canonical field stops resolving; uv run --no-sync ruff check imas_ambix tests exits 0",
+          "estimated_hours": null,
+          "goal": "Preserve a live scrape as a fixture so the served field set is re-assertable offline",
+          "id": "scrape-fixture",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-21T05:34:44Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no numeric 'headroom'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T053443850077-scrape-fixture/manifest.md",
+          "negative_control": "delete one canonical field from the stored scrape; the field-set test must fail",
+          "plan": "serve-telemetry-spine",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a72",
+          "spec_level": "guided",
+          "time_budget": "30m",
+          "token_budget": null,
+          "write_paths": [
+            "tests/data/sglang_metrics_sample.txt",
+            "tests/test_engine_metrics.py",
+            "docs/plans/serve-telemetry-spine.html",
+            "docs/evidence/archive/serve-telemetry-spine-landed.html"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "telemetry-fixture",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "high",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "worktree-full",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-21T05:34:49Z",
+        "completed_at": "2026-09-21T16:58:29.873Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 41014,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 41020,
+        "stalled": true,
+        "time_budget": "30m",
+        "base_sha": "39e7bba5d7a4d0b398978e7f9e6dd3c84eb13c62",
+        "commits": [
+          "43b45b1b64cfdb358fd6918d87963354a1f36e90",
+          "f03125d6610a58672841ed73770bceca7497e4c6",
+          "87b1222125da9b14f60c88936e8b8ee76d3c0843",
+          "d917d12c99a4c5830410da3d903b42485484ec1b",
+          "c24fc252c2bf9a3c647eee9391d3575895e42c01",
+          "e07d0bf05eb29623a8f22cd036809a36f87b6937",
+          "3e677eb6fe695e24a2f8fab07f16cd2623c3ab36",
+          "62f659f34d2b509d40239bc90eb43d8e1a425d59",
+          "38151b7429b4f9391751b9b397fd98e6f6ddd68b",
+          "ca25efb8f484d1009e115f2b93c754cc0e5b5752",
+          "7adfc3a30700563e659b54999153df6d00c90dc3",
+          "ef7815d486133e455e3088d0be928a621f28ef34",
+          "70bd2ede0f0cebcf488b58ac9ccc72d68759e8cc",
+          "23efa1f10e2aa09ef06bd41b2566c44c39461afe",
+          "8a510da671eddb8bb1bf6c3e21a73688a529992a",
+          "acd82a8a9e4815892fe6d5cdc25cdb4f78728523"
+        ],
+        "changed_lines": {
+          "added": 652,
+          "removed": 33,
+          "files": 3
+        },
+        "tests_added": 9,
+        "gate": "passed",
+        "gate_check": {
+          "command": "tests/test_engine_metrics.py at the reviewed head acd82a8a",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T053443850077-scrape-fixture/scrape-fixture-gate.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T053443850077-scrape-fixture/manifest.md",
+        "scope_changed": false,
+        "session_id": "84df400e-6d92-4da7-953c-d42f52ab523d",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 939527,
+            "input_tokens_cumulative": 939527,
+            "output_tokens": 3968,
+            "output_tokens_cumulative": 3968,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-21T16:58:29.873Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": {
+          "status": "parsed",
+          "scores": {
+            "goal_fidelity": 18,
+            "evidence": 17,
+            "fit": 17,
+            "durability": 17,
+            "scope_discipline": 18
+          },
+          "absent": [],
+          "total": 87
+        },
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 58588766,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 235.03,
+          "generated_tokens": 391439,
+          "generation_seconds": 229.372,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 28.5,
+          "machine_seconds": 5.658,
+          "peak_input_tokens": 136823,
+          "tokens_per_second": 1706.57,
+          "wall_tokens_per_second": 1665.49
+        },
+        "follow_on_paths": [
+          "tests/data/sglang_metrics_sample.txt",
+          "tests/test_agent_lane_sglang.py",
+          "0.0",
+          "0.1",
+          "0.9893"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "resume",
+        "attempt": 9,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/telemetry-spine/scrape-fixture",
+          "session_id": "84df400e-6d92-4da7-953c-d42f52ab523d",
+          "session_source": "pointer",
+          "retained_at": "2026-09-21T16:58:29.873Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "plan_impl_at_dispatch": 0.4,
+        "impl_move": {
+          "plan": "serve-telemetry-spine",
+          "at_dispatch": 0.4,
+          "at_complete": 0.8,
+          "verdict": "moved"
+        },
+        "negative_control": {
+          "verdict": "matched",
+          "test_paths": [
+            "tests/data/sglang_metrics_sample.txt",
+            "tests/test_engine_metrics.py"
+          ],
+          "declaration": "delete one canonical field from the stored scrape; the field-set test must fail",
+          "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T053443850077-scrape-fixture/negative_control.log",
+          "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T053443850077-scrape-fixture/negative_control.log"
+        },
+        "tool_steps": 56.0,
+        "orientation_input_tokens": 2346351.0,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -58315,6 +58566,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 869
+    "_version": 870
   }
 }
