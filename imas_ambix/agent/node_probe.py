@@ -507,6 +507,10 @@ def read_jobs(
     Scoped to *hostname* rather than to a user or an account, because the
     question the record answers is what else was resident on this node. A node
     with no jobs is a reading and is kept; a ``squeue`` that failed is not.
+
+    *timeout_s* bounds a command that crosses the scheduler, so the default is
+    wider than the local reads' -- see ``NodeProbe.job_timeout_s``, which is
+    what the probe passes here.
     """
     argv = ("squeue", "-h", "-w", hostname, "-o", SQUEUE_FORMAT)
     text = run(argv, timeout_s=timeout_s)
@@ -527,10 +531,16 @@ class NodeProbe:
     is a SLURM RPC, so it is read at *job_interval_s* and omitted from the
     ticks between -- omitted rather than repeated, because a tick that repeats
     an earlier reading records an old measurement as a current one.
+
+    *timeout_s* bounds each local read. *job_timeout_s* bounds the job-table
+    RPC, which reaches the scheduler rather than a file or the driver, so it
+    is allowed longer -- its own bound, and the one the job read is invoked
+    with, rather than a figure nothing could reach.
     """
 
     job_interval_s: float = 60.0
     timeout_s: float = 10.0
+    job_timeout_s: float = 15.0
     env: Mapping[str, str] | None = None
     run: RunFn = run_capture
     hostname: str = field(default_factory=lambda: os.uname().nodename)
@@ -558,7 +568,7 @@ class NodeProbe:
             self._previous_cpu = times
 
         if self._jobs_at is None or now - self._jobs_at >= self.job_interval_s:
-            jobs = read_jobs(self.hostname, self.run, timeout_s=self.timeout_s)
+            jobs = read_jobs(self.hostname, self.run, timeout_s=self.job_timeout_s)
             # A failed job-table read does not retry on the next tick: it is a
             # SLURM RPC, and the following one is due on the same clock either
             # way, so a node refusing squeue is not asked twice a second.

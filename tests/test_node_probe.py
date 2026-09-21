@@ -442,12 +442,40 @@ def test_every_read_forwards_the_timeout_it_was_given():
 
 
 def test_the_probe_gives_its_own_timeout_to_every_source_it_reads():
+    """Each source gets a bound the probe configured, not one it forgot.
+
+    An advertised default that no caller ever passes is a figure nothing can
+    reach, so this reads the timeout each command was invoked with rather than
+    the one the called signature declares.
+    """
     run, calls = _recording_runner()
 
-    node_probe.NodeProbe(run=run, env={}, hostname="n", timeout_s=2.5).sample(0.0)
+    node_probe.NodeProbe(
+        run=run, env={}, hostname="n", timeout_s=2.5, job_timeout_s=4.75
+    ).sample(0.0)
 
     assert len(calls) == 4
-    assert {timeout_s for _argv, timeout_s in calls} == {2.5}
+    invoked = {argv[0]: timeout_s for argv, timeout_s in calls}
+    assert invoked["nvidia-smi"] == 2.5
+    assert invoked["cat"] == 2.5
+    assert invoked["squeue"] == 4.75
+
+
+def test_the_job_read_carries_the_bound_it_declares_rather_than_the_local_one():
+    """``squeue`` is invoked at the probe's RPC bound, not at the local 10 s.
+
+    The job table crosses the scheduler and is allowed longer than a driver or
+    a ``/proc`` read, so a probe left on its defaults must hand ``squeue`` its
+    own figure. The values are the ones on the wire; a test asserting the
+    signature's default would pass against a call that never used it.
+    """
+    run, calls = _recording_runner()
+
+    node_probe.NodeProbe(run=run, env={}, hostname="n").sample(0.0)
+
+    invoked = {argv[0]: timeout_s for argv, timeout_s in calls}
+    assert invoked["squeue"] == node_probe.NodeProbe.job_timeout_s == 15.0
+    assert invoked["nvidia-smi"] == node_probe.NodeProbe.timeout_s == 10.0
 
 
 def test_the_real_runner_cuts_a_command_off_at_the_timeout_it_was_given():
