@@ -1734,6 +1734,101 @@ except ImportError:
     readings land at the same path <em>and</em> the same inode <em>and</em> the same offset within one
     host's own key space cannot arise, but a recording host that misreports its own name would
     reintroduce the same collision under the new key.</p>
+  <h2 id="boot-key">§5 — the key names the boot as well, because a hostname does not survive one</h2>
+
+    <p>A hostname is stable across a reboot, but the counters these rows carry are not: they
+    are cumulative, and they start again from zero when the machine restarts. Two readings
+    from one genuinely correct hostname, one on each side of a reboot, therefore difference as
+    a sudden improvement — a real measurement of the wrong quantity, with nothing on either
+    row to say a reboot happened. The host dimension, added for the two-machines-at-one-path
+    collision, cannot separate the two sides of a reboot on a <em>single</em> machine.</p>
+
+    <p>Every key now carries the boot as well. <code>source</code> is
+    <code>(host, boot_id, path, inode)</code> and <code>sample</code> is unique on
+    <code>(host, boot_id, inode, offset)</code>. The boot is resolved <em>per row</em> rather
+    than per file, because one file can hold rows from both sides of a reboot while its
+    hostname never moves; the host stays per file, since a file is written by one machine.
+    Both are read from the row's own top level or from its own <code>host</code> section,
+    which is where the recorder states them — reading only the top level would leave the key
+    inert against the one producer here that emits a boot identity at all.</p>
+
+    <table>
+      <thead><tr><th>Behaviour</th><th>What was measured</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Two boots of one host at one inode and one offset are both kept</td>
+          <td>Two files pinned to inode <code>424242</code>, both naming <code>node-a</code> and
+          both writing at the same offsets, one naming boot A and the other boot B, ingest as
+          <strong>4 rows inserted and 0 duplicates</strong>, counting <strong>2 rows per
+          boot</strong> across <strong>2 sources</strong>. Both sources are keyed
+          <code>host+boot</code>. Under the un-keyed schema this is the pass that collapses to
+          one boot's two rows and silently discards the other.</td>
+        </tr>
+        <tr>
+          <td>A boot the producer refuses is a degraded key, announced and not dropped</td>
+          <td>The producer's parser raises on anything but a canonical lowercase identifier.
+          The index catches the refusal rather than loosening the parser: the row is stored
+          under the empty sentinel with <code>key_kind = host</code>, so it announces that it
+          was keyed by its host alone. A row that looked keyed while comparing as though it
+          were would be the failure this field exists to prevent.</td>
+        </tr>
+        <tr>
+          <td>A window belongs to one boot of that host</td>
+          <td>Three ticks from each of two boots of one host, interleaved within one minute,
+          compact to <strong>one row per boot</strong>, each carrying its own host and boot; a
+          compacted row carries both into the next tier. Partitioning happens before the
+          weights are computed, so a gap the reboot opened is a coverage gap rather than an
+          interval one sample was held across — and the difference across the boundary is not
+          taken between two counters that never met.</td>
+        </tr>
+        <tr>
+          <td>A null boot would fail open, so the sentinel is an empty string</td>
+          <td>SQLite treats nulls as distinct in a <code>UNIQUE</code> index, so a nullable
+          <code>boot_id</code> would insert every duplicate rather than deduplicating it. The
+          column is <code>NOT NULL</code> and unknown boots share one sentinel.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 id="boot-key-negative-control">The negative control, and what it separates</h3>
+
+    <p>The declared mutation removes <code>boot_id</code> from the sample's uniqueness — the
+    line <code>UNIQUE (host, boot_id, inode, offset)</code> is replaced with
+    <code>UNIQUE (host, inode, offset)</code>, the key the host change left behind. It reddens
+    exactly one test, the first above:
+    <code>test_two_boots_of_one_host_at_one_inode_and_offset_are_both_kept</code>, on
+    <code>assert report.rows_inserted == 4</code> — reported as <code>assert 2 == 4</code>, the
+    second boot's rows arriving as duplicates — 1 failed and 30 passed, exit 1. The log's first
+    line states the mutation verbatim and its site. This is the one measurement that separates
+    "<code>boot_id</code> is in the key" from "the schema text says <code>boot_id</code>".</p>
+
+    <h3 id="boot-key-migration">An index already on disk, and what happens to it</h3>
+
+    <p><strong>Every index written before this change is invalidated, and again the failure is a
+    refusal rather than a merge.</strong> Measured against a database carrying the previous
+    revision's shape — <code>sample</code> unique on <code>(host, inode, offset)</code> and no
+    <code>boot_id</code> column — the first <code>ingest</code> raises
+    <code>sqlite3.OperationalError: no such column: boot_id</code>. The tables are
+    <code>CREATE TABLE IF NOT EXISTS</code> and the index carries no schema-version marker, so
+    the old shape survives and the new code discovers the mismatch only when it writes. The
+    recovery is unchanged: <code>TelemetryIndex.rebuild()</code> from the JSONL.</p>
+
+    <h3 id="boot-key-gates">Gates and commits</h3>
+
+    <p><code>uv run --no-sync pytest tests/test_telemetry_index.py tests/test_telemetry_store.py</code>
+    reports <strong>54 passed</strong>, exit 0; <code>uv run --no-sync ruff check imas_ambix tests</code>
+    exits 0. Both on the login node, for the same reason as the host arm — a fixture-built unit
+    suite of a few seconds with no corpus read. The commit is
+    <code>feat(telemetry): key the serving record by the boot that wrote it</code>, four files,
+    verified trailer-clean and bodied before push.</p>
+
+    <p>One limit is recorded with the change. The boot is carried into the keys and into the
+    compaction grouping, not into a per-boot query surface: a reader wanting one boot's total
+    still partitions outside the index, as with the host. And the collision this arm is tested
+    on is contrived rather than observed — two files on one filesystem receive distinct inodes by
+    construction, so a test using their real numbering would pass having proved nothing. A search
+    of two filesystems on this node found their inode ranges disjoint, so the collision is pinned
+    and the case records that beside its result.</p>
   </main>
 </body>
 </html>

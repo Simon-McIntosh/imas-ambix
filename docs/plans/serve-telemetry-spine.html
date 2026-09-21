@@ -494,6 +494,38 @@
     <code>test_two_hosts_at_one_inode_and_offset_are_both_kept</code> with
     <code>assert 2 == 4</code>, which is the merge the change exists to prevent.</p>
 
+    <p><strong>Landed: every key carries the boot as well, because a hostname does not survive a
+    reboot.</strong> The counters these rows carry are cumulative, so they restart from zero when the
+    machine reboots. Two readings from one genuinely correct hostname, one on each side of a reboot,
+    therefore difference as a sudden improvement — a real measurement of the wrong quantity, with
+    nothing on either row to say a reboot happened. The host dimension cannot separate the two sides
+    of a reboot, because a hostname is stable across one. <code>source</code> is now
+    <code>(host, boot_id, path, inode)</code> and <code>sample</code> is unique on
+    <code>(host, boot_id, inode, offset)</code>. The boot is resolved <em>per row</em> rather than per
+    file, because a single file can hold rows from both sides of a reboot while its hostname never
+    moves; both the host and the boot are read from the row's own top level or from its own
+    <code>host</code> section, which is where the recorder states them.</p>
+
+    <p>The producer's parser raises on anything but a canonical lowercase boot identifier, and that
+    strictness is not the index's to loosen — so the index catches the refusal instead. A row whose
+    boot cannot be established is stored under an empty sentinel with its <code>key_kind</code>
+    recording that it was keyed by its host alone, so a degraded row announces itself rather than
+    comparing as though it were keyed. The sentinel is not null, because SQLite treats nulls as
+    distinct in a <code>UNIQUE</code> index and a nullable boot column would fail open and insert
+    every duplicate. Compaction windows now partition by <code>(host, boot)</code> before the weights
+    are computed, so the gap a reboot leaves is a coverage gap rather than an interval one sample was
+    held across.</p>
+
+    <p><strong>Gates.</strong> <code>pytest tests/test_telemetry_index.py tests/test_telemetry_store.py</code>
+    reports <strong>54 passed</strong>, exit 0; <code>ruff check imas_ambix tests</code> exits 0. The
+    declared mutation — dropping <code>boot_id</code> from the sample's uniqueness, restoring
+    <code>UNIQUE (host, inode, offset)</code> — reddens exactly
+    <code>test_two_boots_of_one_host_at_one_inode_and_offset_are_both_kept</code> with
+    <code>assert 2 == 4</code>, the second boot's rows arriving as duplicates of the first's. An index
+    already on disk is invalidated by this arm on the same terms as the host arm: measured, the first
+    ingest against a pre-existing database raises
+    <code>sqlite3.OperationalError: no such column: boot_id</code>.</p>
+
     <h2 id="s6">§6 — Per-request receipts from the router</h2>
 
     <p>Aggregate gauges answer how the lane is behaving; they cannot attribute. The router
