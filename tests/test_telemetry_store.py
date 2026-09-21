@@ -79,6 +79,19 @@ _LANDING_RECORD = (
     / "serve-telemetry-spine-landed.html"
 )
 
+# Tier geometry the suite expects, written out rather than read from the store.
+# An expectation computed from the thing it checks is green under any change to
+# it: a case that took its row count, window length and declared weight from
+# TIER_WINDOW_SECONDS stayed green while TIER_HOUR moved from 3600 to 1800. The
+# store's own table is read in exactly one place,
+# test_the_store_publishes_the_tier_windows_these_numbers_are_written_against,
+# which holds it against the numbers below.
+_EXPECTED_TIER_GEOMETRY = {
+    # window seconds, rows over the fixture's span, samples behind each row
+    TIER_MINUTE: (60, 4_320, 3),
+    TIER_HOUR: (3_600, 72, 180),
+}
+
 
 def _raw_rows() -> list[dict]:
     """A three-day record carrying the live record's leaves and its null pattern.
@@ -428,6 +441,22 @@ def test_a_source_tier_survives_its_successor(tmp_path, record):
     assert len(read_rows(tmp_path / "minute.jsonl")) == _DAYS * 60 * 24
 
 
+def test_the_store_publishes_the_tier_windows_these_numbers_are_written_against():
+    """The store's own window table, read in one place.
+
+    Everything else here writes its tier geometry out, from
+    _EXPECTED_TIER_GEOMETRY, so an edit to the table lands as one named failure
+    rather than silently moving the expectations that exist to hold the store.
+    The written row counts are the fixture's own span read at those windows and
+    are checked against it, so a change of span cannot leave them stale.
+    """
+    assert TIER_WINDOW_SECONDS[TIER_MINUTE] == 60
+    assert TIER_WINDOW_SECONDS[TIER_HOUR] == 3_600
+
+    assert _EXPECTED_TIER_GEOMETRY[TIER_MINUTE][1] == _DAYS * 24 * 60
+    assert _EXPECTED_TIER_GEOMETRY[TIER_HOUR][1] == _DAYS * 24
+
+
 @pytest.mark.parametrize("tier", (TIER_MINUTE, TIER_HOUR))
 def test_the_rebuild_entry_point_compacts_a_tier_from_its_source(
     tmp_path, record, tier
@@ -444,10 +473,13 @@ def test_the_rebuild_entry_point_compacts_a_tier_from_its_source(
     Both tiers are exercised, because an entry point that ignores --tier and
     always compacts in one direction is invisible to a case that only ever asks
     for that direction: the row count, the window length and the declared weight
-    all have to move with the flag for the invocation to be honest.
+    all have to move with the flag for the invocation to be honest. The geometry
+    comes from _EXPECTED_TIER_GEOMETRY rather than from TIER_WINDOW_SECONDS, so
+    the case holds the entry point to a written figure and cannot be re-labelled
+    by an edit to the store.
     """
     raw_path, rows = record
-    window_seconds = TIER_WINDOW_SECONDS[tier]
+    window_seconds, expected_rows, expected_samples = _EXPECTED_TIER_GEOMETRY[tier]
     destination = tmp_path / "rebuilt" / f"{tier}.jsonl"
 
     exit_code = main(
@@ -463,22 +495,27 @@ def test_the_rebuild_entry_point_compacts_a_tier_from_its_source(
 
     assert exit_code == 0
     rebuilt = read_rows(destination)
-    assert len(rebuilt) == _DAYS * 24 * 3600 // window_seconds
+    assert len(rebuilt) == expected_rows
     endpoints = _raw_endpoints(rows, window_seconds, _SYNTHETIC_COUNTER)
     for row in rebuilt:
         assert row["tier"] == tier
         assert row[_SYNTHETIC_COUNTER] == endpoints[_bucket_of(row)]
-        assert row["obs"]["samples"] == window_seconds // _CADENCE_S
+        assert row["obs"]["samples"] == expected_samples
     assert raw_path.exists()  # the entry point does not retire its source
 
 
-def test_the_rebuild_entry_point_refuses_a_tier_it_cannot_produce(tmp_path, record):
+def test_the_rebuild_entry_point_refuses_a_tier_it_cannot_produce(
+    tmp_path, record, capsys
+):
     """An unusable argument vector ends the run before any rebuild happens.
 
-    The failure has to be on the reason as well as on the status: an entry point
-    that ends with a *success* code for a tier it cannot produce reports work it
-    never did, and a case satisfied by any SystemExit at all cannot tell that
-    from a refusal -- the exit status is what the delegating subcommand reads.
+    Three things have to hold together, because a status alone does not separate
+    a refusal from anything else that ends the process: an entry point that exits
+    0 for a tier it cannot produce reports success for work it never did, one that
+    exits 1 is a crash rather than a refusal, and one that exits 2 while saying
+    nothing has told the caller neither the argument nor the value at fault. So
+    the status is pinned to the one argparse uses for an unusable choice, and the
+    reason is pinned to the stream the subcommand's own caller reads.
 
     It must leave no successor on disk either, because a destination half-written
     by an accepted-but-wrong parse is a file a later reader would compact from.
@@ -498,7 +535,11 @@ def test_the_rebuild_entry_point_refuses_a_tier_it_cannot_produce(tmp_path, reco
             ]
         )
 
-    assert refusal.value.code != 0  # argparse reports an unusable choice as 2
+    assert refusal.value.code == 2  # argparse's status for an unusable choice
+    refusal_message = capsys.readouterr().err
+    assert "--tier" in refusal_message
+    assert "invalid choice" in refusal_message
+    assert "second" in refusal_message
     assert not destination.exists()
 
 
