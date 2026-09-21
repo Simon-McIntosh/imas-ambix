@@ -231,6 +231,115 @@
     <code>create_router_app</code> and <code>serve_router</code> accept an explicit
     <code>request_receipts_path</code> for a caller that wants another location. No launch
     command needed changing, and none did.</p>
+
+    <h1>Serve telemetry spine — the reader index (§5)</h1>
+
+    <h2 id="reader-index">A disposable index over the append-only record</h2>
+
+    <figure>
+      <img src="/imas-ambix/figures/telemetry-index/roll-resume-two-keys.svg"
+           alt="One inode's byte stream wearing three pathnames across a roll and a restart, beside the two mechanisms that make a re-read harmless: the tail offset looked up by inode, and the sample's uniqueness on inode and byte offset.">
+      <figcaption>A roll, a restart, and the two keys that keep a re-read from becoming a second row.</figcaption>
+    </figure>
+
+    <p><code>imas_ambix/agent/telemetry_index.py</code> is the query side of the
+    spine: a local SQLite index built by tailing the append-only JSONL, on a disk
+    where SQLite's WAL mode does not exist. It is deleted and rebuilt on demand,
+    so it can never itself be the only copy of anything, and nothing under
+    <code>imas_ambix/</code> imported <code>sqlite3</code> before it.</p>
+
+    <h3 id="index-contract">What each quantity is worth, decided per name</h3>
+
+    <p>The plan asked for "token sums" without fixing what a sum over a counter
+    means. The index stores every numeric leaf of a record as a measurement
+    carrying a <em>kind</em>, so the answer is per name: an interval quantity is
+    summed, and a cumulative total is differenced across its endpoints rather
+    than added up as a series of snapshots. Every probe below is checked against
+    the JSONL read directly by the test, not against the index's own answer.</p>
+
+    <table>
+      <thead><tr><th>Gate clause</th><th>What was measured</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Ingesting one record twice yields the same row count as ingesting it once</td>
+          <td>Two further ingests of an unchanged file insert <strong>0</strong> rows each
+          and leave the count at 3. With the tail state dropped — the case the offset alone
+          cannot cover — a re-ingest reports <strong>3 duplicates and 0 inserts</strong>, and
+          the count is still 3.</td>
+        </tr>
+        <tr>
+          <td>Ingest resumes across a rolled file and a restart, tracked by path, inode and byte
+          offset, with neither a gap nor a double count</td>
+          <td>A fixture rolls mid-stream: 3 lines written, the file renamed aside, 2 more
+          written at the path and 1 appended to the rolled name. The pass yields
+          <strong>6 rows for 6 distinct lines</strong> and the interval total
+          <strong>122</strong>. A path replaced by a new file (new inode, offset 0) is read;
+          a reopen from the same index continues the tail and inserts 1 row of 1 new.</td>
+        </tr>
+        <tr>
+          <td>A period query returns token sums equal to the same sums computed directly from
+          the JSONL</td>
+          <td>Over <code>[20&nbsp;s, 70&nbsp;s)</code> the index reproduces the direct scan for
+          <code>spec_draft_tokens</code> and <code>prefix_cache_query_delta</code>; the
+          cumulative span over <code>[start, end)</code> equals its own two endpoint readings,
+          which the direct computation takes from the record independently.</td>
+        </tr>
+        <tr>
+          <td>Deleting the index and rebuilding yields identical query results</td>
+          <td>Six probes — sample count, an interval sum, a windowed interval sum, a
+          cumulative span, a time-weighted mean and an absent quantity — are asserted equal
+          before and after deleting the file and rebuilding, and the rebuild reports
+          <strong>12 inserts</strong>. A rebuild in place matches a fresh index.</td>
+        </tr>
+        <tr>
+          <td>The record's absence is not a zero</td>
+          <td>Two samples measured at zero sum to <code>0.0</code>; a quantity no sample
+          carried returns <code>None</code> from the same call site.</td>
+        </tr>
+        <tr>
+          <td>The interval aggregation has one owner</td>
+          <td><code>TelemetryIndex.receipt_bins</code> equals
+          <code>summarise_receipt_rows</code> on the same rows, so
+          <code>receipt_bins</code> has a production caller rather than only a test.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 id="index-negative-control">The negative control, and what it separates</h3>
+
+    <p>A passing suite never shows that a guard fires. The declared mutation replaces
+    <code>INSERT OR IGNORE INTO sample</code> with <code>INSERT INTO sample</code>, removing
+    the <code>(inode, offset)</code> uniqueness on the sample — the guard that makes a
+    re-read of known bytes a no-op.</p>
+
+    <p>Exactly one test reddens:
+    <code>test_reingest_after_lost_tail_state_is_still_one_copy</code>, exit 1. The plain
+    double-ingest test <em>still passes</em> under the mutation, because the recorded offset
+    already prevents that re-read — which is precisely the division of labour the two
+    mechanisms exist for, and the reason the fixture above rolls the file rather than
+    merely re-reading it. The log's first line repeats the declared mutation verbatim.</p>
+
+    <h3 id="index-gates">Gates and commits</h3>
+
+    <p><code>uv run --no-sync pytest tests/test_telemetry_index.py</code> reports
+    <strong>15 passed</strong>; the neighbouring suites
+    (<code>test_agent_receipt_bins.py</code>, <code>test_agent_lane_sglang.py</code>) stay
+    green, 5 passed between them — 20 across the three files.
+    <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0.</p>
+
+    <table>
+      <thead><tr><th>Commit</th><th>Subject</th></tr></thead>
+      <tbody>
+        <tr><td><code>a6116ed8</code></td><td>the index: schema, measured leaves with a kind, inode-keyed tail, the query surface</td></tr>
+        <tr><td><code>5f3beb59</code></td><td>the tests, including the roll fixture that found the path-keyed tail</td></tr>
+        <tr><td><code>47dd89b4</code></td><td>formatting and lint, kept out of the change</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Remaining.</strong> <code>watch.py</code> and its panel test are §5's other
+    write paths and are not touched here; the ledger's hour/day/week/month rows are asserted
+    at the index level rather than through the watcher's panels. Followup
+    <code>f-sts-001</code> remains open.</p>
   </main>
 </body>
 </html>
