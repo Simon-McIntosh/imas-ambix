@@ -2608,6 +2608,55 @@ def receipts(
     console.print(f"Wrote {rows_written} receipt rows to {receipts_path}")
 
 
+@agent.command(name="watch")
+@click.option(
+    "--record",
+    "record_dir",
+    type=click.Path(),
+    default=None,
+    help="Receipts directory to read (default: ~/.local/share/ambix/receipts).",
+)
+@click.option(
+    "--index",
+    "index_path",
+    type=click.Path(),
+    default=None,
+    help="Index file to query (default: ~/.cache/ambix/watch-index.sqlite3).",
+)
+@click.option("--json", "as_json", is_flag=True, help="Emit the figures as JSON.")
+def watch(record_dir: str | None, index_path: str | None, as_json: bool) -> None:
+    """Render the serving panels from the recorded receipts.
+
+    The panels are derived from the append-only receipt record, never from a
+    live probe: this reads what the recorder already wrote and queries it
+    through a disposable local index, so it neither spawns a sampler for the
+    serve's cards nor keeps a ledger of its own. Running it twice over the
+    same record produces the same figures, and deleting the index only costs
+    the rebuild.
+
+    \b
+    Read the local record:
+        imas-ambix agent watch
+
+    \b
+    Read a specific record, and emit the figures as JSON:
+        imas-ambix agent watch --record /path/to/receipts --json
+    """
+    from imas_ambix.agent import watch as watch_mod
+
+    if as_json:
+        import json as _json
+
+        click.echo(
+            _json.dumps(
+                watch_mod.watch_document(record_dir=record_dir, index_path=index_path),
+                indent=2,
+            )
+        )
+        return
+    console.print(watch_mod.watch_text(record_dir=record_dir, index_path=index_path))
+
+
 def _render_report(report: BenchReport, model: str, repeat: int = 1) -> None:
     """Render benchmark results as rich tables to the console."""
     from rich.table import Table as RichTable
