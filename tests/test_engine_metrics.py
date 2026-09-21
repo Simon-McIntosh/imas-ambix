@@ -28,18 +28,158 @@ _SGLANG_FIXTURE = Path(__file__).parent / "data" / "sglang_metrics_sample.txt"
 
 # Keys ``row_section`` may carry besides the canonical quantities themselves.
 _ANNOTATION_KEYS = frozenset({"family", "model_id"})
-_CANONICAL_KEYS = (
-    frozenset(engine_metrics.GAUGE_SERIES)
-    | frozenset(engine_metrics.COUNTER_SERIES)
+
+# The keys a reading of each family carries, spelled out: the canonical
+# quantities that family publishes plus the two annotations. Written out rather
+# than read from ``engine_metrics``' own tables for the same reason as
+# ``_CANONICAL_FIELD_SOURCES`` below -- an expectation derived from those tables
+# moves with them, so emptying a family's series mapping takes the delivered key
+# away in the same step that takes the expected one, and the omission leaves no
+# failure behind. An SGLang reading carries neither the prefix-cache counters nor
+# the speculative-decode terms, since that family publishes no series for them.
+_SECTION_KEYS: dict[str, frozenset[str]] = {
+    engine_metrics.FAMILY_SGLANG: _ANNOTATION_KEYS
     | frozenset(
         {
+            "requests_running",
+            "requests_queued",
+            "kv_pool_occupancy",
+            "prompt_tokens",
+            "generation_tokens",
+            "cached_prompt_tokens",
+            "uncached_prompt_tokens",
+            "histograms",
+        }
+    ),
+    engine_metrics.FAMILY_VLLM: _ANNOTATION_KEYS
+    | frozenset(
+        {
+            "requests_running",
+            "requests_queued",
+            "kv_pool_occupancy",
+            "prompt_tokens",
+            "generation_tokens",
+            "prefix_cache_queries",
+            "prefix_cache_hits",
             "cached_prompt_tokens",
             "uncached_prompt_tokens",
             "histograms",
             "spec_decode",
         }
-    )
+    ),
+}
+
+
+# The canonical quantities an SGLang reading must expose, spelled out here with
+# their value path in a reading's canonical section and the vetted scrape series
+# each is sourced from. Written out rather than read from ``engine_metrics``' own
+# tables because an expectation derived from those tables shrinks with them:
+# dropping a family's series mapping empties both the expectation and the
+# delivered key together, so a canonical quantity can stop resolving without a
+# test noticing. This list is what makes the recorded scrape re-assert the served
+# field set offline.
+#
+# One entry is (quantity, value path, series name, required label fragment).
+_CANONICAL_FIELD_SOURCES: tuple[tuple[str, tuple[str, ...], str, str], ...] = (
+    ("requests running", ("requests_running",), "num_running_reqs", ""),
+    ("requests queued", ("requests_queued",), "num_queue_reqs", ""),
+    ("KV-pool occupancy", ("kv_pool_occupancy",), "full_token_usage", ""),
+    ("prompt tokens", ("prompt_tokens",), "prompt_tokens_total", ""),
+    ("generation tokens", ("generation_tokens",), "generation_tokens_total", ""),
+    (
+        "cached tokens, split by the tier that answered",
+        ("cached_prompt_tokens", "device"),
+        "prefill_effective_tokens_total",
+        'mode="device_hit"',
+    ),
+    (
+        "cached tokens, split by the tier that answered",
+        ("cached_prompt_tokens", "host"),
+        "prefill_effective_tokens_total",
+        'mode="host_hit"',
+    ),
+    (
+        "cached tokens, split by the tier that answered",
+        ("cached_prompt_tokens", "storage"),
+        "prefill_effective_tokens_total",
+        'mode="storage_hit"',
+    ),
+    (
+        "uncached prompt tokens",
+        ("uncached_prompt_tokens",),
+        "prefill_effective_tokens_total",
+        'mode="input"',
+    ),
+    (
+        "time to first token",
+        ("histograms", "time_to_first_token"),
+        "time_to_first_token_seconds_count",
+        "",
+    ),
+    (
+        "inter-token latency",
+        ("histograms", "inter_token_latency"),
+        "inter_token_latency_seconds_count",
+        "",
+    ),
 )
+
+
+def _resolve(section: dict[str, object], path: tuple[str, ...]) -> object:
+    """The value *path* addresses inside a canonical section, or ``None``."""
+    node: object = section
+    for key in path:
+        if not isinstance(node, dict) or key not in node:
+            return None
+        node = node[key]
+    return node
+
+
+def _has_sample_line(text: str, name: str, label: str) -> bool:
+    """Whether the reader sees a *sample* of *name*, not merely its HELP text.
+
+    Every step is the reader's own, so the answer is the reader's answer for the
+    same input rather than a second opinion that can disagree with it in either
+    direction. The exposition repeats each series name in a ``# HELP`` and a
+    ``# TYPE`` line above its samples, so a substring search for the name is
+    satisfied by a series whose samples are all gone: what counts as a sample is
+    therefore taken from ``parse_metrics``, which strips each line, drops the
+    comments and matches the name-then-labels-then-value form. Which samples a
+    reading is made of is taken from ``eligible_samples``, so a sample the
+    reader discards -- a repeated tensor-parallel rank, or a ``reason``-labelled
+    breakdown -- is not counted here either. The name is compared the way the
+    reader compares it, on ``_bare``, so a name carrying more than one colon --
+    which resolves in production, since only the last segment is read -- is not
+    reported unsourced. A hand-rolled peel beside either of those is stricter
+    where the exposition is looser than the reader is, and looser where the
+    reader is selective.
+    """
+    samples = engine_metrics.parse_metrics(text)
+    family = engine_metrics.detect_family(samples)
+    if family is None:
+        return False
+    wanted = _label_fragment(label)
+    for sample_name, labels, _value in engine_metrics.eligible_samples(samples, family):
+        if engine_metrics._bare(sample_name) != name:
+            continue
+        if wanted is not None and labels.get(wanted[0]) != wanted[1]:
+            continue
+        return True
+    return False
+
+
+def _label_fragment(label: str) -> tuple[str, str] | None:
+    """The key and value a required label fragment names, or ``None`` if empty.
+
+    Read with the reader's own label syntax, so a fragment is parsed the same
+    way the line it is looked for in is.
+    """
+    if not label:
+        return None
+    match = engine_metrics._LABEL_RE.search(label)
+    if match is None:
+        raise ValueError(f"not a label fragment: {label!r}")
+    return match.group("key"), match.group("val")
 
 
 def _per_pos_head(labels: str) -> str:
@@ -107,14 +247,6 @@ def _sglang_section() -> dict[str, object]:
     return _section(_SGLANG_FIXTURE.read_text(encoding="utf-8"))
 
 
-def _published(family: str) -> set[str]:
-    """Canonical keys *family* publishes, read from its own series tables."""
-    keys = {"histograms"}
-    for table in (engine_metrics.GAUGE_SERIES, engine_metrics.COUNTER_SERIES):
-        keys |= {name for name, series in table.items() if series[family]}
-    return keys
-
-
 # ---------------------------------------------------------------------------
 # One code path, both families
 # ---------------------------------------------------------------------------
@@ -138,6 +270,201 @@ def test_sglang_scrape_resolves_through_the_shared_reader() -> None:
     assert metrics.histograms["time_to_first_token"].count == 3.0
 
 
+def test_the_recorded_scrape_sources_every_canonical_field() -> None:
+    """Every canonical field a reading must expose is sourced by the scrape's bytes.
+
+    Two things are asserted against the file rather than against the module.
+    Every canonical quantity resolves from the recorded scrape, with the
+    expectation written out here so a series mapping that is dropped or renamed
+    fails rather than silently shrinking the expectation with it. And each
+    quantity's source series is read out of the file's own text, so a fixture
+    that was hand-written, truncated or left behind by an older engine revision
+    cannot satisfy this test by carrying canned values.
+    """
+    assert _SGLANG_FIXTURE.is_file(), _SGLANG_FIXTURE
+    text = _SGLANG_FIXTURE.read_text(encoding="utf-8")
+    section = _section(text)
+
+    unresolved: list[str] = []
+    unsourced: list[str] = []
+    for quantity, path, name, label in _CANONICAL_FIELD_SOURCES:
+        if _resolve(section, path) is None:
+            unresolved.append(f"{quantity} ({'.'.join(path)})")
+        if not _has_sample_line(text, name, label):
+            unsourced.append(f"{quantity} ({'.'.join(path)}) <- {name}{label}")
+
+    assert not unresolved and not unsourced, {
+        "unresolved": unresolved,
+        "unsourced": unsourced,
+    }
+
+
+def test_a_series_name_without_a_value_is_not_a_source() -> None:
+    """A name with nothing to parse is not a source, however the line is spelled.
+
+    The exposition repeats every series name in a ``# HELP`` and a ``# TYPE``
+    line above its samples, so looking for the name alone is satisfied by the
+    header. Asking for a *sample* line is not enough either: a line carrying the
+    name and its full label set but no value has nothing to read, and a trailing
+    space is the same defect. Only a line that ends in a value token counts, so a
+    scrape that lost its samples cannot pass on its labels. Both spellings of a
+    sample are covered, label-bearing and unlabelled: the value is required of
+    each independently, and an unlabelled line has nothing but the value to hold
+    it to.
+
+    The guard is also held to what the reader ACCEPTS, not only to what it
+    refuses: the shapes below differ only in leading whitespace or in whether a
+    tab separates the value, and a guard requiring the name at column zero
+    REFUSED those while the reader resolved every value in them. What counts as
+    a sample is therefore asked of the reader itself, and the indented
+    assertions below fail if that delegation is ever replaced by a hand-rolled
+    peel again.
+    """
+    name = "num_running_reqs"
+    labels = 'engine_type="unified",tp_rank="0"'
+    header = "\n".join(
+        [
+            f"# HELP sglang:{name} The number of running requests.",
+            f"# TYPE sglang:{name} gauge",
+        ]
+    )
+    not_a_source = {
+        "the name only in HELP/TYPE text": header,
+        "the name and its labels, with no value": f"sglang:{name}{{{labels}}}",
+        "the name and its labels, then a trailing space": f"sglang:{name}{{{labels}}} ",
+        "the bare name, unlabelled, with no value": f"sglang:{name}",
+        "the bare name, unlabelled, then a trailing space": f"sglang:{name} ",
+        "a longer series name sharing the prefix": (
+            f"sglang:{name}_total{{{labels}}} 1.0"
+        ),
+    }
+    for description, text in not_a_source.items():
+        assert not _has_sample_line(text, name, ""), description
+
+    value_present = {
+        "the name and its labels": f"sglang:{name}{{{labels}}} 0.0",
+        "the bare name, unlabelled": f"sglang:{name} 0.0",
+        # Leading whitespace and a tab separator are legal exposition the reader
+        # accepts, and a guard refusing them would report a series unsourced
+        # that the reader resolves.
+        "the label-bearing line, indented": f"    sglang:{name}{{{labels}}} 0.0",
+        "the unlabelled line, indented": f"  sglang:{name} 0.0",
+        "tab-separated after the labels": f"sglang:{name}{{{labels}}}\t0.0",
+    }
+    for description, text in value_present.items():
+        assert _has_sample_line(text, name, ""), description
+
+    # The whole fixture, indented: the shape a hand-rolled peel refused while
+    # the reader resolved every value in it.
+    indented_fixture = "\n".join(
+        f"    {line}"
+        for line in _SGLANG_FIXTURE.read_text(encoding="utf-8").splitlines()
+    )
+    for _quantity, _path, source, fragment in _CANONICAL_FIELD_SOURCES:
+        assert _has_sample_line(indented_fixture, source, fragment), source
+
+    assert not _has_sample_line(
+        f"sglang:{name}{{{labels}}} 0.0", name, 'mode="input"'
+    ), "the required label fragment must be read from the label set"
+    assert not _has_sample_line(f"sglang:{name} 0.0", name, 'mode="input"'), (
+        "an unlabelled line cannot carry the required label fragment"
+    )
+
+
+def test_the_sourcing_guard_answers_as_the_reader_does() -> None:
+    """The guard's verdict and the reading are asserted to agree per input.
+
+    The guard exists to say whether the scrape's own bytes source a field, and
+    the reading says whether the field resolved: those are one question seen
+    from two sides, so each input below is put to both and the two answers are
+    required to match. A guard stricter than the reader reports a field
+    unsourced that the reader resolves; a guard looser than the reader counts a
+    sample the reader discards. Both directions are exercised. A name carrying
+    more than one colon resolves in production, because the reader reads only
+    the last segment. A sample on a tensor-parallel rank other than rank zero is
+    discarded there -- SGLang repeats each device-pool measurement on every
+    rank, so the rank-zero sample is the one shared pool -- as is a
+    ``reason``-labelled breakdown, which is a part of a total rather than the
+    total. The rank-zero and total rows are the positive controls, so an input
+    that agrees only by returning ``False`` twice cannot satisfy the table.
+    """
+    cases = (
+        (
+            "a name carrying more than one colon",
+            "sglang:x:num_running_reqs 1.0",
+            ("requests_running",),
+            "num_running_reqs",
+            "",
+            True,
+        ),
+        (
+            "a sample on a rank other than rank zero",
+            'sglang:num_running_reqs{tp_rank="1"} 1.0',
+            ("requests_running",),
+            "num_running_reqs",
+            "",
+            False,
+        ),
+        (
+            "the same series on rank zero",
+            'sglang:num_running_reqs{tp_rank="0"} 1.0',
+            ("requests_running",),
+            "num_running_reqs",
+            "",
+            True,
+        ),
+        (
+            "an uncached-token sample on a rank other than rank zero",
+            'sglang:prefill_effective_tokens_total{tp_rank="1",mode="input"} 5.0',
+            ("uncached_prompt_tokens",),
+            "prefill_effective_tokens_total",
+            'mode="input"',
+            False,
+        ),
+        (
+            "a reason-labelled breakdown, which is part of a total",
+            'vllm:num_requests_waiting{reason="capacity"} 4.0',
+            ("requests_queued",),
+            "num_requests_waiting",
+            "",
+            False,
+        ),
+        (
+            "the total that breakdown belongs to",
+            "vllm:num_requests_waiting 4.0",
+            ("requests_queued",),
+            "num_requests_waiting",
+            "",
+            True,
+        ),
+    )
+    for description, text, path, name, fragment, resolves in cases:
+        reader_resolves = _resolve(_section(text), path) is not None
+        guard_sources = _has_sample_line(text, name, fragment)
+        assert reader_resolves == resolves, description
+        assert guard_sources == resolves, f"{description}: guard and reading disagree"
+
+
+def test_the_recorded_scrape_reads_as_measurements_not_a_column_of_zeros() -> None:
+    """The scrape is a working serve, so its readings are readings.
+
+    An all-zero column would resolve every canonical field and still carry no
+    information, so the instrument is shown to see something known present: the
+    counter and histogram observations are large, and the gauges are a measured
+    zero standing beside them rather than the only value the scrape publishes.
+    """
+    section = _sglang_section()
+
+    for counter in ("prompt_tokens", "generation_tokens", "uncached_prompt_tokens"):
+        assert section[counter] > 0, counter
+    for kind in ("time_to_first_token", "inter_token_latency"):
+        histogram = section["histograms"][kind]
+        assert histogram["count"] > 0, kind
+        assert histogram["buckets"], kind
+
+    assert section["requests_running"] == 0.0
+
+
 def test_vllm_scrape_resolves_through_the_same_reader() -> None:
     """The vLLM fixture carries the same canonical quantities, same reader."""
     metrics = engine_metrics.read_metrics(_vllm_metrics())
@@ -158,33 +485,22 @@ def test_vllm_scrape_resolves_through_the_same_reader() -> None:
 def test_both_families_report_every_quantity_they_publish() -> None:
     """Presence follows the family tables, not a branch in the reader.
 
-    Both fixtures carry every series their family publishes, so each family's section
-    must contain exactly the canonical keys those tables name plus the two
-    annotations -- a family-specific omission would show up as a missing key here.
+    Both fixtures carry every series their family publishes, so each family's
+    section must carry exactly the keys written down in ``_SECTION_KEYS`` -- the
+    canonical quantities that family publishes plus the two annotations. The
+    expectation is a literal, so a family whose series mapping loses a quantity
+    fails here rather than moving its expected key in step with the delivered one.
     """
     delivered = {
         engine_metrics.FAMILY_SGLANG: set(_sglang_section()),
         engine_metrics.FAMILY_VLLM: set(_section(_vllm_metrics())),
     }
 
-    for family in engine_metrics.FAMILIES:
-        assert _published(family) <= delivered[family], family
-        assert delivered[family] <= _ANNOTATION_KEYS | _CANONICAL_KEYS, family
-
-    # The vLLM fixture carries the full canonical set, including the terms that
-    # only exist where a tier answered the prefill.
-    expected_vllm = (
-        _ANNOTATION_KEYS
-        | set(engine_metrics.GAUGE_SERIES)
-        | set(engine_metrics.COUNTER_SERIES)
-        | {
-            "cached_prompt_tokens",
-            "uncached_prompt_tokens",
-            "histograms",
-            "spec_decode",
-        }
-    )
-    assert delivered[engine_metrics.FAMILY_VLLM] == expected_vllm
+    # The literal must cover every family, so a new family cannot arrive with no
+    # written-down expectation and pass by default.
+    assert set(delivered) == set(engine_metrics.FAMILIES)
+    for family, expected in _SECTION_KEYS.items():
+        assert delivered[family] == expected, family
 
 
 # ---------------------------------------------------------------------------

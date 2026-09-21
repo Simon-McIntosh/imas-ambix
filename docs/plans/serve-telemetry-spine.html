@@ -203,6 +203,118 @@
     than a null or a zero; and <code>uv run --no-sync ruff check imas_ambix tests</code>
     exits 0.</p>
 
+    <h3 id="s2-scrape-fixture">The recorded scrape, re-asserted offline</h3>
+
+    <p><strong>Landing note (node <code>scrape-fixture</code>).</strong> This node existed to
+    preserve a live scrape as a fixture so the served field set is re-assertable offline. On
+    inspection the fixture and its consumer already exist:
+    <code>tests/data/sglang_metrics_sample.txt</code> is a real SGLang exposition whose
+    deployment constants match the live serve exactly (KV pool 4,000,000 tokens, host cache
+    capacity 8,000,000 tokens), and
+    <code>tests/test_engine_metrics.py</code> reads it from disk and resolves the canonical
+    set from it. The landed change is the piece the fixture was missing rather than a
+    rewrite of a working guard.</p>
+
+    <p>The gap it closes is in the <em>expectation</em>, not the reader.
+    <code>test_both_families_report_every_quantity_they_publish</code> derived the expected
+    key set from <code>engine_metrics</code>' own series tables, so a family's mapping and
+    the delivered key shrank together. Two shapes of that are measured. Emptying a family's
+    mapping for a gauge left the assertion that exists to catch the omission green over that
+    assertion alone (<code>1 passed</code>, exit 0; the file's red came from peer tests that
+    name the key directly). Dropping a canonical counter from <code>COUNTER_SERIES</code>
+    outright left the <em>whole suite</em> green — the whole file passed, all 16 of its tests
+    at the time, exit 0 — because
+    the reading and the expectation both lost the key and nothing else read it. The plan's
+    canonical set is now written out in the test file with, per quantity, the path to its
+    value in a reading's canonical section and the scrape series it is sourced from, asserted
+    against the fixture's own bytes, and each family's section keys are written out in a
+    second literal (<code>_SECTION_KEYS</code>) compared against the reading — so a mapping
+    that is dropped or renamed fails here instead of shrinking the expectation with it.</p>
+
+    <p><strong>Measured.</strong> The new assertion is red under a reader whose SGLang
+    mapping for <code>requests_running</code> — its entry in <code>GAUGE_SERIES</code>,
+    a tuple of name fragments — is renamed to
+    <code>('num_running_reqs_renamed',)</code>: 7 of 17 tests in the file fail, the new one
+    among them, and the same shape is red for the counter (5 of 17), histogram (4 of 17)
+    and cache-tier (2 of 17) mappings. Dropping the canonical counter
+    <code>prefix_cache_queries</code> from <code>COUNTER_SERIES</code> fails the field-set
+    test (1 of 17) where the derived expectation passed it — the whole suite green — and
+    emptying a family's mapping for <code>requests_queued</code> fails 4 of 17. Gates:
+    <code>uv run --no-sync pytest tests/test_engine_metrics.py
+    tests/test_agent_lane_sglang.py tests/test_agent_lane_gzip.py
+    tests/test_agent_serving_receipts.py</code> reports <strong>36 passed</strong>, and
+    <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0.</p>
+
+    <p><strong>Measured against the declared control, which changed the test.</strong>
+    Deleting one canonical field from the stored scrape — the fixture line
+    <code>sglang:num_running_reqs{engine_type="unified",model_name="deepseek-v4.1-flash",moe_ep_rank="0",pp_rank="0",tp_rank="0"} 0.0</code>,
+    the only sample <code>requests_running</code> resolves from — must fail the field-set
+    test. The first run of that control failed the resolution half and left the
+    <em>sourcing</em> half
+    silent, because it searched for the series name anywhere in the file and the
+    exposition repeats every name in a <code># HELP</code> and a <code># TYPE</code> line
+    above its samples. The check now requires a line that carries the name and a value —
+    with the entry's label fragment where it has one — and both failure lists are reported
+    together. Re-run against the same deletion it fails with
+    <code>unresolved ['requests running (requests_running)']</code> and
+    <code>unsourced ['requests running (requests_running) &lt;- num_running_reqs']</code>,
+    the fixture was then restored byte-identically (sha256
+    <code>8756c08150971947…</code>) and the suite re-run green. A fixture test never shown
+    to fail cannot distinguish a preserved field set from an empty assertion. That run is
+    receipted against the revision under test and the selector as it now stands, because
+    renaming the test invalidated the earlier receipt: replaying the name it quoted would
+    have been a no-op, and a receipt that replays as nothing is worse than none. The receipt
+    as it now stands deletes the line from a <em>copy</em> of the fixture under the run
+    directory, so nothing is written to the shipped scrape and no restore is owed.</p>
+
+    <p><strong>The sample-line check is held to the reader it guards, and by a test of its
+    own.</strong> A requirement that no committed test pins can be removed without a signal,
+    and a guard written beside the reader can disagree with it in either direction. The check
+    now takes every step from the reader it stands for — <code>parse_metrics</code> for what a
+    sample line is, <code>detect_family</code> and <code>eligible_samples</code> for which
+    samples the reader keeps, and <code>_bare</code> for how a sample's name is compared — so
+    it can be neither stricter nor looser than production on the same input. A hand-rolled
+    peel was <em>stricter</em>: it refused an indented samples section — legal exposition that
+    <code>parse_metrics</code> accepts and resolves — and would have called a series unsourced
+    while the reader read its value. Re-deciding eligibility was also <em>looser</em>: it
+    counted a sample on a tensor-parallel rank other than the default rank, which the reader
+    drops, and a <code>reason</code>-labelled breakdown beside a vLLM total, for which the
+    reader carries no canonical key. The corpus it is measured on carries the shapes a
+    hand-rolled peel refused (an indented line with labels, an indented line without, a
+    tab-separated value, and the whole fixture indented) and the shapes it must refuse, and a
+    test asserts the guard's answer equals the reading's for every one of them. Each divergence
+    is measured. Against the pre-delegation substring form the shape test is red (2 of 17), on
+    the HELP/TYPE-only input
+    <code>'# HELP sglang:num_running_reqs The number of running requests.\n# TYPE sglang:num_running_reqs gauge'</code>
+    and on the discarded rank <code>sglang:num_running_reqs{tp_rank="1"} 1.0</code>; against a
+    guard that drops the unlabelled spelling of a sample line it is red (2 of 17) on the
+    positive <code>sglang:num_running_reqs 0.0</code> and on the unlabelled total
+    <code>vllm:num_requests_waiting 4.0</code>. Two further guard mutations pin the two
+    delegations the repair added, red one test apiece: comparing a sample's whole name against
+    the single-colon spelling rather than reading its last segment the way the reader does, red
+    on <code>sglang:x:num_running_reqs 1.0</code> (1 of 17); and iterating every parsed sample
+    without the reader's eligibility rules, red on <code>sglang:num_running_reqs{tp_rank="1"}
+    1.0</code> and <code>vllm:num_requests_waiting{reason="capacity"} 4.0</code> (1 of 17).</p>
+
+    <p><strong>What the fixture does not preserve, measured and left open.</strong> The
+    commits <code>43b45b1b</code> and <code>87b12221</code> are scoped to the test; the
+    fixture is unchanged, and it is
+    an early-life scrape. Its canonical gauges are a uniform zero column
+    (<code>requests_running 0</code>, <code>kv_pool_occupancy 0.0</code>, all three cache
+    tiers 0.0), and the serve at <code>98dci4-gpu-0003:18810</code> now publishes thirteen
+    series the fixture lacks — <code>cached_tokens_total</code>,
+    <code>evicted_tokens_total</code>, the three <code>eviction_duration_seconds_*</code>,
+    the five <code>load_back_*</code>, <code>num_aborted_requests_total</code>,
+    <code>num_so_requests_total</code> and <code>spec_verify_calls_total</code>. A fresh
+    capture carries the same canonical key set but real magnitudes
+    (<code>requests_running 4</code>, <code>kv_pool_occupancy 0.1</code>, a populated
+    per-tier cache split, 24,172,304 inter-token-latency observations), so the served set is
+    preserved only in outline. Refreshing it is not landable from this node:
+    <code>tests/test_agent_lane_sglang.py</code> pins the quiet scrape's lane values
+    (<code>running=0</code>, <code>kv_occupancy=0.0</code>,
+    <code>hicache_host_used_tokens=55,552</code>) and sits outside this node's write scope,
+    so the refresh belongs to a node that carries both files.</p>
+
     <h2 id="s3">§3 — Record the cards, the host and the node's job table</h2>
 
     <p>Add three local probes to the recorder's tick. All three are ordinary local calls at
