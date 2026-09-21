@@ -50,38 +50,45 @@ _CANONICAL_KEYS = (
 # expectation and the delivered key together, so a canonical quantity can stop
 # resolving without a test noticing. This list is what makes the recorded
 # scrape re-assert the served field set offline.
+#
+# One entry is (quantity, value path, series name, required label fragment).
 _PLAN_CANONICAL_FIELDS: tuple[
-    tuple[str, tuple[str, ...], tuple[str, ...]], ...
+    tuple[str, tuple[str, ...], str, str], ...
 ] = (
-    ("requests running", ("requests_running",), ("num_running_reqs",)),
-    ("requests queued", ("requests_queued",), ("num_queue_reqs",)),
-    ("KV-pool occupancy", ("kv_pool_occupancy",), ("full_token_usage",)),
-    ("prompt tokens", ("prompt_tokens",), ("prompt_tokens_total",)),
-    ("generation tokens", ("generation_tokens",), ("generation_tokens_total",)),
+    ("requests running", ("requests_running",), "num_running_reqs", ""),
+    ("requests queued", ("requests_queued",), "num_queue_reqs", ""),
+    ("KV-pool occupancy", ("kv_pool_occupancy",), "full_token_usage", ""),
+    ("prompt tokens", ("prompt_tokens",), "prompt_tokens_total", ""),
+    ("generation tokens", ("generation_tokens",), "generation_tokens_total", ""),
     (
         "cached tokens, split by the tier that answered",
         ("cached_prompt_tokens", "device"),
-        ("prefill_effective_tokens_total", 'mode="device_hit"'),
+        "prefill_effective_tokens_total",
+        'mode="device_hit"',
     ),
     (
         "cached tokens, split by the tier that answered",
         ("cached_prompt_tokens", "host"),
-        ("prefill_effective_tokens_total", 'mode="host_hit"'),
+        "prefill_effective_tokens_total",
+        'mode="host_hit"',
     ),
     (
         "uncached prompt tokens",
         ("uncached_prompt_tokens",),
-        ("prefill_effective_tokens_total", 'mode="input"'),
+        "prefill_effective_tokens_total",
+        'mode="input"',
     ),
     (
         "time to first token",
         ("histograms", "time_to_first_token"),
-        ("time_to_first_token_seconds_count",),
+        "time_to_first_token_seconds_count",
+        "",
     ),
     (
         "inter-token latency",
         ("histograms", "inter_token_latency"),
-        ("inter_token_latency_seconds_count",),
+        "inter_token_latency_seconds_count",
+        "",
     ),
 )
 
@@ -94,6 +101,29 @@ def _resolve(section: dict[str, object], path: tuple[str, ...]) -> object:
             return None
         node = node[key]
     return node
+
+
+def _has_sample_line(text: str, name: str, label: str) -> bool:
+    """Whether the scrape carries a *sample* of *name*, not merely its HELP text.
+
+    The exposition repeats every series name in a ``# HELP`` and a ``# TYPE``
+    line above its samples, so a substring search for the name is satisfied by a
+    series whose samples are all gone. This requires a line that actually
+    carries a value: the name alone, or the name followed by its label set, and
+    then a value token.
+    """
+    prefix = f"{engine_metrics.FAMILY_SGLANG}:{name}"
+    for line in text.splitlines():
+        if not line.startswith(prefix):
+            continue
+        rest = line[len(prefix) :]
+        if rest[:1] not in ("{", " "):
+            # A longer series name that merely begins the same way.
+            continue
+        if label and label not in rest:
+            continue
+        return True
+    return False
 
 
 def _per_pos_head(labels: str) -> str:
@@ -209,15 +239,16 @@ def test_the_recorded_scrape_carries_every_canonical_field_the_plan_names() -> N
 
     unresolved: list[str] = []
     unsourced: list[str] = []
-    for quantity, path, series in _PLAN_CANONICAL_FIELDS:
+    for quantity, path, name, label in _PLAN_CANONICAL_FIELDS:
         if _resolve(section, path) is None:
             unresolved.append(f"{quantity} ({'.'.join(path)})")
-        for name in series:
-            if name not in text:
-                unsourced.append(f"{quantity} ({'.'.join(path)}) <- {name}")
+        if not _has_sample_line(text, name, label):
+            unsourced.append(f"{quantity} ({'.'.join(path)}) <- {name}{label}")
 
-    assert not unresolved, unresolved
-    assert not unsourced, unsourced
+    assert not unresolved and not unsourced, {
+        "unresolved": unresolved,
+        "unsourced": unsourced,
+    }
 
 
 def test_the_recorded_scrape_reads_as_measurements_not_a_column_of_zeros() -> None:
