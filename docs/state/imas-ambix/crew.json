@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-21T11:02:52",
+  "updated": "2026-09-21T11:08:09",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -49693,6 +49693,241 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260921T081131624322-fleet-lifetime-surface",
+        "plan": "slurm-hosted-agent-fleet",
+        "section": "\u00a77",
+        "node": "fleet-lifetime-surface",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1111,
+                "cached_input_tokens": 452083,
+                "input_tokens": 453196,
+                "output_tokens": 1354,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 454550,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "10680e94-61e5-4916-bab0-968fa2503f57",
+            "session_id": "slurm-fleet"
+          },
+          "done_when": "ALL of the following hold and each is evidenced in the manifest. (1) `imas-ambix agent fleet status` reports the held allocation, found from squeue by the ambix-fleet comment token the generator already emits, printing its job id, its node, its elapsed time, its remaining time and its state. (2) The squeue query asks for TimeLeft: the existing query at imas_ambix/agent/cli.py:1154 requests %M (elapsed) and not %L, and %L appears nowhere under imas_ambix/agent today, so this is a new field on an existing query rather than a new query. (3) THE SUBTLE CASE, and the one most likely to be got wrong: this allocation is deliberately unbounded, so squeue reports its TimeLeft as the literal text UNLIMITED. That must be rendered as unbounded and must NEVER be parsed as a number, compared against a threshold, or reported as expiring. (4) A warning line is printed when a FINITE remaining time falls below a threshold you name in the code, and no warning is ever printed for an unbounded one. (5) When no fleet allocation is held at all, the command says so in words and exits without error, rather than printing an empty table \u2014 that absence case is as important as the present one. (6) tests/agent/test_fleet.py covers, over fixture squeue text rather than a live scheduler, at least these four states: a healthy finite allocation, a finite one inside the warning threshold, an UNLIMITED one (asserting no warning and no numeric parse), and no allocation at all. (7) The DECLARED NEGATIVE CONTROL, which is also stated here so you have it: make the remaining-time reader treat the literal text UNLIMITED as a zero remaining time; the test asserting that an unbounded allocation raises no warning must then be OBSERVED to fail. Apply that mutation, run the named test, capture the failing output to a log whose FIRST LINE repeats the declared mutation text character for character with no prefix or label, then restore the source and re-run green. (8) `uv run --no-sync pytest tests/agent/test_fleet.py` and `uv run --no-sync ruff check imas_ambix tests` both exit 0, with the exact commands and summary lines quoted. (9) No file path, symbol, comment or docstring you add carries a plan label, stage name, ticket number or version suffix.",
+          "estimated_hours": 1.25,
+          "goal": "an operator-readable lifetime for the fleet allocation, so the question \"is my fleet about to disappear\" is answered without reading squeue by hand",
+          "id": "fleet-lifetime-surface",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-21T08:11:32Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no 'binding_observed'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T081131624322-fleet-lifetime-surface/manifest.md",
+          "negative_control": "make the remaining-time reader treat the literal text UNLIMITED as a zero remaining time; the test asserting that an unbounded allocation raises no warning must then be observed to fail",
+          "plan": "slurm-hosted-agent-fleet",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a77",
+          "spec_level": "exact",
+          "time_budget": "50m",
+          "token_budget": null,
+          "write_paths": [
+            "imas_ambix/agent/fleet.py",
+            "tests/agent/test_fleet.py",
+            "imas_ambix/agent/cli.py",
+            "docs/plans/slurm-hosted-agent-fleet.html",
+            "docs/evidence/archive/slurm-hosted-agent-fleet-landed.html"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "fleet-lifetime-surface",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "high",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "worktree-full",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-21T08:11:42Z",
+        "completed_at": "2026-09-21T08:22:39.926Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 647,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 657,
+        "stalled": false,
+        "time_budget": "50m",
+        "base_sha": "b90c9a74c3a949121e7b12f9c6c591a418a80127",
+        "commits": [
+          "13acbd2029b31eae9e4f2a417b0e5ac5c062e178",
+          "8fa8f0eec7e4685d4f47341e776dfbf24aa2e70f",
+          "5507cd9f3b18e9ac55218a897d0c3fc27b999718"
+        ],
+        "changed_lines": {
+          "added": 334,
+          "removed": 18,
+          "files": 5
+        },
+        "tests_added": 10,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/agent/test_fleet.py -q",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T081131624322-fleet-lifetime-surface/fleet-tests.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T081131624322-fleet-lifetime-surface/manifest.md",
+        "scope_changed": false,
+        "session_id": "5ab5b0dc-28b3-4440-aced-ba8771e16c35",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 833508,
+            "input_tokens_cumulative": 833508,
+            "output_tokens": 2016,
+            "output_tokens_cumulative": 2016,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-21T08:22:39.926Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": {
+          "status": "parsed",
+          "scores": {
+            "goal_fidelity": 18,
+            "evidence": 15,
+            "scope_discipline": 18,
+            "durability": 16,
+            "fit": 17
+          },
+          "absent": [],
+          "total": 84
+        },
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 7579760,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 111.428,
+          "generated_tokens": 45414,
+          "generation_seconds": 110.18,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 34.7,
+          "machine_seconds": 1.248,
+          "peak_input_tokens": 166555,
+          "tokens_per_second": 412.18,
+          "wall_tokens_per_second": 407.56
+        },
+        "follow_on_paths": [
+          "tests/test_agent.py:test_running_jobs_parses_scheduler_route_fields"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/agent/test_fleet.py`",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        },
+        "attempt_kind": "resume",
+        "attempt": 2,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/slurm-fleet/fleet-lifetime-surface",
+          "session_id": "5ab5b0dc-28b3-4440-aced-ba8771e16c35",
+          "session_source": "pointer",
+          "retained_at": "2026-09-21T08:22:39.926Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "plan_impl_at_dispatch": 0.429,
+        "impl_move": {
+          "plan": "slurm-hosted-agent-fleet",
+          "at_dispatch": 0.429,
+          "at_complete": 0.833,
+          "verdict": "moved"
+        },
+        "negative_control": {
+          "verdict": "matched",
+          "reason": "node-writes-no-test-path",
+          "test_paths": [
+            "tests/agent/test_fleet.py"
+          ],
+          "declaration": "make the remaining-time reader treat the literal text UNLIMITED as a zero remaining time; the test asserting that an unbounded allocation raises no warning must then be observed to fail",
+          "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T081131624322-fleet-lifetime-surface/negative-control.log",
+          "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T081131624322-fleet-lifetime-surface/negative-control.log"
+        },
+        "tool_steps": 60.0,
+        "orientation_input_tokens": 1134582.0,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -49767,6 +50002,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 814
+    "_version": 815
   }
 }
