@@ -303,7 +303,7 @@ def fleet_hold(submit: bool) -> None:
         submit_fleet_hold,
     )
 
-    script = generate_fleet_hold_script()
+    script = generate_fleet_hold_script(SiteConfig.from_env())
     if not submit:
         console.print(script, markup=False, highlight=False, soft_wrap=True)
         return
