@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-21">
-<meta name="plan-version" content="15">
+<meta name="plan-version" content="16">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="c23be8f8,f5c3c91f,493e0281,f743fcea,0f9ce03f,b1696d31,0e9a656c,bacf490f">
 <meta name="plan-impl" content="0.6">
@@ -509,6 +509,9 @@
 </div>
 <div class="r-comment" data-section="s2" data-id="c-run-r-20260921T072644703173-retro-review-of-engine-names" data-who="reckon-ship" data-when="2026-09-21T07:52:34.549Z">
     <div class="r-comment-body"><p>scored 78 with eight findings on already-merged code, including three guards that cannot fire</p></div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-run-r-20260921T084859676449-one-owner-guard-sees-an-indented-rival" data-who="reckon-ship" data-when="2026-09-21T08:58:56.851Z">
+    <div class="r-comment-body"><p>coordinator error, not worker failure: dispatched at the default base so the worktree was cut from main and lacked the work it was sent to repair. No commits produced. Redispatched on the correct base</p></div>
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20260918T163515833211-request-receipts" data-who="request-receipts" data-when="2026-09-18T19:50:00Z">
     <div class="r-comment-body"><p>The router now tees its own relay and appends one receipt row per completed request to <code>requests.jsonl</code> beside the endpoint document, so the tee never buffers the body the client receives. <code>StreamAccounting</code> mirrors the field names and the first-token definition of <code>bench.py::_stream_chat</code> and is asserted against it on the same bytes rather than re-deriving them; <code>cached_tokens</code> is read out of <code>usage.prompt_tokens_details</code>, which nothing else in the repository parsed. Five requests through the real router yield exactly five fully populated rows; an aborted caller yields one row marked aborted and a 500 yields one marked failed, both rather than none. Above the configured 20 rows/s the sink stamps the fraction it kept on every row it writes, so totals scale back honestly. Added work measured over 200 requests: median 27.9-31.3 µs, p99 41.1-105.8 µs, against the 1 ms budget. Read paths are derived from the relay's own <code>lane_document</code>, so no change to <code>cli.py</code> is needed; the evidence doc carries the figures.</p></div>
