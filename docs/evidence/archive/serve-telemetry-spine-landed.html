@@ -256,8 +256,21 @@
     level up rather than a mean of means. Classification is by leaf name: a
     numeric leaf is a counter when it ends in <code>_total</code>, is a known
     cumulative quantity, or lives under a <code>histograms</code> section;
-    everything else numeric is a gauge, and strings, <code>None</code> and
-    ragged lists are identity carried from the last row in the window.</p>
+    everything else numeric is a gauge, and strings and ragged lists are identity
+    carried from the last row in the window.</p>
+
+    <p>A <code>None</code> is neither of the two, and this is where the record's
+    own record is unusual: 13 of the 20 leaves it writes are <code>None</code> in
+    every row, and both throughput gauges are <code>None</code> in one row of
+    3,943. A null is an <em>absent observation</em> rather than an observation of
+    zero, so it is recorded only where its window holds nothing yet and can never
+    discard what that window accumulated before it. A leaf unobserved across a
+    whole window therefore compacts to <code>None</code> — the record's way of
+    saying <em>not observed</em> — while a gauge observed in some rows and absent
+    in others compacts to the weighted mean of the rows that did observe it, with
+    the window's own sample and second counts still declared. A value written
+    after a null is a fresh observation, so a null opening a window does not
+    suppress the rows that follow it.</p>
 
     <table>
       <caption>The done-when, and the measurement that met each part.</caption>
@@ -273,7 +286,7 @@
         <tr>
           <td>A counter differenced across a tier boundary equals the raw
           difference, proving endpoints were kept and not averaged</td>
-          <td>compacted <code>prefix_cache_queries_total</code> against the last
+          <td>compacted <code>requests_served_total</code> against the last
           raw value in the same window, then the difference of two compacted rows
           against the raw difference of those endpoints</td>
           <td>exact equality at both the minute and hour boundary;
@@ -288,6 +301,36 @@
           <td>minute rows: 12 samples and 60 s each; hour rows: 720 samples and
           3,600 s each, summing to the raw count; the hour gauge equals the
           sample-weighted mean of its minute rows</td>
+        </tr>
+        <tr>
+          <td>A null inside a window erases neither what the window accumulated
+          nor the window's declared weight</td>
+          <td>a gauge of <code>[10, 20, None, 40, 50]</code> in one window; and
+          the fixture's throughput gauge, null once per window as in the live
+          record</td>
+          <td>the mean is taken over the four observed rows
+          (<code>30.0</code>, not the <code>45.0</code> a mean of the two rows
+          after the null would give) while <code>obs.samples</code> stays 5;
+          across the three-day fixture every window matches the mean of its own
+          observations with the full window weight declared</td>
+        </tr>
+        <tr>
+          <td>A leaf null in every row of a window compacts to null, not to zero,
+          and a counter keeps its endpoint across a null</td>
+          <td>the fixture's 13 never-populated leaves read back from both tiers;
+          a counter window ending in a null</td>
+          <td>every such leaf is present and <code>None</code> at minute and hour;
+          a trailing null leaves the counter's last observed value, so nothing
+          downstream can read it as a reset</td>
+        </tr>
+        <tr>
+          <td>A compaction that did not land is refused rather than reported</td>
+          <td>the write redirected to an empty destination, then
+          <code>compact_file</code> called through its public entry point</td>
+          <td><code>TelemetryStoreError</code>: the successor is read back and
+          compared against the rows meant for it, so a short write cannot reach
+          the caller as a successful compaction with a row count for a file that
+          does not hold them</td>
         </tr>
         <tr>
           <td>Compacting twice leaves output byte-identical</td>
@@ -315,6 +358,17 @@
     (first mismatch <code>1028.0</code> against <code>1035</code>). That is the
     red half of the negative control; the assertion forbidding it is what the
     passing suite rests on.</p>
+
+    <p><strong>The absent-observation rule was shown to be load-bearing the same
+    way.</strong> Reverting the null branch so that a null overwrites the window
+    accumulator turns three tests red: the <code>[10, 20, None, 40, 50]</code>
+    window compacts to <code>45.0</code> — the mean of the two rows after the
+    null, declared under the weight of all five — a counter whose window ends in a
+    null loses its endpoint entirely, and the fixture's throughput gauge reports a
+    single sample rather than its window's mean. A guard that has never been shown
+    to fail is an assertion, so the pattern of the nulls in the fixture is what
+    gave these three something to fail on; without it the defect was invisible to
+    the suite that existed to catch it.</p>
 
     <p>The module is standalone and its wiring is a separate node. It exposes
     <code>compact_file</code>, <code>run_compaction</code> and a
