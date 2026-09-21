@@ -131,6 +131,69 @@
     label sets with no <code>reason</code> labels, so they are expected to stay
     green. It is not covered by this node's done-when.</p>
 
+    <h2 id="recorded-scrape-re-asserted">The recorded scrape re-asserts the served set offline</h2>
+
+    <p>The fixture that carries the engine-family reading is
+    <code>tests/data/sglang_metrics_sample.txt</code>, read from disk by
+    <code>tests/test_engine_metrics.py</code>. Its provenance is checkable rather than
+    asserted: its deployment constants are the ones the live serve reports, and a scrape of
+    <code>98dci4-gpu-0003:18810</code> taken for this node matches them exactly — KV pool
+    4,000,000 tokens, host cache capacity 8,000,000 tokens, <code>max_concurrent</code> 96,
+    <code>model_id deepseek-v4.1-flash</code> — and matches on no fewer series names than the
+    fixture does.</p>
+
+    <p><strong>What was missing was the expectation, not the reader.</strong> The presence
+    test derives its expected key set from <code>engine_metrics</code>' own series tables, so
+    a mapping and the delivered key move together and a canonical quantity can stop resolving
+    with the file green. Deletion is caught; a rename is caught; emptying the mapping is
+    <em>not</em>, because the expectation empties with it. The plan's canonical set is now
+    written out in the test file with each quantity's value path and its source series, and
+    asserted against the fixture's bytes.</p>
+
+    <table>
+      <caption>The new assertion under three reader mutations, and what the file's other
+      tests do with each.</caption>
+      <thead><tr><th>Mutation applied to the reader</th><th>New assertion</th><th>File result</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>GAUGE_SERIES["requests_running"][sglang]</code> renamed to a series the
+          scrape does not carry</td>
+          <td>red — <code>requests_running</code> unresolved</td>
+          <td>6 of 15 fail</td>
+        </tr>
+        <tr>
+          <td><code>COUNTER_SERIES["generation_tokens"][sglang]</code> renamed</td>
+          <td>red — <code>generation_tokens</code> unresolved</td>
+          <td>5 of 15 fail</td>
+        </tr>
+        <tr>
+          <td><code>HISTOGRAM_SERIES["time_to_first_token"][sglang]</code> emptied</td>
+          <td>red — <code>histograms.time_to_first_token</code> unresolved</td>
+          <td>4 of 15 fail</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p><strong>Gates.</strong> <code>uv run --no-sync pytest tests/test_engine_metrics.py
+    tests/test_agent_lane_sglang.py tests/test_agent_lane_gzip.py
+    tests/test_agent_serving_receipts.py</code> reports <strong>34 passed</strong>;
+    <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0. The engine-metrics file
+    carries 15 tests against 13 before the change.</p>
+
+    <p><strong>Left open, with its measurement.</strong> The fixture is an early-life scrape:
+    its canonical gauges are a uniform zero (<code>requests_running 0</code>,
+    <code>kv_pool_occupancy 0.0</code>, every cache tier 0.0), and the live serve now
+    publishes eleven series it lacks — <code>cached_tokens_total</code>,
+    <code>evicted_tokens_total</code>, four <code>eviction_duration_seconds_*</code>, five
+    <code>load_back_*</code>, <code>num_aborted_requests_total</code>,
+    <code>num_so_requests_total</code>, <code>spec_verify_calls_total</code>. A capture taken
+    now resolves the same canonical key set with real magnitudes and would preserve the
+    served set in full, but it moves the lane values pinned by
+    <code>tests/test_agent_lane_sglang.py</code> (<code>running=0</code> →
+    <code>4</code>, <code>kv_occupancy=0.0</code> → <code>0.1</code>,
+    <code>hicache_host_used_tokens=55,552</code> → <code>7,991,808</code>), a file outside
+    this node's write scope. The refresh is a follow-on for a node carrying both files.</p>
+
     <h1>Serve telemetry spine — execution record</h1>
 
     <h2 id="request-receipts">§6 — Per-request receipts from the router</h2>
