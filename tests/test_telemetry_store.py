@@ -28,6 +28,7 @@ from imas_ambix.agent.telemetry_store import (
     TelemetryStoreError,
     compact_file,
     compact_rows,
+    main,
     read_rows,
     run_compaction,
 )
@@ -411,6 +412,66 @@ def test_a_source_tier_survives_its_successor(tmp_path, record):
     assert (tmp_path / "minute.jsonl").exists()
     assert len(read_rows(raw_path)) == len(rows)
     assert len(read_rows(tmp_path / "minute.jsonl")) == _DAYS * 60 * 24
+
+
+def test_the_rebuild_entry_point_compacts_a_tier_from_its_source(tmp_path, record):
+    """The subcommand's entry point is driven by an argument vector, and what it
+    is judged on is the file it leaves, not the function it delegates to.
+
+    A test asserting the delegate was called passes against an entry point that
+    parses its arguments into the wrong names, ignores one of them, or hands back
+    a success for a destination holding nothing. So the argument vector is the
+    input and the destination on disk is the assertion: the row count, the
+    endpoint each row carries, and the weight behind it.
+    """
+    raw_path, rows = record
+    destination = tmp_path / "rebuilt" / "minute.jsonl"
+
+    exit_code = main(
+        [
+            "--source",
+            str(raw_path),
+            "--destination",
+            str(destination),
+            "--tier",
+            TIER_MINUTE,
+        ]
+    )
+
+    assert exit_code == 0
+    rebuilt = read_rows(destination)
+    assert len(rebuilt) == _DAYS * 24 * 60
+    endpoints = _raw_endpoints(rows, 60, _SYNTHETIC_COUNTER)
+    for row in rebuilt:
+        assert row["tier"] == TIER_MINUTE
+        assert row[_SYNTHETIC_COUNTER] == endpoints[_bucket_of(row)]
+        assert row["obs"]["samples"] == _ROWS_PER_MINUTE
+    assert raw_path.exists()  # the entry point does not retire its source
+
+
+def test_the_rebuild_entry_point_refuses_a_tier_it_cannot_produce(tmp_path, record):
+    """An unusable argument vector ends the run before any rebuild happens.
+
+    The failure has to be on the wire too: a refused invocation must leave no
+    successor on disk, because a destination half-written by an accepted-but-
+    wrong parse is a file a later reader would compact from.
+    """
+    raw_path, _rows = record
+    destination = tmp_path / "rebuilt" / "minute.jsonl"
+
+    with pytest.raises(SystemExit):
+        main(
+            [
+                "--source",
+                str(raw_path),
+                "--destination",
+                str(destination),
+                "--tier",
+                "second",
+            ]
+        )
+
+    assert not destination.exists()
 
 
 def test_a_row_without_a_usable_timestamp_is_refused():
