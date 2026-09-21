@@ -1182,6 +1182,36 @@ read_sample(&lt;group with no cpu.max&gt;) -&gt;
     being landed against concurrently.</p>
   </section>
 
+  <section id="both-sides-of-the-comparison">
+    <h2>Both sides of the deciding comparison, taken live with the repaired sampler</h2>
+    <p>The node that repaired the absent-ceiling path covered it over captured text replayed as a
+    fixture and said so in its own follow-on: the compute-side reading had not been taken. It is
+    taken here, against the held allocation, and it closes that follow-on rather than restating it.
+    The same <code>--directory</code> operand on both machines:</p>
+    <table>
+      <thead><tr><th>field</th><th>login node</th><th>rigel node, inside allocation 1274732</th></tr></thead>
+      <tbody>
+        <tr><td><code>hostname</code></td><td>98dci4-srv-1006.iter.org</td><td>98dci4-clu-2002.iter.org</td></tr>
+        <tr><td><code>boot_id</code></td><td>82c41dfa-a445-4fb2-8416-04b44c3d874c</td><td>cf8fb63b-1437-4d65-a9f5-f4e51e3ffaef</td></tr>
+        <tr><td><code>cpu_max</code></td><td><code>400000 100000</code></td><td><code>absent</code></td></tr>
+        <tr><td><code>throttled_share</code></td><td>0.3396</td><td><code>unbounded</code></td></tr>
+      </tbody>
+    </table>
+    <p>This is what the host block was added for. The operand is identical on both sides and
+    resolves on every node in the cluster, so before the change these two readings would have
+    differed only in their counters and nothing in either would have said they came from different
+    computers. Now the hostname and the boot identity both differ, and the absent ceiling is
+    reported as an absence rather than raising — which is the state the compute side is always in,
+    because the four-core quota is a login-node drop-in.</p>
+    <p>The counters read <code>null</code> on the compute side rather than zero, which is the
+    extended finding the repairing node recorded: that control group has no cpu controller enabled,
+    so <code>nr_periods</code>, <code>nr_throttled</code> and <code>throttled_usec</code> are absent
+    along with the ceiling. A reader must therefore test for the absence rather than expect a zero,
+    and the share is <code>unbounded</code> rather than <code>0.0</code> for the same reason.</p>
+    <p>Captured at
+    <code>~/.config/reckon/crew/runs/r-20260921T102535452002-fleet-host-read-is-exercised/logs/coordinator-both-sides-live.log</code>.</p>
+  </section>
+
 </main>
 </body>
 </html>
