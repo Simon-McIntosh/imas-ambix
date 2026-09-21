@@ -113,6 +113,170 @@ export TMPDIR=/tmp
 echo "[$(date)] Holding $(hostname) for the interactive agent fleet"
 exec sleep infinity
 </code></pre>
+</section>
+
+  <section id="throttling-baseline">
+    <h2>Throttling baseline of the login account slice</h2>
+    <p>This is the reading the fleet move is judged against, taken before
+    anything moves. It comes from the account's own control group on the login
+    node, <code>/sys/fs/cgroup/user.slice/user-39486.slice</code>, whose quota
+    line is <code>400000 100000</code> — four cores for the entire user slice,
+    not per session. Node uptime at the first reading of the series was
+    43 days 20 h 52 m (<code>3790349.80</code> s), so the cumulative counters
+    have been accumulating for the whole of that period.</p>
+
+    <h3>What the share measures</h3>
+    <p>The share is stalled CPU thread-time over the thread-time the ceiling
+    permitted. Four cores allowed once per 100 ms period permits four times the
+    period in thread-time, so the permitted total over the accounted periods is
+    the quota multiplied by <code>nr_periods</code> with the period cancelling
+    out. Thread-time was chosen over a simple period count because it is the
+    quantity that compares a four-core slice against a twenty-eight-core
+    allocation directly.</p>
+    <p><strong>The share can exceed one, and it does.</strong> The
+    <code>throttled_usec</code> counter sums over every task that was stopped,
+    while the budget is one quota per period: once more tasks are runnable than
+    the quota admits, several of them stall together for the remainder of each
+    period, and the thread-time lost passes the thread-time the ceiling allowed.
+    A value above one is therefore a statement about oversubscription, not an
+    arithmetic fault, and the sampler leaves it unclamped.</p>
+
+    <h3>Cumulative, since boot</h3>
+    <table>
+      <thead>
+        <tr><th>Quantity</th><th>Value</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>cpu.max</code></td><td><code>400000 100000</code></td></tr>
+        <tr><td><code>nr_periods</code></td><td>37,199,459</td></tr>
+        <tr><td><code>nr_throttled</code></td><td>4,073,984</td></tr>
+        <tr><td><code>throttled_usec</code></td><td>5,008,386,657,643</td></tr>
+        <tr><td>Permitted thread-time</td><td>14,879,783,600,000 µs</td></tr>
+        <tr><td><strong>Throttled share</strong></td><td><strong>0.3366</strong></td></tr>
+      </tbody>
+    </table>
+    <p>The cumulative share is <strong>a third</strong> of every CPU-second the
+    slice was allowed, which reproduces the arithmetic in the plan's own §2 from
+    a live read rather than a hand transcription, and puts the baseline on the
+    record as a measured ratio.</p>
+
+    <h3>Five consecutive 60-second windows</h3>
+    <p>Over 07:01:47Z to 07:06:51Z, each row computed from the difference
+    between two samples taken 60 s apart. The permitted thread-time is
+    240,000,000 µs in every row — 600 periods at the 400,000 µs quota — so the
+    variation below is variation in stall, not in the window's denominator.</p>
+    <table>
+      <thead>
+        <tr><th>Window</th><th><code>nr_periods</code></th>
+            <th><code>nr_throttled</code></th><th><code>throttled_usec</code></th>
+            <th>Permitted µs</th><th>Share</th><th>Periods throttled</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>1</td><td>600</td><td>553</td><td>364,147,065</td>
+            <td>240,000,000</td><td>1.517</td><td>92%</td></tr>
+        <tr><td>2</td><td>600</td><td>529</td><td>447,502,855</td>
+            <td>240,000,000</td><td>1.865</td><td>88%</td></tr>
+        <tr><td>3</td><td>600</td><td>474</td><td>247,729,365</td>
+            <td>240,000,000</td><td>1.032</td><td>79%</td></tr>
+        <tr><td>4</td><td>600</td><td>325</td><td>102,092,043</td>
+            <td>240,000,000</td><td>0.425</td><td>54%</td></tr>
+        <tr><td>5</td><td>600</td><td>501</td><td>342,591,469</td>
+            <td>240,000,000</td><td>1.427</td><td>84%</td></tr>
+      </tbody>
+    </table>
+
+    <figure>
+    <svg viewBox="0 0 760 270" role="img" style="max-width:100%;height:auto"
+         aria-label="Bars for five consecutive 60-second windows of the account slice, reading 1.517, 1.865, 1.032, 0.425 and 1.427, against a dashed line at the cumulative share of 0.337.">
+      <rect x="0" y="0" width="760" height="270" fill="#ffffff"/>
+      <!-- gridlines at 0, 0.5, 1.0, 1.5, 2.0 -->
+      <g stroke="#d9d9d9" stroke-width="1">
+        <line x1="70" y1="210" x2="720" y2="210"/>
+        <line x1="70" y1="165" x2="720" y2="165"/>
+        <line x1="70" y1="120" x2="720" y2="120"/>
+        <line x1="70" y1="75"  x2="720" y2="75"/>
+        <line x1="70" y1="30"  x2="720" y2="30"/>
+      </g>
+      <g fill="#444444" font-family="sans-serif" font-size="12" text-anchor="end">
+        <text x="60" y="214">0.0</text>
+        <text x="60" y="169">0.5</text>
+        <text x="60" y="124">1.0</text>
+        <text x="60" y="79">1.5</text>
+        <text x="60" y="34">2.0</text>
+      </g>
+      <!-- bars: 1.517 1.865 1.032 0.425 1.427 -->
+      <g fill="#4a7ebb">
+        <rect x="90"  y="73.5"  width="40" height="136.5"/>
+        <rect x="235" y="42.2"  width="40" height="167.8"/>
+        <rect x="380" y="117.1" width="40" height="92.9"/>
+        <rect x="525" y="171.8" width="40" height="38.2"/>
+        <rect x="670" y="81.6"  width="40" height="128.4"/>
+      </g>
+      <g fill="#243f63" font-family="sans-serif" font-size="12" text-anchor="middle">
+        <text x="110" y="67">1.517</text>
+        <text x="255" y="36">1.865</text>
+        <text x="400" y="111">1.032</text>
+        <text x="545" y="165">0.425</text>
+        <text x="690" y="75">1.427</text>
+      </g>
+      <!-- cumulative share, flat across the series -->
+      <line x1="70" y1="179.7" x2="720" y2="179.7"
+            stroke="#b3521f" stroke-width="2.5" stroke-dasharray="7 5"/>
+      <text x="716" y="173" fill="#b3521f" font-family="sans-serif"
+            font-size="12" text-anchor="end">cumulative 0.337</text>
+      <g fill="#333333" font-family="sans-serif" font-size="12" text-anchor="middle">
+        <text x="110" y="230">1</text>
+        <text x="255" y="230">2</text>
+        <text x="400" y="230">3</text>
+        <text x="545" y="230">4</text>
+        <text x="690" y="230">5</text>
+        <text x="395" y="252">consecutive 60-second window</text>
+      </g>
+      <text x="14" y="130" fill="#333333" font-family="sans-serif" font-size="12"
+            text-anchor="middle" transform="rotate(-90 14 130)">throttled share of permitted thread-time</text>
+    </svg>
+    <figcaption>Throttled share of permitted CPU thread-time on
+    <code>user.slice/user-39486.slice</code>. Bars are five consecutive
+    60-second windows; the dashed line is the cumulative share since boot, which
+    is indistinguishable from a constant over five minutes.</figcaption>
+    </figure>
+    <p>Figure — the flat cumulative share against the five window readings. The
+    cumulative figure moves by less than 0.0001 across the series because each
+    window is a few minutes against 43 days; the windows themselves span a
+    factor of 4.4.</p>
+
+    <p><strong>A single window is a draw, not the level.</strong> The cumulative
+    share is stable to four decimal places, while its windowed form ranged from
+    0.425 to 1.865 within five adjacent minutes — 325 to 553 of 600 periods
+    throttled. Any comparison against one 60-second reading would be measuring
+    which minute it landed in, so the baseline for the plan's step six is the
+    cumulative ratio, and a working-day comparison needs a collector that
+    samples across the day rather than a longer single window.</p>
+    <p>The consequences the plan draws from this follow directly: at 84–92%
+    periods throttled the slice is stopped for most of every period it is busy,
+    so a health probe or handshake that has to complete inside one is waiting on
+    a queue that has four cores of throughput shared with roughly thirty session
+    processes and everything else in the account.</p>
+
+    <h3>The sampler, and how to repeat this</h3>
+    <p><code>imas_ambix/agent/throttling.py</code> reads <code>cpu.max</code> and
+    <code>cpu.stat</code> text from a directory the caller supplies — never a
+    fixed path — and prints the cumulative and interval readings as JSON. It
+    carries its own <code>_parser()</code> / <code>main()</code> entry point
+    rather than routing through the operator CLI, so a monitor can read a slice
+    without importing it:</p>
+    <pre><code># one reading
+uv run python -m imas_ambix.agent.throttling sample \
+    --directory /sys/fs/cgroup/user.slice/user-39486.slice
+
+# a reading plus the share over the next 60 seconds
+uv run python -m imas_ambix.agent.throttling interval \
+    --directory /sys/fs/cgroup/user.slice/user-39486.slice --seconds 60</code></pre>
+    <p>The unit gate is <code>uv run --no-sync pytest tests/agent/test_throttling.py</code>,
+    covering the cumulative share, the delta share across two samples, the
+    refusal of a counter that went backwards between samples, and the
+    unquota-ed reading where <code>cpu.max</code> is the literal
+    <code>max 100000</code> and the share is undefined rather than zero.</p>
   </section>
 
 </main>
