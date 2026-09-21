@@ -17,9 +17,11 @@ from __future__ import annotations
 import json
 import math
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
 
+import imas_ambix.agent.telemetry_store as telemetry_store
 from imas_ambix.agent.telemetry_store import (
     TIER_HOUR,
     TIER_MINUTE,
@@ -380,6 +382,24 @@ def test_compaction_is_idempotent(tmp_path, record):
     run_compaction(raw_path, tmp_path / "m2.jsonl", tmp_path / "h2.jsonl")
     assert (tmp_path / "m1.jsonl").read_bytes() == (tmp_path / "m2.jsonl").read_bytes()
     assert (tmp_path / "h1.jsonl").read_bytes() == (tmp_path / "h2.jsonl").read_bytes()
+
+
+def test_a_compaction_that_did_not_land_is_refused(tmp_path, record, monkeypatch):
+    """A successor is re-read, so a write that silently did not land is an error.
+
+    A caller handed a row count for a destination holding none of them cannot
+    tell that compaction from a complete one, and the source may then be treated
+    as superseded by a file that holds nothing. Redirecting the write makes that
+    state and requires the store to refuse it.
+    """
+    raw_path, _rows = record
+
+    def write_nothing(path, rows):
+        Path(path).write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(telemetry_store, "write_rows", write_nothing)
+    with pytest.raises(TelemetryStoreError, match="does not hold what was written"):
+        compact_file(raw_path, tmp_path / "minute.jsonl", tier=TIER_MINUTE)
 
 
 def test_a_source_tier_survives_its_successor(tmp_path, record):

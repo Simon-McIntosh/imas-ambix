@@ -423,10 +423,20 @@ def compact_file(
 
     The source is read and left untouched: a compaction writes its successor and
     never retires what it read, so a crash between the two loses nothing and the
-    source remains readable.
+    source remains readable. The successor is re-read and compared against the
+    rows that were meant for it before this call returns, so a write that landed
+    short or corrupted is reported as a failed compaction rather than as a
+    completed one -- on a network filesystem a silent short write is exactly the
+    failure that would otherwise be indistinguishable from success.
     """
     rows = compact_rows(read_rows(source), tier=tier)
     write_rows(destination, rows)
+    readback = read_rows(destination)
+    if readback != rows:
+        raise TelemetryStoreError(
+            f"{destination} does not hold what was written: "
+            f"{len(readback)} rows read back, {len(rows)} written"
+        )
     return len(rows)
 
 
