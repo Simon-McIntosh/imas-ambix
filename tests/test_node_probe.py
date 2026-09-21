@@ -4,9 +4,10 @@ Coverage
 --------
 1.  A recorded ``nvidia-smi`` body yields every card quantity the section
     names, from one query.
-2.  Cards are labelled by the physical index their step was allocated rather
+2.  Cards are labelled by the physical index the process was allocated rather
     than by the order ``nvidia-smi`` read them, asserted on a fixture where the
-    two differ.
+    two differ and against the environment a batch-step serve actually has --
+    the allocation in ``SLURM_JOB_GPUS`` with no ``SLURM_STEP_GPUS`` set.
 3.  A quantity a card does not expose is absent from that card rather than
     ``null`` or zero, which is the same rule the engine section follows.
 4.  A recorded ``/proc/stat`` pair yields the CPU busy fraction over the
@@ -24,8 +25,8 @@ The fixtures are recorded bodies.  ``_PROC_STAT``, ``_PROC_MEMINFO`` and
 ``_SQUEUE`` were captured on this workstation, the job table from the serving
 node ``98dci4-gpu-0003`` (three resident jobs: the serve, its router, and a
 third job).  ``_CARDS_TWO`` carries the field set and value shapes of a
-recorded ``nvidia-smi --query-gpu`` capture, widened to the two-card step the
-index mapping needs to be visible.
+recorded ``nvidia-smi --query-gpu`` capture, widened to the two-card allocation
+the index mapping needs to be visible.
 """
 
 from __future__ import annotations
@@ -113,7 +114,7 @@ def test_a_recorded_card_body_yields_every_field_the_section_names():
     assert section["cards"] == [
         {
             "index": 0,
-            "step_index": 0,
+            "read_index": 0,
             "utilisation_percent": 0.0,
             "temperature_c": 41.0,
             "power_draw_w": 12.62,
@@ -125,7 +126,7 @@ def test_a_recorded_card_body_yields_every_field_the_section_names():
         },
         {
             "index": 1,
-            "step_index": 1,
+            "read_index": 1,
             "utilisation_percent": 96.0,
             "temperature_c": 63.0,
             "power_draw_w": 431.55,
@@ -138,14 +139,50 @@ def test_a_recorded_card_body_yields_every_field_the_section_names():
     ]
 
 
-def test_card_indices_come_from_the_step_allocation_not_the_read_order():
-    """The step holds physical cards 6 and 7; nvidia-smi numbers them 0 and 1."""
-    section = node_probe.read_cards(_node_runner(), env={"SLURM_STEP_GPUS": "6,7"})
+def test_card_indices_come_from_the_batch_allocation_not_the_read_order():
+    """The batch step holds cards 6 and 7; ``nvidia-smi`` numbers them 0 and 1.
+
+    The environment is the one the serve's own launch creates: submitted with
+    ``sbatch`` and running the engine inline, so the allocation is in
+    ``SLURM_JOB_GPUS`` and there is no ``SLURM_STEP_GPUS`` at all.
+    """
+    section = node_probe.read_cards(_node_runner(), env={"SLURM_JOB_GPUS": "6,7"})
 
     assert [card["index"] for card in section["cards"]] == [6, 7]
-    assert [card["step_index"] for card in section["cards"]] == [0, 1]
-    assert section["index_source"] == "step_gpus"
-    assert section["step_gpus"] == "6,7"
+    assert [card["read_index"] for card in section["cards"]] == [0, 1]
+    assert section["index_source"] == "SLURM_JOB_GPUS"
+    assert section["allocation"] == {"variable": "SLURM_JOB_GPUS", "value": "6,7"}
+
+
+def test_a_step_allocation_is_narrower_than_the_job_it_runs_in():
+    """A serve under ``srun`` inside a job holds the step's cards, not the job's."""
+    section = node_probe.read_cards(
+        _node_runner(), env={"SLURM_STEP_GPUS": "6,7", "SLURM_JOB_GPUS": "0,1,2,3,6,7"}
+    )
+
+    assert [card["index"] for card in section["cards"]] == [6, 7]
+    assert section["index_source"] == "SLURM_STEP_GPUS"
+
+
+def test_the_visible_device_view_is_never_used_as_the_physical_numbering():
+    """``CUDA_VISIBLE_DEVICES`` is remapped to ``0..N-1``, so it labels nothing.
+
+    A card read under it would carry the position in the visible set under the
+    name of the silicon, which is the confusion the map exists to remove.
+    """
+    section = node_probe.read_cards(_node_runner(), env={"CUDA_VISIBLE_DEVICES": "0,1"})
+
+    assert [card["index"] for card in section["cards"]] == [0, 1]
+    assert section["index_source"] == "nvidia-smi"
+    assert "allocation" not in section
+
+
+def test_an_allocation_stated_in_another_order_still_pairs_ascending():
+    """The pairing is positional against ``nvidia-smi``'s ascending read order."""
+    section = node_probe.read_cards(_node_runner(), env={"SLURM_JOB_GPUS": "7,6"})
+
+    assert [card["index"] for card in section["cards"]] == [6, 7]
+    assert section["allocation"] == {"variable": "SLURM_JOB_GPUS", "value": "7,6"}
 
 
 def test_an_unstated_allocation_leaves_the_read_numbering_and_says_so():
@@ -153,16 +190,16 @@ def test_an_unstated_allocation_leaves_the_read_numbering_and_says_so():
 
     assert [card["index"] for card in section["cards"]] == [0, 1]
     assert section["index_source"] == "nvidia-smi"
-    assert "step_gpus" not in section
+    assert "allocation" not in section
 
 
 def test_an_allocation_that_does_not_describe_the_cards_is_not_guessed():
     """One index for two cards maps nothing, so no card is mislabelled."""
-    section = node_probe.read_cards(_node_runner(), env={"SLURM_STEP_GPUS": "6"})
+    section = node_probe.read_cards(_node_runner(), env={"SLURM_JOB_GPUS": "6"})
 
     assert [card["index"] for card in section["cards"]] == [0, 1]
     assert section["index_source"] == "nvidia-smi"
-    assert section["step_gpus"] == "6"
+    assert section["allocation"] == {"variable": "SLURM_JOB_GPUS", "value": "6"}
 
 
 @pytest.mark.parametrize(

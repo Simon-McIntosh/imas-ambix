@@ -20,13 +20,24 @@ rather than nulled when its own sample was unparseable (``nvidia-smi`` reports
 ``[N/A]`` for a quantity a card does not expose).
 
 **Cards are labelled by the number the node knows them by.** SLURM restricts
-each step to its allocated devices through the device cgroup, so ``nvidia-smi``
-inside the step numbers the visible cards from zero while ``SLURM_STEP_GPUS``
-carries the physical indices they actually are. A two-card step on a node's
-cards 6 and 7 therefore reads ``0, 1`` from ``nvidia-smi`` and ``6, 7`` from the
-environment, and recording the first would make one job's card 0 and another's
-card 0 different silicon. :func:`parse_cards` maps the position it read to the
-physical index, and the section states which numbering it used.
+each process to its allocated devices through the device cgroup, so
+``nvidia-smi`` inside it numbers the visible cards from zero while the
+allocation carries the physical indices they actually are. A two-card serve on
+a node's cards 2 and 3 therefore reads ``0, 1`` from ``nvidia-smi`` and ``2, 3``
+from the environment, and recording the first would make one job's card 0 and
+another's card 0 different silicon. :func:`parse_cards` maps the position it
+read to the physical index, and the section states which numbering it used.
+
+The allocation is read from the variable that exists on the path the serve takes.
+A serve is submitted with ``sbatch`` and runs the engine inline in the batch
+step, so ``SLURM_STEP_GPUS`` is **not set for it** -- that variable belongs to an
+``srun`` step -- while ``SLURM_JOB_GPUS`` carries the batch step's allocation.
+:data:`GPU_ALLOCATION_ENV` is the precedence ladder: the step variable first,
+because it is the narrower allocation when a serve is launched under ``srun``
+inside a job, and the job variable otherwise. ``CUDA_VISIBLE_DEVICES`` is
+deliberately not on that ladder: SLURM remaps it to ``0..N-1`` for the process,
+so it states the position in the visible set rather than the silicon, which is
+the confusion the map exists to remove.
 
 **This module probes; it does not decide how often.** :class:`NodeProbe` holds
 the one piece of scheduling the readings need -- the job table is a SLURM RPC
@@ -108,6 +119,13 @@ def run_capture(argv: Sequence[str], timeout_s: float = 10.0) -> str | None:
 
 # ── GPU cards ────────────────────────────────────────────────────────
 
+#: Environment variables that state the physical devices this process holds, in
+#: precedence order. Both are SLURM's own statement of the allocation rather
+#: than a view derived from it, which is what makes either usable as the
+#: physical numbering; see the module docstring for why one of them is absent on
+#: the serve's launch path and why ``CUDA_VISIBLE_DEVICES`` cannot substitute.
+GPU_ALLOCATION_ENV: tuple[str, ...] = ("SLURM_STEP_GPUS", "SLURM_JOB_GPUS")
+
 
 def parse_gpu_index_list(value: str | None) -> list[int] | None:
     """Physical GPU indices from a SLURM index list, or ``None`` if unusable.
@@ -140,10 +158,24 @@ def parse_gpu_index_list(value: str | None) -> list[int] | None:
     return indices or None
 
 
-def step_gpu_indices(env: Mapping[str, str] | None = None) -> list[int] | None:
-    """Physical indices of this step's cards, from ``SLURM_STEP_GPUS``."""
+def gpu_allocation(
+    env: Mapping[str, str] | None = None,
+) -> tuple[str, list[int]] | None:
+    """The variable stating this process's cards, and the indices in it.
+
+    Returns ``(variable, indices)`` so the section can name the source that
+    labelled its cards, or ``None`` when no variable stated an allocation. The
+    indices come back ascending, because ``nvidia-smi`` enumerates the cards it
+    sees in ascending device order and the pairing below is positional: an
+    allocation printed in another order would otherwise label the wrong
+    silicon.
+    """
     source = os.environ if env is None else env
-    return parse_gpu_index_list(source.get("SLURM_STEP_GPUS"))
+    for name in GPU_ALLOCATION_ENV:
+        indices = parse_gpu_index_list(source.get(name))
+        if indices is not None:
+            return name, sorted(indices)
+    return None
 
 
 def _card_value(token: str) -> float | None:
@@ -162,7 +194,7 @@ def mapped_indices(
 ) -> list[int] | None:
     """The physical index of each read position, or ``None`` if unmappable.
 
-    The allocation describes the whole step, so it pairs with the cards read
+    The allocation describes the whole process, so it pairs with the cards read
     only when the two agree in length. A partial pairing would label a card
     with another job's silicon, which is worse than not labelling it at all --
     so a mismatch yields ``None`` and the caller keeps the read numbering.
@@ -178,10 +210,10 @@ def parse_cards(
 ) -> list[dict[str, Any]]:
     """Per-card readings from one ``nvidia-smi --query-gpu`` body.
 
-    *physical_indices* is the allocation the node's scheduler stated, in the
-    order ``nvidia-smi`` reports the step's cards. A card is labelled with the
-    physical index it maps to; when no allocation was stated, or when its
-    length does not describe the cards actually read, the cards keep the
+    *physical_indices* is the allocation the scheduler stated, ascending, which
+    is the order ``nvidia-smi`` reports the cards it can see. A card is labelled
+    with the physical index it maps to; when no allocation was stated, or when
+    its length does not describe the cards actually read, the cards keep the
     numbering they were read under and no index is invented.
 
     Fields a card does not expose are omitted from that card rather than
@@ -193,10 +225,10 @@ def parse_cards(
         if len(row) < len(CARD_QUERY_FIELDS):
             continue
         try:
-            step_index = int(row[0])
+            read_index = int(row[0])
         except ValueError:
             continue
-        card: dict[str, Any] = {"step_index": step_index}
+        card: dict[str, Any] = {"read_index": read_index}
         for (name, _field), token in zip(CARD_FIELDS, row[1:], strict=False):
             value = _card_value(token)
             if value is not None:
@@ -204,7 +236,7 @@ def parse_cards(
         cards.append(card)
     indices = mapped_indices(len(cards), physical_indices)
     for position, card in enumerate(cards):
-        card["index"] = indices[position] if indices is not None else card["step_index"]
+        card["index"] = indices[position] if indices is not None else card["read_index"]
     return cards
 
 
@@ -228,21 +260,27 @@ def read_cards(
     )
     if not text:
         return None
-    allocation = step_gpu_indices(env)
+    source = os.environ if env is None else env
+    stated = gpu_allocation(source)
+    allocation = stated[1] if stated is not None else None
     cards = parse_cards(text, physical_indices=allocation)
     if not cards:
         return None
     mapped = mapped_indices(len(cards), allocation) is not None
     section: dict[str, Any] = {
-        "index_source": "step_gpus" if mapped else "nvidia-smi",
+        "index_source": stated[0] if mapped else "nvidia-smi",
         "count": len(cards),
         "cards": cards,
     }
-    raw = (os.environ if env is None else env).get("SLURM_STEP_GPUS")
-    if raw:
+    if stated is not None:
         # Recorded because it is what makes an unmapped section explicable: a
-        # reader sees the allocation beside the numbering that was used.
-        section["step_gpus"] = raw
+        # reader sees the allocation beside the numbering that was used. The
+        # variable that carried it is named because the ladder has two rungs,
+        # and which one answered decides how wide an allocation this is.
+        section["allocation"] = {
+            "variable": stated[0],
+            "value": source.get(stated[0]),
+        }
     return section
 
 
