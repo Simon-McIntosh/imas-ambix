@@ -108,17 +108,40 @@ def _host_runner(stat: str | None, meminfo: str | None):
     return run
 
 
+_CARD_ARGV = (
+    "nvidia-smi",
+    f"--query-gpu={','.join(node_probe.CARD_QUERY_FIELDS)}",
+    "--format=csv,noheader,nounits",
+)
+_CPU_ARGV = ("cat", "/proc/stat")
+_MEMINFO_ARGV = ("cat", "/proc/meminfo")
+
+
+def _jobs_argv(hostname):
+    return ("squeue", "-h", "-w", hostname, "-o", node_probe.SQUEUE_FORMAT)
+
+
 def _recording_runner():
-    """A runner that records the argument vector and timeout of every call."""
+    """A runner that records the argument vector and timeout of every call.
+
+    Both the recording and the responses are keyed by the whole vector rather
+    than by ``argv[0]``. Two distinct reads share ``cat``, so a command-keyed
+    mapping answers both with one body and, worse, collapses them under one key
+    for any caller reading the recording back.
+    """
     calls: list[tuple[list[str], float]] = []
+    responses = {
+        _CARD_ARGV: _CARDS_TWO,
+        _CPU_ARGV: _PROC_STAT,
+        _MEMINFO_ARGV: _PROC_MEMINFO,
+    }
 
     def run(argv, *, timeout_s):
+        vector = tuple(argv)
         calls.append((list(argv), timeout_s))
-        return {
-            "nvidia-smi": _CARDS_TWO,
-            "cat": _PROC_MEMINFO,
-            "squeue": _SQUEUE,
-        }.get(argv[0])
+        if vector[0] == "squeue":
+            return _SQUEUE
+        return responses.get(vector)
 
     return run, calls
 
@@ -447,6 +470,11 @@ def test_the_probe_gives_its_own_timeout_to_every_source_it_reads():
     An advertised default that no caller ever passes is a figure nothing can
     reach, so this reads the timeout each command was invoked with rather than
     the one the called signature declares.
+
+    Each of the four reads is pinned by its own vector. Two of them share the
+    ``cat`` command, so an assertion keyed on the command alone would cover
+    three reads and read as though it covered four -- the surviving pair member
+    would answer for the one that was dropped.
     """
     run, calls = _recording_runner()
 
@@ -455,10 +483,12 @@ def test_the_probe_gives_its_own_timeout_to_every_source_it_reads():
     ).sample(0.0)
 
     assert len(calls) == 4
-    invoked = {argv[0]: timeout_s for argv, timeout_s in calls}
-    assert invoked["nvidia-smi"] == 2.5
-    assert invoked["cat"] == 2.5
-    assert invoked["squeue"] == 4.75
+    invoked = {tuple(argv): timeout_s for argv, timeout_s in calls}
+    assert len(invoked) == len(calls), "two reads collapsed onto one vector"
+    assert invoked[_CARD_ARGV] == 2.5
+    assert invoked[_CPU_ARGV] == 2.5
+    assert invoked[_MEMINFO_ARGV] == 2.5
+    assert invoked[_jobs_argv("n")] == 4.75
 
 
 def test_the_job_read_carries_the_bound_it_declares_rather_than_the_local_one():
@@ -473,9 +503,12 @@ def test_the_job_read_carries_the_bound_it_declares_rather_than_the_local_one():
 
     node_probe.NodeProbe(run=run, env={}, hostname="n").sample(0.0)
 
-    invoked = {argv[0]: timeout_s for argv, timeout_s in calls}
-    assert invoked["squeue"] == node_probe.NodeProbe.job_timeout_s == 15.0
-    assert invoked["nvidia-smi"] == node_probe.NodeProbe.timeout_s == 10.0
+    invoked = {tuple(argv): timeout_s for argv, timeout_s in calls}
+    assert len(invoked) == len(calls), "two reads collapsed onto one vector"
+    assert invoked[_jobs_argv("n")] == node_probe.NodeProbe.job_timeout_s == 15.0
+    assert invoked[_CARD_ARGV] == node_probe.NodeProbe.timeout_s == 10.0
+    assert invoked[_CPU_ARGV] == node_probe.NodeProbe.timeout_s == 10.0
+    assert invoked[_MEMINFO_ARGV] == node_probe.NodeProbe.timeout_s == 10.0
 
 
 def test_the_real_runner_cuts_a_command_off_at_the_timeout_it_was_given():
