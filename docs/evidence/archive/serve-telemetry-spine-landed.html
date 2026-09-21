@@ -1674,7 +1674,7 @@ except ImportError:
     <h3 id="watcher-gates">Gates, and the negative control</h3>
 
     <p>The focused gate is <code>tests/test_agent_telemetry_watch.py</code>:
-    <strong>10 passed in 0.78 s</strong>. Whole-tree
+    <strong>11 passed in 1.72 s</strong>. Whole-tree
     <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0
     (<code>All checks passed!</code>). Every test builds a receipt record on disk and
     reads figures back through the index, so the tests also fix the contract between
@@ -1709,6 +1709,15 @@ except ImportError:
     <code>watch.watch_document</code> for <code>--json</code>. This is the same
     command name the dotfiles launcher keeps on <code>PATH</code>, so the operator
     surface does not move even though the implementation does.</p>
+
+    <p>The registration is asserted rather than assumed, because a rename on either
+    side of that boundary would otherwise fail only at the terminal:
+    <code>test_the_subcommand_renders_the_record_it_is_pointed_at</code> drives
+    <code>cli.agent</code> through <code>CliRunner</code> with a real record, checks
+    the text panels name the served model, and parses the <code>--json</code> document
+    for its three keys. Reading the module for the helper's name is what this test
+    replaces — before it was added, <code>imas_ambix/agent/cli.py</code> was the one
+    call site in the node with no test behind it.</p>
 
     <h3 id="watcher-commits">Commits</h3>
 

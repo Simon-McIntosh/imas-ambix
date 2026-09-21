@@ -318,3 +318,35 @@ def test_counter_reset_declines_rather_than_going_negative(tmp_path: Path) -> No
     # The raw span really is negative; the refusal is what turns it into None.
     assert index.counter_span("engine.prompt_tokens", now - HOUR, now) < 0
     index.close()
+
+
+def test_the_subcommand_renders_the_record_it_is_pointed_at(tmp_path: Path) -> None:
+    """The command the operator runs reaches the renderer over a real record.
+
+    The watcher's entry point and the terminal panels are covered above; what
+    this holds is the registration itself, so a rename on either side of the
+    ``imas-ambix agent watch`` boundary fails here rather than at the terminal.
+    """
+    from click.testing import CliRunner
+
+    from imas_ambix.agent import cli
+
+    now = _dt.datetime.now(_dt.UTC).timestamp()
+    directory = _write(tmp_path, _dense_rows(now, steps=40, spacing=60.0))
+    index_path = str(tmp_path / "cli.sqlite3")
+
+    runner = CliRunner()
+    text = runner.invoke(
+        cli.agent, ["watch", "--record", str(directory), "--index", index_path]
+    )
+    assert text.exit_code == 0, text.output
+    assert "ledger" in text.output
+    assert "deepseek-v4-flash" in text.output
+
+    figures = runner.invoke(
+        cli.agent,
+        ["watch", "--record", str(directory), "--index", index_path, "--json"],
+    )
+    assert figures.exit_code == 0, figures.output
+    document = json.loads(figures.output)
+    assert {"record", "ledger", "periods"} <= set(document)
