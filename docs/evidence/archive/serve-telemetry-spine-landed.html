@@ -152,14 +152,18 @@
 
     <table>
       <caption>The new assertion under four reader mutations, one stored-scrape
-      deletion, and one mutation of the sample-line check itself, with what the file's other
-      tests do with each. The deletion row is the declared control, run with only the
-      field-set test selected; the other rows ran the whole file.</caption>
+      deletion, and two mutations of the sample-line check itself — one per spelling of a
+      sample line, label-bearing and unlabelled — with what the file's other tests do with
+      two of them. The deletion row is the declared control, run with only the field-set
+      test selected; the other rows ran the whole file. Each row is receipted against the
+      revision and selector under test, and every count is quoted against the file's 16
+      tests.</caption>
       <thead><tr><th>Mutation applied</th><th>New assertion</th><th>Result</th></tr></thead>
       <tbody>
         <tr>
           <td><code>GAUGE_SERIES["requests_running"][sglang]</code> renamed to a series the
-          scrape does not carry</td>
+          scrape does not carry: <code>('num_running_reqs',)</code> →
+          <code>('num_running_reqs_renamed',)</code></td>
           <td>red — <code>requests_running</code> unresolved</td>
           <td>6 of 16 fail</td>
         </tr>
@@ -187,12 +191,19 @@
           <td>1 of 16 fail</td>
         </tr>
         <tr>
+          <td>the unlabelled branch of that check — <code>labels, value = "", rest</code> —
+          given no value, so a name followed by a space is accepted</td>
+          <td>red — <code>sglang:num_running_reqs 0.0</code> (unlabelled, value present)
+          refused as a sourced series</td>
+          <td>1 of 16 fail</td>
+        </tr>
+        <tr>
           <td>the canonical field itself deleted from the stored scrape: the fixture line
           <code>sglang:num_running_reqs{engine_type="unified",model_name="deepseek-v4.1-flash",moe_ep_rank="0",pp_rank="0",tp_rank="0"} 0.0</code>
           removed (fixture line 146, the only sample of that series)</td>
           <td>red — <code>unresolved ['requests running (requests_running)']</code> and
           <code>unsourced ['requests running (requests_running) &lt;- num_running_reqs']</code></td>
-          <td>1 failed, 14 deselected</td>
+          <td>1 failed, 15 deselected</td>
         </tr>
       </tbody>
     </table>
@@ -209,14 +220,28 @@
     the suite re-run green. A control that fails for the wrong reason, or a check that cannot
     fail, is why this one is run against the fixture rather than only the reader.</p>
 
-    <p><strong>That repaired check is itself pinned, after it was found unpinned.</strong>
+    <p><strong>That repaired check is itself pinned, after it was found unpinned — and the
+    pin was incomplete.</strong>
     The value-token requirement had no committed test holding it: restoring the earlier
     sample-line check left the whole file green, so a line carrying a series name and its
     full label set but no value would count as a sourced series again, silently — a scrape
     that lost its samples passing on its labels. The new test feeds exactly that line and
     asserts it is not a source, and it is red against the restored earlier form and green
-    against the shipped one. The rows are re-measured, not carried over: the file carries 16
-    tests now, so each mutation's count is quoted against 16.</p>
+    against the shipped one. That pin covered only the label-bearing spelling: a sample line
+    may carry no label set at all, and the check reads that form through a separate branch,
+    where emptying the value left the file green as well. The test now feeds the bare name and
+    the bare name with a trailing space, asserting the refusal of each, and is red on the
+    unlabelled positive it feeds when that branch's value is removed. Both rows above are
+    receipted; a requirement asserted on one branch, or on one spelling of a line, is a
+    requirement half of whose removal is silent. The rows are re-measured, not carried over:
+    the file carries 16 tests now, so each mutation's count is quoted against 16.</p>
+
+    <p><strong>A repair that renames an identifier invalidates every receipt naming it.</strong>
+    The declared control was re-run at the head under test rather than carried over: its
+    earlier receipt quoted the field-set test's previous name, so replaying that command at
+    this head selects nothing and reports a clean run for a mutation that was never applied.
+    The receipt on disk now states the command as it runs today, with its counts, and is the
+    figure this record quotes.</p>
 
     <p><strong>Gates.</strong> <code>uv run --no-sync pytest tests/test_engine_metrics.py
     tests/test_agent_lane_sglang.py tests/test_agent_lane_gzip.py

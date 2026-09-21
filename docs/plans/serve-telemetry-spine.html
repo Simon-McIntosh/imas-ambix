@@ -227,8 +227,11 @@
     expectation with it.</p>
 
     <p><strong>Measured.</strong> The new assertion is red under a reader whose SGLang
-    mapping for <code>requests_running</code> is renamed (<code>num_running_reqs_v2</code>):
-    6 of 16 tests in the file fail, the new one among them. Gates:
+    mapping for <code>requests_running</code> — its entry in <code>GAUGE_SERIES</code>,
+    a tuple of name fragments — is renamed to
+    <code>('num_running_reqs_renamed',)</code>: 6 of 16 tests in the file fail, the new one
+    among them, and the same shape is red for the counter (5 of 16), histogram (4 of 16)
+    and cache-tier (2 of 16) mappings. Gates:
     <code>uv run --no-sync pytest tests/test_engine_metrics.py
     tests/test_agent_lane_sglang.py tests/test_agent_lane_gzip.py
     tests/test_agent_serving_receipts.py</code> reports <strong>35 passed</strong>, and
@@ -249,17 +252,31 @@
     <code>unsourced ['requests running (requests_running) &lt;- num_running_reqs']</code>,
     the fixture was then restored byte-identically (sha256
     <code>8756c08150971947…</code>) and the suite re-run green. A fixture test never shown
-    to fail cannot distinguish a preserved field set from an empty assertion.</p>
+    to fail cannot distinguish a preserved field set from an empty assertion. That run is
+    receipted against the revision under test and the selector as it now stands, because
+    renaming the test invalidated the earlier receipt: replaying the name it quoted would
+    have been a no-op, and a receipt that replays as nothing is worse than none.</p>
 
-    <p><strong>The sample-line check is held by a test of its own.</strong> A requirement
-    that no committed test pins can be removed without a signal: restoring the earlier
-    sample-line check, which accepted a name followed by an opening brace or a space and
-    required no value, left the file green. The new test feeds a labels-only exposition
+    <p><strong>The sample-line check is held by a test of its own, on both branches.</strong>
+    A requirement that no committed test pins can be removed without a signal: restoring the
+    earlier sample-line check, which accepted a name followed by an opening brace or a space
+    and required no value, left the file green. The new test feeds a labels-only exposition
     line — <code>sglang:num_running_reqs{engine_type="unified",tp_rank="0"}</code>, with no
     value — and asserts it is not a source, beside the HELP/TYPE-only, trailing-space and
     longer-prefix shapes. Against the restored earlier implementation it is red on exactly
-    that line; against the shipped one it is green, which is what makes the check rather
-    than the assertion the thing under test.</p>
+    that line; against the shipped one it is green.</p>
+
+    <p><strong>The unlabelled branch is a second requirement, and it was unpinned too.</strong>
+    A sample line may carry no label set at all, and the check reads that spelling through a
+    separate branch, so a value requirement asserted only where labels are present leaves
+    the other half free. Emptying that branch's value kept the file green — a scrape whose
+    unlabelled series had lost their samples would have resolved as sourced and nothing would
+    have said so. The test now feeds the bare name, and the bare name with a trailing space,
+    and asserts the refusal of each, beside a positive that carries a value and a negative
+    whose missing label set cannot satisfy a required fragment. Against the emptied branch the
+    test is red on the positive it feeds, <code>sglang:num_running_reqs 0.0</code> — which is
+    the assertion that distinguishes a check reading the value from one reading only the
+    line's shape.</p>
 
     <p><strong>What the fixture does not preserve, measured and left open.</strong> The
     commits <code>43b45b1b</code> and <code>87b12221</code> are scoped to the test; the
