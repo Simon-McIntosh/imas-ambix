@@ -17,6 +17,7 @@ from __future__ import annotations
 import html
 import json
 import math
+import os
 import re
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -595,6 +596,88 @@ def test_the_landing_record_publishes_the_weights_the_cadence_yields():
         f"{minutes_per_hour} × {minute_samples} = {hour_samples} samples over "
         f"{hour_seconds:,} s"
     ) in text
+
+
+def _host_rows(**hosts: float) -> list[dict]:
+    """One window's worth of rows per host, interleaved as two writers land them.
+
+    Every host's rows fall inside the same minute, which is what makes the
+    grouping observable: merged into one window they produce one row and one
+    mean, and kept apart they produce one row per host with its own endpoint.
+    """
+    rows: list[dict] = []
+    for tick in range(3):
+        for host, base in hosts.items():
+            rows.append(
+                {
+                    "timestamp": (_START + timedelta(seconds=10 * tick)).isoformat(),
+                    "host": host,
+                    _SYNTHETIC_COUNTER: int(base) + tick,
+                    _SYNTHETIC_GAUGE: base + tick,
+                }
+            )
+    return rows
+
+
+def test_two_hosts_in_one_window_compact_to_one_row_each():
+    """A window belongs to one host: a mean over two machines is neither's.
+
+    The two hosts' counters differ by a constant, so a merged window would carry
+    one endpoint and one mean belonging to no machine -- and the difference taken
+    across that row would be a figure about the merge rather than about either
+    record.
+    """
+    compacted = compact_rows(
+        _host_rows(**{"node-a": 10.0, "node-b": 100.0}), tier=TIER_MINUTE
+    )
+    by_host = {row["host"]: row for row in compacted}
+
+    assert set(by_host) == {"node-a", "node-b"}
+    for host, base in (("node-a", 10.0), ("node-b", 100.0)):
+        row = by_host[host]
+        assert row[_SYNTHETIC_COUNTER] == base + 2  # the window's last, not a mean
+        assert row[_SYNTHETIC_GAUGE] == pytest.approx(base + 1)
+        assert row["obs"]["samples"] == 3
+    assert by_host["node-a"][_SYNTHETIC_GAUGE] != by_host["node-b"][_SYNTHETIC_GAUGE]
+
+
+def test_a_row_naming_no_host_takes_the_compacting_nodename():
+    """The fallback is the recorder's own machine, or one the caller names.
+
+    A record whose rows name no host was written where it is read, so the
+    compaction attributes it to the machine doing the compacting -- and a caller
+    reading another machine's record names that machine instead.
+    """
+    rows = [
+        {
+            "timestamp": (_START + timedelta(seconds=10 * tick)).isoformat(),
+            "gauge": float(tick),
+        }
+        for tick in range(3)
+    ]
+
+    assert compact_rows(rows, tier=TIER_MINUTE)[0]["host"] == os.uname().nodename
+    assert compact_rows(rows, tier=TIER_MINUTE, host="node-c")[0]["host"] == "node-c"
+
+
+def test_a_compacted_row_carries_its_host_into_the_next_tier():
+    """The minute row declares its host, so the hour tier needs no second telling.
+
+    The host is the window's identity rather than one of its readings, so it is
+    carried beside the payload instead of folded into it -- and a second tier
+    that had to be told the host again would merge two machines' hours the moment
+    it was not.
+    """
+    minute = compact_rows(
+        _host_rows(**{"node-a": 10.0, "node-b": 100.0}), tier=TIER_MINUTE
+    )
+    hour = compact_rows(minute, tier=TIER_HOUR)
+
+    by_host = {row["host"]: row for row in hour}
+    assert set(by_host) == {"node-a", "node-b"}
+    for host, base in (("node-a", 10.0), ("node-b", 100.0)):
+        assert by_host[host][_SYNTHETIC_COUNTER] == base + 2
+        assert by_host[host]["obs"]["samples"] == 3
 
 
 def test_a_row_without_a_usable_timestamp_is_refused():

@@ -43,6 +43,17 @@ work of consuming a line, not the bytes the digest is computed over. A source
 with no digest recorded carries no identity to compare against, so its region is
 re-read rather than trusted.
 
+**Every key carries the host that recorded the row, because an inode does not
+name a machine.** An inode number is unique within one filesystem and nowhere
+else, so two hosts recording a file of the same name at the same path produce
+the same ``(path, inode)`` and the same ``(inode, offset)`` while holding
+different readings -- and a key without a host merges the two irrecoverably,
+which is worse than either being wrong. The host is what the row says it was
+recorded on (:func:`row_host`), and a row that carries none falls back to the
+host this index is reading for -- its own nodename unless one is named --
+because a file whose rows do not name their machine is, by construction, being
+consumed where it was written.
+
 **Discovery reaches the roll suffixes it intends and nothing else.** A record and
 its numbered roll are selected by default; a name that merely contains
 ``.jsonl`` -- a summary written beside the record, or an archive of it -- is not,
@@ -65,6 +76,7 @@ import dataclasses
 import datetime as _dt
 import hashlib
 import json
+import os
 import re
 import sqlite3
 from collections.abc import Mapping
@@ -78,8 +90,13 @@ from imas_ambix.agent.receipt_bins import (
 )
 
 if TYPE_CHECKING:
-    import os
     from collections.abc import Iterable, Iterator
+
+#: Record keys a row can name its recording host under, in precedence order.
+#: ``host`` is the row-level spelling and ``hostname`` the one the job section
+#: uses for the node it queried, so a producer that promotes that reading to the
+#: row needs no change here.
+_HOST_KEYS = ("host", "hostname")
 
 #: Quantity names whose value is a cumulative total since the engine started,
 #: so their period figure is the difference of two endpoints and never a sum.
@@ -99,6 +116,7 @@ CUMULATIVE_MEASUREMENTS: frozenset[str] = frozenset(
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS source (
+    host     TEXT    NOT NULL,
     path     TEXT    NOT NULL,
     inode    INTEGER NOT NULL,
     size     INTEGER NOT NULL,
@@ -107,11 +125,12 @@ CREATE TABLE IF NOT EXISTS source (
     -- digest of the first `offset` bytes of the file; NULL means no identity is
     -- recorded for the consumed region, which makes that region unverifiable
     prefix_sha TEXT,
-    PRIMARY KEY (path, inode)
+    PRIMARY KEY (host, path, inode)
 );
 
 CREATE TABLE IF NOT EXISTS sample (
     id           INTEGER PRIMARY KEY,
+    host         TEXT    NOT NULL,
     inode        INTEGER NOT NULL,
     offset       INTEGER NOT NULL,
     path         TEXT    NOT NULL,
@@ -122,7 +141,7 @@ CREATE TABLE IF NOT EXISTS sample (
     served_name  TEXT,
     gpus         INTEGER,
     payload      TEXT    NOT NULL,
-    UNIQUE (inode, offset)
+    UNIQUE (host, inode, offset)
 );
 
 CREATE TABLE IF NOT EXISTS measurement (
@@ -153,6 +172,21 @@ class IngestReport:
 
     def to_dict(self) -> dict[str, Any]:
         return dataclasses.asdict(self)
+
+
+def row_host(row: Mapping[str, Any]) -> str | None:
+    """The host a record row says it was recorded on, or ``None``.
+
+    Only the row's own top level is read. A host named inside a section is not
+    this row's recording host but the scope of the reading that section holds,
+    and a record whose job table is refreshed on a slower cadence than its
+    other readings would then label its ticks with two different hosts.
+    """
+    for key in _HOST_KEYS:
+        value = row.get(key)
+        if isinstance(value, str) and value:
+            return value
+    return None
 
 
 def _kind(name: str) -> str:
@@ -248,10 +282,17 @@ def discover(directory: str | Path, pattern: str | None = None) -> list[Path]:
 
 
 class TelemetryIndex:
-    """A local, rebuildable query layer over one or more record files."""
+    """A local, rebuildable query layer over one or more record files.
 
-    def __init__(self, path: str | Path) -> None:
+    *host* is the host rows that carry none are attributed to, because a record
+    whose rows do not name their machine was written where it is being read.
+    Every sample and source row records its host, so two machines' readings
+    cannot take each other's key.
+    """
+
+    def __init__(self, path: str | Path, *, host: str | None = None) -> None:
         self.path = Path(path)
+        self.host = host or os.uname().nodename
         self._conn = sqlite3.connect(str(self.path))
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA foreign_keys = ON")
@@ -297,29 +338,43 @@ class TelemetryIndex:
                     "can read"
                 )
             scanned += 1
-            lines, tail, prefix_sha = self._resume(path, stat)
+            lines, tail, prefix_sha, host = self._resume(path, stat)
             added = 0
+            carried: str | None = None
             for offset, raw in lines:
                 read += len(raw)
                 parsed = self._parse(raw, path, offset)
                 if parsed is None:
                     malformed += 1
                     continue
-                if self._insert(path, stat.st_ino, offset, parsed):
+                if carried is None:
+                    # One file is written by one recorder on one machine, so the
+                    # first row that names its host names it for every row here.
+                    carried = row_host(parsed)
+                if self._insert(path, stat.st_ino, carried or host, offset, parsed):
                     inserted += 1
                     added += 1
                 else:
                     duplicate += 1
+            file_host = carried or host
             with self._conn:
                 self._conn.execute(
                     "INSERT INTO source "
-                    "(path, inode, size, offset, rows, prefix_sha) "
-                    "VALUES (?, ?, ?, ?, ?, ?) "
-                    "ON CONFLICT (path, inode) DO UPDATE SET "
+                    "(host, path, inode, size, offset, rows, prefix_sha) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?) "
+                    "ON CONFLICT (host, path, inode) DO UPDATE SET "
                     "  size = excluded.size, offset = excluded.offset, "
                     "  rows = source.rows + excluded.rows, "
                     "  prefix_sha = COALESCE(excluded.prefix_sha, source.prefix_sha)",
-                    (str(path), stat.st_ino, stat.st_size, tail, added, prefix_sha),
+                    (
+                        file_host,
+                        str(path),
+                        stat.st_ino,
+                        stat.st_size,
+                        tail,
+                        added,
+                        prefix_sha,
+                    ),
                 )
         with self._conn:
             self._conn.commit()
@@ -331,46 +386,86 @@ class TelemetryIndex:
             bytes_read=read,
         )
 
+    def _resumed_row(self, path: Path, inode: int) -> sqlite3.Row | None:
+        """The source row this file resumes from, or ``None`` if it has none.
+
+        The file's own path is tried first and the inode alone second, because
+        two filesystems number their inodes independently: an inode alone can
+        name one file here and a different file on another host, so matching it
+        without the path would resume this file from a stranger's offset. A roll
+        has no row under its new name, which is what the second lookup is for: it
+        finds the row the old name holds, and the bytes keep their offset while
+        the name is gone.
+
+        The two lookups are not interchangeable and the caller does not treat
+        them so: only a match on the path says *this file* has been consumed
+        before, and only that match can conclude the file was rewritten in place.
+        A row found by the inode alone that does not describe these bytes belongs
+        to another file sharing the number, and reading it as a rewrite would
+        discard that other file's samples for content they never held.
+        """
+        row = self._conn.execute(
+            "SELECT host, path, offset, prefix_sha FROM source "
+            "WHERE inode = ? AND path = ? LIMIT 1",
+            (inode, str(path)),
+        ).fetchone()
+        if row is not None:
+            return row
+        return self._conn.execute(
+            "SELECT host, path, offset, prefix_sha FROM source WHERE inode = ? "
+            "ORDER BY offset DESC LIMIT 1",
+            (inode,),
+        ).fetchone()
+
     def _resume(
         self, path: Path, stat: os.stat_result
-    ) -> tuple[Iterator[tuple[int, bytes]], int, str | None]:
-        """Lines to consume, the offset they carry to, and the region's digest."""
-        row = self._conn.execute(
-            # Keyed on the inode, not the name: a rolled file keeps its bytes
-            # and its offset while losing its path, so resuming per path would
-            # re-read everything it holds.
-            "SELECT offset, prefix_sha FROM source WHERE inode = ? "
-            "ORDER BY offset DESC LIMIT 1",
-            (stat.st_ino,),
-        ).fetchone()
+    ) -> tuple[Iterator[tuple[int, bytes]], int, str | None, str]:
+        """Lines to consume, the offset they carry to, the region's digest, host.
+
+        The host returned is the one the file's already-consumed region was
+        attributed to, which is the host its samples must be dropped under if
+        the region turns out to have been rewritten -- the previous pass's rows
+        carry exactly that host, so attributing the drop to any other would
+        leave them behind or take another machine's.
+        """
+        row = self._resumed_row(path, stat.st_ino)
+        host = self.host if row is None else row["host"]
         start = 0
         if row is not None and row["offset"]:
             if self._was_rewritten(path, stat, row["offset"], row["prefix_sha"]):
-                # Rewritten in place: the bytes this index already consumed no
-                # longer describe anything, so every sample from this inode
-                # goes with them before the new content is read.
-                with self._conn:
-                    self._conn.execute(
-                        "DELETE FROM sample WHERE inode = ?", (stat.st_ino,)
-                    )
+                if row["path"] == str(path):
+                    # Rewritten in place: the bytes this index already consumed
+                    # no longer describe anything, so every sample from this
+                    # inode goes with them before the new content is read.
+                    with self._conn:
+                        self._conn.execute(
+                            "DELETE FROM sample WHERE host = ? AND inode = ?",
+                            (host, stat.st_ino),
+                        )
+                # Otherwise this row was found by the inode alone and does not
+                # describe these bytes: it belongs to another file that happens
+                # to share the number, so this file is new here. It is read from
+                # zero, and the stranger's samples are left where they are --
+                # discarding them would destroy content this file never held.
             else:
                 start = row["offset"]
         if start >= stat.st_size:
             # Nothing was appended, so the consumed region is the whole file and
             # the digest stored beside it already describes it.
-            return iter(()), start, None
+            return iter(()), start, None, host
         with path.open("rb") as handle:
             head = handle.read(start)
             data = handle.read(stat.st_size - start)
         complete = data.rfind(b"\n")
         if complete < 0:
             # Nothing but a partial line so far: leave the offset alone.
-            return iter(()), start, None
+            return iter(()), start, None, host
         consumed = head + data[: complete + 1]
         return (
             iter(_lines(consumed[start:], start)),
             start + complete + 1,
             hashlib.sha256(consumed).hexdigest(),
+            host,
         )
 
     def _was_rewritten(
@@ -415,15 +510,28 @@ class TelemetryIndex:
         return parsed
 
     def _insert(
-        self, path: Path, inode: int, offset: int, row: Mapping[str, Any]
+        self,
+        path: Path,
+        inode: int,
+        host: str,
+        offset: int,
+        row: Mapping[str, Any],
     ) -> bool:
-        """Store one sample; ``False`` when this inode and offset are known."""
+        """Store one sample; ``False`` when this host, inode and offset are known.
+
+        A sample is identified by where it was recorded as well as by which byte
+        of which inode it came from: inode numbers are per-filesystem, so two
+        machines recording at the same path produce the same ``(inode, offset)``
+        while holding different readings.
+        """
         with self._conn:
             cursor = self._conn.execute(
                 "INSERT OR IGNORE INTO sample "
-                "(inode, offset, path, ts, ts_epoch, job_id, profile_slug, "
-                " served_name, gpus, payload) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "(host, inode, offset, path, ts, ts_epoch, job_id, profile_slug, "
+                " served_name, gpus, payload) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
+                    host,
                     inode,
                     offset,
                     str(path),
@@ -513,12 +621,12 @@ class TelemetryIndex:
                        MAX(0.0, MIN(
                            COALESCE(
                                LEAD(s.ts_epoch) OVER (
-                                   PARTITION BY s.inode
+                                   PARTITION BY s.host, s.inode
                                    ORDER BY s.ts_epoch, s.offset
                                ),
                                s.ts_epoch + COALESCE(
                                    s.ts_epoch - LAG(s.ts_epoch) OVER (
-                                       PARTITION BY s.inode
+                                       PARTITION BY s.host, s.inode
                                        ORDER BY s.ts_epoch, s.offset
                                    ),
                                    0.0
@@ -587,7 +695,7 @@ class TelemetryIndex:
             json.loads(row["payload"])
             for row in self._conn.execute(
                 "SELECT payload FROM sample WHERE ts_epoch >= ? AND ts_epoch < ? "
-                "ORDER BY ts_epoch, inode, offset",
+                "ORDER BY ts_epoch, host, inode, offset",
                 (start, end),
             )
         ]
@@ -653,4 +761,5 @@ __all__ = [
     "TelemetryIndex",
     "discover",
     "measure_row",
+    "row_host",
 ]

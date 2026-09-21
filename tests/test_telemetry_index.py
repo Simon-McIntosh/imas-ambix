@@ -633,3 +633,91 @@ def test_a_compressed_roll_is_refused_by_name(tmp_path):
 
 def _epoch(row: dict) -> float:
     return _dt.datetime.fromisoformat(row["timestamp"]).timestamp()
+
+
+def _pin_inode(monkeypatch, inode: int) -> None:
+    """Give every path the same inode, as two filesystems' numbering can."""
+    real_stat = Path.stat
+
+    def stat(path: Path, *args: object, **kwargs: object) -> os.stat_result:
+        fields = list(real_stat(path, *args, **kwargs))
+        fields[1] = inode
+        return os.stat_result(fields)
+
+    monkeypatch.setattr(Path, "stat", stat)
+
+
+def test_a_row_naming_its_host_is_keyed_on_that_host(tmp_path):
+    """A record that says where it was written is not attributed to its reader.
+
+    The reader's own nodename is a fallback for a record that names nothing, not
+    a label to overwrite what a record does name, or two hosts' readings would
+    still land under the host that happened to read them.
+    """
+    source = tmp_path / "serve.jsonl"
+    _write(source, [_row(0, host="node-a"), _row(5, host="node-a")])
+
+    with TelemetryIndex(tmp_path / "index.db", host="node-z") as index:
+        index.ingest([source])
+        kept = index._conn.execute(
+            "SELECT host FROM sample ORDER BY id"
+        ).fetchall()
+        assert [row["host"] for row in kept] == ["node-a", "node-a"]
+        sources = index._conn.execute(
+            "SELECT host, path FROM source").fetchall()
+        assert [(row["host"], row["path"]) for row in sources] == [
+            ("node-a", str(source))
+        ]
+
+
+def test_a_row_naming_no_host_falls_back_to_the_recording_nodename(tmp_path):
+    """A record whose rows name no machine was written where it is being read."""
+    here = tmp_path / "plain.jsonl"
+    named = tmp_path / "named.jsonl"
+    _write(here, [_row(0)])
+    _write(named, [_row(5)])
+
+    with TelemetryIndex(tmp_path / "own.db") as index:
+        index.ingest([here])
+        row = index._conn.execute("SELECT host FROM sample").fetchone()
+        assert row["host"] == os.uname().nodename
+
+    with TelemetryIndex(tmp_path / "other.db", host="node-b") as index:
+        index.ingest([named])
+        row = index._conn.execute("SELECT host FROM sample").fetchone()
+        assert row["host"] == "node-b"
+
+
+def test_two_hosts_at_one_inode_and_offset_are_both_kept(tmp_path, monkeypatch):
+    """An inode names a file within one filesystem and nowhere else.
+
+    Two machines recording a file of the same name at the same path produce the
+    same ``(inode, offset)`` for readings that are not the same, so an index
+    keyed on that pair alone stores the second machine's row as a duplicate of
+    the first's and drops it -- no error, no count of what was lost, and nothing
+    afterwards that tells the two apart. The inode is pinned here to reproduce
+    what two filesystems' independent numbering makes collide in the record this
+    index reads.
+    """
+    _pin_inode(monkeypatch, 424_242)
+    here = tmp_path / "here" / "serve.jsonl"
+    there = tmp_path / "there" / "serve.jsonl"
+    here.parent.mkdir()
+    there.parent.mkdir()
+    _write(here, [_row(0, host="node-a"), _row(5, host="node-a")])
+    _write(there, [_row(0, host="node-b"), _row(5, host="node-b")])
+
+    with TelemetryIndex(tmp_path / "index.db", host="node-a") as index:
+        report = index.ingest([here, there])
+
+        assert report.rows_inserted == 4
+        assert report.rows_duplicate == 0
+        kept = index._conn.execute(
+            "SELECT host, COUNT(*) AS n FROM sample GROUP BY host ORDER BY host"
+        ).fetchall()
+        assert [(row["host"], row["n"]) for row in kept] == [
+            ("node-a", 2),
+            ("node-b", 2),
+        ]
+        assert index._conn.execute("SELECT COUNT(*) FROM source").fetchone()[0] == 2
+        assert index.sample_count() == 4
