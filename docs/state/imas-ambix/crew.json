@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-21T09:07:19",
+  "updated": "2026-09-21T09:09:47",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -737,9 +737,11 @@
         "id": "fleet-site-brief",
         "harness": "clive",
         "role": "documentation",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
+        "session_id": "178eebd3-1c1d-4889-b7ad-d4963f1e3daa",
+        "session_model": "deepseek-v4.1-flash",
+        "sessions": {
+          "{\"alias\":\"dsv4.1-flash\",\"backend\":\"clive\",\"effort\":\"xhigh\",\"launch\":\"cli\",\"local\":true,\"model\":\"deepseek-v4.1-flash\",\"sandbox\":\"worktree-full\",\"usable_input_window\":480000}": "178eebd3-1c1d-4889-b7ad-d4963f1e3daa"
+        },
         "created": "2026-09-21"
       },
       {
@@ -44679,6 +44681,222 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260921T064853185682-fleet-site-lingering-request",
+        "plan": "slurm-hosted-agent-fleet",
+        "section": "\u00a77",
+        "node": "fleet-site-lingering-request",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 349,
+                "cached_input_tokens": 205356,
+                "input_tokens": 205707,
+                "output_tokens": 1821,
+                "reasoning_output_tokens": 1010,
+                "total_tokens": 207528,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "10680e94-61e5-4916-bab0-968fa2503f57",
+            "session_id": "slurm-fleet"
+          },
+          "done_when": "docs/research/site-request-user-lingering.html exists carrying reckon-type=doc, plan-informs=slurm-hosted-agent-fleet and a plan-title; it states BOTH concrete asks named in \u00a76 of docs/research/login-session-scope-teardown.html (a logind journal read for 02:31:11 on 2026-09-20, and adding this account to a group that can read that journal), quotes the two teardown occurrences with their timestamps and the status=143 detail for the two app.slice services, and names the account and host; it contains NO request to raise CPUQuota, since the plan decision quota-request is locked to no, and NO claim that the cause is memory or CPU contention; and `reckon audit-doc docs/research/site-request-user-lingering.html` is run, reports OK with zero ERRORs, and its exact output is quoted in the manifest",
+          "estimated_hours": 0.5,
+          "goal": "a send-ready request to the site asking why user lingering is not holding on the login node",
+          "id": "fleet-site-lingering-request",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-21T06:48:53Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no numeric 'headroom'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T064853185682-fleet-site-lingering-request/manifest.md",
+          "negative_control": "none: the deliverable is a prose document with no test file, so no code mutation applies; the falsifiable checks are the audit-doc run and the two stated absences",
+          "plan": "slurm-hosted-agent-fleet",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "documentation",
+          "section": "\u00a77",
+          "spec_level": "exact",
+          "time_budget": "30m",
+          "token_budget": null,
+          "write_paths": [
+            "docs/research/site-request-user-lingering.html",
+            "docs/plans/slurm-hosted-agent-fleet.html",
+            "docs/evidence/archive/slurm-hosted-agent-fleet-landed.html"
+          ]
+        },
+        "role": "documentation",
+        "spec_level": "exact",
+        "member": "fleet-site-brief",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "xhigh",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "worktree-full",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-21T06:49:00Z",
+        "completed_at": "2026-09-21T07:06:47.782Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 1056,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 1067,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "c33eb2188c53a23a7009c5d5cbc13e994b3beb7a",
+        "commits": [
+          "e523036b842dbd9c6dbc205bfd0753335e82c342"
+        ],
+        "changed_lines": {
+          "added": 275,
+          "removed": 0,
+          "files": 3
+        },
+        "tests_added": 0,
+        "gate": "passed",
+        "gate_check": {
+          "command": "reckon audit-doc over all three touched files, plus the same audit against a copy carrying an injected relative img src as the check-fires control",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T064853185682-fleet-site-lingering-request/audit-all-three.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T064853185682-fleet-site-lingering-request/manifest.md",
+        "scope_changed": false,
+        "session_id": "178eebd3-1c1d-4889-b7ad-d4963f1e3daa",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 4720922,
+            "input_tokens_cumulative": 4720922,
+            "output_tokens": 58693,
+            "output_tokens_cumulative": 58693,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-21T07:06:47.782Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": null,
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 4888420,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 1064.207,
+          "generated_tokens": 66148,
+          "generation_seconds": 1002.028,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 34.6,
+          "machine_seconds": 62.179,
+          "peak_input_tokens": 166198,
+          "tokens_per_second": 66.01,
+          "wall_tokens_per_second": 62.16
+        },
+        "follow_on_paths": [
+          "docs/plans/slurm-hosted-agent-fleet.html",
+          "docs/evidence/archive/slurm-hosted-agent-fleet-landed.html",
+          "/"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "documentation",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/slurm-fleet/fleet-site-lingering-request",
+          "session_id": "178eebd3-1c1d-4889-b7ad-d4963f1e3daa",
+          "session_source": "pointer",
+          "retained_at": "2026-09-21T07:06:47.782Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "impl_move": {
+          "plan": "slurm-hosted-agent-fleet",
+          "at_dispatch": null,
+          "at_complete": null,
+          "verdict": "exempt",
+          "reason": "role-not-enforced:documentation"
+        },
+        "negative_control": {
+          "verdict": "exempt",
+          "reason": "node-writes-no-test-path"
+        },
+        "tool_steps": 48.0,
+        "orientation_input_tokens": 1530441.0,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -44753,6 +44971,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 768
+    "_version": 770
   }
 }
