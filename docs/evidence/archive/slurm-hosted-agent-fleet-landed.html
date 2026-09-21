@@ -92,11 +92,14 @@
     <code>--mem=120G</code>, because a rigel node reports
     <code>RealMemory=128000</code> MB — a request at the nominal figure would sit
     at the node's whole real capacity, while one slightly below it leaves the node
-    room for its own footprint and still covers the fleet. This is the trap the
-    agent guidance records for <code>--mem=0</code>: a request at or above
-    <code>RealMemory</code> is effectively an exclusive-node request that cannot
-    start beside anything, and it reads to an operator as contention rather than
-    as sizing.</p>
+    room for its own footprint and still covers the fleet. The reason is headroom on the node, not co-tenancy: this
+    job already asks for the node exclusively and <code>rigel</code> is configured
+    <code>OverSubscribe=NO</code>, so nothing could be scheduled beside it under any
+    memory figure. An earlier wording of this record argued the narrowing preserved
+    co-scheduling, which is not true on this partition and would have justified
+    declining a later increase for a benefit that does not exist. Raising
+    <code>AMBIX_AGENT_FLEET_MEMORY</code> toward the node's real capacity is therefore
+    a sizing decision with no scheduling cost attached.</p>
 
     <h3>Unbounded wall clock: asserted as a property, validated by the scheduler</h3>
     <p>The limit is emitted as <code>--time=UNLIMITED</code> through the shared
@@ -299,11 +302,11 @@ exec sleep infinity
     share is stable to four decimal places, while its windowed form ranged from
     0.425 to 1.865 within five adjacent minutes — 325 to 553 of 600 periods
     throttled. Any comparison against one 60-second reading would be measuring
-    which minute it landed in, so the baseline for the plan's step six is the
+    which minute it landed in, so the baseline for the plan's step seven is the
     cumulative ratio, and a working-day comparison needs a collector that
     samples across the day rather than a longer single window.</p>
-    <p>The consequences the plan draws from this follow directly: at 84–92%
-    periods throttled the slice is stopped for most of every period it is busy,
+    <p>The consequences the plan draws from this follow directly: across the five windows above, 54–92%
+    of periods throttled — the slice is stopped in most periods it is busy,
     so a health probe or handshake that has to complete inside one is waiting on
     a queue that has four cores of throughput shared with roughly thirty session
     processes and everything else in the account.</p>
