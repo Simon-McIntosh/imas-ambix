@@ -473,6 +473,16 @@ class SiteConfig(BaseModel):
     download_partition: str = "sirius"
     account: str = "grpa"
     reservation: str = "gpu_0003_grpA"
+    # The interactive agent fleet is hosted on a CPU partition, so its
+    # placement is site configuration in its own right rather than a reuse of
+    # the GPU fields above. It charges ``iter`` rather than the GPU account
+    # ``grpa``: ``grpa`` carries the GPU reservation's QOS, while ``iter``
+    # holds the site-default ``normal`` QOS that a whole-node CPU allocation
+    # belongs to.
+    fleet_partition: str = "rigel"
+    fleet_account: str = "iter"
+    fleet_cpus: int = 28
+    fleet_memory: str = "120G"
     default_port: int = 18800
     gpu_host: str = "98dci4-gpu-0003"
     global_origin: str = "http://98dci4-gpu-0003:18800"
@@ -533,6 +543,10 @@ class SiteConfig(BaseModel):
             ),
             account=os.environ.get("AMBIX_AGENT_ACCOUNT", "grpa"),
             reservation=os.environ.get("AMBIX_AGENT_RESERVATION", "gpu_0003_grpA"),
+            fleet_partition=os.environ.get("AMBIX_AGENT_FLEET_PARTITION", "rigel"),
+            fleet_account=os.environ.get("AMBIX_AGENT_FLEET_ACCOUNT", "iter"),
+            fleet_cpus=int(os.environ.get("AMBIX_AGENT_FLEET_CPUS", "28")),
+            fleet_memory=os.environ.get("AMBIX_AGENT_FLEET_MEMORY", "120G"),
             default_port=int(os.environ.get("AMBIX_AGENT_PORT", "18800")),
             gpu_host=os.environ.get("AMBIX_AGENT_GPU_HOST", "98dci4-gpu-0003"),
             global_origin=os.environ.get(
