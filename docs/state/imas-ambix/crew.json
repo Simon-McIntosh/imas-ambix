@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-21T09:58:02",
+  "updated": "2026-09-21T10:06:03",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -45598,6 +45598,236 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260921T065502703572-fleet-allocation-holder",
+        "plan": "slurm-hosted-agent-fleet",
+        "section": "\u00a77",
+        "node": "fleet-allocation-holder",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1798,
+                "cached_input_tokens": 237733,
+                "input_tokens": 239533,
+                "output_tokens": 1906,
+                "reasoning_output_tokens": 427,
+                "total_tokens": 241439,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "10680e94-61e5-4916-bab0-968fa2503f57",
+            "session_id": "slurm-fleet"
+          },
+          "done_when": "ALL of the following hold and each is evidenced in the manifest. (1) imas_ambix/agent/fleet.py builds the allocation script through the existing header emitter imas_ambix/agent/slurm.py:53 _sbatch_headers and submits, when asked, through the existing seam imas_ambix/agent/slurm.py:1106 submit_script \u2014 no second submission path is introduced. (2) The generated script requests partition rigel, exactly one node held whole (one node, exclusive, 28 cpus), an explicit memory request of 120G (NEVER a zero memory request, which the repository guidance forbids), NO finite wall-clock \u2014 rigel reports DefaultTime=NONE and MaxTime=UNLIMITED so omitting the directive yields an unbounded job, and _sbatch_headers currently takes time_limit as a required string so this case has to be given a spelling \u2014 exports TMPDIR=/tmp in the job body because a compute node cannot write /run/user/39486, carries a comment identity token ambix-fleet in the same convention as imas_ambix/agent/slurm.py:461 and :924 and :989 so the job is findable from squeue alone, and then holds the allocation open indefinitely. (3) A new `imas-ambix agent fleet hold` subcommand registered in imas_ambix/agent/cli.py PRINTS the script by default and submits ONLY when an explicit --submit flag is given; you must NOT run sbatch or submit any job yourself \u2014 the operational submission belongs to the coordinator. (4) tests/agent/test_fleet.py passes under `uv run --no-sync pytest tests/agent/test_fleet.py`, the exact command and summary line quoted, and asserts BOTH that every directive in (2) is present AND the negatives: the script names no partition ending in _debug, carries no finite --time directive, and requests no zero memory. (5) The declared negative control is APPLIED to the source, the named test is OBSERVED to fail, the failing output is captured to a log under the run directory, and the source restored \u2014 declaring the mutation without executing it does not satisfy this. (6) `uv run --no-sync ruff check imas_ambix tests` exits 0 and the exit status is quoted. (7) A landing record is appended to \u00a77 of docs/plans/slurm-hosted-agent-fleet.html and an anchored section to docs/evidence/archive/slurm-hosted-agent-fleet-landed.html quoting the generated script in full. (8) No file path, symbol, comment or docstring you add carries a plan label, stage name, ticket number or version suffix.",
+          "estimated_hours": 1.5,
+          "goal": "a generator and an opt-in submit path for the persistent whole-node rigel allocation that will host the clive fleet",
+          "id": "fleet-allocation-holder",
+          "lane_declaration": {
+            "backend": "codex",
+            "headroom": "known",
+            "metered": true,
+            "observed_at": "2026-09-21T06:55:04Z",
+            "read_at": "2026-09-21T06:55:05Z",
+            "resolved_backend": "codex",
+            "utilisation_pct": 7.0
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "backend declares no lane document",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T065502703572-fleet-allocation-holder/manifest.md",
+          "negative_control": "change the generated partition from rigel to rigel_debug, which the plan records as a partition containing zero nodes and capped at one hour; the test asserting the partition and the absence of any _debug partition must be observed to fail, and the failing pytest output recorded",
+          "plan": "slurm-hosted-agent-fleet",
+          "requested_backend": "codex",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a77",
+          "spec_level": "guided",
+          "time_budget": "45m",
+          "token_budget": null,
+          "write_paths": [
+            "imas_ambix/agent/fleet.py",
+            "tests/agent/test_fleet.py",
+            "imas_ambix/agent/cli.py",
+            "docs/plans/slurm-hosted-agent-fleet.html",
+            "docs/evidence/archive/slurm-hosted-agent-fleet-landed.html"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "fleet-allocation",
+        "backend": "clive",
+        "local": false,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "high",
+          "launch": "cli",
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "worktree-full",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-21T06:55:18Z",
+        "completed_at": "2026-09-21T07:50:20.244Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 1126,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 3302,
+        "stalled": false,
+        "time_budget": "45m",
+        "base_sha": "a6800ceded9462ce424cde2c049cdcd7ca3d528c",
+        "commits": [
+          "e0a990fb4486ac0e75ff217a1fecb432ae5b0962",
+          "a8a4c82b2186a4abd43c32b9ccdbe8189cb06bbe",
+          "435e896560cb7974743a75077fa4ed038a49bd81",
+          "5e3e0adc97e4299520d2779eaba2568837b9009f",
+          "04febe688b92501981ee03200bc8bd52ada451cc"
+        ],
+        "changed_lines": {
+          "added": 309,
+          "removed": 0,
+          "files": 6
+        },
+        "tests_added": 5,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/agent/test_fleet.py -q",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T065502703572-fleet-allocation-holder/test-fleet-final.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T065502703572-fleet-allocation-holder/manifest.md",
+        "scope_changed": false,
+        "session_id": null,
+        "budget": {
+          "cost_usd": null,
+          "detail": "",
+          "headroom": "unknown",
+          "rate_limit_period_minutes": null,
+          "rate_limit_type": null,
+          "refusal": false,
+          "resets_at": null,
+          "surpassed_threshold": null,
+          "threshold_status": null,
+          "tokens": null,
+          "utilisation_pct": null
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-21T07:50:20.244Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": {
+          "attempt": 2,
+          "kind": "lane-change",
+          "lanes": [
+            {
+              "changed_at": "2026-09-21T07:31:23Z",
+              "detail": "starting fresh because the session cannot follow the move from harness 'codex' to 'claude'",
+              "from_backend": "codex",
+              "from_harness": "codex",
+              "reason": "rationing the metered lane at the lead directive: the account surface read burn 11.9x against a 1.5x ceiling, and re-running a declared mutation plus five small repairs is not work that needs the stronger lane",
+              "session": "fresh",
+              "session_id": "01a0c2bf-675b-7710-8cb1-4d73c4c343c9",
+              "session_source": "pointer",
+              "to_backend": "clive",
+              "to_harness": "claude"
+            }
+          ],
+          "root_run_id": "r-20260921T065502703572-fleet-allocation-holder"
+        },
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": {
+          "status": "parsed",
+          "scores": {
+            "durability": 17,
+            "evidence": 14,
+            "fit": 17,
+            "goal_fidelity": 18,
+            "scope_discipline": 19
+          },
+          "absent": [],
+          "total": 85
+        },
+        "follow_on_paths": [
+          "imas_ambix/agent/profile.py",
+          "profile.py",
+          "fleet.py"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/agent/test_fleet.py`",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        },
+        "attempt_kind": "lane-change",
+        "attempt": 2,
+        "duration_measurement": {
+          "status": "underivable",
+          "reason": "model_span_unavailable_at_promotion"
+        },
+        "scope_acceptances": [
+          {
+            "path": "imas_ambix/agent/profile.py",
+            "reason": "the coordinator resume advice required the hard-coded partition, account, cpus and memory to be given a site owner, and SiteConfig lives in this file; the widening is the coordinator instruction, not a worker scope breach"
+          }
+        ],
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": null,
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "impl_move": {
+          "plan": "slurm-hosted-agent-fleet",
+          "at_dispatch": null,
+          "at_complete": 0.429,
+          "verdict": "exempt",
+          "reason": "no-impl-recorded-at-dispatch"
+        },
+        "negative_control": {
+          "verdict": "matched",
+          "reason": "node-writes-no-test-path",
+          "test_paths": [
+            "tests/agent/test_fleet.py"
+          ],
+          "declaration": "change the generated partition from rigel to rigel_debug, which the plan records as a partition containing zero nodes and capped at one hour; the test asserting the partition and the absence of any _debug partition must be observed to fail, and the failing pytest output recorded",
+          "log": "/home/ITER/mcintos/.config/reckon/crew/reports/fleet-allocation-declared-control-receipt.log",
+          "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/reports/fleet-allocation-declared-control-receipt.log"
+        },
+        "tool_steps": 66.0,
+        "orientation_input_tokens": null,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -45672,6 +45902,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 783
+    "_version": 784
   }
 }

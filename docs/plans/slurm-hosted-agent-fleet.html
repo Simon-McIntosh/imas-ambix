@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-21">
-<meta name="plan-version" content="6">
+<meta name="plan-version" content="7">
 <meta name="plan-impl" content="0.429">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="e523036b842dbd9c6dbc205bfd0753335e82c342,e0a990fb4486ac0e75ff217a1fecb432ae5b0962,cff4e0d5c976b8d2d9e71edfc6913eb9700e1aed,3452b5799770701d9e8d596773f5dd40365a127f">
@@ -394,6 +394,9 @@
 </div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20260921T071731571382-review-of-fleet-throttling-baseline" data-who="reckon-ship" data-when="2026-09-21T07:43:34.670Z">
     <div class="r-comment-body"><p>independent review stored, five dimensions scored (goal 19, evidence 12, durability 14, fit 17, scope 20). It found the declared control was never applied and proved it by showing the declared text appears zero times in the prompt and stream, found the CLI surface untested, found that an undefined share returns None for two distinct causes and serialises to one null, and caught a coordinator defect: the plan stated plan-version twice after a merge kept both sides of the metadata block</p></div>
+</div>
+<div class="r-comment" data-section="s7" data-id="c-run-r-20260921T065502703572-fleet-allocation-holder" data-who="reckon-ship" data-when="2026-09-21T07:50:20.244Z">
+    <div class="r-comment-body"><p>allocation generator landed and corrected against six review findings: the wall-clock assertion now tests finiteness by pattern (a finite 24:00:00 fails it, an unbounded INFINITE passes), placement moved to four site-owned SiteConfig fields with env overrides and a comment stating why the CPU account differs from the GPU one, the generated script validated by sbatch --test-only against two controls (invalid time refused at 255, rigel_debug refused for no nodes), the memory narrowing reconciled in the record, and the submit test asserts behaviour not wording. The declared-mutation receipt was produced by an independently dispatched test node after a lane change orphaned this run session</p></div>
 </div>
 <div class="r-comment" data-section="s6" data-id="c-20260921-reckon-already-has-placement" data-who="reckon-ship" data-when="2026-09-21T07:27:00Z">
     <div class="r-comment-body">This section's boundary needs revisiting. It says a dispatch change would be a dependency to raise in reckon. Measured on 2026-09-21: reckon has already built that path — a persistent salloc --no-shell reservation, workers placed into it as srun --overlap --jobid steps, published reservation state and a reckon crew placement --ensure operator command — and it is unarmed, with zero placement keys in the live flight config and no reservation record on disk. So nothing needs raising; what is open is whether the fleet's interactive allocation and reckon's worker reservation are one allocation or two, and reckon's defaults (partition all, 32 cores, 128 GB) differ from this plan's locked rigel, 28 cores, 120G.</div>
