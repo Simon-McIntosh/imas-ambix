@@ -321,7 +321,14 @@ E             'imas_ambix/agent/bench.py'
     passed</strong>: a full second owner, and a green scan. The scan now parses each
     module with <code>ast</code> and counts a <code>def</code>, an <code>async
     def</code>, a <code>class</code> or a binding assignment of the name at any
-    nesting depth. The same mutation against the widened scan fails:</p>
+    depth <em>inside an exporting scope</em> — a module body, or a class body.
+    A module-level <code>try</code>/<code>except</code> body is indented but still
+    module level, which is the shape an importer-facing fallback takes, so its
+    bindings count. A name bound inside a function, a lambda or a binding
+    assignment inside a comprehension is local to it and is never exportable, so
+    it is not a second owner: an ordinary local that happens to be called
+    <code>_SAMPLE_RE</code> holds no copy of the exposition grammar and no caller
+    can resolve through it. The same mutation against the widened scan fails:</p>
 
     <pre>FAILED tests/test_agent_bench_shared_reader.py::test_exposition_grammar_has_one_owner
 E           AssertionError: _SAMPLE_RE
@@ -387,15 +394,61 @@ except ImportError:
     figure would live under <code>docs/figures/</code>, which is outside this node's
     write scope.</p>
 
-    <p><strong>Gates.</strong> Base <code>5d8ce3d9</code>: the guard file alone
-    <strong>5 passed</strong>. The two pre-existing bench test files are unmodified by
-    this change, and the 40 total below with six guard tests gives them 34 by
-    subtraction. After: <code>uv run --no-sync pytest -p no:cacheprovider
-    tests/test_agent_bench_shared_reader.py tests/test_bench.py
-    tests/agent/test_bench_provenance.py</code> reports <strong>40 passed</strong>,
-    zero failures (6 guard tests + the same 34), so zero added failures;
-    <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0. Both runs were
-    submitted to an <code>all_debug</code> allocation rather than the login node.</p>
+    <p><strong>A scored review round found that the widening had overshot, and the
+    overshoot was a second defect.</strong> Counting a binding at any nesting depth
+    made an innocent module red: a function whose body unpacked a row into a local it
+    happened to call <code>_SAMPLE_RE</code> holds no copy of the exposition grammar,
+    is never exported, and was still reported as an extra definer. A guard that fires
+    on innocent modules is a guard that gets switched off, so the scope rule above is
+    what narrowed the count back to exported names — and it is the half of the pair
+    that matters more than the shape the widening was reaching for. <strong>Control
+    A</strong>: inserting <code>return False</code> as the first statement of the
+    scope walk, so a binding counts at any depth again, reddens the innocent-module
+    test alone (<code>1 failed, 8 deselected</code>), naming
+    <code>imas_ambix/reader.py</code> as an extra definer. The defect the rule exists
+    to prevent, reproduced on demand.</p>
+
+    <p><strong>Two behaviours the first round stated were held by nothing, and each
+    now has an assertion and a control.</strong> The symbol lists are compared against
+    literal sets, so dropping a symbol reddens the suite instead of quietly narrowing
+    what is covered; and the scan's docstring claim that an unparseable module is
+    raised rather than stepped over is asserted rather than trusted. <strong>Control
+    B</strong>: deleting the line <code>"SPEC_DECODE_PER_POSITION",</code> from the
+    guarded tuple is exactly <code>1 failed, 8 passed</code> — the narrowing escapes
+    every other test and only the set assertion catches it. <strong>Control
+    C</strong>: wrapping the <code>ast.parse</code> call in
+    <code>try:</code>/<code>except SyntaxError:</code>/<code>continue</code> is
+    exactly <code>1 failed, 8 passed</code>, the failure being <code>DID NOT RAISE
+    SyntaxError</code> in the parse-error test alone. Each control ran on an
+    <code>all_debug</code> allocation against a scratch tree carrying the real
+    <code>imas_ambix</code> package, and each control log's first line states its
+    mutation verbatim.</p>
+
+    <p><strong>The signature's boundary is recorded, not chased.</strong> Shapes still
+    invisible to the scan, and deliberately so: augmented assignment
+    (<code>_SAMPLE_RE += ...</code>), <code>except Exception as parse_metrics</code>,
+    <code>for</code> and <code>with</code> targets, parameter names, and a
+    <code>globals()[...]</code> subscript. Each is a rewrite no reader of this package
+    has a reason to write; the module docstring names them so the next reader knows
+    which side of the boundary a rival has to land on.</p>
+
+    <p><strong>Gates.</strong> Base <code>5d8ce3d9</code>: the guard file alone,
+    <strong>5 passed</strong>, on an <code>all_debug</code> allocation. At the widened
+    head <code>f7ff97ee</code> the three-file command <code>uv run --no-sync pytest -p
+    no:cacheprovider tests/test_agent_bench_shared_reader.py tests/test_bench.py
+    tests/agent/test_bench_provenance.py</code> reported <strong>40 passed</strong>,
+    zero failures (6 guard tests + the same 34 pre-existing), on an
+    <code>all_debug</code> allocation in 28.63s. <strong>The identical command was
+    also run once on the login node</strong>, taking 70.11s, and that run should not
+    have happened there: anything above about ten seconds of CPU belongs on a compute
+    allocation, and this node's heavy gate is no exception. It is disclosed here
+    rather than dropped, and it is <em>not</em> offered as the gate — the
+    <code>all_debug</code> run is. At the repaired head the same three files report
+    <strong>43 passed</strong>, zero failures (9 guard tests + the same 34), on an
+    <code>all_debug</code> allocation; <code>uv run --no-sync ruff check imas_ambix
+    tests</code> reports <code>All checks passed!</code>. Every run of the three-file
+    suite this node made is listed above with the machine it ran on; none is
+    omitted.</p>
 
     <table>
       <thead><tr><th>Commit</th><th>Subject</th></tr></thead>
