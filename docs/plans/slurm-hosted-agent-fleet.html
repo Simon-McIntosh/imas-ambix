@@ -369,6 +369,9 @@
 <div class="r-comment" data-section="s7" data-id="c-20260921-site-request-gate" data-who="reckon-ship" data-when="2026-09-21T07:11:00Z">
     <div class="r-comment-body">gate audit-doc passed on all three touched files at exit 0, and the same audit refused an injected-relative-src copy at exit 1, so the pass is read from a check that can fail. Step 2 stays OPEN: the request is authored and committed, not sent — the site's answer is what closes it.</div>
 </div>
+<div class="r-comment" data-section="s7" data-id="c-fleet-allocation-holder" data-who="fleet-allocation-holder" data-when="2026-09-21T09:05:36+02:00">
+    <div class="r-comment-body"><p>Added the persistent fleet-allocation generator and the print-by-default <code>imas-ambix agent fleet hold</code> command in commit <code>e0a990fb</code>. The generated job holds one exclusive rigel node with 28 CPUs, 120G memory, unlimited time, <code>TMPDIR=/tmp</code> and scheduler identity <code>ambix-fleet</code>; submission remains opt-in through <code>--submit</code> and the shared adapter. Focused verification passed 3 tests in 1.20 s, the bounded-memory mutation failed its named test, and whole-tree Ruff exited 0. Full record: <a href="/imas-ambix/evidence/archive/slurm-hosted-agent-fleet-landed#fleet-allocation-holder">persistent allocation holder</a>.</p></div>
+</div>
 </section>
 </main>
 </body>

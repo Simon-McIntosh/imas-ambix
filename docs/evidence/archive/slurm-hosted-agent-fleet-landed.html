@@ -63,6 +63,56 @@
     the only remedy or merely the robust one. The full record of the defect is
     <a href="/imas-ambix/login-session-scope-teardown.html">the session-scope teardown
     record</a>; nothing here duplicates it.</p>
+</section>
+
+  <section id="fleet-allocation-holder">
+    <h2>Persistent allocation holder</h2>
+    <p>Commit <code>e0a990fb</code> added
+    <code>imas_ambix/agent/fleet.py</code>, registered
+    <code>imas-ambix agent fleet hold</code>, and added the focused allocation tests.
+    The generator calls the existing <code>_sbatch_headers</code> emitter and the
+    explicit submission path calls the existing <code>submit_script</code> adapter;
+    there is no second path to <code>sbatch</code>. The default command printed the
+    script, while only <code>--submit</code> exercised the mocked submission seam.
+    No live job was submitted during this implementation.</p>
+
+    <table>
+      <thead><tr><th>Gate</th><th>Observed result</th></tr></thead>
+      <tbody>
+        <tr><td>Missing-surface reproduction</td><td>Before implementation,
+        <code>imas-ambix agent fleet hold</code> exited 2 with
+        <code>Error: No such command 'fleet'</code>.</td></tr>
+        <tr><td>Focused test</td><td><code>uv run --no-sync pytest tests/agent/test_fleet.py</code>:
+        <code>3 passed in 1.20s</code>.</td></tr>
+        <tr><td>Negative control</td><td>Replacing <code>memory="120G"</code> with
+        <code>memory="0"</code> made
+        <code>test_fleet_hold_script_requests_bounded_whole_rigel_node</code> fail;
+        the source was then restored and the three-test gate passed again.</td></tr>
+        <tr><td>Repository lint</td><td><code>uv run --no-sync ruff check imas_ambix tests</code>:
+        <code>All checks passed!</code>, exit 0.</td></tr>
+      </tbody>
+    </table>
+
+    <p>The generated script, quoted in full:</p>
+    <pre><code>#!/bin/bash
+#SBATCH --job-name=ambix-fleet
+#SBATCH --partition=rigel
+#SBATCH --account=iter
+#SBATCH --cpus-per-task=28
+#SBATCH --mem=120G
+#SBATCH --time=UNLIMITED
+#SBATCH --output=ambix-fleet-%j.log
+#SBATCH --nodes=1
+#SBATCH --exclusive
+#SBATCH --comment=ambix-fleet
+
+set -euo pipefail
+
+export TMPDIR=/tmp
+
+echo "[$(date)] Holding $(hostname) for the interactive agent fleet"
+exec sleep infinity
+</code></pre>
   </section>
 
 </main>

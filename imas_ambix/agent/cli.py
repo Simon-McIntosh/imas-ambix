@@ -285,6 +285,36 @@ def agent() -> None:
     """Manage LLM agent deployments on SLURM GPU clusters."""
 
 
+@agent.group(name="fleet")
+def fleet_group() -> None:
+    """Manage the persistent allocation for interactive agent sessions."""
+
+
+@fleet_group.command(name="hold")
+@click.option(
+    "--submit",
+    is_flag=True,
+    help="Submit the allocation instead of printing its SLURM script.",
+)
+def fleet_hold(submit: bool) -> None:
+    """Print or explicitly submit the persistent whole-node allocation."""
+    from imas_ambix.agent.fleet import (
+        generate_fleet_hold_script,
+        submit_fleet_hold,
+    )
+
+    script = generate_fleet_hold_script()
+    if not submit:
+        console.print(script, markup=False, highlight=False, soft_wrap=True)
+        return
+
+    try:
+        job_id = submit_fleet_hold(script)
+    except RuntimeError as exc:
+        raise click.ClickException(str(exc)) from exc
+    console.print(f"Submitted fleet allocation job {job_id}.")
+
+
 @agent.command(name="list")
 def list_command() -> None:
     """List available model profiles, marking any that are serving."""
