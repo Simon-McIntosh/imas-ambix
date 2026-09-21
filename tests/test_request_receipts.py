@@ -727,6 +727,77 @@ async def _invoke_over(
     return sent
 
 
+async def _invoke_through_a_reporting_channel(
+    app: RouterApp, method: str, path: str
+) -> list[SendMessage]:
+    """Drive the app through a channel that reports its response complete.
+
+    ``_invoke`` hands over a caller that never speaks again, so its channel never
+    reports anything and a departure read after the hand-over looks exactly like
+    one read before it. A real server arms the channel when the response is
+    complete: ``uvicorn`` returns ``http.disconnect`` from ``receive()`` once
+    ``disconnected or response_complete``, and sets the second inside the send
+    that writes the body, so a caller that received the whole answer is then
+    indistinguishable from one that had gone.
+    """
+
+    incoming: asyncio.Queue[SendMessage] = asyncio.Queue()
+    await incoming.put({"type": "http.request", "body": b""})
+    sent: list[SendMessage] = []
+
+    async def receive() -> SendMessage:
+        return await incoming.get()
+
+    async def send(message: SendMessage) -> None:
+        sent.append(message)
+        if message["type"] == "http.response.body" and not message.get("more_body"):
+            await incoming.put({"type": "http.disconnect"})
+            await asyncio.sleep(0)
+
+    await app(
+        {
+            "type": "http",
+            "method": method,
+            "path": path,
+            "raw_path": path.encode(),
+            "query_string": b"",
+            "headers": [(b"content-type", b"application/json")],
+        },
+        receive,
+        send,
+    )
+    return sent
+
+
+def test_the_departure_is_read_before_the_answer_changes_hands(tmp_path: Path) -> None:
+    """A caller that stays records ``completed``, and that is what pins the read.
+
+    The channel here reports the server's own completion, so a departure read
+    after the hand-over records ``aborted`` for a caller that received
+    everything. This assertion therefore holds the read on the near side of the
+    send: move it after the body and this test goes red while the rest of the
+    suite stays green, which is how the position was held by nothing before.
+    """
+
+    async def exercise() -> None:
+        receipts = tmp_path / "requests.jsonl"
+        engine = _sse_engine()
+        async with (
+            _server(engine) as engine_url,
+            _router_with_receipts([Upstream(engine_url)], receipts) as app,
+        ):
+            sent = await _invoke_through_a_reporting_channel(app, "GET", "/v1/models")
+            assert _status(sent) == 200
+            assert _body(sent)
+
+        rows = _read_rows(receipts)
+        assert len(rows) == 1
+        assert rows[0]["status"] == "completed"
+        assert rows[0]["upstream"] == SELF_ANSWERED_UPSTREAM
+
+    asyncio.run(exercise())
+
+
 def test_a_caller_that_leaves_while_uploading_its_request_is_recorded(
     tmp_path: Path,
 ) -> None:

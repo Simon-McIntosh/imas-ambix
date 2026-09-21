@@ -447,7 +447,16 @@
     that left, so a watch read after the hand-over reports every caller as gone. The send
     reports nothing either way, because a server that finds the caller gone when it writes
     the body returns from that send without raising. The row's word was therefore narrowed
-    as the record's word, and the residual window named.</p>
+    as the record's word, and the residual window named. <strong>The window remains
+    open.</strong> Waiting longer before the hand-over moves it earlier without removing
+    it, and reading after it cannot work at all, so no arrangement of this code closes
+    it — what the record can do is say so, which it does. The position was also held by
+    nothing but prose: an independent reading of this round moved the sample to the far
+    side of the send and both focused files stayed green (19 passed, then 24), while a
+    live drive over the same mutation stored <code>aborted</code> for a caller that
+    received the whole answer. A test now holds it instead, driving the real router
+    through a channel that reports its response complete as the server does and asserting
+    that a caller which stayed is stored <code>completed</code>.</p>
 
     <table>
       <thead>
@@ -487,6 +496,11 @@
         before it</td><td>a caller that received the whole answer is stored as
         <code>aborted</code>, because the channel answers a completed response the same
         way it answers a departing caller</td></tr>
+        <tr><td>the same move, run against the test that holds the position: the
+        departure read after the hand-over, driven through a channel that reports its
+        response complete</td><td>the asserted <code>completed</code> becomes
+        <code>aborted</code> — <code>assert 'aborted' == 'completed'</code> read from
+        the stored row, and the read returns to the near side before the gate</td></tr>
       </tbody>
     </table>
 
@@ -494,8 +508,9 @@
     infers it. The second control drives the real router under a live
     <code>uvicorn</code> server and its three stored rows are kept beside the run
     (<code>logs/live-router-rows-uvicorn.jsonl</code>). The focused gate was taken on the
-    <code>all_debug</code> partition and reads <strong>24 passed</strong> against
-    <strong>16 passed at base</strong> for the same two files; whole-tree
+    <code>all_debug</code> partition and reads <strong>25 passed</strong> against
+    <strong>16 passed at base</strong> for the same two files, the twenty-fifth being the
+    test that holds the read on the near side of the send; whole-tree
     <code>ruff</code> exits 0.</p>
   </main>
 </body>
