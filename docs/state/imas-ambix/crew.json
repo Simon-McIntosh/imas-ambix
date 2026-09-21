@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-21T09:53:47",
+  "updated": "2026-09-21T09:58:02",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -701,9 +701,11 @@
         "id": "fleet-baseline",
         "harness": "clive",
         "role": "implement",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
+        "session_id": "ecd91274-ea75-4a5f-bed9-71bd66931023",
+        "session_model": "deepseek-v4.1-flash",
+        "sessions": {
+          "{\"alias\":\"dsv4.1-flash\",\"backend\":\"clive\",\"effort\":\"high\",\"launch\":\"cli\",\"local\":true,\"model\":\"deepseek-v4.1-flash\",\"sandbox\":\"worktree-full\",\"usable_input_window\":480000}": "ecd91274-ea75-4a5f-bed9-71bd66931023"
+        },
         "created": "2026-09-21"
       },
       {
@@ -45385,6 +45387,217 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260921T071731571382-review-of-fleet-throttling-baseline",
+        "plan": "slurm-hosted-agent-fleet",
+        "section": "\u00a77",
+        "node": "review-of-fleet-throttling-baseline",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 963,
+                "cached_input_tokens": 326199,
+                "input_tokens": 327164,
+                "output_tokens": 889,
+                "reasoning_output_tokens": 83,
+                "total_tokens": 328053,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "10680e94-61e5-4916-bab0-968fa2503f57",
+            "session_id": "slurm-fleet"
+          },
+          "done_when": "the review for r-20260921T065359899293-fleet-throttling-baseline stores a parsed record scoring all 5 dimensions in the range 0..20, and its prose additionally answers four specific questions with an explicit verdict and evidence for each: (a) whether the negative control the run ACTUALLY executed is the one its dispatch DECLARED \u2014 compare the mutation named in the stored run record against the one named at the top of its negative-control log; (b) whether the cumulative throttled share the run reports can be re-derived from the raw counters it also reports, stating the arithmetic; (c) whether the sampler returns an undefined rather than a zero share for a control group with no ceiling, and whether any caller could misread that as zero; (d) whether the negative control was exercised against the same set of checks that finally shipped, given the run log records one collected total while the control was applied and a larger total in its final gate log",
+          "estimated_hours": null,
+          "goal": "attach an independent review to run r-20260921T065359899293-fleet-throttling-baseline",
+          "id": "review-of-fleet-throttling-baseline",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-21T07:17:32Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no 'binding_observed'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T071731571382-review-of-fleet-throttling-baseline/manifest.md",
+          "negative_control": "none: a review writes no test file and adds no executable behaviour; its falsifiable element is that each of the four named questions receives an explicit yes or no with the evidence behind it, so a question that cannot be answered is reported as unanswered rather than silently scored",
+          "plan": "slurm-hosted-agent-fleet",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "review",
+          "section": "\u00a77",
+          "spec_level": "exact",
+          "time_budget": "30m",
+          "token_budget": null,
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260921T065359899293-fleet-throttling-baseline.json"
+          ]
+        },
+        "role": "review",
+        "spec_level": "exact",
+        "member": "fleet-review-baseline",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "xhigh",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "read-only",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-21T07:17:45Z",
+        "completed_at": "2026-09-21T07:43:34.670Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 1528,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 1549,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "686f2b373ebeae126c66f09b5332bb96df797085",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": 0,
+        "gate": "passed",
+        "gate_check": {
+          "command": "independent read-only re-run of the reviewed node named gate plus the whole-tree lint gate",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T071731571382-review-of-fleet-throttling-baseline/logs/review-pytest.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T071731571382-review-of-fleet-throttling-baseline/manifest.md",
+        "scope_changed": false,
+        "session_id": "f0ccf9e9-fe98-4b28-8cae-718ec7e54e2b",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 4042464,
+            "input_tokens_cumulative": 4042464,
+            "output_tokens": 54157,
+            "output_tokens_cumulative": 54157,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-21T07:43:34.670Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": null,
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 4209923,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 1546.031,
+          "generated_tokens": 62079,
+          "generation_seconds": 1459.797,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 34.6,
+          "machine_seconds": 86.234,
+          "peak_input_tokens": 166159,
+          "tokens_per_second": 42.53,
+          "wall_tokens_per_second": 40.15
+        },
+        "follow_on_paths": [
+          "prompt.txt",
+          "stream.jsonl",
+          "docs/plans/slurm-hosted-agent-fleet.html",
+          "/div",
+          "_counters_payload/_parser/main"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": false,
+          "matched_measure": null,
+          "override": false,
+          "role": "review",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": "review role; the deliverable is the review record in the crew review store, outside every git worktree",
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/slurm-fleet/review-of-fleet-throttling-baseline",
+          "session_id": "f0ccf9e9-fe98-4b28-8cae-718ec7e54e2b",
+          "session_source": "stream",
+          "retained_at": "2026-09-21T07:43:34.670Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "plan_impl_at_dispatch": 0.333,
+        "impl_move": {
+          "plan": "slurm-hosted-agent-fleet",
+          "at_dispatch": 0.333,
+          "at_complete": null,
+          "verdict": "exempt",
+          "reason": "role-not-enforced:review"
+        },
+        "negative_control": {
+          "verdict": "exempt",
+          "reason": "node-writes-no-test-path"
+        },
+        "tool_steps": 51.0,
+        "orientation_input_tokens": null,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -45459,6 +45672,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 781
+    "_version": 783
   }
 }
