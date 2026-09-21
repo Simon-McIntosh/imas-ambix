@@ -138,21 +138,29 @@ def _resolve(section: dict[str, object], path: tuple[str, ...]) -> object:
 def _has_sample_line(text: str, name: str, label: str) -> bool:
     """Whether the reader sees a *sample* of *name*, not merely its HELP text.
 
-    The exposition repeats every series name in a ``# HELP`` and a ``# TYPE``
-    line above its samples, so a substring search for the name is satisfied by a
-    series whose samples are all gone. What counts as a sample is therefore
-    asked of the reader itself -- ``parse_metrics`` strips each line, drops the
-    comments and matches the same name-then-labels-then-value form -- rather
-    than peeled by hand beside it. A second peeler is stricter than production
-    wherever the exposition format is looser than it: an indented samples
-    section is legal and the reader accepts it, so a hand-rolled guard that
-    required the name at column zero would call a series unsourced while the
-    reader read its value.
+    Every step is the reader's own, so the answer is the reader's answer for the
+    same input rather than a second opinion that can disagree with it in either
+    direction. The exposition repeats each series name in a ``# HELP`` and a
+    ``# TYPE`` line above its samples, so a substring search for the name is
+    satisfied by a series whose samples are all gone: what counts as a sample is
+    therefore taken from ``parse_metrics``, which strips each line, drops the
+    comments and matches the name-then-labels-then-value form. Which samples a
+    reading is made of is taken from ``eligible_samples``, so a sample the
+    reader discards -- a repeated tensor-parallel rank, or a ``reason``-labelled
+    breakdown -- is not counted here either. The name is compared the way the
+    reader compares it, on ``_bare``, so a name carrying more than one colon --
+    which resolves in production, since only the last segment is read -- is not
+    reported unsourced. A hand-rolled peel beside either of those is stricter
+    where the exposition is looser than the reader is, and looser where the
+    reader is selective.
     """
-    qualified = f"{engine_metrics.FAMILY_SGLANG}:{name}"
+    samples = engine_metrics.parse_metrics(text)
+    family = engine_metrics.detect_family(samples)
+    if family is None:
+        return False
     wanted = _label_fragment(label)
-    for sample_name, labels, _value in engine_metrics.parse_metrics(text):
-        if sample_name != qualified:
+    for sample_name, labels, _value in engine_metrics.eligible_samples(samples, family):
+        if engine_metrics._bare(sample_name) != name:
             continue
         if wanted is not None and labels.get(wanted[0]) != wanted[1]:
             continue
@@ -358,9 +366,83 @@ def test_a_series_name_without_a_value_is_not_a_source() -> None:
     assert not _has_sample_line(
         f"sglang:{name}{{{labels}}} 0.0", name, 'mode="input"'
     ), "the required label fragment must be read from the label set"
-    assert not _has_sample_line(
-        f"sglang:{name} 0.0", name, 'mode="input"'
-    ), "an unlabelled line cannot carry the required label fragment"
+    assert not _has_sample_line(f"sglang:{name} 0.0", name, 'mode="input"'), (
+        "an unlabelled line cannot carry the required label fragment"
+    )
+
+
+def test_the_sourcing_guard_answers_as_the_reader_does() -> None:
+    """The guard's verdict and the reading are asserted to agree per input.
+
+    The guard exists to say whether the scrape's own bytes source a field, and
+    the reading says whether the field resolved: those are one question seen
+    from two sides, so each input below is put to both and the two answers are
+    required to match. A guard stricter than the reader reports a field
+    unsourced that the reader resolves; a guard looser than the reader counts a
+    sample the reader discards. Both directions are exercised. A name carrying
+    more than one colon resolves in production, because the reader reads only
+    the last segment. A sample on a tensor-parallel rank other than rank zero is
+    discarded there -- SGLang repeats each device-pool measurement on every
+    rank, so the rank-zero sample is the one shared pool -- as is a
+    ``reason``-labelled breakdown, which is a part of a total rather than the
+    total. The rank-zero and total rows are the positive controls, so an input
+    that agrees only by returning ``False`` twice cannot satisfy the table.
+    """
+    cases = (
+        (
+            "a name carrying more than one colon",
+            "sglang:x:num_running_reqs 1.0",
+            ("requests_running",),
+            "num_running_reqs",
+            "",
+            True,
+        ),
+        (
+            "a sample on a rank other than rank zero",
+            'sglang:num_running_reqs{tp_rank="1"} 1.0',
+            ("requests_running",),
+            "num_running_reqs",
+            "",
+            False,
+        ),
+        (
+            "the same series on rank zero",
+            'sglang:num_running_reqs{tp_rank="0"} 1.0',
+            ("requests_running",),
+            "num_running_reqs",
+            "",
+            True,
+        ),
+        (
+            "an uncached-token sample on a rank other than rank zero",
+            'sglang:prefill_effective_tokens_total{tp_rank="1",mode="input"} 5.0',
+            ("uncached_prompt_tokens",),
+            "prefill_effective_tokens_total",
+            'mode="input"',
+            False,
+        ),
+        (
+            "a reason-labelled breakdown, which is part of a total",
+            'vllm:num_requests_waiting{reason="capacity"} 4.0',
+            ("requests_queued",),
+            "num_requests_waiting",
+            "",
+            False,
+        ),
+        (
+            "the total that breakdown belongs to",
+            "vllm:num_requests_waiting 4.0",
+            ("requests_queued",),
+            "num_requests_waiting",
+            "",
+            True,
+        ),
+    )
+    for description, text, path, name, fragment, resolves in cases:
+        reader_resolves = _resolve(_section(text), path) is not None
+        guard_sources = _has_sample_line(text, name, fragment)
+        assert reader_resolves == resolves, description
+        assert guard_sources == resolves, f"{description}: guard and reading disagree"
 
 
 def test_the_recorded_scrape_reads_as_measurements_not_a_column_of_zeros() -> None:
