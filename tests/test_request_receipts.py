@@ -138,8 +138,6 @@ async def _router_with_receipts(
             await app._session.close()
         if app._receipts is not None:
             app._receipts.close()
-        if app._receipts is not None:
-            app._receipts.close()
 
 
 def _read_rows(path: Path) -> list[dict[str, Any]]:
