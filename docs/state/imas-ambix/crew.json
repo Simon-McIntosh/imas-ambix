@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-21T10:55:28",
+  "updated": "2026-09-21T10:56:09",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -47025,6 +47025,334 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260921T072347269272-review-of-telemetry-index",
+        "plan": "serve-telemetry-spine",
+        "section": "\u00a75",
+        "node": "review-of-telemetry-index",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1174,
+                "cached_input_tokens": 120926,
+                "input_tokens": 122102,
+                "output_tokens": 1812,
+                "reasoning_output_tokens": 298,
+                "total_tokens": 123914,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "98f13dbe-0703-4abd-a5e4-65bfdb2eeee2",
+            "session_id": "telemetry-spine"
+          },
+          "done_when": "the review for r-20260921T053337832668-telemetry-index stores a parsed record scoring all 5 dimensions in the range 0..20 and names the revision it read. WHERE THE WORK IS: promoted but NOT merged. Read the four commits in main..HEAD of the worktree /home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/telemetry-spine/telemetry-index at 823e4041. It is not on main, so this review happens before it lands. Work this checklist and FLAG every finding, never fix one: (1) every done-when clause of the named plan section is actually asserted by a test rather than merely satisfied by the code; (2) each declared knob reaches the call it claims to govern, verified at the call site rather than from the signature; (3) a guard is shown refusing rather than merely present; (4) no plan label, ticket reference, version suffix or author attribution appears in any name, comment or docstring; (5) the negative-control log names the declared mutation verbatim and failed for that reason. Report each finding as file:line with the concrete input that breaks it.",
+          "estimated_hours": null,
+          "goal": "Attach an independent review of run r-20260921T053337832668-telemetry-index",
+          "id": "review-of-telemetry-index",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-21T07:23:48Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no 'binding_observed'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T072347269272-review-of-telemetry-index/manifest.md",
+          "negative_control": "",
+          "plan": "serve-telemetry-spine",
+          "requested_backend": null,
+          "requires_decisions": [],
+          "role": "review",
+          "section": "\u00a75",
+          "spec_level": "exact",
+          "time_budget": "40m",
+          "token_budget": null,
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260921T053337832668-telemetry-index.json"
+          ]
+        },
+        "role": "review",
+        "spec_level": "exact",
+        "member": "session-5e136328b874ad85a73c",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "xhigh",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "read-only",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-21T07:23:59Z",
+        "completed_at": "2026-09-21T07:54:29.584Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 1807,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 1830,
+        "stalled": false,
+        "time_budget": "40m",
+        "base_sha": "686f2b373ebeae126c66f09b5332bb96df797085",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "stored review record for r-20260921T053337832668-telemetry-index parsed with all five dimensions scored",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260921T053337832668-telemetry-index.json",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T072347269272-review-of-telemetry-index/manifest.md",
+        "scope_changed": false,
+        "session_id": "6ba215ba-0543-4083-92ca-150827e6a8a1",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 3723408,
+            "input_tokens_cumulative": 3723408,
+            "output_tokens": 72877,
+            "output_tokens_cumulative": 72877,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-21T07:54:29.584Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "15m",
+          "requested": true,
+          "waived_runs": [
+            {
+              "budget_overrun": false,
+              "budget_overrun_seconds": 0,
+              "budget_seconds": 3000,
+              "classification": "promotable",
+              "commits_beyond_base": 0,
+              "detail": "the worker manifest reports completion and an independent parsed review is attached; the run is ready for promotion",
+              "elapsed_seconds": 1723,
+              "external_wait": null,
+              "lifting_condition": null,
+              "liveness_proven": true,
+              "log_age_seconds": 1800,
+              "log_fresh": false,
+              "manifest_commits": [
+                "c72dc62a",
+                "6a675d52",
+                "1443290f",
+                "d7f17110",
+                "658baeb1",
+                "8872126f",
+                "6ea7647e",
+                "794e8bb0",
+                "404bc10c",
+                "792a48a0",
+                "25a92fe0"
+              ],
+              "manifest_derived": false,
+              "manifest_digest": "52491242933983aedd06027f90a14809602648d1af460763a8feba5e5561cff9",
+              "manifest_error": null,
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T053306239225-telemetry-store/manifest.md",
+              "manifest_present": true,
+              "manifest_reported_status": "complete",
+              "manifest_status": "complete",
+              "marker": null,
+              "needs_help_complete": null,
+              "next_action": "reckon crew complete --run r-20260921T053306239225-telemetry-store --gate <verdict> --commit c72dc62a --commit 6a675d52 --commit 1443290f --commit d7f17110 --commit 658baeb1 --commit 8872126f --commit 6ea7647e --commit 794e8bb0 --commit 404bc10c --commit 792a48a0 --commit 25a92fe0",
+              "node": "telemetry-store",
+              "phase": "working",
+              "plan": "serve-telemetry-spine",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "recovery": "promote",
+              "recovery_classification": "promotable",
+              "resets_at": null,
+              "review_error": null,
+              "review_present": true,
+              "review_status": "parsed",
+              "run_id": "r-20260921T053306239225-telemetry-store",
+              "session": "telemetry-spine",
+              "terminal_age_seconds": 1847,
+              "terminal_at": "2026-09-21T06:53:04Z",
+              "wait_age_seconds": null,
+              "wait_condition_state": null,
+              "wait_key_defect": null,
+              "wait_observed": null,
+              "wait_overdue": null,
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/telemetry-spine/telemetry-store"
+            },
+            {
+              "budget_overrun": false,
+              "budget_overrun_seconds": 0,
+              "budget_seconds": 1800,
+              "classification": "promotable",
+              "commits_beyond_base": 0,
+              "detail": "the worker manifest reports completion and an independent parsed review is attached; the run is ready for promotion",
+              "elapsed_seconds": 864,
+              "external_wait": null,
+              "lifting_condition": null,
+              "liveness_proven": true,
+              "log_age_seconds": 2488,
+              "log_fresh": false,
+              "manifest_commits": [
+                "43b45b1b",
+                "f03125d6",
+                "87b12221",
+                "d917d12c",
+                "c24fc252",
+                "e07d0bf0",
+                "3e677eb6"
+              ],
+              "manifest_derived": false,
+              "manifest_digest": "2480b51b70cfbdc8dab715062bb974c9e9689afb1b23e637b0b30bffb3defe7f",
+              "manifest_error": null,
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T053443850077-scrape-fixture/manifest.md",
+              "manifest_present": true,
+              "manifest_reported_status": "complete",
+              "manifest_status": "complete",
+              "marker": null,
+              "needs_help_complete": null,
+              "next_action": "reckon crew complete --run r-20260921T053443850077-scrape-fixture --gate <verdict> --commit 43b45b1b --commit f03125d6 --commit 87b12221 --commit d917d12c --commit c24fc252 --commit e07d0bf0 --commit 3e677eb6",
+              "node": "scrape-fixture",
+              "phase": "working",
+              "plan": "serve-telemetry-spine",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "recovery": "promote",
+              "recovery_classification": "promotable",
+              "resets_at": null,
+              "review_error": null,
+              "review_present": true,
+              "review_status": "parsed",
+              "run_id": "r-20260921T053443850077-scrape-fixture",
+              "session": "telemetry-spine",
+              "terminal_age_seconds": 2643,
+              "terminal_at": "2026-09-21T06:39:49Z",
+              "wait_age_seconds": null,
+              "wait_condition_state": null,
+              "wait_key_defect": null,
+              "wait_observed": null,
+              "wait_overdue": null,
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/telemetry-spine/scrape-fixture"
+            }
+          ]
+        },
+        "review": null,
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 3891380,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 1825.818,
+          "generated_tokens": 79729,
+          "generation_seconds": 1779.613,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 34.7,
+          "machine_seconds": 46.205,
+          "peak_input_tokens": 166672,
+          "tokens_per_second": 44.8,
+          "wall_tokens_per_second": 43.67
+        },
+        "follow_on_paths": [
+          "counter/interval"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": false,
+          "matched_measure": null,
+          "override": false,
+          "role": "review",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": "a review node's deliverable is the stored review record, not a repository commit",
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/telemetry-spine/review-of-telemetry-index",
+          "session_id": "6ba215ba-0543-4083-92ca-150827e6a8a1",
+          "session_source": "stream",
+          "retained_at": "2026-09-21T07:54:29.584Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "plan_impl_at_dispatch": 0.6,
+        "impl_move": {
+          "plan": "serve-telemetry-spine",
+          "at_dispatch": 0.6,
+          "at_complete": null,
+          "verdict": "exempt",
+          "reason": "role-not-enforced:review"
+        },
+        "negative_control": {
+          "verdict": "exempt",
+          "reason": "node-writes-no-test-path"
+        },
+        "tool_steps": 60.0,
+        "orientation_input_tokens": null,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -47099,6 +47427,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 804
+    "_version": 805
   }
 }
