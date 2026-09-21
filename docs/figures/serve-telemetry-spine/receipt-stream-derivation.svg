@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 520" width="960" height="520" font-family="system-ui, -apple-system, Segoe UI, sans-serif">
+  <style>
+    .t { fill: #1a1a1a; }
+    .m { fill: #555; }
+    .box { fill: #f7f7f5; stroke: #333; stroke-width: 1.5; }
+    .derived { fill: #eaf3ea; stroke: #2f6b34; }
+    .given { fill: #f0f0ee; stroke: #555; }
+    .relay { fill: #eef2f8; stroke: #2c4a7c; }
+    .lbl { font-size: 13px; }
+    .ttl { font-size: 15px; font-weight: 600; }
+    .sm { font-size: 11.5px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+  </style>
+
+  <rect x="0" y="0" width="960" height="520" fill="#ffffff"/>
+  <text x="24" y="34" class="t ttl">Where the receipt stream comes from, and what holds it</text>
+
+  <!-- launch -->
+  <rect class="box given" x="24" y="58" width="230" height="76" rx="6"/>
+  <text x="38" y="80" class="t lbl" font-weight="600">launch command</text>
+  <text x="38" y="100" class="m mono">imas-ambix agent router</text>
+  <text x="38" y="120" class="m sm">names one path, and nothing else</text>
+
+  <!-- lane document -->
+  <rect class="box given" x="316" y="58" width="230" height="76" rx="6"/>
+  <text x="330" y="80" class="t lbl" font-weight="600">lane document</text>
+  <text x="330" y="100" class="m mono">&#8230;/lane.json</text>
+  <text x="330" y="120" class="m sm">site.endpoint_document</text>
+
+  <line x1="254" y1="96" x2="312" y2="96" stroke="#333" stroke-width="1.5" marker-end="url(#ar)"/>
+
+  <!-- derivation -->
+  <rect class="box derived" x="608" y="58" width="330" height="76" rx="6"/>
+  <text x="622" y="80" class="t lbl" font-weight="600">derived receipt stream</text>
+  <text x="622" y="100" class="t mono">lane_document.with_name("requests.jsonl")</text>
+  <text x="622" y="120" class="m sm">never named by the operator; nothing else writes it</text>
+
+  <line x1="546" y1="96" x2="604" y2="96" stroke="#2f6b34" stroke-width="1.5" marker-end="url(#arg)"/>
+
+  <!-- precedence -->
+  <rect class="box given" x="608" y="152" width="330" height="52" rx="6"/>
+  <text x="622" y="172" class="t lbl" font-weight="600">unless an explicit path is given</text>
+  <text x="622" y="192" class="m sm">then it wins, and no second stream grows beside the lane</text>
+  <line x1="773" y1="134" x2="773" y2="148" stroke="#555" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#ar)"/>
+
+  <!-- relay -->
+  <rect class="box relay" x="24" y="166" width="522" height="120" rx="6"/>
+  <text x="38" y="188" class="t lbl" font-weight="600">RouterApp relay</text>
+  <text x="38" y="210" class="m sm">the process's only sight of every call: it proxies each one</text>
+  <text x="38" y="232" class="m sm">outcome is promoted only once the body is forwarded whole,</text>
+  <text x="38" y="250" class="m sm">so a truncated relay is not read as an engine's 200</text>
+  <text x="38" y="274" class="m sm">one row per request; the tee never buffers the client's body</text>
+
+  <line x1="546" y1="226" x2="604" y2="226" stroke="#2c4a7c" stroke-width="1.5" marker-end="url(#arb)"/>
+
+  <!-- outcomes -->
+  <rect class="box relay" x="608" y="212" width="330" height="120" rx="6"/>
+  <text x="622" y="234" class="t lbl" font-weight="600">row outcomes the router observed</text>
+  <text x="622" y="258" class="mono" fill="#2f6b34">completed</text>
+  <text x="726" y="258" class="m sm">answer sent whole, no departure reported first</text>
+  <text x="622" y="282" class="mono" fill="#8a5a00">aborted</text>
+  <text x="726" y="282" class="m sm">caller gone &#8212; mid-upload, mid-relay, or mid-answer</text>
+  <text x="622" y="306" class="mono" fill="#8a1c1c">failed</text>
+  <text x="726" y="306" class="m sm">engine refused, or no engine was ever asked</text>
+  <text x="622" y="326" class="m sm">self-answered rows carry the sentinel upstream, not an engine</text>
+
+  <!-- held-by strip -->
+  <rect x="24" y="356" width="914" height="140" rx="6" fill="#fbfbf9" stroke="#bbb"/>
+  <text x="40" y="380" class="t lbl" font-weight="600">What holds the derivation &#8212; three assertions, and the mutation that separates them</text>
+
+  <text x="40" y="406" class="t sm">1&#160;&#160;a relayed request lands one row where the launch looks for it</text>
+  <text x="40" y="428" class="t sm">2&#160;&#160;a caller that departs before the body is read lands one aborted row there</text>
+  <text x="40" y="450" class="t sm">3&#160;&#160;an explicit path is neither displaced by the derived one nor duplicated beside it</text>
+
+  <line x1="40" y1="464" x2="922" y2="464" stroke="#ddd"/>
+  <text x="40" y="484" class="t sm">mutation applied verbatim: <tspan class="mono">with_name(RECEIPTS_FILENAME)</tspan> &#8594; <tspan class="mono">None</tspan></text>
+
+  <defs>
+    <marker id="ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L8,4 L0,8 z" fill="#333"/>
+    </marker>
+    <marker id="arg" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L8,4 L0,8 z" fill="#2f6b34"/>
+    </marker>
+    <marker id="arb" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L8,4 L0,8 z" fill="#2c4a7c"/>
+    </marker>
+  </defs>
+</svg>
