@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 520" width="960" height="520"
+     font-family="ui-sans-serif, system-ui, sans-serif" font-size="14">
+  <rect width="960" height="520" fill="#ffffff"/>
+
+  <text x="480" y="34" text-anchor="middle" font-size="18" font-weight="600" fill="#111827">
+    One owner for every engine family's serving quantities
+  </text>
+  <text x="480" y="58" text-anchor="middle" font-size="13" fill="#4b5563">
+    Two spellings in, one canonical vocabulary out; a quantity a family does not publish is absent, not null
+  </text>
+
+  <!-- family sources -->
+  <rect x="24" y="92" width="248" height="172" rx="8" fill="#eff6ff" stroke="#93c5fd"/>
+  <text x="40" y="118" font-weight="600" fill="#1e3a8a">sglang: (SGLang / DeepSeek-V4.1)</text>
+  <text x="40" y="144" font-family="ui-monospace, monospace" fill="#1f2937">num_running_reqs</text>
+  <text x="40" y="166" font-family="ui-monospace, monospace" fill="#1f2937">full_token_usage</text>
+  <text x="40" y="188" font-family="ui-monospace, monospace" fill="#1f2937">prefill_effective_tokens_total</text>
+  <text x="40" y="210" font-family="ui-monospace, monospace" fill="#1f2937">time_to_first_token_seconds</text>
+  <text x="40" y="232" font-family="ui-monospace, monospace" fill="#6b7280">(tp_rank labels repeat)</text>
+  <text x="40" y="252" font-family="ui-monospace, monospace" fill="#b91c1c">no prefix_cache_* series</text>
+
+  <rect x="24" y="284" width="248" height="172" rx="8" fill="#f0fdf4" stroke="#86efac"/>
+  <text x="40" y="310" font-weight="600" fill="#14532d">vllm: (vLLM)</text>
+  <text x="40" y="336" font-family="ui-monospace, monospace" fill="#1f2937">num_requests_running</text>
+  <text x="40" y="358" font-family="ui-monospace, monospace" fill="#1f2937">kv_cache_usage_perc</text>
+  <text x="40" y="380" font-family="ui-monospace, monospace" fill="#1f2937">prefix_cache_hits_total</text>
+  <text x="40" y="402" font-family="ui-monospace, monospace" fill="#1f2937">inter_token_latency_seconds</text>
+  <text x="40" y="424" font-family="ui-monospace, monospace" fill="#6b7280">(+ _created, reason= labels)</text>
+  <text x="40" y="444" font-family="ui-monospace, monospace" fill="#b91c1c">no speculative-decode series</text>
+
+  <!-- arrows into module -->
+  <path d="M272 178 H 336" stroke="#93c5fd" stroke-width="2" fill="none" marker-end="url(#arw)"/>
+  <path d="M272 370 H 336" stroke="#86efac" stroke-width="2" fill="none" marker-end="url(#arw)"/>
+  <defs>
+    <marker id="arw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#6b7280"/>
+    </marker>
+  </defs>
+
+  <!-- shared module -->
+  <rect x="336" y="112" width="272" height="324" rx="8" fill="#fefce8" stroke="#facc15"/>
+  <text x="472" y="140" text-anchor="middle" font-weight="600" fill="#713f12">engine_metrics</text>
+  <text x="472" y="162" text-anchor="middle" font-family="ui-monospace, monospace" fill="#4b5563">read_metrics(text)</text>
+  <line x1="352" y1="176" x2="592" y2="176" stroke="#fde68a"/>
+  <text x="352" y="200" font-family="ui-monospace, monospace" fill="#1f2937">GAUGE_SERIES</text>
+  <text x="352" y="222" font-family="ui-monospace, monospace" fill="#1f2937">COUNTER_SERIES</text>
+  <text x="352" y="244" font-family="ui-monospace, monospace" fill="#1f2937">HISTOGRAM_SERIES</text>
+  <text x="352" y="266" font-family="ui-monospace, monospace" fill="#1f2937">SPEC_DECODE_SERIES</text>
+  <text x="352" y="288" font-family="ui-monospace, monospace" fill="#1f2937">LANE_SERIES</text>
+  <line x1="352" y1="304" x2="592" y2="304" stroke="#fde68a"/>
+  <text x="352" y="328" fill="#374151">eligible_samples(): rank 0 only;</text>
+  <text x="352" y="348" fill="#374151">reason= sub-series excluded</text>
+  <text x="352" y="374" fill="#374151">tier_split(): per-tier cached,</text>
+  <text x="352" y="394" fill="#374151">and the uncached remainder</text>
+  <text x="352" y="420" font-weight="600" fill="#713f12">row_section(): observed keys only</text>
+
+  <!-- arrows out -->
+  <path d="M608 178 H 676" stroke="#a3a3a3" stroke-width="2" fill="none" marker-end="url(#arw)"/>
+  <path d="M608 274 H 676" stroke="#a3a3a3" stroke-width="2" fill="none" marker-end="url(#arw)"/>
+  <path d="M608 370 H 676" stroke="#a3a3a3" stroke-width="2" fill="none" marker-end="url(#arw)"/>
+
+  <!-- callers -->
+  <rect x="676" y="112" width="260" height="132" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+  <text x="692" y="138" font-weight="600" fill="#111827">serving_receipts</text>
+  <text x="692" y="160" fill="#374151">the continuous recorder</text>
+  <text x="692" y="182" font-family="ui-monospace, monospace" fill="#6b7280">row.engine = row_section()</text>
+  <text x="692" y="206" font-family="ui-monospace, monospace" fill="#6b7280">flat legacy fields beside it</text>
+  <text x="692" y="230" fill="#6b7280">one JSONL row per sample</text>
+
+  <rect x="676" y="254" width="260" height="72" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+  <text x="692" y="280" font-weight="600" fill="#111827">lane.py</text>
+  <text x="692" y="302" font-family="ui-monospace, monospace" fill="#6b7280">parse_lane_capacity()</text>
+  <text x="692" y="320" fill="#6b7280">resolves lane names by role</text>
+
+  <rect x="676" y="336" width="260" height="100" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+  <text x="692" y="362" font-weight="600" fill="#111827">bench.py</text>
+  <text x="692" y="384" font-family="ui-monospace, monospace" fill="#6b7280">spec-decode acceptance</text>
+  <text x="692" y="406" fill="#b45309">still its own copy of the parser</text>
+  <text x="692" y="426" fill="#b45309">— the remaining migration</text>
+
+  <!-- the rule -->
+  <rect x="24" y="472" width="912" height="34" rx="6" fill="#fff1f2" stroke="#fda4af"/>
+  <text x="480" y="494" text-anchor="middle" fill="#881337">
+    Absence is expressed by omission: an unobserved quantity has no key at all — “null” and “0.0” both
+    read as measurements, which is the defect being repaired.
+  </text>
+</svg>

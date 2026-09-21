@@ -1,18 +1,22 @@
 """Continuous serving-time receipts for ``imas-ambix agent receipts``.
 
-:mod:`imas_ambix.agent.bench` already parses a Prometheus ``/metrics`` scrape
-(:func:`~imas_ambix.agent.bench._parse_prometheus_text`) and differences
+:mod:`imas_ambix.agent.engine_metrics` owns which series carries which
+quantity for each engine family, and :mod:`imas_ambix.agent.bench` differences
 cumulative counters across a window
 (:func:`~imas_ambix.agent.bench._counter_delta`,
-:func:`~imas_ambix.agent.bench._per_position_delta`). This module reuses that
-parsing and differencing to build a *continuous* recorder: it samples a live
-engine's ``/metrics`` on an interval and appends one JSON row per sample to a
-durable, append-only receipts file, so a serve's whole life is a readable
-record rather than something reconstructed afterwards from a terminal
-summary. Speculative-decode counters are read here by exact bare name rather
-than reusing ``bench``'s substring-matching snapshot, because the substring
-match folds each counter's ``_created`` timestamp companion into its token
-total (see the alias-set comment below).
+:func:`~imas_ambix.agent.bench._per_position_delta`). This module reuses both
+to build a *continuous* recorder: it samples a serve's ``/metrics`` on an
+interval and appends one JSON row per sample to a durable, append-only
+receipts file, so a serve's whole life is a readable record rather than
+something reconstructed afterwards from a terminal summary.
+
+The row carries two views of one scrape. The flat fields are the established
+vLLM-shaped vocabulary, kept because saved runs and readers resolve through
+them; the ``engine`` section is the canonical family-agnostic set, and it is
+where the quantities that flat vocabulary has no home for live — the cached
+prompt tokens split by the tier that answered them, the uncached remainder,
+and both latency histograms. The ``engine`` section carries only what was
+observed, so an absent quantity is absent rather than null or zero.
 """
 
 from __future__ import annotations
@@ -25,10 +29,10 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from imas_ambix.agent import engine_metrics
 from imas_ambix.agent.bench import (
     _counter_delta,
     _fetch_body,
-    _parse_prometheus_text,
     _per_position_delta,
 )
 
@@ -37,94 +41,58 @@ if TYPE_CHECKING:
 
     from imas_ambix.agent.profile import ModelProfile
 
-# Matched on the bare metric name (after the ``vllm:`` namespace prefix),
-# against every spelling an engine version is known to use. An exact-name set
-# rather than a substring is deliberate here: vLLM's OpenMetrics exposition
-# pairs every counter with a same-named ``_created`` gauge (its creation
-# timestamp, not a data point) and a cross-instance ``external_`` variant, and
-# a substring test would silently fold either into the real counter — measured
-# on the live four-card engine, where a substring match on "draft"/"accept"
-# summed each counter's ``_created`` companion straight into its token total.
-_GAUGE_NAMES = {
-    "num_requests_running": {"num_requests_running"},
-    "num_requests_waiting": {"num_requests_waiting"},
-    "kv_cache_usage_perc": {"kv_cache_usage_perc", "gpu_cache_usage_perc"},
+# The flat row vocabulary is the vLLM spelling of each canonical quantity, and
+# these maps are the whole of that correspondence: a reader of the flat fields
+# wants the name it already knows, and the engine section beside it carries the
+# canonical name. One direction only — the canonical set is the source, so a
+# family that resolves a quantity under every engine spelling produces the same
+# flat field the single-family reader always produced.
+_LEGACY_GAUGE_NAMES: dict[str, str] = {
+    "requests_running": "num_requests_running",
+    "requests_queued": "num_requests_waiting",
+    "kv_pool_occupancy": "kv_cache_usage_perc",
 }
-_COUNTER_NAMES = {
-    "prompt_tokens_total": {"prompt_tokens_total"},
-    "generation_tokens_total": {"generation_tokens_total"},
-    "prefix_cache_queries_total": {
-        "prefix_cache_queries_total",
-        "gpu_prefix_cache_queries_total",
-    },
-    "prefix_cache_hits_total": {
-        "prefix_cache_hits_total",
-        "gpu_prefix_cache_hits_total",
-    },
+_LEGACY_COUNTER_NAMES: dict[str, str] = {
+    "prompt_tokens": "prompt_tokens_total",
+    "generation_tokens": "generation_tokens_total",
+    "prefix_cache_queries": "prefix_cache_queries_total",
+    "prefix_cache_hits": "prefix_cache_hits_total",
 }
-_SPEC_DECODE_COUNTER_NAMES = {
-    "draft_tokens_total": {"spec_decode_num_draft_tokens_total"},
-    "accepted_tokens_total": {"spec_decode_num_accepted_tokens_total"},
-}
-_SPEC_DECODE_PER_POSITION_NAMES = {"spec_decode_num_accepted_tokens_per_pos_total"}
-
-
-def _bare_metric_name(name: str) -> str:
-    """Metric name with its ``vllm:``-style namespace prefix stripped."""
-    return name.rpartition(":")[2]
 
 
 def _serving_snapshot(text: str) -> dict[str, Any]:
-    """One scrape's serving-lifecycle gauges, counters, and spec-decode state.
+    """One scrape as flat serving fields plus the canonical engine section.
 
-    Speculative-decode counters are matched by the same exact-bare-name
-    discipline as the gauges and counters above, against the names the live
-    vLLM 0.28.0 engine's own ``/metrics`` scrape was verified to publish:
-    ``spec_decode_num_draft_tokens_total``,
-    ``spec_decode_num_accepted_tokens_total``, and, labelled by draft
-    position, ``spec_decode_num_accepted_tokens_per_pos_total``.
+    Resolution is delegated to :mod:`imas_ambix.agent.engine_metrics`, so a
+    scrape from any engine family populates the same fields; the flat keys are
+    then filled from the canonical values under their established names.
+
+    Speculative-decode counters keep their exact-name discipline there too:
+    vLLM pairs every counter with a same-named ``_created`` gauge — its
+    creation timestamp, not a data point — and a substring test folds that
+    sibling into the token total (measured on the live four-card engine).
     """
-    gauges: dict[str, float] = {}
-    counters: dict[str, float] = {}
-    spec_counters: dict[str, float] = {}
-    spec_per_position: dict[int, float] = {}
-    for name, labels, value in _parse_prometheus_text(text):
-        bare = _bare_metric_name(name.lower())
-        if bare in _SPEC_DECODE_PER_POSITION_NAMES:
-            pos = _coerce_int(labels.get("position"))
-            if pos is not None:
-                spec_per_position[pos] = spec_per_position.get(pos, 0.0) + value
-            continue
-        matched_spec = False
-        for key, names in _SPEC_DECODE_COUNTER_NAMES.items():
-            if bare in names:
-                spec_counters[key] = spec_counters.get(key, 0.0) + value
-                matched_spec = True
-                break
-        if matched_spec:
-            continue
-        for key, names in _GAUGE_NAMES.items():
-            if bare in names:
-                gauges[key] = gauges.get(key, 0.0) + value
-                break
-        else:
-            for key, names in _COUNTER_NAMES.items():
-                if bare in names:
-                    counters[key] = counters.get(key, 0.0) + value
-                    break
+    metrics = engine_metrics.read_metrics(text)
+    gauges = {
+        legacy: metrics.gauges[canon]
+        for canon, legacy in _LEGACY_GAUGE_NAMES.items()
+        if canon in metrics.gauges
+    }
+    counters = {
+        legacy: metrics.counters[canon]
+        for canon, legacy in _LEGACY_COUNTER_NAMES.items()
+        if canon in metrics.counters
+    }
     spec_decode = {
-        "draft_tokens_total": spec_counters.get("draft_tokens_total"),
-        "accepted_tokens_total": spec_counters.get("accepted_tokens_total"),
-        "num_accepted_per_pos": (
-            [spec_per_position[pos] for pos in sorted(spec_per_position)]
-            if spec_per_position
-            else None
-        ),
+        "draft_tokens_total": metrics.spec_decode.get("draft_tokens_total"),
+        "accepted_tokens_total": metrics.spec_decode.get("accepted_tokens_total"),
+        "num_accepted_per_pos": metrics.spec_decode.get("num_accepted_per_pos"),
     }
     return {
         "gauges": gauges,
         "counters": counters,
         "spec_decode": spec_decode,
+        "engine": metrics.row_section(),
     }
 
 
@@ -152,6 +120,7 @@ class ReceiptRow:
     spec_accepted_tokens: int | None
     spec_acceptance_rate: float | None
     spec_num_accepted_per_pos: list[int] | None
+    engine: dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def to_json(self) -> str:
         return json.dumps(dataclasses.asdict(self), sort_keys=False)
@@ -288,6 +257,7 @@ def build_receipt_row(
         spec_accepted_tokens=accepted_delta,
         spec_acceptance_rate=acceptance_rate,
         spec_num_accepted_per_pos=per_pos_delta,
+        engine=current.get("engine", {}),
     )
 
 

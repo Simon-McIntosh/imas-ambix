@@ -21,17 +21,16 @@ from __future__ import annotations
 
 import gzip
 import json
-import re
 import urllib.request
 import zlib
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-_SAMPLE = re.compile(
-    r"^(?P<name>(?:vllm|sglang):[a-z_]+)\{(?P<labels>[^}]*)\}\s+(?P<value>[-+0-9.eE]+)\s*$",
-    re.MULTILINE,
-)
-_LABEL = re.compile(r'(?P<key>[a-z_0-9]+)="(?P<value>[^"]*)"')
+from imas_ambix.agent import engine_metrics
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 @dataclass(frozen=True, slots=True)
@@ -303,41 +302,92 @@ class LaneWindow:
         return max(0, self.concurrent_requests - self.latest.running)
 
 
-def _parse_sglang_capacity(
-    samples: list[tuple[str, dict[str, str], float]],
-) -> LaneCapacity:
-    """Build a reading from SGLang's rank-zero metrics.
+def _lane_reader(
+    samples: list[tuple[str, dict[str, str], float]], family: str
+) -> Callable[[str], float | None]:
+    """A role-to-value reader over one family's eligible samples.
 
-    SGLang repeats device-pool measurements on every tensor-parallel rank. The
-    rank-zero sample is one shared pool measurement, not four independent
-    pools to sum. It directly reports prefix hits and the hierarchical-cache
-    host tier. It does not expose a cumulative preemption counter, so
-    ``preemptions`` stays None rather than being fabricated from queue depth.
+    Every spelling comes from :mod:`imas_ambix.agent.engine_metrics`, so this
+    reader and the receipts recorder cannot disagree about what a family
+    publishes; a role the family does not publish resolves to ``None``.
     """
-    values: dict[str, float] = {}
-    model_id = ""
-    for name, labels, value in samples:
-        if not name.startswith("sglang:"):
-            continue
-        if labels.get("tp_rank", "0") != "0":
-            continue
-        model_id = model_id or labels.get("model_name", "")
-        values.setdefault(name, value)
+    eligible = engine_metrics.eligible_samples(samples, family)
 
-    pool_tokens = int(values.get("sglang:max_total_num_tokens", 0.0))
-    if pool_tokens <= 0:
-        raise ValueError("engine metrics carry no KV pool size")
+    def read(role: str) -> float | None:
+        return engine_metrics.series_first(
+            eligible, family, engine_metrics.lane_series(role, family)
+        )
 
-    host_total = values.get("sglang:hicache_host_total_tokens")
-    host_used = values.get("sglang:hicache_host_used_tokens")
+    return read
+
+
+def _lane_pool_tokens(
+    samples: list[tuple[str, dict[str, str], float]],
+    family: str,
+    read: Callable[[str], float | None],
+) -> int:
+    """The KV pool size, in whichever form the family publishes it.
+
+    SGLang publishes it as a gauge. vLLM publishes it as a label on its cache
+    configuration info, so there it is read by label rather than as a series.
+    """
+    if family == engine_metrics.FAMILY_SGLANG:
+        pool = read("pool_tokens")
+        return int(pool) if pool is not None else 0
+    labels = engine_metrics.series_labels(
+        samples, family, (engine_metrics.VLLM_CACHE_CONFIG_INFO,)
+    )
+    if labels is None:
+        return 0
+    return int(labels.get(engine_metrics.VLLM_KV_POOL_LABEL, "0") or 0)
+
+
+def _lane_capacity_from_roles(
+    family: str,
+    model_id: str,
+    pool_tokens: int,
+    read: Callable[[str], float | None],
+) -> LaneCapacity:
+    """Assemble one reading from canonical roles.
+
+    The families differ in two places, and both are about what the engine
+    reports rather than about what the quantity means: SGLang publishes a
+    prefix hit rate directly and a preemption-free engine, while vLLM publishes
+    two cumulative prefix-cache counters and a cumulative preemption counter,
+    so its hit rate is their ratio. A role the family does not publish stays
+    absent from the reading rather than contributing a zero.
+    """
+    occupancy = read("kv_pool_occupancy")
+    preemptions = read("preemptions")
+    external_queries = read("external_queries")
+    external_hits = read("external_hits")
+    written = read("offload_written_bytes")
+    restored = read("offload_restored_bytes")
+    host_total = read("hicache_host_total_tokens")
+    host_used = read("hicache_host_used_tokens")
+    queries = read("prefix_cache_queries") or 0.0
+    hits = read("prefix_cache_hits") or 0.0
+    prefix_hit_rate = read("prefix_hit_rate")
+    if prefix_hit_rate is None and queries > 0:
+        prefix_hit_rate = hits / queries
+    if family == engine_metrics.FAMILY_VLLM:
+        preemptions = int(preemptions) if preemptions is not None else 0
     return LaneCapacity(
         model_id=model_id,
         pool_tokens=pool_tokens,
-        running=int(values.get("sglang:num_running_reqs", 0.0)),
-        waiting=int(values.get("sglang:num_queue_reqs", 0.0)),
-        kv_occupancy=values.get("sglang:full_token_usage", 0.0),
-        preemptions=None,
-        prefix_hit_rate=values.get("sglang:cache_hit_rate"),
+        running=int(read("requests_running") or 0),
+        waiting=int(read("requests_queued") or 0),
+        kv_occupancy=occupancy if occupancy is not None else 0.0,
+        preemptions=int(preemptions) if preemptions is not None else None,
+        prefix_hit_rate=prefix_hit_rate,
+        external_hit_rate=(
+            (external_hits / external_queries)
+            if external_queries and external_hits is not None
+            else None
+        ),
+        offload_written_bytes=int(written) if written is not None else None,
+        offload_restored_bytes=int(restored) if restored is not None else None,
+        offload_resident_fraction=read("offload_resident_fraction"),
         hicache_host_total_tokens=int(host_total) if host_total is not None else None,
         hicache_host_used_tokens=int(host_used) if host_used is not None else None,
     )
@@ -350,57 +400,16 @@ def parse_lane_capacity(metrics: str) -> LaneCapacity:
     the engine that is actually running, so a profile edit cannot make this
     disagree with the process it describes.
     """
-    samples: list[tuple[str, dict[str, str], float]] = []
-    for sample in _SAMPLE.finditer(metrics):
-        samples.append(
-            (
-                sample.group("name"),
-                dict(_LABEL.findall(sample.group("labels"))),
-                float(sample.group("value")),
-            )
-        )
-
-    if any(name.startswith("sglang:") for name, _, _ in samples):
-        return _parse_sglang_capacity(samples)
-
-    values: dict[str, float] = {}
-    model_id = ""
-    pool_tokens = 0
-    for name, labels, value in samples:
-        if name == "vllm:cache_config_info":
-            pool_tokens = int(labels.get("kv_cache_size_tokens", "0") or 0)
-        if "reason" in labels:
-            continue
-        model_id = model_id or labels.get("model_name", "")
-        values[name] = value
-
+    samples = engine_metrics.parse_metrics(metrics)
+    family = engine_metrics.detect_family(samples)
+    if family is None:
+        raise ValueError("engine metrics carry no KV pool size")
+    read = _lane_reader(samples, family)
+    model_id = engine_metrics.model_id_of(samples, family) or ""
+    pool_tokens = _lane_pool_tokens(samples, family, read)
     if pool_tokens <= 0:
         raise ValueError("engine metrics carry no KV pool size")
-
-    queries = values.get("vllm:prefix_cache_queries_total", 0.0)
-    hits = values.get("vllm:prefix_cache_hits_total", 0.0)
-    external_queries = values.get("vllm:external_prefix_cache_queries_total")
-    external_hits = values.get("vllm:external_prefix_cache_hits_total")
-    written = values.get("vllm:kv_offload_store_bytes_total")
-    restored = values.get("vllm:kv_offload_load_bytes_total")
-    resident = values.get("vllm:kv_offload_cpu_cache_usage_perc")
-    return LaneCapacity(
-        model_id=model_id,
-        pool_tokens=pool_tokens,
-        running=int(values.get("vllm:num_requests_running", 0.0)),
-        waiting=int(values.get("vllm:num_requests_waiting", 0.0)),
-        kv_occupancy=values.get("vllm:kv_cache_usage_perc", 0.0),
-        preemptions=int(values.get("vllm:num_preemptions_total", 0.0)),
-        prefix_hit_rate=(hits / queries) if queries > 0 else None,
-        external_hit_rate=(
-            (external_hits / external_queries)
-            if external_queries and external_hits is not None
-            else None
-        ),
-        offload_written_bytes=int(written) if written is not None else None,
-        offload_restored_bytes=int(restored) if restored is not None else None,
-        offload_resident_fraction=resident,
-    )
+    return _lane_capacity_from_roles(family, model_id, pool_tokens, read)
 
 
 def fetch_lane_capacity(origin: str, *, timeout: float = 10.0) -> LaneCapacity:

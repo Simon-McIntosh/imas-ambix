@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="serve-telemetry-spine-landed">
+  <meta name="plan-title" content="Serve Telemetry Spine — Landed Record">
+  <meta name="plan-summary" content="Cumulative execution record for the shared engine-metrics module and its callers">
+  <meta name="plan-status" content="active">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-tags" content="agent-serving,telemetry,gpu-deployment">
+  <meta name="plan-evidence-for" content="serve-telemetry-spine">
+  <meta name="plan-verifies" content="serve-telemetry-spine#s2">
+  <title>Serve Telemetry Spine — Landed Record | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="one-reader-for-both-families">One reader for both engine families</h2>
+
+    <figure>
+      <img src="/imas-ambix/figures/serve-telemetry-spine/engine-families-one-reader.svg"
+           alt="Two engine families' series names converge on one shared module, which feeds the recorder, the lane reader and the benchmark; the rule that an unobserved quantity is absent rather than null is stated beneath.">
+      <figcaption>The shared module, its callers, and the absence rule it exists to enforce.</figcaption>
+    </figure>
+
+    <p><code>imas_ambix/agent/engine_metrics.py</code> now owns the mapping from a
+    family's series names to canonical quantities for <code>sglang:</code> and
+    <code>vllm:</code> alike. Before it, the same knowledge lived in three
+    places: <code>bench.py</code> resolved vLLM names only, the workstation
+    watcher carried both by hand, and
+    <code>lane.py::parse_lane_capacity</code> carried a working SGLang reader of
+    its own. The recorded consequence of the split is in the plan: fourteen of
+    the recorder's twenty fields were <code>null</code> in every one of 13,791
+    rows against a healthy SGLang serve.</p>
+
+    <p>The module is a reader, not a probe: it takes exposition text and returns
+    quantities, and it neither fetches nor decides. Three properties are
+    deliberate and each is asserted by test.</p>
+
+    <h3 id="absence-is-omission">Absence is omission, and a published zero survives</h3>
+
+    <p>A quantity a family does not publish is left out of a reading rather than
+    recorded as <code>null</code> or <code>0.0</code>, because a null that reads
+    as a reading is the defect being repaired. The rule was shown to be
+    load-bearing rather than decorative: a mutated copy of the reader that
+    records every quantity regardless reproduces the defect exactly, emitting
+    <code>prefix_cache_queries: None</code> for the recorded SGLang scrape —
+    precisely the assertion the new test forbids. Beside it, a quantity
+    genuinely published as zero is kept: the SGLang fixture's gauges are a
+    measured zero and its host cache tier answered nothing, so dropping those
+    would make omission indistinguishable from a missing measurement.</p>
+
+    <h3 id="selection-discipline">Which samples count, decided once</h3>
+
+    <p>SGLang repeats every device-pool measurement on each tensor-parallel
+    rank, so only the rank-zero sample is one shared pool rather than N pools to
+    sum. vLLM publishes <code>reason</code>-labelled partial series beside their
+    family total, and folding a breakdown into its total double-counts. It also
+    pairs every counter with a same-named <code>_created</code> gauge — a
+    creation timestamp, not a data point — which a substring test folds into the
+    token total. All three shapes are covered by the new tests, and the
+    <code>_created</code> and <code>reason</code> exclusions are exact-name and
+    exact-label matches rather than substring tests.</p>
+
+    <h2 id="evidence">Evidence</h2>
+
+    <p><strong>A live SGLang scrape populates every canonical quantity.</strong>
+    The recorder was run once, for one sample, against the running
+    DeepSeek-V4.1-Flash serve on <code>98dci4-gpu-0003:18810</code>. The row's
+    <code>engine</code> section carried <code>family: sglang</code>,
+    <code>model_id: deepseek-v4.1-flash</code>, <code>requests_running: 7</code>,
+    <code>requests_queued: 0</code>, <code>kv_pool_occupancy: 0.2</code>,
+    <code>prompt_tokens: 2055673430</code>,
+    <code>generation_tokens: 16090547</code>, a cached split of
+    <code>{device: 1984344576, host: 6554368, storage: 0}</code>,
+    <code>uncached_prompt_tokens: 68006400</code>, and both histograms — the
+    time-to-first-token histogram with 16,993 observations and the
+    inter-token-latency histogram with 16,054,490. The prefix-cache keys were
+    <em>absent</em> from that section, which is correct: SGLang publishes no such
+    counter. In the same row the flat vLLM-shaped fields beside it stayed
+    <code>null</code>, which is what a vocabulary with no meaning here looks
+    like — and is why the canonical section, not the flat fields, is the record.</p>
+
+    <p><strong>A recorded vLLM fixture yields the same field set through the same
+    code path.</strong> <code>tests/test_engine_metrics.py</code> drives a
+    recorded-shape vLLM scrape through the same
+    <code>engine_metrics.read_metrics</code> call and asserts the full canonical
+    set: three gauges, four counters, both histograms, the per-tier cached split
+    with the uncached remainder, and the speculative-decode triple. A test whose
+    presence rule is read from the family tables — not from a branch in the
+    reader — checks that each family's section contains exactly the quantities
+    its own tables publish.</p>
+
+    <p><strong>Gates.</strong> <code>uv run --no-sync pytest
+    tests/test_engine_metrics.py tests/test_agent_lane_sglang.py
+    tests/test_agent_serving_receipts.py</code> reports <strong>31 passed</strong>
+    (13 new, 3 lane, 15 receipts). <code>uv run --no-sync ruff check imas_ambix
+    tests</code> exits 0.</p>
+
+    <h2 id="commits">Commits</h2>
+
+    <table>
+      <thead><tr><th>Commit</th><th>Subject</th></tr></thead>
+      <tbody>
+        <tr><td><code>c23be8f8</code></td><td>the shared module: series tables, parse, eligibility, tier split, row section</td></tr>
+        <tr><td><code>f5c3c91f</code></td><td>formatting only, kept out of the change</td></tr>
+        <tr><td><code>493e0281</code></td><td>the recorder resolves its fields through the module</td></tr>
+        <tr><td><code>f743fcea</code></td><td><code>lane.py</code> resolves its capacity names through the module</td></tr>
+        <tr><td><code>0f9ce03f</code></td><td>the test file, including the absent-not-null rule</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Remaining.</strong> <code>bench.py</code> still carries its own
+    copy of the exposition parser and its own spec-decode name tables, so the
+    duplicate the module exists to remove survives there. Migrating it is
+    mechanical — delegate <code>_spec_decode_snapshot</code> to
+    <code>read_metrics(text).spec_decode</code> and delete
+    <code>_SAMPLE_RE</code>, <code>_LABEL_RE</code>,
+    <code>_parse_prometheus_text</code>, <code>_bare_metric_name</code> and the
+    two <code>_SPEC_DECODE_*_NAMES</code> tables — and its focused tests were
+    read against the delegation and use single or <code>engine="0"/"1"</code>
+    label sets with no <code>reason</code> labels, so they are expected to stay
+    green. It is not covered by this node's done-when.</p>
+
+  </main>
+</body>
+</html>
