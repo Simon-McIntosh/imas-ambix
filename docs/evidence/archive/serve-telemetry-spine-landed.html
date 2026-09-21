@@ -1621,6 +1621,119 @@ except ImportError:
     <strong>16 passed at base</strong> for the same two files, the twenty-fifth being the
     test that holds the read on the near side of the send; whole-tree
     <code>ruff</code> exits 0.</p>
+  <h2 id="receipt-stream-derivation">§6 — The stream the launch derives, and who held it</h2>
+
+    <p>The router edit is on <code>main</code> ahead of this node, and its row contract was
+    already held by twenty focused tests. What no test held was the <em>derivation</em>: the
+    launch command names one path — the site's endpoint document with <code>lane.json</code>
+    for a name — and the router derives <code>requests.jsonl</code> beside it. Every receipt
+    test to this point handed the router an explicit <code>request_receipts_path</code>, so
+    the construction production actually uses was measured by nothing, and dropping the
+    derivation left the relay serving, the suite green, and no stream on disk. This node
+    adds the assertions that hold it; it changes no production line, because the production
+    lines were already correct.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/serve-telemetry-spine/receipt-stream-derivation.svg"
+           alt="The launch command names lane.json; the router derives requests.jsonl beside it unless an explicit path is given, and relays each call into one row carrying completed, aborted or failed. Beneath, the three assertions that hold the derivation and the mutation that separates them.">
+      <figcaption>The one path the launch names, the stream derived from it, the outcomes the
+      relay observes, and the assertions that now hold the derivation.</figcaption>
+    </figure>
+
+    <h3 id="rr-wire-claims">What the gate measured</h3>
+
+    <table>
+      <thead>
+        <tr><th>Claim</th><th>Measure</th><th>Result</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>A relayed request lands a row where the launch looks for it, with no path
+          handed to the router beyond the lane document</td>
+          <td><code>RouterApp(resolver, lane_document=&#8230;)</code> driven with a real
+          relayed request against a live engine, the row read back from
+          <code>&#8230;/requests.jsonl</code></td>
+          <td>1 row, model <code>streamer</code>, upstream the engine's origin,
+          <code>completed</code>, 1,234 prompt tokens</td>
+        </tr>
+        <tr>
+          <td>A caller that departs before the body is read lands one <code>aborted</code>
+          row, and no answer is sent</td>
+          <td>the same launch-shaped router, a receive channel holding a partial request
+          then <code>http.disconnect</code></td>
+          <td>nothing sent, 1 row, <code>aborted</code>, upstream the self-answered
+          sentinel, model empty</td>
+        </tr>
+        <tr>
+          <td>An explicit receipts path is neither displaced by the derived one nor
+          duplicated beside it</td>
+          <td>a router given both a lane document and a chosen path, one relayed
+          request</td>
+          <td>1 row at the chosen path; no <code>requests.jsonl</code> created beside the
+          lane document</td>
+        </tr>
+        <tr>
+          <td>Focused gate</td>
+          <td><code>pytest tests/test_agent_router_telemetry.py
+          tests/test_agent_router*.py</code></td>
+          <td><strong>37 passed</strong>, exit 0 (34 of them pre-existing)</td>
+        </tr>
+        <tr>
+          <td>Whole-tree lint gate</td>
+          <td><code>ruff check imas_ambix tests</code></td>
+          <td>All checks passed, exit 0</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 id="rr-wire-control">The mutation, and what it separates</h3>
+
+    <p>The derivation is one line, and the control moves exactly it. Applied verbatim and
+    read back from the failure:</p>
+
+    <table>
+      <thead><tr><th>Mutation applied</th><th>What it produces</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>self._receipts_path = lane_document.with_name(RECEIPTS_FILENAME)</code>
+          &#8594; <code>self._receipts_path = None</code></td>
+          <td>the first two assertions redden with
+          <code>FileNotFoundError: &#8230;/requests.jsonl</code>; the third stays green,
+          which is what separates the derivation from the precedence it sits under</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>The control log opens with the mutation verbatim, so a reader replays it rather than
+    infers it. The red is a missing file rather than a wrong row, which is the honest shape
+    of this defect: with the derivation gone the router still serves every request and
+    writes nothing at all.</p>
+
+    <h3 id="rr-wire-reach">Production call sites</h3>
+
+    <p>The row contract's reachability was asserted in prose before this node and by
+    nothing in code. It is a short chain: <code>imas_ambix/agent/cli.py::router_command</code>
+    builds the resolver and calls <code>serve_router</code> with
+    <code>lane_document=&lt;site.endpoint_document&gt;/lane.json</code> and no receipts path;
+    <code>serve_router</code> forwards it through <code>create_router_app</code> into
+    <code>RouterApp.__init__</code>, where the derivation happens; and
+    <code>_receipt_sink</code> builds the sink on first use at that path. The explicit
+    <code>request_receipts_path</code> is reachable from the same two factories for a caller
+    that wants another location, which is the precedence the third assertion holds.</p>
+
+    <p><strong>Commits.</strong> This node adds one test file and no production change:
+    <code>abd3128f</code>. The wiring it holds is <code>0e9a656c</code> (the relay tee and
+    the sink), <code>9467fc0d</code> (the outcome the relay observed, whoever answered),
+    <code>fe0f7819</code> (what the caller received) and <code>a04ac778</code> (the labels
+    and the promise a <code>completed</code> row makes), all reachable from this node's base
+    <code>489ea67b</code> and present on <code>main</code> at <code>37f091fc</code>.</p>
+
+    <p><strong>Recorded as stale, not repaired here.</strong> The sequencing section still
+    reads that the router edit is outstanding. It is not: the relay tee, the self-answering
+    funnel, the departure branch and the outcome promotion are all on <code>main</code>,
+    and the class the section names as untested integration — what happens between the
+    recorder tick and the stored row — is the one still genuinely unwired, in
+    <code>serving_receipts.py</code>.</p>
   </main>
 </body>
 </html>
