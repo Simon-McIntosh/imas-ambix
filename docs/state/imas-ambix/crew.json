@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-21T07:32:30",
+  "updated": "2026-09-21T07:46:39",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -42770,6 +42770,227 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260921T053412125485-bench-single-owner",
+        "plan": "serve-telemetry-spine",
+        "section": "\u00a72",
+        "node": "bench-single-owner",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 399,
+                "cached_input_tokens": 785266,
+                "input_tokens": 785667,
+                "output_tokens": 40,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 785707,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "98f13dbe-0703-4abd-a5e4-65bfdb2eeee2",
+            "session_id": "telemetry-spine"
+          },
+          "done_when": "bench.py resolves its serving quantities through imas_ambix.agent.engine_metrics and defines no exposition parser or metric-name table of its own; a test greps imas_ambix/ and asserts the exposition-parser helpers and the speculative-decode name tables are defined in EXACTLY ONE module, failing if a second definition reappears; the existing bench tests remain green; uv run --no-sync ruff check imas_ambix tests exits 0",
+          "estimated_hours": null,
+          "goal": "Retire the duplicate exposition parser from bench.py onto the shared engine-metrics module",
+          "id": "bench-single-owner",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-21T05:34:12Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no numeric 'headroom'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T053412125485-bench-single-owner/manifest.md",
+          "negative_control": "a second exposition parser (parse_metrics + _SAMPLE_RE) appended to imas_ambix/agent/bench.py, as the duplicate this node's change removed",
+          "plan": "serve-telemetry-spine",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a72",
+          "spec_level": "guided",
+          "time_budget": "40m",
+          "token_budget": null,
+          "write_paths": [
+            "imas_ambix/agent/bench.py",
+            "tests/test_agent_bench_shared_reader.py",
+            "docs/plans/serve-telemetry-spine.html",
+            "docs/evidence/archive/serve-telemetry-spine-landed.html"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "telemetry-bench-dedup",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "high",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "worktree-full",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-21T05:34:17Z",
+        "completed_at": "2026-09-21T05:42:28.510Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 484,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 491,
+        "stalled": false,
+        "time_budget": "40m",
+        "base_sha": "39e7bba5d7a4d0b398978e7f9e6dd3c84eb13c62",
+        "commits": [
+          "d9521c165b0a3ebccb86435600282ad87059f24f",
+          "5d8ce3d9d8a216de8cab9b816c4d375ad0ef406b"
+        ],
+        "changed_lines": {
+          "added": 209,
+          "removed": 90,
+          "files": 4
+        },
+        "tests_added": 5,
+        "gate": "passed",
+        "gate_check": {
+          "command": "pytest test_agent_bench_shared_reader + test_bench + test_bench_provenance; ruff check imas_ambix tests",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T053412125485-bench-single-owner/after_suite.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "bench.py no longer defines the exposition parser or the spec-decode name tables; all four retired symbols verified absent at HEAD and the module resolves through engine_metrics. The single-owner guard was mutation-tested: appending a second parser makes it fail on exactly the duplicated symbol, so the passing guard is evidence rather than assertion. 39 tests green on an all_debug allocation, ruff clean.",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T053412125485-bench-single-owner/manifest.md",
+        "scope_changed": false,
+        "session_id": "16fa6906-5ea8-4bb2-a532-dcd5c29e9ba2",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 5674416,
+            "input_tokens_cumulative": 5674416,
+            "output_tokens": 25255,
+            "output_tokens_cumulative": 25255,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-21T05:42:28.510Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": null,
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 5674416,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 488.296,
+          "generated_tokens": 25255,
+          "generation_seconds": 388.613,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 32.9,
+          "machine_seconds": 99.683,
+          "peak_input_tokens": 157761,
+          "tokens_per_second": 64.99,
+          "wall_tokens_per_second": 51.72
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/telemetry-spine/bench-single-owner",
+          "session_id": "16fa6906-5ea8-4bb2-a532-dcd5c29e9ba2",
+          "session_source": "stream",
+          "retained_at": "2026-09-21T05:42:28.510Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "plan_impl_at_dispatch": 0.4,
+        "impl_move": {
+          "plan": "serve-telemetry-spine",
+          "at_dispatch": 0.4,
+          "at_complete": 0.4,
+          "verdict": "waived",
+          "reason": "fold-in on section 2, already counted as landed; it closes the gap between that section's goal and its narrower done-when rather than landing a new section"
+        },
+        "negative_control": {
+          "verdict": "matched",
+          "reason": "node-writes-no-test-path",
+          "test_paths": [
+            "tests/test_agent_bench_shared_reader.py"
+          ],
+          "declaration": "a second exposition parser (parse_metrics + _SAMPLE_RE) appended to imas_ambix/agent/bench.py, as the duplicate this node's change removed",
+          "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T053412125485-bench-single-owner/negative_control.log",
+          "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T053412125485-bench-single-owner/negative_control.log"
+        },
+        "tool_steps": 52.0,
+        "orientation_input_tokens": 1142418.0,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -42844,6 +43065,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 743
+    "_version": 744
   }
 }
