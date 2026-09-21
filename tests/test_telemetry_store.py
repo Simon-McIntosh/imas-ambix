@@ -1,13 +1,15 @@
 """A compacted telemetry record preserves what it must not average.
 
 The store exists to make a multi-day record affordable without changing the
-quantities a reader derives from it. Two operations matter and they are not the
-same: cumulative counters must survive as endpoints so a difference across a
-tier boundary equals the raw difference, and gauges must compact as a
-time-weighted mean that carries the weight behind it. These tests drive a
-synthetic multi-day record through both tiers and assert both, plus the two
-durability properties the plan requires -- a compaction is idempotent, and it
-never retires the tier it read.
+quantities a reader derives from it. Three properties matter and they are not
+the same operation: cumulative counters must survive as endpoints so a
+difference across a tier boundary equals the raw difference; gauges must compact
+as a time-weighted mean that carries the weight behind it; and a null leaf is an
+absent observation, so it must neither erase what its window accumulated nor
+read downstream as zero. These tests drive a synthetic multi-day record through
+both tiers and assert all three, plus the two durability properties a tiered
+store must have -- a compaction is idempotent, and it never retires the tier it
+read.
 """
 
 from __future__ import annotations
@@ -32,39 +34,86 @@ _CADENCE_S = 20
 _DAYS = 3
 _START = datetime(2026, 9, 1, tzinfo=UTC)
 _SAMPLES = _DAYS * 24 * 60 * 60 // _CADENCE_S
+_ROWS_PER_MINUTE = 60 // _CADENCE_S
+
+# The leaves a live serve's receipt record carries in every row and never
+# populates, measured over all 3,943 rows of
+# /work/projects/imas_gpu/agents/receipts/deepseek-v4-1-flash-1271903.jsonl.
+_UNOBSERVED_LEAVES = (
+    "num_requests_running",
+    "num_requests_waiting",
+    "kv_cache_usage_perc",
+    "prefix_cache_queries_total",
+    "prefix_cache_query_delta",
+    "prefix_cache_hits_total",
+    "prefix_cache_hit_delta",
+    "prefix_cache_hit_rate",
+    "prefix_cache_hit_rate_interval",
+    "spec_draft_tokens",
+    "spec_accepted_tokens",
+    "spec_acceptance_rate",
+    "spec_num_accepted_per_pos",
+)
+
+# A counter and a gauge the store must compact that the record does not carry.
+# Every one of the record's cumulative leaves is null in every row it holds, so
+# an endpoint assertion needs a leaf of its own rather than one borrowed from the
+# record's always-null set.
+_SYNTHETIC_COUNTER = "requests_served_total"
+_SYNTHETIC_GAUGE = "queue_utilisation_perc"
 
 
 def _raw_rows() -> list[dict]:
-    """A three-day record at twenty-second cadence, with every leaf shape.
+    """A three-day record carrying the live record's leaves and its null pattern.
 
-    The counters rise monotonically, so a mean over them is a different number
-    from their endpoint and the endpoint test can tell the two apart. The gauges
-    oscillate, so a mean over them is not equal to any single sample.
+    The key set, the null pattern and the identity leaves are measured from
+    ``/work/projects/imas_gpu/agents/receipts/deepseek-v4-1-flash-1271903.jsonl``
+    (3,943 rows, 2026-09-16): 13 of its 20 top-level leaves are null in every
+    row, its two throughput gauges are null in one row and numeric in the other
+    3,942, and its five identity leaves never move. A fixture that populated
+    every leaf in every row cannot fail on a null, so the shape is reproduced.
+
+    Three features are deliberately *not* the record's, and each is here for a
+    reason the record does not supply:
+
+    * the throughput gauges are null *inside* every window rather than only on
+      the record's opening tick, because an interior null is the position that
+      discards the observations taken before it while a leading null discards
+      nothing;
+    * a rising cumulative counter and an oscillating gauge are carried under
+      names of their own, because the record's cumulative leaves are all null in
+      every row and its flat payload has no nested section -- without them the
+      endpoint rule, the weighted mean and the recursion would go unasserted;
+    * the cadence is 20 s where the record ticks at about 5 s, so a three-day
+      span stays affordable to compact inside a test.
     """
     rows = []
     for index in range(_SAMPLES):
         stamp = _START + timedelta(seconds=index * _CADENCE_S)
-        rows.append(
-            {
-                "timestamp": stamp.isoformat(),
-                "job_id": "1273253",
-                "profile_slug": "deepseek-v4-1-flash",
-                "served_name": "deepseek-v4.1-flash",
-                "gpus": 4,
-                "generation_throughput_toks_per_s": 100.0 + index % 50,
-                "num_requests_running": index % 17,
-                "kv_cache_usage_perc": 30.0 + 5.0 * math.sin(index / 40.0),
-                "prefix_cache_queries_total": 1000 + 7 * index,
-                "prefix_cache_hits_total": 500 + 3 * index,
-                "engine": {
-                    "family": "sglang",
-                    "requests_running": index % 17,
-                    "prompt_tokens": 5000 + 13 * index,
-                    "generation_tokens": 2000 + 11 * index,
-                    "cached_prompt_tokens": {"device": 100 + index},
-                },
-            }
-        )
+        unobserved_tick = index % _ROWS_PER_MINUTE == 1
+        row = {
+            "timestamp": stamp.isoformat(),
+            "job_id": "1271903",
+            "profile_slug": "deepseek-v4-1-flash",
+            "served_name": "deepseek-v4.1-flash",
+            "gpus": 4,
+            "generation_throughput_toks_per_s": (
+                None if unobserved_tick else 1.3 + 0.4 * math.sin(index / 9.0)
+            ),
+            "prompt_throughput_toks_per_s": (
+                None if unobserved_tick else 32.0 + 6.0 * math.sin(index / 25.0)
+            ),
+            _SYNTHETIC_COUNTER: 1000 + 7 * index,
+            _SYNTHETIC_GAUGE: 30.0 + 5.0 * math.sin(index / 40.0),
+            "engine": {
+                "family": "sglang",
+                "prompt_tokens": 5000 + 13 * index,
+                "generation_tokens": 2000 + 11 * index,
+                "cached_prompt_tokens": {"device": 100 + index},
+            },
+        }
+        row.update(dict.fromkeys(_UNOBSERVED_LEAVES))
+        rows.append(row)
     return rows
 
 
@@ -93,9 +142,10 @@ def _bucket_of(row: dict) -> int:
     return int(datetime.fromisoformat(row["window_start"]).timestamp())
 
 
-@pytest.fixture
-def record(tmp_path):
-    raw_path = tmp_path / "raw.jsonl"
+@pytest.fixture(scope="session")
+def record(tmp_path_factory):
+    """The raw record, built once -- no test mutates it, only reads it."""
+    raw_path = tmp_path_factory.mktemp("record") / "raw.jsonl"
     rows = _raw_rows()
     _write(raw_path, rows)
     return raw_path, rows
@@ -135,26 +185,22 @@ def test_counter_difference_across_a_tier_boundary_equals_the_raw_difference(
     hour = read_rows(tmp_path / "hour.jsonl")
 
     for window_s, tier_rows in ((60, minute), (3600, hour)):
-        endpoints = _raw_endpoints(rows, window_s, "prefix_cache_queries_total")
+        endpoints = _raw_endpoints(rows, window_s, _SYNTHETIC_COUNTER)
         for row in tier_rows:
-            assert row["prefix_cache_queries_total"] == endpoints[_bucket_of(row)]
+            assert row[_SYNTHETIC_COUNTER] == endpoints[_bucket_of(row)]
 
         # A difference between two compacted rows must equal the raw difference.
         first, last = tier_rows[5], tier_rows[len(tier_rows) // 2]
-        compacted_delta = (
-            last["prefix_cache_queries_total"] - first["prefix_cache_queries_total"]
-        )
-        raw_delta = (
-            endpoints[_bucket_of(last)] - endpoints[_bucket_of(first)]
-        )
+        compacted_delta = last[_SYNTHETIC_COUNTER] - first[_SYNTHETIC_COUNTER]
+        raw_delta = endpoints[_bucket_of(last)] - endpoints[_bucket_of(first)]
         assert compacted_delta == raw_delta > 0
 
         # A mean would have produced a different number; show it is not that.
         window = [r for r in rows if _window_start(
             datetime.fromisoformat(r["timestamp"]), window_s
         ) == _bucket_of(first)]
-        mean = sum(r["prefix_cache_queries_total"] for r in window) / len(window)
-        assert first["prefix_cache_queries_total"] > mean
+        mean = sum(r[_SYNTHETIC_COUNTER] for r in window) / len(window)
+        assert first[_SYNTHETIC_COUNTER] > mean
 
     # Nested engine counters compact by endpoint too.
     raw_gen = {
@@ -194,9 +240,9 @@ def test_compacted_gauge_rows_carry_the_observation_weight_behind_them(
     for row in hour:
         group = minute_by_hour[_bucket_of(row)]
         weighted = sum(
-            m["kv_cache_usage_perc"] * m["obs"]["samples"] for m in group
+            m[_SYNTHETIC_GAUGE] * m["obs"]["samples"] for m in group
         ) / sum(m["obs"]["samples"] for m in group)
-        assert row["kv_cache_usage_perc"] == pytest.approx(weighted, abs=1e-6)
+        assert row[_SYNTHETIC_GAUGE] == pytest.approx(weighted, abs=1e-6)
 
 
 def test_gauge_means_are_time_weighted_not_single_samples(tmp_path, record):
@@ -211,12 +257,110 @@ def test_gauge_means_are_time_weighted_not_single_samples(tmp_path, record):
         if _window_start(datetime.fromisoformat(r["timestamp"]), 60)
         == _bucket_of(target)
     ]
-    expected_running = sum(r["num_requests_running"] for r in window) / len(window)
-    assert target["num_requests_running"] == pytest.approx(expected_running, abs=1e-9)
+    expected_running = sum(r[_SYNTHETIC_GAUGE] for r in window) / len(window)
+    assert target[_SYNTHETIC_GAUGE] == pytest.approx(expected_running, abs=1e-9)
 
     # An identity leaf is carried from the last row, never averaged.
     assert target["served_name"] == "deepseek-v4.1-flash"
-    assert target["job_id"] == "1273253"
+    assert target["job_id"] == "1271903"
+
+
+def test_a_null_leaf_does_not_erase_what_its_window_accumulated():
+    """A null mid-window must not discard the samples already folded in.
+
+    The weights are equal, so the window's mean is the mean of the four rows
+    that observed the gauge. A null that overwrote the accumulator would leave
+    only the rows after it, which is a different number declared under the same
+    window weight.
+    """
+    values = [10.0, 20.0, None, 40.0, 50.0]
+    rows = [
+        {
+            "timestamp": (_START + timedelta(seconds=12 * index)).isoformat(),
+            "gauge": value,
+        }
+        for index, value in enumerate(values)
+    ]
+    compacted = compact_rows(rows, tier=TIER_MINUTE)
+    assert len(compacted) == 1
+
+    row = compacted[0]
+    observed = [value for value in values if value is not None]
+    assert row["gauge"] == pytest.approx(sum(observed) / len(observed))
+    assert row["obs"]["samples"] == len(values)
+    assert row["obs"]["seconds"] == pytest.approx(60.0)
+
+
+def test_a_counter_keeps_its_endpoint_across_a_null():
+    """A null carries no value, so the window's endpoint is its last observed one.
+
+    The null in the middle and the null at the end of the window are separate
+    positions: a null that overwrote the accumulator would leave the first
+    without the 110 it accumulated, and the second with nothing at all -- and a
+    window whose endpoint is null reads downstream as a counter that reset.
+    """
+    for values, expected in (([100.0, 110.0, None, 130.0], 130.0), ([100.0, 110.0, None], 110.0)):
+        rows = [
+            {
+                "timestamp": (_START + timedelta(seconds=12 * index)).isoformat(),
+                "hits_total": value,
+            }
+            for index, value in enumerate(values)
+        ]
+        assert compact_rows(rows, tier=TIER_MINUTE)[0]["hits_total"] == expected
+
+
+def test_a_gauge_null_in_part_of_a_window_means_only_its_observations(
+    tmp_path, record
+):
+    """The fixture's throughput gauge is null once per window, as in the live record.
+
+    Its mean must be taken over the rows that carried it, and the window must
+    still declare every row it covered.
+    """
+    raw_path, rows = record
+    compact_file(raw_path, tmp_path / "minute.jsonl", tier=TIER_MINUTE)
+    minute = read_rows(tmp_path / "minute.jsonl")
+
+    observed: dict[int, list[float]] = {}
+    covered: dict[int, int] = {}
+    for r in rows:
+        bucket = _window_start(datetime.fromisoformat(r["timestamp"]), 60)
+        covered[bucket] = covered.get(bucket, 0) + 1
+        value = r["generation_throughput_toks_per_s"]
+        if value is not None:
+            observed.setdefault(bucket, []).append(value)
+
+    assert len(observed) == len(minute)
+    for row in minute:
+        bucket = _bucket_of(row)
+        values = observed[bucket]
+        assert values, "a window with no observation cannot carry a mean"
+        assert len(values) == covered[bucket] - 1  # one unobserved tick per window
+        assert row["generation_throughput_toks_per_s"] == pytest.approx(
+            sum(values) / len(values)
+        )
+        assert row["obs"]["samples"] == covered[bucket]
+
+    assert sum(len(v) for v in observed.values()) == len(rows) - len(minute)
+
+
+def test_a_leaf_null_in_every_row_compacts_to_null(tmp_path, record):
+    """*Not observed* is not *zero*: an unpopulated leaf stays null, at both tiers.
+
+    A counter that compacted to 0.0 here would read to a downstream difference as
+    a counter that reset.
+    """
+    raw_path, rows = record
+    run_compaction(raw_path, tmp_path / "minute.jsonl", tmp_path / "hour.jsonl")
+    for tier_rows in (
+        read_rows(tmp_path / "minute.jsonl"),
+        read_rows(tmp_path / "hour.jsonl"),
+    ):
+        for row in tier_rows:
+            for name in _UNOBSERVED_LEAVES:
+                assert name in row
+                assert row[name] is None
 
 
 def test_compaction_is_idempotent(tmp_path, record):
@@ -247,7 +391,7 @@ def test_a_source_tier_survives_its_successor(tmp_path, record):
 
 def test_a_row_without_a_usable_timestamp_is_refused():
     with pytest.raises(TelemetryStoreError):
-        compact_rows([{"prefix_cache_queries_total": 1}], tier=TIER_MINUTE)
+        compact_rows([{_SYNTHETIC_COUNTER: 1}], tier=TIER_MINUTE)
     with pytest.raises(TelemetryStoreError):
         compact_rows(
             [{"timestamp": "2026-09-01T00:00:00"}], tier=TIER_MINUTE
