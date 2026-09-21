@@ -1687,11 +1687,17 @@ except ImportError:
     <h2 id="recorder-row-evidence">Evidence</h2>
 
     <p><strong>Gates.</strong> <code>uv run --no-sync pytest
-    tests/test_agent_serve_registry.py -k serving_python</code> reports
-    <strong>2 passed</strong>, which matters here because the repository's linter
-    targets a newer interpreter than the one that imports this module during a serve.
-    Beside it the focused gate and the whole-tree lint gate are reported on the plan's
-    §3 landing record.</p>
+    tests/test_agent_serving_receipts.py</code> reports <strong>27 passed</strong>
+    against <strong>15 passed</strong> for the base revision's copy of the same file
+    (revision <code>61995960</code>) — the twelve added tests are the section,
+    hostname, staggered-omission, tier-path, cadence, failed-compaction and CLI tests
+    below. The base file's fifteen tests also run green against the wired module
+    unchanged, so the existing call contract is intact.
+    <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0, and
+    <code>uv run --no-sync pytest tests/test_agent_serve_registry.py -k
+    serving_python</code> reports <strong>2 passed</strong> — the guard that matters
+    here because the repository's linter targets a newer interpreter than the one
+    that imports this module during a serve.</p>
 
     <p><strong>The omission rule was shown to be load-bearing rather than
     decorative.</strong> The mutation changes one loop header in
