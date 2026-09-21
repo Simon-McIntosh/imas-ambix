@@ -573,9 +573,7 @@ def test_a_request_the_router_answers_itself_is_recorded(tmp_path: Path) -> None
             assert _status(refused) == 404
             listed = await _invoke(app, "GET", "/v1/models", b"")
             assert _status(listed) == 200
-            malformed = await _invoke(
-                app, "POST", "/v1/chat/completions", b"{not json"
-            )
+            malformed = await _invoke(app, "POST", "/v1/chat/completions", b"{not json")
             assert _status(malformed) == 400
 
         rows = _read_rows(receipts)
@@ -619,9 +617,7 @@ def test_the_sampling_ceiling_is_read_from_the_environment(
         async with _server(engine) as engine_url:
             unlimited = tmp_path / "unlimited.jsonl"
             monkeypatch.setenv(RECEIPT_MAX_ROWS_PER_S_ENV, "inf")
-            async with _router_with_receipts(
-                [Upstream(engine_url)], unlimited
-            ) as app:
+            async with _router_with_receipts([Upstream(engine_url)], unlimited) as app:
                 for _ in range(offered):
                     await _invoke(app, "POST", "/v1/chat/completions", body)
             rows = _read_rows(unlimited)
@@ -635,9 +631,7 @@ def test_the_sampling_ceiling_is_read_from_the_environment(
                 [Upstream(engine_url)], throttled
             ) as throttled_app:
                 for _ in range(offered):
-                    await _invoke(
-                        throttled_app, "POST", "/v1/chat/completions", body
-                    )
+                    await _invoke(throttled_app, "POST", "/v1/chat/completions", body)
             sink = throttled_app._receipts
             assert sink is not None
             kept = _read_rows(throttled)
