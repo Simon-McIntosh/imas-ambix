@@ -9,12 +9,22 @@ import json
 import logging
 import os
 import sys
+import time
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Protocol
 
 import aiohttp
 
+from imas_ambix.agent.request_receipts import (
+    RECEIPTS_FILENAME,
+    STATUS_ABORTED,
+    STATUS_COMPLETED,
+    STATUS_FAILED,
+    RequestReceiptSink,
+    StreamAccounting,
+)
 from imas_ambix.agent.vllm_catalog import validate_catalog_metadata
 
 AsgiMessage = dict[str, Any]
@@ -174,8 +184,21 @@ class RouterApp:
         connection_limit: int = 2048,
         lane_document: Path | None = None,
         lane_interval: int = 30,
+        request_receipts_path: Path | None = None,
     ) -> None:
         self._resolver = resolver
+        # Per-request attribution lands beside the lane document the launching
+        # command already names, so it needs no further operator step to be
+        # reachable once the router is running. Kept off entirely when there is
+        # no document directory to write into, and never able to disturb
+        # routing -- the sink logs a failure and discards.
+        if request_receipts_path is not None:
+            self._receipts_path: Path | None = request_receipts_path
+        elif lane_document is not None:
+            self._receipts_path = lane_document.with_name(RECEIPTS_FILENAME)
+        else:
+            self._receipts_path = None
+        self._receipts: RequestReceiptSink | None = None
         # The shared lane budget is published from here rather than from its own
         # allocation. A separate job spent a core of a 30-core GPU reservation
         # on one HTTP read every thirty seconds, while a peer's GPU work pended
@@ -265,7 +288,16 @@ class RouterApp:
         self._log_prefix_divergence(payload, scope)
         payload, body = self._repair_system_roles(payload, body)
         relay_body = self._clamp_output_tokens(payload, body, card)
-        await self._relay(scope, receive, send, relay_body, upstream)
+        await self._relay(
+            scope,
+            receive,
+            send,
+            relay_body,
+            upstream,
+            model_id=model_id,
+            caller_hint=self._caller_hint(scope),
+            started_at=datetime.now(UTC),
+        )
 
     async def _lifespan(self, receive: Receive, send: Send) -> None:
         while True:
@@ -282,6 +314,9 @@ class RouterApp:
                 if self._session is not None:
                     await self._session.close()
                     self._session = None
+                if self._receipts is not None:
+                    self._receipts.close()
+                    self._receipts = None
                 await send({"type": "lifespan.shutdown.complete"})
                 return
 
@@ -497,6 +532,10 @@ class RouterApp:
         send: Send,
         body: bytes,
         upstream: Upstream,
+        *,
+        model_id: str,
+        caller_hint: str,
+        started_at: datetime,
     ) -> None:
         session = await self._client()
         # content-length and transfer-encoding describe the body the CLIENT
@@ -528,39 +567,122 @@ class RouterApp:
         if query:
             target = f"{target}?{query.decode('ascii')}"
 
-        async with session.request(
-            scope["method"], target, data=body, headers=request_headers
-        ) as response:
-            await send(
-                {
-                    "type": "http.response.start",
-                    "status": response.status,
-                    "headers": list(response.raw_headers),
-                }
+        accounting = StreamAccounting()
+        began = time.perf_counter()
+        # Anything that is not a 2xx relayed whole reads as failed, so a request
+        # the engine refused is recorded as such rather than dropped or counted
+        # as a success. The outcome is only rewritten by the two paths that can
+        # tell better: a 2xx relay, and a caller that left mid-relay.
+        status = STATUS_FAILED
+        try:
+            async with session.request(
+                scope["method"], target, data=body, headers=request_headers
+            ) as response:
+                if 200 <= response.status < 300:
+                    status = STATUS_COMPLETED
+                await send(
+                    {
+                        "type": "http.response.start",
+                        "status": response.status,
+                        "headers": list(response.raw_headers),
+                    }
+                )
+                disconnected = asyncio.create_task(self._wait_for_disconnect(receive))
+                try:
+                    while True:
+                        next_chunk = asyncio.create_task(response.content.readany())
+                        done, _ = await asyncio.wait(
+                            {next_chunk, disconnected},
+                            return_when=asyncio.FIRST_COMPLETED,
+                        )
+                        if disconnected in done:
+                            status = STATUS_ABORTED
+                            next_chunk.cancel()
+                            await asyncio.gather(next_chunk, return_exceptions=True)
+                            response.close()
+                            return
+                        chunk = next_chunk.result()
+                        if not chunk:
+                            break
+                        accounting.feed(chunk)
+                        await send(
+                            {
+                                "type": "http.response.body",
+                                "body": chunk,
+                                "more_body": True,
+                            }
+                        )
+                    accounting.finish()
+                    await send({"type": "http.response.body", "body": b""})
+                finally:
+                    disconnected.cancel()
+                    await asyncio.gather(disconnected, return_exceptions=True)
+        except asyncio.CancelledError:
+            # The router is shutting down under an in-flight request; the
+            # caller's answer is incomplete, which is exactly what the row
+            # should say.
+            status = STATUS_ABORTED
+            raise
+        finally:
+            self._record_receipt(
+                accounting=accounting,
+                status=status,
+                model_id=model_id,
+                upstream=upstream,
+                caller_hint=caller_hint,
+                started_at=started_at,
+                began=began,
             )
-            disconnected = asyncio.create_task(self._wait_for_disconnect(receive))
-            try:
-                while True:
-                    next_chunk = asyncio.create_task(response.content.readany())
-                    done, _ = await asyncio.wait(
-                        {next_chunk, disconnected},
-                        return_when=asyncio.FIRST_COMPLETED,
-                    )
-                    if disconnected in done:
-                        next_chunk.cancel()
-                        await asyncio.gather(next_chunk, return_exceptions=True)
-                        response.close()
-                        return
-                    chunk = next_chunk.result()
-                    if not chunk:
-                        break
-                    await send(
-                        {"type": "http.response.body", "body": chunk, "more_body": True}
-                    )
-                await send({"type": "http.response.body", "body": b""})
-            finally:
-                disconnected.cancel()
-                await asyncio.gather(disconnected, return_exceptions=True)
+
+    def _receipt_sink(self) -> RequestReceiptSink | None:
+        """The process's receipt sink, built on first use.
+
+        Built lazily so a router with no receipts path pays nothing, and
+        constructed without IO so a bad path cannot fail a request.
+        """
+        if self._receipts_path is None:
+            return None
+        if self._receipts is None:
+            self._receipts = RequestReceiptSink(self._receipts_path)
+        return self._receipts
+
+    def _record_receipt(
+        self,
+        *,
+        accounting: StreamAccounting,
+        status: str,
+        model_id: str,
+        upstream: Upstream,
+        caller_hint: str,
+        started_at: datetime,
+        began: float,
+    ) -> None:
+        """Append the row for one relayed request, whatever its outcome.
+
+        Never raises into the relay: this runs in a ``finally`` whose exception
+        may still be propagating, so a failure here would replace the real
+        error with a bookkeeping one.
+        """
+        sink = self._receipt_sink()
+        if sink is None:
+            return
+        try:
+            sink.record(
+                model=model_id,
+                upstream=upstream.base_url,
+                caller_hint=caller_hint,
+                status=status,
+                duration_s=time.perf_counter() - began,
+                accounting=accounting,
+                timestamp=started_at,
+            )
+        except (OSError, TypeError, ValueError) as error:
+            logger.warning(
+                "request receipt dropped model=%s error=%s: %s",
+                model_id,
+                type(error).__name__,
+                error,
+            )
 
     @staticmethod
     def _repair_system_roles(
@@ -704,10 +826,17 @@ class RouterApp:
 
 
 def create_router_app(
-    resolver: UpstreamResolver, *, lane_document: Path | None = None
+    resolver: UpstreamResolver,
+    *,
+    lane_document: Path | None = None,
+    request_receipts_path: Path | None = None,
 ) -> RouterApp:
     """Build the ASGI application around an injected upstream resolver."""
-    return RouterApp(resolver, lane_document=lane_document)
+    return RouterApp(
+        resolver,
+        lane_document=lane_document,
+        request_receipts_path=request_receipts_path,
+    )
 
 
 def serve_router(
@@ -716,6 +845,7 @@ def serve_router(
     host: str = "0.0.0.0",
     port: int,
     lane_document: Path | None = None,
+    request_receipts_path: Path | None = None,
 ) -> None:
     """Run the router ASGI application with the serving runtime."""
     import uvicorn
@@ -735,7 +865,11 @@ def serve_router(
     logger.propagate = False
 
     uvicorn.run(
-        create_router_app(resolver, lane_document=lane_document),
+        create_router_app(
+            resolver,
+            lane_document=lane_document,
+            request_receipts_path=request_receipts_path,
+        ),
         host=host,
         port=port,
     )

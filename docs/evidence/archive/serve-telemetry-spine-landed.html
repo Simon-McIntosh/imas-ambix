@@ -13,6 +13,10 @@
   <meta name="plan-tags" content="agent-serving,telemetry,gpu-deployment">
   <meta name="plan-evidence-for" content="serve-telemetry-spine">
   <meta name="plan-verifies" content="serve-telemetry-spine#s2">
+  <meta name="plan-summary" content="Cumulative execution evidence for per-request receipts from the routing relay.">
+  <meta name="plan-evidence-for" content="serve-telemetry-spine">
+  <meta name="plan-verifies" content="serve-telemetry-spine#s6">
+  <meta name="plan-owner" content="Simon McIntosh">
   <title>Serve Telemetry Spine — Landed Record | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
@@ -127,6 +131,106 @@
     label sets with no <code>reason</code> labels, so they are expected to stay
     green. It is not covered by this node's done-when.</p>
 
+    <h1>Serve telemetry spine — execution record</h1>
+
+    <h2 id="request-receipts">§6 — Per-request receipts from the router</h2>
+
+    <p>One append-only row per completed request, appended by the router as it relays.
+    <code>imas_ambix/agent/request_receipts.py</code> holds the accounting and the sink;
+    <code>imas_ambix/agent/router.py</code> tees its own relay into them. The row carries
+    timestamp, model, upstream, prompt tokens, cached prompt tokens, completion tokens,
+    time to first token, duration, the caller hint the router already derives, an outcome
+    label, and the sampling fraction in force when it was written.</p>
+
+    <p>The tee never buffers the body the client receives: it is fed each relayed chunk and
+    keeps only a bounded per-line remainder plus a bounded head for the non-streaming
+    fallback, so a chunk the router forwards is never held; 8 MiB per line and 4 MiB of head
+    are the two bounds, and neither limits what the client gets. Field names and the
+    first-token definition are not re-derived — they follow
+    <code>bench.py::_stream_chat</code>, and a test drives one SSE payload through both
+    readers and asserts the agreement (1,234 prompt and 7 completion tokens from each), so a
+    relay figure and a benchmark figure stay comparable rather than merely similar. The
+    parse of <code>usage.prompt_tokens_details.cached_tokens</code> is new: nothing else in
+    the repository read that field.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/request-receipts/receipt-overhead.png"
+           alt="Left: the sampling fraction the sink keeps against the offered request rate, flat at one below the configured 20 rows/s ceiling and falling as 20 over the offered rate above it. Right: a histogram of the added work per request over 200 requests, sitting three orders of magnitude below the 1000 microsecond budget at the p99.">
+      <figcaption>Left: the fraction of rows kept, driven through the landed sink at each
+      offered rate, against the configured 20 rows/s ceiling. Right: the added work one
+      request pays over 200 requests, with the p99 and the 1 ms budget marked. Both panels
+      are produced by the landed module rather than by a model of it.</figcaption>
+    </figure>
+
+    <h3 id="rr-contract">What the gate measured</h3>
+
+    <table>
+      <thead>
+        <tr><th>Claim</th><th>Measure</th><th>Result</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>N requests yield exactly N rows, each fully populated: model, upstream, prompt
+          tokens, cached prompt tokens, completion tokens, time to first token, duration,
+          caller hint, timestamp</td>
+          <td>5 requests through the real <code>RouterApp</code>, driven by the harness in
+          <code>tests/test_agent_router.py</code></td>
+          <td>5 rows, every field populated and asserted field by field</td>
+        </tr>
+        <tr>
+          <td>An aborted request yields one row marked aborted rather than none</td>
+          <td>a caller that disconnects after the first response body message, against a
+          stubbed engine</td>
+          <td>1 row, <code>status: aborted</code></td>
+        </tr>
+        <tr>
+          <td>A failed request is recorded as such rather than dropped</td>
+          <td>an engine answering 500</td>
+          <td>1 row, <code>status: failed</code>, token columns null because no usage ever
+          arrived</td>
+        </tr>
+        <tr>
+          <td>Added per-request latency under a millisecond at the p99, measured</td>
+          <td>the tee parse plus the flushed append over 200 requests, three runs</td>
+          <td>median 28.8-31.3 µs, p99 41.1-105.8 µs against the 1 ms budget</td>
+        </tr>
+        <tr>
+          <td>Sampling above the configured rate records its fraction on the rows kept</td>
+          <td>the landed sink driven at 2, 3, 4 and 5 rows/s against a configured 2 rows/s,
+          with the draw injected</td>
+          <td>fractions 1.0, 1.0, 2/3, 0.5, 0.4 with the offered rate stamped beside it;
+          a draw above the fraction drops the same stream to 2 rows written and 3 sampled
+          out</td>
+        </tr>
+        <tr>
+          <td>The usage and first-token parse reuses the shape of
+          <code>bench.py::_stream_chat</code></td>
+          <td>one SSE payload read by both readers</td>
+          <td>1,234 / 7 from each; a whole JSON body is read as the non-streaming equivalent
+          and leaves the first-token time unset, as <code>_chat</code> does</td>
+        </tr>
+        <tr>
+          <td>Whole-tree lint gate exits 0</td>
+          <td><code>uv run --no-sync ruff check imas_ambix tests</code></td>
+          <td>All checks passed</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>The latency figure is the work the receipts add to one request, not end-to-end
+    latency, and deliberately so: the row is written after the final response byte, so an
+    end-to-end figure would be dominated by engine and socket jitter that no change here
+    moves. Two bounded guards are exercised rather than assumed — a body truncated past the
+    head bound is refused instead of parsed as a fragment, and a destination whose parent is
+    a regular file logs once, disables the stream, and leaves the relay serving.</p>
+
+    <h3 id="rr-wiring">Reachability</h3>
+
+    <p>The receipt path is derived from the relay's own <code>lane_document</code> — the
+    document the launching command already names — as <code>requests.jsonl</code> beside it.
+    <code>create_router_app</code> and <code>serve_router</code> accept an explicit
+    <code>request_receipts_path</code> for a caller that wants another location. No launch
+    command needed changing, and none did.</p>
   </main>
 </body>
 </html>
