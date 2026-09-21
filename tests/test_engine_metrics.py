@@ -284,7 +284,10 @@ def test_a_series_name_without_a_value_is_not_a_source() -> None:
     header. Asking for a *sample* line is not enough either: a line carrying the
     name and its full label set but no value has nothing to read, and a trailing
     space is the same defect. Only a line that ends in a value token counts, so a
-    scrape that lost its samples cannot pass on its labels.
+    scrape that lost its samples cannot pass on its labels. Both spellings of a
+    sample are covered, label-bearing and unlabelled: the value is required of
+    each independently, and an unlabelled line has nothing but the value to hold
+    it to.
     """
     name = "num_running_reqs"
     labels = 'engine_type="unified",tp_rank="0"'
@@ -298,6 +301,8 @@ def test_a_series_name_without_a_value_is_not_a_source() -> None:
         "the name only in HELP/TYPE text": header,
         "the name and its labels, with no value": f"sglang:{name}{{{labels}}}",
         "the name and its labels, then a trailing space": f"sglang:{name}{{{labels}}} ",
+        "the bare name, unlabelled, with no value": f"sglang:{name}",
+        "the bare name, unlabelled, then a trailing space": f"sglang:{name} ",
         "a longer series name sharing the prefix": (
             f"sglang:{name}_total{{{labels}}} 1.0"
         ),
@@ -306,9 +311,13 @@ def test_a_series_name_without_a_value_is_not_a_source() -> None:
         assert not _has_sample_line(text, name, ""), description
 
     assert _has_sample_line(f"sglang:{name}{{{labels}}} 0.0", name, "")
+    assert _has_sample_line(f"sglang:{name} 0.0", name, "")
     assert not _has_sample_line(
         f"sglang:{name}{{{labels}}} 0.0", name, 'mode="input"'
     ), "the required label fragment must be read from the label set"
+    assert not _has_sample_line(
+        f"sglang:{name} 0.0", name, 'mode="input"'
+    ), "an unlabelled line cannot carry the required label fragment"
 
 
 def test_the_recorded_scrape_reads_as_measurements_not_a_column_of_zeros() -> None:
