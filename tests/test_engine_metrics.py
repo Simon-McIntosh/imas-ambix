@@ -73,6 +73,12 @@ _PLAN_CANONICAL_FIELDS: tuple[
         'mode="host_hit"',
     ),
     (
+        "cached tokens, split by the tier that answered",
+        ("cached_prompt_tokens", "storage"),
+        "prefill_effective_tokens_total",
+        'mode="storage_hit"',
+    ),
+    (
         "uncached prompt tokens",
         ("uncached_prompt_tokens",),
         "prefill_effective_tokens_total",
@@ -117,13 +123,34 @@ def _has_sample_line(text: str, name: str, label: str) -> bool:
         if not line.startswith(prefix):
             continue
         rest = line[len(prefix) :]
-        if rest[:1] not in ("{", " "):
+        if rest[:1] == "{":
+            close = rest.find("}")
+            if close == -1:
+                continue
+            labels, value = rest[: close + 1], rest[close + 1 :]
+        elif rest[:1] == " ":
+            labels, value = "", rest
+        else:
             # A longer series name that merely begins the same way.
             continue
-        if label and label not in rest:
+        if label and label not in labels:
+            continue
+        if not _begins_with_value(value):
             continue
         return True
     return False
+
+
+def _begins_with_value(remainder: str) -> bool:
+    """Whether *remainder* begins with a Prometheus sample value token."""
+    tokens = remainder.split()
+    if not tokens:
+        return False
+    try:
+        float(tokens[0])
+    except ValueError:
+        return False
+    return True
 
 
 def _per_pos_head(labels: str) -> str:
