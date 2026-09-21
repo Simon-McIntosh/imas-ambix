@@ -26,14 +26,47 @@
 
   <section id="fleet-allocation-holder">
     <h2>Persistent allocation holder</h2>
-    <p>Commit <code>e0a990fb</code> added
-    <code>imas_ambix/agent/fleet.py</code>, registered
+    <p>Commits <code>e0a990fb</code>, <code>435e8965</code> and <code>5e3e0adc</code>
+    added <code>imas_ambix/agent/fleet.py</code>, registered
     <code>imas-ambix agent fleet hold</code>, and added the focused allocation tests.
     The generator calls the existing <code>_sbatch_headers</code> emitter and the
     explicit submission path calls the existing <code>submit_script</code> adapter;
     there is no second path to <code>sbatch</code>. The default command printed the
     script, while only <code>--submit</code> exercised the mocked submission seam.
     No live job was submitted during this implementation.</p>
+
+    <p>Placement is not hard-coded in the emitter. <code>SiteConfig</code> owns
+    <code>fleet_partition</code> (<code>rigel</code>),
+    <code>fleet_account</code> (<code>iter</code>),
+    <code>fleet_cpus</code> (<code>28</code>) and
+    <code>fleet_memory</code> (<code>120G</code>), each with an
+    <code>AMBIX_AGENT_FLEET_*</code> override, and the generator resolves every
+    directive from a site instance as the other script emitters do. The account
+    differs from the GPU account deliberately: <code>iter</code> holds the
+    site-default <code>normal</code> QOS, while <code>grpa</code> carries the GPU
+    reservation's QOS, so a whole-node CPU allocation charges <code>iter</code>.</p>
+
+    <h3>120G against the plan's 128 GB</h3>
+    <p>The plan states a whole rigel node as 128 GB. The generated request is
+    <code>--mem=120G</code>, because a rigel node reports
+    <code>RealMemory=128000</code> MB — a request at the nominal figure would sit
+    at the node's whole real capacity, while one slightly below it leaves the node
+    room for its own footprint and still covers the fleet. This is the trap the
+    agent guidance records for <code>--mem=0</code>: a request at or above
+    <code>RealMemory</code> is effectively an exclusive-node request that cannot
+    start beside anything, and it reads to an operator as contention rather than
+    as sizing.</p>
+
+    <h3>Unbounded wall clock: asserted as a property, validated by the scheduler</h3>
+    <p>The limit is emitted as <code>--time=UNLIMITED</code> through the shared
+    header emitter, which takes the limit as a string and always emits the
+    directive. The test does not compare that literal — it rejects any value
+    matching the scheduler's finite-duration shape, so a value that expires fails
+    while an equally unbounded alternative spelling passes. Both directions are
+    shown below, because a test that can only agree with the constant it exempts
+    proves nothing. Whether the emitted token is one the scheduler accepts is a
+    separate question, answered by <code>sbatch --test-only</code>, which parses
+    the whole header without submitting anything.</p>
 
     <table>
       <thead><tr><th>Gate</th><th>Observed result</th></tr></thead>
@@ -42,11 +75,28 @@
         <code>imas-ambix agent fleet hold</code> exited 2 with
         <code>Error: No such command 'fleet'</code>.</td></tr>
         <tr><td>Focused test</td><td><code>uv run --no-sync pytest tests/agent/test_fleet.py</code>:
-        <code>3 passed in 1.20s</code>.</td></tr>
-        <tr><td>Negative control</td><td>Replacing <code>memory="120G"</code> with
-        <code>memory="0"</code> made
-        <code>test_fleet_hold_script_requests_bounded_whole_rigel_node</code> fail;
-        the source was then restored and the three-test gate passed again.</td></tr>
+        <code>5 passed in 0.69s</code>.</td></tr>
+        <tr><td>Declared negative control</td><td>Partition changed from
+        <code>rigel</code> to <code>rigel_debug</code>:
+        <code>test_fleet_hold_script_requests_unbounded_whole_node</code> failed
+        with <code>assert 'rigel_debug' == 'rigel'</code>; source restored, gate
+        green again.</td></tr>
+        <tr><td>Unboundedness, negative side</td><td><code>--time=24:00:00</code>
+        makes <code>test_fleet_hold_script_requests_no_finite_wall_clock</code> fail
+        with <code>fleet allocation requests a finite wall clock</code>.</td></tr>
+        <tr><td>Unboundedness, alternative spelling</td><td><code>--time=INFINITE</code>
+        passes the same test — the assertion tests the property, not the
+        literal.</td></tr>
+        <tr><td>Scheduler validation</td><td><code>sbatch --test-only
+        generated-fleet-hold.sbatch</code>: exit 0, <code>Job 1274549 to start at
+        2026-09-21T09:40:46 using 28 processors on nodes 98dci4-clu-2002 in
+        partition rigel</code>. Nothing was submitted. The instrument
+        discriminates: <code>--time=BOGUS</code> is refused with
+        <code>Invalid --time specification</code>, exit 255.</td></tr>
+        <tr><td>Second receipt (zero memory)</td><td>Site default
+        <code>fleet_memory</code> set to <code>0</code> makes
+        <code>test_fleet_hold_script_requests_no_zero_memory</code> fail; source
+        restored.</td></tr>
         <tr><td>Repository lint</td><td><code>uv run --no-sync ruff check imas_ambix tests</code>:
         <code>All checks passed!</code>, exit 0.</td></tr>
       </tbody>
