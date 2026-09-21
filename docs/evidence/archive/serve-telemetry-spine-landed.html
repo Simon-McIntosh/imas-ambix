@@ -148,21 +148,25 @@
     resolving with the file green. Deletion is caught; a rename is caught; emptying the
     mapping was <em>not</em>, because the expectation emptied with it. Measured: dropping the
     canonical counter <code>prefix_cache_queries</code> from <code>COUNTER_SERIES</code>
-    outright left the whole file green — <code>16 passed</code>, exit 0 — and emptying the
+    outright left the whole file green — all 16 of its tests then in the file passed, exit 0 —
+    and emptying the
     SGLang mapping for <code>requests_queued</code> left the presence assertion green over
     that assertion alone (<code>1 passed</code>, exit 0), the file's red coming from peer
-    tests that name the key directly. The plan's canonical set is now written out with each
+    tests that name the key directly. Both are re-measured at the head under test as well:
+    with the expectation written out, those two mutations fail 1 of 17 and 4 of 17. The
+    plan's canonical set is now written out with each
     quantity's value path and its source series, each family's section keys are written out in
     a second literal (<code>_SECTION_KEYS</code>) compared against the reading, and all of it
     is asserted against the fixture's bytes.</p>
 
     <table>
       <caption>The new assertions under four reader mutations, two expectation mutations,
-      two mutations of the sample-line check itself, and one stored-scrape deletion, with
+      four mutations of the sample-line check itself, and one stored-scrape deletion, with
       what the file's other tests do with two of them. The deletion row is the declared
-      control, run with only the field-set test selected; the other rows ran the whole file.
-      Each row is receipted against the revision and selector under test, and every count is
-      quoted against the file's 16 tests.</caption>
+      control, run with only the field-set test selected; the deletion row's own count is of
+      the selection, the other rows ran the whole file. Each row is receipted against the
+      revision and selector under test, and every count is quoted against the file's 17
+      tests.</caption>
       <thead><tr><th>Mutation applied</th><th>New assertion</th><th>Result</th></tr></thead>
       <tbody>
         <tr>
@@ -170,30 +174,30 @@
           scrape does not carry: <code>('num_running_reqs',)</code> →
           <code>('num_running_reqs_renamed',)</code></td>
           <td>red — <code>requests_running</code> unresolved</td>
-          <td>6 of 16 fail</td>
+          <td>7 of 17 fail</td>
         </tr>
         <tr>
           <td><code>COUNTER_SERIES["generation_tokens"][sglang]</code> renamed</td>
           <td>red — <code>generation_tokens</code> unresolved</td>
-          <td>5 of 16 fail</td>
+          <td>5 of 17 fail</td>
         </tr>
         <tr>
           <td><code>HISTOGRAM_SERIES["time_to_first_token"][sglang]</code> emptied</td>
           <td>red — <code>histograms.time_to_first_token</code> unresolved</td>
-          <td>4 of 16 fail</td>
+          <td>4 of 17 fail</td>
         </tr>
         <tr>
           <td><code>SGLANG_CACHE_TIERS["storage_hit"]</code> dropped, so the scraped
           <code>mode="storage_hit"</code> samples no longer reach a canonical key</td>
           <td>red — <code>cached_prompt_tokens['storage']</code> unresolved</td>
-          <td>2 of 16 fail</td>
+          <td>2 of 17 fail</td>
         </tr>
         <tr>
           <td><code>GAUGE_SERIES["requests_queued"][sglang]</code> emptied to
           <code>()</code>, so the reading omits the gauge</td>
           <td>red — the presence assertion names <code>sglang</code> with
           <code>requests_queued</code> extra in the expected set</td>
-          <td>4 of 16 fail</td>
+          <td>4 of 17 fail</td>
         </tr>
         <tr>
           <td><code>COUNTER_SERIES["prefix_cache_queries"]</code> dropped, key and
@@ -202,22 +206,40 @@
           <code>prefix_cache_queries</code> extra in the expected set. Before the expectation
           was written out, this mutation left the whole file green — the reading and the
           expectation lost the key together</td>
-          <td>1 of 16 fail <em>(pre-fix: 16 passed)</em></td>
+          <td>1 of 17 fail <em>(pre-fix: the whole file passed, all 16 of its tests)</em></td>
         </tr>
         <tr>
           <td>the sample-line check replaced by the pre-delegation substring form, which
           counts any occurrence of the family-qualified name as a source</td>
           <td>red — <code>'# HELP sglang:num_running_reqs The number of running
           requests.\n# TYPE sglang:num_running_reqs gauge'</code> (the name in the
-          exposition's own metadata) counted as a sourced series</td>
-          <td>1 of 16 fail</td>
+          exposition's own metadata) counted as a sourced series, and a sample on a rank
+          other than rank zero, which the reader discards, counted as a source</td>
+          <td>2 of 17 fail</td>
         </tr>
         <tr>
           <td>the sample-line check made to drop the unlabelled spelling of a sample line
           before the label requirement is consulted</td>
           <td>red — <code>sglang:num_running_reqs 0.0</code> (unlabelled, value present)
-          refused as a sourced series</td>
-          <td>1 of 16 fail</td>
+          refused as a sourced series, and the unlabelled total
+          <code>vllm:num_requests_waiting 4.0</code> refused with it</td>
+          <td>2 of 17 fail</td>
+        </tr>
+        <tr>
+          <td>the sample-line check made to compare a sample's whole name against the
+          single-colon spelling rather than reading its last segment the way the reader does</td>
+          <td>red — <code>sglang:x:num_running_reqs 1.0</code>, which the reader resolves
+          because it reads only a name's last segment, refused as a sourced series</td>
+          <td>1 of 17 fail</td>
+        </tr>
+        <tr>
+          <td>the sample-line check made to iterate every parsed sample, without the reader's
+          eligibility rules</td>
+          <td>red — <code>sglang:num_running_reqs{tp_rank="1"} 1.0</code>, a repeated
+          tensor-parallel rank the reader discards, and
+          <code>vllm:num_requests_waiting{reason="capacity"} 4.0</code>, a breakdown
+          beside its family total, counted as sourced</td>
+          <td>1 of 17 fail</td>
         </tr>
         <tr>
           <td>the canonical field itself deleted from the stored scrape: the fixture line
@@ -225,7 +247,7 @@
           removed (fixture line 146, the only sample of that series)</td>
           <td>red — <code>unresolved ['requests running (requests_running)']</code> and
           <code>unsourced ['requests running (requests_running) &lt;- num_running_reqs']</code></td>
-          <td>1 failed, 15 deselected</td>
+          <td>1 failed, 16 deselected</td>
         </tr>
       </tbody>
     </table>
@@ -242,22 +264,29 @@
     the suite re-run green. A control that fails for the wrong reason, or a check that cannot
     fail, is why this one is run against the fixture rather than only the reader.</p>
 
-    <p><strong>That repaired check is itself pinned, and it is now held to the reader rather
-    than to a peel of its own.</strong> The value-token requirement had no committed test
+    <p><strong>That repaired check is itself pinned, and it now answers as the reader does,
+    on each step the reader takes.</strong> The value-token requirement had no committed test
     holding it: restoring the earlier sample-line check left the whole file green, so a line
-    carrying a series name and its full label set but no value would count as a sourced
-    series again, silently — a scrape that lost its samples passing on its labels. The test
-    feeds exactly that line and asserts it is not a source. A guard written beside the reader
-    can also fail in the other direction, and did: the earlier check peeled each line by hand,
-    so it refused an indented samples section — legal exposition that
-    <code>parse_metrics</code> accepts and resolves — and would have called a series unsourced
-    while the reader read its value. The check now asks the reader for its samples
-    (<code>parse_metrics</code>, and <code>_LABEL_RE</code> for a required label fragment), so
-    the two cannot disagree on what a sample line is, and the corpus carries the shapes a
-    hand-rolled peel refused as well as the ones it must refuse. Both rows above are
-    receipted, and both are re-measured at the revision under test rather than carried over:
-    the file carries 16 tests, so each count is quoted against 16.</p>
-
+    carrying a series name and its full label set but no value would count as a sourced series
+    again, silently — a scrape that lost its samples passing on its labels. The test feeds
+    exactly that line and asserts it is not a source. A guard written beside the reader can
+    also disagree with it the other way, and did. Peeled by hand, it refused an indented
+    samples section — legal exposition that <code>parse_metrics</code> accepts and resolves.
+    Made to delegate that peeling alone, it still diverged twice: it compared a sample's whole
+    name, so a name carrying more than one colon —
+    <code>sglang:x:num_running_reqs 1.0</code>, which resolves in production because only a
+    name's last segment is read — was reported unsourced; and it iterated every parsed
+    sample, so a sample the reader discards — a repeated tensor-parallel rank,
+    <code>sglang:num_running_reqs{tp_rank="1"} 1.0</code>, or a
+    <code>reason</code>-labelled breakdown beside its family total — was counted as a source.
+    The check now takes three things from the reader: <code>parse_metrics</code> for what a
+    sample line is, <code>eligible_samples</code> for which samples a reading is made of, and
+    <code>_bare</code> for how a sample name is compared. A per-input agreement test asserts
+    the guard's verdict equals the reading's on both divergences and on their positive
+    controls — rank zero, and the total a breakdown belongs to — so an input that agreed
+    only by answering <code>False</code> twice cannot satisfy it. All four rows above are
+    receipted, and all are re-measured at the revision under test rather than carried over:
+    the file carries 17 tests, so each count is quoted against 17.</p>
     <p><strong>A repair that renames an identifier invalidates every receipt naming it.</strong>
     The declared control was re-run at the head under test rather than carried over: its
     earlier receipt quoted the field-set test's previous name, so replaying that command at
@@ -275,9 +304,9 @@
 
     <p><strong>Gates.</strong> <code>uv run --no-sync pytest tests/test_engine_metrics.py
     tests/test_agent_lane_sglang.py tests/test_agent_lane_gzip.py
-    tests/test_agent_serving_receipts.py</code> reports <strong>35 passed</strong>;
-    <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0. The engine-metrics file
-    carries 16 tests against 13 before the change.</p>
+    tests/test_agent_serving_receipts.py</code> reports <strong>36 passed</strong>;
+    <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0. The
+    engine-metrics file carries 17 tests against 13 before the change.</p>
 
     <p><strong>Left open, with its measurement.</strong> The fixture is an early-life scrape:
     its canonical gauges are a uniform zero (<code>requests_running 0</code>,
