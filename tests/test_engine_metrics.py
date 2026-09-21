@@ -28,18 +28,46 @@ _SGLANG_FIXTURE = Path(__file__).parent / "data" / "sglang_metrics_sample.txt"
 
 # Keys ``row_section`` may carry besides the canonical quantities themselves.
 _ANNOTATION_KEYS = frozenset({"family", "model_id"})
-_CANONICAL_KEYS = (
-    frozenset(engine_metrics.GAUGE_SERIES)
-    | frozenset(engine_metrics.COUNTER_SERIES)
+
+# The keys a reading of each family carries, spelled out: the canonical
+# quantities that family publishes plus the two annotations. Written out rather
+# than read from ``engine_metrics``' own tables for the same reason as
+# ``_CANONICAL_FIELD_SOURCES`` below -- an expectation derived from those tables
+# moves with them, so emptying a family's series mapping takes the delivered key
+# away in the same step that takes the expected one, and the omission leaves no
+# failure behind. An SGLang reading carries neither the prefix-cache counters nor
+# the speculative-decode terms, since that family publishes no series for them.
+_SECTION_KEYS: dict[str, frozenset[str]] = {
+    engine_metrics.FAMILY_SGLANG: _ANNOTATION_KEYS
     | frozenset(
         {
+            "requests_running",
+            "requests_queued",
+            "kv_pool_occupancy",
+            "prompt_tokens",
+            "generation_tokens",
+            "cached_prompt_tokens",
+            "uncached_prompt_tokens",
+            "histograms",
+        }
+    ),
+    engine_metrics.FAMILY_VLLM: _ANNOTATION_KEYS
+    | frozenset(
+        {
+            "requests_running",
+            "requests_queued",
+            "kv_pool_occupancy",
+            "prompt_tokens",
+            "generation_tokens",
+            "prefix_cache_queries",
+            "prefix_cache_hits",
             "cached_prompt_tokens",
             "uncached_prompt_tokens",
             "histograms",
             "spec_decode",
         }
-    )
-)
+    ),
+}
 
 
 # The canonical quantities an SGLang reading must expose, spelled out here with
@@ -211,14 +239,6 @@ def _sglang_section() -> dict[str, object]:
     return _section(_SGLANG_FIXTURE.read_text(encoding="utf-8"))
 
 
-def _published(family: str) -> set[str]:
-    """Canonical keys *family* publishes, read from its own series tables."""
-    keys = {"histograms"}
-    for table in (engine_metrics.GAUGE_SERIES, engine_metrics.COUNTER_SERIES):
-        keys |= {name for name, series in table.items() if series[family]}
-    return keys
-
-
 # ---------------------------------------------------------------------------
 # One code path, both families
 # ---------------------------------------------------------------------------
@@ -383,33 +403,22 @@ def test_vllm_scrape_resolves_through_the_same_reader() -> None:
 def test_both_families_report_every_quantity_they_publish() -> None:
     """Presence follows the family tables, not a branch in the reader.
 
-    Both fixtures carry every series their family publishes, so each family's section
-    must contain exactly the canonical keys those tables name plus the two
-    annotations -- a family-specific omission would show up as a missing key here.
+    Both fixtures carry every series their family publishes, so each family's
+    section must carry exactly the keys written down in ``_SECTION_KEYS`` -- the
+    canonical quantities that family publishes plus the two annotations. The
+    expectation is a literal, so a family whose series mapping loses a quantity
+    fails here rather than moving its expected key in step with the delivered one.
     """
     delivered = {
         engine_metrics.FAMILY_SGLANG: set(_sglang_section()),
         engine_metrics.FAMILY_VLLM: set(_section(_vllm_metrics())),
     }
 
-    for family in engine_metrics.FAMILIES:
-        assert _published(family) <= delivered[family], family
-        assert delivered[family] <= _ANNOTATION_KEYS | _CANONICAL_KEYS, family
-
-    # The vLLM fixture carries the full canonical set, including the terms that
-    # only exist where a tier answered the prefill.
-    expected_vllm = (
-        _ANNOTATION_KEYS
-        | set(engine_metrics.GAUGE_SERIES)
-        | set(engine_metrics.COUNTER_SERIES)
-        | {
-            "cached_prompt_tokens",
-            "uncached_prompt_tokens",
-            "histograms",
-            "spec_decode",
-        }
-    )
-    assert delivered[engine_metrics.FAMILY_VLLM] == expected_vllm
+    # The literal must cover every family, so a new family cannot arrive with no
+    # written-down expectation and pass by default.
+    assert set(delivered) == set(engine_metrics.FAMILIES)
+    for family, expected in _SECTION_KEYS.items():
+        assert delivered[family] == expected, family
 
 
 # ---------------------------------------------------------------------------
