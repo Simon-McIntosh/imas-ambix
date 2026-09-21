@@ -25,10 +25,10 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-21">
-<meta name="plan-version" content="8">
-<meta name="plan-impl" content="0.429">
+<meta name="plan-version" content="9">
+<meta name="plan-impl" content="0.833">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
-<meta name="plan-commits" content="e523036b842dbd9c6dbc205bfd0753335e82c342,e0a990fb4486ac0e75ff217a1fecb432ae5b0962,cff4e0d5c976b8d2d9e71edfc6913eb9700e1aed,3452b5799770701d9e8d596773f5dd40365a127f">
+<meta name="plan-commits" content="e523036b842dbd9c6dbc205bfd0753335e82c342,e0a990fb4486ac0e75ff217a1fecb432ae5b0962,cff4e0d5c976b8d2d9e71edfc6913eb9700e1aed,3452b5799770701d9e8d596773f5dd40365a127f,04febe688b92501981ee03200bc8bd52ada451cc,ddadc8d4766491e59be40726f977c45fd8643cba,bc82504e581e04ff5e173a6bee2a60335ef13a2a">
 <meta name="plan-artifacts" content="docs/research/site-request-user-lingering.html,imas_ambix/agent/fleet.py,imas_ambix/agent/throttling.py,tests/agent/test_fleet.py,tests/agent/test_throttling.py">
 </head>
 <body>
@@ -403,6 +403,9 @@
 </div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20260921T075506250137-fleet-declared-control-receipt" data-who="reckon-ship" data-when="2026-09-21T08:04:52.397Z">
     <div class="r-comment-body"><p>independent receipt for the allocation declared mutation: first line verbatim, the applied diff recorded, the guard observed failing (1 failed, 4 passed) and passing again after restore (5 passed), worktree clean. Contract tension noted: the embedded worker contract instructs every node to author a landing record in the plan, while the test role forbids any repository write</p></div>
+</div>
+<div class="r-comment" data-section="s7" data-id="c-20260921-integrated-gate" data-who="reckon-ship" data-when="2026-09-21T08:15:00Z">
+    <div class="r-comment-body">Both implementation gates re-run at the integrated revision 13e30088 rather than at each worker's own base: integrated_verdict passed for the allocation checks and for the sampler checks, no finding. Both negative controls now read matched against their declared mutations — the allocation's receipt produced by an independently dispatched verifier after a lane change orphaned its own session.</div>
 </div>
 <div class="r-comment" data-section="s6" data-id="c-20260921-reckon-already-has-placement" data-who="reckon-ship" data-when="2026-09-21T07:27:00Z">
     <div class="r-comment-body">This section's boundary needs revisiting. It says a dispatch change would be a dependency to raise in reckon. Measured on 2026-09-21: reckon has already built that path — a persistent salloc --no-shell reservation, workers placed into it as srun --overlap --jobid steps, published reservation state and a reckon crew placement --ensure operator command — and it is unarmed, with zero placement keys in the live flight config and no reservation record on disk. So nothing needs raising; what is open is whether the fleet's interactive allocation and reckon's worker reservation are one allocation or two, and reckon's defaults (partition all, 32 cores, 128 GB) differ from this plan's locked rigel, 28 cores, 120G.</div>
