@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-21">
-<meta name="plan-version" content="8">
+<meta name="plan-version" content="9">
 <meta name="plan-impl" content="0.429">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="e523036b842dbd9c6dbc205bfd0753335e82c342,e0a990fb4486ac0e75ff217a1fecb432ae5b0962,cff4e0d5c976b8d2d9e71edfc6913eb9700e1aed,3452b5799770701d9e8d596773f5dd40365a127f">
@@ -406,6 +406,9 @@
 </div>
 <div class="r-comment" data-section="s6" data-id="c-20260921-reckon-already-has-placement" data-who="reckon-ship" data-when="2026-09-21T07:27:00Z">
     <div class="r-comment-body">This section's boundary needs revisiting. It says a dispatch change would be a dependency to raise in reckon. Measured on 2026-09-21: reckon has already built that path — a persistent salloc --no-shell reservation, workers placed into it as srun --overlap --jobid steps, published reservation state and a reckon crew placement --ensure operator command — and it is unarmed, with zero placement keys in the live flight config and no reservation record on disk. So nothing needs raising; what is open is whether the fleet's interactive allocation and reckon's worker reservation are one allocation or two, and reckon's defaults (partition all, 32 cores, 128 GB) differ from this plan's locked rigel, 28 cores, 120G.</div>
+</div>
+<div class="r-comment" data-section="_top" data-id="c-fleet-lifetime-surface" data-who="fleet-lifetime-surface" data-when="2026-09-21T08:17:45Z">
+    <div class="r-comment-body"><p>Added <code>imas-ambix agent fleet status</code> (commit <code>13acbd20</code>): the held allocation is found from the scheduler by the <code>ambix-fleet</code> comment token the hold generator already emits, and reported with its job id, node, state, elapsed time and remaining wall clock, so the question "is my fleet about to disappear" is answered without reading <code>squeue</code> by hand. The existing <code>squeue</code> query gained the <code>%L</code> TimeLeft column rather than a second query being added.</p><p>The subtle case is the whole point: this allocation is deliberately unbounded, so the scheduler reports its remaining time as the literal <code>UNLIMITED</code>. That token is not a duration — it maps to <code>None</code>, so it cannot be parsed as a number, compared against the warning threshold, or reported as expiring. A finite remainder below 30 minutes adds a warning line; an allocation with no wall clock never warns. Holding no allocation at all is reported in words at exit 0 rather than as an empty table.</p><p>Gates: <code>pytest tests/agent/test_fleet.py</code> <strong>10 passed</strong>, <code>ruff check imas_ambix tests</code> <strong>exit 0</strong>, and the shared parser's wider consumer <code>tests/test_agent.py</code> <strong>192 passed</strong>. The declared mutation — reading the unbounded token as a zero remaining time — makes the no-warning test fail as the first line of its log, <strong>2 failed, 1 passed, 7 deselected</strong>; the source was restored and the named file re-run green. Full record: <a href="/imas-ambix/evidence/archive/slurm-hosted-agent-fleet-landed#fleet-lifetime-surface">fleet allocation lifetime</a>.</p></div>
 </div>
 </section>
 </main>

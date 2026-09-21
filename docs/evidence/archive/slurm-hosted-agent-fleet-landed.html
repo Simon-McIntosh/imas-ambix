@@ -616,6 +616,89 @@ uv run python -m imas_ambix.agent.throttling interval \
     the red run.</p>
   </section>
 
+  <section id="fleet-lifetime-surface">
+    <h2>Fleet allocation lifetime surface</h2>
+    <p><strong>Deliverable.</strong> <code>imas-ambix agent fleet status</code> names the
+    held allocation — its job id, node, state, elapsed time and remaining wall clock — so
+    the question "is my fleet about to disappear" is answered without reading
+    <code>squeue</code> by hand. Commit <code>13acbd20</code> touches
+    <code>imas_ambix/agent/fleet.py</code>, <code>imas_ambix/agent/cli.py</code> and
+    <code>tests/agent/test_fleet.py</code>. The allocation is found from the scheduler by
+    the <code>ambix-fleet</code> comment token the hold generator already emits, so it is
+    located wherever the queue reports it rather than by a remembered job id, and holding
+    none is reported in words at exit 0 rather than as an empty table.</p>
+
+    <h3>The unbounded allocation is the case that must not be got wrong</h3>
+    <p>This allocation is deliberately unbounded, so the scheduler reports its
+    <code>TimeLeft</code> as the literal text <code>UNLIMITED</code>. That token is not a
+    duration: the remaining-time reader maps it to <code>None</code>, so it cannot be
+    parsed as a number, compared against the warning threshold, or reported as expiring.
+    The single place a remaining time is compared to a threshold is the warning line, and
+    an unbounded — or unreadable — value never reaches it. A finite remainder below thirty
+    minutes adds that warning, because moving sessions off an allocation takes operator
+    minutes and the notice has to arrive while there is time to act.</p>
+
+    <h3>States covered, over fixture queue text rather than a live scheduler</h3>
+    <table>
+      <thead><tr><th>State</th><th><code>squeue %L</code></th><th>Surface</th></tr></thead>
+      <tbody>
+        <tr><td>Healthy finite</td><td><code>2:30:00</code></td>
+        <td>remaining <code>2h30m</code>, no warning</td></tr>
+        <tr><td>Inside the threshold</td><td><code>0:10:00</code></td>
+        <td>remaining <code>10m</code> and a <code>WARNING</code> line</td></tr>
+        <tr><td>Unbounded</td><td><code>UNLIMITED</code></td>
+        <td>remaining <code>unbounded (no wall clock)</code>, no warning, and
+        <code>remaining_seconds</code> is <code>None</code> so no numeric parse is
+        possible</td></tr>
+        <tr><td>Unreadable</td><td><code>N/A</code></td>
+        <td>remaining <code>unknown</code>, no warning</td></tr>
+        <tr><td>Nothing held</td><td>no matching row</td>
+        <td>a sentence, exit 0</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Gates</h3>
+    <table>
+      <thead><tr><th>Gate</th><th>Observed result</th></tr></thead>
+      <tbody>
+        <tr><td>Focused suite</td>
+        <td><code>uv run --no-sync pytest tests/agent/test_fleet.py</code>:
+        <code>10 passed in 0.64s</code></td></tr>
+        <tr><td>Whole-tree lint</td>
+        <td><code>uv run --no-sync ruff check imas_ambix tests</code>:
+        <code>All checks passed!</code>, exit 0</td></tr>
+        <tr><td>Shared-parser consumer</td>
+        <td><code>uv run --no-sync pytest tests/test_agent.py</code>:
+        <code>192 passed in 23.29s</code> — the wider consumer of the same
+        <code>_running_jobs</code> parser is undisturbed</td></tr>
+        <tr><td>Declared negative control</td>
+        <td>see below</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Declared negative control, applied and observed</h3>
+    <p>The declared mutation is <em>make the remaining-time reader treat the literal text
+    UNLIMITED as a zero remaining time</em>, applied to <code>remaining_seconds</code>,
+    which returns <code>0</code> instead of <code>None</code> for that token. It makes the
+    named suite red: <code>test_fleet_status_unbounded_allocation_warns_nothing</code> fails
+    because the mutation puts a zero where the no-warning path was, and
+    <code>test_remaining_seconds_removes_the_unbounded_token_from_arithmetic</code> fails
+    with <code>assert 0 is None</code>. Reported
+    <strong>2 failed, 1 passed, 7 deselected</strong>. The source was then restored and the
+    named file re-run to <strong>10 passed</strong>. The log's first line repeats the
+    declared mutation verbatim, so a log that failed for another reason is refused:
+    <code>~/.config/reckon/crew/runs/r-20260921T081131624322-fleet-lifetime-surface/negative-control.log</code>.</p>
+
+    <h3>A field on the existing query, not a second query</h3>
+    <p><code>%L</code> appeared nowhere under <code>imas_ambix/agent</code> before this
+    change, while the <code>squeue</code> query behind the status surface already asked for
+    <code>%M</code> (elapsed). The remaining-time column was added to that query. Its
+    parsing is additive: a row that omits the column still identifies an allocation and
+    leaves the lifetime unknown, rather than dropping the row, so a narrower format
+    degrades to "unknown" instead of to silence. No live allocation was queried during this
+    implementation — every state above is read from fixture queue text.</p>
+  </section>
+
 </main>
 </body>
 </html>
