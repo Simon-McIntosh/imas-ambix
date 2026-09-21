@@ -231,6 +231,75 @@
     <code>create_router_app</code> and <code>serve_router</code> accept an explicit
     <code>request_receipts_path</code> for a caller that wants another location. No launch
     command needed changing, and none did.</p>
+  <h2 id="bench-rejoins">§2 — the benchmark reader rejoins the shared parser</h2>
+
+    <p>The mapping the shared module owns had one surviving duplicate after the
+    first §2 node: <code>bench.py</code> resolved its own speculative-decode
+    counters through its own exposition parser and its own two name tables. Two
+    readers of one scrape that each spell the exposition grammar for themselves
+    are two chances to disagree about what the scrape contains, which is the
+    shape of the defect this module exists to remove — so the benchmark now
+    resolves its serving quantities through
+    <code>engine_metrics.read_metrics(text).spec_decode</code> and the
+    superseded privates are gone.</p>
+
+    <p>The relationship retired here is a mapping from symbol to owning module,
+    which is a table rather than a picture; no figure is drawn for it.</p>
+
+    <table>
+      <thead>
+        <tr><th>Symbol</th><th>Before</th><th>After</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>_SAMPLE_RE</code>, <code>_LABEL_RE</code></td><td><code>bench.py</code> and <code>engine_metrics.py</code></td><td><code>engine_metrics.py</code></td></tr>
+        <tr><td><code>parse_metrics</code></td><td><code>engine_metrics.py</code>; <code>bench.py::_parse_prometheus_text</code> a second copy of the same grammar</td><td><code>engine_metrics.py</code></td></tr>
+        <tr><td><code>_bare_metric_name</code></td><td><code>bench.py</code>; the shared module's <code>_bare</code> did the same</td><td>retired</td></tr>
+        <tr><td><code>_SPEC_DECODE_COUNTER_NAMES</code>, <code>_SPEC_DECODE_PER_POSITION_NAMES</code></td><td><code>bench.py</code></td><td><code>SPEC_DECODE_SERIES</code>, <code>SPEC_DECODE_PER_POSITION</code> in <code>engine_metrics.py</code></td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>The single-owner rule is asserted, and the assertion was shown to
+    fire.</strong> <code>tests/test_agent_bench_shared_reader.py</code> scans
+    <code>imas_ambix/</code> for a top-level declaration of each parser helper
+    and each spec-decode name table and requires the defining set to be exactly
+    <code>imas_ambix/agent/engine_metrics.py</code>; it separately requires the
+    four retired spellings to be declared nowhere. A uniqueness check that only
+    ever runs against a unique tree reports a property it has not tested, so the
+    scan is also pointed at a synthetic tree that does contain a second
+    <code>parse_metrics</code> and required to return both definers.</p>
+
+    <p><strong>The guard's red state was produced, not inferred.</strong> The
+    exact superseded defect was reapplied — a second <code>parse_metrics</code>
+    and <code>_SAMPLE_RE</code> appended to <code>bench.py</code> — and the
+    suite failed naming the duplicate:</p>
+
+    <pre>FAILED tests/test_agent_bench_shared_reader.py::test_exposition_grammar_has_one_owner
+E           AssertionError: _SAMPLE_RE
+E           Extra items in the left set:
+E             'imas_ambix/agent/bench.py'
+1 failed, 4 passed in 1.12s</pre>
+
+    <p>The mutation was then reverted and the file confirmed free of it
+    (<code>grep -c</code> for the appended symbols returns 0); the run above is
+    the red half of the pair, not the state of the tree.</p>
+
+    <p><strong>Gates.</strong> The same command was run at the base revision and
+    at the change, so the comparison is a delta rather than an absolute count.
+    Base <code>39e7bba5</code>, <code>uv run --no-sync pytest -p no:cacheprovider
+    tests/test_bench.py tests/agent/test_bench_provenance.py -q</code>:
+    <strong>34 passed</strong>, no failures. After, the same two files plus the
+    new one: <strong>39 passed</strong> (34 pre-existing, 5 new), no failures —
+    zero added, and the pre-existing bench tests unmodified by this change.
+    <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0. Both runs
+    were submitted to an <code>all_debug</code> allocation rather than the login
+    node.</p>
+
+    <table>
+      <thead><tr><th>Commit</th><th>Subject</th></tr></thead>
+      <tbody>
+        <tr><td><code>PENDING</code></td><td>the benchmark reader resolves its serving quantities through the shared module</td></tr>
+      </tbody>
+    </table>
   </main>
 </body>
 </html>

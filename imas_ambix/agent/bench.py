@@ -16,12 +16,13 @@ import datetime as _dt
 import hashlib
 import json
 import os
-import re
 import statistics
 import threading
 import time
 from dataclasses import asdict, dataclass, field
 from typing import TYPE_CHECKING, Any
+
+from imas_ambix.agent import engine_metrics
 
 if TYPE_CHECKING:
     # Import-time only: the profile loader pulls in pydantic and the profile
@@ -993,100 +994,18 @@ def capture_provenance(
 
 # ── Speculative-decode acceptance ───────────────────────────────────
 
-# ``name{label="value",…} 1.5`` — the Prometheus text exposition format.
-_SAMPLE_RE = re.compile(
-    r"^(?P<name>[a-zA-Z_:][a-zA-Z0-9_:]*)"
-    r"(?:\{(?P<labels>[^}]*)\})?"
-    r"\s+(?P<value>\S+)"
-)
-_LABEL_RE = re.compile(
-    r'(?P<key>[a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*"(?P<val>(?:[^"\\]|\\.)*)"'
-)
-
-
-def _parse_prometheus_text(text: str) -> list[tuple[str, dict[str, str], float]]:
-    """Parse a Prometheus scrape into ``(name, labels, value)`` samples.
-
-    Comments, blank lines, and samples with an unparseable value are
-    skipped: a scrape is diagnostic, so one malformed line must not discard
-    the counters around it.
-    """
-    samples: list[tuple[str, dict[str, str], float]] = []
-    for raw_line in text.splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#"):
-            continue
-        match = _SAMPLE_RE.match(line)
-        if match is None:
-            continue
-        try:
-            value = float(match.group("value"))
-        except ValueError:
-            continue
-        labels = {
-            m.group("key"): m.group("val")
-            for m in _LABEL_RE.finditer(match.group("labels") or "")
-        }
-        samples.append((match.group("name"), labels, value))
-    return samples
-
-
-def _bare_metric_name(name: str) -> str:
-    """Metric name with its ``vllm:``-style namespace prefix stripped."""
-    return name.rpartition(":")[2]
-
-
-# Speculative-decode counters are read by the exact bare name the engine
-# publishes. Every counter here carries a same-named ``_created`` gauge that
-# is its creation timestamp (~1.79e9), not a data point: matching the family
-# name by substring folds that timestamp straight into the token total it
-# labels, measured as a draft-token total of 1.7886e9 instead of a few
-# thousand. Two per-position spellings have been seen — ``..._per_pos`` on
-# older engines and the ``_total``-suffixed one on current engines — so both
-# are matched; each one's ``_created`` sibling is excluded by the exact
-# match.
-_SPEC_DECODE_COUNTER_NAMES = {
-    "draft_tokens_total": {"spec_decode_num_draft_tokens_total"},
-    "accepted_tokens_total": {"spec_decode_num_accepted_tokens_total"},
-}
-_SPEC_DECODE_PER_POSITION_NAMES = {
-    "spec_decode_num_accepted_tokens_per_pos_total",
-    "spec_decode_num_accepted_tokens_per_pos",
-}
-
 
 def _spec_decode_snapshot(text: str) -> dict[str, Any]:
     """Speculative-decode counters read out of one ``/metrics`` scrape.
 
-    The counters are found by their exact bare name rather than by a
-    substring test, because each of them pairs with a same-named ``_created``
-    gauge holding the engine's creation timestamp, and a substring match
-    would fold that timestamp into the token total it labels. Values are
-    summed across label sets so a multi-engine scrape totals correctly.
+    The exposition parser and the engine-family name tables live in
+    :mod:`imas_ambix.agent.engine_metrics`, so the counter names — and the
+    exact-name match that keeps each one's ``_created`` timestamp gauge out of
+    the token total it labels — are resolved there rather than spelled again
+    here. Two readers of one scrape disagreeing about its contents is the
+    defect that mapping exists to prevent.
     """
-    counters: dict[str, float] = {}
-    per_position: dict[int, float] = {}
-
-    for name, labels, value in _parse_prometheus_text(text):
-        bare = _bare_metric_name(name.lower())
-        if bare in _SPEC_DECODE_PER_POSITION_NAMES:
-            pos = _coerce_int(labels.get("position"))
-            if pos is not None:
-                per_position[pos] = per_position.get(pos, 0.0) + value
-            continue
-        for key, names in _SPEC_DECODE_COUNTER_NAMES.items():
-            if bare in names:
-                counters[key] = counters.get(key, 0.0) + value
-                break
-
-    snapshot: dict[str, Any] = {
-        role: counters.get(role)
-        for role in ("draft_tokens_total", "accepted_tokens_total")
-    }
-    snapshot["num_accepted_per_pos"] = (
-        [per_position[pos] for pos in sorted(per_position)] if per_position else None
-    )
-    return snapshot
+    return engine_metrics.read_metrics(text).spec_decode
 
 
 def _scrape_spec_decode(
