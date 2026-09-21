@@ -334,7 +334,7 @@
     a non-zero exit is not a reading even when the command printed.</p>
 
     <p><strong>Gates.</strong> <code>uv run --no-sync pytest
-    tests/test_node_probe.py -q</code> reports <strong>33 passed</strong>;
+    tests/test_node_probe.py -q</code> reports <strong>34 passed</strong>;
     <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0; and
     <code>pytest tests/test_agent_serve_registry.py -k serving_python</code> reports
     <strong>2 passed</strong>, which is the guard this module needs because the serve
@@ -368,6 +368,27 @@
     forwarding assertions; the third is deliberately unmoved by it, because it measures
     the runner's own bound, which that mutation leaves intact.</p>
 
+    <p><strong>One bound was still unreachable after that repair, and this is the third
+    finding.</strong> The job read declares a wider timeout than the local reads, because
+    <code>squeue</code> crosses the scheduler while the other three read a file or the
+    driver. The probe passed its single local timeout to every source, so the wider figure
+    was never invoked with anything: a node whose <code>squeue</code> answered between the
+    two bounds lost the jobs section from every tick while the parameter said otherwise.
+    This is the same shape as the second finding — a knob that does not do what it says —
+    and the repair is the same: the probe now carries the job read's bound as its own
+    field and invokes the read with it, so the declared figure is the one on the wire.</p>
+
+    <p>The assertion was rewritten with it, and that is the part worth keeping. The
+    earlier tests asserted the timeout from the point of view of the read being called,
+    which a call that never uses its timeout passes just as well as one that does — which
+    is how the unreachable figure survived the repair that introduced it. The tests now
+    read the timeout <em>each command was actually invoked with</em>, from a runner that
+    records every argument vector and its bound, and one of them asserts the invoked
+    figure equals the declared class default rather than restating a literal. Its control
+    wraps <code>NodeProbe.sample</code> so the job read is handed the local bound again,
+    and exactly the two on-the-wire assertions fail, reporting <code>squeue</code> invoked
+    at 10 s against a declared 15 s.</p>
+
     <h2 id="node-readings-commits">Commits</h2>
 
     <table>
@@ -376,6 +397,8 @@
         <tr><td><code>8935b651</code></td><td>the three probes, their sparse sections, the index map and the cadence</td></tr>
         <tr><td><code>e7bb8a3e</code></td><td>read the card allocation from the variable the serve actually sets, after review</td></tr>
         <tr><td><code>006dc4fe</code></td><td>thread the probe timeout into every local call, after review</td></tr>
+        <tr><td><code>f12261e8</code></td><td>correct the node-readings record after review</td></tr>
+        <tr><td><code>fe128951</code></td><td>give the job probe the bound its signature declares, after recheck</td></tr>
       </tbody>
     </table>
 
