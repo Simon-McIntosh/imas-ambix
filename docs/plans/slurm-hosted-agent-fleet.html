@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-21">
-<meta name="plan-version" content="20">
+<meta name="plan-version" content="21">
 <meta name="plan-impl" content="0.833">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="e523036b842dbd9c6dbc205bfd0753335e82c342,e0a990fb4486ac0e75ff217a1fecb432ae5b0962,a8a4c82b2186a4abd43c32b9ccdbe8189cb06bbe,0805cb74255001f2bbd8ad9446e10da6119c45ad,3a59eccf14c735fe9a9fd289a3528f425d788628,cff4e0d5c976b8d2d9e71edfc6913eb9700e1aed,3452b5799770701d9e8d596773f5dd40365a127f,435e896560cb7974743a75077fa4ed038a49bd81,5e3e0adc97e4299520d2779eaba2568837b9009f,04febe688b92501981ee03200bc8bd52ada451cc,ddadc8d4766491e59be40726f977c45fd8643cba,bc82504e581e04ff5e173a6bee2a60335ef13a2a,13acbd2029b31eae9e4f2a417b0e5ac5c062e178,8fa8f0eec7e4685d4f47341e776dfbf24aa2e70f,5507cd9f3b18e9ac55218a897d0c3fc27b999718">
@@ -454,6 +454,9 @@
 </div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20260921T122955666838-review-of-host-read" data-who="reckon-ship" data-when="2026-09-21T15:24:46.945Z">
     <div class="r-comment-body"><p>independent review stored at 17/15/19/18/19. It caught a fabricated fixture: the one labelled as a compute node user slice held the login slice counters with the period lines deleted by hand, so it claimed a provenance it did not have — the coordinator had by then captured the genuine payload and a corrective node replaced it. It also found the module treating an absent cpu.max as meaning the period is unaccounted, measured false at the root control group where genuine zero counters were being reported as null, which is the inverse of the defect the change was written to prevent. Both are closed</p></div>
+</div>
+<div class="r-comment" data-section="s7" data-id="c-run-r-20260921T211439392430-review-of-accounting" data-who="reckon-ship" data-when="2026-09-21T21:33:55.571Z">
+    <div class="r-comment-body"><p>independent review stored at 19/18/17/18/19 with no findings. It was asked to check EVERY provenance-claiming fixture in the file rather than only the one already caught, since a fabricated fixture found once is reason to check its siblings, and it found none remaining</p></div>
 </div>
 <div class="r-comment" data-section="s6" data-id="c-20260921-reckon-already-has-placement" data-who="reckon-ship" data-when="2026-09-21T07:27:00Z">
     <div class="r-comment-body">This section's boundary needs revisiting. It says a dispatch change would be a dependency to raise in reckon. Measured on 2026-09-21: reckon has already built that path — a persistent salloc --no-shell reservation, workers placed into it as srun --overlap --jobid steps, published reservation state and a reckon crew placement --ensure operator command — and it is unarmed, with zero placement keys in the live flight config and no reservation record on disk. So nothing needs raising; what is open is whether the fleet's interactive allocation and reckon's worker reservation are one allocation or two, and reckon's defaults (partition all, 32 cores, 128 GB) differ from this plan's locked rigel, 28 cores, 120G.</div>
