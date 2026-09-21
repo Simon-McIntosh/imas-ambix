@@ -210,7 +210,7 @@
     inspection the fixture and its consumer already exist:
     <code>tests/data/sglang_metrics_sample.txt</code> is a real SGLang exposition whose
     deployment constants match the live serve exactly (KV pool 4,000,000 tokens, host cache
-    capacity 8,000,000, <code>max_concurrent</code> 96), and
+    capacity 8,000,000 tokens), and
     <code>tests/test_engine_metrics.py</code> reads it from disk and resolves the canonical
     set from it. The landed change is the piece the fixture was missing rather than a
     rewrite of a working guard.</p>
@@ -235,10 +235,11 @@
     <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0.</p>
 
     <p><strong>Measured against the declared control, which changed the test.</strong>
-    Deleting one canonical field from the stored scrape — the
-    <code>sglang:num_running_reqs</code> sample line, which is where
-    <code>requests_running</code> resolves from — must fail the field-set test. The first
-    run of that control failed the resolution half and left the <em>sourcing</em> half
+    Deleting one canonical field from the stored scrape — the fixture line
+    <code>sglang:num_running_reqs{engine_type="unified",model_name="deepseek-v4.1-flash",moe_ep_rank="0",pp_rank="0",tp_rank="0"} 0.0</code>,
+    the only sample <code>requests_running</code> resolves from — must fail the field-set
+    test. The first run of that control failed the resolution half and left the
+    <em>sourcing</em> half
     silent, because it searched for the series name anywhere in the file and the
     exposition repeats every name in a <code># HELP</code> and a <code># TYPE</code> line
     above its samples. The check now requires a line that carries the name and a value —
@@ -255,9 +256,9 @@
     fixture is unchanged, and it is
     an early-life scrape. Its canonical gauges are a uniform zero column
     (<code>requests_running 0</code>, <code>kv_pool_occupancy 0.0</code>, all three cache
-    tiers 0.0), and the serve at <code>98dci4-gpu-0003:18810</code> now publishes eleven
+    tiers 0.0), and the serve at <code>98dci4-gpu-0003:18810</code> now publishes thirteen
     series the fixture lacks — <code>cached_tokens_total</code>,
-    <code>evicted_tokens_total</code>, the four <code>eviction_duration_seconds_*</code>,
+    <code>evicted_tokens_total</code>, the three <code>eviction_duration_seconds_*</code>,
     the five <code>load_back_*</code>, <code>num_aborted_requests_total</code>,
     <code>num_so_requests_total</code> and <code>spec_verify_calls_total</code>. A fresh
     capture carries the same canonical key set but real magnitudes

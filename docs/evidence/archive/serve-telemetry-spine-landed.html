@@ -138,7 +138,7 @@
     <code>tests/test_engine_metrics.py</code>. Its provenance is checkable rather than
     asserted: its deployment constants are the ones the live serve reports, and a scrape of
     <code>98dci4-gpu-0003:18810</code> taken for this node matches them exactly — KV pool
-    4,000,000 tokens, host cache capacity 8,000,000 tokens, <code>max_concurrent</code> 96,
+    4,000,000 tokens, host cache capacity 8,000,000 tokens,
     <code>model_id deepseek-v4.1-flash</code> — and matches on no fewer series names than the
     fixture does.</p>
 
@@ -151,7 +151,7 @@
     asserted against the fixture's bytes.</p>
 
     <table>
-      <caption>The new assertion under three reader mutations and one stored-scrape
+      <caption>The new assertion under four reader mutations and one stored-scrape
       deletion, and what the file's other tests do with each. The deletion row is the
       declared control, run with only the field-set test selected; the reader rows ran the
       whole file.</caption>
@@ -174,8 +174,15 @@
           <td>4 of 15 fail</td>
         </tr>
         <tr>
-          <td>the canonical field itself deleted from the stored scrape: the
-          <code>sglang:num_running_reqs</code> sample line removed from the fixture</td>
+          <td><code>SGLANG_CACHE_TIERS["storage_hit"]</code> dropped, so the scraped
+          <code>mode="storage_hit"</code> samples no longer reach a canonical key</td>
+          <td>red — <code>cached_prompt_tokens['storage']</code> unresolved</td>
+          <td>2 of 15 fail</td>
+        </tr>
+        <tr>
+          <td>the canonical field itself deleted from the stored scrape: the fixture line
+          <code>sglang:num_running_reqs{engine_type="unified",model_name="deepseek-v4.1-flash",moe_ep_rank="0",pp_rank="0",tp_rank="0"} 0.0</code>
+          removed (fixture line 146, the only sample of that series)</td>
           <td>red — <code>unresolved ['requests running (requests_running)']</code> and
           <code>unsourced ['requests running (requests_running) &lt;- num_running_reqs']</code></td>
           <td>1 failed, 14 deselected</td>
@@ -204,8 +211,8 @@
     <p><strong>Left open, with its measurement.</strong> The fixture is an early-life scrape:
     its canonical gauges are a uniform zero (<code>requests_running 0</code>,
     <code>kv_pool_occupancy 0.0</code>, every cache tier 0.0), and the live serve now
-    publishes eleven series it lacks — <code>cached_tokens_total</code>,
-    <code>evicted_tokens_total</code>, four <code>eviction_duration_seconds_*</code>, five
+    publishes thirteen series it lacks — <code>cached_tokens_total</code>,
+    <code>evicted_tokens_total</code>, three <code>eviction_duration_seconds_*</code>, five
     <code>load_back_*</code>, <code>num_aborted_requests_total</code>,
     <code>num_so_requests_total</code>, <code>spec_verify_calls_total</code>. A capture taken
     now resolves the same canonical key set with real magnitudes and would preserve the
