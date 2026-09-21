@@ -232,6 +232,262 @@
     <code>create_router_app</code> and <code>serve_router</code> accept an explicit
     <code>request_receipts_path</code> for a caller that wants another location. No launch
     command needed changing, and none did.</p>
+    <h1>Serve telemetry spine — the reader index (§5)</h1>
+
+    <h2 id="reader-index">A disposable index over the append-only record</h2>
+
+    <figure>
+      <img src="/imas-ambix/figures/telemetry-index/roll-resume-two-keys.svg"
+           alt="One inode's byte stream wearing three pathnames across a roll and a restart, beside the two mechanisms that make a re-read harmless: the tail offset looked up by inode, and the sample's uniqueness on inode and byte offset.">
+      <figcaption>A roll, a restart, and the two keys that keep a re-read from becoming a second row.</figcaption>
+    </figure>
+
+    <p><code>imas_ambix/agent/telemetry_index.py</code> is the query side of the
+    spine: a local SQLite index built by tailing the append-only JSONL, on a disk
+    where SQLite's WAL mode does not exist. It is deleted and rebuilt on demand,
+    so it can never itself be the only copy of anything, and nothing under
+    <code>imas_ambix/</code> imported <code>sqlite3</code> before it.</p>
+
+    <h3 id="index-contract">What each quantity is worth, decided per name</h3>
+
+    <p>The plan asked for "token sums" without fixing what a sum over a counter
+    means. The index stores every numeric leaf of a record as a measurement
+    carrying a <em>kind</em>, so the answer is per name: an interval quantity is
+    summed, and a cumulative total is differenced across its endpoints rather
+    than added up as a series of snapshots. Every probe below is checked against
+    the JSONL read directly by the test, not against the index's own answer.</p>
+
+    <table>
+      <thead><tr><th>Gate clause</th><th>What was measured</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Ingesting one record twice yields the same row count as ingesting it once</td>
+          <td>Two further ingests of an unchanged file insert <strong>0</strong> rows each
+          and leave the count at 3. With the tail state dropped — the case the offset alone
+          cannot cover — a re-ingest reports <strong>3 duplicates and 0 inserts</strong>, and
+          the count is still 3.</td>
+        </tr>
+        <tr>
+          <td>Ingest resumes across a rolled file and a restart, tracked by path, inode and byte
+          offset, with neither a gap nor a double count</td>
+          <td>A fixture rolls mid-stream: 3 lines written, the file renamed aside, 2 more
+          written at the path and 1 appended to the rolled name. The pass yields
+          <strong>6 rows for 6 distinct lines</strong> and the interval total
+          <strong>122</strong>. A path replaced by a new file (new inode, offset 0) is read;
+          a reopen from the same index continues the tail and inserts 1 row of 1 new.</td>
+        </tr>
+        <tr>
+          <td>A period query returns token sums equal to the same sums computed directly from
+          the JSONL</td>
+          <td>Over <code>[20&nbsp;s, 70&nbsp;s)</code> the index reproduces the direct scan for
+          <code>spec_draft_tokens</code> and <code>prefix_cache_query_delta</code>; the
+          cumulative span over <code>[start, end)</code> equals its own two endpoint readings,
+          which the direct computation takes from the record independently.</td>
+        </tr>
+        <tr>
+          <td>Deleting the index and rebuilding yields identical query results</td>
+          <td>Six probes — sample count, an interval sum, a windowed interval sum, a
+          cumulative span, a time-weighted mean and an absent quantity — are asserted equal
+          before and after deleting the file and rebuilding, and the rebuild reports
+          <strong>12 inserts</strong>. A rebuild in place matches a fresh index.</td>
+        </tr>
+        <tr>
+          <td>The record's absence is not a zero</td>
+          <td>Two samples measured at zero sum to <code>0.0</code>; a quantity no sample
+          carried returns <code>None</code> from the same call site.</td>
+        </tr>
+        <tr>
+          <td>The interval aggregation has one owner</td>
+          <td><code>TelemetryIndex.receipt_bins</code> equals
+          <code>summarise_receipt_rows</code> on the same rows, so
+          <code>summarise_receipt_rows</code> has a production caller rather than only a test,
+          while the path-reading entry point beside it stays test-only. The comparison is
+          against the aggregator the index calls, which is weaker than it reads — see the
+          note on it below.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 id="index-negative-control">The negative control, and what it separates</h3>
+
+    <p>A passing suite never shows that a guard fires. The declared mutation replaces
+    <code>INSERT OR IGNORE INTO sample</code> with <code>INSERT INTO sample</code>, removing
+    the <code>(inode, offset)</code> uniqueness on the sample — the guard that makes a
+    re-read of known bytes a no-op.</p>
+
+    <p><strong>Corrected to the count measured at this revision.</strong> The mutation reddens
+    <strong>one</strong> test — <code>test_reingest_after_lost_tail_state_is_still_one_copy</code>,
+    on <code>sqlite3.IntegrityError: UNIQUE constraint failed: sample.inode,
+    sample.offset</code>, with 1 failed and 22 passed, exit 1. An earlier figure of two was
+    measured at the revision it names, and the second route it names no longer reaches this
+    insert: a source rebuilt in place has that source's samples deleted and the file re-read
+    before the insert is presented with bytes it already holds. <strong>A mutation count is a
+    property of the revision, not of the guard</strong> — the reviewer found it did not
+    reproduce, which is what a count carried forward unmeasured does. The log's first line names
+    the declared mutation and its site, and the count below it. The log is
+    <code>controls/r2-insert-uniqueness.log</code>, and it supersedes
+    <code>controls/finding1-mutation.log</code>, whose count belongs to the earlier revision.</p>
+
+    <h3 id="index-gates">Gates and commits</h3>
+
+    <p><code>uv run --no-sync pytest tests/test_telemetry_index.py</code> reports
+    <strong>15 passed</strong>; the neighbouring suites
+    (<code>test_agent_receipt_bins.py</code>, <code>test_agent_lane_sglang.py</code>) stay
+    green, 5 passed between them — 20 across the three files.
+    <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0.</p>
+
+    <p><strong>With the guards above in place the same file reports 19 passed</strong>, and
+    21 across it and <code>test_agent_receipt_bins.py</code>, exit 0. The four added tests are
+    the roll-pattern, the same-length rewrite, the classification, and the cascade. Measured
+    before the guards: <code>15 passed</code> and, under each of the five mutations, the
+    counts in the table above — so every one of the four was a behaviour the earlier figure
+    was resting on without asserting it.</p>
+
+    <p><strong>A second round added four more, and two of the five earlier mutations stopped
+    replaying against the code they now describe.</strong> Rewrite detection was still defeated
+    by a rewrite whose last line survives, a source with no recorded digest was still trusted,
+    discovery still selected a name that merely contains <code>.jsonl</code> and lost the pass
+    to it, and a compressed roll was selected and then reported as a source with no bytes. All
+    four are closed above, each with its own test and control log. Because the rewrite identity
+    moved from a digest of the last line to a digest of the whole consumed region, and the
+    discovery default moved from a glob to a suffix rule, the two table rows that quoted the
+    superseded code were re-fed against the current symbols: their logs are
+    <code>controls/r2-rewrite-identity.log</code> and
+    <code>controls/r2-discovery-names.log</code>, and the earlier logs for those two behaviours
+    quote symbols this revision no longer has. Measured at this revision:
+    <strong>23 passed</strong> in the index file and <strong>25</strong> across it and
+    <code>test_agent_receipt_bins.py</code>, exit 0, on <code>all_debug</code>.</p>
+
+    <table>
+      <thead><tr><th>Commit</th><th>Subject</th></tr></thead>
+      <tbody>
+        <tr><td><code>a6116ed8</code></td><td>the index: schema, measured leaves with a kind, inode-keyed tail, the query surface</td></tr>
+        <tr><td><code>5f3beb59</code></td><td>the tests, including the roll fixture that found the path-keyed tail</td></tr>
+        <tr><td><code>47dd89b4</code></td><td>formatting and lint, kept out of the change</td></tr>
+      </tbody>
+    </table>
+
+    <h3 id="index-guards-asserted">The behaviours the index rested on, and what each one holds</h3>
+
+    <p>A green suite under a mutation is the only evidence that a guard was never being
+    tested. Nine behaviours this index depends on were in that state: the suite passed with
+    each one removed, five found in the first round and four more after the review of it. Each
+    now has a test, and each test has a control log whose first line names the mutation applied
+    and quotes the exact replacement fed to the module, and whose body shows the assertion red.
+    The mutation column quotes the replacement verbatim; the last column is what the log
+    reports.</p>
+
+    <table>
+      <thead><tr><th>Behaviour</th><th>Mutation applied</th><th>What the log reports</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>a dropped sample takes its measurements with it</td>
+          <td><code>self._conn.execute("PRAGMA foreign_keys = ON")</code> removed from the connection</td>
+          <td><code>test_dropping_a_sample_cascades_to_its_measurements</code> fails;
+          <code>measurement_count('spec_draft_tokens')</code> answers <code>1</code> where the
+          cascade leaves <code>0</code> — 1 failed, 18 passed, exit 1</td>
+        </tr>
+        <tr>
+          <td>a rewrite is detected by the content of the whole consumed region</td>
+          <td><code>return _digest_of(path, offset) != prefix_sha</code> becomes
+          <code>return False</code>, so size is the only identity a rewrite is checked against</td>
+          <td>both rewrite tests fail, each naming the sum the index answers with instead of the
+          file's own: the same-length rewrite at <code>60.0 == 150</code> and the rewrite whose
+          last line survives at <code>60.0 == 120</code> — 2 failed, exit 1. They are different
+          files and they go through this one comparison</td>
+        </tr>
+        <tr>
+          <td>a running total is differenced, by its suffix</td>
+          <td><code>if name in CUMULATIVE_MEASUREMENTS or name.endswith("_total"):</code> loses
+          its suffix clause</td>
+          <td><code>test_running_totals_are_differenced_and_intervals_are_summed</code> fails at
+          <code>(3350.0, None) == (None, None)</code>: the suffix route answered a sum while the
+          listed route still answered absence — 1 failed, 18 passed, exit 1</td>
+        </tr>
+        <tr>
+          <td>a running total is differenced, at all</td>
+          <td><code>return "counter"</code> becomes <code>return "interval"</code>, so no name
+          is ever a counter</td>
+          <td>the same test fails at <code>(3350.0, 3210.0) == (None, None)</code>: both routes
+          answered a sum. These two rows are deliberately different logs. Asserted as separate
+          statements, the two mutations report one identical first failure and the log cannot
+          say which clause was holding — 1 failed, 18 passed, exit 1</td>
+        </tr>
+        <tr>
+          <td>discovery reaches the roll suffixes and nothing else</td>
+          <td><code>if entry.is_file() and _ROLL_SUFFIX.search(entry.name)</code> becomes
+          <code>if entry.is_file() and ".jsonl" in entry.name</code></td>
+          <td><code>test_discovery_passes_over_a_name_that_merely_contains_jsonl</code> fails at
+          <code>['my-notes.jsonl.summary', 'serve.jsonl', 'serve.jsonl.1'] == ['serve.jsonl',
+          'serve.jsonl.1']</code>: the selected set gains a file that is not a record, which the
+          pass dies on before it reaches either record beside it — 1 failed, 22 passed, exit 1</td>
+        </tr>
+        <tr>
+          <td>a source with no recorded digest is re-read</td>
+          <td><code>if prefix_sha is None: return True</code> becomes
+          <code>if prefix_sha is None: return False</code>, so an unknown region counts as
+          unchanged</td>
+          <td><code>test_a_source_with_no_recorded_identity_is_read_again</code> fails at
+          <code>60.0 == 120</code>: the index answers with the sum of content the file no longer
+          carries, because there was no identity recorded to compare — 1 failed, 22 passed,
+          exit 1</td>
+        </tr>
+        <tr>
+          <td>a compressed roll is refused by name</td>
+          <td>the <code>if path.name.endswith(_COMPRESSED_ROLL): raise ValueError(…)</code> block
+          is removed, so the roll is handed to the parser as if it were record text</td>
+          <td><code>test_a_compressed_roll_is_refused_by_name</code> fails: the raised message is
+          <code>invalid record JSON at …/serve.jsonl.2.gz:0</code>, where the refusal named the
+          file and said it is a compressed roll and a reason — 1 failed, 22 passed, exit 1</td>
+        </tr>
+        <tr>
+          <td>a re-read of known bytes is a no-op</td>
+          <td><code>"INSERT OR IGNORE INTO sample "</code> becomes
+          <code>"INSERT INTO sample "</code></td>
+          <td><code>test_reingest_after_lost_tail_state_is_still_one_copy</code> fails on
+          <code>sqlite3.IntegrityError: UNIQUE constraint failed: sample.inode,
+          sample.offset</code> — 1 failed, 22 passed, exit 1</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>Each row reads a value the index <em>answers with</em>, never a symbol it exposes. That
+    distinction is the point of the exercise: an assertion that a method exists, or that it was
+    called, passes against a call whose result nothing used. The cascade is read as a
+    measurement count, the rewrite as a window sum, the classification through both query
+    shapes, and discovery as the set of filenames returned, which is the value the caller acts
+    on.</p>
+
+    <p><strong>The record's reader is the interval summary, not the path entry point.</strong>
+    <code>collect_receipt_bins</code> had no production caller, and the reason is not an
+    omission: the index aggregates rows the record already holds and calls
+    <code>summarise_receipt_rows</code> directly, so routing through the path-reading entry
+    point would re-read the very file the index exists to read once. The entry point therefore
+    waits for a caller that holds a receipt path and no index, and its docstring says so where
+    a reader of the module will find it.</p>
+
+    <p><strong>The plan now says what is wired, not what was intended.</strong> It claimed the
+    index is the consumer both receipt-bin entry points were written for, which is true of
+    <code>summarise_receipt_rows</code> and false of <code>collect_receipt_bins</code>: the
+    sentence is corrected in §5 of the plan to name the summary as the caller the index reaches
+    and to say the path reader stays test-only, which is the same disposition the module
+    docstring states where an editor of the module meets it.</p>
+
+    <p><strong>One assertion is weaker than it reads, and is not fixed here.</strong>
+    <code>test_receipt_bins_reads_its_rows_from_the_index</code> asserts the index's report equals
+    <code>summarise_receipt_rows</code> on the same rows, so the index's aggregation is compared
+    against the aggregator it calls. A defect in the shared aggregator passes this test twice,
+    because both sides of the comparison carry it. The assertion that would hold is one against
+    a value the record itself states — a receipt interval with a known sum and width — and the
+    test as written is still what catches the index handing over the wrong rows, which is why it
+    is left in place rather than deleted. Recorded as a follow-up rather than repaired: the
+    change reaches beyond this node's write paths, and the same weak form may be wanted
+    elsewhere in the file.</p>
+
+    <p><strong>Remaining.</strong> <code>watch.py</code> and its panel test are §5's other
+    write paths and are not touched here; the ledger's hour/day/week/month rows are asserted
+    at the index level rather than through the watcher's panels. Followup
+    <code>f-sts-001</code> remains open.</p>
   <h1>Serve telemetry spine — node readings</h1>
 
     <h2 id="node-readings">§3 — The serving node's own cards, host and job table</h2>

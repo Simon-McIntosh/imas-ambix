@@ -103,7 +103,17 @@ def collect_receipt_bins(
     *,
     width_bins: tuple[tuple[int, int], ...] = DEFAULT_WIDTH_BINS,
 ) -> ReceiptBinReport:
-    """Read receipt JSONL and group complete intervals by running width."""
+    """Read receipt JSONL from a receipt file and bin complete intervals by width.
+
+    **Unwired by the record index on purpose.** The interval statistics have one
+    owner, :func:`summarise_receipt_rows`, and both entry points reach it; they
+    differ only in where the rows come from. This one reads a path, while the
+    record index aggregates the rows it has already ingested and does so without
+    touching the file again — re-reading a file it holds rows from is exactly
+    the work the index exists to avoid. So the index calls
+    :func:`summarise_receipt_rows` directly rather than routing through here, and
+    this entry point waits for a caller that holds a receipt path and no index.
+    """
     return summarise_receipt_rows(
         read_receipt_rows(receipts_path), width_bins=width_bins
     )

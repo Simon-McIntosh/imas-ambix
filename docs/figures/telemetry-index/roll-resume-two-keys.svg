@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1040 600" width="1040" height="600"
+     font-family="ui-sans-serif, system-ui, sans-serif" font-size="14">
+  <rect width="1040" height="600" fill="#ffffff"/>
+
+  <text x="520" y="34" text-anchor="middle" font-size="18" font-weight="600" fill="#111827">
+    A roll, a restart, and the two keys that keep a re-read harmless
+  </text>
+  <text x="520" y="58" text-anchor="middle" font-size="13" fill="#4b5563">
+    The offset tracks how far a byte stream was consumed; the sample's identity is where a line sits in it
+  </text>
+
+  <defs>
+    <marker id="arw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#6b7280"/>
+    </marker>
+    </defs>
+
+  <!-- ── the byte stream, one inode ───────────────────────────────── -->
+
+  <text x="40" y="98" font-weight="600" fill="#1e3a8a">inode 4711 — one byte stream, three names</text>
+
+  <rect x="40" y="112" width="620" height="64" rx="6" fill="#eff6ff" stroke="#93c5fd"/>
+  <line x1="192" y1="112" x2="192" y2="176" stroke="#93c5fd" stroke-dasharray="3 3"/>
+  <line x1="344" y1="112" x2="344" y2="176" stroke="#93c5fd" stroke-dasharray="3 3"/>
+  <line x1="496" y1="112" x2="496" y2="176" stroke="#93c5fd" stroke-dasharray="3 3"/>
+  <text x="56"  y="152" font-family="ui-monospace, monospace" fill="#1f2937">line @0</text>
+  <text x="208" y="152" font-family="ui-monospace, monospace" fill="#1f2937">line @88</text>
+  <text x="360" y="152" font-family="ui-monospace, monospace" fill="#1f2937">line @176</text>
+  <text x="512" y="152" font-family="ui-monospace, monospace" fill="#1f2937">line @264</text>
+
+  <text x="672" y="140" fill="#4b5563">absolute byte offsets,</text>
+  <text x="672" y="160" fill="#4b5563">stable for the inode's life</text>
+
+  <!-- ── what the paths look like over time ───────────────────────── -->
+
+  <text x="40" y="222" font-weight="600" fill="#111827">What the directory holds, pass by pass</text>
+
+  <rect x="40" y="238" width="196" height="86" rx="6" fill="#f9fafb" stroke="#d1d5db"/>
+  <text x="56" y="262" font-weight="600" fill="#374151">pass 1</text>
+  <text x="56" y="284" font-family="ui-monospace, monospace" fill="#1f2937">serve.jsonl</text>
+  <text x="56" y="306" font-family="ui-monospace, monospace" fill="#6b7280">4 lines, 352 B</text>
+
+  <rect x="256" y="238" width="212" height="86" rx="6" fill="#fffbeb" stroke="#fcd34d"/>
+  <text x="272" y="262" font-weight="600" fill="#92400e">pass 2 — the roll</text>
+  <text x="272" y="284" font-family="ui-monospace, monospace" fill="#1f2937">serve.jsonl.1</text>
+  <text x="272" y="306" font-family="ui-monospace, monospace" fill="#6b7280">the same inode, renamed</text>
+
+  <rect x="488" y="238" width="196" height="86" rx="6" fill="#f0fdf4" stroke="#86efac"/>
+  <text x="504" y="262" font-weight="600" fill="#14532d">pass 2 — a new file</text>
+  <text x="504" y="284" font-family="ui-monospace, monospace" fill="#1f2937">serve.jsonl</text>
+  <text x="504" y="306" font-family="ui-monospace, monospace" fill="#6b7280">new inode 5120, offset 0</text>
+
+  <rect x="704" y="238" width="296" height="86" rx="6" fill="#fef2f2" stroke="#fecaca"/>
+  <text x="720" y="262" font-weight="600" fill="#991b1b">pass 3 — the writer catches up</text>
+  <text x="720" y="284" font-family="ui-monospace, monospace" fill="#1f2937">serve.jsonl.1 + 1 line</text>
+  <text x="720" y="306" font-family="ui-monospace, monospace" fill="#6b7280">appended to the rolled inode</text>
+
+  <!-- ── the two keys ────────────────────────────────────────────── -->
+
+  <rect x="40" y="360" width="470" height="196" rx="8" fill="#eff6ff" stroke="#93c5fd"/>
+  <text x="60" y="386" font-weight="600" fill="#1e3a8a">Key 1 — the tail, looked up by inode</text>
+  <text x="60" y="412" fill="#1f2937">A rolled file keeps its bytes and loses its name,</text>
+  <text x="60" y="432" fill="#1f2937">so <tspan font-family="ui-monospace, monospace">SELECT MAX(offset) WHERE inode = ?</tspan></text>
+  <text x="60" y="452" fill="#1f2937">finds the 352 bytes already consumed where a</text>
+  <text x="60" y="472" fill="#1f2937">per-path lookup would find nothing and re-read</text>
+  <text x="60" y="492" fill="#1f2937">all four lines.</text>
+  <text x="60" y="522" fill="#1d4ed8" font-weight="600">Without it: 4 lines re-read → 4 duplicates</text>
+  <text x="60" y="542" fill="#6b7280">a gap is impossible; the offset only ever advances</text>
+
+  <rect x="530" y="360" width="470" height="196" rx="8" fill="#f0fdf4" stroke="#86efac"/>
+  <text x="550" y="386" font-weight="600" fill="#14532d">Key 2 — the sample, unique on (inode, offset)</text>
+  <text x="550" y="412" fill="#1f2937">The offset alone does not cover a lost tail state,</text>
+  <text x="550" y="432" fill="#1f2937">which a fresh index over an old record, or a table</text>
+  <text x="550" y="452" fill="#1f2937">drop, produces legitimately. Then the same bytes</text>
+  <text x="550" y="472" fill="#1f2937">arrive twice and the guard makes the second</text>
+  <text x="550" y="492" fill="#1f2937">arrival a no-op instead of a second sample.</text>
+  <text x="550" y="522" fill="#15803d" font-weight="600">Without it: 3 lines twice → 6 rows</text>
+  <text x="550" y="542" fill="#6b7280">each mechanism covers what the other cannot</text>
+
+  <!-- ── the outcome ─────────────────────────────────────────────── -->
+
+  <path d="M330 324 V 356" stroke="#6b7280" stroke-width="2" fill="none" marker-end="url(#arw)"/>
+  <path d="M765 332 V 356" stroke="#6b7280" stroke-width="2" fill="none" marker-end="url(#arw)"/>
+
+  <line x1="40" y1="586" x2="1000" y2="586" stroke="#e5e7eb"/>
+  <text x="40" y="580" fill="#111827" font-weight="600">
+    Six distinct lines written across the roll and the restart, six rows stored — the fixture asserts exactly this.
+  </text>
+</svg>
