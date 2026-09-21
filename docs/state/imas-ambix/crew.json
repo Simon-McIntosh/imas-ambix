@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-21T16:21:34",
+  "updated": "2026-09-21T16:23:12",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -57285,6 +57285,307 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260921T120750480911-review-of-the-delegated-peeling",
+        "plan": "serve-telemetry-spine",
+        "section": "\u00a72",
+        "node": "review-of-the-delegated-peeling",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 2226,
+                "cached_input_tokens": 562431,
+                "input_tokens": 564659,
+                "output_tokens": 369,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 565028,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "98f13dbe-0703-4abd-a5e4-65bfdb2eeee2",
+            "session_id": "telemetry-spine"
+          },
+          "done_when": "the review for r-20260921T053443850077-scrape-fixture stores a parsed record scoring all 5 dimensions in the range 0..20 and names the revision it read. YOUR WORKTREE IS CUT FROM THE REVIEWED HEAD 23efa1f10e2a; read it in place and report that sha. State every finding as a COMPLETE SENTENCE naming a concrete input, and label each BLOCKING or FOLLOW-ON: blocking means it changes production behaviour or leaves one unasserted, follow-on means assertion or documentation quality. BE WILLING TO FIND NOTHING - a sibling node's sixth round returned zero findings and that was the correct answer. THE REPAIR, three commits: ef7815d4 sources the scrape guard's peeling from the reader it guards, so the guard can no longer be stricter than production; 70bd2ede writes the per-family section expectation out literally instead of deriving it from the module's own series tables; 23efa1f1 records both. The control receipts were also restructured to mutate a COPY in the run directory rather than the shipped file, reading the mutation back verbatim and recording the shipped file's sha256 after the run. Work this checklist, FLAG only what a mutation demonstrates: (1) the guard now delegates its peeling to the reader - confirm the two cannot diverge, and find any shape where the guard and engine_metrics still disagree, with the exact line as input; (2) the literal per-family expectation must redden when a series mapping is dropped or renamed - show it for both families; (3) replay every control log in the run directory verbatim and report what each selects and returns, including whether the shipped-file sha256 it records still matches the file on disk; (4) report any remaining expectation computed from the module or fixture under test; (5) no plan label, ticket reference, version suffix or author attribution in any name, comment or docstring.",
+          "estimated_hours": null,
+          "goal": "Attach an independent review of run r-20260921T053443850077-scrape-fixture at its sixth-round head",
+          "id": "review-of-the-delegated-peeling",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-21T12:07:53Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no 'binding_observed'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T120750480911-review-of-the-delegated-peeling/manifest.md",
+          "negative_control": "",
+          "plan": "serve-telemetry-spine",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "review",
+          "section": "\u00a72",
+          "spec_level": "exact",
+          "time_budget": "45m",
+          "token_budget": null,
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260921T053443850077-scrape-fixture.json"
+          ]
+        },
+        "role": "review",
+        "spec_level": "exact",
+        "member": "review-of-the-delegated-peeling",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "xhigh",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "read-only",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-21T12:08:38Z",
+        "completed_at": "2026-09-21T14:13:49.147Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 7497,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 7511,
+        "stalled": true,
+        "time_budget": "45m",
+        "base_sha": "23efa1f10e2aa09ef06bd41b2566c44c39461afe",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "stored review record for r-20260921T053443850077-scrape-fixture parsed with all five dimensions scored",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260921T053443850077-scrape-fixture.json",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T120750480911-review-of-the-delegated-peeling/manifest.md",
+        "scope_changed": false,
+        "session_id": "05c08781-e476-475e-98e1-b0bf5352b318",
+        "budget": {
+          "cost_usd": null,
+          "detail": "no events yet",
+          "headroom": "unknown",
+          "rate_limit_period_minutes": null,
+          "rate_limit_type": null,
+          "refusal": false,
+          "resets_at": null,
+          "surpassed_threshold": null,
+          "threshold_status": null,
+          "tokens": null,
+          "utilisation_pct": null
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-21T14:13:49.147Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "15m",
+          "requested": true,
+          "waived_runs": [
+            {
+              "budget_overrun": false,
+              "budget_overrun_seconds": 0,
+              "budget_seconds": 3000,
+              "classification": "promotable",
+              "commits_beyond_base": 0,
+              "detail": "the worker manifest reports completion and an independent parsed review is attached; the run is ready for promotion",
+              "elapsed_seconds": 1329,
+              "external_wait": null,
+              "lifting_condition": null,
+              "liveness_proven": true,
+              "log_age_seconds": 2087,
+              "log_fresh": false,
+              "manifest_commits": [
+                "c72dc62a",
+                "6a675d52",
+                "1443290f",
+                "d7f17110",
+                "658baeb1",
+                "8872126f",
+                "6ea7647e",
+                "794e8bb0",
+                "404bc10c",
+                "792a48a0",
+                "25a92fe0",
+                "9270e73c",
+                "cf95ed36",
+                "2e3bb942",
+                "2d19be2b"
+              ],
+              "manifest_derived": false,
+              "manifest_digest": "ff0a54147ffc4fdbe15c992fd2e1a37c92107caff85ad7a03849c9972c58a552",
+              "manifest_error": null,
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T053306239225-telemetry-store/manifest.md",
+              "manifest_present": true,
+              "manifest_reported_status": "complete",
+              "manifest_status": "complete",
+              "marker": null,
+              "needs_help_complete": null,
+              "next_action": "reckon crew complete --run r-20260921T053306239225-telemetry-store --gate <verdict> --commit c72dc62a --commit 6a675d52 --commit 1443290f --commit d7f17110 --commit 658baeb1 --commit 8872126f --commit 6ea7647e --commit 794e8bb0 --commit 404bc10c --commit 792a48a0 --commit 25a92fe0 --commit 9270e73c --commit cf95ed36 --commit 2e3bb942 --commit 2d19be2b",
+              "node": "telemetry-store",
+              "phase": "working",
+              "plan": "serve-telemetry-spine",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "recovery": "promote",
+              "recovery_classification": "promotable",
+              "resets_at": null,
+              "review_error": null,
+              "review_present": true,
+              "review_status": "parsed",
+              "run_id": "r-20260921T053306239225-telemetry-store",
+              "session": "telemetry-spine",
+              "terminal_age_seconds": 2125,
+              "terminal_at": "2026-09-21T11:32:49Z",
+              "wait_age_seconds": null,
+              "wait_condition_state": null,
+              "wait_key_defect": null,
+              "wait_observed": null,
+              "wait_overdue": null,
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/telemetry-spine/telemetry-store"
+            },
+            {
+              "budget_overrun": true,
+              "budget_overrun_seconds": 1569,
+              "budget_seconds": 2100,
+              "classification": "promotable",
+              "commits_beyond_base": 0,
+              "detail": "the worker manifest reports completion and an independent parsed review is attached; the run is ready for promotion",
+              "elapsed_seconds": 3669,
+              "external_wait": null,
+              "lifting_condition": null,
+              "liveness_proven": true,
+              "log_age_seconds": 2472,
+              "log_fresh": false,
+              "manifest_commits": [
+                "ee1dddeb7ca59ba0488ba7368130c7a78b27a09b",
+                "b2543e5ef2d4915e6a8931af9645c267a4c8a129",
+                "f7ff97ee9f3abbab6771e72a3921aa7f1e0882d5"
+              ],
+              "manifest_derived": false,
+              "manifest_digest": "7feb78850cf926e58bb4140b527e77a0ecf92e76a54f0411e18b48f0b7b96763",
+              "manifest_error": null,
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T085923815245-one-owner-guard-widens-to-any-indentation/manifest.md",
+              "manifest_present": true,
+              "manifest_reported_status": "complete",
+              "manifest_status": "complete",
+              "marker": null,
+              "needs_help_complete": null,
+              "next_action": "reckon crew complete --run r-20260921T085923815245-one-owner-guard-widens-to-any-indentation --gate <verdict> --commit ee1dddeb7ca59ba0488ba7368130c7a78b27a09b --commit b2543e5ef2d4915e6a8931af9645c267a4c8a129 --commit f7ff97ee9f3abbab6771e72a3921aa7f1e0882d5",
+              "node": "one-owner-guard-widens-to-any-indentation",
+              "phase": "working",
+              "plan": "serve-telemetry-spine",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "recovery": "promote",
+              "recovery_classification": "promotable",
+              "resets_at": null,
+              "review_error": null,
+              "review_present": true,
+              "review_status": "parsed",
+              "run_id": "r-20260921T085923815245-one-owner-guard-widens-to-any-indentation",
+              "session": "telemetry-spine",
+              "terminal_age_seconds": 2547,
+              "terminal_at": "2026-09-21T11:25:50Z",
+              "wait_age_seconds": null,
+              "wait_condition_state": null,
+              "wait_key_defect": null,
+              "wait_observed": null,
+              "wait_overdue": null,
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/telemetry-spine/one-owner-guard-widens-to-any-indentation"
+            }
+          ]
+        },
+        "review": null,
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": false,
+          "matched_measure": null,
+          "override": false,
+          "role": "review",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": {
+          "status": "underivable",
+          "reason": "model_span_unavailable_at_promotion"
+        },
+        "scope_acceptances": null,
+        "no_commit": "a review node's deliverable is the stored review record, not a repository commit",
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/telemetry-spine/review-of-the-delegated-peeling",
+          "session_id": "05c08781-e476-475e-98e1-b0bf5352b318",
+          "session_source": "stream",
+          "retained_at": "2026-09-21T14:13:49.147Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "plan_impl_at_dispatch": 0.6,
+        "impl_move": {
+          "plan": "serve-telemetry-spine",
+          "at_dispatch": 0.6,
+          "at_complete": null,
+          "verdict": "exempt",
+          "reason": "role-not-enforced:review"
+        },
+        "negative_control": {
+          "verdict": "exempt",
+          "reason": "node-writes-no-test-path"
+        },
+        "tool_steps": 72.0,
+        "orientation_input_tokens": 5497305.0,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -57359,6 +57660,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 863
+    "_version": 864
   }
 }
