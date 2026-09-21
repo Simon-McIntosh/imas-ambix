@@ -298,8 +298,10 @@
           <td><code>obs.samples</code> and <code>obs.seconds</code> on every
           compacted row; the hour tier compared against the minute weights it is
           built from</td>
-          <td>minute rows: 12 samples and 60 s each; hour rows: 720 samples and
-          3,600 s each, summing to the raw count; the hour gauge equals the
+          <td>at the fixture's 20 s cadence a complete minute window holds
+          <code>60 / 20 = 3</code> samples over 60 s, and a complete hour window
+          <code>60 &times; 3 = 180</code> samples over 3,600 s; the minute
+          weights sum to the raw row count and the hour gauge equals the
           sample-weighted mean of its minute rows</td>
         </tr>
         <tr>
