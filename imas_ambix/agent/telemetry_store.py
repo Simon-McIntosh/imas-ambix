@@ -38,8 +38,18 @@ is why the operation is associative.
 when its name ends in ``_total``, when it is a known cumulative quantity
 (:data:`COUNTER_LEAF_NAMES`), or when it lives under a ``histograms`` section
 (whose count, sum and buckets are all cumulative). Everything else numeric is a
-gauge. Non-numeric leaves -- strings, ``None``, booleans, ragged lists -- are
-identity and are carried from the last row in the window.
+gauge. Strings, booleans and ragged lists are identity and are carried from the
+last row in the window.
+
+**A null leaf is an absent observation, not an observation of zero.** It is
+recorded only where its window holds no value yet, so it can never discard what
+the window accumulated before it. A leaf null in every row of a window therefore
+compacts to null -- the record's way of saying *not observed* rather than
+*zero* -- while a gauge that is null in some rows and numeric in others compacts
+to the weighted mean of the rows that did observe it, with the window's own
+sample and second counts still declared in its ``obs`` block. A leaf written
+after a null is a fresh observation, so a null that opens a window does not
+suppress the values that follow it.
 
 **A compaction never deletes its source.** The successor file is written and
 re-read before anything is considered retired, so a crash mid-compaction loses
@@ -152,13 +162,20 @@ def _merge(
 
     A counter leaf keeps the *latest* value (its endpoint); a gauge leaf folds
     into a running weighted mean; an identity leaf is overwritten so the window
-    reports the last one seen. Dicts recurse, and a list of equal-length dicts
-    recurses element-wise so a per-card section is averaged per card rather than
-    replaced.
+    reports the last one seen; a null leaf is recorded only where the window has
+    no value yet, so it cannot discard observations taken earlier in the window.
+    Dicts recurse, and a list of equal-length dicts recurses element-wise so a
+    per-card section is averaged per card rather than replaced.
     """
     for key, value in node.items():
         leaf_path = (*path, key)
-        if isinstance(value, bool) or value is None or isinstance(value, str):
+        if value is None:
+            # A null leaf is an absent observation, not an observation of zero,
+            # so it is recorded only where the window holds nothing yet. Letting
+            # it overwrite the accumulator would discard every observation taken
+            # before it while still declaring the whole window's weight.
+            acc.setdefault(key, None)
+        elif isinstance(value, (bool, str)):
             acc[key] = value
         elif isinstance(value, (int, float)):
             if _is_counter(leaf_path):
