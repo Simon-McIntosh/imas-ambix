@@ -42,17 +42,17 @@ _CANONICAL_KEYS = (
 )
 
 
-# The canonical quantities the plan's engine-family section names, spelled out
-# here with their value path in a reading's canonical section and the vetted
-# scrape series each is sourced from. Written out rather than read from
-# ``engine_metrics``' own tables because an expectation derived from those
-# tables shrinks with them: dropping a family's series mapping empties both the
-# expectation and the delivered key together, so a canonical quantity can stop
-# resolving without a test noticing. This list is what makes the recorded
-# scrape re-assert the served field set offline.
+# The canonical quantities an SGLang reading must expose, spelled out here with
+# their value path in a reading's canonical section and the vetted scrape series
+# each is sourced from. Written out rather than read from ``engine_metrics``' own
+# tables because an expectation derived from those tables shrinks with them:
+# dropping a family's series mapping empties both the expectation and the
+# delivered key together, so a canonical quantity can stop resolving without a
+# test noticing. This list is what makes the recorded scrape re-assert the served
+# field set offline.
 #
 # One entry is (quantity, value path, series name, required label fragment).
-_PLAN_CANONICAL_FIELDS: tuple[tuple[str, tuple[str, ...], str, str], ...] = (
+_CANONICAL_FIELD_SOURCES: tuple[tuple[str, tuple[str, ...], str, str], ...] = (
     ("requests running", ("requests_running",), "num_running_reqs", ""),
     ("requests queued", ("requests_queued",), "num_queue_reqs", ""),
     ("KV-pool occupancy", ("kv_pool_occupancy",), "full_token_usage", ""),
@@ -247,16 +247,16 @@ def test_sglang_scrape_resolves_through_the_shared_reader() -> None:
     assert metrics.histograms["time_to_first_token"].count == 3.0
 
 
-def test_the_recorded_scrape_carries_every_canonical_field_the_plan_names() -> None:
-    """The plan's canonical set resolves from the fixture's own bytes.
+def test_the_recorded_scrape_sources_every_canonical_field() -> None:
+    """Every canonical field a reading must expose is sourced by the scrape's bytes.
 
     Two things are asserted against the file rather than against the module.
-    Every canonical quantity the plan names resolves from the recorded scrape,
-    with the expectation written out here so a series mapping that is dropped or
-    renamed fails rather than silently shrinking the expectation with it. And
-    each quantity's source series is read out of the file's own text, so a
-    fixture that was hand-written, truncated or left behind by an older engine
-    revision cannot satisfy this test by carrying canned values.
+    Every canonical quantity resolves from the recorded scrape, with the
+    expectation written out here so a series mapping that is dropped or renamed
+    fails rather than silently shrinking the expectation with it. And each
+    quantity's source series is read out of the file's own text, so a fixture
+    that was hand-written, truncated or left behind by an older engine revision
+    cannot satisfy this test by carrying canned values.
     """
     assert _SGLANG_FIXTURE.is_file(), _SGLANG_FIXTURE
     text = _SGLANG_FIXTURE.read_text(encoding="utf-8")
@@ -264,7 +264,7 @@ def test_the_recorded_scrape_carries_every_canonical_field_the_plan_names() -> N
 
     unresolved: list[str] = []
     unsourced: list[str] = []
-    for quantity, path, name, label in _PLAN_CANONICAL_FIELDS:
+    for quantity, path, name, label in _CANONICAL_FIELD_SOURCES:
         if _resolve(section, path) is None:
             unresolved.append(f"{quantity} ({'.'.join(path)})")
         if not _has_sample_line(text, name, label):
@@ -274,6 +274,41 @@ def test_the_recorded_scrape_carries_every_canonical_field_the_plan_names() -> N
         "unresolved": unresolved,
         "unsourced": unsourced,
     }
+
+
+def test_a_series_name_without_a_value_is_not_a_source() -> None:
+    """A name with nothing to parse is not a source, however the line is spelled.
+
+    The exposition repeats every series name in a ``# HELP`` and a ``# TYPE``
+    line above its samples, so looking for the name alone is satisfied by the
+    header. Asking for a *sample* line is not enough either: a line carrying the
+    name and its full label set but no value has nothing to read, and a trailing
+    space is the same defect. Only a line that ends in a value token counts, so a
+    scrape that lost its samples cannot pass on its labels.
+    """
+    name = "num_running_reqs"
+    labels = 'engine_type="unified",tp_rank="0"'
+    header = "\n".join(
+        [
+            f"# HELP sglang:{name} The number of running requests.",
+            f"# TYPE sglang:{name} gauge",
+        ]
+    )
+    not_a_source = {
+        "the name only in HELP/TYPE text": header,
+        "the name and its labels, with no value": f"sglang:{name}{{{labels}}}",
+        "the name and its labels, then a trailing space": f"sglang:{name}{{{labels}}} ",
+        "a longer series name sharing the prefix": (
+            f"sglang:{name}_total{{{labels}}} 1.0"
+        ),
+    }
+    for description, text in not_a_source.items():
+        assert not _has_sample_line(text, name, ""), description
+
+    assert _has_sample_line(f"sglang:{name}{{{labels}}} 0.0", name, "")
+    assert not _has_sample_line(
+        f"sglang:{name}{{{labels}}} 0.0", name, 'mode="input"'
+    ), "the required label fragment must be read from the label set"
 
 
 def test_the_recorded_scrape_reads_as_measurements_not_a_column_of_zeros() -> None:
