@@ -536,6 +536,94 @@
           written</td>
           <td>source files re-read after <code>run_compaction</code> returned</td>
           <td>raw and minute both present with their full row counts</td>
+
+    <h2 id="rr-outcome">§6 — The outcome the relay observed, and who answered</h2>
+
+    <p>Those rows were only as honest as the earliest moment their outcome could be
+    set, and three ways the record disagreed with what happened had shipped. Each is
+    repaired here, and each fix carries a control that was made to fail without
+    it.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/request-receipts/receipt-outcome-lifecycle.svg"
+           alt="A request's path through the router: answered-without-a-relay on one branch, and on the other a relay whose outcome is taken only after the body has been forwarded whole. Each ending names the row it writes — completed where the answer reached the caller, aborted where nobody received it, failed where the relay raised — and a request whose caller left mid-upload ends on its own, with a self-answered row and no model id.">
+      <figcaption>One request, two paths, and the row each writes. A self-answered
+      request writes a row with the self-answered upstream whether it was refused or served
+      from the catalog; a relayed one is <code>completed</code> only once the answer reached
+      the caller whole. The two ways a request ends with nobody having received it —
+      the caller left mid-relay, or had already gone before the reply was sent — are
+      <code>aborted</code>, and a request whose caller left while still uploading ends
+      before any engine was asked anything, so its row carries the self-answered upstream
+      and no model id.</figcaption>
+    </figure>
+
+    <h3 id="rr-truncation">A 200 is what the engine answered, not what the caller received</h3>
+
+    <p>The status was promoted to <code>completed</code> as soon as the upstream answered
+    2xx — before the body loop — and an exception out of the body read escaped the handler
+    that rewrites the status for a cancelled caller, while the <code>finally</code> wrote
+    the row anyway. An engine that answers 200, promises a <code>content-length</code> and
+    then aborts its transport therefore left a <code>completed</code> row for a relay that
+    delivered a fraction of the bytes.</p>
+
+    <p>The headers are now held rather than acted on, and the outcome is promoted only
+    after the body has been forwarded whole. The control: with
+    <code>status = STATUS_COMPLETED</code> set early again, the truncation test reddens
+    with <code>assert 'completed' == 'failed'</code>; reverted, it passes.</p>
+
+    <h3 id="rr-self-answer">A request the router answered itself left no row</h3>
+
+    <p>Only <code>_relay</code> recorded anything, and the refusals and the catalog
+    listing return before it, so the requests a caller reports as broken were absent from
+    the record entirely — their only trace a log line. Every refusal the router produces
+    now leaves through one funnel that also records it, so a new refusal path cannot widen
+    what the router answers without widening the record; the catalog listing records after
+    its 200. Rows carry a self-answered upstream sentinel rather than an engine origin, so
+    a reader attributing traffic per upstream never folds them into a sink's share.</p>
+
+    <h3 id="rr-ceiling">The sampling ceiling had no operator surface</h3>
+
+    <p>The production sink was built with neither <code>max_rows_per_s</code> nor
+    <code>window_s</code>, so the ceiling was fixed by source with no way to raise it. Both
+    are now settings resolved from an explicit argument, then the environment, then the
+    default, matching the environment surface the router already carries. The value in
+    force is logged at construction, because a bound inferable only from behaviour is one
+    that a later reader measures from scratch. A malformed value — not a number, zero,
+    negative, or <code>nan</code>, which no arrival count can stay under — stops the launch
+    rather than silently falling back to a default nobody chose.</p>
+
+    <table>
+      <thead><tr><th>Claim</th><th>Measure</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>A relay truncated mid-body is recorded as failed, not completed</td>
+          <td>an engine answering 200 with <code>content-length: 4096</code>, writing one
+          SSE event and aborting its transport, driven through the real
+          <code>RouterApp</code></td>
+          <td>caller received the 200; one row, <code>status: failed</code></td>
+        </tr>
+        <tr>
+          <td>A request the router answers itself is recorded, including the refusal</td>
+          <td>a POST naming an unknown model id, a GET of the catalog, and a malformed
+          JSON body</td>
+          <td>three rows: <code>failed</code>/404 with the model id the caller named,
+          <code>completed</code>/200 for the listing, <code>failed</code>/400 — all with
+          upstream <code>(router)</code></td>
+        </tr>
+        <tr>
+          <td>The ceiling is a setting and is honoured as one</td>
+          <td>60 requests with the ceiling set to <code>inf</code>, then to
+          <code>1</code> row/s, through the landed router</td>
+          <td>at <code>inf</code>: 60 kept, every fraction 1.0, and the logged line naming
+          <code>max_rows_per_s=inf</code>; at 1 row/s: rows written plus sampled out equals
+          60 with sampling out at least one, and every kept row satisfies
+          <code>fraction × rate ≤ 1.05</code></td>
+        </tr>
+        <tr>
+          <td>A malformed ceiling stops the launch</td>
+          <td><code>nope</code>, <code>0</code>, <code>-1</code>, <code>nan</code> for the
+          rate and <code>0</code> for the window</td>
+          <td><code>ValueError</code> at construction, before any request is served</td>
         </tr>
         <tr>
           <td>Whole-tree lint gate exits 0</td>
@@ -1349,6 +1437,190 @@ except ImportError:
         <tr><td><code>b596e011</code></td><td>walk the owner scan to the module root</td></tr>
       </tbody>
     </table>
+    <p><strong>Gates and controls.</strong> The focused gate —
+    <code>tests/test_agent_router.py tests/test_request_receipts.py</code> — reports
+    <strong>20 passed</strong> for the three repairs above, against <strong>16 passed at
+    the base revision</strong> for the same files, so no pre-existing test was disturbed
+    and the four added ones are the whole difference. The negative control is the early
+    status assignment, whose red log opens with the mutation it applies and shows the
+    truncation test failing on <code>'completed' == 'failed'</code>. Both logs are kept
+    with the node's record.</p>
+
+    <h3 id="rr-review">The review round — three holes the repairs left</h3>
+
+    <p>An independent review read the change and found three adjacent defects, each of
+    which the owner of this section had left while fixing the original three. All are
+    repaired, and each carries a control that was made to fail without it.</p>
+
+    <p><strong>A caller that leaves while still uploading its request left no row at
+    all.</strong> The handler read the body, found the caller gone, and returned — before
+    any recording branch. That is the one outcome this section exists to record rather
+    than drop: the request did reach the router and died there, and without a row its only
+    trace is a server-side connection teardown. The disconnect branch now records a
+    self-answered row, and because no engine was asked anything it carries the
+    self-answered upstream sentinel and no model id. Nothing about what actually happened
+    is lost, and the row's status names that outcome as <code>aborted</code>, which is
+    what the label already meant — the caller went away before receiving its answer —
+    widened rather than replaced.</p>
+
+    <p><strong>The self-answered paths took their status as a literal.</strong> Every
+    relayed response derives its outcome from what the caller received, but the two sites
+    that record a router-composed answer passed the status they had just composed. Their
+    answer may be unsent: a caller whose receive channel already holds
+    <code>http.disconnect</code> still gets a full catalog response from
+    <code>_serve_catalog</code>, and the row said so. The self-answered reply is now sent
+    through the same watch the relay uses, which reports whether the caller had gone
+    before the answer was handed over, and the status follows that rather than the
+    composed code.</p>
+
+    <p><strong>The self-answered sentinel was held by nothing.</strong> The test asserted
+    the row's upstream against the constant imported from the module under test, so it
+    followed any change to the constant — including changing it to an engine origin, which
+    is exactly the confusion the field exists to prevent, since a reader summing traffic
+    per upstream would fold the router's own answers into an engine's share. The value is
+    now written out literally in the test, and one separate test asserts the constant
+    equals it, so a change to the constant is a failure rather than a silent pass.</p>
+
+    <p>The watch itself needed care and the reason is worth stating: an ASGI server
+    reports a <em>completed</em> response on the same receive channel as a departure
+    (<code>uvicorn</code>'s <code>receive()</code> returns <code>http.disconnect</code>
+    once <code>self.disconnected or self.response_complete</code>), so a watch allowed to
+    outlive the send cannot tell a caller that left from one that simply finished. The
+    reply's watch is therefore read between the two sends and stopped at hand-over, which
+    is why a caller still present still records <code>completed</code>.</p>
+
+    <table>
+      <thead><tr><th>Claim</th><th>Measure</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>A caller gone mid-upload is recorded rather than dropped</td>
+          <td>10 of 37 body bytes written, then the transport aborted, driven through the
+          tests' <code>_invoke_over</code> with a plain message list</td>
+          <td>nothing sent to the caller; one row, <code>aborted</code>, upstream
+          <code>(router)</code>, model id empty</td>
+        </tr>
+        <tr>
+          <td>A self-answered request is recorded by what the caller received</td>
+          <td>a receive channel already holding <code>http.disconnect</code>, so the
+          catalog answer is composed and sent to nobody</td>
+          <td>the status line and a non-empty body are sent; one row,
+          <code>aborted</code>, upstream <code>(router)</code></td>
+        </tr>
+        <tr>
+          <td>A caller still present is not mistaken for one that left</td>
+          <td>the same catalog GET with a live caller, under live <code>uvicorn</code></td>
+          <td>one row, <code>completed</code> — the yield before the body is read cannot
+          fold a finished response into a departure</td>
+        </tr>
+        <tr>
+          <td>The self-answered sentinel is a value a reader can sum around</td>
+          <td>the literal asserted against the constant in one test of its own</td>
+          <td>sentinel moved to <code>http://engine.example</code>: 4 failed, 14 passed</td>
+        </tr>
+        <tr>
+          <td>Focused gate, after the review round</td>
+          <td><code>tests/test_agent_router.py tests/test_request_receipts.py</code> on
+          <code>all_debug</code></td>
+          <td><strong>23 passed</strong> in 0.75 s</td>
+        </tr>
+        <tr>
+          <td>Whole-tree lint gate exits 0</td>
+          <td><code>uv run --no-sync ruff check imas_ambix tests</code></td>
+          <td>All checks passed</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p><strong>The controls.</strong> All three were applied verbatim through the real
+    router and each reads the stored row rather than the code, and each log opens with
+    the mutation it applies so a reader can replay it rather than infer it. Removing the
+    mid-upload record reddens with <code>FileNotFoundError</code> — no receipts file was
+    written at all, which is the defect as the record sees it. Making a self-answered row
+    ignore the caller's departure reddens with <code>assert 'completed' ==
+    'aborted'</code>. Moving the sentinel to an engine origin fails four of eighteen.</p>
+
+    <p>The three repairs were read alongside a live-<code>uvicorn</code> reproduction
+    rather than only through the in-process harness, because the behaviour they depend on
+    is the server's own: a present caller records <code>completed</code>, one gone before
+    the reply records <code>aborted</code>, and one that left mid-upload records
+    <code>aborted</code> with a row of its own. The focused gate was taken on the
+    <code>all_debug</code> partition, not the login node.</p>
+  <h3 id="rr-guarantee">What a <code>completed</code> row promises, and the window it cannot see</h3>
+
+    <p>The self-answered reply sampled the caller's departure one event-loop turn after
+    the status line had been sent and before the body was sent, so a caller that aborted
+    inside that window was still recorded <code>completed</code>. Sampling later does not
+    close the window and was measured, not assumed: uvicorn marks a response complete
+    inside the send that writes its body, and its receive channel then answers
+    <code>http.disconnect</code> for a completed response exactly as it does for a caller
+    that left, so a watch read after the hand-over reports every caller as gone. The send
+    reports nothing either way, because a server that finds the caller gone when it writes
+    the body returns from that send without raising. The row's word was therefore narrowed
+    as the record's word, and the residual window named. <strong>The window remains
+    open.</strong> Waiting longer before the hand-over moves it earlier without removing
+    it, and reading after it cannot work at all, so no arrangement of this code closes
+    it — what the record can do is say so, which it does. The position was also held by
+    nothing but prose: an independent reading of this round moved the sample to the far
+    side of the send and both focused files stayed green (19 passed, then 24), while a
+    live drive over the same mutation stored <code>aborted</code> for a caller that
+    received the whole answer. A test now holds it instead, driving the real router
+    through a channel that reports its response complete as the server does and asserting
+    that a caller which stayed is stored <code>completed</code>.</p>
+
+    <table>
+      <thead>
+        <tr><th>Row's word</th><th>Does it mean</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>completed</code></td><td>the answer was sent whole, with no departure
+        reported before it changed hands</td></tr>
+        <tr><td><code>aborted</code></td><td>the caller had gone when the departure was
+        sampled: mid-relay, before its answer was sent, or while still uploading its
+        request</td></tr>
+        <tr><td><code>failed</code></td><td>everything else: an upstream error status, a
+        refusal handed to a caller that had not gone, or a relay that raised</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Sent is not received, and the count is of sends.</strong> Nothing on the
+    serving side of the exchange can state that a caller read its answer, so a reader
+    summing <code>completed</code> rows is counting answers delivered into the record of
+    departure. The docstring on the self-answered reply, the outcome-label documentation
+    and this table each state that limit, so the sum has one meaning wherever it is read.
+    A departure that lands between the sample and the hand-over is unobservable from here
+    and is named rather than relied on silently.</p>
+
+    <table>
+      <thead>
+        <tr><th>Control (applied verbatim, read from the stored row)</th><th>Result</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>the <code>aborted</code> label renamed to a spelling no consumer of the
+        record greps for</td><td>the module as it stood before the fix passes <strong>3 of
+        3</strong> — both sides of the comparison moved together; the module as it stands
+        fails <strong>4 of 4</strong> with <code>assert 'cancelled' == 'aborted'</code>,
+        three of them the stored-row assertions and one the test that pins the
+        labels</td></tr>
+        <tr><td>the self-answered departure sampled after the body is sent rather than
+        before it</td><td>a caller that received the whole answer is stored as
+        <code>aborted</code>, because the channel answers a completed response the same
+        way it answers a departing caller</td></tr>
+        <tr><td>the same move, run against the test that holds the position: the
+        departure read after the hand-over, driven through a channel that reports its
+        response complete</td><td>the asserted <code>completed</code> becomes
+        <code>aborted</code> — <code>assert 'aborted' == 'completed'</code> read from
+        the stored row, and the read returns to the near side before the gate</td></tr>
+      </tbody>
+    </table>
+
+    <p>Both logs open with the mutation they apply, so a reader replays it rather than
+    infers it. The second control drives the real router under a live
+    <code>uvicorn</code> server and its three stored rows are kept beside the run
+    (<code>logs/live-router-rows-uvicorn.jsonl</code>). The focused gate was taken on the
+    <code>all_debug</code> partition and reads <strong>25 passed</strong> against
+    <strong>16 passed at base</strong> for the same two files, the twenty-fifth being the
+    test that holds the read on the near side of the send; whole-tree
+    <code>ruff</code> exits 0.</p>
   </main>
 </body>
 </html>

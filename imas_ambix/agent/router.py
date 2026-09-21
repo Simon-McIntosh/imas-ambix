@@ -18,7 +18,10 @@ from typing import TYPE_CHECKING, Any, Protocol
 import aiohttp
 
 from imas_ambix.agent.request_receipts import (
+    DEFAULT_MAX_ROWS_PER_S,
+    DEFAULT_WINDOW_S,
     RECEIPTS_FILENAME,
+    SELF_ANSWERED_UPSTREAM,
     STATUS_ABORTED,
     STATUS_COMPLETED,
     STATUS_FAILED,
@@ -34,6 +37,42 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+# The receipt sampling ceiling is a bound, and a bound that lives only in an
+# invocation is one a launch eventually omits -- after which the value in force
+# is a source default nobody reasoned about and nothing reports. Naming it in
+# the environment lets a full-fidelity campaign raise it or remove it
+# (``inf`` keeps every row) without editing source, and the value in force is
+# logged when the sink is built. A value that is not a positive number is a
+# launch error rather than a silent fallback to the default: a record sampled at
+# a rate the operator did not choose reads as complete and is not.
+RECEIPT_MAX_ROWS_PER_S_ENV = "AMBIX_ROUTER_RECEIPT_MAX_ROWS_PER_S"
+RECEIPT_WINDOW_S_ENV = "AMBIX_ROUTER_RECEIPT_WINDOW_S"
+
+
+def _receipt_setting(name: str, explicit: float | None, default: float) -> float:
+    """Resolve one sampling setting: the argument, else the environment, else default.
+
+    ``inf`` is accepted and means no ceiling, which is what a campaign wanting
+    the full row-per-call record asks for.
+    """
+    raw: str | None = None
+    if explicit is not None:
+        value = float(explicit)
+    else:
+        raw = os.environ.get(name)
+        if raw is None or not raw.strip():
+            return default
+        try:
+            value = float(raw)
+        except ValueError:
+            raise ValueError(f"{name} must be a number, got {raw!r}") from None
+    # ``not value > 0`` rather than ``value <= 0`` so a nan is refused too: every
+    # comparison against nan is false, so it would otherwise reach the sink as a
+    # ceiling no arrival count can stay under.
+    if not value > 0:
+        raise ValueError(f"{name} must be positive, got {value!r}")
+    return value
 
 
 @dataclass(frozen=True, slots=True)
@@ -185,6 +224,8 @@ class RouterApp:
         lane_document: Path | None = None,
         lane_interval: int = 30,
         request_receipts_path: Path | None = None,
+        receipt_max_rows_per_s: float | None = None,
+        receipt_window_s: float | None = None,
     ) -> None:
         self._resolver = resolver
         # Per-request attribution lands beside the lane document the launching
@@ -198,6 +239,15 @@ class RouterApp:
             self._receipts_path = lane_document.with_name(RECEIPTS_FILENAME)
         else:
             self._receipts_path = None
+        # Resolved at construction so a malformed setting stops the launch
+        # rather than surfacing later as rows sampled at a rate nobody asked
+        # for, and so the value in force is fixed for the process's life.
+        self._receipt_max_rows_per_s = _receipt_setting(
+            RECEIPT_MAX_ROWS_PER_S_ENV, receipt_max_rows_per_s, DEFAULT_MAX_ROWS_PER_S
+        )
+        self._receipt_window_s = _receipt_setting(
+            RECEIPT_WINDOW_S_ENV, receipt_window_s, DEFAULT_WINDOW_S
+        )
         self._receipts: RequestReceiptSink | None = None
         # The shared lane budget is published from here rather than from its own
         # allocation. A separate job spent a core of a 30-core GPU reservation
@@ -236,17 +286,31 @@ class RouterApp:
         if scope_type != "http":
             return
 
+        # Stamped before any branch, so a request answered here without a relay
+        # still carries the time it spent in the router: a self-answered row
+        # whose duration was never observed would read as instantaneous.
+        began = time.perf_counter()
         method = scope.get("method")
         path = scope.get("path")
         if method == "GET" and path == "/v1/models":
-            await self._serve_catalog(send)
+            await self._serve_catalog(scope, receive, send, began)
             return
         if method != "POST" or path not in self._ROUTED_PATHS:
-            await self._json_error(send, 404, "unsupported router path")
+            await self._json_error(
+                scope, receive, send, 404, "unsupported router path", began=began
+            )
             return
 
         body, disconnected = await self._request_body(receive)
         if disconnected:
+            # The caller left while still uploading, so no engine was asked
+            # anything and no answer was ever sent. That is an outcome the
+            # record owes rather than an early return: the request did reach
+            # the router and die there, and without a row its only trace is a
+            # server-side connection teardown.
+            self._record_self_answer(
+                scope, "", began, http_status=None, caller_gone=True
+            )
             return
         try:
             payload = json.loads(body)
@@ -254,11 +318,25 @@ class RouterApp:
             UnicodeDecodeError,
             json.JSONDecodeError,
         ):
-            await self._json_error(send, 400, "request body must be valid JSON")
+            await self._json_error(
+                scope,
+                receive,
+                send,
+                400,
+                "request body must be valid JSON",
+                began=began,
+            )
             return
         model_id = payload.get("model") if isinstance(payload, Mapping) else None
         if not isinstance(model_id, str) or not model_id:
-            await self._json_error(send, 400, "request body must contain a model id")
+            await self._json_error(
+                scope,
+                receive,
+                send,
+                400,
+                "request body must contain a model id",
+                began=began,
+            )
             return
 
         catalogs = await self._reachable_catalogs()
@@ -269,11 +347,27 @@ class RouterApp:
             if card["id"] == model_id
         ]
         if not owners:
-            await self._json_error(send, 404, f"unknown model id: {model_id}")
+            await self._json_error(
+                scope,
+                receive,
+                send,
+                404,
+                f"unknown model id: {model_id}",
+                model_id=model_id,
+                began=began,
+            )
             return
         selected = _preferred_owner(owners)
         if selected is None:
-            await self._json_error(send, 409, f"duplicate model id: {model_id}")
+            await self._json_error(
+                scope,
+                receive,
+                send,
+                409,
+                f"duplicate model id: {model_id}",
+                model_id=model_id,
+                began=began,
+            )
             return
         upstream, card = selected
         if len(owners) > 1:
@@ -478,10 +572,23 @@ class RouterApp:
             cards.append(card)
         return _Catalog(upstream=upstream, payload=payload, cards=tuple(cards))
 
-    async def _serve_catalog(self, send: Send) -> None:
+    async def _serve_catalog(
+        self,
+        scope: Mapping[str, Any],
+        receive: Receive,
+        send: Send,
+        began: float,
+    ) -> None:
         catalogs = await self._reachable_catalogs()
         if not catalogs:
-            await self._json_error(send, 503, "no upstream catalogs are reachable")
+            await self._json_error(
+                scope,
+                receive,
+                send,
+                503,
+                "no upstream catalogs are reachable",
+                began=began,
+            )
             return
         owners = [
             (catalog.upstream, card) for catalog in catalogs for card in catalog.cards
@@ -507,15 +614,19 @@ class RouterApp:
             cards.append(card)
         if duplicates:
             await self._json_error(
+                scope,
+                receive,
                 send,
                 409,
                 f"duplicate model id: {', '.join(sorted(duplicates))}",
+                began=began,
             )
             return
         payload = dict(catalogs[0].payload)
         payload["data"] = cards
         body = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode()
-        await self._response(
+        caller_gone = await self._response(
+            receive,
             send,
             200,
             [
@@ -523,6 +634,11 @@ class RouterApp:
                 (b"content-length", str(len(body)).encode()),
             ],
             body,
+        )
+        # The listing names no model and is served from the merged catalogs, so
+        # the row records what it answered without an engine behind it.
+        self._record_self_answer(
+            scope, "", began, http_status=200, caller_gone=caller_gone
         )
 
     async def _relay(
@@ -569,17 +685,23 @@ class RouterApp:
 
         accounting = StreamAccounting()
         began = time.perf_counter()
-        # Anything that is not a 2xx relayed whole reads as failed, so a request
-        # the engine refused is recorded as such rather than dropped or counted
-        # as a success. The outcome is only rewritten by the two paths that can
-        # tell better: a 2xx relay, and a caller that left mid-relay.
+        # Anything that is not a 2xx reads as failed, so a request the engine
+        # refused is recorded as such rather than dropped or counted as a
+        # success. The outcome is only rewritten by the two paths that can tell
+        # better: a 2xx relay, and a caller that left mid-relay.
         status = STATUS_FAILED
         try:
             async with session.request(
                 scope["method"], target, data=body, headers=request_headers
             ) as response:
-                if 200 <= response.status < 300:
-                    status = STATUS_COMPLETED
+                # The response's status describes what the ENGINE accepted, not
+                # what the caller received. Holding it here and promoting it to
+                # the row's outcome only once the body has been relayed whole is
+                # what keeps the two apart: an engine that answers 200 and then
+                # aborts its transport leaves this block through an exception
+                # out of readany(), so an outcome taken from the headers alone
+                # would record a truncated relay as a completed one.
+                answered_ok = 200 <= response.status < 300
                 await send(
                     {
                         "type": "http.response.start",
@@ -613,6 +735,8 @@ class RouterApp:
                             }
                         )
                     accounting.finish()
+                    if answered_ok:
+                        status = STATUS_COMPLETED
                     await send({"type": "http.response.body", "body": b""})
                 finally:
                     disconnected.cancel()
@@ -628,7 +752,7 @@ class RouterApp:
                 accounting=accounting,
                 status=status,
                 model_id=model_id,
-                upstream=upstream,
+                upstream=upstream.base_url,
                 caller_hint=caller_hint,
                 started_at=started_at,
                 began=began,
@@ -643,7 +767,20 @@ class RouterApp:
         if self._receipts_path is None:
             return None
         if self._receipts is None:
-            self._receipts = RequestReceiptSink(self._receipts_path)
+            self._receipts = RequestReceiptSink(
+                self._receipts_path,
+                max_rows_per_s=self._receipt_max_rows_per_s,
+                window_s=self._receipt_window_s,
+            )
+            # Publish the ceiling in force. Sampling is visible in the rows only
+            # to a reader who already suspects it, and a bound inferable from
+            # behaviour alone is one that a later reader measures from scratch.
+            logger.info(
+                "request receipts sink path=%s max_rows_per_s=%s window_s=%s",
+                self._receipts.path,
+                self._receipt_max_rows_per_s,
+                self._receipt_window_s,
+            )
         return self._receipts
 
     def _record_receipt(
@@ -652,12 +789,12 @@ class RouterApp:
         accounting: StreamAccounting,
         status: str,
         model_id: str,
-        upstream: Upstream,
+        upstream: str,
         caller_hint: str,
         started_at: datetime,
         began: float,
     ) -> None:
-        """Append the row for one relayed request, whatever its outcome.
+        """Append the row for one request, whatever its outcome and whoever answered it.
 
         Never raises into the relay: this runs in a ``finally`` whose exception
         may still be propagating, so a failure here would replace the real
@@ -669,7 +806,7 @@ class RouterApp:
         try:
             sink.record(
                 model=model_id,
-                upstream=upstream.base_url,
+                upstream=upstream,
                 caller_hint=caller_hint,
                 status=status,
                 duration_s=time.perf_counter() - began,
@@ -683,6 +820,62 @@ class RouterApp:
                 type(error).__name__,
                 error,
             )
+
+    def _record_self_answer(
+        self,
+        scope: Mapping[str, Any],
+        model_id: str,
+        began: float,
+        *,
+        http_status: int | None,
+        caller_gone: bool,
+    ) -> None:
+        """Record a request this process answered without relaying it.
+
+        A request refused before any engine was chosen -- an unroutable path, a
+        body that is not JSON, a missing, unknown or ambiguous model id -- and
+        the catalog listing are answered here, so no engine served them and
+        there is no usage to report. So is a caller that left while still
+        uploading, for which no answer was ever sent. They belong in the record
+        anyway: a record of what the router served that holds only what it did
+        not forward omits precisely the requests a caller reports as broken,
+        whose only other trace is a log line. The row carries the model id the
+        caller named, and the empty string where none was ever read.
+
+        The upstream is the self-answered sentinel rather than an engine origin,
+        so a reader attributing rows per upstream never folds the router's own
+        answers into a sink's traffic.
+
+        The status is what the caller was sent, not what the router composed:
+        a departure reported before the answer was handed over records as
+        ``aborted`` whatever status the router put on it. That is a statement
+        about the send and not about receipt, and ``_response`` states exactly
+        what a ``completed`` row does and does not promise.
+
+        ``http_status`` is the status the router composed, or None when the
+        caller had gone before any answer was sent. ``caller_gone`` is the
+        departure the answer's own send observed -- the caller's side of the
+        exchange, which the router's own status line does not describe: a
+        refusal answered to a caller that is no longer there is not the same
+        event as a refusal received, and recording both as ``failed`` makes the
+        record unable to distinguish a caller that got an empty answer from one
+        that got nothing.
+        """
+        if caller_gone or http_status is None:
+            status = STATUS_ABORTED
+        elif 200 <= http_status < 300:
+            status = STATUS_COMPLETED
+        else:
+            status = STATUS_FAILED
+        self._record_receipt(
+            accounting=StreamAccounting(),
+            status=status,
+            model_id=model_id,
+            upstream=SELF_ANSWERED_UPSTREAM,
+            caller_hint=self._caller_hint(scope),
+            started_at=datetime.now(UTC),
+            began=began,
+        )
 
     @staticmethod
     def _repair_system_roles(
@@ -803,18 +996,76 @@ class RouterApp:
 
     @staticmethod
     async def _response(
-        send: Send, status: int, headers: list[tuple[bytes, bytes]], body: bytes
-    ) -> None:
-        await send(
-            {"type": "http.response.start", "status": status, "headers": headers}
-        )
-        await send({"type": "http.response.body", "body": body})
+        receive: Receive,
+        send: Send,
+        status: int,
+        headers: list[tuple[bytes, bytes]],
+        body: bytes,
+    ) -> bool:
+        """Send an answer this process composed, and report if the caller had gone.
 
-    async def _json_error(self, send: Send, status: int, detail: str) -> None:
+        The departure is read on the same channel the relay reads, and read
+        while the answer is still unsent: uvicorn marks a response complete
+        inside the send that writes its body, and its channel then answers
+        http.disconnect for a completed response exactly as it does for a
+        caller that left, so a watch read after the hand-over reports every
+        caller as gone. The hand-over carries no signal of its own either: a
+        server that finds the caller gone when it writes the body returns from
+        that send without raising, so the outcome of the send reports nothing
+        either way.
+
+        The sample is therefore taken here, before the answer changes hands,
+        and the row's ``completed`` is what the answer's own send can promise
+        -- the router composed the answer and handed it over with no departure
+        reported first. It is not a promise that the caller read it, which
+        nothing on this side of the server can state, and a departure landing
+        in the gap between this read and the hand-over is not observable. A
+        reader summing completed rows is counting answers sent, not answers
+        received.
+
+        Returns True when the caller had already gone, so the row records what
+        the caller's side of the exchange showed rather than the status the
+        router composed.
+        """
+        watcher = asyncio.create_task(RouterApp._wait_for_disconnect(receive))
+        try:
+            await send(
+                {"type": "http.response.start", "status": status, "headers": headers}
+            )
+            # One turn of the loop, so a watcher that has an answer to give --
+            # the caller is already gone -- gives it before the body is sent.
+            # This is the last read the channel can answer: once the response
+            # is complete it reports a departure for every caller alike.
+            await asyncio.sleep(0)
+            caller_gone = watcher.done()
+            await send({"type": "http.response.body", "body": body})
+        finally:
+            watcher.cancel()
+            await asyncio.gather(watcher, return_exceptions=True)
+        return caller_gone
+
+    async def _json_error(
+        self,
+        scope: Mapping[str, Any],
+        receive: Receive,
+        send: Send,
+        status: int,
+        detail: str,
+        *,
+        model_id: str = "",
+        began: float,
+    ) -> None:
+        """Answer a request this process refuses, and record that it did.
+
+        Every error response the router produces itself leaves through here, so
+        a new refusal path cannot widen what it answers without widening the
+        record too -- which a call site remembered per branch cannot promise.
+        """
         body = json.dumps(
             {"error": {"message": detail}}, separators=(",", ":")
         ).encode()
-        await self._response(
+        caller_gone = await self._response(
+            receive,
             send,
             status,
             [
@@ -823,6 +1074,9 @@ class RouterApp:
             ],
             body,
         )
+        self._record_self_answer(
+            scope, model_id, began, http_status=status, caller_gone=caller_gone
+        )
 
 
 def create_router_app(
@@ -830,12 +1084,16 @@ def create_router_app(
     *,
     lane_document: Path | None = None,
     request_receipts_path: Path | None = None,
+    receipt_max_rows_per_s: float | None = None,
+    receipt_window_s: float | None = None,
 ) -> RouterApp:
     """Build the ASGI application around an injected upstream resolver."""
     return RouterApp(
         resolver,
         lane_document=lane_document,
         request_receipts_path=request_receipts_path,
+        receipt_max_rows_per_s=receipt_max_rows_per_s,
+        receipt_window_s=receipt_window_s,
     )
 
 
@@ -846,6 +1104,8 @@ def serve_router(
     port: int,
     lane_document: Path | None = None,
     request_receipts_path: Path | None = None,
+    receipt_max_rows_per_s: float | None = None,
+    receipt_window_s: float | None = None,
 ) -> None:
     """Run the router ASGI application with the serving runtime."""
     import uvicorn
@@ -869,6 +1129,8 @@ def serve_router(
             resolver,
             lane_document=lane_document,
             request_receipts_path=request_receipts_path,
+            receipt_max_rows_per_s=receipt_max_rows_per_s,
+            receipt_window_s=receipt_window_s,
         ),
         host=host,
         port=port,

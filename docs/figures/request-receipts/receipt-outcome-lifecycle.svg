@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 540" width="980" height="540"
+     font-family="DejaVu Sans, Helvetica, Arial, sans-serif">
+  <style>
+    .box   { fill: #f7f8fa; stroke: #40474f; stroke-width: 1.4; }
+    .answer{ fill: #eef4fb; stroke: #2f5d8a; stroke-width: 1.6; }
+    .relay { fill: #fbf7ee; stroke: #8a6a2f; stroke-width: 1.6; }
+    .row   { fill: #eef7f0; stroke: #2f8a4d; stroke-width: 1.5; }
+    .left  { fill: #fdeeee; stroke: #b64a4a; stroke-width: 1.5; }
+    .lab   { font-size: 13px; fill: #1d2227; }
+    .lab-s { font-size: 11.5px; fill: #46505a; }
+    .edge  { stroke: #40474f; stroke-width: 1.3; fill: none; }
+    .note  { font-size: 12px; fill: #46505a; }
+    .foot  { font-size: 11.5px; fill: #46505a; }
+    .title { font-size: 15px; font-weight: 600; fill: #1d2227; }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5"
+            markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#40474f"/>
+    </marker>
+  </defs>
+
+  <text class="title" x="18" y="26">One request, two paths, and the row each writes</text>
+
+  <rect class="box" x="18" y="52" width="150" height="52" rx="6"/>
+  <text class="lab" x="36" y="75">request arrives</text>
+  <text class="lab-s" x="36" y="93">one HTTP call to the router</text>
+
+  <line class="edge" x1="168" y1="78" x2="214" y2="78" marker-end="url(#a)"/>
+
+  <rect class="answer" x="218" y="52" width="184" height="52" rx="6"/>
+  <text class="lab" x="236" y="75">the router answers it itself,</text>
+  <text class="lab-s" x="236" y="93">a refusal or the catalog listing</text>
+
+  <line class="edge" x1="310" y1="104" x2="310" y2="150" marker-end="url(#a)"/>
+  <text class="lab-s" x="318" y="132">yes — no engine was chosen</text>
+
+  <rect class="row" x="200" y="150" width="320" height="76" rx="6"/>
+  <text class="lab" x="218" y="172">row written without a relay</text>
+  <text class="lab-s" x="218" y="191">upstream (router); model id as the caller gave it,</text>
+  <text class="lab-s" x="218" y="208">or empty where the body never arrived to name one</text>
+
+  <line class="edge" x1="402" y1="78" x2="450" y2="78" marker-end="url(#a)"/>
+  <text class="lab-s" x="414" y="70">no</text>
+
+  <rect class="relay" x="454" y="52" width="178" height="52" rx="6"/>
+  <text class="lab" x="472" y="75">an engine is chosen,</text>
+  <text class="lab-s" x="472" y="93">the relay starts</text>
+
+  <line class="edge" x1="632" y1="78" x2="676" y2="78" marker-end="url(#a)"/>
+
+  <rect class="box" x="680" y="52" width="282" height="52" rx="6"/>
+  <text class="lab" x="698" y="75">the body is relayed chunk by chunk</text>
+  <text class="lab-s" x="698" y="93">its 2xx is what the ENGINE answered</text>
+
+  <line class="edge" x1="821" y1="104" x2="821" y2="150" marker-end="url(#a)"/>
+
+  <rect class="row" x="680" y="150" width="282" height="76" rx="6"/>
+  <text class="lab" x="698" y="172">forwarded whole → completed</text>
+  <text class="lab-s" x="698" y="191">the answer reached the caller, from the</text>
+  <text class="lab-s" x="698" y="208">engine or from the router's own reply</text>
+
+  <line class="edge" x1="821" y1="226" x2="821" y2="272" marker-end="url(#a)"/>
+
+  <rect class="left" x="680" y="272" width="282" height="76" rx="6"/>
+  <text class="lab" x="698" y="294">nobody received it → aborted</text>
+  <text class="lab-s" x="698" y="313">the caller left mid-relay, or had already gone</text>
+  <text class="lab-s" x="698" y="330">before the reply was sent</text>
+
+  <line class="edge" x1="821" y1="348" x2="821" y2="386" marker-end="url(#a)"/>
+
+  <rect class="left" x="698" y="386" width="264" height="48" rx="6"/>
+  <text class="lab" x="716" y="408">the relay raised → failed</text>
+  <text class="lab-s" x="716" y="426">a truncated body, or a non-2xx from the engine</text>
+
+  <line class="edge" x1="200" y1="188" x2="150" y2="188" marker-end="url(#a)"/>
+  <line class="edge" x1="150" y1="188" x2="150" y2="400" marker-end="url(#a)"/>
+
+  <rect class="left" x="18" y="400" width="264" height="76" rx="6"/>
+  <text class="lab" x="36" y="422">left while uploading → aborted</text>
+  <text class="lab-s" x="36" y="441">no engine was asked anything, so the row</text>
+  <text class="lab-s" x="36" y="458">carries the (router) upstream and no model id</text>
+
+  <text class="note" x="300" y="256">The reply's own send watches the receive channel and
+    stops watching</text>
+  <text class="note" x="300" y="274">the moment the answer is handed over — the
+    same channel the relay</text>
+  <text class="note" x="300" y="292">watches, and the same one an ASGI
+    server reports a completed</text>
+  <text class="note" x="300" y="310">response on, which is why the watch
+    cannot outlive the send.</text>
+
+  <text class="foot" x="18" y="504">Measured through the landed router under live
+    uvicorn: a caller still present records completed;</text>
+  <text class="foot" x="18" y="522">one gone before the reply records aborted; one that left
+    mid-upload records aborted with a row of its own.</text>
+</svg>
