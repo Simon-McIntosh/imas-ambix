@@ -285,6 +285,30 @@ def _row_weights(rows: list[dict[str, Any]], window_seconds: int) -> list[float]
     return weights
 
 
+def _row_samples(rows: list[dict[str, Any]]) -> list[int]:
+    """The number of source samples each row stands for.
+
+    A raw row is one sample; a compacted row declares how many it represents, so
+    a second compaction level accumulates the underlying count rather than
+    counting its own coarser rows -- an hour built from sixty minute rows stands
+    for every five-second sample those minutes stood for.
+    """
+    counts: list[int] = []
+    for row in rows:
+        obs = row.get(_OBS_KEY)
+        declared = obs.get("samples") if isinstance(obs, dict) else None
+        usable = (
+            isinstance(declared, int)
+            and not isinstance(declared, bool)
+            and declared > 0
+        )
+        if usable:
+            counts.append(declared)
+        else:
+            counts.append(1)
+    return counts
+
+
 def compact_rows(
     rows: list[dict[str, Any]], *, tier: str
 ) -> list[dict[str, Any]]:
@@ -308,9 +332,10 @@ def compact_rows(
         return []
 
     weights = _row_weights(rows, window_seconds)
+    sample_counts = _row_samples(rows)
     windows: dict[int, _Window] = {}
     order: list[int] = []
-    for row, weight in zip(rows, weights, strict=True):
+    for row, weight, samples in zip(rows, weights, sample_counts, strict=True):
         stamp = _parse_timestamp(row)
         epoch = stamp.timestamp()
         bucket = math.floor(epoch / window_seconds) * window_seconds
@@ -319,7 +344,7 @@ def compact_rows(
             window = _Window(start=_dt.datetime.fromtimestamp(bucket, tz=_dt.UTC))
             windows[bucket] = window
             order.append(bucket)
-        window.samples += 1
+        window.samples += samples
         window.seconds += weight
         window.endpoint = stamp
         _merge(window.payload, _row_payload(row), weight, ())
