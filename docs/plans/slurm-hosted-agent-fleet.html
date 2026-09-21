@@ -26,10 +26,10 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-21">
 <meta name="plan-version" content="5">
-<meta name="plan-impl" content="0.333">
+<meta name="plan-impl" content="0.429">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
-<meta name="plan-commits" content="e523036b842dbd9c6dbc205bfd0753335e82c342">
-<meta name="plan-artifacts" content="docs/research/site-request-user-lingering.html">
+<meta name="plan-commits" content="e523036b842dbd9c6dbc205bfd0753335e82c342,e0a990fb4486ac0e75ff217a1fecb432ae5b0962,cff4e0d5c976b8d2d9e71edfc6913eb9700e1aed,3452b5799770701d9e8d596773f5dd40365a127f">
+<meta name="plan-artifacts" content="docs/research/site-request-user-lingering.html,imas_ambix/agent/fleet.py,imas_ambix/agent/throttling.py,tests/agent/test_fleet.py,tests/agent/test_throttling.py">
 </div>
 
 <meta name="plan-version" content="4">
@@ -391,6 +391,9 @@
 </div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20260921T065821787810-fleet-dispatch-placement-verdict" data-who="reckon-ship" data-when="2026-09-21T07:22:38.604Z">
     <div class="r-comment-body"><p>verdict NO CHANGE REQUIRED, with a finding that reshapes the plan: reckon already implements the reservation path the plan proposed to build (persistent salloc --no-shell, workers placed as srun --overlap --jobid steps, published reservation state, a reckon crew placement --ensure command) and it is IMPLEMENTED BUT UNARMED — zero placement keys in the live flight config, no reservation record on disk. Crew state, watcher state and worktrees are all on GPFS so a move does not strand them. Coordinator note: the node kept no gate log on disk, so this log is the coordinator re-run</p></div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-20260921-reckon-already-has-placement" data-who="reckon-ship" data-when="2026-09-21T07:27:00Z">
+    <div class="r-comment-body">This section's boundary needs revisiting. It says a dispatch change would be a dependency to raise in reckon. Measured on 2026-09-21: reckon has already built that path — a persistent salloc --no-shell reservation, workers placed into it as srun --overlap --jobid steps, published reservation state and a reckon crew placement --ensure operator command — and it is unarmed, with zero placement keys in the live flight config and no reservation record on disk. So nothing needs raising; what is open is whether the fleet's interactive allocation and reckon's worker reservation are one allocation or two, and reckon's defaults (partition all, 32 cores, 128 GB) differ from this plan's locked rigel, 28 cores, 120G.</div>
 </div>
 </section>
 </main>
