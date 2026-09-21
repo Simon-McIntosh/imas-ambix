@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 430" width="1180" height="430"
+     font-family="ui-sans-serif, -apple-system, Segoe UI, Roboto, sans-serif">
+  <title>How the watcher's ledger row is derived from the recorded counters</title>
+  <desc>Three panels. Left: a cumulative counter rising across a period, with the row's figure drawn as the difference between the last reading at each bound rather than the sum of the readings between them. Middle: a counter that falls inside the period, where the serve restarted and the row reports nothing instead of a negative. Right: the coverage gate, where two minutes of record inside an hour fall below the quarter-observed threshold and the utilisation reading is declined.</desc>
+
+  <style>
+    .panel { fill: #fff; stroke: #c9ced6; stroke-width: 1; }
+    .axis { stroke: #98a2b3; stroke-width: 1; }
+    .grid { stroke: #e6e9ee; stroke-width: 1; }
+    .trace { fill: none; stroke: #1f6feb; stroke-width: 2.4; stroke-linejoin: round; }
+    .reset { fill: none; stroke: #d9534f; stroke-width: 2.4; stroke-linejoin: round; }
+    .bound { stroke: #6b7280; stroke-width: 1.4; stroke-dasharray: 5 4; }
+    .delta { stroke: #1a7f37; stroke-width: 2.6; }
+    .dot { fill: #1f6feb; }
+    .callout { fill: #1a7f37; }
+    .declined { fill: #b54708; }
+    .title { font-size: 15px; font-weight: 600; fill: #1f2937; }
+    .note { font-size: 12.5px; fill: #475467; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; fill: #1f2937; }
+    .lbl { font-size: 11.5px; fill: #667085; }
+  </style>
+
+  <!-- ── panel 1: endpoints, not a sum ─────────────────────────────── -->
+  <rect class="panel" x="16" y="16" width="360" height="398" rx="8"/>
+  <text class="title" x="36" y="46">A period is two endpoints</text>
+  <text class="note" x="36" y="66">The counter is cumulative since the serve started.</text>
+  <line class="axis" x1="60" y1="320" x2="356" y2="320"/>
+  <line class="axis" x1="60" y1="320" x2="60" y2="100"/>
+
+  <!-- staircase of cumulative readings inside the window -->
+  <polyline class="trace" points="60,300 84,282 108,265 132,246 156,230 180,213 204,196
+      228,182 252,168 276,150 300,138 324,122 348,108"/>
+  <circle class="dot" cx="84" cy="282" r="3"/>
+  <circle class="dot" cx="108" cy="265" r="3"/>
+  <circle class="dot" cx="132" cy="246" r="3"/>
+  <circle class="dot" cx="156" cy="230" r="3"/>
+  <circle class="dot" cx="180" cy="213" r="3"/>
+  <circle class="dot" cx="204" cy="196" r="3"/>
+  <circle class="dot" cx="228" cy="182" r="3"/>
+  <circle class="dot" cx="252" cy="168" r="3"/>
+  <circle class="dot" cx="276" cy="150" r="3"/>
+  <circle class="dot" cx="300" cy="138" r="3"/>
+  <circle class="dot" cx="324" cy="122" r="3"/>
+  <circle class="dot" cx="348" cy="108" r="3"/>
+
+  <line class="bound" x1="72" y1="120" x2="72" y2="320"/>
+  <line class="bound" x1="340" y1="120" x2="340" y2="320"/>
+  <line class="delta" x1="72" y1="291" x2="340" y2="291"/>
+  <circle class="dot" cx="72" cy="291" r="3.4"/>
+  <circle class="dot" cx="340" cy="114" r="3.4"/>
+  <line class="delta" x1="340" y1="291" x2="340" y2="114"/>
+
+  <text class="lbl" x="72" y="340">period start</text>
+  <text class="lbl" x="290" y="340">now</text>
+  <text class="mono" x="120" y="284">Δ = last at each bound</text>
+  <text class="lbl" x="150" y="368">the readings between them</text>
+  <text class="lbl" x="150" y="384">are <tspan font-weight="600">never</tspan> added up</text>
+
+  <!-- ── panel 2: a reset is refused ───────────────────────────────── -->
+  <rect class="panel" x="400" y="16" width="360" height="398" rx="8"/>
+  <text class="title" x="420" y="46">A reset inside the period</text>
+  <text class="note" x="420" y="66">The serve restarted, so the counter fell.</text>
+  <line class="axis" x1="444" y1="320" x2="740" y2="320"/>
+  <line class="axis" x1="444" y1="320" x2="444" y2="100"/>
+  <polyline class="trace" points="456,296 480,278 504,260 528,240 552,222 576,205"/>
+  <polyline class="reset" points="576,205 600,300 624,286 648,268 672,250 696,232 720,214"/>
+  <line class="bound" x1="600" y1="120" x2="600" y2="320"/>
+  <text class="declined" x="614" y="222">serve restart</text>
+  <text class="lbl" x="614" y="240">counter falls here</text>
+  <text class="declined" x="456" y="360" font-size="13" font-weight="600">row reports —</text>
+  <text class="lbl" x="456" y="380">two endpoints cannot recover</text>
+  <text class="lbl" x="456" y="396">the traffic on either side of it,</text>
+  <text class="lbl" x="456" y="412">and a clamp would call it zero.</text>
+
+  <!-- ── panel 3: the coverage gate ────────────────────────────────── -->
+  <rect class="panel" x="784" y="16" width="380" height="398" rx="8"/>
+  <text class="title" x="804" y="46">Coverage decides the mean</text>
+  <text class="note" x="804" y="66">A mean over thin record is the reader's habit.</text>
+
+  <text class="lbl" x="804" y="112">ten minutes observed in an hour</text>
+  <rect x="804" y="122" width="336" height="26" fill="#e8f5ec" stroke="#1a7f37"/>
+  <rect x="804" y="122" width="56" height="26" fill="#1a7f37"/>
+  <line x1="888" y1="112" x2="888" y2="156" stroke="#b54708" stroke-width="2" stroke-dasharray="5 4"/>
+  <text class="lbl" x="893" y="176">quarter-observed</text>
+  <text class="mono" x="804" y="200" fill="#1a7f37">0.17 ≤ 0.25 → utilisation declined</text>
+
+  <text class="lbl" x="804" y="248">fifty minutes observed in an hour</text>
+  <rect x="804" y="258" width="336" height="26" fill="#e8f5ec" stroke="#1a7f37"/>
+  <rect x="804" y="258" width="280" height="26" fill="#1a7f37"/>
+  <line x1="888" y1="248" x2="888" y2="292" stroke="#b54708" stroke-width="2" stroke-dasharray="5 4"/>
+  <text class="mono" x="804" y="336" fill="#1a7f37">0.83 &gt; 0.25 → time-weighted mean</text>
+
+  <text class="note" x="804" y="372">Each sample speaks for the interval to the next,</text>
+  <text class="note" x="804" y="390">capped at five minutes — so a gap while nothing</text>
+  <text class="note" x="804" y="408">was recording contributes no weight at all.</text>
+</svg>

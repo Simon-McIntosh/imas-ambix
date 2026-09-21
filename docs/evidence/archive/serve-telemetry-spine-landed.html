@@ -1621,6 +1621,113 @@ except ImportError:
     <strong>16 passed at base</strong> for the same two files, the twenty-fifth being the
     test that holds the read on the near side of the send; whole-tree
     <code>ruff</code> exits 0.</p>
+  <h1>Serve telemetry spine — the watcher reads the record (§5)</h1>
+
+    <h2 id="watcher-record">The panels are queries over the record, not readings of a live serve</h2>
+
+    <figure>
+      <img src="/imas-ambix/figures/serve-telemetry-spine/ledger-from-record.svg"
+           alt="Three panels. Left: a cumulative counter rising across a period, with the row's figure drawn as the difference between the last reading at each bound rather than the sum of the readings between them. Middle: a counter that falls inside the period, where the serve restarted and the row reports nothing instead of a negative. Right: the coverage gate, where ten of sixty minutes observed falls below the quarter-observed threshold and the utilisation reading is declined, while fifty of sixty does not.">
+      <figcaption>Three rules the ledger rests on: two endpoints rather than a sum, a reset declined rather than clamped, and a mean declined under thin coverage.</figcaption>
+    </figure>
+
+    <p><code>imas_ambix/agent/watch.py</code> is the workstation <code>gpu-watch</code>
+    moved in beside the producer it reads, and <code>imas_ambix/agent/cli.py</code>
+    registers it as <code>imas-ambix agent watch</code>. Its panels are unchanged —
+    the ranked cards, the bar-beside-every-percentage rule, the ledger — and what
+    changed is underneath: every figure is a query against
+    <code>TelemetryIndex</code>, so the subcommand no longer spawns sampler steps for
+    the serve's cards and no longer keeps a ledger of its own. Nothing in the module
+    opens a socket, and no test would pass if a figure could only come from a scrape.</p>
+
+    <h3 id="watcher-ledger">A period is two endpoints</h3>
+
+    <p>The counters in the record are cumulative since the serve started, so a period's
+    traffic is the advance of the counter across the window, not the total of the
+    readings inside it. <code>watch._span</code> asks the index for
+    <code>counter_span(name, start, end)</code> — the last reading at or before each
+    bound — and refuses when that span is negative, because a fall between the bounds
+    means the serve restarted inside the period and two endpoints cannot recover the
+    traffic on either side. The refusal is what turns a negative span into a dash; the
+    row is kept rather than dropped, because a period the record reached and could not
+    integrate is a different statement from a period nobody observed. A period covered
+    by fewer than two samples is omitted entirely.</p>
+
+    <p>Cached input is sourced from the canonical tier names when any tier in the window
+    carried a measurement, and from the flat prefix-cache hit counter otherwise, so the
+    two spellings are never both counted into one figure. Open-market cost is resolved
+    per interval at the rate then in force — a schedule is matched by weekday and
+    time-of-day window, wrapping past midnight — with the uncharged remainder billed at
+    the prompt rate and cached input at the cache-read tier.</p>
+
+    <h3 id="watcher-coverage">Coverage decides whether the mean is reported at all</h3>
+
+    <p>Reporting the mean of a handful of readings as the deployment's utilisation
+    describes the watcher's sampling rather than the load. <code>observed_fraction</code>
+    credits each sample with the interval it actually stood for — the gap to the next
+    sample, capped at five minutes, so a stretch nobody was recording contributes no
+    weight — and <code>card_utilisation</code> declines the figure below a quarter of
+    the window observed. The figure is <code>None</code>, never <code>0.0</code>: an
+    absent quantity and a measured zero are different statements, and the panels draw a
+    dash for the first.</p>
+
+    <h3 id="watcher-gates">Gates, and the negative control</h3>
+
+    <p>The focused gate is <code>tests/test_agent_telemetry_watch.py</code>:
+    <strong>10 passed in 0.78 s</strong>. Whole-tree
+    <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0
+    (<code>All checks passed!</code>). Every test builds a receipt record on disk and
+    reads figures back through the index, so the tests also fix the contract between
+    the two modules rather than restating the watcher's own arithmetic.</p>
+
+    <p>The endpoint rule was shown load-bearing rather than asserted, by mutation. In
+    <code>watch._span</code>, the line</p>
+
+    <pre><code>    advance = index.counter_span(name, start, end)</code></pre>
+
+    <p>was replaced with <code>advance = index.sum_measurements(name, start, end)</code>.
+    The mutated arm reports <strong>3 failed, 7 passed</strong>, reddening
+    <code>test_ledger_periods_are_populated_from_the_record</code>,
+    <code>test_counters_are_differenced_not_summed</code> and
+    <code>test_absent_quantity_is_none_and_not_zero</code>. The sum lookup is scoped to
+    interval-kind measurements, so a cumulative counter comes back <em>absent</em> rather
+    than as a numeric total; the rows then render as dashes, which is why every period
+    assertion fails on <code>tokens_in is not None</code> and the differencing test
+    reddens through the same door. What the mutation shows directly is that the endpoint
+    span is the load-bearing input to every period figure: remove it and no period has a
+    figure at all. The reverted arm returns <strong>10 passed</strong> against revision
+    <code>40628ce4</code>, with <code>git diff --quiet</code> confirming the file was
+    byte-identical before the green run. The control log opens with the mutated line
+    verbatim, so a reader replays it rather than infers it.</p>
+
+    <h3 id="watcher-reachability">Reachability</h3>
+
+    <p>The production call site is <code>imas_ambix/agent/cli.py</code>: the
+    <code>@agent.command(name="watch")</code> handler, registered on the
+    <code>agent</code> group beside <code>receipts</code>, which calls
+    <code>watch.watch_text</code> for the terminal panels and
+    <code>watch.watch_document</code> for <code>--json</code>. This is the same
+    command name the dotfiles launcher keeps on <code>PATH</code>, so the operator
+    surface does not move even though the implementation does.</p>
+
+    <h3 id="watcher-commits">Commits</h3>
+
+    <table>
+      <thead><tr><th>Revision</th><th>Paths</th><th>What it carries</th></tr></thead>
+      <tbody>
+        <tr><td><code>8cfee5ea</code></td><td><code>imas_ambix/agent/watch.py</code>,
+        <code>imas_ambix/agent/cli.py</code>,
+        <code>tests/test_agent_telemetry_watch.py</code></td>
+        <td>the ported watcher, its subcommand registration, and the focused gate</td></tr>
+        <tr><td><code>40628ce4</code></td><td><code>imas_ambix/agent/watch.py</code></td>
+        <td>the ledger's column header shortened to fit the line width, which is what
+        the whole-tree lint gate was failing on</td></tr>
+      </tbody>
+    </table>
+
+    <p>The plan's §5 write paths name <code>tests/test_watch_panel.py</code> for the
+    panel test; it lands here as <code>tests/test_agent_telemetry_watch.py</code>, which
+    is the repository's naming for agent CLI tests and the module it covers.</p>
   </main>
 </body>
 </html>
