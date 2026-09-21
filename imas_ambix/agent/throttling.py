@@ -18,6 +18,13 @@ An unbounded group can never yield a share however long it is watched, while a
 group with no accounted period yet has simply not run long enough and will
 state a share at a later reading. ``Unmeasured`` names both.
 
+A group with no ``cpu.max`` file states no ceiling at all: the cpu controller is
+not enabled for it, so the kernel enforces no quota there and accounts no period
+either. That is the state of a compute node's user slice, which is one side of
+the comparison this sampler exists to take, so such a group is reported — the
+ceiling as absent, the counters it does state with the period counters absent —
+rather than raised on the missing file.
+
 A share is comparable only between readings of the same machine, and nothing in
 the cgroup text says which machine it came from: the counter paths resolve on
 every host in the cluster with different contents. The payload therefore names
@@ -30,6 +37,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import socket
 import time
 from dataclasses import dataclass
@@ -50,7 +58,22 @@ _UPTIME_FILE = "/proc/uptime"
 # The cpu.max quota field when no ceiling is set.
 _UNLIMITED = "max"
 
-_COUNTER_FIELDS = ("usage_usec", "nr_periods", "nr_throttled", "throttled_usec")
+# How a control group with no cpu.max file at all is stated back for one.
+_ABSENT = "absent"
+
+# The canonical boot identifier the kernel draws: five groups of lowercase
+# hexadecimal digits, eight then three of four. Nothing else is a boot
+# identifier, and a value that merely looks like one would be reported and
+# compared as though it named a boot.
+_BOOT_ID_SHAPE = re.compile(
+    r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+)
+
+# The counters a control group accounts for throttling: the cumulative usage is
+# accounted everywhere, the three period counters only where a ceiling exists.
+_USAGE_FIELD = "usage_usec"
+_PERIOD_FIELDS = ("nr_periods", "nr_throttled", "throttled_usec")
+_COUNTER_FIELDS = (_USAGE_FIELD, *_PERIOD_FIELDS)
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,7 +81,7 @@ class CpuMax:
     """The control group's CPU ceiling, as ``cpu.max`` states it."""
 
     quota_usec: int | None
-    period_usec: int
+    period_usec: int | None
 
     @property
     def can_throttle(self) -> bool:
@@ -68,12 +91,34 @@ class CpuMax:
 
 @dataclass(frozen=True, slots=True)
 class CpuStat:
-    """Cumulative CPU accounting counters from ``cpu.stat``."""
+    """Cumulative CPU accounting counters from ``cpu.stat``.
+
+    The cumulative usage is accounted for every group the cpu controller sees,
+    while the three period counters are stated only for a group it enforces a
+    ceiling on. A group with no ceiling therefore reports its usage with the
+    period counters absent, which is not the same as zero: a measured zero
+    asserts that periods elapsed and none was exceeded.
+    """
 
     usage_usec: int
-    nr_periods: int
-    nr_throttled: int
-    throttled_usec: int
+    nr_periods: int | None
+    nr_throttled: int | None
+    throttled_usec: int | None
+
+    @property
+    def period_counters(self) -> tuple[int, int, int] | None:
+        """The three period counters together, or ``None`` if unaccounted.
+
+        They are stated by one mechanism, so a group either accounts all three
+        or none; they are returned as one value so a caller narrows them once.
+        """
+        if (
+            self.nr_periods is None
+            or self.nr_throttled is None
+            or self.throttled_usec is None
+        ):
+            return None
+        return (self.nr_periods, self.nr_throttled, self.throttled_usec)
 
 
 @dataclass(frozen=True, slots=True)
@@ -143,8 +188,8 @@ def parse_cpu_max(text: str) -> CpuMax:
     return CpuMax(quota_usec=quota_usec, period_usec=period_usec)
 
 
-def parse_cpu_stat(text: str) -> CpuStat:
-    """Parse ``cpu.stat`` text, taking the counters this module reports on.
+def _stat_fields(text: str) -> dict[str, int]:
+    """The counters this module reports on, taken out of ``cpu.stat`` text.
 
     Fields the kernel adds later are ignored rather than refused, so a host on
     a newer kernel does not report an empty reading.
@@ -157,10 +202,48 @@ def parse_cpu_stat(text: str) -> CpuStat:
         key, value = fields
         if key in _COUNTER_FIELDS:
             counters[key] = _int_field(value, f"cpu.stat {key}")
-    missing = [field for field in _COUNTER_FIELDS if field not in counters]
-    if missing:
-        raise ValueError(f"cpu.stat is missing {', '.join(missing)}")
-    return CpuStat(**counters)
+    return counters
+
+
+def _required(field: str, counters: dict[str, int]) -> int:
+    value = counters.get(field)
+    if value is None:
+        raise ValueError(f"cpu.stat is missing {field}")
+    return value
+
+
+def parse_cpu_stat(text: str) -> CpuStat:
+    """Parse ``cpu.stat`` for a group whose ceiling is enforced.
+
+    All four counters are required together: a group the kernel keeps a ceiling
+    on accounts for that ceiling, so a missing counter is malformed text rather
+    than a group that throttles nothing, and reading it as zero would report an
+    idle group where nothing was measured.
+    """
+    counters = _stat_fields(text)
+    return CpuStat(
+        usage_usec=_required(_USAGE_FIELD, counters),
+        nr_periods=_required("nr_periods", counters),
+        nr_throttled=_required("nr_throttled", counters),
+        throttled_usec=_required("throttled_usec", counters),
+    )
+
+
+def parse_usage_counters(text: str) -> CpuStat:
+    """Parse ``cpu.stat`` for a group the kernel keeps no ceiling on.
+
+    Such a group accounts its cumulative usage and no period, because there is
+    no period in which it could be stopped. Its period counters are reported as
+    absent rather than zero; text that does state them is read by
+    :func:`parse_cpu_stat` instead.
+    """
+    counters = _stat_fields(text)
+    return CpuStat(
+        usage_usec=_required(_USAGE_FIELD, counters),
+        nr_periods=None,
+        nr_throttled=None,
+        throttled_usec=None,
+    )
 
 
 def parse_uptime(text: str) -> float:
@@ -187,17 +270,35 @@ def parse_boot_id(text: str) -> str:
     not, however similar their shares look.
     """
     boot_id = text.strip()
-    if not boot_id:
-        raise ValueError("boot_id is empty")
+    if not _BOOT_ID_SHAPE.fullmatch(boot_id):
+        raise ValueError(f"boot_id is not a boot identifier: {boot_id!r}")
     return boot_id
 
 
+# A group the kernel keeps no ceiling on states no cpu.max at all: the cpu
+# controller is not enabled for it. That is reported as a ceiling with neither
+# field, which is how a reader tells it apart from one stated as ``max``.
+_NO_CEILING = CpuMax(quota_usec=None, period_usec=None)
+
+
 def read_sample(directory: str | Path) -> Sample:
-    """Read one control group's ceiling and counters from its directory."""
+    """Read one control group's ceiling and counters from its directory.
+
+    A group with no ``cpu.max`` file is reported rather than refused: it states
+    no ceiling, and the kernel accounts no period for it either, so the reading
+    carries the usage it does state. A control group the sampler exists to
+    compare lives on a compute node in exactly that state, so refusing the
+    missing file would make the comparison the sampler exists for unreadable.
+    """
     base = Path(directory)
+    stat_text = (base / _CPU_STAT_FILE).read_text()
+    try:
+        cpu_max_text = (base / _CPU_MAX_FILE).read_text()
+    except FileNotFoundError:
+        return Sample(cpu_max=_NO_CEILING, stat=parse_usage_counters(stat_text))
     return Sample(
-        cpu_max=parse_cpu_max((base / _CPU_MAX_FILE).read_text()),
-        stat=parse_cpu_stat((base / _CPU_STAT_FILE).read_text()),
+        cpu_max=parse_cpu_max(cpu_max_text),
+        stat=parse_cpu_stat(stat_text),
     )
 
 
@@ -215,12 +316,17 @@ def permitted_thread_usec(stat: CpuStat, cpu_max: CpuMax) -> int | None:
 
     A group allowed one quota per period may run that quota once each period,
     so the permitted total is the quota times the period count; the period
-    itself cancels. An unlimited group permits an unbounded total, which has no
-    integer value and is reported as ``None``.
+    itself cancels. A group with no ceiling permits an unbounded total, and one
+    whose counters account no period permits nothing that can be totalled, so
+    both report ``None`` rather than a total they cannot state.
     """
     if cpu_max.quota_usec is None:
         return None
-    return stat.nr_periods * cpu_max.quota_usec
+    counters = stat.period_counters
+    if counters is None:
+        return None
+    nr_periods, _, _ = counters
+    return nr_periods * cpu_max.quota_usec
 
 
 def throttled_share(stat: CpuStat, cpu_max: CpuMax) -> float | Unmeasured:
@@ -242,23 +348,48 @@ def throttled_share(stat: CpuStat, cpu_max: CpuMax) -> float | Unmeasured:
         return Unmeasured.UNBOUNDED
     if not permitted_usec:
         return Unmeasured.NO_PERIODS
-    return stat.throttled_usec / permitted_usec
+    counters = stat.period_counters
+    # A non-zero permitted total exists only where a quota and a period count
+    # were both read, so the stall counter is accounted for alongside them.
+    assert counters is not None
+    return counters[2] / permitted_usec
 
 
 def interval_delta(first: Sample, second: Sample) -> CpuStat:
-    """Counters accumulated between two samples of the same control group."""
+    """Counters accumulated between two samples of the same control group.
+
+    A group that accounts no period reports the usage it did accumulate with
+    its period counters absent, which is what its two readings do state; the
+    three are not defaulted to zero, which would read as a span over which the
+    group was offered a ceiling and never reached it.
+    """
     earlier, later = first.stat, second.stat
-    for field in _COUNTER_FIELDS:
-        before, after = getattr(earlier, field), getattr(later, field)
-        if after < before:
+    before, after = earlier.period_counters, later.period_counters
+    if before is None or after is None:
+        if later.usage_usec < earlier.usage_usec:
             raise ValueError(
-                f"{field} went backwards between samples: {before} -> {after}"
+                "usage_usec went backwards between samples: "
+                f"{earlier.usage_usec} -> {later.usage_usec}"
+            )
+        return CpuStat(
+            usage_usec=later.usage_usec - earlier.usage_usec,
+            nr_periods=None,
+            nr_throttled=None,
+            throttled_usec=None,
+        )
+    for field in _COUNTER_FIELDS:
+        before_value: int = getattr(earlier, field)
+        after_value: int = getattr(later, field)
+        if after_value < before_value:
+            raise ValueError(
+                f"{field} went backwards between samples: "
+                f"{before_value} -> {after_value}"
             )
     return CpuStat(
         usage_usec=later.usage_usec - earlier.usage_usec,
-        nr_periods=later.nr_periods - earlier.nr_periods,
-        nr_throttled=later.nr_throttled - earlier.nr_throttled,
-        throttled_usec=later.throttled_usec - earlier.throttled_usec,
+        nr_periods=after[0] - before[0],
+        nr_throttled=after[1] - before[1],
+        throttled_usec=after[2] - before[2],
     )
 
 
@@ -278,7 +409,14 @@ def interval_throttled_share(first: Sample, second: Sample) -> float | Unmeasure
 
 
 def format_cpu_max(cpu_max: CpuMax) -> str:
-    """Render a ceiling back into the two-field form ``cpu.max`` uses."""
+    """Render a ceiling back into the form ``cpu.max`` uses.
+
+    A group with no ceiling file states neither field and is rendered as
+    ``absent``: ``max`` is a ceiling the group was given and this one has none,
+    so a reader comparing two readings must be able to tell them apart.
+    """
+    if cpu_max.period_usec is None:
+        return _ABSENT
     quota = _UNLIMITED if cpu_max.quota_usec is None else str(cpu_max.quota_usec)
     return f"{quota} {cpu_max.period_usec}"
 
