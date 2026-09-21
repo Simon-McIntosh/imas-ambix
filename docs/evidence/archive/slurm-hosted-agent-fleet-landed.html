@@ -24,6 +24,47 @@
   fleet dies with the connection that started it is a separate record and is not duplicated here:
   <a href="/imas-ambix/login-session-scope-teardown.html">the session-scope teardown record</a>.</p>
 
+<section id="site-request-user-lingering">
+    <h2>Site request for the user-lingering defect — authored, not yet sent</h2>
+    <p><strong>Deliverable.</strong>
+    <a href="/imas-ambix/site-request-user-lingering.html">Site request — user lingering is
+    not holding on 98dci4-srv-1006</a> is the send-ready text for the step that asks the
+    site why lingering is not holding.
+    Account <code>mcintos</code> (UID 39486) on login node <code>98dci4-srv-1006</code> has
+    lingering enabled and persisted on disk, and its user manager is still stopped and
+    restarted repeatedly. The request states the two concrete asks — a logind journal read
+    around 02:31:11 on 2026-09-20, and this account's addition to a group
+    (<code>adm</code>, <code>systemd-journal</code> or <code>wheel</code>) that can read that
+    journal — quotes the two teardown occurrences recorded on 2026-09-18 at 00:57:08 and
+    05:46:41, and quotes the journal sequence in which the two services in
+    <code>app.slice</code> (the reckon plan server and
+    <code>imas-codex-llm.service</code>) are stopped with <code>status=143</code>. It carries
+    no request for a larger share of the login node's processor time, and no claim that
+    memory or processor contention caused the teardown.</p>
+    <p><strong>Confirmations taken while authoring</strong> (on the login node,
+    2026-09-21). <code>journalctl -u user@39486.service</code> exits 1 with <code>No journal
+    files were opened due to insufficient permissions</code>, reproducing the need for the
+    second ask. <code>loginctl show-user mcintos -p Linger</code> returns
+    <code>Linger=yes</code>. <code>/var/lib/systemd/linger/mcintos</code> is present,
+    root-owned, written 2026-08-08 17:07. The account is in none of <code>adm</code>,
+    <code>systemd-journal</code> or <code>wheel</code>.</p>
+    <p><strong>Verification.</strong> <code>reckon audit-doc
+    docs/research/site-request-user-lingering.html</code> exits 0 and prints
+    <code>docs/research/site-request-user-lingering.html: OK</code>; the same audit run with
+    <code>--project imas-ambix</code> also exits 0. Run against a copy of the document
+    carrying an injected relative image <code>src</code>, the audit refuses:
+    <code>FAIL (1 error, 0 warn, 0 info)</code> with
+    <code>[img-relative-src]</code> and exit 1 — so the pass above is a reading from a check
+    that can fail. Both logs are in the run directory as
+    <code>audit-doc-site-request.log</code> and <code>audit-negative-control.log</code>.</p>
+    <p><strong>Open.</strong> The request is written, not sent. The step's done-when — the
+    site holds the journal extract and has either corrected the behaviour or confirmed it
+    expected — still waits on the site's answer, which also decides whether the allocation is
+    the only remedy or merely the robust one. The full record of the defect is
+    <a href="/imas-ambix/login-session-scope-teardown.html">the session-scope teardown
+    record</a>; nothing here duplicates it.</p>
+  </section>
+
 </main>
 </body>
 </html>
