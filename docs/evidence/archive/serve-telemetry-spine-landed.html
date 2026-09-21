@@ -231,6 +231,107 @@
     <code>create_router_app</code> and <code>serve_router</code> accept an explicit
     <code>request_receipts_path</code> for a caller that wants another location. No launch
     command needed changing, and none did.</p>
+
+    <h2 id="rr-outcome">§6 — The outcome the relay observed, and who answered</h2>
+
+    <p>Those rows were only as honest as the earliest moment their outcome could be
+    set, and three ways the record disagreed with what happened had shipped. Each is
+    repaired here, and each fix carries a control that was made to fail without
+    it.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/request-receipts/receipt-outcome-lifecycle.svg"
+           alt="A request's path through the router: answered-without-a-relay on one branch, and on the other a relay whose outcome is taken only after the body has been forwarded whole, with the two ways a relay ends short marked failed and aborted. Annotated where the shipped code read the status from the headers alone, and where a self-answered request left no row at all.">
+      <figcaption>The path a request takes and the point at which its outcome becomes
+      knowable. The dashed boxes are the states the shipped code got wrong: an outcome
+      taken from the response headers rather than from the relay, and a branch that wrote
+      no row at all.</figcaption>
+    </figure>
+
+    <h3 id="rr-truncation">A 200 is what the engine answered, not what the caller received</h3>
+
+    <p>The status was promoted to <code>completed</code> as soon as the upstream answered
+    2xx — before the body loop — and an exception out of the body read escaped the handler
+    that rewrites the status for a cancelled caller, while the <code>finally</code> wrote
+    the row anyway. An engine that answers 200, promises a <code>content-length</code> and
+    then aborts its transport therefore left a <code>completed</code> row for a relay that
+    delivered a fraction of the bytes.</p>
+
+    <p>The headers are now held rather than acted on, and the outcome is promoted only
+    after the body has been forwarded whole. The control: with
+    <code>status = STATUS_COMPLETED</code> set early again, the truncation test reddens
+    with <code>assert 'completed' == 'failed'</code>; reverted, it passes.</p>
+
+    <h3 id="rr-self-answer">A request the router answered itself left no row</h3>
+
+    <p>Only <code>_relay</code> recorded anything, and the refusals and the catalog
+    listing return before it, so the requests a caller reports as broken were absent from
+    the record entirely — their only trace a log line. Every refusal the router produces
+    now leaves through one funnel that also records it, so a new refusal path cannot widen
+    what the router answers without widening the record; the catalog listing records after
+    its 200. Rows carry a self-answered upstream sentinel rather than an engine origin, so
+    a reader attributing traffic per upstream never folds them into a sink's share.</p>
+
+    <h3 id="rr-ceiling">The sampling ceiling had no operator surface</h3>
+
+    <p>The production sink was built with neither <code>max_rows_per_s</code> nor
+    <code>window_s</code>, so the ceiling was fixed by source with no way to raise it. Both
+    are now settings resolved from an explicit argument, then the environment, then the
+    default, matching the environment surface the router already carries. The value in
+    force is logged at construction, because a bound inferable only from behaviour is one
+    that a later reader measures from scratch. A malformed value — not a number, zero,
+    negative, or <code>nan</code>, which no arrival count can stay under — stops the launch
+    rather than silently falling back to a default nobody chose.</p>
+
+    <table>
+      <thead><tr><th>Claim</th><th>Measure</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>A relay truncated mid-body is recorded as failed, not completed</td>
+          <td>an engine answering 200 with <code>content-length: 4096</code>, writing one
+          SSE event and aborting its transport, driven through the real
+          <code>RouterApp</code></td>
+          <td>caller received the 200; one row, <code>status: failed</code></td>
+        </tr>
+        <tr>
+          <td>A request the router answers itself is recorded, including the refusal</td>
+          <td>a POST naming an unknown model id, a GET of the catalog, and a malformed
+          JSON body</td>
+          <td>three rows: <code>failed</code>/404 with the model id the caller named,
+          <code>completed</code>/200 for the listing, <code>failed</code>/400 — all with
+          upstream <code>(router)</code></td>
+        </tr>
+        <tr>
+          <td>The ceiling is a setting and is honoured as one</td>
+          <td>60 requests with the ceiling set to <code>inf</code>, then to
+          <code>1</code> row/s, through the landed router</td>
+          <td>at <code>inf</code>: 60 kept, every fraction 1.0, and the logged line naming
+          <code>max_rows_per_s=inf</code>; at 1 row/s: rows written plus sampled out equals
+          60 with sampling out at least one, and every kept row satisfies
+          <code>fraction × rate ≤ 1.05</code></td>
+        </tr>
+        <tr>
+          <td>A malformed ceiling stops the launch</td>
+          <td><code>nope</code>, <code>0</code>, <code>-1</code>, <code>nan</code> for the
+          rate and <code>0</code> for the window</td>
+          <td><code>ValueError</code> at construction, before any request is served</td>
+        </tr>
+        <tr>
+          <td>Whole-tree lint gate exits 0</td>
+          <td><code>uv run --no-sync ruff check imas_ambix tests</code></td>
+          <td>All checks passed</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p><strong>Gates and controls.</strong> The focused gate —
+    <code>tests/test_agent_router.py tests/test_request_receipts.py</code> — reports
+    <strong>20 passed</strong>, against <strong>16 passed at the base revision</strong> for
+    the same files, so no pre-existing test was disturbed and the four added ones are the
+    whole difference. The negative control is the early status assignment, whose red log
+    opens with the mutation it applies and shows the truncation test failing on
+    <code>'completed' == 'failed'</code>. Both logs are kept with the node's
+    record.</p>
   </main>
 </body>
 </html>

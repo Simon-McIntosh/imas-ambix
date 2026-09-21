@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 480" width="980" height="480"
+     font-family="DejaVu Sans, Helvetica, Arial, sans-serif">
+  <style>
+    .box   { fill: #f7f8fa; stroke: #40474f; stroke-width: 1.4; }
+    .answer{ fill: #eef4fb; stroke: #2f5d8a; stroke-width: 1.6; }
+    .relay { fill: #fbf7ee; stroke: #8a6a2f; stroke-width: 1.6; }
+    .row   { fill: #eef7f0; stroke: #2f8a4d; stroke-width: 1.5; }
+    .bad   { fill: #fdeeee; stroke: #b64a4a; stroke-width: 1.5; stroke-dasharray: 5 3; }
+    .lab   { font-size: 13px; fill: #1d2227; }
+    .lab-s { font-size: 11.5px; fill: #46505a; }
+    .edge  { stroke: #40474f; stroke-width: 1.3; fill: none; }
+    .note  { font-size: 12px; fill: #7a2f2f; }
+    .foot  { font-size: 11.5px; fill: #46505a; }
+    .title { font-size: 15px; font-weight: 600; fill: #1d2227; }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5"
+            markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#40474f"/>
+    </marker>
+  </defs>
+
+  <text class="title" x="18" y="26">Where one request's outcome is decided, and where a row is written</text>
+
+  <rect class="box" x="18" y="52" width="150" height="52" rx="6"/>
+  <text class="lab" x="36" y="75">request arrives</text>
+  <text class="lab-s" x="36" y="93">one HTTP call to the router</text>
+
+  <line class="edge" x1="168" y1="78" x2="220" y2="78" marker-end="url(#a)"/>
+
+  <rect class="answer" x="224" y="52" width="176" height="52" rx="6"/>
+  <text class="lab" x="242" y="75">router answers it itself?</text>
+  <text class="lab-s" x="242" y="93">refusal, or the catalog listing</text>
+
+  <line class="edge" x1="312" y1="104" x2="312" y2="150" marker-end="url(#a)"/>
+  <text class="lab-s" x="320" y="132">yes — no engine was chosen</text>
+
+  <rect class="row" x="196" y="150" width="232" height="60" rx="6"/>
+  <text class="lab" x="214" y="172">row written, without a relay</text>
+  <text class="lab-s" x="214" y="191">upstream (router): 2xx completed, else failed</text>
+
+  <line class="edge" x1="400" y1="78" x2="452" y2="78" marker-end="url(#a)"/>
+  <text class="lab-s" x="412" y="70">no</text>
+
+  <rect class="relay" x="452" y="52" width="176" height="52" rx="6"/>
+  <text class="lab" x="470" y="75">engine chosen, relay starts</text>
+  <text class="lab-s" x="470" y="93">its 2xx is what the ENGINE answered</text>
+
+  <line class="edge" x1="628" y1="78" x2="676" y2="78" marker-end="url(#a)"/>
+
+  <rect class="box" x="676" y="52" width="286" height="52" rx="6"/>
+  <text class="lab" x="694" y="75">the body is relayed chunk by chunk</text>
+  <text class="lab-s" x="694" y="93">the response body loop</text>
+
+  <line class="edge" x1="819" y1="104" x2="819" y2="150" marker-end="url(#a)"/>
+
+  <rect class="row" x="676" y="150" width="286" height="60" rx="6"/>
+  <text class="lab" x="694" y="172">body forwarded whole → completed</text>
+  <text class="lab-s" x="694" y="191">only now is the outcome taken</text>
+
+  <line class="edge" x1="819" y1="210" x2="819" y2="240" marker-end="url(#a)"/>
+
+  <rect class="bad" x="676" y="240" width="286" height="60" rx="6"/>
+  <text class="lab" x="694" y="262">caller left mid-relay → aborted</text>
+  <text class="lab-s" x="694" y="281">the body read raised → failed</text>
+
+  <text class="note" x="392" y="256">An engine that answered 200 and then</text>
+  <text class="note" x="392" y="274">aborted its transport made the row read</text>
+  <text class="note" x="392" y="292">completed, because the outcome was taken</text>
+  <text class="note" x="392" y="310">from the headers, before the body moved.</text>
+
+  <rect class="bad" x="18" y="300" width="344" height="60" rx="6"/>
+  <text class="lab" x="36" y="322">a request answered here left no row at all</text>
+  <text class="lab-s" x="36" y="341">the refusal was visible only in a log line</text>
+
+  <text class="note" x="18" y="392">The sampling ceiling sits outside this path: it decides how many of the rows</text>
+  <text class="note" x="18" y="410">that reach the sink are kept, and stamps the kept fraction on each row it</text>
+  <text class="note" x="18" y="428">writes. It is a setting — argument, then environment, then default.</text>
+
+  <text class="foot" x="18" y="458">Measured through the landed router: a truncated relay records failed; a 404 refusal</text>
+  <text class="foot" x="18" y="474">and a catalog GET each record one row; at no ceiling all 60 offered requests are kept whole.</text>
+</svg>
