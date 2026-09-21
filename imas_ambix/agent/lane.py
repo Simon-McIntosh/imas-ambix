@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import gzip
 import json
+import os
 import urllib.request
 import zlib
 from dataclasses import dataclass
@@ -30,7 +31,39 @@ from typing import TYPE_CHECKING
 from imas_ambix.agent import engine_metrics
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Mapping
+
+#: Fraction of the pool the advertised ceiling is allowed to plan against.
+DEFAULT_OCCUPANCY_TARGET = 0.5
+
+OCCUPANCY_TARGET_ENV = "IMAS_AMBIX_LANE_OCCUPANCY_TARGET"
+
+
+def read_occupancy_target(environ: Mapping[str, str] | None = None) -> float:
+    """Resolve the occupancy target, refusing a value that cannot be one.
+
+    Refuses rather than clamps. A clamp turns an operator's mistake into a
+    silently different capacity figure, and the figure is advice a dispatcher
+    acts on -- so a typo would be indistinguishable from a deliberate setting
+    for as long as the lane ran.
+    """
+    raw = (os.environ if environ is None else environ).get(OCCUPANCY_TARGET_ENV)
+    if raw is None or not raw.strip():
+        return DEFAULT_OCCUPANCY_TARGET
+    try:
+        target = float(raw)
+    except ValueError:
+        raise ValueError(
+            f"{OCCUPANCY_TARGET_ENV}={raw!r} is not a number; "
+            f"it is a fraction of the pool in (0, 1]"
+        ) from None
+    if not 0.0 < target <= 1.0:
+        raise ValueError(
+            f"{OCCUPANCY_TARGET_ENV}={raw!r} is outside (0, 1]; "
+            f"0 advertises no capacity at all and above 1 plans for more pool "
+            f"than exists"
+        )
+    return target
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,8 +117,21 @@ class LaneCapacity:
     # The pool must hold active contexts AND the prefixes they will reuse next
     # turn. Sizing to the whole pool leaves nothing to retain: measured at 63%
     # active occupancy the hit rate fell to 23%, and the recomputation that
-    # follows is itself what evicts the next session's prefix.
-    OCCUPANCY_TARGET = 0.5
+    # follows is itself what evicts the next session's prefix. That 63% is a
+    # physical limit rather than a preference -- a consumer of this figure must
+    # stay under it whatever the target is set to.
+    #
+    # The default lands the advertised ceiling at 23-24 concurrent for the
+    # 81.7k-86.5k mean context observed on a 4M pool, which is very nearly the
+    # measured throughput knee of ~22 workers. Past that knee the engine
+    # absorbs pressure as slower generation rather than as a queue, so waiting
+    # stays 0 and the hit rate stays high while aggregate throughput falls --
+    # no cheap signal reddens. Raising the target needs a fresh throughput
+    # curve, not an absence of refusals.
+    #
+    # Read once at import: the figure must not change under a lane that is
+    # already serving from it.
+    OCCUPANCY_TARGET = read_occupancy_target()
 
     def budget_for(self, mean_context: int | None) -> int:
         """The advertised figure for a given working context, in one place.

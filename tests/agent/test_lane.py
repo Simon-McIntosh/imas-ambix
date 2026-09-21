@@ -7,11 +7,14 @@ import json
 import pytest
 
 from imas_ambix.agent.lane import (
+    DEFAULT_OCCUPANCY_TARGET,
+    OCCUPANCY_TARGET_ENV,
     LaneCapacity,
     LaneWindow,
     classify_reading,
     detect_settling,
     parse_lane_capacity,
+    read_occupancy_target,
     write_lane_document,
     write_unavailable_document,
 )
@@ -589,3 +592,73 @@ def test_an_idle_lane_refuses_instead_of_publishing_the_ceiling():
     # And the reading itself is still `measured` -- the lane WAS read
     # successfully; what is withheld is advice, not data.
     assert document["state"] == "measured"
+
+
+def test_the_published_literals_assume_the_default_occupancy_target():
+    """The arithmetic above is written out, so it rests on one number.
+
+    Seven assertions in this module carry a concurrency literal computed at a
+    half-pool target. If the environment overrides that target, every one of
+    them fails as an unexplained arithmetic mismatch -- this names the cause
+    once instead.
+    """
+    assert LaneCapacity.OCCUPANCY_TARGET == DEFAULT_OCCUPANCY_TARGET
+    assert DEFAULT_OCCUPANCY_TARGET == 0.5
+
+
+def test_an_unset_target_is_the_default_and_a_set_one_is_honoured():
+    assert read_occupancy_target({}) == DEFAULT_OCCUPANCY_TARGET
+    assert read_occupancy_target({OCCUPANCY_TARGET_ENV: "  "}) == (
+        DEFAULT_OCCUPANCY_TARGET
+    )
+    assert read_occupancy_target({OCCUPANCY_TARGET_ENV: "0.35"}) == 0.35
+    # The whole pool is a legal, if unwise, setting -- the comment on the
+    # constant explains why it is unwise, and refusing it here would be this
+    # function inventing a policy it cannot measure.
+    assert read_occupancy_target({OCCUPANCY_TARGET_ENV: "1"}) == 1.0
+
+
+@pytest.mark.parametrize("raw", ["0", "-0.2", "1.5", "50", "half", ""])
+def test_an_unusable_target_is_refused_rather_than_clamped(raw):
+    """A clamp would make an operator's typo indistinguishable from a choice.
+
+    The figure this feeds is advice a dispatcher acts on, so a value that
+    cannot be a fraction of the pool must stop the lane rather than quietly
+    become a different one. The empty string is the exception that proves it
+    is a parse and not a truthiness check -- it means unset.
+    """
+    if raw == "":
+        assert read_occupancy_target({OCCUPANCY_TARGET_ENV: raw}) == (
+            DEFAULT_OCCUPANCY_TARGET
+        )
+        return
+    with pytest.raises(ValueError, match=OCCUPANCY_TARGET_ENV):
+        read_occupancy_target({OCCUPANCY_TARGET_ENV: raw})
+
+
+def test_a_refusal_names_the_value_and_the_range():
+    """An operator reading the traceback must not have to find this source."""
+    with pytest.raises(ValueError) as refusal:
+        read_occupancy_target({OCCUPANCY_TARGET_ENV: "1.5"})
+
+    message = str(refusal.value)
+    assert "1.5" in message, "the rejected value"
+    assert "(0, 1]" in message, "the range that would be accepted"
+
+
+def test_a_non_default_target_moves_the_advertised_ceiling():
+    """The target is not decoration: it is the multiplier on the pool term.
+
+    Exercised through `budget_for` rather than the class attribute, because
+    that attribute is frozen at import and a test that reassigned it would
+    prove only that Python allows the assignment.
+    """
+    capacity = parse_lane_capacity(_metrics(running=10, occupancy=0.267))
+    mean_context = capacity.mean_context
+    assert mean_context is not None
+
+    at_half = int(capacity.pool_tokens * 0.5) // mean_context
+    at_third = int(capacity.pool_tokens * 0.35) // mean_context
+
+    assert capacity.budget_for(mean_context) == at_half
+    assert at_third < at_half, "a smaller target advertises a smaller ceiling"
