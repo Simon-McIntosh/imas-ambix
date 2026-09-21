@@ -16,21 +16,43 @@ against a tree whose local names merely resemble the grammar, because a guard
 that reddens on an innocent module is a guard that gets switched off.
 
 **What the scan counts.** A declaration is a ``def``, an ``async def``, a
-``class``, or a binding assignment at *exporting* scope -- module level, or a
-class body. A module-level ``try``/``except`` body is indented but still
-module level, which is the shape an importer-facing fallback takes, so its
-bindings count. A name bound inside a function, a lambda or a comprehension is
-local to it and is never exportable, so it is not a second owner: an ordinary
-local that happens to be called ``_SAMPLE_RE`` holds no copy of the exposition
-grammar and no caller can resolve through it. Importing the same name is
-likewise not a declaration, or every future caller would read as a duplicate.
+``class``, or a binding assignment at *exporting* scope: a module body, or a
+class body that is itself at exporting scope. The test is whether anything
+between the binding and the module root opens a function scope -- not whether
+the nearest enclosing scope is a class or the module, because a class body
+nested inside a function holds attributes on a class no caller can reach, and
+so is exactly as local as a plain function variable. The walk therefore goes
+all the way to the root and a ``def``, an ``async def`` or a ``lambda``
+anywhere on that path disqualifies what it encloses. A module-level
+``try``/``except`` body is indented but still module level, which is the shape
+an importer-facing fallback takes, so its bindings count. Importing the same
+name is not a declaration either, or every future caller would read as a
+duplicate.
 
-**What it does not count.** The scan looks for those four forms only. Shapes
-that are still invisible, and deliberately not chased: augmented assignment
-(``_SAMPLE_RE += ...``), ``except Exception as parse_metrics``, ``for`` and
-``with`` targets, parameter names, and a ``globals()[...]`` subscript. Each is
-a rewrite no reader of this package has a reason to write, and the boundary is
-recorded here so the next reader knows which side of it a rival has to land on.
+**Assignment expressions are the one case where a comprehension is not
+opaque.** A comprehension opens a scope for its own loop targets, which are
+never counted, but a walrus target inside one binds in the scope *containing*
+the comprehension: at module level ``pairs = [(_LABEL_RE := index) for index
+in range(3)]`` really does export ``_LABEL_RE``, and a rival spelled that way
+is a rival. A walrus inside a comprehension inside a function binds in that
+function and, like any other function binding, is local.
+
+**What it does not count.** The scan looks for those four forms only, and it
+walks statements: a comprehension's own loop target is a plain name binding
+inside the comprehension's scope and is not counted. ``_SAMPLE_RE`` used as a
+comprehension target is therefore invisible, as it should be, because that
+binding is not exported. Shapes likewise invisible, and deliberately not
+chased: augmented assignment (``_SAMPLE_RE += ...``), ``except Exception as
+parse_metrics``, ``for`` and ``with`` targets, parameter names, and a
+``globals()[...]`` subscript. Each is a rewrite no reader of this package has
+a reason to write, and the same reasoning bounds them as the walrus: only the
+two exact forms above leave an exported name nothing else in this file would
+report.
+
+**No single declaration form is trusted alone.** The scan is exercised against
+a duplicate tree, an innocent tree, a class body, an indented fallback, a
+walrus it must find and a class nested in a function it must not, so a rule
+that is wrong in either direction reddens the file rather than the package.
 """
 
 from __future__ import annotations
@@ -40,7 +62,7 @@ from pathlib import Path
 
 import pytest
 
-from imas_ambix.agent import bench, engine_metrics
+from imas_ambix.agent import bench
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _PACKAGE = _REPO_ROOT / "imas_ambix"
@@ -69,17 +91,24 @@ _RETIRED_SYMBOLS = (
     "_SPEC_DECODE_PER_POSITION_NAMES",
 )
 
-#: Nodes that open a namespace of their own. A name bound inside one is local
-#: to it: it cannot be imported, so it cannot second-source a symbol its module
-#: exports.
-_LOCAL_SCOPE_NODES = (
+#: Nodes that open a function scope. A name bound anywhere inside one is local
+#: to it, however many class bodies sit between, because nothing outside the
+#: function can reach those attributes.
+_FUNCTION_SCOPE_NODES = (
     ast.FunctionDef,
     ast.AsyncFunctionDef,
     ast.Lambda,
-    ast.ListComp,
-    ast.SetComp,
+)
+
+#: Nodes that open a comprehension scope. Their own loop targets bind in it and
+#: are never counted, but a walrus target inside one binds in the containing
+#: scope, so the walk treats these as transparent for an assignment expression
+#: and as opaque for every other form.
+_COMPREHENSION_SCOPE_NODES = (
     ast.DictComp,
     ast.GeneratorExp,
+    ast.ListComp,
+    ast.SetComp,
 )
 
 _SPEC_DECODE_SCRAPE = "\n".join(
@@ -113,21 +142,36 @@ def _target_names(target: ast.expr) -> set[str]:
     return set()
 
 
-def _is_function_local(node: ast.AST, parents: dict[ast.AST, ast.AST]) -> bool:
-    """Whether *node* is bound inside a function, lambda or comprehension.
+def _is_local(
+    node: ast.AST,
+    parents: dict[ast.AST, ast.AST],
+    *,
+    assignment_expression: bool = False,
+) -> bool:
+    """Whether *node*'s binding is local rather than exported.
 
-    The walk outward stops at the first node that opens a namespace of its own
-    rather than at the outermost: a method body inside a class body is local to
-    the method, and only a ``Module`` or a ``ClassDef`` body exports what it
-    binds. Stopping at the first is what makes an ordinary function-local that
-    merely resembles a guarded symbol a non-declaration while a module-level
-    ``except`` body's binding stays a declaration.
+    The walk goes all the way to the module root, and a function, an async
+    function or a lambda anywhere on the way disqualifies what it encloses.
+    Answering at the first ``Module`` or ``ClassDef`` instead is wrong in the
+    direction that matters most: it reports a class body nested inside a
+    function as exporting what it binds, because the ``def`` sits above the
+    ``class`` and is never reached.
+
+    *assignment_expression* selects the walrus rule. A comprehension opens a
+    scope for its own loop targets, but a ``:=`` target inside one binds in the
+    scope *containing* the comprehension, so a module-level comprehension's
+    walrus is exported and the walk steps over comprehensions. Every other form
+    considered here is a comprehension-incompatible statement -- a
+    comprehension body holds expressions only -- so for those a comprehension
+    ancestor means local and the walk stops there.
     """
     parent = parents.get(node)
     while parent is not None:
-        if isinstance(parent, (ast.Module, ast.ClassDef)):
-            return False
-        if isinstance(parent, _LOCAL_SCOPE_NODES):
+        if isinstance(parent, _FUNCTION_SCOPE_NODES):
+            return True
+        if not assignment_expression and isinstance(
+            parent, _COMPREHENSION_SCOPE_NODES
+        ):
             return True
         parent = parents.get(parent)
     return False
@@ -142,14 +186,16 @@ def _declares(tree: ast.AST, symbol: str) -> bool:
     ``try``/``except``, which is the shape an importer-facing fallback takes and
     which a scan anchored to column 0 reports as no rival can exist. A binding
     inside a function, a lambda or a comprehension is local to it and does not
-    count.
+    count, with the one exception the walk's walrus flag covers: an assignment
+    expression's target binds through a comprehension into the scope containing
+    it, so it is exported whenever that scope is the module.
     """
     parents = {
         child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)
     }
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            if node.name == symbol and not _is_function_local(node, parents):
+            if node.name == symbol and not _is_local(node, parents):
                 return True
             continue
         if isinstance(node, ast.Assign):
@@ -158,7 +204,12 @@ def _declares(tree: ast.AST, symbol: str) -> bool:
             targets = [node.target]
         else:
             continue
-        if _is_function_local(node, parents):
+        # An assignment expression binds through a comprehension into the scope
+        # that contains it, so the walrus flag is what keeps a module-level
+        # ``[... for ... (_x := ...) ...]`` a declaration.
+        if _is_local(
+            node, parents, assignment_expression=isinstance(node, ast.NamedExpr)
+        ):
             continue
         if any(symbol in _target_names(target) for target in targets):
             return True
@@ -354,6 +405,90 @@ def test_definition_scan_ignores_a_local_named_like_a_symbol(tmp_path: Path) -> 
         assert _defining_modules(symbol, package) == set(), symbol
 
 
+def test_definition_scan_ignores_a_class_body_inside_a_function(
+    tmp_path: Path,
+) -> None:
+    """A class body nested in a function exports nothing a caller can reach.
+
+    An attribute bound in a class body is exported only if something can name
+    the class. When the class is declared inside a function, the class object
+    never leaves that class's own scope, so the attribute is as unreachable as
+    a plain local: counting it would redden the guard on a module holding no
+    second copy of the grammar. Seeing this requires reaching the module root,
+    because the ``def`` sits above the ``class`` and a walk that answers at the
+    first class body never arrives at it.
+    """
+    package = tmp_path / "imas_ambix"
+    package.mkdir()
+    (package / "reader.py").write_text(
+        "def build_grammar(text):\n"
+        "    class Holder:\n"
+        "        _SAMPLE_RE = text.split(',')\n"
+        "        SPEC_DECODE_SERIES = {}\n"
+        "\n"
+        "        def parse_metrics(self):\n"
+        "            return self._SAMPLE_RE\n"
+        "\n"
+        "    return Holder\n",
+        encoding="utf-8",
+    )
+
+    for symbol in ("_SAMPLE_RE", "SPEC_DECODE_SERIES", "parse_metrics"):
+        assert _defining_modules(symbol, package) == set(), symbol
+
+
+def test_definition_scan_finds_a_walrus_binding_at_module_level(
+    tmp_path: Path,
+) -> None:
+    """A walrus target in a module-level comprehension really does export.
+
+    ``:=`` binds in the scope *containing* the comprehension, and at module
+    level that scope is the module: after the comprehension runs the name is an
+    attribute of the module. A rival that spells its grammar this way therefore
+    holds a second owner, and a rule that treats every comprehension as opaque
+    reports the tree as singly-owned.
+    """
+    package = tmp_path / "imas_ambix"
+    package.mkdir()
+    (package / "reader.py").write_text(
+        "_LABEL_RE = None\n"
+        "pairs = [(_SAMPLE_RE := index) for index in range(3)]\n",
+        encoding="utf-8",
+    )
+
+    assert _defining_modules("_LABEL_RE", package) == {"imas_ambix/reader.py"}
+    assert _defining_modules("_SAMPLE_RE", package) == {"imas_ambix/reader.py"}
+
+
+def test_definition_scan_ignores_comprehension_scoped_bindings(
+    tmp_path: Path,
+    ) -> None:
+    """The other half of the walrus rule: neither shape leaks out.
+
+    A comprehension's own loop target binds in the comprehension's own scope,
+    so the same name used as a target is not a module attribute and is not a
+    declaration. The same walrus rule also stops at a function: inside ``def``
+    the containing scope is the function, so the name never leaves it. Both are
+    the reason the rule is a walk rather than a check for the nearest scope
+    node.
+    """
+    package = tmp_path / "imas_ambix"
+    package.mkdir()
+    (package / "comp_target.py").write_text(
+        "pairs = [_SAMPLE_RE for _SAMPLE_RE in range(3)]\n",
+        encoding="utf-8",
+    )
+    (package / "function_walrus.py").write_text(
+        "def build(text):\n"
+        "    pairs = [(_LABEL_RE := index) for index in range(3)]\n"
+        "    return pairs\n",
+        encoding="utf-8",
+    )
+
+    assert _defining_modules("_SAMPLE_RE", package) == set()
+    assert _defining_modules("_LABEL_RE", package) == set()
+
+
 def test_definition_scan_counts_a_class_body_binding(tmp_path: Path) -> None:
     """A class-body binding is exported, so it is a declaration.
 
@@ -377,14 +512,22 @@ def test_definition_scan_counts_a_class_body_binding(tmp_path: Path) -> None:
 
 
 def test_bench_snapshot_is_the_shared_reading() -> None:
-    """The bench reader returns the shared module's own snapshot.
+    """The bench reader returns the common reader's snapshot for this scrape.
 
-    The values are the counters alone: a ``_created`` timestamp folded into
-    its token total would read ~1.79e9 rather than 9560.
+    The expected mapping is written out literally rather than taken from
+    ``engine_metrics.read_metrics`` on the same input: a defect that moved both
+    sides together would leave a self-derived expectation green while the value
+    the recorder writes is wrong, and the numbers are the whole point of the
+    delegation. The values are the counters alone -- a ``_created`` timestamp
+    folded into its token total would read ~1.79e9 rather than 9560.
     """
     snapshot = bench._spec_decode_snapshot(_SPEC_DECODE_SCRAPE)
 
-    assert snapshot == engine_metrics.read_metrics(_SPEC_DECODE_SCRAPE).spec_decode
+    assert snapshot == {
+        "draft_tokens_total": 9560.0,
+        "accepted_tokens_total": 4418.0,
+        "num_accepted_per_pos": [1423.0, 1108.0],
+    }
     assert snapshot["draft_tokens_total"] == 9560.0
     assert snapshot["accepted_tokens_total"] == 4418.0
     assert snapshot["num_accepted_per_pos"] == [1423.0, 1108.0]
