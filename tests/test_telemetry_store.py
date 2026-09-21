@@ -14,8 +14,10 @@ read.
 
 from __future__ import annotations
 
+import html
 import json
 import math
+import re
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -25,6 +27,7 @@ import imas_ambix.agent.telemetry_store as telemetry_store
 from imas_ambix.agent.telemetry_store import (
     TIER_HOUR,
     TIER_MINUTE,
+    TIER_WINDOW_SECONDS,
     TelemetryStoreError,
     compact_file,
     compact_rows,
@@ -64,6 +67,17 @@ _UNOBSERVED_LEAVES = (
 # record's always-null set.
 _SYNTHETIC_COUNTER = "requests_served_total"
 _SYNTHETIC_GAUGE = "queue_utilisation_perc"
+
+# The published record of what this store does. Its figures are a claim about the
+# code, so the suite reads it here and checks them against the cadence the fixture
+# actually runs at.
+_LANDING_RECORD = (
+    Path(__file__).resolve().parents[1]
+    / "docs"
+    / "evidence"
+    / "archive"
+    / "serve-telemetry-spine-landed.html"
+)
 
 
 def _raw_rows() -> list[dict]:
@@ -414,7 +428,10 @@ def test_a_source_tier_survives_its_successor(tmp_path, record):
     assert len(read_rows(tmp_path / "minute.jsonl")) == _DAYS * 60 * 24
 
 
-def test_the_rebuild_entry_point_compacts_a_tier_from_its_source(tmp_path, record):
+@pytest.mark.parametrize("tier", (TIER_MINUTE, TIER_HOUR))
+def test_the_rebuild_entry_point_compacts_a_tier_from_its_source(
+    tmp_path, record, tier
+):
     """The subcommand's entry point is driven by an argument vector, and what it
     is judged on is the file it leaves, not the function it delegates to.
 
@@ -423,9 +440,15 @@ def test_the_rebuild_entry_point_compacts_a_tier_from_its_source(tmp_path, recor
     a success for a destination holding nothing. So the argument vector is the
     input and the destination on disk is the assertion: the row count, the
     endpoint each row carries, and the weight behind it.
+
+    Both tiers are exercised, because an entry point that ignores --tier and
+    always compacts in one direction is invisible to a case that only ever asks
+    for that direction: the row count, the window length and the declared weight
+    all have to move with the flag for the invocation to be honest.
     """
     raw_path, rows = record
-    destination = tmp_path / "rebuilt" / "minute.jsonl"
+    window_seconds = TIER_WINDOW_SECONDS[tier]
+    destination = tmp_path / "rebuilt" / f"{tier}.jsonl"
 
     exit_code = main(
         [
@@ -434,32 +457,36 @@ def test_the_rebuild_entry_point_compacts_a_tier_from_its_source(tmp_path, recor
             "--destination",
             str(destination),
             "--tier",
-            TIER_MINUTE,
+            tier,
         ]
     )
 
     assert exit_code == 0
     rebuilt = read_rows(destination)
-    assert len(rebuilt) == _DAYS * 24 * 60
-    endpoints = _raw_endpoints(rows, 60, _SYNTHETIC_COUNTER)
+    assert len(rebuilt) == _DAYS * 24 * 3600 // window_seconds
+    endpoints = _raw_endpoints(rows, window_seconds, _SYNTHETIC_COUNTER)
     for row in rebuilt:
-        assert row["tier"] == TIER_MINUTE
+        assert row["tier"] == tier
         assert row[_SYNTHETIC_COUNTER] == endpoints[_bucket_of(row)]
-        assert row["obs"]["samples"] == _ROWS_PER_MINUTE
+        assert row["obs"]["samples"] == window_seconds // _CADENCE_S
     assert raw_path.exists()  # the entry point does not retire its source
 
 
 def test_the_rebuild_entry_point_refuses_a_tier_it_cannot_produce(tmp_path, record):
     """An unusable argument vector ends the run before any rebuild happens.
 
-    The failure has to be on the wire too: a refused invocation must leave no
-    successor on disk, because a destination half-written by an accepted-but-
-    wrong parse is a file a later reader would compact from.
+    The failure has to be on the reason as well as on the status: an entry point
+    that ends with a *success* code for a tier it cannot produce reports work it
+    never did, and a case satisfied by any SystemExit at all cannot tell that
+    from a refusal -- the exit status is what the delegating subcommand reads.
+
+    It must leave no successor on disk either, because a destination half-written
+    by an accepted-but-wrong parse is a file a later reader would compact from.
     """
     raw_path, _rows = record
     destination = tmp_path / "rebuilt" / "minute.jsonl"
 
-    with pytest.raises(SystemExit):
+    with pytest.raises(SystemExit) as refusal:
         main(
             [
                 "--source",
@@ -471,7 +498,48 @@ def test_the_rebuild_entry_point_refuses_a_tier_it_cannot_produce(tmp_path, reco
             ]
         )
 
+    assert refusal.value.code != 0  # argparse reports an unusable choice as 2
     assert not destination.exists()
+
+
+def _landing_record_text() -> str:
+    """The landing record as plain text: tags stripped, entities resolved and
+    whitespace collapsed, so a figure wrapped across source lines is one string
+    to search for."""
+    markup = _LANDING_RECORD.read_text(encoding="utf-8")
+    return " ".join(html.unescape(re.sub(r"<[^>]+>", "", markup)).split())
+
+
+def test_the_landing_record_publishes_the_weights_the_cadence_yields():
+    """The record's numbers are derived here from the cadence the fixture uses.
+
+    A record that restates its figures is free to drift from the store, and did:
+    a minute row was published as 12 samples and an hour row as 720, which is
+    what a five-second cadence yields, and both survived a review round and a
+    commit whose stated subject was correcting them, because nothing read the
+    file. So every figure the record states about the compaction is rebuilt here
+    from the cadence and the tier windows and matched against the file: change
+    the cadence without changing the record and this test reddens.
+    """
+    text = _landing_record_text()
+    minute_seconds = TIER_WINDOW_SECONDS[TIER_MINUTE]
+    hour_seconds = TIER_WINDOW_SECONDS[TIER_HOUR]
+    minutes_per_hour = hour_seconds // minute_seconds
+    minute_samples = minute_seconds // _CADENCE_S
+    hour_samples = minute_samples * minutes_per_hour
+
+    assert f"{_CADENCE_S} s cadence" in text
+    assert f"{_SAMPLES:,} raw rows" in text
+    assert f"{_SAMPLES // minute_samples:,} minute rows" in text
+    assert f"{_DAYS * 24:,} hour rows" in text
+    assert (
+        f"{minute_seconds} / {_CADENCE_S} = {minute_samples} samples over "
+        f"{minute_seconds} s"
+    ) in text
+    assert (
+        f"{minutes_per_hour} × {minute_samples} = {hour_samples} samples over "
+        f"{hour_seconds:,} s"
+    ) in text
 
 
 def test_a_row_without_a_usable_timestamp_is_refused():
