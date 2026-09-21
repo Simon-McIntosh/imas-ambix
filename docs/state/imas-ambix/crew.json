@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-21T12:48:45",
+  "updated": "2026-09-21T13:09:44",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -54103,6 +54103,269 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260921T100640180286-review-of-the-unlabelled-branch-pin",
+        "plan": "serve-telemetry-spine",
+        "section": "\u00a72",
+        "node": "review-of-the-unlabelled-branch-pin",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 2057,
+                "cached_input_tokens": 406824,
+                "input_tokens": 408883,
+                "output_tokens": 202,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 409085,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "98f13dbe-0703-4abd-a5e4-65bfdb2eeee2",
+            "session_id": "telemetry-spine"
+          },
+          "done_when": "the review for r-20260921T053443850077-scrape-fixture stores a parsed record scoring all 5 dimensions in the range 0..20 and names the revision it read. YOUR WORKTREE IS CUT FROM THE REVIEWED HEAD 7adfc3a30700; read it in place and report that sha. State every finding as a COMPLETE SENTENCE naming a concrete input - a prior review in this sprint stored a finding truncated mid-sentence and it nearly cost a real defect. THE REPAIR: commits ca25efb8 and 7adfc3a3 pin the UNLABELLED sample branch of _has_sample_line, which a prior review showed was asserted by nothing, and re-record the control receipt after a rename had made the previous one replay to zero tests selected. Work this checklist and FLAG every finding, never fix one: (1) replay every control log in the run directory yourself rather than trusting recorded counts, and report for each what it selects and returns; a receipt that names a revision must still reproduce at that revision; (2) the value-token requirement now has a labelled and an unlabelled assertion - find a third exposition shape neither covers, such as a name with an empty label set, a trailing comment, a timestamp column, or leading whitespace, and report which the checker mishandles with the exact line as input; (3) this sprint's recurring defect is an expectation derived from the thing it checks, so report any assertion whose expected value is computed from the module or fixture under test rather than written out literally; (4) confirm the stored scrape is still the authority - a canonical field dropped from the fixture must redden, shown by doing it; (5) no plan label, ticket reference, version suffix or author attribution in any name, comment or docstring, and confirm the earlier plan-named test did not leave a stale reference in a comment or caption. Report each finding as file:line with the concrete input that breaks it.",
+          "estimated_hours": null,
+          "goal": "Attach an independent review of run r-20260921T053443850077-scrape-fixture at its round-five head",
+          "id": "review-of-the-unlabelled-branch-pin",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-21T10:06:41Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no 'binding_observed'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T100640180286-review-of-the-unlabelled-branch-pin/manifest.md",
+          "negative_control": "",
+          "plan": "serve-telemetry-spine",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "review",
+          "section": "\u00a72",
+          "spec_level": "exact",
+          "time_budget": "30m",
+          "token_budget": null,
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260921T053443850077-scrape-fixture.json"
+          ]
+        },
+        "role": "review",
+        "spec_level": "exact",
+        "member": "review-of-the-unlabelled-branch-pin",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "xhigh",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "read-only",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-21T10:06:55Z",
+        "completed_at": "2026-09-21T11:08:06.693Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 3662,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 3671,
+        "stalled": true,
+        "time_budget": "30m",
+        "base_sha": "7adfc3a30700563e659b54999153df6d00c90dc3",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "stored review record for r-20260921T053443850077-scrape-fixture parsed with all five dimensions scored",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260921T053443850077-scrape-fixture.json",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T100640180286-review-of-the-unlabelled-branch-pin/manifest.md",
+        "scope_changed": false,
+        "session_id": "79130a5e-643f-46ee-a2e1-89cf8268e337",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 6097690,
+            "input_tokens_cumulative": 6097690,
+            "output_tokens": 65270,
+            "output_tokens_cumulative": 65270,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-21T11:08:06.693Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "15m",
+          "requested": true,
+          "waived_runs": [
+            {
+              "budget_overrun": true,
+              "budget_overrun_seconds": 476,
+              "budget_seconds": 2100,
+              "classification": "scoring",
+              "commits_beyond_base": 0,
+              "detail": "the worker manifest reports completion, but no independent review is attached; an independent review must be produced before promotion",
+              "elapsed_seconds": 2576,
+              "external_wait": null,
+              "lifting_condition": null,
+              "liveness_proven": true,
+              "log_age_seconds": 1453,
+              "log_fresh": false,
+              "manifest_commits": [
+                "b2543e5ef2d4915e6a8931af9645c267a4c8a129",
+                "f7ff97ee9f3abbab6771e72a3921aa7f1e0882d5"
+              ],
+              "manifest_derived": false,
+              "manifest_digest": "706960872ee45812648ee782aa451159f582d05d4b8fcc3ff879cb2ba0b931a0",
+              "manifest_error": null,
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T085923815245-one-owner-guard-widens-to-any-indentation/manifest.md",
+              "manifest_present": true,
+              "manifest_reported_status": "complete",
+              "manifest_status": "complete",
+              "marker": null,
+              "needs_help_complete": null,
+              "next_action": "reckon crew dispatch --project imas-ambix --plan serve-telemetry-spine --section '\u00a72' --role review --spec-level exact --node review-of-one-owner-guard-widens-to-any-indentation --goal 'attach an independent review to run r-20260921T085923815245-one-owner-guard-widens-to-any-indentation' --done-when 'the review for r-20260921T085923815245-one-owner-guard-widens-to-any-indentation stores a parsed record scoring all 5 dimensions in the range 0..20' --write-path /home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260921T085923815245-one-owner-guard-widens-to-any-indentation.json --time-budget 35m --session telemetry-spine --local",
+              "node": "one-owner-guard-widens-to-any-indentation",
+              "phase": "starting",
+              "plan": "serve-telemetry-spine",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "recovery": "review",
+              "recovery_classification": "scoring",
+              "resets_at": null,
+              "review_error": null,
+              "review_present": false,
+              "review_status": null,
+              "run_id": "r-20260921T085923815245-one-owner-guard-widens-to-any-indentation",
+              "session": "telemetry-spine",
+              "terminal_age_seconds": 1518,
+              "terminal_at": "2026-09-21T09:41:30Z",
+              "wait_age_seconds": null,
+              "wait_condition_state": null,
+              "wait_key_defect": null,
+              "wait_observed": null,
+              "wait_overdue": null,
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/telemetry-spine/one-owner-guard-widens-to-any-indentation"
+            }
+          ]
+        },
+        "review": null,
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 6262117,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 3667.411,
+          "generated_tokens": 73043,
+          "generation_seconds": 3538.223,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 34.0,
+          "machine_seconds": 129.188,
+          "peak_input_tokens": 163127,
+          "tokens_per_second": 20.64,
+          "wall_tokens_per_second": 19.92
+        },
+        "follow_on_paths": [
+          "gate-head.log"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": false,
+          "matched_measure": null,
+          "override": false,
+          "role": "review",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": "a review node's deliverable is the stored review record, not a repository commit",
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/telemetry-spine/review-of-the-unlabelled-branch-pin",
+          "session_id": "79130a5e-643f-46ee-a2e1-89cf8268e337",
+          "session_source": "stream",
+          "retained_at": "2026-09-21T11:08:06.693Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "plan_impl_at_dispatch": 0.6,
+        "impl_move": {
+          "plan": "serve-telemetry-spine",
+          "at_dispatch": 0.6,
+          "at_complete": null,
+          "verdict": "exempt",
+          "reason": "role-not-enforced:review"
+        },
+        "negative_control": {
+          "verdict": "exempt",
+          "reason": "node-writes-no-test-path"
+        },
+        "tool_steps": 66.0,
+        "orientation_input_tokens": 3283749.0,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -54177,6 +54440,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 841
+    "_version": 842
   }
 }
