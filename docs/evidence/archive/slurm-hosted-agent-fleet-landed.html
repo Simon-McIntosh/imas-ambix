@@ -279,6 +279,174 @@ uv run python -m imas_ambix.agent.throttling interval \
     <code>max 100000</code> and the share is undefined rather than zero.</p>
   </section>
 
+  <h2 id="dispatch-placement">Dispatch placement inside a scheduler allocation — the verdict</h2>
+  <p><strong>Verdict: no change required.</strong> The dispatch contract already treats where a
+  worker runs as configuration a backend declares rather than as something reckon decides for it,
+  and the branch a fleet session inside an allocation takes is the one already in force today: the
+  worker is a direct child of the process that dispatched it, so placing the coordinator places its
+  workers with it. What an allocation does require — a placement declared for the lane, one
+  reservation held once, its job id published into shared state — is implemented already and is
+  configuration rather than a contract change.</p>
+
+  <h3 id="dispatch-placement-creation">How a dispatched worker process is created</h3>
+  <p>A CLI launch is composed in three steps and none of them names a host. The backend and its
+  dialect turn one node's prompt into a <code>LaunchPlan</code> — argv, working directory,
+  environment — whose working directory is the assigned worktree
+  (<code>reckon/_backends.py:1729</code>, <code>:1774</code>). <code>apply_backend_placement</code>
+  (<code>reckon/crew/dispatch.py:4057</code>, called at <code>:3547</code>) gets the first and only
+  chance to move it. The plan then goes to <code>_spawn</code>
+  (<code>reckon/crew/dispatch.py:4201</code>, called at <code>:3549</code>), which starts it with
+  <code>subprocess.Popen</code> (<code>:4226</code>).</p>
+  <p><strong>The worker is a child of the calling coordinator process.</strong> It is started with
+  <code>start_new_session=True</code> (<code>reckon/crew/dispatch.py:4233</code>) so a coordinator
+  that ends its turn does not take its workers down with it, and its pid is registered with the
+  parent's reaper (<code>:3682</code>, <code>:3890</code>) — but it is a child, which
+  <code>:4201</code>'s own docstring gives as the reason the pid means anything. Nothing on this
+  path consults a scheduler, selects a node, or moves the process out of the control group it
+  inherits.</p>
+  <p><strong>Reckon chooses no placement unless the backend declares one.</strong>
+  <code>apply_backend_placement</code> reads the declaration through <code>flight.placement_for</code>
+  (<code>reckon/flight.py:341</code>) and returns the plan untouched when there is none
+  (<code>reckon/crew/dispatch.py:4076-4078</code>). The declaration is schema rather than code:
+  <code>PlacementConfig</code> (<code>reckon/_flight_schema.py:234</code>) carries
+  <code>scheduler</code>, <code>options</code>, <code>job_id_probe</code>,
+  <code>requirements</code>, <code>state_query</code> and <code>reason_query</code>
+  (<code>:238-243</code>), and the field is documented with the login-node child launch as what a
+  backend declaring none keeps (<code>:218</code>).</p>
+
+  <h3 id="dispatch-placement-reservation">The allocation shape this plan needs already exists</h3>
+  <p>Where a placement is declared, one reservation is held once and every session's workers are
+  placed into it as steps. <code>ensure_reservation</code>
+  (<code>reckon/crew/placement.py:197</code>) submits a single
+  <code>salloc</code> with <code>--no-shell</code> and publishes its job id into the shared crew
+  state (<code>:96</code>, path at <code>:74</code>), so a second session reports the live
+  reservation instead of minting a second allocation; the id is answered from the scheduler rather
+  than from a pid (<code>:158</code>). A launch then runs inside it as an overlapping step:
+  <code>step_prefix</code> (<code>:139</code>) builds <code>--overlap --jobid=&lt;id&gt;</code>
+  (<code>:147</code>), which <code>apply_backend_placement</code> prefixes to the resolved argv
+  (<code>reckon/crew/dispatch.py:4092-4101</code>). Because <code>--overlap</code> makes the
+  reservation a place to run rather than a quota to queue behind, the concurrency authority is
+  reckon's own roster cap (<code>reckon/crew/placement.py:59</code>, refused at <code>:284</code>,
+  enforced before a run exists at <code>reckon/crew/dispatch.py:415</code>, called at
+  <code>:488</code>). The operator surface is <code>reckon crew placement --ensure</code>
+  (<code>reckon/cli.py:2266</code>, <code>reckon/crew/runs.py:2278</code>).</p>
+  <p>A declared placement is also where a worker's visibility requirements are checked before
+  anything launches: <code>check_placement_requirements</code>
+  (<code>reckon/crew/dispatch.py:2104</code>, called at <code>:2408</code>) refuses a path or an
+  endpoint the worker would need and could not reach, naming which and why.</p>
+
+  <h3 id="dispatch-placement-paths">Every path the launch writes is on shared storage</h3>
+  <p>Crew state resolves through <code>crew_home()</code> (<code>reckon/crew/runs.py:38</code>) to
+  <code>_config_home()/crew</code> (<code>:40</code>), and <code>_config_home</code>
+  (<code>reckon/_store.py:121</code>) prefers <code>~/.config/reckon</code> — the same home path on
+  every node. The watcher's lock, transition stream and follower registrations sit under the same
+  root (<code>reckon/crew/runs.py:104-140</code>), and worktrees are placed beside the repository
+  rather than in a runtime directory
+  (<code>skills/reckon-ship/references/sprint-orchestration.md:303-316</code>). Measured rather than
+  assumed: <code>findmnt -T /home/ITER/mcintos</code> reports source
+  <code>HPC_T2[/ITER/HPC/home]</code> of type <code>gpfs</code>, so the home holding all of it is
+  the cluster filesystem and not per-node storage.</p>
+  <p><strong>The one host-local hazard is named and refused.</strong> <code>_is_node_local_path</code>
+  (<code>reckon/crew/dispatch.py:2061</code>) treats <code>/run/user</code> (<code>:2071</code>),
+  <code>XDG_RUNTIME_DIR</code> (<code>:2073</code>) and any tmpfs mount as node-local, and its
+  docstring states the failure it exists to catch: such a path exists on every node, so a launch
+  against it succeeds and the worker then finds different bytes where it runs. A placement declaring
+  one is refused by name (<code>:2138</code>).</p>
+
+  <figure>
+    <svg viewBox="0 0 760 390" width="100%" role="img"
+         aria-labelledby="dispatch-placement-fig-t" style="max-width:100%;height:auto">
+      <title id="dispatch-placement-fig-t">Where a dispatched worker runs, by declaration</title>
+      <defs>
+        <marker id="dp-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7"
+                markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#666"></path>
+        </marker>
+      </defs>
+      <g fill="none" stroke="#666" stroke-width="1.5" marker-end="url(#dp-arrow)">
+        <line x1="380" y1="62" x2="380" y2="86"></line>
+        <line x1="380" y1="140" x2="380" y2="162"></line>
+        <line x1="194" y1="214" x2="72" y2="214"></line>
+        <line x1="72" y1="214" x2="72" y2="248"></line>
+        <line x1="566" y1="214" x2="660" y2="214"></line>
+        <line x1="660" y1="214" x2="660" y2="248"></line>
+      </g>
+      <g fill="#f4f4f4" stroke="#666" stroke-width="1.5">
+        <rect x="180" y="14" width="400" height="48" rx="6"></rect>
+        <rect x="180" y="92" width="400" height="48" rx="6"></rect>
+        <rect x="10" y="252" width="230" height="126" rx="6"></rect>
+        <rect x="520" y="252" width="230" height="126" rx="6"></rect>
+      </g>
+      <polygon points="380,166 566,214 380,262 194,214" fill="#f4f4f4" stroke="#666"
+               stroke-width="1.5"></polygon>
+      <g fill="#222" font-size="13">
+        <text x="380" y="34" text-anchor="middle">one node's prompt becomes a LaunchPlan</text>
+        <text x="380" y="52" text-anchor="middle"
+              font-family="ui-monospace,Menlo,Consolas,monospace" font-size="12">reckon/_backends.py:1729 — argv, cwd = the assigned worktree</text>
+        <text x="380" y="112" text-anchor="middle">apply_backend_placement(plan, backend)</text>
+        <text x="380" y="130" text-anchor="middle"
+              font-family="ui-monospace,Menlo,Consolas,monospace" font-size="12">dispatch.py:4057 — the only step that can move it</text>
+        <text x="380" y="219" text-anchor="middle">declared placement?</text>
+        <text x="128" y="205" text-anchor="middle" font-size="12">no</text>
+        <text x="612" y="205" text-anchor="middle" font-size="12">yes</text>
+      </g>
+      <g fill="#222" font-size="12">
+        <text x="20" y="274">the launch is untouched:</text>
+        <text x="20" y="294" font-family="ui-monospace,Menlo,Consolas,monospace">Popen(plan.argv)</text>
+        <text x="20" y="312" font-family="ui-monospace,Menlo,Consolas,monospace">dispatch.py:4226,</text>
+        <text x="20" y="330" font-family="ui-monospace,Menlo,Consolas,monospace">start_new_session=True :4233</text>
+        <text x="20" y="350">a direct child of the coordinator,</text>
+        <text x="20" y="368">in the control group it inherits</text>
+        <text x="530" y="274">the argv is wrapped in the</text>
+        <text x="530" y="292">declared scheduler</text>
+        <text x="530" y="310" font-family="ui-monospace,Menlo,Consolas,monospace">flight.py:341</text>
+        <text x="530" y="330" font-family="ui-monospace,Menlo,Consolas,monospace">srun --overlap --jobid=&lt;id&gt;</text>
+        <text x="530" y="350">when a reservation is held,</text>
+        <text x="530" y="368" font-family="ui-monospace,Menlo,Consolas,monospace">dispatch.py:4092-4101</text>
+      </g>
+    </svg>
+    <figcaption>Where a dispatched worker runs, by declaration. Absent a declared placement the
+    worker is a child of the coordinating process and lands in the control group that process
+    inherits — which is what carries a fleet's workers into an allocation the fleet itself sits in,
+    and is why no contract change is needed. A declared placement is instead wrapped in the
+    scheduler: as an overlapping step in the held reservation when one is live, or, with none
+    held, in the bare declared options — a job of its own rather than a step in a shared
+    reservation.</figcaption>
+  </figure>
+
+  <h3 id="dispatch-placement-split">What this verdict measured, and what it did not</h3>
+  <p><strong>Settled by reading the implementation:</strong> that a worker is created as a child of
+  the calling coordinator and detached from its session
+  (<code>reckon/crew/dispatch.py:4201-4236</code>); that reckon chooses no node, control group or
+  scheduler affinity unless a backend declares a placement, and returns the launch untouched when
+  none is declared (<code>:4076-4078</code>); that the declared-placement path already holds a
+  single reservation and places workers into it as overlapping steps
+  (<code>reckon/crew/placement.py:139-147</code>, <code>reckon/crew/dispatch.py:4092-4101</code>);
+  and that every path the launch writes is under a config home measured to be on shared
+  <code>gpfs</code>, with the node-local case refused by name when a placement declares one
+  (<code>:2061-2145</code>).</p>
+  <p><strong>Not settled here, and needing an operator session inside the allocation:</strong> the
+  code establishes that a placement is possible; it cannot establish that this site's scheduler
+  answers. Two facts are visible in the live configuration rather than inferred — no backend in
+  <code>~/.config/reckon/flight.yaml</code> declares a <code>placement</code> block (a literal
+  search of the file returns zero occurrences), and no reservation is published
+  (<code>~/.config/reckon/crew/placement/reservation.json</code> is absent) — so the implemented
+  path is present but unarmed, and arming it is configuration: a placement block naming the
+  scheduler, its options, and any requirement a worker needs visible where it lands, plus
+  <code>reckon crew placement --ensure</code>. What an operator run must still show is that
+  <code>salloc</code> and <code>srun --overlap --jobid</code> behave under this cluster's
+  <code>pam_slurm_adopt</code>, that a placed worker sees the shared home and reaches the serving
+  router from the node it lands on, and that a roster cap of <code>25</code>
+  (<code>reckon/crew/placement.py:59</code>) is the right concurrency for the lane — the
+  measurements the plan's implementation already calls for at its third and fourth steps.</p>
+  <p>One adjacent observation, recorded as an observation rather than as a dispatch defect: the
+  project watcher is installed as a systemd user unit
+  (<code>reckon/crew/runs.py:2058-2131</code>), so its process lifetime belongs to whichever host's
+  user manager started it. Its lock, stream and follower registrations are all on shared storage
+  (<code>:104-140</code>), so nothing about dispatch depends on it, and whether the unit survives
+  a move into an allocation is the host-lifetime question already carried by the lingering
+  defect.</p>
+
 </main>
 </body>
 </html>
