@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-22T00:27:47",
+  "updated": "2026-09-22T00:33:40",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -63026,6 +63026,239 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260921T213616413545-router-wire",
+        "plan": "serve-telemetry-spine",
+        "section": "\u00a76",
+        "node": "router-wire",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1161,
+                "cached_input_tokens": 190066,
+                "input_tokens": 191229,
+                "output_tokens": 746,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 191975,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "98f13dbe-0703-4abd-a5e4-65bfdb2eeee2",
+            "session_id": "wire-telemetry-spine"
+          },
+          "done_when": "pytest tests/test_agent_router_telemetry.py and the existing tests/test_agent_router*.py pass; ruff check imas_ambix tests exits 0; the manifest quotes the mutated line verbatim beside the test that reddens; and it names the production call sites the receipt path is reachable from.",
+          "estimated_hours": 1.0,
+          "goal": "Wire request_receipts into the router so every relayed request emits one receipt carrying the outcome the router actually observed, including a caller that departed before the body was read.",
+          "id": "router-wire",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-21T21:36:18Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no 'binding_observed'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/reports/wire-router.md",
+          "negative_control": "In imas_ambix/agent/router.py, delete the call that records the request receipt on the relay response path. A test asserting that one relayed request produces one receipt carrying its observed outcome must fail.",
+          "plan": "serve-telemetry-spine",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a76",
+          "spec_level": "guided",
+          "time_budget": "60m",
+          "token_budget": null,
+          "write_paths": [
+            "imas_ambix/agent/router.py",
+            "tests/test_agent_router_telemetry.py",
+            "docs/evidence/archive/serve-telemetry-spine-landed.html",
+            "docs/figures/serve-telemetry-spine",
+            "docs/plans/serve-telemetry-spine.html"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "telemetry-router-wire",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "high",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "worktree-full",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-21T21:36:40Z",
+        "completed_at": "2026-09-21T21:53:34.717Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 1005,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 1014,
+        "stalled": false,
+        "time_budget": "60m",
+        "base_sha": "489ea67baf31796e25354e61cfa85772b7d1fd35",
+        "commits": [
+          "abd3128feaac92a80608033f1c95b7fc2d9f6e60",
+          "d7f02c4b5c2f50b8a55ffb2354cbbfcbe1ab3802"
+        ],
+        "changed_lines": {
+          "added": 383,
+          "removed": 0,
+          "files": 4
+        },
+        "tests_added": 3,
+        "gate": "passed",
+        "gate_check": {
+          "command": "pytest tests/test_agent_router_telemetry.py tests/test_agent_router*.py",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/reports/wire-router-logs/gate.txt",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "Verification rather than implementation. Established the router receipt wiring had landed before dispatch, then added three assertions holding the receipts-path derivation that no test reached. Reviewed 90/100, one finding, itself a cross-reference classifying a sound pinned-once assertion for the circular-assertion guard.",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/reports/wire-router.md",
+        "scope_changed": false,
+        "session_id": "e746f02d-fc17-42e9-a06e-2600a788c93b",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 7192312,
+            "input_tokens_cumulative": 7192312,
+            "output_tokens": 40380,
+            "output_tokens_cumulative": 40380,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-21T21:53:34.717Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": {
+          "status": "parsed",
+          "scores": {
+            "durability": 17,
+            "evidence": 18,
+            "fit": 18,
+            "goal_fidelity": 18,
+            "scope_discipline": 19
+          },
+          "absent": [],
+          "total": 90
+        },
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 7192312,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 1009.77,
+          "generated_tokens": 40380,
+          "generation_seconds": 894.123,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 30.9,
+          "machine_seconds": 115.647,
+          "peak_input_tokens": 148459,
+          "tokens_per_second": 45.16,
+          "wall_tokens_per_second": 39.99
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent_router_telemetry.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/wire-telemetry-spine/router-wire",
+          "session_id": "e746f02d-fc17-42e9-a06e-2600a788c93b",
+          "session_source": "stream",
+          "retained_at": "2026-09-21T21:53:34.717Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "plan_impl_at_dispatch": 0.8,
+        "impl_move": {
+          "plan": "serve-telemetry-spine",
+          "at_dispatch": 0.8,
+          "at_complete": 0.8,
+          "verdict": "waived",
+          "reason": "The section was already wired before this node was dispatched, from four commits it named that are all ancestors of its base, so no implementation remained for it to advance. The plan impl was stale at dispatch rather than unmoved by this run; reconciling the plan is the coordinator this wave, not this node."
+        },
+        "negative_control": {
+          "verdict": "waived",
+          "test_paths": [
+            "tests/test_agent_router_telemetry.py"
+          ],
+          "declaration": "In imas_ambix/agent/router.py, delete the call that records the request receipt on the relay response path. A test asserting that one relayed request produces one receipt carrying its observed outcome must fail.",
+          "log": "/home/ITER/mcintos/.config/reckon/crew/reports/wire-router-logs/negative-control.txt",
+          "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/reports/wire-router-logs/negative-control.txt",
+          "reason": "The node ran a better-aimed mutation than the one I declared, and the declared one would have proved nothing. I declared deleting the call that records the receipt on the relay response path; every pre-existing receipt test asserts a receipt is recorded, so that deletion reddens loudly against an already-held path. The node instead deleted the derivation, self._receipts_path = lane_document.with_name(RECEIPTS_FILENAME), which nothing held: the relay kept serving, the suite stayed green and no stream appeared on disk. Its log reports 2 failed 1 passed, and the one that stays green is the explicit-path test, so the split separates the derivation from the precedence beneath it. The defect is in my declaration, not in the node. Log: /home/ITER/mcintos/.config/reckon/crew/reports/wire-router-logs/negative-control.txt"
+        },
+        "tool_steps": 68.0,
+        "orientation_input_tokens": 2627492.0,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -63100,6 +63333,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 896
+    "_version": 897
   }
 }
