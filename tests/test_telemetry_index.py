@@ -12,12 +12,22 @@ import pytest
 
 from imas_ambix.agent.receipt_bins import summarise_receipt_rows
 from imas_ambix.agent.telemetry_index import (
+    BOOT_SCOPE,
+    HOST_SCOPE,
+    UNKNOWN_BOOT_ID,
     TelemetryIndex,
     discover,
+    local_boot_id,
     measure_row,
+    resolve_boot_id,
+    row_boot_id,
 )
 
 _BASE = _dt.datetime(2026, 9, 20, 6, 0, 0, tzinfo=_dt.UTC)
+
+# Two canonical boot identifiers in the lowercase form the producer accepts.
+_BOOT_BEFORE = "3f8a1c2e-9b4d-4e6f-8a1b-2c3d4e5f6071"
+_BOOT_AFTER = "7d2e4f60-1a3b-4c5d-9e8f-0a1b2c3d4e5f"
 
 
 def _at(seconds: float) -> float:
@@ -721,3 +731,154 @@ def test_two_hosts_at_one_inode_and_offset_are_both_kept(tmp_path, monkeypatch):
         ]
         assert index._conn.execute("SELECT COUNT(*) FROM source").fetchone()[0] == 2
         assert index.sample_count() == 4
+
+
+def test_two_boots_of_one_host_at_one_inode_and_offset_are_both_kept(
+    tmp_path, monkeypatch
+):
+    """A hostname does not survive a reboot, and the counters prove it.
+
+    The counters this record carries are cumulative, so they reset when the
+    machine reboots. Two readings from one genuinely correct hostname on either
+    side of a reboot therefore difference as a large drop, and nothing on either
+    row says a reboot happened -- a real measurement of the wrong quantity.
+
+    The inode is pinned here because two files on one filesystem cannot collide:
+    the record this index reads is two machines', or one machine's across two
+    boots, where the same path and the same inode occur in two filesystems that
+    hand out their own numbering. Measured on this node, a search of 4,000
+    candidates in /tmp (xfs, inodes from about 5,000) against the pytest temp
+    filesystem (inodes near 39,761,983) found no match: the ranges do not
+    overlap, so a collision is contrived here rather than waited for.
+    """
+    _pin_inode(monkeypatch, 424_242)
+    before = tmp_path / "before" / "serve.jsonl"
+    after = tmp_path / "after" / "serve.jsonl"
+    before.parent.mkdir()
+    after.parent.mkdir()
+    _write(
+        before,
+        [
+            _row(0, host="node-a", boot_id=_BOOT_BEFORE),
+            _row(5, host="node-a", boot_id=_BOOT_BEFORE),
+        ],
+    )
+    _write(
+        after,
+        [
+            _row(0, host="node-a", boot_id=_BOOT_AFTER),
+            _row(5, host="node-a", boot_id=_BOOT_AFTER),
+        ],
+    )
+
+    with TelemetryIndex(tmp_path / "index.db", host="node-a") as index:
+        report = index.ingest([before, after])
+
+        assert report.rows_inserted == 4
+        assert report.rows_duplicate == 0
+        kept = index._conn.execute(
+            "SELECT boot_id, COUNT(*) AS n FROM sample "
+            "GROUP BY boot_id ORDER BY boot_id"
+        ).fetchall()
+        assert [(row["boot_id"], row["n"]) for row in kept] == [
+            (_BOOT_BEFORE, 2),
+            (_BOOT_AFTER, 2),
+        ]
+        # The boot is part of the source key, so one file spanning a reboot is
+        # two sources rather than one whose rows contradict each other.
+        assert (
+            index._conn.execute(
+                "SELECT COUNT(*) FROM source WHERE key_kind = ?", (BOOT_SCOPE,)
+            ).fetchone()[0]
+            == 2
+        )
+        assert index.sample_count() == 4
+
+
+def test_a_row_with_an_unusable_boot_is_keyed_by_its_host_and_says_so(tmp_path):
+    """A boot the producer refuses is a degraded key, announced and not dropped.
+
+    The producer's parser raises on anything but a canonical lowercase
+    identifier, and that strictness is not the index's to loosen. What the index
+    must not do is store such a row as though it were keyed: an unkeyed row that
+    looks keyed compares against keyed rows with nothing to say the guarantee
+    holds on one side only.
+    """
+    source = tmp_path / "serve.jsonl"
+    _write(
+        source,
+        [_row(0, host="node-a", boot_id="not-a-uuid"), _row(5, host="node-a")],
+    )
+
+    with TelemetryIndex(tmp_path / "index.db", host="node-z") as index:
+        report = index.ingest([source])
+
+        assert report.rows_inserted == 2
+        rows = index._conn.execute(
+            "SELECT host, boot_id, key_kind FROM sample ORDER BY id"
+        ).fetchall()
+        assert [(row["host"], row["boot_id"], row["key_kind"]) for row in rows] == [
+            ("node-a", UNKNOWN_BOOT_ID, HOST_SCOPE),
+            ("node-a", UNKNOWN_BOOT_ID, HOST_SCOPE),
+        ]
+
+
+def test_a_boot_identity_is_used_as_a_key_only_in_the_form_it_was_validated():
+    """Every spelling the producer refuses degrades the key; the canonical one keys it.
+
+    The empty string and an uppercase canonical identifier are both refused by
+    the same shape check, so they degrade rather than half-key: a row stored
+    under an uppercase spelling would never match its own lowercase spelling.
+    """
+    assert resolve_boot_id(_BOOT_BEFORE) == (_BOOT_BEFORE, BOOT_SCOPE)
+    assert resolve_boot_id(None) == (UNKNOWN_BOOT_ID, HOST_SCOPE)
+    for refused in ("not-a-uuid", UNKNOWN_BOOT_ID, _BOOT_BEFORE.upper()):
+        assert resolve_boot_id(refused) == (UNKNOWN_BOOT_ID, HOST_SCOPE)
+
+
+def test_a_row_carrying_its_identity_in_a_host_section_is_keyed_on_it(tmp_path):
+    """The producer states the machine and the boot in a section of its own.
+
+    Reading only the row's top level would leave the key inert against the one
+    producer here that emits a boot identity at all, so the section is read for
+    both -- and a host or boot named inside any other section is not this row's.
+    """
+    source = tmp_path / "serve.jsonl"
+    _write(
+        source,
+        [
+            _row(
+                0,
+                host={
+                    "hostname": "node-a",
+                    "boot_id": _BOOT_BEFORE,
+                    "uptime_seconds": 12.5,
+                },
+            )
+        ],
+    )
+
+    with TelemetryIndex(tmp_path / "index.db", host="node-z") as index:
+        index.ingest([source])
+        row = index._conn.execute(
+            "SELECT host, boot_id, key_kind FROM sample"
+        ).fetchone()
+        assert (row["host"], row["boot_id"], row["key_kind"]) == (
+            "node-a",
+            _BOOT_BEFORE,
+            BOOT_SCOPE,
+        )
+
+
+def test_the_recording_boot_is_the_one_this_process_is_on():
+    """A boot identity read here is the producer's, or absent rather than raised.
+
+    The value is read through the producer's own reader so a boot identifier
+    means one thing in the record and in whatever consumes it; a machine with
+    none to read is a state to key around, not one to fail on.
+    """
+    here = local_boot_id()
+    assert here is None or resolve_boot_id(here) == (here, BOOT_SCOPE)
+    assert row_boot_id({"host": {"boot_id": _BOOT_BEFORE}}) == _BOOT_BEFORE
+    assert row_boot_id({"boot_id": _BOOT_AFTER}) == _BOOT_AFTER
+    assert row_boot_id({"host": {"hostname": "node-a"}}) is None
