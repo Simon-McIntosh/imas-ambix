@@ -143,21 +143,26 @@
     fixture does.</p>
 
     <p><strong>What was missing was the expectation, not the reader.</strong> The presence
-    test derives its expected key set from <code>engine_metrics</code>' own series tables, so
-    a mapping and the delivered key move together and a canonical quantity can stop resolving
-    with the file green. Deletion is caught; a rename is caught; emptying the mapping is
-    <em>not</em>, because the expectation empties with it. The plan's canonical set is now
-    written out in the test file with each quantity's value path and its source series, and
-    asserted against the fixture's bytes.</p>
+    test derived its expected key set from <code>engine_metrics</code>' own series tables, so
+    a mapping and the delivered key moved together and a canonical quantity could stop
+    resolving with the file green. Deletion is caught; a rename is caught; emptying the
+    mapping was <em>not</em>, because the expectation emptied with it. Measured: dropping the
+    canonical counter <code>prefix_cache_queries</code> from <code>COUNTER_SERIES</code>
+    outright left the whole file green — <code>16 passed</code>, exit 0 — and emptying the
+    SGLang mapping for <code>requests_queued</code> left the presence assertion green over
+    that assertion alone (<code>1 passed</code>, exit 0), the file's red coming from peer
+    tests that name the key directly. The plan's canonical set is now written out with each
+    quantity's value path and its source series, each family's section keys are written out in
+    a second literal (<code>_SECTION_KEYS</code>) compared against the reading, and all of it
+    is asserted against the fixture's bytes.</p>
 
     <table>
-      <caption>The new assertion under four reader mutations, one stored-scrape
-      deletion, and two mutations of the sample-line check itself — one per spelling of a
-      sample line, label-bearing and unlabelled — with what the file's other tests do with
-      two of them. The deletion row is the declared control, run with only the field-set
-      test selected; the other rows ran the whole file. Each row is receipted against the
-      revision and selector under test, and every count is quoted against the file's 16
-      tests.</caption>
+      <caption>The new assertions under four reader mutations, two expectation mutations,
+      two mutations of the sample-line check itself, and one stored-scrape deletion, with
+      what the file's other tests do with two of them. The deletion row is the declared
+      control, run with only the field-set test selected; the other rows ran the whole file.
+      Each row is receipted against the revision and selector under test, and every count is
+      quoted against the file's 16 tests.</caption>
       <thead><tr><th>Mutation applied</th><th>New assertion</th><th>Result</th></tr></thead>
       <tbody>
         <tr>
@@ -184,15 +189,32 @@
           <td>2 of 16 fail</td>
         </tr>
         <tr>
-          <td>the sample-line check itself restored to the earlier form that accepted a name
-          followed by an opening brace or a space with no value token required</td>
-          <td>red — <code>sglang:num_running_reqs{engine_type="unified",tp_rank="0"}</code>
-          (labels, no value) counted as a sourced series</td>
+          <td><code>GAUGE_SERIES["requests_queued"][sglang]</code> emptied to
+          <code>()</code>, so the reading omits the gauge</td>
+          <td>red — the presence assertion names <code>sglang</code> with
+          <code>requests_queued</code> extra in the expected set</td>
+          <td>4 of 16 fail</td>
+        </tr>
+        <tr>
+          <td><code>COUNTER_SERIES["prefix_cache_queries"]</code> dropped, key and
+          all, so the reading omits the counter</td>
+          <td>red — the presence assertion names <code>vllm</code> with
+          <code>prefix_cache_queries</code> extra in the expected set. Before the expectation
+          was written out, this mutation left the whole file green — the reading and the
+          expectation lost the key together</td>
+          <td>1 of 16 fail <em>(pre-fix: 16 passed)</em></td>
+        </tr>
+        <tr>
+          <td>the sample-line check replaced by the pre-delegation substring form, which
+          counts any occurrence of the family-qualified name as a source</td>
+          <td>red — <code>'# HELP sglang:num_running_reqs The number of running
+          requests.\n# TYPE sglang:num_running_reqs gauge'</code> (the name in the
+          exposition's own metadata) counted as a sourced series</td>
           <td>1 of 16 fail</td>
         </tr>
         <tr>
-          <td>the unlabelled branch of that check — <code>labels, value = "", rest</code> —
-          given no value, so a name followed by a space is accepted</td>
+          <td>the sample-line check made to drop the unlabelled spelling of a sample line
+          before the label requirement is consulted</td>
           <td>red — <code>sglang:num_running_reqs 0.0</code> (unlabelled, value present)
           refused as a sourced series</td>
           <td>1 of 16 fail</td>
@@ -220,28 +242,36 @@
     the suite re-run green. A control that fails for the wrong reason, or a check that cannot
     fail, is why this one is run against the fixture rather than only the reader.</p>
 
-    <p><strong>That repaired check is itself pinned, after it was found unpinned — and the
-    pin was incomplete.</strong>
-    The value-token requirement had no committed test holding it: restoring the earlier
-    sample-line check left the whole file green, so a line carrying a series name and its
-    full label set but no value would count as a sourced series again, silently — a scrape
-    that lost its samples passing on its labels. The new test feeds exactly that line and
-    asserts it is not a source, and it is red against the restored earlier form and green
-    against the shipped one. That pin covered only the label-bearing spelling: a sample line
-    may carry no label set at all, and the check reads that form through a separate branch,
-    where emptying the value left the file green as well. The test now feeds the bare name and
-    the bare name with a trailing space, asserting the refusal of each, and is red on the
-    unlabelled positive it feeds when that branch's value is removed. Both rows above are
-    receipted; a requirement asserted on one branch, or on one spelling of a line, is a
-    requirement half of whose removal is silent. The rows are re-measured, not carried over:
-    the file carries 16 tests now, so each mutation's count is quoted against 16.</p>
+    <p><strong>That repaired check is itself pinned, and it is now held to the reader rather
+    than to a peel of its own.</strong> The value-token requirement had no committed test
+    holding it: restoring the earlier sample-line check left the whole file green, so a line
+    carrying a series name and its full label set but no value would count as a sourced
+    series again, silently — a scrape that lost its samples passing on its labels. The test
+    feeds exactly that line and asserts it is not a source. A guard written beside the reader
+    can also fail in the other direction, and did: the earlier check peeled each line by hand,
+    so it refused an indented samples section — legal exposition that
+    <code>parse_metrics</code> accepts and resolves — and would have called a series unsourced
+    while the reader read its value. The check now asks the reader for its samples
+    (<code>parse_metrics</code>, and <code>_LABEL_RE</code> for a required label fragment), so
+    the two cannot disagree on what a sample line is, and the corpus carries the shapes a
+    hand-rolled peel refused as well as the ones it must refuse. Both rows above are
+    receipted, and both are re-measured at the revision under test rather than carried over:
+    the file carries 16 tests, so each count is quoted against 16.</p>
 
     <p><strong>A repair that renames an identifier invalidates every receipt naming it.</strong>
     The declared control was re-run at the head under test rather than carried over: its
     earlier receipt quoted the field-set test's previous name, so replaying that command at
     this head selects nothing and reports a clean run for a mutation that was never applied.
-    The receipt on disk now states the command as it runs today, with its counts, and is the
-    figure this record quotes.</p>
+    The same rule retired the receipt that pinned the value-token requirement through the
+    guard's own <code>_begins_with_value</code> helper: that helper no longer exists, so the
+    receipt was rewritten against the shipped check with a mutation applied to a copy of the
+    test module. The copies make the restore question disappear rather than answer it — the
+    shipped file is never written to — and each receipt now prints its verification
+    <em>after</em> the runs, through a comparison that can come out either way: an earlier
+    restoration line read <code>restored byte-identically: NO</code> because its comparison
+    sat inside the block that closed before the restore command, so it could not have read
+    anything else. Every receipt on disk states the command, the revision and the counts as
+    they are today.</p>
 
     <p><strong>Gates.</strong> <code>uv run --no-sync pytest tests/test_engine_metrics.py
     tests/test_agent_lane_sglang.py tests/test_agent_lane_gzip.py

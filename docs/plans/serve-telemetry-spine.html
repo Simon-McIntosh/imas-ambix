@@ -216,22 +216,29 @@
     rewrite of a working guard.</p>
 
     <p>The gap it closes is in the <em>expectation</em>, not the reader.
-    <code>test_both_families_report_every_quantity_they_publish</code> derives the expected
+    <code>test_both_families_report_every_quantity_they_publish</code> derived the expected
     key set from <code>engine_metrics</code>' own series tables, so a family's mapping and
-    the delivered key shrink together: emptying
-    <code>GAUGE_SERIES["requests_running"][FAMILY_SGLANG]</code> removes the canonical
-    quantity from both sides of the comparison. The plan's canonical set is now written out
-    in the test file with, per quantity, the path to its value in a reading's canonical
-    section and the scrape series it is sourced from, and asserted against the fixture's own
-    bytes — so a mapping that is dropped or renamed fails here instead of shrinking the
-    expectation with it.</p>
+    the delivered key shrank together. Two shapes of that are measured. Emptying a family's
+    mapping for a gauge left the assertion that exists to catch the omission green over that
+    assertion alone (<code>1 passed</code>, exit 0; the file's red came from peer tests that
+    name the key directly). Dropping a canonical counter from <code>COUNTER_SERIES</code>
+    outright left the <em>whole suite</em> green — <code>16 passed</code>, exit 0 — because
+    the reading and the expectation both lost the key and nothing else read it. The plan's
+    canonical set is now written out in the test file with, per quantity, the path to its
+    value in a reading's canonical section and the scrape series it is sourced from, asserted
+    against the fixture's own bytes, and each family's section keys are written out in a
+    second literal (<code>_SECTION_KEYS</code>) compared against the reading — so a mapping
+    that is dropped or renamed fails here instead of shrinking the expectation with it.</p>
 
     <p><strong>Measured.</strong> The new assertion is red under a reader whose SGLang
     mapping for <code>requests_running</code> — its entry in <code>GAUGE_SERIES</code>,
     a tuple of name fragments — is renamed to
     <code>('num_running_reqs_renamed',)</code>: 6 of 16 tests in the file fail, the new one
     among them, and the same shape is red for the counter (5 of 16), histogram (4 of 16)
-    and cache-tier (2 of 16) mappings. Gates:
+    and cache-tier (2 of 16) mappings. Dropping the canonical counter
+    <code>prefix_cache_queries</code> from <code>COUNTER_SERIES</code> fails the field-set
+    test (1 of 16) where the derived expectation passed it — the whole suite green — and
+    emptying a family's mapping for <code>requests_queued</code> fails 4 of 16. Gates:
     <code>uv run --no-sync pytest tests/test_engine_metrics.py
     tests/test_agent_lane_sglang.py tests/test_agent_lane_gzip.py
     tests/test_agent_serving_receipts.py</code> reports <strong>35 passed</strong>, and
@@ -257,26 +264,23 @@
     renaming the test invalidated the earlier receipt: replaying the name it quoted would
     have been a no-op, and a receipt that replays as nothing is worse than none.</p>
 
-    <p><strong>The sample-line check is held by a test of its own, on both branches.</strong>
-    A requirement that no committed test pins can be removed without a signal: restoring the
-    earlier sample-line check, which accepted a name followed by an opening brace or a space
-    and required no value, left the file green. The new test feeds a labels-only exposition
-    line — <code>sglang:num_running_reqs{engine_type="unified",tp_rank="0"}</code>, with no
-    value — and asserts it is not a source, beside the HELP/TYPE-only, trailing-space and
-    longer-prefix shapes. Against the restored earlier implementation it is red on exactly
-    that line; against the shipped one it is green.</p>
-
-    <p><strong>The unlabelled branch is a second requirement, and it was unpinned too.</strong>
-    A sample line may carry no label set at all, and the check reads that spelling through a
-    separate branch, so a value requirement asserted only where labels are present leaves
-    the other half free. Emptying that branch's value kept the file green — a scrape whose
-    unlabelled series had lost their samples would have resolved as sourced and nothing would
-    have said so. The test now feeds the bare name, and the bare name with a trailing space,
-    and asserts the refusal of each, beside a positive that carries a value and a negative
-    whose missing label set cannot satisfy a required fragment. Against the emptied branch the
-    test is red on the positive it feeds, <code>sglang:num_running_reqs 0.0</code> — which is
-    the assertion that distinguishes a check reading the value from one reading only the
-    line's shape.</p>
+    <p><strong>The sample-line check is held to the reader it stands for, and by a test of its
+    own.</strong> A requirement that no committed test pins can be removed without a signal,
+    and a guard written beside the reader can also be <em>stricter</em> than it: the earlier
+    check peeled each line by hand, so it refused an indented samples section — legal
+    exposition that <code>parse_metrics</code> accepts and resolves — and would have called a
+    series unsourced while the reader read its value. The check now asks the reader itself
+    (<code>parse_metrics</code>, and <code>_LABEL_RE</code> for the required label fragment),
+    so the two cannot disagree on what a sample line is, and the corpus it is measured on
+    carries both the shapes a hand-rolled peel refused (an indented line with labels, an
+    indented line without, a tab-separated value, and the whole fixture indented) and the
+    shapes it must refuse. Against the pre-delegation substring form the shape test is red
+    (1 of 16), on the HELP/TYPE-only input
+    <code>'# HELP sglang:num_running_reqs The number of running requests.\n# TYPE sglang:num_running_reqs gauge'</code>;
+    against a guard that drops the unlabelled spelling of a sample line it is red (1 of 16),
+    on the positive <code>sglang:num_running_reqs 0.0</code> — the assertion that
+    distinguishes a check reading a value-carrying line from one reading only the
+    label-bearing shape.</p>
 
     <p><strong>What the fixture does not preserve, measured and left open.</strong> The
     commits <code>43b45b1b</code> and <code>87b12221</code> are scoped to the test; the
