@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-21T10:08:18",
+  "updated": "2026-09-21T10:10:46",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -46090,6 +46090,216 @@
           "reason": null,
           "finding": null
         }
+      },
+      {
+        "run_id": "r-20260921T075506250137-fleet-declared-control-receipt",
+        "plan": "slurm-hosted-agent-fleet",
+        "section": "\u00a77",
+        "node": "fleet-declared-control-receipt",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1404,
+                "cached_input_tokens": 414270,
+                "input_tokens": 415676,
+                "output_tokens": 1032,
+                "reasoning_output_tokens": 129,
+                "total_tokens": 416708,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "10680e94-61e5-4916-bab0-968fa2503f57",
+            "session_id": "slurm-fleet"
+          },
+          "done_when": "the file /home/ITER/mcintos/.config/reckon/crew/reports/fleet-allocation-declared-control-receipt.log exists and its FIRST LINE is exactly, character for character, the text between the markers and nothing else \u2014 <<<change the generated partition from rigel to rigel_debug, which the plan records as a partition containing zero nodes and capped at one hour; the test asserting the partition and the absence of any _debug partition must be observed to fail, and the failing pytest output recorded>>> \u2014 with no prefix, no label and no quotation marks; the lines after it record, in order: the exact edit applied to imas_ambix/agent/fleet.py to change the generated partition from the site's fleet partition to that same value suffixed with _debug, the full failing output of `uv run --no-sync pytest tests/agent/test_fleet.py` showing at least the partition assertion and the _debug-absence assertion failing, the restoration of the source, and a final re-run of the same command showing every test passing again; and `git status --porcelain` in your worktree is empty at the end, proving the source was restored",
+          "estimated_hours": null,
+          "goal": "an independently produced receipt showing the fleet allocation's declared partition mutation makes its guard fail at the merged head",
+          "id": "fleet-declared-control-receipt",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-21T07:55:09Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no numeric 'headroom'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T075506250137-fleet-declared-control-receipt/manifest.md",
+          "negative_control": "none: this node runs an existing check under an existing mutation and adds no behaviour of its own; its falsifiable element is the pair of runs it records \u2014 the mutated run must fail and the restored run must pass, so a receipt showing both green or both red is a failed receipt",
+          "plan": "slurm-hosted-agent-fleet",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "test",
+          "section": "\u00a77",
+          "spec_level": "exact",
+          "time_budget": "25m",
+          "token_budget": null,
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/fleet-allocation-declared-control-receipt.log",
+            "docs/evidence/archive/slurm-hosted-agent-fleet-landed.html",
+            "docs/plans/slurm-hosted-agent-fleet.html"
+          ]
+        },
+        "role": "test",
+        "spec_level": "exact",
+        "member": "fleet-control-receipt",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "xhigh",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "worktree-full",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-21T07:55:34Z",
+        "completed_at": "2026-09-21T08:04:52.397Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 533,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 558,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "04fe5259991a95d139036038a1f88425d8d795dd",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": 0,
+        "gate": "passed",
+        "gate_check": {
+          "command": "apply the declared partition mutation, run the fleet checks under it, restore, and re-run",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/reports/fleet-allocation-declared-control-receipt.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T075506250137-fleet-declared-control-receipt/manifest.md",
+        "scope_changed": false,
+        "session_id": "56abc6d3-8471-4099-937a-dfbcefed133b",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 4345165,
+            "input_tokens_cumulative": 4345165,
+            "output_tokens": 28946,
+            "output_tokens_cumulative": 28946,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-21T08:04:52.397Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": null,
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 4345165,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 554.992,
+          "generated_tokens": 28946,
+          "generation_seconds": 497.866,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 30.4,
+          "machine_seconds": 57.126,
+          "peak_input_tokens": 146141,
+          "tokens_per_second": 58.14,
+          "wall_tokens_per_second": 52.16
+        },
+        "follow_on_paths": [
+          "tests/agent/test_fleet.py",
+          "tests/"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest output",
+          "override": false,
+          "role": "test",
+          "status": "compatible"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": "the deliverable of this verifier is the control receipt under the crew reports directory, outside every git worktree. It also authored a plan landing record and evidence anchor because the embedded worker contract requires every node to do so, which its test role forbids; the coordinator merged those two documents separately rather than citing them as this run commits",
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/slurm-fleet/fleet-declared-control-receipt",
+          "session_id": "56abc6d3-8471-4099-937a-dfbcefed133b",
+          "session_source": "stream",
+          "retained_at": "2026-09-21T08:04:52.397Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "plan_impl_at_dispatch": 0.429,
+        "impl_move": {
+          "plan": "slurm-hosted-agent-fleet",
+          "at_dispatch": 0.429,
+          "at_complete": 0.429,
+          "verdict": "waived",
+          "reason": "this node produces a control receipt for a node that already landed; it adds no plan work of its own, so the executable remainder is unchanged"
+        },
+        "negative_control": {
+          "verdict": "exempt",
+          "reason": "node-writes-no-test-path"
+        },
+        "tool_steps": 44.0,
+        "orientation_input_tokens": 2793501.0,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -46164,6 +46374,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 788
+    "_version": 789
   }
 }
