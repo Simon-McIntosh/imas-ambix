@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-21T12:35:37",
+  "updated": "2026-09-21T12:37:05",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -53513,6 +53513,298 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260921T090055615010-fleet-sample-names-its-host",
+        "plan": "slurm-hosted-agent-fleet",
+        "section": "\u00a77",
+        "node": "fleet-sample-names-its-host",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1956,
+                "cached_input_tokens": 505422,
+                "input_tokens": 507380,
+                "output_tokens": 1156,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 508536,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "10680e94-61e5-4916-bab0-968fa2503f57",
+            "session_id": "slurm-fleet"
+          },
+          "done_when": "ALL of the following hold, each evidenced in the manifest. (1) THE GAP: the payload emitted by imas_ambix/agent/throttling.py carries directory, cpu_max and the counters, and nothing that identifies the machine. The only host-distinguishing input is the --directory operand, and /sys/fs/cgroup/user.slice/user-39486.slice resolves on EVERY node in this cluster with different contents. The plan deciding comparison is a before-and-after throttled share, so two readings taken on different machines would compare as though they were the same one. Add the hostname to the emitted payload so a reader can tell. (2) The payload also states the boot identity or the uptime of the machine the reading came from, so two readings of cumulative counters can be told apart when the machine has rebooted between them \u2014 cumulative counters reset at boot, which would otherwise read as a sudden improvement. (3) tests/agent/test_throttling.py covers the new fields over fixture inputs rather than a live read, including that the existing wire contract the tests already pin is extended rather than broken \u2014 the existing JSON equality assertions must be updated deliberately, not deleted. (4) THE DECLARED NEGATIVE CONTROL, stated here so it reaches you: remove the hostname field from the emitted payload; the test asserting the payload names its host must then be OBSERVED to fail. Apply it, run the named test, capture the failing output to a log whose FIRST LINE repeats that declared mutation character for character with no prefix and no label, restore the source, and re-run green. (5) `uv run --no-sync pytest tests/agent/test_throttling.py` and `uv run --no-sync ruff check imas_ambix tests` both exit 0 with commands and summary lines quoted. (6) You must NOT edit imas_ambix/agent/fleet.py, imas_ambix/agent/cli.py or tests/agent/test_fleet.py \u2014 a concurrent node owns those three files this wave. (7) No plan label, stage name, ticket number or version suffix in any name or comment you add.",
+          "estimated_hours": 0.75,
+          "goal": "a throttling reading that names the machine it was taken on, so two readings can be compared only when they describe the same computer",
+          "id": "fleet-sample-names-its-host",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-21T09:00:56Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no 'binding_observed'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T090055615010-fleet-sample-names-its-host/manifest.md",
+          "negative_control": "remove the hostname field from the payload emitted by the throttling sampler; the test asserting that the payload names the host it was read on must then be observed to fail",
+          "plan": "slurm-hosted-agent-fleet",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a77",
+          "spec_level": "exact",
+          "time_budget": "40m",
+          "token_budget": null,
+          "write_paths": [
+            "imas_ambix/agent/throttling.py",
+            "tests/agent/test_throttling.py",
+            "docs/evidence/archive/slurm-hosted-agent-fleet-landed.html",
+            "docs/plans/slurm-hosted-agent-fleet.html"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "fleet-sample-host",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "high",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "worktree-full",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-21T09:01:07Z",
+        "completed_at": "2026-09-21T09:38:38.491Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 2243,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 2251,
+        "stalled": false,
+        "time_budget": "40m",
+        "base_sha": "0dcf297d0fd0b2019cad02f1d4ec64bb9f960acc",
+        "commits": [
+          "7a52e6e2b0f9f1016f979ef2cb1097ab27da05dd",
+          "16b5331d7f24ba6ec45e6d60f0fe343cc71b2675"
+        ],
+        "changed_lines": {
+          "added": 351,
+          "removed": 6,
+          "files": 4
+        },
+        "tests_added": 48,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/agent/test_throttling.py",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T090055615010-fleet-sample-names-its-host/logs/throttle_test_final.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "a throttling reading now names its machine: hostname, boot id and uptime travel with every payload, all parsed from files so they are testable, and the boot id specifically so two cumulative readings spanning a reboot are not read as a sudden improvement. Reviewed at 19/15/15/18/18. Open against the corrective node fleet-host-read-is-exercised: read_host itself is covered by no test, parse_boot_id accepts not-a-uuid as a boot identity, and the sampler raises rather than reporting absence where a control group has no cpu.max at all, which is the compute side of the very comparison it exists to make",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T090055615010-fleet-sample-names-its-host/manifest.md",
+        "scope_changed": false,
+        "session_id": "3c8fe84f-7534-4472-9361-0999e9fc45c7",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 2871745,
+            "input_tokens_cumulative": 2871745,
+            "output_tokens": 12551,
+            "output_tokens_cumulative": 12551,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-21T09:38:38.491Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "15m",
+          "requested": true,
+          "waived_runs": [
+            {
+              "budget_overrun": false,
+              "budget_overrun_seconds": 0,
+              "budget_seconds": 3000,
+              "classification": "scoring",
+              "commits_beyond_base": 0,
+              "detail": "the worker manifest reports completion, but no independent review is attached; an independent review must be produced before promotion",
+              "elapsed_seconds": 114,
+              "external_wait": null,
+              "lifting_condition": null,
+              "liveness_proven": true,
+              "log_age_seconds": 2301,
+              "log_fresh": false,
+              "manifest_commits": [
+                "13acbd2029b31eae9e4f2a417b0e5ac5c062e178",
+                "8fa8f0eec7e4685d4f47341e776dfbf24aa2e70f",
+                "5507cd9f3b18e9ac55218a897d0c3fc27b999718"
+              ],
+              "manifest_derived": false,
+              "manifest_digest": "efb59d61f6e266049ee6fdb199aea3f60e8958c131146faa0834f16881fd43a5",
+              "manifest_error": null,
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T081131624322-fleet-lifetime-surface/manifest.md",
+              "manifest_present": true,
+              "manifest_reported_status": "complete",
+              "manifest_status": "complete",
+              "marker": null,
+              "needs_help_complete": null,
+              "next_action": "reckon crew dispatch --project imas-ambix --plan slurm-hosted-agent-fleet --section '\u00a77' --role review --spec-level exact --node review-of-fleet-lifetime-surface --goal 'attach an independent review to run r-20260921T081131624322-fleet-lifetime-surface' --done-when 'the review for r-20260921T081131624322-fleet-lifetime-surface stores a parsed record scoring all 5 dimensions in the range 0..20' --write-path /home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260921T081131624322-fleet-lifetime-surface.json --time-budget 50m --session slurm-fleet --local",
+              "node": "fleet-lifetime-surface",
+              "phase": "working",
+              "plan": "slurm-hosted-agent-fleet",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "recovery": "review",
+              "recovery_classification": "scoring",
+              "resets_at": null,
+              "review_error": null,
+              "review_present": false,
+              "review_status": null,
+              "run_id": "r-20260921T081131624322-fleet-lifetime-surface",
+              "session": "slurm-fleet",
+              "terminal_age_seconds": 2383,
+              "terminal_at": "2026-09-21T08:21:17Z",
+              "wait_age_seconds": null,
+              "wait_condition_state": null,
+              "wait_key_defect": null,
+              "wait_observed": null,
+              "wait_overdue": null,
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/slurm-fleet/fleet-lifetime-surface"
+            }
+          ]
+        },
+        "review": {
+          "status": "parsed",
+          "scores": {
+            "goal_fidelity": 19,
+            "evidence": 15,
+            "durability": 15,
+            "fit": 18,
+            "scope_discipline": 18
+          },
+          "absent": [],
+          "total": 85
+        },
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 8969979,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 1071.209,
+          "generated_tokens": 50661,
+          "generation_seconds": 1035.643,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 34.8,
+          "machine_seconds": 35.566,
+          "peak_input_tokens": 166904,
+          "tokens_per_second": 48.92,
+          "wall_tokens_per_second": 47.29
+        },
+        "follow_on_paths": [
+          "docs/evidence/archive/slurm-hosted-agent-fleet-landed.html",
+          "docs/plans/slurm-hosted-agent-fleet.html"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/agent/test_throttling.py`",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        },
+        "attempt_kind": "resume",
+        "attempt": 2,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/slurm-fleet/fleet-sample-names-its-host",
+          "session_id": "3c8fe84f-7534-4472-9361-0999e9fc45c7",
+          "session_source": "stream",
+          "retained_at": "2026-09-21T09:38:38.491Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "plan_impl_at_dispatch": 0.833,
+        "impl_move": {
+          "plan": "slurm-hosted-agent-fleet",
+          "at_dispatch": 0.833,
+          "at_complete": 0.833,
+          "verdict": "waived",
+          "reason": "this closes a closing-review finding on a node that already landed rather than adding executable scope"
+        },
+        "negative_control": {
+          "verdict": "matched",
+          "reason": "node-writes-no-test-path",
+          "test_paths": [
+            "tests/agent/test_throttling.py"
+          ],
+          "declaration": "remove the hostname field from the payload emitted by the throttling sampler; the test asserting that the payload names the host it was read on must then be observed to fail",
+          "log": "/home/ITER/mcintos/.config/reckon/crew/reports/fleet-throttling-host-negative-control.log",
+          "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/reports/fleet-throttling-host-negative-control.log"
+        },
+        "tool_steps": 52.0,
+        "orientation_input_tokens": 472753.0,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -53587,6 +53879,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 839
+    "_version": 840
   }
 }
