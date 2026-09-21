@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-21T13:09:44",
+  "updated": "2026-09-21T13:12:56",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -54366,6 +54366,242 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260921T095916955700-review-of-the-entry-point-and-record-claims",
+        "plan": "serve-telemetry-spine",
+        "section": "\u00a74",
+        "node": "review-of-the-entry-point-and-record-claims",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 2178,
+                "cached_input_tokens": 399968,
+                "input_tokens": 402148,
+                "output_tokens": 385,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 402533,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "98f13dbe-0703-4abd-a5e4-65bfdb2eeee2",
+            "session_id": "telemetry-spine"
+          },
+          "done_when": "the review for r-20260921T053306239225-telemetry-store stores a parsed record scoring all 5 dimensions in the range 0..20 and names the revision it read. YOUR WORKTREE IS CUT FROM THE REVIEWED HEAD 2e3bb942b586; read it in place and report that sha. State every finding in a COMPLETE SENTENCE naming a concrete input - a prior review in this sprint stored a finding truncated mid-sentence and it nearly cost a real defect. THE REPAIR: commit 2e3bb942 holds the rebuild entry point and the landing record on their claims, after a review found that a main() ignoring --tier passed all fourteen tests, that the refusal case accepted exit 0 for work never done, and that the corrected record figures were pinned by nothing. Work this checklist and FLAG every finding, never fix one: (1) replay each of the three control logs yourself rather than trusting their recorded counts, and report what each selects and returns - a sibling node's receipt replayed to zero tests selected because a rename had invalidated it; (2) the --tier assertion must fail for BOTH directions, so check an entry point that honours --tier hour but silently ignores --tier minute, and any third tier the module admits; (3) the exit-status assertion must pin a specific nonzero code, not merely nonzero, and must not pass for a crash that exits nonzero for an unrelated reason; (4) the record-derivation test must redden when the published figures desync from the cadence - change _CADENCE_S and show what happens; (5) this sprint's recurring defect is an expectation derived from the thing it checks, so report any assertion whose expected value is computed from the module under test rather than written out literally; (6) no plan label, ticket reference, version suffix or author attribution in any name, comment or docstring. Report each finding as file:line with the concrete input that breaks it.",
+          "estimated_hours": null,
+          "goal": "Attach an independent review of run r-20260921T053306239225-telemetry-store at its round-five head",
+          "id": "review-of-the-entry-point-and-record-claims",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-21T09:59:17Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no 'binding_observed'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T095916955700-review-of-the-entry-point-and-record-claims/manifest.md",
+          "negative_control": "",
+          "plan": "serve-telemetry-spine",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "review",
+          "section": "\u00a74",
+          "spec_level": "exact",
+          "time_budget": "30m",
+          "token_budget": null,
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260921T053306239225-telemetry-store.json"
+          ]
+        },
+        "role": "review",
+        "spec_level": "exact",
+        "member": "review-of-the-entry-point-and-record-claims",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "xhigh",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "read-only",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-21T09:59:30Z",
+        "completed_at": "2026-09-21T11:10:33.448Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 4222,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 4263,
+        "stalled": true,
+        "time_budget": "30m",
+        "base_sha": "2e3bb942b5867ae71e92016b44f4cff3492e3808",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "stored review record for r-20260921T053306239225-telemetry-store parsed with all five dimensions scored",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260921T053306239225-telemetry-store.json",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T095916955700-review-of-the-entry-point-and-record-claims/manifest.md",
+        "scope_changed": false,
+        "session_id": "589e92ff-f4b7-48b5-a512-b31e2fd2172d",
+        "budget": {
+          "cost_usd": null,
+          "detail": "no events yet",
+          "headroom": "unknown",
+          "rate_limit_period_minutes": null,
+          "rate_limit_type": null,
+          "refusal": false,
+          "resets_at": null,
+          "surpassed_threshold": null,
+          "threshold_status": null,
+          "tokens": null,
+          "utilisation_pct": null
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-21T11:10:33.448Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "15m",
+          "requested": true,
+          "waived_runs": [
+            {
+              "budget_overrun": true,
+              "budget_overrun_seconds": 476,
+              "budget_seconds": 2100,
+              "classification": "scoring",
+              "commits_beyond_base": 0,
+              "detail": "the worker manifest reports completion, but no independent review is attached; an independent review must be produced before promotion",
+              "elapsed_seconds": 2576,
+              "external_wait": null,
+              "lifting_condition": null,
+              "liveness_proven": true,
+              "log_age_seconds": 1009,
+              "log_fresh": false,
+              "manifest_commits": [
+                "b2543e5ef2d4915e6a8931af9645c267a4c8a129",
+                "f7ff97ee9f3abbab6771e72a3921aa7f1e0882d5"
+              ],
+              "manifest_derived": false,
+              "manifest_digest": "706960872ee45812648ee782aa451159f582d05d4b8fcc3ff879cb2ba0b931a0",
+              "manifest_error": null,
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T085923815245-one-owner-guard-widens-to-any-indentation/manifest.md",
+              "manifest_present": true,
+              "manifest_reported_status": "complete",
+              "manifest_status": "complete",
+              "marker": null,
+              "needs_help_complete": null,
+              "next_action": "reckon crew dispatch --project imas-ambix --plan serve-telemetry-spine --section '\u00a72' --role review --spec-level exact --node review-of-one-owner-guard-widens-to-any-indentation --goal 'attach an independent review to run r-20260921T085923815245-one-owner-guard-widens-to-any-indentation' --done-when 'the review for r-20260921T085923815245-one-owner-guard-widens-to-any-indentation stores a parsed record scoring all 5 dimensions in the range 0..20' --write-path /home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260921T085923815245-one-owner-guard-widens-to-any-indentation.json --time-budget 35m --session telemetry-spine --local",
+              "node": "one-owner-guard-widens-to-any-indentation",
+              "phase": "starting",
+              "plan": "serve-telemetry-spine",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "recovery": "review",
+              "recovery_classification": "scoring",
+              "resets_at": null,
+              "review_error": null,
+              "review_present": false,
+              "review_status": null,
+              "run_id": "r-20260921T085923815245-one-owner-guard-widens-to-any-indentation",
+              "session": "telemetry-spine",
+              "terminal_age_seconds": 1073,
+              "terminal_at": "2026-09-21T09:41:30Z",
+              "wait_age_seconds": null,
+              "wait_condition_state": null,
+              "wait_key_defect": null,
+              "wait_observed": null,
+              "wait_overdue": null,
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/telemetry-spine/one-owner-guard-widens-to-any-indentation"
+            }
+          ]
+        },
+        "review": null,
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": false,
+          "matched_measure": null,
+          "override": false,
+          "role": "review",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": {
+          "status": "underivable",
+          "reason": "model_span_unavailable_at_promotion"
+        },
+        "scope_acceptances": null,
+        "no_commit": "a review node's deliverable is the stored review record, not a repository commit",
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/telemetry-spine/review-of-the-entry-point-and-record-claims",
+          "session_id": "589e92ff-f4b7-48b5-a512-b31e2fd2172d",
+          "session_source": "stream",
+          "retained_at": "2026-09-21T11:10:33.448Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "plan_impl_at_dispatch": 0.6,
+        "impl_move": {
+          "plan": "serve-telemetry-spine",
+          "at_dispatch": 0.6,
+          "at_complete": null,
+          "verdict": "exempt",
+          "reason": "role-not-enforced:review"
+        },
+        "negative_control": {
+          "verdict": "exempt",
+          "reason": "node-writes-no-test-path"
+        },
+        "tool_steps": 59.0,
+        "orientation_input_tokens": null,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -54440,6 +54676,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 842
+    "_version": 843
   }
 }
