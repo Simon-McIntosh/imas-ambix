@@ -1,0 +1,17 @@
+f1: drop the family scoping in _of_family, so each series helper answers for whichever family's samples it is handed
+
+  -     return [sample for sample in samples if sample[0].startswith(prefix)]
+  +     return list(samples)
+
+target: tests/test_engine_metrics.py tests/agent/test_lane.py
+command: uv run --no-sync pytest -p no:cacheprovider -q --tb=line
+
+.............F...........................................                [100%]
+=================================== FAILURES ===================================
+E   AssertionError: assert 10000.0 is None
+     +  where 10000.0 = <function series_total at 0x7f85052a4bf0>([('vllm:prompt_tokens_total', {'engine': '0', 'model_name': 'm'}, 10000.0)], 'sglang', ('prompt_tokens_total',))
+     +    where <function series_total at 0x7f85052a4bf0> = engine_metrics.series_total
+/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/wire-telemetry-spine/engine-names-repair/tests/test_engine_metrics.py:617: AssertionError: assert 10000.0 is None
+=========================== short test summary info ============================
+FAILED tests/test_engine_metrics.py::test_a_family_scoped_reader_is_not_answered_by_the_other_family
+1 failed, 56 passed in 0.40s
