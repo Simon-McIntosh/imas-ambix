@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-21T23:29:34",
+  "updated": "2026-09-21T23:30:40",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -62173,6 +62173,274 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260921T122955666838-review-of-host-read",
+        "plan": "slurm-hosted-agent-fleet",
+        "section": "\u00a77",
+        "node": "review-of-host-read",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1153,
+                "cached_input_tokens": 730346,
+                "input_tokens": 731501,
+                "output_tokens": 901,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 732402,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "10680e94-61e5-4916-bab0-968fa2503f57",
+            "session_id": "slurm-fleet"
+          },
+          "done_when": "the review for r-20260921T102535452002-fleet-host-read-is-exercised stores a parsed record scoring all 5 dimensions in the range 0..20, and its prose answers four questions with an explicit verdict and evidence for each: (a) whether a boot identity that is not one is now refused rather than reported, and whether the refusal can reject a value the kernel would legitimately emit on any node in this cluster, which would be worse than the defect it replaces; (b) whether a control group with no ceiling now reports the absence rather than raising, and whether the counters that are absent alongside the ceiling are distinguishable from counters that are genuinely zero \u2014 a consumer reading null as zero is the failure this change exists to prevent; (c) whether the machine reads behind the host block are now exercised by tests rather than only by the live machine, naming which of them are and which are not; (d) whether the run self-reported honestly, since it declares it reproduced both defects BEFORE repairing them and that the compute-side reading was covered over replayed text rather than taken live \u2014 confirm both statements against its logs rather than accepting them",
+          "estimated_hours": null,
+          "goal": "attach an independent review to run r-20260921T102535452002-fleet-host-read-is-exercised",
+          "id": "review-of-host-read",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-21T12:29:57Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no 'binding_observed'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T122955666838-review-of-host-read/manifest.md",
+          "negative_control": "none: a review writes no test file and adds no executable behaviour; its falsifiable element is that each of the four named questions receives an explicit yes or no with the evidence behind it, so a question that cannot be answered is reported as unanswered rather than silently scored",
+          "plan": "slurm-hosted-agent-fleet",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "review",
+          "section": "\u00a77",
+          "spec_level": "exact",
+          "time_budget": "30m",
+          "token_budget": null,
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260921T102535452002-fleet-host-read-is-exercised.json"
+          ]
+        },
+        "role": "review",
+        "spec_level": "exact",
+        "member": "fleet-review-hostread",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "xhigh",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "read-only",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-21T12:30:28Z",
+        "completed_at": "2026-09-21T15:24:46.945Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 10445,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 10458,
+        "stalled": true,
+        "time_budget": "30m",
+        "base_sha": "c0e4ce14ecd8f19dcdcab0c3705b1c838fb21abe",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": 0,
+        "gate": "passed",
+        "gate_check": {
+          "command": "live module probe against the repaired sampler, a stream probe, the focused suite, and a read-back of the stored review record",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T122955666838-review-of-host-read/probes/live-module-probe.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T122955666838-review-of-host-read/manifest.md",
+        "scope_changed": false,
+        "session_id": "e372b841-ae6d-4123-be55-902da5db4d58",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 4365668,
+            "input_tokens_cumulative": 4365668,
+            "output_tokens": 105855,
+            "output_tokens_cumulative": 105855,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-21T15:24:46.945Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "15m",
+          "requested": true,
+          "waived_runs": [
+            {
+              "budget_overrun": true,
+              "budget_overrun_seconds": 2183,
+              "budget_seconds": 2400,
+              "classification": "scoring",
+              "commits_beyond_base": 0,
+              "detail": "the worker manifest reports completion, but no independent review is attached; an independent review must be produced before promotion",
+              "elapsed_seconds": 4583,
+              "external_wait": null,
+              "lifting_condition": null,
+              "liveness_proven": true,
+              "log_age_seconds": 2854,
+              "log_fresh": false,
+              "manifest_commits": [
+                "b331d140b7842c0b926988f4cac94009585f2e8f (imas_ambix/agent/throttling.py + tests/agent/test_throttling.py)",
+                "dbcb9e19acd42b52202d04bf71fa6d3c9754ac92 (docs/plans/slurm-hosted-agent-fleet.html + docs/evidence/archive/slurm-hosted-agent-fleet-landed.html)"
+              ],
+              "manifest_derived": false,
+              "manifest_digest": "a814cf6a7e7d5c9dd97f37e1bb5d09c00b0e519c213c337329a64b65af26bc72",
+              "manifest_error": null,
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T102535452002-fleet-host-read-is-exercised/manifest.md",
+              "manifest_present": true,
+              "manifest_reported_status": "complete",
+              "manifest_status": "complete",
+              "marker": null,
+              "needs_help_complete": null,
+              "next_action": "reckon crew dispatch --project imas-ambix --plan slurm-hosted-agent-fleet --section '\u00a77' --role review --spec-level exact --node review-of-fleet-host-read-is-exercised --goal 'attach an independent review to run r-20260921T102535452002-fleet-host-read-is-exercised' --done-when 'the review for r-20260921T102535452002-fleet-host-read-is-exercised stores a parsed record scoring all 5 dimensions in the range 0..20' --write-path /home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260921T102535452002-fleet-host-read-is-exercised.json --time-budget 40m --session slurm-fleet --allow-unreconciled-runs --local",
+              "node": "fleet-host-read-is-exercised",
+              "phase": "complete",
+              "plan": "slurm-hosted-agent-fleet",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "recovery": "review",
+              "recovery_classification": "scoring",
+              "resets_at": null,
+              "review_error": null,
+              "review_present": false,
+              "review_status": null,
+              "run_id": "r-20260921T102535452002-fleet-host-read-is-exercised",
+              "session": "slurm-fleet",
+              "terminal_age_seconds": 2814,
+              "terminal_at": "2026-09-21T11:43:21Z",
+              "wait_age_seconds": null,
+              "wait_condition_state": null,
+              "wait_key_defect": null,
+              "wait_observed": null,
+              "wait_overdue": null,
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/slurm-fleet/fleet-host-read-is-exercised"
+            }
+          ]
+        },
+        "review": null,
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 4683543,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 10453.204,
+          "generated_tokens": 125845,
+          "generation_seconds": 10238.634,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 33.2,
+          "machine_seconds": 214.57,
+          "peak_input_tokens": 159473,
+          "tokens_per_second": 12.29,
+          "wall_tokens_per_second": 12.04
+        },
+        "follow_on_paths": [
+          "tests/agent/test_throttling.py",
+          "cpu.stat",
+          "logs/reproduce-absent-cpu-max.log",
+          "manifest.md",
+          "imas_ambix/agent/throttling.py",
+          "/sys/fs/cgroup"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": false,
+          "matched_measure": null,
+          "override": false,
+          "role": "review",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": "review role; the deliverable is the review record in the crew review store, outside every git worktree",
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/slurm-fleet/review-of-host-read",
+          "session_id": "e372b841-ae6d-4123-be55-902da5db4d58",
+          "session_source": "stream",
+          "retained_at": "2026-09-21T15:24:46.945Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "plan_impl_at_dispatch": 0.833,
+        "impl_move": {
+          "plan": "slurm-hosted-agent-fleet",
+          "at_dispatch": 0.833,
+          "at_complete": null,
+          "verdict": "exempt",
+          "reason": "role-not-enforced:review"
+        },
+        "negative_control": {
+          "verdict": "exempt",
+          "reason": "node-writes-no-test-path"
+        },
+        "tool_steps": 68.0,
+        "orientation_input_tokens": null,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -62247,6 +62515,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 884
+    "_version": 885
   }
 }
