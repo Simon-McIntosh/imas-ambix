@@ -27,11 +27,11 @@ FLEET_COMMENT = "ambix-fleet"
 # arrive while the allocation still has time left to act in.
 REMAINING_WARNING_SECONDS = 30 * 60
 
-# Scheduler node-state prefixes that mean the node is being taken out of
+# Scheduler node-state token that means the node is being taken out of
 # service. A draining node still runs its jobs, but the allocation ends when
 # the drain completes, so the operator has to be told before that happens.
-# The spelling varies (`DRAIN`, `DRAINED`, `DRAINING`) and may carry flags
-# after a `+`, so the match is a prefix rather than an equality.
+# The spelling varies (`DRAIN`, `DRAINED`, `DRAINING`) but always starts with
+# this stem, so the match is a token prefix rather than an equality.
 _DRAINING_STATE_PREFIX = "DRAIN"
 
 
@@ -125,24 +125,36 @@ def remaining_seconds(time_left: str) -> int | None:
 
 
 def parse_node_state(node_info: str) -> str | None:
-    """Upper-cased state token from ``scontrol show node`` output, or ``None``.
+    """Upper-cased state value from ``scontrol show node`` output, or ``None``.
 
     The row is whitespace-separated ``key=value`` fields and the state is the
-    ``State=`` one. Flags are reported after a ``+`` (``DRAINING+NOT_RESPONDING``)
-    and are dropped, because the leading token is what decides whether the node
-    is going out of service.
+    ``State=`` one. Its value is a ``+``-separated set of tokens —
+    ``ALLOCATED``, ``MIXED``, ``DRAIN``, ``REBOOT_REQUESTED`` and so on — which
+    is returned whole and upper-cased, because every token is a fact about the
+    node and the first one is not privileged.
     """
     for token in node_info.split():
         if not token.startswith("State="):
             continue
-        value = token.split("=", 1)[1].split("+", 1)[0].strip().upper()
+        value = token.split("=", 1)[1].strip().upper()
         return value or None
     return None
 
 
 def node_is_draining(state: str | None) -> bool:
-    """Whether a scheduler node state means the node is going out of service."""
-    return bool(state) and state.upper().startswith(_DRAINING_STATE_PREFIX)
+    """Whether a scheduler node state means the node is going out of service.
+
+    The state is a ``+``-separated set of tokens and the drain token is not
+    necessarily the first of them, so every token is inspected rather than the
+    leading one. A leading-token match misses a node the scheduler reports as
+    ``MIXED+DRAIN+REBOOT_REQUESTED`` — the spelling this cluster actually uses.
+    """
+    if not state:
+        return False
+    return any(
+        token.startswith(_DRAINING_STATE_PREFIX)
+        for token in state.upper().split("+")
+    )
 
 
 def _format_duration(seconds: int) -> str:
