@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as _dt
+import gzip
 import json
 import os
 from pathlib import Path
@@ -502,6 +503,132 @@ def test_default_discovery_reaches_a_rolled_file(tmp_path):
         assert index.sum_measurements("prefix_cache_query_delta", _at(0), _at(20)) == (
             10 + 15 + 20
         )
+
+
+def test_a_rewrite_reusing_the_last_line_still_replaces_its_samples(tmp_path):
+    """The final line surviving a rewrite is not evidence the region did.
+
+    Asserted on the file rather than on the code: the rewriting text is the
+    same length as what it replaces and its last line is byte-identical, so a
+    check against the file's size, or against a digest of that last line,
+    reports no change while the values the index holds belong to content the
+    file no longer carries.
+    """
+    source = tmp_path / "serve.jsonl"
+    _write(source, [_row(0), _row(10), _row(20)])
+    consumed_size = source.stat().st_size
+    last_line = source.read_text(encoding="utf-8").splitlines()[-1]
+
+    with TelemetryIndex(tmp_path / "index.db") as index:
+        index.ingest([source])
+        assert index.sum_measurements("prefix_cache_query_delta", _at(0), _at(60)) == (
+            10 + 20 + 30
+        )
+
+        rewritten = [
+            _row(0, prefix_cache_query_delta=40),
+            _row(10, prefix_cache_query_delta=50),
+            _row(20, prefix_cache_query_delta=30),
+        ]
+        source.write_text(
+            "".join(json.dumps(row) + "\n" for row in rewritten), encoding="utf-8"
+        )
+        assert source.stat().st_size == consumed_size
+        assert source.read_text(encoding="utf-8").splitlines()[-1] == last_line
+
+        index.ingest([source])
+        assert index.sample_count() == 3
+        assert index.sum_measurements("prefix_cache_query_delta", _at(0), _at(60)) == (
+            40 + 50 + 30
+        )
+
+
+def test_a_source_with_no_recorded_identity_is_read_again(tmp_path):
+    """An unknown consumed region is re-read, not treated as unchanged.
+
+    The recorded digest is cleared the way a source row written before the
+    column existed would carry it, and the file is then rewritten at its own
+    length. A missing identity compares equal to nothing, so treating NULL as
+    agreement answers with the old content's values: 60 where the file sums to
+    120.
+    """
+    source = tmp_path / "serve.jsonl"
+    _write(source, [_row(0), _row(10), _row(20)])
+
+    with TelemetryIndex(tmp_path / "index.db") as index:
+        index.ingest([source])
+        assert index.sum_measurements("prefix_cache_query_delta", _at(-1), _at(60)) == (
+            10 + 20 + 30
+        )
+        with index._conn:
+            index._conn.execute("UPDATE source SET prefix_sha = NULL")
+
+        rewritten = [_row(0), _row(10), _row(20, prefix_cache_query_delta=90)]
+        assert len("".join(json.dumps(row) + "\n" for row in rewritten)) == (
+            source.stat().st_size
+        )
+        source.write_text(
+            "".join(json.dumps(row) + "\n" for row in rewritten), encoding="utf-8"
+        )
+
+        index.ingest([source])
+        assert index.sample_count() == 3
+        assert index.sum_measurements("prefix_cache_query_delta", _at(-1), _at(60)) == (
+            10 + 20 + 90
+        )
+
+
+def test_discovery_passes_over_a_name_that_merely_contains_jsonl(tmp_path):
+    """Only the roll suffixes are selected; a longer name is not a record.
+
+    A file whose name carries the suffix inside it is not one of the names a
+    roll produces, so it is not offered to the parser. Selecting it costs the
+    whole pass: the records beside it are never consumed.
+    """
+    records = tmp_path / "serve.jsonl"
+    _write(records, [_row(0), _row(5)])
+    records.rename(tmp_path / "serve.jsonl.1")
+    _write(records, [_row(10)])
+    (tmp_path / "my-notes.jsonl.summary").write_text("not a record\n", encoding="utf-8")
+
+    assert [path.name for path in discover(tmp_path)] == [
+        "serve.jsonl",
+        "serve.jsonl.1",
+    ]
+
+    with TelemetryIndex(tmp_path / "index.db") as index:
+        index.ingest(discover(tmp_path))
+        assert index.sample_count() == 3
+        assert index.sum_measurements("prefix_cache_query_delta", _at(0), _at(20)) == (
+            10 + 15 + 20
+        )
+
+
+def test_a_compressed_roll_is_refused_by_name(tmp_path):
+    """A name the index cannot read is named and refused, never counted as zero.
+
+    Selected but unreadable would report a source with no rows and no bytes,
+    which is what a healthy empty file reports; refused by name, the caller
+    learns which file it has to decompress.
+    """
+    records = tmp_path / "serve.jsonl"
+    _write(records, [_row(0)])
+    rolled = tmp_path / "serve.jsonl.2.gz"
+    with gzip.open(rolled, "wb") as handle:
+        for seconds in (5, 10):
+            handle.write(json.dumps(_row(seconds)).encode("utf-8") + b"\n")
+
+    assert [path.name for path in discover(tmp_path)] == [
+        "serve.jsonl",
+        "serve.jsonl.2.gz",
+    ]
+
+    with TelemetryIndex(tmp_path / "index.db") as index:
+        with pytest.raises(ValueError) as raised:
+            index.ingest(discover(tmp_path))
+        assert "compressed roll" in str(raised.value)
+        assert rolled.name in str(raised.value)
+        assert index.sample_count() == 1
 
 
 def _epoch(row: dict) -> float:

@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-21">
-<meta name="plan-version" content="4">
+<meta name="plan-version" content="6">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="c23be8f8,f5c3c91f,493e0281,f743fcea,0f9ce03f,b1696d31,0e9a656c,bacf490f">
 <meta name="plan-impl" content="0.4">
@@ -316,13 +316,15 @@
     in force</em>, because the served model is priced by time of day and a period billed at
     one instant's rate is wrong by the peak-to-off-peak ratio.</p>
 
-    <p><code>receipt_bins.collect_receipt_bins</code> and
-    <code>summarise_receipt_rows</code> already aggregate receipt rows and have no
-    production caller at all — only a test imports them. This index is the consumer they
-    were written for, and a reader that reimplements the aggregation would orphan them
-    permanently. Nothing else is available: no module anywhere under
-    <code>imas_ambix/</code> imports <code>sqlite3</code>, so the schema and the
-    offset-tracking tail are genuinely new.</p>
+    <p><code>receipt_bins.summarise_receipt_rows</code> already aggregates receipt rows a
+    caller hands it, and <code>collect_receipt_bins</code> is that same aggregation behind
+    a path reader. The index calls <code>summarise_receipt_rows</code> directly, on the
+    rows its own schema already holds, so the aggregation keeps one owner, that function
+    gains the production caller it lacked, and a reader that reimplements the aggregation
+    would orphan it permanently. The path-reading entry point stays test-only: routing
+    through it would re-read from disk the file the index exists to read once. The schema
+    and the offset-tracking tail are genuinely new — no module under
+    <code>imas_ambix/</code> imported <code>sqlite3</code> before this index.</p>
 
     <p><strong>Write paths.</strong> <code>imas_ambix/agent/telemetry_index.py</code> (new),
     <code>imas_ambix/agent/watch.py</code> (new — the ported watcher),
