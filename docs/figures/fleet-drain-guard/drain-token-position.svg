@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 320" width="100%" role="img"
+     aria-labelledby="dtp-title">
+  <title id="dtp-title">Where the drain token sits in a scheduler State value</title>
+  <style>
+    .lbl { font: 14px sans-serif; fill: #333; }
+    .note { font: 12px sans-serif; fill: #666; }
+    .chip { font: 13px monospace; fill: #333; }
+    .chipdrain { font: 13px monospace; fill: #7a3b00; }
+  </style>
+
+  <text class="lbl" x="20" y="24">The scheduler reports State as a +-separated SET of tokens.</text>
+  <text class="note" x="20" y="44">Leading-token match (the behaviour replaced) inspects only the first token.</text>
+
+  <!-- Row 1: leading drain:
+  warning fires under both readings -->
+  <text class="lbl" x="20" y="86">DRAINING</text>
+  <rect x="150" y="66" width="110" height="28" rx="5" fill="#ffd9b3" stroke="#b36b00" stroke-width="1.5"/>
+  <text class="chipdrain" x="162" y="85">DRAINING</text>
+  <text class="note" x="280" y="85">rank 1 of 1 — warned by both readings</text>
+
+  <!-- Row 2: drain second of three, healthy count -->
+  <text class="lbl" x="20" y="140">43 nodes</text>
+  <rect x="150" y="120" width="120" height="28" rx="5" fill="#f4f4f4" stroke="#999" stroke-width="1.5"/>
+  <text class="chip" x="160" y="139">MIXED</text>
+  <rect x="278" y="120" width="90" height="28" rx="5" fill="#ffd9b3" stroke="#b36b00" stroke-width="1.5"/>
+  <text class="chipdrain" x="288" y="139">DRAIN</text>
+  <rect x="376" y="120" width="170" height="28" rx="5" fill="#f4f4f4" stroke="#999" stroke-width="1.5"/>
+  <text class="chip" x="386" y="139">REBOOT_REQUESTED</text>
+
+  <!-- Row 3 -->
+  <text class="lbl" x="20" y="194">39 nodes</text>
+  <rect x="150" y="174" width="120" height="28" rx="5" fill="#f4f4f4" stroke="#999" stroke-width="1.5"/>
+  <text class="chip" x="158" y="193">ALLOCATED</text>
+  <rect x="278" y="174" width="90" height="28" rx="5" fill="#ffd9b3" stroke="#b36b00" stroke-width="1.5"/>
+  <text class="chipdrain" x="288" y="193">DRAIN</text>
+  <rect x="376" y="174" width="170" height="28" rx="5" fill="#f4f4f4" stroke="#999" stroke-width="1.5"/>
+  <text class="chip" x="386" y="193">REBOOT_REQUESTED</text>
+
+  <!-- Row 4 healthy -->
+  <text class="lbl" x="20" y="248">healthy</text>
+  <rect x="150" y="228" width="120" height="28" rx="5" fill="#e8f5e9" stroke="#4c8c4a" stroke-width="1.5"/>
+  <text class="chip" x="158" y="247">MIXED</text>
+  <rect x="278" y="228" width="120" height="28" rx="5" fill="#e8f5e9" stroke="#4c8c4a" stroke-width="1.5"/>
+  <text class="chip" x="286" y="247">RESERVED</text>
+  <text class="note" x="410" y="247">no drain token — stays silent</text>
+
+  <text class="note" x="20" y="292">Live read 2026-09-21: 82 nodes carry a drain token; none of them lead with it.</text>
+</svg>

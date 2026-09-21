@@ -1,0 +1,1358 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="slurm-hosted-agent-fleet-landed">
+  <meta name="plan-title" content="SLURM-Hosted Agent Fleet — Measured Evidence">
+  <meta name="plan-summary" content="Cumulative execution record for taking the clive fleet off the four-core login slice: the throttling baseline and its sampler, the allocation the fleet moves into, the operator-visible lifetime of that allocation, and the site request the lingering defect still needs.">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-recorded-at" content="2026-09-21">
+  <meta name="plan-evidence-for" content="slurm-hosted-agent-fleet">
+  <title>SLURM-Hosted Agent Fleet — Measured Evidence | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+  <h1>SLURM-Hosted Agent Fleet — Measured Evidence</h1>
+  <p>Cumulative execution record for
+  <a href="/imas-ambix/slurm-hosted-agent-fleet.html">SLURM-Hosted Agent Fleet — take the clive
+  lane off the four-core login slice</a>. One anchor per landed node. The diagnosis of why the
+  fleet dies with the connection that started it is a separate record and is not duplicated here:
+  <a href="/imas-ambix/login-session-scope-teardown.html">the session-scope teardown record</a>.</p>
+
+<section id="site-request-user-lingering">
+    <h2>Site request for the user-lingering defect — authored, not yet sent</h2>
+    <p><strong>Deliverable.</strong>
+    <a href="/imas-ambix/site-request-user-lingering.html">Site request — user lingering is
+    not holding on 98dci4-srv-1006</a> is the send-ready text for the step that asks the
+    site why lingering is not holding.
+    Account <code>mcintos</code> (UID 39486) on login node <code>98dci4-srv-1006</code> has
+    lingering enabled and persisted on disk, and its user manager is still stopped and
+    restarted repeatedly. The request states the two concrete asks — a logind journal read
+    around 02:31:11 on 2026-09-20, and this account's addition to a group
+    (<code>adm</code>, <code>systemd-journal</code> or <code>wheel</code>) that can read that
+    journal — quotes the two teardown occurrences recorded on 2026-09-18 at 00:57:08 and
+    05:46:41, and quotes the journal sequence in which the two services in
+    <code>app.slice</code> (the reckon plan server and
+    <code>imas-codex-llm.service</code>) are stopped with <code>status=143</code>. It carries
+    no request for a larger share of the login node's processor time, and no claim that
+    memory or processor contention caused the teardown.</p>
+    <p><strong>Confirmations taken while authoring</strong> (on the login node,
+    2026-09-21). <code>journalctl -u user@39486.service</code> exits 1 with <code>No journal
+    files were opened due to insufficient permissions</code>, reproducing the need for the
+    second ask. <code>loginctl show-user mcintos -p Linger</code> returns
+    <code>Linger=yes</code>. <code>/var/lib/systemd/linger/mcintos</code> is present,
+    root-owned, written 2026-08-08 17:07. The account is in none of <code>adm</code>,
+    <code>systemd-journal</code> or <code>wheel</code>.</p>
+    <p><strong>Verification.</strong> <code>reckon audit-doc
+    docs/research/site-request-user-lingering.html</code> exits 0 and prints
+    <code>docs/research/site-request-user-lingering.html: OK</code>; the same audit run with
+    <code>--project imas-ambix</code> also exits 0. Run against a copy of the document
+    carrying an injected relative image <code>src</code>, the audit refuses:
+    <code>FAIL (1 error, 0 warn, 0 info)</code> with
+    <code>[img-relative-src]</code> and exit 1 — so the pass above is a reading from a check
+    that can fail. Both logs are in the run directory as
+    <code>audit-doc-site-request.log</code> and <code>audit-negative-control.log</code>.</p>
+    <p><strong>Open.</strong> The request is written, not sent. The step's done-when — the
+    site holds the journal extract and has either corrected the behaviour or confirmed it
+    expected — still waits on the site's answer, which also decides whether the allocation is
+    the only remedy or merely the robust one. The full record of the defect is
+    <a href="/imas-ambix/login-session-scope-teardown.html">the session-scope teardown
+    record</a>; nothing here duplicates it.</p>
+</section>
+
+  <section id="fleet-allocation-holder">
+    <h2>Persistent allocation holder</h2>
+    <p>Commits <code>e0a990fb</code>, <code>435e8965</code> and <code>5e3e0adc</code>
+    added <code>imas_ambix/agent/fleet.py</code>, registered
+    <code>imas-ambix agent fleet hold</code>, and added the focused allocation tests.
+    The generator calls the existing <code>_sbatch_headers</code> emitter and the
+    explicit submission path calls the existing <code>submit_script</code> adapter;
+    there is no second path to <code>sbatch</code>. The default command printed the
+    script, while only <code>--submit</code> exercised the mocked submission seam.
+    No live job was submitted during this implementation.</p>
+
+    <p>Placement is not hard-coded in the emitter. <code>SiteConfig</code> owns
+    <code>fleet_partition</code> (<code>rigel</code>),
+    <code>fleet_account</code> (<code>iter</code>),
+    <code>fleet_cpus</code> (<code>28</code>) and
+    <code>fleet_memory</code> (<code>120G</code>), each with an
+    <code>AMBIX_AGENT_FLEET_*</code> override, and the generator resolves every
+    directive from a site instance as the other script emitters do. The account
+    differs from the GPU account deliberately: <code>iter</code> holds the
+    site-default <code>normal</code> QOS, while <code>grpa</code> carries the GPU
+    reservation's QOS, so a whole-node CPU allocation charges <code>iter</code>.</p>
+
+    <h3>120G against the plan's 128 GB</h3>
+    <p>The plan states a whole rigel node as 128 GB. The generated request is
+    <code>--mem=120G</code>, because a rigel node reports
+    <code>RealMemory=128000</code> MB — a request at the nominal figure would sit
+    at the node's whole real capacity, while one slightly below it leaves the node
+    room for its own footprint and still covers the fleet. The reason is headroom on the node, not co-tenancy: this
+    job already asks for the node exclusively and <code>rigel</code> is configured
+    <code>OverSubscribe=NO</code>, so nothing could be scheduled beside it under any
+    memory figure. An earlier wording of this record argued the narrowing preserved
+    co-scheduling, which is not true on this partition and would have justified
+    declining a later increase for a benefit that does not exist. Raising
+    <code>AMBIX_AGENT_FLEET_MEMORY</code> toward the node's real capacity is therefore
+    a sizing decision with no scheduling cost attached.</p>
+
+    <h3>Unbounded wall clock: asserted as a property, validated by the scheduler</h3>
+    <p>The limit is emitted as <code>--time=UNLIMITED</code> through the shared
+    header emitter, which takes the limit as a string and always emits the
+    directive. The test does not compare that literal — it rejects any value
+    matching the scheduler's finite-duration shape, so a value that expires fails
+    while an equally unbounded alternative spelling passes. Both directions are
+    shown below, because a test that can only agree with the constant it exempts
+    proves nothing. Whether the emitted token is one the scheduler accepts is a
+    separate question, answered by <code>sbatch --test-only</code>, which parses
+    the whole header without submitting anything.</p>
+
+    <table>
+      <thead><tr><th>Gate</th><th>Observed result</th></tr></thead>
+      <tbody>
+        <tr><td>Missing-surface reproduction</td><td>Before implementation,
+        <code>imas-ambix agent fleet hold</code> exited 2 with
+        <code>Error: No such command 'fleet'</code>.</td></tr>
+        <tr><td>Focused test</td><td><code>uv run --no-sync pytest tests/agent/test_fleet.py</code>:
+        <code>5 passed in 0.69s</code>.</td></tr>
+        <tr><td>Declared negative control</td><td>Partition changed from
+        <code>rigel</code> to <code>rigel_debug</code>:
+        <code>test_fleet_hold_script_requests_unbounded_whole_node</code> failed
+        with <code>assert 'rigel_debug' == 'rigel'</code>; source restored, gate
+        green again.</td></tr>
+        <tr><td>Unboundedness, negative side</td><td><code>--time=24:00:00</code>
+        makes <code>test_fleet_hold_script_requests_no_finite_wall_clock</code> fail
+        with <code>fleet allocation requests a finite wall clock</code>.</td></tr>
+        <tr><td>Unboundedness, alternative spelling</td><td><code>--time=INFINITE</code>
+        passes the same test — the assertion tests the property, not the
+        literal.</td></tr>
+        <tr><td>Scheduler validation</td><td><code>sbatch --test-only
+        generated-fleet-hold.sbatch</code>: exit 0, <code>Job 1274549 to start at
+        2026-09-21T09:40:46 using 28 processors on nodes 98dci4-clu-2002 in
+        partition rigel</code>. Nothing was submitted. The instrument
+        discriminates: <code>--time=BOGUS</code> is refused with
+        <code>Invalid --time specification</code>, exit 255.</td></tr>
+        <tr><td>Second receipt (zero memory)</td><td>Site default
+        <code>fleet_memory</code> set to <code>0</code> makes
+        <code>test_fleet_hold_script_requests_no_zero_memory</code> fail; source
+        restored.</td></tr>
+        <tr><td>Repository lint</td><td><code>uv run --no-sync ruff check imas_ambix tests</code>:
+        <code>All checks passed!</code>, exit 0.</td></tr>
+      </tbody>
+    </table>
+
+    <p>The generated script, quoted in full:</p>
+    <pre><code>#!/bin/bash
+#SBATCH --job-name=ambix-fleet
+#SBATCH --partition=rigel
+#SBATCH --account=iter
+#SBATCH --cpus-per-task=28
+#SBATCH --mem=120G
+#SBATCH --time=UNLIMITED
+#SBATCH --output=ambix-fleet-%j.log
+#SBATCH --nodes=1
+#SBATCH --exclusive
+#SBATCH --comment=ambix-fleet
+
+set -euo pipefail
+
+export TMPDIR=/tmp
+
+echo "[$(date)] Holding $(hostname) for the interactive agent fleet"
+exec sleep infinity
+</code></pre>
+</section>
+
+  <section id="throttling-baseline">
+    <h2>Throttling baseline of the login account slice</h2>
+    <p>This is the reading the fleet move is judged against, taken before
+    anything moves. It comes from the account's own control group on the login
+    node, <code>/sys/fs/cgroup/user.slice/user-39486.slice</code>, whose quota
+    line is <code>400000 100000</code> — four cores for the entire user slice,
+    not per session. Node uptime at the first reading of the series was
+    43 days 20 h 52 m (<code>3790349.80</code> s), so the cumulative counters
+    have been accumulating for the whole of that period.</p>
+
+    <h3>What the share measures</h3>
+    <p>The share is stalled CPU thread-time over the thread-time the ceiling
+    permitted. Four cores allowed once per 100 ms period permits four times the
+    period in thread-time, so the permitted total over the accounted periods is
+    the quota multiplied by <code>nr_periods</code> with the period cancelling
+    out. Thread-time was chosen over a simple period count because it is the
+    quantity that compares a four-core slice against a twenty-eight-core
+    allocation directly.</p>
+    <p><strong>The share can exceed one, and it does.</strong> The
+    <code>throttled_usec</code> counter sums over every task that was stopped,
+    while the budget is one quota per period: once more tasks are runnable than
+    the quota admits, several of them stall together for the remainder of each
+    period, and the thread-time lost passes the thread-time the ceiling allowed.
+    A value above one is therefore a statement about oversubscription, not an
+    arithmetic fault, and the sampler leaves it unclamped.</p>
+
+    <h3>Cumulative, since boot</h3>
+    <table>
+      <thead>
+        <tr><th>Quantity</th><th>Value</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>cpu.max</code></td><td><code>400000 100000</code></td></tr>
+        <tr><td><code>nr_periods</code></td><td>37,199,459</td></tr>
+        <tr><td><code>nr_throttled</code></td><td>4,073,984</td></tr>
+        <tr><td><code>throttled_usec</code></td><td>5,008,386,657,643</td></tr>
+        <tr><td>Permitted thread-time</td><td>14,879,783,600,000 µs</td></tr>
+        <tr><td><strong>Throttled share</strong></td><td><strong>0.3366</strong></td></tr>
+      </tbody>
+    </table>
+    <p>The cumulative share is <strong>a third</strong> of every CPU-second the
+    slice was allowed, which reproduces the arithmetic in the plan's own §2 from
+    a live read rather than a hand transcription, and puts the baseline on the
+    record as a measured ratio.</p>
+
+    <h3>Five consecutive 60-second windows</h3>
+    <p>Over 07:01:47Z to 07:06:51Z, each row computed from the difference
+    between two samples taken 60 s apart. The permitted thread-time is
+    240,000,000 µs in every row — 600 periods at the 400,000 µs quota — so the
+    variation below is variation in stall, not in the window's denominator.</p>
+    <table>
+      <thead>
+        <tr><th>Window</th><th><code>nr_periods</code></th>
+            <th><code>nr_throttled</code></th><th><code>throttled_usec</code></th>
+            <th>Permitted µs</th><th>Share</th><th>Periods throttled</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>1</td><td>600</td><td>553</td><td>364,147,065</td>
+            <td>240,000,000</td><td>1.517</td><td>92%</td></tr>
+        <tr><td>2</td><td>600</td><td>529</td><td>447,502,855</td>
+            <td>240,000,000</td><td>1.865</td><td>88%</td></tr>
+        <tr><td>3</td><td>600</td><td>474</td><td>247,729,365</td>
+            <td>240,000,000</td><td>1.032</td><td>79%</td></tr>
+        <tr><td>4</td><td>600</td><td>325</td><td>102,092,043</td>
+            <td>240,000,000</td><td>0.425</td><td>54%</td></tr>
+        <tr><td>5</td><td>600</td><td>501</td><td>342,591,469</td>
+            <td>240,000,000</td><td>1.427</td><td>84%</td></tr>
+      </tbody>
+    </table>
+
+    <figure>
+    <svg viewBox="0 0 760 270" role="img" style="max-width:100%;height:auto"
+         aria-label="Bars for five consecutive 60-second windows of the account slice, reading 1.517, 1.865, 1.032, 0.425 and 1.427, against a dashed line at the cumulative share of 0.337.">
+      <rect x="0" y="0" width="760" height="270" fill="#ffffff"/>
+      <!-- gridlines at 0, 0.5, 1.0, 1.5, 2.0 -->
+      <g stroke="#d9d9d9" stroke-width="1">
+        <line x1="70" y1="210" x2="720" y2="210"/>
+        <line x1="70" y1="165" x2="720" y2="165"/>
+        <line x1="70" y1="120" x2="720" y2="120"/>
+        <line x1="70" y1="75"  x2="720" y2="75"/>
+        <line x1="70" y1="30"  x2="720" y2="30"/>
+      </g>
+      <g fill="#444444" font-family="sans-serif" font-size="12" text-anchor="end">
+        <text x="60" y="214">0.0</text>
+        <text x="60" y="169">0.5</text>
+        <text x="60" y="124">1.0</text>
+        <text x="60" y="79">1.5</text>
+        <text x="60" y="34">2.0</text>
+      </g>
+      <!-- bars: 1.517 1.865 1.032 0.425 1.427 -->
+      <g fill="#4a7ebb">
+        <rect x="90"  y="73.5"  width="40" height="136.5"/>
+        <rect x="235" y="42.2"  width="40" height="167.8"/>
+        <rect x="380" y="117.1" width="40" height="92.9"/>
+        <rect x="525" y="171.8" width="40" height="38.2"/>
+        <rect x="670" y="81.6"  width="40" height="128.4"/>
+      </g>
+      <g fill="#243f63" font-family="sans-serif" font-size="12" text-anchor="middle">
+        <text x="110" y="67">1.517</text>
+        <text x="255" y="36">1.865</text>
+        <text x="400" y="111">1.032</text>
+        <text x="545" y="165">0.425</text>
+        <text x="690" y="75">1.427</text>
+      </g>
+      <!-- cumulative share, flat across the series -->
+      <line x1="70" y1="179.7" x2="720" y2="179.7"
+            stroke="#b3521f" stroke-width="2.5" stroke-dasharray="7 5"/>
+      <text x="716" y="173" fill="#b3521f" font-family="sans-serif"
+            font-size="12" text-anchor="end">cumulative 0.337</text>
+      <g fill="#333333" font-family="sans-serif" font-size="12" text-anchor="middle">
+        <text x="110" y="230">1</text>
+        <text x="255" y="230">2</text>
+        <text x="400" y="230">3</text>
+        <text x="545" y="230">4</text>
+        <text x="690" y="230">5</text>
+        <text x="395" y="252">consecutive 60-second window</text>
+      </g>
+      <text x="14" y="130" fill="#333333" font-family="sans-serif" font-size="12"
+            text-anchor="middle" transform="rotate(-90 14 130)">throttled share of permitted thread-time</text>
+    </svg>
+    <figcaption>Throttled share of permitted CPU thread-time on
+    <code>user.slice/user-39486.slice</code>. Bars are five consecutive
+    60-second windows; the dashed line is the cumulative share since boot, which
+    is indistinguishable from a constant over five minutes.</figcaption>
+    </figure>
+    <p>Figure — the flat cumulative share against the five window readings. The
+    cumulative figure moves by less than 0.0001 across the series because each
+    window is a few minutes against 43 days; the windows themselves span a
+    factor of 4.4.</p>
+
+    <p><strong>A single window is a draw, not the level.</strong> The cumulative
+    share is stable to four decimal places, while its windowed form ranged from
+    0.425 to 1.865 within five adjacent minutes — 325 to 553 of 600 periods
+    throttled. Any comparison against one 60-second reading would be measuring
+    which minute it landed in, so the baseline for the plan's step seven is the
+    cumulative ratio, and a working-day comparison needs a collector that
+    samples across the day rather than a longer single window.</p>
+    <p>The consequences the plan draws from this follow directly: across the five windows above, 54–92%
+    of periods throttled — the slice is stopped in most periods it is busy,
+    so a health probe or handshake that has to complete inside one is waiting on
+    a queue that has four cores of throughput shared with roughly thirty session
+    processes and everything else in the account.</p>
+
+    <h3>The sampler, and how to repeat this</h3>
+    <p><code>imas_ambix/agent/throttling.py</code> reads <code>cpu.max</code> and
+    <code>cpu.stat</code> text from a directory the caller supplies — never a
+    fixed path — and prints the cumulative and interval readings as JSON. It
+    carries its own <code>_parser()</code> / <code>main()</code> entry point
+    rather than routing through the operator CLI, so a monitor can read a slice
+    without importing it:</p>
+    <pre><code># one reading
+uv run python -m imas_ambix.agent.throttling sample \
+    --directory /sys/fs/cgroup/user.slice/user-39486.slice
+
+# a reading plus the share over the next 60 seconds
+uv run python -m imas_ambix.agent.throttling interval \
+    --directory /sys/fs/cgroup/user.slice/user-39486.slice --seconds 60</code></pre>
+    <p><strong>A missing share carries its cause rather than reading as one
+    <code>null</code>.</strong> There are two ways for a share not to exist, and
+    a monitor has to act differently on each: a group with no ceiling can never
+    produce one however long it is watched, while a group whose counters account
+    no period yet has simply not been measured over a window and may state a
+    share at the next reading. The JSON therefore writes
+    <code>"throttled_share": "unbounded"</code> or
+    <code>"no_periods"</code> in place of a number. Where both hold — an
+    unbounded group that has also accounted no period — the ceiling's absence is
+    reported, because no later reading removes it. A number is always a number,
+    so a caller testing for a float distinguishes all three cases from one
+    field.</p>
+    <figure>
+    <svg viewBox="0 0 720 170" role="img" style="max-width:100%;height:auto"
+         aria-label="Decision sketch: a throttled_share field is either a number, or the string unbounded when the group has no ceiling, or the string no_periods when a ceiling exists but no period has been accounted.">
+      <rect x="0" y="0" width="720" height="170" fill="#ffffff"/>
+      <g font-family="sans-serif" font-size="13" fill="#333333">
+        <rect x="20" y="60" width="150" height="46" rx="6"
+              fill="#eef3fa" stroke="#4a7ebb"/>
+        <text x="95" y="88" text-anchor="middle">read cpu.max</text>
+        <rect x="240" y="60" width="170" height="46" rx="6"
+              fill="#eef3fa" stroke="#4a7ebb"/>
+        <text x="325" y="80" text-anchor="middle">quota stated?</text>
+        <text x="325" y="97" text-anchor="middle" font-size="11" fill="#555">
+          (or the literal max)</text>
+        <rect x="510" y="20" width="190" height="40" rx="6"
+              fill="#fdf1e8" stroke="#b3521f"/>
+        <text x="605" y="45" text-anchor="middle">"unbounded"</text>
+        <rect x="510" y="100" width="190" height="40" rx="6"
+              fill="#eef3fa" stroke="#4a7ebb"/>
+        <text x="605" y="125" text-anchor="middle">share is a number</text>
+        <rect x="510" y="60" width="190" height="32" rx="6"
+              fill="#fdf1e8" stroke="#b3521f"/>
+        <text x="605" y="81" text-anchor="middle" font-size="12">
+          "no_periods" (nr_periods 0)</text>
+        <g stroke="#777777" stroke-width="1.5" fill="none">
+          <line x1="170" y1="83" x2="240" y2="83"/>
+          <line x1="410" y1="83" x2="475" y2="83"/>
+          <line x1="475" y1="83" x2="475" y2="40"/>
+          <line x1="475" y1="40" x2="510" y2="40"/>
+          <line x1="475" y1="83" x2="510" y2="76"/>
+          <line x1="475" y1="83" x2="475" y2="120"/>
+          <line x1="475" y1="120" x2="510" y2="120"/>
+        </g>
+      </g>
+    </svg>
+    <figcaption>The one field a caller reads, and the three states</figcaption>
+    </figure>
+    <p>The unit gate is <code>uv run --no-sync pytest tests/agent/test_throttling.py</code>,
+    covering the cumulative share, the delta share across two samples, the
+    refusal of a counter that went backwards between samples, the unquota-ed
+    reading where <code>cpu.max</code> is the literal <code>max 100000</code> and
+    the share is undefined rather than zero, and the two undefined causes as
+    distinct states — through the function, through the payload, and through the
+    CLI's own JSON. The payload's key set and the top-level shape of both
+    subcommands are pinned by equality, so a regression in what a monitor parses
+    fails the gate rather than passing it.</p>
+  </section>
+
+  <h2 id="dispatch-placement">Dispatch placement inside a scheduler allocation — the verdict</h2>
+  <p><strong>Verdict: no change required.</strong> The dispatch contract already treats where a
+  worker runs as configuration a backend declares rather than as something reckon decides for it,
+  and the branch a fleet session inside an allocation takes is the one already in force today: the
+  worker is a direct child of the process that dispatched it, so placing the coordinator places its
+  workers with it. What an allocation does require — a placement declared for the lane, one
+  reservation held once, its job id published into shared state — is implemented already and is
+  configuration rather than a contract change.</p>
+
+  <h3 id="dispatch-placement-creation">How a dispatched worker process is created</h3>
+  <p>A CLI launch is composed in three steps and none of them names a host. The backend and its
+  dialect turn one node's prompt into a <code>LaunchPlan</code> — argv, working directory,
+  environment — whose working directory is the assigned worktree
+  (<code>reckon/_backends.py:1729</code>, <code>:1774</code>). <code>apply_backend_placement</code>
+  (<code>reckon/crew/dispatch.py:4057</code>, called at <code>:3547</code>) gets the first and only
+  chance to move it. The plan then goes to <code>_spawn</code>
+  (<code>reckon/crew/dispatch.py:4201</code>, called at <code>:3549</code>), which starts it with
+  <code>subprocess.Popen</code> (<code>:4226</code>).</p>
+  <p><strong>The worker is a child of the calling coordinator process.</strong> It is started with
+  <code>start_new_session=True</code> (<code>reckon/crew/dispatch.py:4233</code>) so a coordinator
+  that ends its turn does not take its workers down with it, and its pid is registered with the
+  parent's reaper (<code>:3682</code>, <code>:3890</code>) — but it is a child, which
+  <code>:4201</code>'s own docstring gives as the reason the pid means anything. Nothing on this
+  path consults a scheduler, selects a node, or moves the process out of the control group it
+  inherits.</p>
+  <p><strong>Reckon chooses no placement unless the backend declares one.</strong>
+  <code>apply_backend_placement</code> reads the declaration through <code>flight.placement_for</code>
+  (<code>reckon/flight.py:341</code>) and returns the plan untouched when there is none
+  (<code>reckon/crew/dispatch.py:4076-4078</code>). The declaration is schema rather than code:
+  <code>PlacementConfig</code> (<code>reckon/_flight_schema.py:234</code>) carries
+  <code>scheduler</code>, <code>options</code>, <code>job_id_probe</code>,
+  <code>requirements</code>, <code>state_query</code> and <code>reason_query</code>
+  (<code>:238-243</code>), and the field is documented with the login-node child launch as what a
+  backend declaring none keeps (<code>:218</code>).</p>
+
+  <h3 id="dispatch-placement-reservation">The allocation shape this plan needs already exists</h3>
+  <p>Where a placement is declared, one reservation is held once and every session's workers are
+  placed into it as steps. <code>ensure_reservation</code>
+  (<code>reckon/crew/placement.py:197</code>) submits a single
+  <code>salloc</code> with <code>--no-shell</code> and publishes its job id into the shared crew
+  state (<code>:96</code>, path at <code>:74</code>), so a second session reports the live
+  reservation instead of minting a second allocation; the id is answered from the scheduler rather
+  than from a pid (<code>:158</code>). A launch then runs inside it as an overlapping step:
+  <code>step_prefix</code> (<code>:139</code>) builds <code>--overlap --jobid=&lt;id&gt;</code>
+  (<code>:147</code>), which <code>apply_backend_placement</code> prefixes to the resolved argv
+  (<code>reckon/crew/dispatch.py:4092-4101</code>). Because <code>--overlap</code> makes the
+  reservation a place to run rather than a quota to queue behind, the concurrency authority is
+  reckon's own roster cap (<code>reckon/crew/placement.py:59</code>, refused at <code>:284</code>,
+  enforced before a run exists at <code>reckon/crew/dispatch.py:415</code>, called at
+  <code>:488</code>). The operator surface is <code>reckon crew placement --ensure</code>
+  (<code>reckon/cli.py:2266</code>, <code>reckon/crew/runs.py:2278</code>).</p>
+  <p>A declared placement is also where a worker's visibility requirements are checked before
+  anything launches: <code>check_placement_requirements</code>
+  (<code>reckon/crew/dispatch.py:2104</code>, called at <code>:2408</code>) refuses a path or an
+  endpoint the worker would need and could not reach, naming which and why.</p>
+
+  <h3 id="dispatch-placement-paths">Every path the launch writes is on shared storage</h3>
+  <p>Crew state resolves through <code>crew_home()</code> (<code>reckon/crew/runs.py:38</code>) to
+  <code>_config_home()/crew</code> (<code>:40</code>), and <code>_config_home</code>
+  (<code>reckon/_store.py:121</code>) prefers <code>~/.config/reckon</code> — the same home path on
+  every node. The watcher's lock, transition stream and follower registrations sit under the same
+  root (<code>reckon/crew/runs.py:104-140</code>), and worktrees are placed beside the repository
+  rather than in a runtime directory
+  (<code>skills/reckon-ship/references/sprint-orchestration.md:303-316</code>). Measured rather than
+  assumed: <code>findmnt -T /home/ITER/mcintos</code> reports source
+  <code>HPC_T2[/ITER/HPC/home]</code> of type <code>gpfs</code>, so the home holding all of it is
+  the cluster filesystem and not per-node storage.</p>
+  <p><strong>The one host-local hazard is named and refused.</strong> <code>_is_node_local_path</code>
+  (<code>reckon/crew/dispatch.py:2061</code>) treats <code>/run/user</code> (<code>:2071</code>),
+  <code>XDG_RUNTIME_DIR</code> (<code>:2073</code>) and any tmpfs mount as node-local, and its
+  docstring states the failure it exists to catch: such a path exists on every node, so a launch
+  against it succeeds and the worker then finds different bytes where it runs. A placement declaring
+  one is refused by name (<code>:2138</code>).</p>
+
+  <figure>
+    <svg viewBox="0 0 760 390" width="100%" role="img"
+         aria-labelledby="dispatch-placement-fig-t" style="max-width:100%;height:auto">
+      <title id="dispatch-placement-fig-t">Where a dispatched worker runs, by declaration</title>
+      <defs>
+        <marker id="dp-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7"
+                markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#666"></path>
+        </marker>
+      </defs>
+      <g fill="none" stroke="#666" stroke-width="1.5" marker-end="url(#dp-arrow)">
+        <line x1="380" y1="62" x2="380" y2="86"></line>
+        <line x1="380" y1="140" x2="380" y2="162"></line>
+        <line x1="194" y1="214" x2="72" y2="214"></line>
+        <line x1="72" y1="214" x2="72" y2="248"></line>
+        <line x1="566" y1="214" x2="660" y2="214"></line>
+        <line x1="660" y1="214" x2="660" y2="248"></line>
+      </g>
+      <g fill="#f4f4f4" stroke="#666" stroke-width="1.5">
+        <rect x="180" y="14" width="400" height="48" rx="6"></rect>
+        <rect x="180" y="92" width="400" height="48" rx="6"></rect>
+        <rect x="10" y="252" width="230" height="126" rx="6"></rect>
+        <rect x="520" y="252" width="230" height="126" rx="6"></rect>
+      </g>
+      <polygon points="380,166 566,214 380,262 194,214" fill="#f4f4f4" stroke="#666"
+               stroke-width="1.5"></polygon>
+      <g fill="#222" font-size="13">
+        <text x="380" y="34" text-anchor="middle">one node's prompt becomes a LaunchPlan</text>
+        <text x="380" y="52" text-anchor="middle"
+              font-family="ui-monospace,Menlo,Consolas,monospace" font-size="12">reckon/_backends.py:1729 — argv, cwd = the assigned worktree</text>
+        <text x="380" y="112" text-anchor="middle">apply_backend_placement(plan, backend)</text>
+        <text x="380" y="130" text-anchor="middle"
+              font-family="ui-monospace,Menlo,Consolas,monospace" font-size="12">dispatch.py:4057 — the only step that can move it</text>
+        <text x="380" y="219" text-anchor="middle">declared placement?</text>
+        <text x="128" y="205" text-anchor="middle" font-size="12">no</text>
+        <text x="612" y="205" text-anchor="middle" font-size="12">yes</text>
+      </g>
+      <g fill="#222" font-size="12">
+        <text x="20" y="274">the launch is untouched:</text>
+        <text x="20" y="294" font-family="ui-monospace,Menlo,Consolas,monospace">Popen(plan.argv)</text>
+        <text x="20" y="312" font-family="ui-monospace,Menlo,Consolas,monospace">dispatch.py:4226,</text>
+        <text x="20" y="330" font-family="ui-monospace,Menlo,Consolas,monospace">start_new_session=True :4233</text>
+        <text x="20" y="350">a direct child of the coordinator,</text>
+        <text x="20" y="368">in the control group it inherits</text>
+        <text x="530" y="274">the argv is wrapped in the</text>
+        <text x="530" y="292">declared scheduler</text>
+        <text x="530" y="310" font-family="ui-monospace,Menlo,Consolas,monospace">flight.py:341</text>
+        <text x="530" y="330" font-family="ui-monospace,Menlo,Consolas,monospace">srun --overlap --jobid=&lt;id&gt;</text>
+        <text x="530" y="350">when a reservation is held,</text>
+        <text x="530" y="368" font-family="ui-monospace,Menlo,Consolas,monospace">dispatch.py:4092-4101</text>
+      </g>
+    </svg>
+    <figcaption>Where a dispatched worker runs, by declaration. Absent a declared placement the
+    worker is a child of the coordinating process and lands in the control group that process
+    inherits — which is what carries a fleet's workers into an allocation the fleet itself sits in,
+    and is why no contract change is needed. A declared placement is instead wrapped in the
+    scheduler: as an overlapping step in the held reservation when one is live, or, with none
+    held, in the bare declared options — a job of its own rather than a step in a shared
+    reservation.</figcaption>
+  </figure>
+
+  <h3 id="dispatch-placement-split">What this verdict measured, and what it did not</h3>
+  <p><strong>Settled by reading the implementation:</strong> that a worker is created as a child of
+  the calling coordinator and detached from its session
+  (<code>reckon/crew/dispatch.py:4201-4236</code>); that reckon chooses no node, control group or
+  scheduler affinity unless a backend declares a placement, and returns the launch untouched when
+  none is declared (<code>:4076-4078</code>); that the declared-placement path already holds a
+  single reservation and places workers into it as overlapping steps
+  (<code>reckon/crew/placement.py:139-147</code>, <code>reckon/crew/dispatch.py:4092-4101</code>);
+  and that every path the launch writes is under a config home measured to be on shared
+  <code>gpfs</code>, with the node-local case refused by name when a placement declares one
+  (<code>:2061-2145</code>).</p>
+  <p><strong>Not settled here, and needing an operator session inside the allocation:</strong> the
+  code establishes that a placement is possible; it cannot establish that this site's scheduler
+  answers. Two facts are visible in the live configuration rather than inferred — no backend in
+  <code>~/.config/reckon/flight.yaml</code> declares a <code>placement</code> block (a literal
+  search of the file returns zero occurrences), and no reservation is published
+  (<code>~/.config/reckon/crew/placement/reservation.json</code> is absent) — so the implemented
+  path is present but unarmed, and arming it is configuration: a placement block naming the
+  scheduler, its options, and any requirement a worker needs visible where it lands, plus
+  <code>reckon crew placement --ensure</code>. What an operator run must still show is that
+  <code>salloc</code> and <code>srun --overlap --jobid</code> behave under this cluster's
+  <code>pam_slurm_adopt</code>, that a placed worker sees the shared home and reaches the serving
+  router from the node it lands on, and that a roster cap of <code>25</code>
+  (<code>reckon/crew/placement.py:59</code>) is the right concurrency for the lane — the
+  measurements the plan's implementation already calls for at its third and fourth steps.</p>
+  <p>One adjacent observation, recorded as an observation rather than as a dispatch defect: the
+  project watcher is installed as a systemd user unit
+  (<code>reckon/crew/runs.py:2058-2131</code>), so its process lifetime belongs to whichever host's
+  user manager started it. Its lock, stream and follower registrations are all on shared storage
+  (<code>:104-140</code>), so nothing about dispatch depends on it, and whether the unit survives
+  a move into an allocation is the host-lifetime question already carried by the lingering
+  defect.</p>
+
+<section id="fleet-declared-control-receipt">
+    <h2>Independent declared-partition receipt for the allocation generator</h2>
+    <p><strong>Deliverable.</strong> The ordered receipt is
+    <code>~/.config/reckon/crew/reports/fleet-allocation-declared-control-receipt.log</code>,
+    and its first line states the mutation it records. It was produced on a fresh checkout of
+    the merged head (<code>04fe5259</code>), independently of the allocator's own landing
+    record, so the guard is shown to fail rather than reported as having failed.</p>
+
+    <p>The allocation generator's placement guard is two properties asserted by one test:
+    the emitted <code>--partition</code> directive equals the site's fleet partition, and it
+    does not end in <code>_debug</code>. The declared mutation changes the generated partition
+    from the site's fleet partition to that same value suffixed with <code>_debug</code>
+    — <code>rigel</code> to <code>rigel_debug</code>, the partition the plan records as
+    carrying zero nodes and a one-hour cap. Both a zero-node partition and a one-hour cap
+    would defeat the allocation, which is meant to hold a whole node with no wall clock.</p>
+
+    <table>
+      <thead>
+        <tr><th>Phase</th><th>Command</th><th>Result</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Baseline, merged head</td>
+          <td><code>uv run --no-sync pytest tests/agent/test_fleet.py</code></td>
+          <td>5 passed, exit 0</td>
+        </tr>
+        <tr>
+          <td>Declared mutation applied</td>
+          <td><code>partition=site.fleet_partition</code> → <code>partition=f"{site.fleet_partition}_debug"</code></td>
+          <td>diff recorded in the receipt</td>
+        </tr>
+        <tr>
+          <td>Same command, mutated source</td>
+          <td><code>uv run --no-sync pytest tests/agent/test_fleet.py</code></td>
+          <td>1 failed, 4 passed, exit 1</td>
+        </tr>
+        <tr>
+          <td>Source restored</td>
+          <td><code>cp</code> of the pre-mutation copy</td>
+          <td>sha256 matches; <code>git status --porcelain</code> empty</td>
+        </tr>
+        <tr>
+          <td>Same command, restored source</td>
+          <td><code>uv run --no-sync pytest tests/agent/test_fleet.py</code></td>
+          <td>5 passed, exit 0</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>The failing run reports
+    <code>test_fleet_hold_script_requests_unbounded_whole_node</code> with
+    <code>AssertionError: assert 'rigel_debug' == 'rigel'</code> — the partition property.
+    The <code>_debug</code>-absence property sits later in the same test, so pytest cannot
+    reach it: the partition assertion raises first. A separate probe therefore reads both
+    properties directly off the generated script and prints them, which also shows what the
+    suite alone cannot — that the second guard fires on the mutation rather than merely
+    sitting downstream of an untested branch. Against the mutated source the probe reads
+    <code>False</code> and <code>False</code>; against the restored source, <code>True</code>
+    and <code>True</code>. The second reading is what makes the first one evidence: an
+    instrument that returned false under both sources would be reporting nothing.</p>
+
+    <p>Restoration is proved by digest rather than by absence of complaint: the file's sha256
+    after restoration equals the value recorded before the mutation, and the worktree reports
+    no modification. Only the generator's source was touched, and only for the duration of
+    the red run.</p>
+  </section>
+
+  <section id="fleet-lifetime-surface">
+    <h2>Fleet allocation lifetime surface</h2>
+    <p><strong>Deliverable.</strong> <code>imas-ambix agent fleet status</code> names the
+    held allocation — its job id, node, state, elapsed time and remaining wall clock — so
+    the question "is my fleet about to disappear" is answered without reading
+    <code>squeue</code> by hand. Commit <code>13acbd20</code> touches
+    <code>imas_ambix/agent/fleet.py</code>, <code>imas_ambix/agent/cli.py</code> and
+    <code>tests/agent/test_fleet.py</code>. The allocation is found from the scheduler by
+    the <code>ambix-fleet</code> comment token the hold generator already emits, so it is
+    located wherever the queue reports it rather than by a remembered job id, and holding
+    none is reported in words at exit 0 rather than as an empty table.</p>
+
+    <h3>The unbounded allocation is the case that must not be got wrong</h3>
+    <p>This allocation is deliberately unbounded, so the scheduler reports its
+    <code>TimeLeft</code> as the literal text <code>UNLIMITED</code>. That token is not a
+    duration: the remaining-time reader maps it to <code>None</code>, so it cannot be
+    parsed as a number, compared against the warning threshold, or reported as expiring.
+    The single place a remaining time is compared to a threshold is the warning line, and
+    an unbounded — or unreadable — value never reaches it. A finite remainder below thirty
+    minutes adds that warning, because moving sessions off an allocation takes operator
+    minutes and the notice has to arrive while there is time to act.</p>
+
+    <h3>States covered, over fixture queue text rather than a live scheduler</h3>
+    <table>
+      <thead><tr><th>State</th><th><code>squeue %L</code></th><th>Surface</th></tr></thead>
+      <tbody>
+        <tr><td>Healthy finite</td><td><code>2:30:00</code></td>
+        <td>remaining <code>2h30m</code>, no warning</td></tr>
+        <tr><td>Inside the threshold</td><td><code>0:10:00</code></td>
+        <td>remaining <code>10m</code> and a <code>WARNING</code> line</td></tr>
+        <tr><td>Unbounded</td><td><code>UNLIMITED</code></td>
+        <td>remaining <code>unbounded (no wall clock)</code>, no warning, and
+        <code>remaining_seconds</code> is <code>None</code> so no numeric parse is
+        possible</td></tr>
+        <tr><td>Unreadable</td><td><code>N/A</code></td>
+        <td>remaining <code>unknown</code>, no warning</td></tr>
+        <tr><td>Nothing held</td><td>no matching row</td>
+        <td>a sentence, exit 0</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Gates</h3>
+    <table>
+      <thead><tr><th>Gate</th><th>Observed result</th></tr></thead>
+      <tbody>
+        <tr><td>Focused suite</td>
+        <td><code>uv run --no-sync pytest tests/agent/test_fleet.py</code>:
+        <code>10 passed in 0.64s</code></td></tr>
+        <tr><td>Whole-tree lint</td>
+        <td><code>uv run --no-sync ruff check imas_ambix tests</code>:
+        <code>All checks passed!</code>, exit 0</td></tr>
+        <tr><td>Shared-parser consumer</td>
+        <td><code>uv run --no-sync pytest tests/test_agent.py</code>:
+        <code>192 passed in 23.29s</code> — the wider consumer of the same
+        <code>_running_jobs</code> parser is undisturbed</td></tr>
+        <tr><td>Declared negative control</td>
+        <td>see below</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Declared negative control, applied and observed</h3>
+    <p>The declared mutation is <em>make the remaining-time reader treat the literal text
+    UNLIMITED as a zero remaining time</em>, applied to <code>remaining_seconds</code>,
+    which returns <code>0</code> instead of <code>None</code> for that token. It makes the
+    named suite red: <code>test_fleet_status_unbounded_allocation_warns_nothing</code> fails
+    because the mutation puts a zero where the no-warning path was, and
+    <code>test_remaining_seconds_removes_the_unbounded_token_from_arithmetic</code> fails
+    with <code>assert 0 is None</code>. Reported
+    <strong>2 failed, 1 passed, 7 deselected</strong>. The source was then restored and the
+    named file re-run to <strong>10 passed</strong>. The log's first line repeats the
+    declared mutation verbatim, so a log that failed for another reason is refused:
+    <code>~/.config/reckon/crew/runs/r-20260921T081131624322-fleet-lifetime-surface/negative-control.log</code>.</p>
+
+    <h3>A field on the existing query, not a second query</h3>
+    <p><code>%L</code> appeared nowhere under <code>imas_ambix/agent</code> before this
+    change, while the <code>squeue</code> query behind the status surface already asked for
+    <code>%M</code> (elapsed). The remaining-time column was added to that query. Its
+    parsing is additive: a row that omits the column still identifies an allocation and
+    leaves the lifetime unknown, rather than dropping the row, so a narrower format
+    degrades to "unknown" instead of to silence. No live allocation was queried during this
+    implementation — every state above is read from fixture queue text.</p>
+
+    <h3>The column was read off the live scheduler, not assumed</h3>
+    <p>The format was checked against the real queue so that a reading of
+    <code>UNLIMITED</code> is a spelled token rather than a hypothesis. The scheduler accepts
+    the added column and returns a value for it on every row; unbounded jobs report the
+    literal <code>UNLIMITED</code>, bounded ones report <code>[DD-]HH:MM:SS</code> or
+    <code>MM:SS</code>, and <code>%k</code> reads <code>(null)</code> for a job carrying no
+    comment, so an unmatched row cannot collide with the allocation's comment token. Two
+    live points the fixtures did not cover: a <em>pending</em> job reports a finite
+    <code>TimeLeft</code> rather than the marker, and a running cluster job reported
+    <code>UNLIMITED</code> on the same query — the two branches of the reader are therefore
+    both present in real output. Probe output:
+    <code>~/.config/reckon/crew/runs/r-20260921T081131624322-fleet-lifetime-surface/format-probe.log</code>.
+    What was <em>not</em> observed live is a held <code>ambix-fleet</code> allocation
+    answering the command's present branch: holding a whole rigel node is operator work and
+    was not taken, so the present branch is evidenced over fixture rows while the absence
+    branch was observed live at exit 0.</p>
+  </section>
+
+<section id="throttling-reading-host-identity">
+    <h2>A throttling reading names the machine it came from</h2>
+
+    <p><strong>What the payload said before.</strong> The emitted object carried the
+    control group <code>directory</code>, the <code>cpu_max</code> ceiling and the
+    counters, and nothing that identifies the machine. The only host-distinguishing
+    input was the <code>--directory</code> operand, and that operand is not
+    host-distinguishing at all: <code>/sys/fs/cgroup/user.slice/user-39486.slice</code>
+    resolves on every node in this cluster with different contents. The comparison the
+    plan's step seven rests on is a before-and-after throttled share, so two readings
+    taken on different machines would have compared as though they were the same one.</p>
+
+    <p><strong>What it says now.</strong> A <code>host</code> block carries the
+    hostname, the kernel's per-boot identifier and the time since boot:</p>
+
+    <table>
+      <thead>
+        <tr><th>Field</th><th>Source</th><th>What it settles</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>hostname</code></td>
+          <td><code>socket.gethostname()</code></td>
+          <td>Whether two shares describe the same computer at all</td>
+        </tr>
+        <tr>
+          <td><code>boot_id</code></td>
+          <td><code>/proc/sys/kernel/random/boot_id</code></td>
+          <td>Whether a fall between two readings is a recovery or a restart</td>
+        </tr>
+        <tr>
+          <td><code>uptime_seconds</code></td>
+          <td>first field of <code>/proc/uptime</code></td>
+          <td>How long the counter run behind a reading has been going</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>The boot identity is the load-bearing half of the second requirement. The
+    counters are cumulative since boot, so a reboot restarts them and the arithmetic
+    reads as a sudden improvement: <code>throttled_usec</code> and
+    <code>permitted_usec</code> both fall, and their ratio falls with them. Without a
+    boot identity the two readings are indistinguishable from a machine that was just
+    throttled less. The uptime makes that difference readable rather than merely
+    detectable — the counter run behind the reading is roughly as old as the uptime
+    says.</p>
+
+    <p>The host identity is passed into the command as the control group already is,
+    defaulting to the running machine. That keeps the module's existing contract —
+    the caller decides what is measured — and lets the tests assert the fields over a
+    fixture machine rather than over whatever host the suite happens to run on.</p>
+
+    <p><strong>Gate and declared negative control.</strong> The declared mutation,
+    stated in the node's own contract, is <em>remove the hostname field from the
+    emitted payload</em>. It was applied, the named test observed to fail, the source
+    restored and the same file re-run green:</p>
+
+    <table>
+      <thead>
+        <tr><th>Phase</th><th>Command</th><th>Result</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Baseline</td>
+          <td><code>uv run --no-sync pytest tests/agent/test_throttling.py</code></td>
+          <td>48 passed, exit 0</td>
+        </tr>
+        <tr>
+          <td>Whole-tree lint</td>
+          <td><code>uv run --no-sync ruff check imas_ambix tests</code></td>
+          <td>exit 0</td>
+        </tr>
+        <tr>
+          <td>Declared mutation applied</td>
+          <td><code>"hostname": host.hostname,</code> removed from <code>_host_payload</code></td>
+          <td>mutation line is the first line of the log</td>
+        </tr>
+        <tr>
+          <td>Named test, mutated source</td>
+          <td><code>pytest tests/agent/test_throttling.py::TestMain::test_the_payload_names_the_machine_the_reading_came_from</code></td>
+          <td><strong>1 failed</strong>, exit 1, <code>KeyError: 'hostname'</code></td>
+        </tr>
+        <tr>
+          <td>Source restored</td>
+          <td>the removed line re-added</td>
+          <td><code>git status --short</code> clean against the commit</td>
+        </tr>
+        <tr>
+          <td>Same command, restored source</td>
+          <td><code>uv run --no-sync pytest tests/agent/test_throttling.py</code></td>
+          <td>48 passed, exit 0</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>The red log is
+    <code>~/.config/reckon/crew/reports/fleet-throttling-host-negative-control.log</code>,
+    whose first line repeats the declared mutation verbatim, so a log that failed for
+    any other reason is refused. The failure is on the assertion rather than on
+    collection:
+    <code>assert payload["host"]["hostname"] == "srv-alpha"</code> raises
+    <code>KeyError: 'hostname'</code>, which is the test reading the field out of the
+    emitted object and not finding it.</p>
+
+    <p><strong>Live read, and it reproduces the earlier baseline.</strong> Run on this
+    login node against the account slice the plan measures:</p>
+
+    <pre><code>{
+  "directory": "/sys/fs/cgroup/user.slice/user-39486.slice",
+  "host": {
+    "hostname": "98dci4-srv-1006.iter.org",
+    "boot_id": "82c41dfa-a445-4fb2-8416-04b44c3d874c",
+    "uptime_seconds": 3798078.02
+  },
+  "cpu_max": "400000 100000",
+  "cumulative": {
+    "usage_usec": 4876098120155,
+    "nr_periods": 37274306,
+    "nr_throttled": 4121994,
+    "throttled_usec": 5028366755968,
+    "permitted_usec": 14909722400000,
+    "throttled_share": 0.33725421715215836
+  }
+}</code></pre>
+
+    <p><strong>Backing artifact, added after review.</strong> The payload above was
+    quoted from the run's own terminal rather than from a captured log. It is reproduced
+    independently at
+    <code>~/.config/reckon/crew/runs/r-20260921T090055615010-fleet-sample-names-its-host/logs/coordinator-live-read.log</code>,
+    which reads the same <code>hostname</code>, the same
+    <code>boot_id 82c41dfa-a445-4fb2-8416-04b44c3d874c</code>, a later
+    <code>uptime_seconds</code> of 3&nbsp;802&nbsp;225.31 and a share of
+    <strong>0.3378</strong>. The identical boot id across the two readings is the
+    constancy the paragraph below argues for, now measured twice rather than once.</p>
+
+    <p>That reading is the second independent arrival at the baseline: the earlier
+    baseline comment records a cumulative share of <strong>0.3366</strong> over
+    43&nbsp;d 20&nbsp;h of uptime, and this reads <strong>0.3373</strong> over
+    43&nbsp;d 23&nbsp;h. The counters moved and the ratio did not, which is what a
+    correctly-attributed reading of one uninterrupted boot should do. It is also the
+    demonstration the change exists for: the same operand on a different node would
+    have produced a payload differing only in the counters, with nothing in it to say
+    the two were not the same machine.</p>
+
+    <p><strong>Scope.</strong> The change is confined to
+    <code>imas_ambix/agent/throttling.py</code> and
+    <code>tests/agent/test_throttling.py</code>. The existing JSON equality
+    assertions were extended deliberately rather than deleted: the key set in
+    <code>TestMain</code> gained <code>host</code>, and the pre-existing assertions on
+    <code>directory</code>, <code>cpu_max</code>, the counters and the undefined-share
+    spelling are all still there. Nothing in this node's own gate covers the merged
+    result — the fleet and CLI surfaces belong to other nodes.</p>
+  </section>
+
+<section id="fleet-status-sees-the-allocation">
+    <h2>The status surface, looking in the account the allocation is charged to</h2>
+    <p>Commits <code>5b6f84e7</code> and its record commit. The
+    <code>fleet status</code> command queried the queue through
+    <code>_running_jobs(SiteConfig.from_env())</code>, which filters on
+    <code>site.account</code> — the GPU serving account <code>grpa</code> — while the
+    hold generator charges the allocation to <code>site.fleet_account</code>,
+    <code>iter</code>. An allocation charged to one account cannot appear in a query
+    filtered on another, so the command reported
+    <em>“No fleet allocation is held”</em> at exit 0 while the allocation was running.
+    The lookup now takes the charged account as an operand and the status command reads
+    it from <code>site.fleet_account</code>; every other caller of the same query keeps
+    the site-account default.</p>
+
+    <h3>The defect reproduced before it was repaired</h3>
+    <p>Read against the base revision <code>0dcf297d</code>: the hold generator emits
+    <code>#SBATCH --account=iter</code> (from a live read of
+    <code>generate_fleet_hold_script(SiteConfig())</code>), while the query the status
+    command built carried <code>-A grpa</code>. Reverting the repair to the site-account
+    filter reproduces the miss directly: the faked runner receives
+    <code>-A grpa</code> and the account assertion fails with
+    <code>assert 'grpa' == 'iter'</code>, which is the defect stated as an operand in the
+    argv rather than inferred from the command's silence. No SLURM job was submitted,
+    cancelled or modified at any point; every queue and node state quoted here is fixture
+    text.</p>
+
+    <h3>The warning that could not fire, and the one that can</h3>
+    <p>The only warning was a remaining-wall-clock threshold below
+    <code>REMAINING_WARNING_SECONDS</code>, and this allocation is unbounded by
+    construction (<code>--time=UNLIMITED</code>), so that threshold is unreachable for
+    it. The node's own scheduler state is now read and a draining or drained node adds a
+    warning on its own, which is the case that ends the allocation regardless of its wall
+    clock. §5 names four ways the allocation's control group dies; the table states which
+    this surface now reports rather than implying it reports all four.</p>
+
+    <table>
+      <thead><tr><th>How the control group dies</th><th>Surfaced by this surface</th><th>Instrument</th></tr></thead>
+      <tbody>
+        <tr><td>Wall-clock time limit</td>
+        <td>Only for a finite allocation — <strong>unreachable for the held one</strong>,
+        which is unbounded</td>
+        <td>remaining-time threshold on <code>squeue %L</code></td></tr>
+        <tr><td><code>scancel</code></td><td>Not surfaced</td>
+        <td>none — no advance notice exists to read</td></tr>
+        <tr><td>Node drain</td><td><strong>Surfaced</strong></td>
+        <td>node state from <code>scontrol show node</code></td></tr>
+        <tr><td>Preemption</td><td>Not surfaced</td>
+        <td>none — preemption is off cluster-wide on this stack, so the drain is the
+        operative out-of-band loss</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Node state is read as a token set, because the drain token is not first</h3>
+    <p><code>scontrol show node</code> reports the state as a <code>State=</code> field
+    whose value is a <code>+</code>-separated set of tokens
+    (<code>ALLOCATED</code>, <code>MIXED</code>, <code>DRAIN</code>,
+    <code>REBOOT_REQUESTED</code>, and so on). The parser keeps the whole set and the
+    drain test inspects every member of it, so <code>DRAIN</code>, <code>DRAINED</code>
+    and <code>DRAINING</code> warn wherever they sit in the set.</p>
+    <p><strong>The leading token is not where the drain token sits on this cluster.</strong>
+    A live <code>scontrol show node -o | grep -o "State=[A-Z_+]*"</code> read on
+    2026-09-21 returned <strong>82 nodes carrying a drain token, none of them leading with
+    it</strong>: <strong>43</strong> at <code>MIXED+DRAIN+REBOOT_REQUESTED</code> and
+    <strong>39</strong> at <code>ALLOCATED+DRAIN+REBOOT_REQUESTED</code>. A predicate
+    restricted to the leading token therefore warned on none of them, and the guard
+    did not run on any node it was written for. The command surveys every node
+    the scheduler reports, so the table is the cluster reading rather than a sample:</p>
+    <p>The remainder of the survey, for the false-positive direction — 180 nodes at
+    <code>ALLOCATED</code>, 115 at <code>IDLE</code>, 42 at <code>MIXED</code>, one at
+    <code>MIXED+RESERVED</code>, one at <code>ALLOCATED+MAINTENANCE+RESERVED</code>, one at
+    <code>IDLE+MAINTENANCE+RESERVED</code>, 82 at <code>RESUME</code>, five at
+    <code>DOWN</code> and one at <code>DOWN+NOT_RESPONDING</code> — carries no drain token
+    and must stay silent.</p>
+    <table>
+      <thead><tr><th>State value</th><th>Nodes</th><th>Drain token position</th></tr></thead>
+      <tbody>
+        <tr><td><code>MIXED+DRAIN+REBOOT_REQUESTED</code></td><td>43</td><td>second of three</td></tr>
+        <tr><td><code>ALLOCATED+DRAIN+REBOOT_REQUESTED</code></td><td>39</td><td>second of three</td></tr>
+        <tr><td colspan="3">No node in the survey reported a value whose first token was <code>DRAIN</code>.</td></tr>
+      </tbody>
+    </table>
+    <p>A value that is not a node name — a pending job reports its <em>reason</em> in that
+    field — and a failed query both read as unknown, which is not warned about and is not
+    read as healthy either.</p>
+
+    <h3>The assertion that could not fail</h3>
+    <p><code>test_fleet_status_warns_inside_the_threshold</code> asserted
+    <code>REMAINING_WARNING_SECONDS == 1800</code>, comparing the imported constant
+    against the number it is defined as; retuning the threshold would have kept that
+    assertion green and moved the boundary the test is meant to defend. It is replaced by
+    a property: both fixtures are derived from the constant, one sixty seconds inside it
+    and one sixty seconds outside, and a warning firing too late and one firing too early
+    are each a newly failing test. The warning boundary is exercised at both edges, not
+    only from the inside.</p>
+
+    <h3>Gates, and the declared negative control applied</h3>
+    <table>
+      <thead><tr><th>Gate</th><th>Observed result</th></tr></thead>
+      <tbody>
+        <tr><td>Focused suite</td>
+        <td><code>uv run --no-sync pytest tests/agent/test_fleet.py</code>:
+        <code>15 passed in 0.69s</code>, exit 0</td></tr>
+        <tr><td>Whole-tree lint</td>
+        <td><code>uv run --no-sync ruff check imas_ambix tests</code>:
+        <code>All checks passed!</code>, exit 0</td></tr>
+        <tr><td>Wider consumer of the same query</td>
+        <td><code>uv run --no-sync pytest tests/test_agent.py</code>:
+        <code>192 passed in 21.95s</code></td></tr>
+        <tr><td>Declared negative control</td>
+        <td><strong>1 failed, 14 deselected</strong>; the source was restored and the
+        named file re-run to <code>15 passed</code></td></tr>
+      </tbody>
+    </table>
+    <p>The declared mutation is <em>account=site.fleet_account → account=site.account in
+    the fleet status job lookup</em>, which is the defect reintroduced. It makes the
+    account assertion red with <code>assert 'grpa' == 'iter'</code>, reported
+    <strong>1 failed, 14 deselected</strong>; the source was restored and the named file
+    re-run to <strong>15 passed</strong>. The log's first line repeats the declared
+    mutation verbatim, so a log that failed for another reason is refused:
+    <code>~/.config/reckon/crew/runs/r-20260921T085932378383-fleet-status-sees-the-allocation/negative-control.log</code>.</p>
+
+    <h3>What this record does not establish</h3>
+    <p>No held <code>ambix-fleet</code> allocation existed to query, so the present branch
+    is evidenced over fixture rows and the node-state read is exercised through the faked
+    runner rather than against a live draining node. The four-cause coverage above is a
+    statement about what the surface reads, not a claim that the remaining two causes can
+    be given advance notice at all. The plan record is edited in place by hand rather than
+    through the reckon writer, because the plan is being landed against concurrently.</p>
+  </section>
+
+  <section id="allocation-proof-of-life">
+    <h2>The allocation is held, and it is a gatekeeper rather than a container</h2>
+    <p><strong>Job <code>1274732</code> is running on <code>98dci4-clu-2002</code>,</strong> the node
+    <code>sbatch --test-only</code> named before submission: partition <code>rigel</code>, account
+    <code>iter</code>, 28 cores, exclusive, 120G, <code>--time=UNLIMITED</code>, which
+    <code>squeue</code> reports back as <code>TIME_LEFT UNLIMITED</code>. The status surface finds
+    it and renders the unbounded limit without arithmetic and without a warning:</p>
+<pre><code>Fleet allocation 1274732 · RUNNING · node 98dci4-clu-2002
+  elapsed    0:07
+  remaining  unbounded (no wall clock)</code></pre>
+    <p>This is the first time that command has met a real allocation rather than a fixture, and it
+    is the check the account defect would have failed: before the lookup was pointed at the account
+    the generator charges, a held allocation was structurally invisible and this printed the
+    no-allocation sentence at exit 0.</p>
+
+    <h3 id="allocation-cgroup-placement">The premise §5 reasons from is false for ssh sessions</h3>
+    <p>§5 states that <em>&ldquo;every process inside an allocation lives in the job&rsquo;s control
+    group, and when the job ends SLURM kills that entire group at once&rdquo;</em>, and builds its
+    whole risk case on that. Measured from inside the allocation, it does not hold for the sessions
+    this plan is about.</p>
+    <table>
+      <thead><tr><th>Reading</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td><code>/proc/self/cgroup</code> of an ssh login</td>
+            <td><code>0::/user.slice/user-39486.slice/session-263.scope</code></td></tr>
+        <tr><td>the job's own control group</td>
+            <td><code>/sys/fs/cgroup/system.slice/slurmstepd.scope/job_1274732</code>, holding 4 pids</td></tr>
+        <tr><td><code>SLURM_JOB_ID</code> in the ssh environment</td><td><code>1274732</code></td></tr>
+        <tr><td><code>pam_slurm_adopt.so</code> in <code>/etc/pam.d/sshd</code></td>
+            <td>line 19, <strong><code>account required</code></strong> — not the session stack</td></tr>
+        <tr><td><code>pam_systemd.so</code></td><td><code>system-auth</code> line 31, session stack</td></tr>
+        <tr><td>cores visible on the node</td><td>28</td></tr>
+      </tbody>
+    </table>
+    <p>In the <code>account</code> phase the module <em>authorises</em> the login — no job on the
+    node means no ssh — and does not adopt the process; <code>pam_systemd</code> then places it in a
+    logind session scope. So the allocation is what grants access and reserves the hardware, and the
+    sessions sit beside the job rather than inside it.</p>
+    <p><svg viewBox="0 0 640 210" width="100%" height="auto" role="img"
+         aria-label="On the login node every agent session sits inside one user slice capped at four cores. On the compute node the job control group holds only the job's own processes while ssh sessions sit beside it in a logind session scope with no quota.">
+      <g fill="none" stroke="currentColor" stroke-width="1.5">
+        <rect x="8" y="26" width="290" height="170" rx="6"/>
+        <rect x="26" y="66" width="254" height="112" rx="4" stroke-dasharray="4 3"/>
+        <rect x="342" y="26" width="290" height="170" rx="6"/>
+        <rect x="358" y="66" width="120" height="112" rx="4" stroke-dasharray="4 3"/>
+        <rect x="496" y="66" width="120" height="112" rx="4" stroke-dasharray="4 3"/>
+      </g>
+      <g fill="currentColor" font-size="12" font-family="system-ui, sans-serif">
+        <text x="16" y="18" font-weight="600">login node 98dci4-srv-1006</text>
+        <text x="350" y="18" font-weight="600">rigel node 98dci4-clu-2002</text>
+        <text x="34" y="58">user.slice — cpu.max 400000 100000</text>
+        <text x="366" y="58">job_1274732</text>
+        <text x="504" y="58">session scope</text>
+        <text x="40" y="92">~30 clive sessions</text>
+        <text x="40" y="110">zellij servers</text>
+        <text x="40" y="128">mcp + serve children</text>
+        <text x="40" y="152" font-style="italic">4 cores for all of it</text>
+        <text x="366" y="92">the sleep</text>
+        <text x="366" y="110">holding the node</text>
+        <text x="366" y="152" font-style="italic">4 pids</text>
+        <text x="504" y="92">ssh logins</text>
+        <text x="504" y="110">the fleet goes here</text>
+        <text x="504" y="152" font-style="italic">no cpu.max</text>
+      </g>
+    </svg></p>
+    <p>Figure — the same account on both hosts. The dashed boxes are control groups. On the left one
+    quota covers everything; on the right the job group and the session scope are siblings, and the
+    session side carries no ceiling at all.</p>
+
+    <h3 id="allocation-ceiling-measured">The ceiling is a login-node drop-in and does not exist here</h3>
+    <p>The account slice on the login node reads a cumulative throttled share of
+    <strong>0.3375</strong> against its <code>400000 100000</code> quota. The same path on the
+    rigel node has <strong>no <code>cpu.max</code> file at all</strong>, so there is no quota to be
+    throttled against. Placement alone buys the ceiling escape; cgroup containment is not required
+    for it.</p>
+
+    <h3 id="allocation-open-questions">What this does and does not settle</h3>
+    <p>Settled by measurement: the job starts where the dry run said, the unbounded spelling is
+    accepted by the scheduler, the status surface finds a real allocation, ssh is authorised by the
+    allocation and lands outside the job control group, and the four-core ceiling is absent on the
+    compute node.</p>
+    <p>Not settled, and deliberately not tested by cancelling a live allocation: what the epilog
+    does to sessions in the logind scope when the job ends. Because those sessions are not in the
+    job control group, the proctrack kill §5 describes cannot be the mechanism that reaches them —
+    but stray-process cleanup may, and that is the residual risk to measure before any session
+    holding real state is moved.</p>
+    <p>One defect surfaced by the attempt: the sampler raises <code>FileNotFoundError</code> when
+    <code>cpu.max</code> is absent rather than reporting an unconfigured ceiling, so it cannot run
+    on the compute side of the very comparison it was built to make. It is repaired, with a second
+    absence found beside it, in <a href="#throttling-read-without-a-ceiling">a control group with no
+    ceiling</a>.</p>
+  </section>
+
+  <section id="throttling-read-without-a-ceiling">
+    <h2>A control group with no ceiling, and a reading that states the absence</h2>
+    <p>Commit <code>b331d140</code>, confined to <code>imas_ambix/agent/throttling.py</code> and its
+    test file. The three machine reads behind the payload's <code>host</code> block — the hostname,
+    the kernel's per-boot identifier and <code>/proc/uptime</code> — were exercised only by the live
+    machine. They are now exercised by tests, together with the two repairs below.</p>
+
+    <h3>Both defects reproduced before either was repaired</h3>
+    <p>Read against the base revision <code>7415d365</code>. The first was in the identifier parser,
+    which refused only emptiness, so a value that merely looked like a boot identifier was accepted
+    and reported as machine boot identity:</p>
+    <pre><code>parse_boot_id('not-a-uuid') -&gt; 'not-a-uuid'</code></pre>
+    <p>The second was taken live inside the held allocation, on job <code>1274732</code> at
+    <code>98dci4-clu-2002</code>, against the same path the ceiling-absent finding above used:</p>
+    <pre><code>read_sample('/sys/fs/cgroup/user.slice/user-39486.slice')
+FileNotFoundError: [Errno 2] No such file or directory:
+  '/sys/fs/cgroup/user.slice/user-39486.slice/cpu.max'</code></pre>
+
+    <h3>The second absence the first one hides</h3>
+    <p>The cpu controller accounts no period for a group it enforces no ceiling on, so the same
+    group's <code>cpu.stat</code> carries <em>no</em> <code>nr_periods</code>,
+    <code>nr_throttled</code> or <code>throttled_usec</code> — only the cumulative
+    <code>usage_usec</code>. Handling the missing <code>cpu.max</code> alone would therefore still
+    have killed the command, at the refusal of a missing counter in <code>parse_cpu_stat</code>,
+    leaving the sampler unable to run on the compute side for a reason the specification did not
+    name. Both absences are handled: the period counters are reported absent and never as zero,
+    because a measured zero asserts that periods elapsed and none was exceeded, while a
+    <code>cpu.stat</code> stating no <code>usage_usec</code> at all is still refused as malformed
+    text.</p>
+
+    <table>
+      <thead><tr><th>State of the control group</th><th>Before</th><th>Now</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>A ceiling granted and never hit</td>
+          <td><code>"cpu_max": "400000 100000"</code>, <code>"throttled_share": 0.0</code></td>
+          <td>unchanged</td>
+        </tr>
+        <tr>
+          <td>A ceiling granted with no quota (<code>max 100000</code>)</td>
+          <td><code>"cpu_max": "max 100000"</code>, <code>"throttled_share": "unbounded"</code></td>
+          <td>unchanged</td>
+        </tr>
+        <tr>
+          <td>No ceiling file at all, as on the compute node's user slice</td>
+          <td><code>FileNotFoundError</code>, no payload emitted</td>
+          <td><code>"cpu_max": "absent"</code>, period counters <code>null</code>,
+          <code>"throttled_share": "unbounded"</code></td>
+        </tr>
+      </tbody>
+    </table>
+    <p><code>max</code> and an absent file are kept apart deliberately: one is a ceiling the group
+    was given and the other is no ceiling at all, and the two readings a caller compares must be
+    distinguishable, which is the same reason the host block exists. No third
+    <code>Unmeasured</code> member was added: a group with no ceiling reports the permanent cause
+    <code>unbounded</code> for its share, which is the cause a caller acts on, and states the
+    distinct fact about its ceiling in <code>cpu_max</code>.</p>
+
+    <table>
+      <thead><tr><th>Gate</th><th>Observed result</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Focused suite</td>
+          <td><code>uv run --no-sync pytest tests/agent/test_throttling.py</code>:
+          <code>71 passed in 0.31s</code>, exit 0 (48 passed at the base revision)</td>
+        </tr>
+        <tr>
+          <td>Whole-tree lint</td>
+          <td><code>uv run --no-sync ruff check imas_ambix tests</code>:
+          <code>All checks passed!</code>, exit 0</td>
+        </tr>
+        <tr>
+          <td>Strict typing</td>
+          <td><code>uv run --no-sync mypy --strict imas_ambix/agent/throttling.py</code>:
+          <code>Success: no issues found in 1 source file</code></td>
+        </tr>
+        <tr>
+          <td>Declared negative control applied</td>
+          <td><strong>1 failed</strong> on
+          <code>TestReadHost::test_reads_the_name_the_boot_and_the_age_of_this_machine</code> with
+          <code>AssertionError: assert 'placeholder' == 'srv-beta'</code>; the source was restored
+          and the class re-run to <strong>6 passed</strong></td>
+        </tr>
+      </tbody>
+    </table>
+    <p>The declared mutation is <em>make <code>read_host</code> return a fixed placeholder hostname
+    instead of reading it from the machine</em>, and the test asserting that <code>read_host</code>
+    returns what the machine reports is the one observed to fail. The red log is
+    <code>.../runs/r-20260921T102535452002-fleet-host-read-is-exercised/logs/negative-control-receipt.txt</code>,
+    whose first line repeats the declared mutation verbatim; the header was checked rather than
+    assumed, and the check printed <strong>IDENTICAL</strong>.</p>
+
+    <h3>Post-repair markers, quoted from the repaired module</h3>
+    <p>A repair is shown by a refusal that did not happen before, not by a suite that passed both
+    before and after. Both are captured in
+    <code>.../runs/r-20260921T102535452002-fleet-host-read-is-exercised/logs/after-reproduction.log</code>:</p>
+    <pre><code>parse_boot_id('not-a-uuid') -&gt; ValueError: boot_id is not a boot identifier: 'not-a-uuid'
+read_sample(&lt;group with no cpu.max&gt;) -&gt;
+  cpu_max='absent' usage_usec=4846187612533 period_counters=None</code></pre>
+
+    <h3>What this record does not establish</h3>
+    <p>No compute-side reading has been taken with the repaired module: this node's fence covers the
+    reads behind the host block and the two absences, not a live comparison across the placement.
+    The absent-ceiling branch is exercised over text captured from the node's user slice and
+    replayed as a fixture, while the absence of the file on the node is the separate live finding
+    recorded above. The plan's section for this node is edited in place by hand, because the plan is
+    being landed against concurrently.</p>
+  </section>
+
+  <section id="both-sides-of-the-comparison">
+    <h2>Both sides of the deciding comparison, taken live with the repaired sampler</h2>
+    <p>The node that repaired the absent-ceiling path covered it over captured text replayed as a
+    fixture and said so in its own follow-on: the compute-side reading had not been taken. It is
+    taken here, against the held allocation, and it closes that follow-on rather than restating it.
+    The same <code>--directory</code> operand on both machines:</p>
+    <table>
+      <thead><tr><th>field</th><th>login node</th><th>rigel node, inside allocation 1274732</th></tr></thead>
+      <tbody>
+        <tr><td><code>hostname</code></td><td>98dci4-srv-1006.iter.org</td><td>98dci4-clu-2002.iter.org</td></tr>
+        <tr><td><code>boot_id</code></td><td>82c41dfa-a445-4fb2-8416-04b44c3d874c</td><td>cf8fb63b-1437-4d65-a9f5-f4e51e3ffaef</td></tr>
+        <tr><td><code>cpu_max</code></td><td><code>400000 100000</code></td><td><code>absent</code></td></tr>
+        <tr><td><code>throttled_share</code></td><td>0.3396</td><td><code>unbounded</code></td></tr>
+      </tbody>
+    </table>
+    <p>This is what the host block was added for. The operand is identical on both sides and
+    resolves on every node in the cluster, so before the change these two readings would have
+    differed only in their counters and nothing in either would have said they came from different
+    computers. Now the hostname and the boot identity both differ, and the absent ceiling is
+    reported as an absence rather than raising — which is the state the compute side is always in,
+    because the four-core quota is a login-node drop-in.</p>
+    <p>The counters read <code>null</code> on the compute side rather than zero, which is the
+    extended finding the repairing node recorded: that control group has no cpu controller enabled,
+    so <code>nr_periods</code>, <code>nr_throttled</code> and <code>throttled_usec</code> are absent
+    along with the ceiling. A reader must therefore test for the absence rather than expect a zero,
+    and the share is <code>unbounded</code> rather than <code>0.0</code> for the same reason.</p>
+    <p>Captured at
+    <code>~/.config/reckon/crew/runs/r-20260921T102535452002-fleet-host-read-is-exercised/logs/coordinator-both-sides-live.log</code>.</p>
+  </section>
+
+  <section id="fleet-drain-guard">
+    <h2>The drain warning did not fire, because the drain token is not the first one</h2>
+    <p>A guard that never runs at all is invisible from a green suite. The drain warning this
+    record's earlier section describes read the scheduler's <code>State=</code> value after the
+    parser had dropped everything following the first <code>+</code>, and then matched a prefix
+    of what remained — so only a value whose <em>leading</em> token was the drain could warn.
+    Measured against the cluster on 2026-09-21, no node the scheduler reports does that:
+    <code>scontrol show node -o | grep -o "State=[A-Z_+]*"</code> returns <strong>43</strong> nodes
+    at <code>MIXED+DRAIN+REBOOT_REQUESTED</code>, <strong>39</strong> at
+    <code>ALLOCATED+DRAIN+REBOOT_REQUESTED</code>, and <b>zero of the 82 nodes carrying any drain
+    token lead with it</b>. The warning therefore fired on none of them — it was a guard that
+    never ran on the cluster it was written for.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/fleet-drain-guard/drain-token-position.svg"
+           alt="Four scheduler State values laid out as token chips: DRAINING leading warns under
+                both readings; MIXED+DRAIN+REBOOT_REQUESTED and ALLOCATED+DRAIN+REBOOT_REQUESTED
+                carry the drain token second, so a leading-token match misses them; MIXED+RESERVED
+                carries no drain token and stays silent."
+           style="max-width:100%;height:auto"/>
+      <figcaption>The drain token is a member of a <code>+</code>-separated set, and it sits
+      second in the two spellings this cluster reports. A match on the leading token warns on
+      neither.</figcaption>
+    </figure>
+
+    <p>The parser now returns the whole upper-cased <code>State value</code> and the predicate
+    inspects every member of the <code>+</code>-separated set, so the drain token warns wherever
+    it sits. The full survey is in the section above: 82 draining nodes in the two spellings
+    below, and the remaining 428 nodes carrying no drain token at all, which stay silent.</p>
+
+    <table>
+      <thead><tr><th>State value</th><th>Nodes</th><th>Drain token position</th><th>Old reading</th></tr></thead>
+      <tbody>
+        <tr><td><code>MIXED+DRAIN+REBOOT_REQUESTED</code></td><td>43</td><td>second of three</td><td><strong>silent</strong></td></tr>
+        <tr><td><code>ALLOCATED+DRAIN+REBOOT_REQUESTED</code></td><td>39</td><td>second of three</td><td><strong>silent</strong></td></tr>
+        <tr><td><code>ALLOCATED</code></td><td>180</td><td>none</td><td>silent (correct)</td></tr>
+        <tr><td><code>IDLE</code></td><td>115</td><td>none</td><td>silent (correct)</td></tr>
+        <tr><td><code>MIXED</code></td><td>42</td><td>none</td><td>silent (correct)</td></tr>
+        <tr><td><code>MIXED+RESERVED</code>, <code>+MAINTENANCE+RESERVED</code> forms</td><td>3</td><td>none</td><td>silent (correct)</td></tr>
+        <tr><td><code>RESUME</code></td><td>82</td><td>none</td><td>silent (correct)</td></tr>
+        <tr><td><code>DOWN</code>, <code>DOWN+NOT_RESPONDING</code></td><td>6</td><td>none</td><td>silent (correct)</td></tr>
+      </tbody>
+    </table>
+
+    <h3>The two unknown-state branches now rest on execution</h3>
+    <p>The node lookup has two early returns — a value that is not a node name (a pending job
+    writes its <em>reason</em> where the node name goes) and a query that fails — and both read
+    as unknown rather than healthy. Neither was exercised by any test, so the claim they make was
+    inspection. Both now run with the query runner replaced: a fleet row whose node field is
+    <code>(Priority)</code> is not a node name, so no node query is issued at all and no warning is
+    printed; and a node query returning a non-zero status reads as unknown and prints no warning,
+    with the query observed to have been attempted.</p>
+
+    <h3>Gates, and the guard forced to fail</h3>
+    <table>
+      <thead><tr><th>Gate</th><th>Observed result</th></tr></thead>
+      <tbody>
+        <tr><td>Focused suite</td>
+        <td><code>UV_PROJECT_ENVIRONMENT=&lt;main-checkout&gt;/.venv uv run --no-sync pytest
+        tests/agent/test_fleet.py</code>: <code>20 passed in 2.72s</code>, exit 0</td></tr>
+        <tr><td>Whole-tree lint</td>
+        <td><code>uv run --no-sync ruff check --no-cache imas_ambix tests</code>:
+        <code>All checks passed!</code>, exit 0</td></tr>
+      </tbody>
+    </table>
+    <p>A green suite cannot show that a guard fires, so the guard was made to fail. The declared
+    mutation <em>restricts the drain predicate to the leading token of the State value only</em>,
+    which is the behaviour being replaced. Under it the named test —
+    <code>test_fleet_status_warns_on_the_drain_spelling_this_cluster_reports</code>, which asserts
+    that a node the scheduler reports as <code>MIXED+DRAIN+REBOOT_REQUESTED</code> raises the
+    warning — is observed to fail:</p>
+    <pre>E           AssertionError: MIXED+DRAIN+REBOOT_REQUESTED
+E           assert 'WARNING' in 'Fleet allocation 1275000 · RUNNING · node rigel-03\n ...'
+...
+FAILED tests/agent/test_fleet.py::test_fleet_status_warns_on_the_drain_spelling_this_cluster_reports
+1 failed in 2.19s
+MUTATED_EXIT=1</pre>
+    <p>The source was restored to its pre-mutation bytes (the worktree copy verified identical to
+    the backup) and the same test then reports <code>1 passed in 0.72s</code>. The receipt's first
+    line repeats the declared mutation verbatim, so a log that failed for any other reason is
+    refused; <code>[ "$(head -1 "$OUT")" = "$(head -1 "$D")</code> ]` reported
+    <strong>IDENTICAL</strong>. Log:
+    <code>~/.config/reckon/crew/runs/r-20260921T102128084713-fleet-drain-guard-fires-on-this-cluster/negative-control.log</code>.</p>
+    <p>The live node table is the command's own output, captured to
+    <code>.../runs/r-20260921T102128084713-fleet-drain-guard-fires-on-this-cluster/logs/live-node-table-states.txt</code>.
+    No SLURM job was submitted, cancelled or modified; reading the node table is a read.</p>
+
+    <h3>What this record does not establish</h3>
+    <p>The node-state read is exercised through a faked runner, not against a live draining node
+    held by the fleet. The counts above are the scheduler's report of which nodes carry a drain
+    token; they are not a claim about how many will carry one when the fleet is placed on
+    <code>rigel</code>, and the guard's job is to warn if one does. The threshold and remaining-time
+    paths are unchanged by this work.</p>
+  </section>
+
+  <section id="drain-guard-against-live-states">
+    <h2>The drain guard against live node states, both directions</h2>
+    <p>The node that repaired the guard certified it with a faked state string and a
+    mutation-forced red, and declared in its own follow-on that no live node state had exercised
+    it. Its reviewer raised the same gap. It is closed here by running the shipped predicate over
+    the whole live node table at the merged head:</p>
+<pre><code>live nodes: 428  carrying DRAIN: 82  healthy: 346
+   98dci4-clu-3025    ALLOCATED+DRAIN+REBOOT_REQUESTED    node_is_draining=True
+   98dci4-clu-2003    ALLOCATED+MAINTENANCE+RESERVED      node_is_draining=False
+false positives over the live table: 0   false negatives: 0</code></pre>
+    <p>Both directions matter and both are measured: every one of the 82 nodes the scheduler
+    reports with a drain token warns, and none of the 346 without one does. The negative set
+    includes multi-token states such as <code>ALLOCATED+MAINTENANCE+RESERVED</code>, so the
+    predicate is discriminating between tokens rather than merely reacting to a plus sign.</p>
+    <p>The coordinator's first attempt at this check failed in the same way the defect did: the
+    shell pattern used to pick a draining node was <code>State=[A-Z_]*DRAIN</code>, which cannot
+    span the <code>+</code>, so it selected nothing. Worth recording because it is the third
+    independent instance of the same mistake — the parser, the predicate, and the check written to
+    test them all assumed a drain token that leads.</p>
+    <p>Captured at
+    <code>~/.config/reckon/crew/runs/r-20260921T102128084713-fleet-drain-guard-fires-on-this-cluster/logs/coordinator-live-node-states.log</code>.</p>
+  </section>
+
+</main>
+</body>
+</html>

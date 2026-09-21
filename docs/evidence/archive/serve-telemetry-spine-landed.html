@@ -16,6 +16,7 @@
   <meta name="plan-summary" content="Cumulative execution evidence for per-request receipts from the routing relay.">
   <meta name="plan-evidence-for" content="serve-telemetry-spine">
   <meta name="plan-verifies" content="serve-telemetry-spine#s6">
+  <meta name="plan-verifies" content="serve-telemetry-spine#s3">
   <meta name="plan-owner" content="Simon McIntosh">
   <title>Serve Telemetry Spine — Landed Record | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
@@ -231,7 +232,6 @@
     <code>create_router_app</code> and <code>serve_router</code> accept an explicit
     <code>request_receipts_path</code> for a caller that wants another location. No launch
     command needed changing, and none did.</p>
-
     <h1>Serve telemetry spine — the reader index (§5)</h1>
 
     <h2 id="reader-index">A disposable index over the append-only record</h2>
@@ -488,6 +488,258 @@
     write paths and are not touched here; the ledger's hour/day/week/month rows are asserted
     at the index level rather than through the watcher's panels. Followup
     <code>f-sts-001</code> remains open.</p>
+  <h1>Serve telemetry spine — node readings</h1>
+
+    <h2 id="node-readings">§3 — The serving node's own cards, host and job table</h2>
+
+    <figure>
+      <img src="/imas-ambix/figures/node-probe/node-readings.svg"
+           alt="Three local commands at the serving node feed one recorder tick, producing the card, host and job-table sections; a probe that did not run contributes no section at all. An inset shows a two-card allocation read as 0,1 by nvidia-smi and recorded as 6,7 from the allocation SLURM states for the process.">
+      <figcaption>Three local probes, the sparse sections they contribute, and the card index map.</figcaption>
+    </figure>
+
+    <p><code>imas_ambix/agent/node_probe.py</code> produces the readings the engine's
+    own <code>/metrics</code> scrape cannot carry: what the cards were doing, what the
+    host was short of, and which other jobs were resident. All three are ordinary local
+    calls inside the serve's allocation — one <code>nvidia-smi --query-gpu</code>, one
+    <code>/proc/stat</code> and <code>/proc/meminfo</code> pair, and <code>squeue</code>
+    scoped to the node — so none of them needs an <code>srun</code> step or a hop
+    through the scheduler.</p>
+
+    <h3 id="absence-is-omission-again">A probe that did not run contributes no section</h3>
+
+    <p>Each reading is a sparse section in the row, following the rule §2 established
+    for the engine fields: a field is present because it was measured. A command that
+    failed, is absent from the node, or outlived its timeout yields <code>None</code>,
+    and its section is omitted rather than written as an empty list or a zeroed
+    mapping — both of which read as a measurement. The same applies inside a reading
+    taken partially: a quantity a card does not expose (<code>nvidia-smi</code> prints
+    <code>[N/A]</code>) is absent from that card, so a present key is always a
+    reading. The distinction is asserted per source, and a probe with nothing at all to
+    report emits an empty mapping rather than four empty sections.</p>
+
+    <h3 id="card-index-map">Cards carry the node's index, not the step's</h3>
+
+    <p>SLURM restricts a process to its allocated devices through the device cgroup, so
+    <code>nvidia-smi</code> inside it numbers the visible cards from zero while the
+    allocation names the physical indices they are. A two-card allocation on the node's
+    cards 6 and 7 therefore reads <code>0, 1</code> and is recorded as <code>6, 7</code>;
+    recording the read order would make one job's card 0 and another job's card 0
+    different silicon. The map is <strong>all-or-nothing</strong>: an allocation whose
+    length does not describe the cards actually read is not applied, because pairing a
+    partial allocation positionally would label a card with another job's silicon — worse
+    than leaving it under the numbering it was read with. The section names the variable
+    it used and carries the raw allocation, so an unmapped reading is explicable from the
+    row itself.</p>
+
+    <p><strong>The allocation comes from the variable the serve's own launch path
+    sets.</strong> A serve is submitted with <code>sbatch</code> and runs the engine
+    inline in the batch step, so it holds <code>SLURM_JOB_GPUS</code> and no
+    <code>SLURM_STEP_GPUS</code> at all — that variable belongs to an <code>srun</code>
+    step, and there is no <code>srun</code> on this path. A serve launched under
+    <code>srun</code> inside a job holds the step allocation, which is the narrower of the
+    two, so the module reads a precedence ladder: the step variable first, the job
+    variable otherwise. <code>CUDA_VISIBLE_DEVICES</code> is deliberately not on that
+    ladder — SLURM remaps it to <code>0..N-1</code>, so it states a position in the
+    visible set rather than the silicon, which is the confusion the map exists to remove.
+    The indices are paired ascending, because <code>nvidia-smi</code> enumerates the cards
+    it can see in ascending device order and the pairing is positional.</p>
+
+    <p><strong>The rule was shown to be load-bearing rather than decorative.</strong> A
+    mutated copy that rebuilds the ladder as its single defective rung — reading only the
+    variable the batch step never sets — fails exactly the three allocation assertions and
+    nothing else, so the cards are then labelled with the read order in production while
+    the reading still looks populated. The mutation, the command and the red are recorded
+    verbatim in the node's negative-control log. Two further shapes are refused by
+    construction: an unstated allocation keeps the read numbering and says so, and a
+    one-element allocation for a two-card read is not guessed at.</p>
+
+    <h3 id="cadence">The job table is read on its own clock, and omitted between</h3>
+
+    <p>The cards and the host are cheap local reads on every tick. The job table is a
+    SLURM RPC and changes on the scale of minutes, so it is read at its own interval
+    and <em>omitted</em> from the ticks between — omitted rather than repeated, because
+    a tick repeating an earlier reading dates a stale table as current. A failed job
+    read advances that clock instead of retrying on the next tick, so a node refusing
+    <code>squeue</code> is not asked twice a second. A node holding no jobs is a
+    reading and is kept.</p>
+
+    <p>The CPU busy fraction is differenced from two cumulative <code>/proc/stat</code>
+    samples with <code>iowait</code> counted as not busy, so it is the conventional
+    CPU-busy reading rather than one that blames the CPU for waiting on I/O. The first
+    tick of a run has no interval and reports no fraction; the cumulative jiffies are
+    carried beside it so a reader can difference any two rows across a window that
+    dropped a tick.</p>
+
+    <h2 id="node-readings-evidence">Evidence</h2>
+
+    <p><strong>A recorded body yields every field the section names.</strong>
+    <code>tests/test_node_probe.py</code> drives the module against recorded
+    <code>nvidia-smi</code>, <code>/proc/stat</code>, <code>/proc/meminfo</code> and
+    <code>squeue</code> fixtures — the job table captured from the serving node
+    <code>98dci4-gpu-0003</code>, the <code>proc</code> bodies from this workstation.
+    A recorded two-card body asserts full per-card dict equality for both cards,
+    including the unit-carrying key names; a card printing bracketed non-values asserts
+    the two unexposed quantities are absent while its other six survive.</p>
+
+    <p><strong>Absence is asserted per source.</strong> Six tests cover it: each of the
+    three commands absent in turn while the other two contribute, a partially readable
+    host keeping only the source that answered, and a probe with nothing to report
+    emitting no sections at all. The runner these rest on is exercised against real
+    commands — a clean exit, a non-zero exit that printed, and an absent binary — since
+    a non-zero exit is not a reading even when the command printed.</p>
+
+    <p><strong>Gates.</strong> <code>uv run --no-sync pytest
+    tests/test_node_probe.py -q</code> reports <strong>35 passed</strong>;
+    <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0; and
+    <code>pytest tests/test_agent_serve_registry.py -k serving_python</code> reports
+    <strong>2 passed</strong>, which is the guard this module needs because the serve
+    imports it under the engine's Python 3.12 rather than the repository's 3.14.</p>
+
+    <p>That last gate earned its keep here. The local runner's exception clause is
+    accepted by the repository's interpreter in its unparenthesised form, and the
+    repository's own formatter actively <em>strips</em> the parentheses back off when
+    it runs, because the formatter targets the newer grammar — so a fix written the way
+    the serving-interpreter rule says is silently undone by a formatting pass over the
+    same file. The failures are therefore held as a named tuple constant, which is
+    stable under both.</p>
+
+    <h3 id="probe-timeout">Every read is bounded by the timeout it was given</h3>
+
+    <p>A probe runs inside the recorder's tick, so a source that hangs must be
+    cut off rather than allowed to hold the tick open. Each read therefore takes a
+    timeout and hands it to the runner, and the runner is described by a protocol whose
+    signature carries it — the timeout belongs to the call rather than to the runner's
+    construction, because it is the caller that knows how long this reading may take.</p>
+
+    <p><strong>This was broken in the first landing and is the second review
+    finding.</strong> Every read accepted a timeout and never passed it on, so the knob
+    did nothing: a real two-second command behind a fifty-millisecond bound still took two
+    seconds, which the reviewer demonstrated by calling the card read with that bound
+    against that command and measuring the full duration. A parameter that silently does
+    nothing is worse than none, because it reads as a bound that is in force. The
+    assertions now cover the forwarding per read and through the probe's own configured
+    timeout, and one drives the real runner against a command that would otherwise outlive
+    it. A mutation that drops the timeout on the way to the runner fails exactly the two
+    forwarding assertions; the third is deliberately unmoved by it, because it measures
+    the runner's own bound, which that mutation leaves intact.</p>
+
+    <p><strong>One bound was still unreachable after that repair, and this is the third
+    finding.</strong> The job read declares a wider timeout than the local reads, because
+    <code>squeue</code> crosses the scheduler while the other three read a file or the
+    driver. The probe passed its single local timeout to every source, so the wider figure
+    was never invoked with anything: a node whose <code>squeue</code> answered between the
+    two bounds lost the jobs section from every tick while the parameter said otherwise.
+    This is the same shape as the second finding — a knob that does not do what it says —
+    and the repair is the same: the probe now carries the job read's bound as its own
+    field and invokes the read with it, so the declared figure is the one on the wire.</p>
+
+    <p>The assertion was rewritten with it, and that is the part worth keeping. The
+    earlier tests asserted the timeout from the point of view of the read being called,
+    which a call that never uses its timeout passes just as well as one that does — which
+    is how the unreachable figure survived the repair that introduced it. The tests now
+    read the timeout <em>each command was actually invoked with</em>, from a runner that
+    records every argument vector and its bound, and one of them asserts the invoked
+    figure equals the declared class default rather than restating a literal. Its control
+    wraps <code>NodeProbe.sample</code> so the job read is handed the local bound again,
+    and exactly the two on-the-wire assertions fail, reporting <code>squeue</code> invoked
+    at 10 s against a declared 15 s.</p>
+
+    <p><strong>The rewritten assertion still covered three reads while reading as though
+    it covered four, and that is the fourth finding.</strong> It mapped the recorded calls
+    into a dictionary keyed by the command, and two of the four reads are <code>cat</code>
+    reads that differ only in their path — <code>read_cpu_times</code> and
+    <code>read_meminfo</code>. Both collapsed onto the same key, the later call won, and
+    the <code>/proc/stat</code> read's bound was therefore asserted by nothing: displacing
+    that one call's timeout left the assertion passing. It is the same defect as the one it
+    replaced, one level further in — a check that reports coverage it does not have. The
+    recording is now keyed by the whole argument vector, the runner answers each
+    <code>cat</code> with its own body rather than answering both from one, each of the
+    four vectors — the <code>nvidia-smi</code> query, both <code>/proc</code> paths and the
+    <code>squeue</code> RPC — is asserted separately, and the mapping is counted against
+    the recorded call list so a read collapsing onto another's key fails loudly.</p>
+
+    <p>Its control displaces only the <code>/proc/stat</code> call's bound, by a quarter of
+    a second, leaving its vector and the sibling read untouched; the exact invocation it
+    changes is <code>text = run(("cat", "/proc/stat"), timeout_s=timeout_s)</code>. Run
+    against the fixed suite, the three assertions that pin a command's bound go red. Run
+    against the test file as it stood at the previous head, the two mapping-keyed
+    assertions stay <em>green</em> under the same mutation — the positional one was never
+    blind, and it is the mapping under review that was. That pair of runs is the finding
+    rather than a description of it.</p>
+
+    <p><strong>The rewritten file still held two further derived expectations, and
+    that is the fifth finding.</strong> The two query vectors the probe sends were
+    expected in the same form the probe composes them: the test built the
+    <code>nvidia-smi</code> field list from <code>node_probe.CARD_QUERY_FIELDS</code>
+    and the job format from <code>node_probe.SQUEUE_FORMAT</code>, which are the
+    constants the probe itself reads to build the query. An expectation composed from
+    the constant it checks moves with every edit to that constant, so it agrees with
+    production by construction and asserts nothing about <em>which</em> quantities
+    reach the device: drop <code>temperature.gpu</code> from the field list, or reorder
+    the fields, and the expected vector shortens in step while the suite stays green
+    and the probe has silently stopped reading a quantity the section names. This is
+    the same defect as the three before it — a check reporting coverage it does not
+    have — and it is the fifth round in this node where the module was correct and the
+    assertion could not fail.</p>
+
+    <p>Both vectors are now written out in the test file as literals, spelled as they
+    must reach the wire, so a field added to, dropped from or reordered in either
+    constant reddens the assertion about the wire rather than travelling with it. That
+    property depends on the literals being the <em>only</em> place the vectors are
+    stated, so the coupling back to the module is asserted once, in a single labelled
+    test, and that is the sole derived expectation among the file's wire assertions. The
+    literal field list is nine entries — the read index first, then one per quantity —
+    and it is checkable by eye against the section above.</p>
+
+    <p>The control removes <code>temperature.gpu</code> from
+    <code>CARD_QUERY_FIELDS</code>, leaving the other eight fields and the query's
+    shape untouched, and is run as a pytest plugin that rebinds the module attribute
+    before collection. Its pair of runs is what makes the finding visible rather than
+    described:</p>
+
+    <table>
+      <thead><tr><th>Test file under that control</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>at the current head, vectors written out</td>
+          <td><strong>3 failed, 32 passed</strong> — the literal-vector assertion, and the
+          two tests that pin the bound each command was invoked with, because the
+          recording runner no longer answers the vector the probe sends</td>
+        </tr>
+        <tr>
+          <td>at the previous head, vectors derived from the constants</td>
+          <td><strong>34 passed</strong> — the expectation shortened with the query, so
+          the mutation was invisible while the probe had stopped reading a field</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>Those two vectors were the only derived expectations among the file's wire
+    assertions; every other expectation in <code>tests/test_node_probe.py</code> was
+    examined and is a literal. The one remaining term that names a module attribute —
+    the class default pinning the job read's own bound — carries its literal on the same
+    line, so it reddens against that literal rather than moving with the constant.</p>
+
+    <h2 id="node-readings-commits">Commits</h2>
+
+    <table>
+      <thead><tr><th>Commit</th><th>Subject</th></tr></thead>
+      <tbody>
+        <tr><td><code>8935b651</code></td><td>the three probes, their sparse sections, the index map and the cadence</td></tr>
+        <tr><td><code>e7bb8a3e</code></td><td>read the card allocation from the variable the serve actually sets, after review</td></tr>
+        <tr><td><code>006dc4fe</code></td><td>thread the probe timeout into every local call, after review</td></tr>
+        <tr><td><code>f12261e8</code></td><td>correct the node-readings record after review</td></tr>
+        <tr><td><code>fe128951</code></td><td>give the job probe the bound its signature declares, after recheck</td></tr>
+        <tr><td><code>65bf2443</code></td><td>pin each probe read's bound by its own argument vector, after recheck</td></tr>
+        <tr><td><code>2d02965c</code></td><td>write the probe's query vectors out in the test instead of deriving them, after recheck</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Not this node's to close.</strong> The wire node owns
+    <code>serving_receipts.py</code>, where these three sections merge into the tick's
+    row; until that lands, this module's readings are reachable only by direct call.
+    Verifying the merged head belongs to the separately dispatched test node.</p>
   </main>
 </body>
 </html>
