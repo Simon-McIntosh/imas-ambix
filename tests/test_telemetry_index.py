@@ -198,9 +198,11 @@ def test_a_malformed_complete_line_is_named_not_swallowed(tmp_path):
     with source.open("a", encoding="utf-8") as handle:
         handle.write('{"timestamp": "2026-09-20T06:00:05+00:00" \n')
 
-    with TelemetryIndex(tmp_path / "index.db") as index:
-        with pytest.raises(ValueError, match="invalid record JSON"):
-            index.ingest([source])
+    with (
+        TelemetryIndex(tmp_path / "index.db") as index,
+        pytest.raises(ValueError, match="invalid record JSON"),
+    ):
+        index.ingest([source])
 
 
 def test_a_source_rebuilt_in_place_drops_its_stale_samples(tmp_path):
@@ -244,8 +246,11 @@ def test_period_query_agrees_with_the_jsonl_computed_directly(tmp_path):
         # the direct computation takes from the same record independently.
         opening = max((row for row in rows if _epoch(row) <= start), key=_epoch)
         closing = max((row for row in rows if _epoch(row) < end), key=_epoch)
-        assert index.counter_span("engine.generation_tokens", start, end) == pytest.approx(
-            closing["engine"]["generation_tokens"] - opening["engine"]["generation_tokens"]
+        assert index.counter_span(
+            "engine.generation_tokens", start, end
+        ) == pytest.approx(
+            closing["engine"]["generation_tokens"]
+            - opening["engine"]["generation_tokens"]
         )
 
 
@@ -261,7 +266,9 @@ def test_an_absent_measurement_is_not_a_zero(tmp_path):
     )
     with TelemetryIndex(tmp_path / "index.db") as index:
         index.ingest([records])
-        assert index.sum_measurements("prefix_cache_query_delta", _at(0), _at(10)) == 0.0
+        assert (
+            index.sum_measurements("prefix_cache_query_delta", _at(0), _at(10)) == 0.0
+        )
         assert index.sum_measurements("prefix_cache_hit_delta", _at(0), _at(10)) is None
         assert index.sum_measurements("spec_accepted_tokens", _at(0), _at(10)) is None
 
@@ -322,8 +329,12 @@ def test_deleting_and_rebuilding_reproduces_every_query(tmp_path):
         return {
             "count": index.sample_count(),
             "draft": index.sum_measurements("spec_draft_tokens", _at(0), _at(60)),
-            "queries": index.sum_measurements("prefix_cache_query_delta", _at(15), _at(45)),
-            "generation": index.counter_span("engine.generation_tokens", _at(10), _at(50)),
+            "queries": index.sum_measurements(
+                "prefix_cache_query_delta", _at(15), _at(45)
+            ),
+            "generation": index.counter_span(
+                "engine.generation_tokens", _at(10), _at(50)
+            ),
             "kv_mean": index.time_weighted_mean("kv_cache_usage_perc", _at(0), _at(55)),
             "absent": index.sum_measurements("prefix_cache_hit_delta", _at(0), _at(60)),
         }
