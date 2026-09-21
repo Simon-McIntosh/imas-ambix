@@ -2,15 +2,21 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from imas_ambix.agent.throttling import (
     CpuMax,
     CpuStat,
     Sample,
+    Unmeasured,
+    _counters_payload,
+    _parser,
     format_cpu_max,
     interval_delta,
     interval_throttled_share,
+    main,
     parse_cpu_max,
     parse_cpu_stat,
     permitted_thread_usec,
@@ -117,7 +123,9 @@ class TestThrottledShare:
         # assert that the group was offered a ceiling and never hit it.
         stat = _stat(nr_periods=1000, throttled_usec=0)
 
-        assert throttled_share(stat, parse_cpu_max("max 100000")) is None
+        share = throttled_share(stat, parse_cpu_max("max 100000"))
+
+        assert share is Unmeasured.UNBOUNDED
 
     def test_share_passes_one_when_more_tasks_stall_than_the_ceiling_admits(self):
         # 1000 periods permit 4e8 usec of thread-time; 5e8 was stopped, because
@@ -134,7 +142,33 @@ class TestThrottledShare:
         # absence of a window, not a window in which nothing was refused.
         stat = _stat(nr_periods=0, throttled_usec=0)
 
-        assert throttled_share(stat, parse_cpu_max(_QUOTA_ED_MAX)) is None
+        share = throttled_share(stat, parse_cpu_max(_QUOTA_ED_MAX))
+
+        assert share is Unmeasured.NO_PERIODS
+
+    def test_the_two_absences_are_distinguishable_and_neither_is_a_number(self):
+        # Both cases have no share to state, and they call for different
+        # responses: an unbounded group will never produce one, while an
+        # unaccounted one may at the next reading. A single missing value would
+        # force a caller to guess which it is looking at.
+        unquota_ed = _stat(nr_periods=1000)
+        unaccounted = _stat(nr_periods=0)
+
+        unbounded = throttled_share(unquota_ed, parse_cpu_max("max 100000"))
+        no_periods = throttled_share(unaccounted, parse_cpu_max(_QUOTA_ED_MAX))
+
+        assert unbounded is not no_periods
+        assert not isinstance(unbounded, float)
+        assert not isinstance(no_periods, float)
+
+    def test_an_unbounded_group_with_no_periods_reports_the_permanent_cause(self):
+        # Both absences hold here; the ceiling's absence is the one no later
+        # reading can remove, so it is the one reported.
+        stat = _stat(nr_periods=0)
+
+        share = throttled_share(stat, parse_cpu_max("max 100000"))
+
+        assert share is Unmeasured.UNBOUNDED
 
 
 class TestIntervalShare:
@@ -178,7 +212,20 @@ class TestIntervalShare:
         first = Sample(cpu_max=cpu_max, stat=_stat())
         second = Sample(cpu_max=cpu_max, stat=_stat(nr_periods=1200))
 
-        assert interval_throttled_share(first, second) is None
+        share = interval_throttled_share(first, second)
+
+        assert share is Unmeasured.UNBOUNDED
+
+    def test_an_interval_with_no_elapsed_period_has_an_undefined_share(self):
+        # Two reads of a group that was already idle in both: nothing accrued
+        # between them, so the span holds no window.
+        cpu_max = parse_cpu_max(_QUOTA_ED_MAX)
+        first = Sample(cpu_max=cpu_max, stat=_stat(nr_periods=1000))
+        second = Sample(cpu_max=cpu_max, stat=_stat(nr_periods=1000))
+
+        share = interval_throttled_share(first, second)
+
+        assert share is Unmeasured.NO_PERIODS
 
 
 class TestReadSample:
@@ -194,3 +241,115 @@ class TestReadSample:
     def test_a_directory_without_the_files_is_refused(self, tmp_path):
         with pytest.raises(OSError):
             read_sample(tmp_path)
+
+
+class TestCountersPayload:
+    _EXPECTED_KEYS = {
+        "usage_usec",
+        "nr_periods",
+        "nr_throttled",
+        "throttled_usec",
+        "permitted_usec",
+        "throttled_share",
+    }
+
+    def test_carries_every_counter_and_the_share_under_a_fixed_key_set(self):
+        payload = _counters_payload(
+            _stat(nr_periods=1000, throttled_usec=100_000_000),
+            parse_cpu_max(_QUOTA_ED_MAX),
+        )
+
+        assert set(payload) == self._EXPECTED_KEYS
+        assert payload == {
+            "usage_usec": 1_000_000,
+            "nr_periods": 1000,
+            "nr_throttled": 250,
+            "throttled_usec": 100_000_000,
+            "permitted_usec": 400_000_000,
+            "throttled_share": 0.25,
+        }
+
+    def test_an_undefined_share_states_its_cause_rather_than_a_null(self):
+        # The payload is what a monitor reads, so the distinction has to
+        # survive serialisation and not only the in-process return value.
+        unbounded = _counters_payload(_stat(), parse_cpu_max("max 100000"))
+        unaccounted = _counters_payload(
+            _stat(nr_periods=0), parse_cpu_max(_QUOTA_ED_MAX)
+        )
+
+        assert unbounded["throttled_share"] == "unbounded"
+        assert unbounded["permitted_usec"] is None
+        assert unaccounted["throttled_share"] == "no_periods"
+
+
+class TestParser:
+    def test_a_subcommand_is_required(self):
+        with pytest.raises(SystemExit):
+            _parser().parse_args([])
+
+    def test_sample_requires_a_directory(self):
+        with pytest.raises(SystemExit):
+            _parser().parse_args(["sample"])
+
+    def test_interval_takes_a_directory_and_a_float_number_of_seconds(self):
+        args = _parser().parse_args(
+            ["interval", "--directory", "/sys/fs/cgroup/some.slice", "--seconds", "60"]
+        )
+
+        assert args.command == "interval"
+        assert args.directory == "/sys/fs/cgroup/some.slice"
+        assert args.seconds == 60.0
+
+
+class TestMain:
+    def _write_group(self, directory, cpu_max: str = _QUOTA_ED_MAX) -> None:
+        (directory / "cpu.max").write_text(cpu_max)
+        (directory / "cpu.stat").write_text(_CPU_STAT_TEXT)
+
+    def test_sample_prints_the_cumulative_reading_as_json(self, tmp_path, capsys):
+        self._write_group(tmp_path)
+
+        status = main(["sample", "--directory", str(tmp_path)])
+
+        assert status == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert set(payload) == {"directory", "cpu_max", "cumulative"}
+        assert payload["directory"] == str(tmp_path)
+        assert payload["cpu_max"] == _QUOTA_ED_MAX
+        assert payload["cumulative"]["throttled_share"] == pytest.approx(0.25)
+
+    def test_an_unbounded_group_serialises_its_share_as_its_cause(
+        self, tmp_path, capsys
+    ):
+        self._write_group(tmp_path, cpu_max="max 100000")
+
+        main(["sample", "--directory", str(tmp_path)])
+
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["cumulative"]["throttled_share"] == "unbounded"
+
+    def test_interval_prints_the_span_between_two_readings(self, tmp_path, capsys):
+        # Zero seconds against an unchanged group: the span is real and empty,
+        # which is exactly the reading a caller must be able to tell apart from
+        # an unbounded one.
+        self._write_group(tmp_path)
+
+        status = main(["interval", "--directory", str(tmp_path), "--seconds", "0"])
+
+        assert status == 0
+        payload = json.loads(capsys.readouterr().out)
+        interval = payload["interval"]
+        assert set(interval) == {
+            "usage_usec",
+            "nr_periods",
+            "nr_throttled",
+            "throttled_usec",
+            "permitted_usec",
+            "throttled_share",
+            "seconds",
+            "cpu_max_at_end",
+        }
+        assert interval["seconds"] == 0.0
+        assert interval["nr_periods"] == 0
+        assert interval["throttled_share"] == "no_periods"
+        assert interval["cpu_max_at_end"] == _QUOTA_ED_MAX

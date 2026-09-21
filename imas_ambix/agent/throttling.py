@@ -11,6 +11,12 @@ one control group holding four cores and another holding twenty-eight. A
 control group with no ceiling has no such share: that is undefined, not zero,
 because a share of an unbounded quantity does not exist while a measured share
 of zero asserts that nothing was ever refused.
+
+A share can be absent for two different reasons, and a caller acts differently
+on each, so they are kept apart rather than collapsed into one missing value.
+An unbounded group can never yield a share however long it is watched, while a
+group with no accounted period yet has simply not run long enough and will
+state a share at a later reading. ``Unmeasured`` names both.
 """
 
 from __future__ import annotations
@@ -19,6 +25,7 @@ import argparse
 import json
 import time
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -63,6 +70,21 @@ class Sample:
 
     cpu_max: CpuMax
     stat: CpuStat
+
+
+class Unmeasured(StrEnum):
+    """Why a throttled share has no numeric value.
+
+    The two causes call for different responses and so are reported apart.
+    ``UNBOUNDED`` is permanent: the group has no ceiling, so no ceiling can ever
+    be exceeded, and waiting for a figure is waiting for one that cannot exist.
+    ``NO_PERIODS`` is provisional: no period has been accounted yet, so the
+    group has simply not been measured over a window and the next reading may
+    state a share.
+    """
+
+    UNBOUNDED = "unbounded"
+    NO_PERIODS = "no_periods"
 
 
 def _int_field(field: str, label: str) -> int:
@@ -135,7 +157,7 @@ def permitted_thread_usec(stat: CpuStat, cpu_max: CpuMax) -> int | None:
     return stat.nr_periods * cpu_max.quota_usec
 
 
-def throttled_share(stat: CpuStat, cpu_max: CpuMax) -> float | None:
+def throttled_share(stat: CpuStat, cpu_max: CpuMax) -> float | Unmeasured:
     """Fraction of permitted thread-time spent stalled at the ceiling.
 
     This can exceed one, and that is a property of the quantity rather than a
@@ -144,12 +166,16 @@ def throttled_share(stat: CpuStat, cpu_max: CpuMax) -> float | None:
     admits, several of them stall together for the remainder of each period, so
     the thread-time lost can pass the thread-time the ceiling allowed.
 
-    ``None`` means there is no fraction to state -- either the group has no
-    ceiling, or no period has yet been accounted to divide by.
+    An :class:`Unmeasured` member means there is no fraction to state, and says
+    which of the two absences applies. A group that is both unbounded and
+    unaccounted reports ``UNBOUNDED``: no length of observation removes a
+    ceiling's absence, so that is the cause a caller must act on.
     """
     permitted_usec = permitted_thread_usec(stat, cpu_max)
+    if permitted_usec is None:
+        return Unmeasured.UNBOUNDED
     if not permitted_usec:
-        return None
+        return Unmeasured.NO_PERIODS
     return stat.throttled_usec / permitted_usec
 
 
@@ -170,13 +196,17 @@ def interval_delta(first: Sample, second: Sample) -> CpuStat:
     )
 
 
-def interval_throttled_share(first: Sample, second: Sample) -> float | None:
+def interval_throttled_share(first: Sample, second: Sample) -> float | Unmeasured:
     """Throttled share over the span between two samples of one group.
 
     The ceiling is taken from the earlier sample, so the delta share describes
     the quota that was in force while those counters accumulated. A later
     reading of the same group reports its own ceiling, which is how a quota
     changed mid-span is visible rather than silently mixed into the figure.
+
+    ``NO_PERIODS`` here means no period elapsed between the two samples, so the
+    span holds no window to divide by; ``UNBOUNDED`` means the group the span
+    began in had no ceiling.
     """
     return throttled_share(interval_delta(first, second), first.cpu_max)
 
@@ -188,13 +218,21 @@ def format_cpu_max(cpu_max: CpuMax) -> str:
 
 
 def _counters_payload(stat: CpuStat, cpu_max: CpuMax) -> dict[str, object]:
+    """Counters and share for one reading, shaped for JSON.
+
+    An undefined share keeps its cause in the payload rather than becoming a
+    ``null``: ``throttled_share`` carries the :class:`Unmeasured` reason as a
+    string, so a reader of the JSON separates a group that cannot be throttled
+    from one that has not been measured over a period yet.
+    """
+    share = throttled_share(stat, cpu_max)
     return {
         "usage_usec": stat.usage_usec,
         "nr_periods": stat.nr_periods,
         "nr_throttled": stat.nr_throttled,
         "throttled_usec": stat.throttled_usec,
         "permitted_usec": permitted_thread_usec(stat, cpu_max),
-        "throttled_share": throttled_share(stat, cpu_max),
+        "throttled_share": share.value if isinstance(share, Unmeasured) else share,
     }
 
 

@@ -181,11 +181,63 @@ uv run python -m imas_ambix.agent.throttling sample \
 # a reading plus the share over the next 60 seconds
 uv run python -m imas_ambix.agent.throttling interval \
     --directory /sys/fs/cgroup/user.slice/user-39486.slice --seconds 60</code></pre>
+    <p><strong>A missing share carries its cause rather than reading as one
+    <code>null</code>.</strong> There are two ways for a share not to exist, and
+    a monitor has to act differently on each: a group with no ceiling can never
+    produce one however long it is watched, while a group whose counters account
+    no period yet has simply not been measured over a window and may state a
+    share at the next reading. The JSON therefore writes
+    <code>"throttled_share": "unbounded"</code> or
+    <code>"no_periods"</code> in place of a number. Where both hold — an
+    unbounded group that has also accounted no period — the ceiling's absence is
+    reported, because no later reading removes it. A number is always a number,
+    so a caller testing for a float distinguishes all three cases from one
+    field.</p>
+    <figure>
+    <svg viewBox="0 0 720 170" role="img" style="max-width:100%;height:auto"
+         aria-label="Decision sketch: a throttled_share field is either a number, or the string unbounded when the group has no ceiling, or the string no_periods when a ceiling exists but no period has been accounted.">
+      <rect x="0" y="0" width="720" height="170" fill="#ffffff"/>
+      <g font-family="sans-serif" font-size="13" fill="#333333">
+        <rect x="20" y="60" width="150" height="46" rx="6"
+              fill="#eef3fa" stroke="#4a7ebb"/>
+        <text x="95" y="88" text-anchor="middle">read cpu.max</text>
+        <rect x="240" y="60" width="170" height="46" rx="6"
+              fill="#eef3fa" stroke="#4a7ebb"/>
+        <text x="325" y="80" text-anchor="middle">quota stated?</text>
+        <text x="325" y="97" text-anchor="middle" font-size="11" fill="#555">
+          (or the literal max)</text>
+        <rect x="510" y="20" width="190" height="40" rx="6"
+              fill="#fdf1e8" stroke="#b3521f"/>
+        <text x="605" y="45" text-anchor="middle">"unbounded"</text>
+        <rect x="510" y="100" width="190" height="40" rx="6"
+              fill="#eef3fa" stroke="#4a7ebb"/>
+        <text x="605" y="125" text-anchor="middle">share is a number</text>
+        <rect x="510" y="60" width="190" height="32" rx="6"
+              fill="#fdf1e8" stroke="#b3521f"/>
+        <text x="605" y="81" text-anchor="middle" font-size="12">
+          "no_periods" (nr_periods 0)</text>
+        <g stroke="#777777" stroke-width="1.5" fill="none">
+          <line x1="170" y1="83" x2="240" y2="83"/>
+          <line x1="410" y1="83" x2="475" y2="83"/>
+          <line x1="475" y1="83" x2="475" y2="40"/>
+          <line x1="475" y1="40" x2="510" y2="40"/>
+          <line x1="475" y1="83" x2="510" y2="76"/>
+          <line x1="475" y1="83" x2="475" y2="120"/>
+          <line x1="475" y1="120" x2="510" y2="120"/>
+        </g>
+      </g>
+    </svg>
+    <figcaption>The one field a caller reads, and the three states</figcaption>
+    </figure>
     <p>The unit gate is <code>uv run --no-sync pytest tests/agent/test_throttling.py</code>,
     covering the cumulative share, the delta share across two samples, the
-    refusal of a counter that went backwards between samples, and the
-    unquota-ed reading where <code>cpu.max</code> is the literal
-    <code>max 100000</code> and the share is undefined rather than zero.</p>
+    refusal of a counter that went backwards between samples, the unquota-ed
+    reading where <code>cpu.max</code> is the literal <code>max 100000</code> and
+    the share is undefined rather than zero, and the two undefined causes as
+    distinct states — through the function, through the payload, and through the
+    CLI's own JSON. The payload's key set and the top-level shape of both
+    subcommands are pinned by equality, so a regression in what a monitor parses
+    fails the gate rather than passing it.</p>
   </section>
 
 </main>
