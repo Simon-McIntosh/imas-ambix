@@ -970,6 +970,97 @@ uv run python -m imas_ambix.agent.throttling interval \
     through the reckon writer, because the plan is being landed against concurrently.</p>
   </section>
 
+  <section id="allocation-proof-of-life">
+    <h2>The allocation is held, and it is a gatekeeper rather than a container</h2>
+    <p><strong>Job <code>1274732</code> is running on <code>98dci4-clu-2002</code>,</strong> the node
+    <code>sbatch --test-only</code> named before submission: partition <code>rigel</code>, account
+    <code>iter</code>, 28 cores, exclusive, 120G, <code>--time=UNLIMITED</code>, which
+    <code>squeue</code> reports back as <code>TIME_LEFT UNLIMITED</code>. The status surface finds
+    it and renders the unbounded limit without arithmetic and without a warning:</p>
+<pre><code>Fleet allocation 1274732 · RUNNING · node 98dci4-clu-2002
+  elapsed    0:07
+  remaining  unbounded (no wall clock)</code></pre>
+    <p>This is the first time that command has met a real allocation rather than a fixture, and it
+    is the check the account defect would have failed: before the lookup was pointed at the account
+    the generator charges, a held allocation was structurally invisible and this printed the
+    no-allocation sentence at exit 0.</p>
+
+    <h3 id="allocation-cgroup-placement">The premise §5 reasons from is false for ssh sessions</h3>
+    <p>§5 states that <em>&ldquo;every process inside an allocation lives in the job&rsquo;s control
+    group, and when the job ends SLURM kills that entire group at once&rdquo;</em>, and builds its
+    whole risk case on that. Measured from inside the allocation, it does not hold for the sessions
+    this plan is about.</p>
+    <table>
+      <thead><tr><th>Reading</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td><code>/proc/self/cgroup</code> of an ssh login</td>
+            <td><code>0::/user.slice/user-39486.slice/session-263.scope</code></td></tr>
+        <tr><td>the job's own control group</td>
+            <td><code>/sys/fs/cgroup/system.slice/slurmstepd.scope/job_1274732</code>, holding 4 pids</td></tr>
+        <tr><td><code>SLURM_JOB_ID</code> in the ssh environment</td><td><code>1274732</code></td></tr>
+        <tr><td><code>pam_slurm_adopt.so</code> in <code>/etc/pam.d/sshd</code></td>
+            <td>line 19, <strong><code>account required</code></strong> — not the session stack</td></tr>
+        <tr><td><code>pam_systemd.so</code></td><td><code>system-auth</code> line 31, session stack</td></tr>
+        <tr><td>cores visible on the node</td><td>28</td></tr>
+      </tbody>
+    </table>
+    <p>In the <code>account</code> phase the module <em>authorises</em> the login — no job on the
+    node means no ssh — and does not adopt the process; <code>pam_systemd</code> then places it in a
+    logind session scope. So the allocation is what grants access and reserves the hardware, and the
+    sessions sit beside the job rather than inside it.</p>
+    <p><svg viewBox="0 0 640 210" width="100%" height="auto" role="img"
+         aria-label="On the login node every agent session sits inside one user slice capped at four cores. On the compute node the job control group holds only the job's own processes while ssh sessions sit beside it in a logind session scope with no quota.">
+      <g fill="none" stroke="currentColor" stroke-width="1.5">
+        <rect x="8" y="26" width="290" height="170" rx="6"/>
+        <rect x="26" y="66" width="254" height="112" rx="4" stroke-dasharray="4 3"/>
+        <rect x="342" y="26" width="290" height="170" rx="6"/>
+        <rect x="358" y="66" width="120" height="112" rx="4" stroke-dasharray="4 3"/>
+        <rect x="496" y="66" width="120" height="112" rx="4" stroke-dasharray="4 3"/>
+      </g>
+      <g fill="currentColor" font-size="12" font-family="system-ui, sans-serif">
+        <text x="16" y="18" font-weight="600">login node 98dci4-srv-1006</text>
+        <text x="350" y="18" font-weight="600">rigel node 98dci4-clu-2002</text>
+        <text x="34" y="58">user.slice — cpu.max 400000 100000</text>
+        <text x="366" y="58">job_1274732</text>
+        <text x="504" y="58">session scope</text>
+        <text x="40" y="92">~30 clive sessions</text>
+        <text x="40" y="110">zellij servers</text>
+        <text x="40" y="128">mcp + serve children</text>
+        <text x="40" y="152" font-style="italic">4 cores for all of it</text>
+        <text x="366" y="92">the sleep</text>
+        <text x="366" y="110">holding the node</text>
+        <text x="366" y="152" font-style="italic">4 pids</text>
+        <text x="504" y="92">ssh logins</text>
+        <text x="504" y="110">the fleet goes here</text>
+        <text x="504" y="152" font-style="italic">no cpu.max</text>
+      </g>
+    </svg></p>
+    <p>Figure — the same account on both hosts. The dashed boxes are control groups. On the left one
+    quota covers everything; on the right the job group and the session scope are siblings, and the
+    session side carries no ceiling at all.</p>
+
+    <h3 id="allocation-ceiling-measured">The ceiling is a login-node drop-in and does not exist here</h3>
+    <p>The account slice on the login node reads a cumulative throttled share of
+    <strong>0.3375</strong> against its <code>400000 100000</code> quota. The same path on the
+    rigel node has <strong>no <code>cpu.max</code> file at all</strong>, so there is no quota to be
+    throttled against. Placement alone buys the ceiling escape; cgroup containment is not required
+    for it.</p>
+
+    <h3 id="allocation-open-questions">What this does and does not settle</h3>
+    <p>Settled by measurement: the job starts where the dry run said, the unbounded spelling is
+    accepted by the scheduler, the status surface finds a real allocation, ssh is authorised by the
+    allocation and lands outside the job control group, and the four-core ceiling is absent on the
+    compute node.</p>
+    <p>Not settled, and deliberately not tested by cancelling a live allocation: what the epilog
+    does to sessions in the logind scope when the job ends. Because those sessions are not in the
+    job control group, the proctrack kill §5 describes cannot be the mechanism that reaches them —
+    but stray-process cleanup may, and that is the residual risk to measure before any session
+    holding real state is moved.</p>
+    <p>One defect surfaced by the attempt: the sampler raises <code>FileNotFoundError</code> when
+    <code>cpu.max</code> is absent rather than reporting an unconfigured ceiling, so it cannot run
+    on the compute side of the very comparison it was built to make.</p>
+  </section>
+
 </main>
 </body>
 </html>
