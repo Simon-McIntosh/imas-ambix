@@ -299,7 +299,11 @@ def test_a_counter_keeps_its_endpoint_across_a_null():
     without the 110 it accumulated, and the second with nothing at all -- and a
     window whose endpoint is null reads downstream as a counter that reset.
     """
-    for values, expected in (([100.0, 110.0, None, 130.0], 130.0), ([100.0, 110.0, None], 110.0)):
+    cases = (
+        ([100.0, 110.0, None, 130.0], 130.0),
+        ([100.0, 110.0, None], 110.0),
+    )
+    for values, expected in cases:
         rows = [
             {
                 "timestamp": (_START + timedelta(seconds=12 * index)).isoformat(),
