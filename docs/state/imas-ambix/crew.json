@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-21T14:12:37",
+  "updated": "2026-09-21T14:24:23",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -56155,6 +56155,255 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260921T053228459971-node-probe",
+        "plan": "serve-telemetry-spine",
+        "section": "\u00a73",
+        "node": "node-probe",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 676,
+                "cached_input_tokens": 782211,
+                "input_tokens": 782889,
+                "output_tokens": 709,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 783598,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "98f13dbe-0703-4abd-a5e4-65bfdb2eeee2",
+            "session_id": "telemetry-spine"
+          },
+          "done_when": "A test drives the probe against recorded nvidia-smi, /proc/stat, /proc/meminfo and squeue fixtures and obtains every field section 3 of the plan names; a probe whose source command fails or is absent contributes NO section at all rather than an empty or zeroed one, asserted by test; card readings carry the physical index mapped from SLURM_STEP_GPUS rather than the step-relative ordering, asserted against a fixture where the two differ; uv run --no-sync ruff check imas_ambix tests exits 0",
+          "estimated_hours": null,
+          "goal": "Return the serve's card, host and node-job readings from one on-node probe module",
+          "id": "node-probe",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-21T05:32:29Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no numeric 'headroom'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T053228459971-node-probe/manifest.md",
+          "negative_control": "make a failing probe return an empty section instead of omitting it; the absence test must fail",
+          "plan": "serve-telemetry-spine",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a73",
+          "spec_level": "guided",
+          "time_budget": "50m",
+          "token_budget": null,
+          "write_paths": [
+            "imas_ambix/agent/node_probe.py",
+            "tests/test_node_probe.py",
+            "docs/figures/node-probe",
+            "docs/plans/serve-telemetry-spine.html",
+            "docs/evidence/archive/serve-telemetry-spine-landed.html"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "telemetry-node-probe",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "high",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "worktree-full",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-21T05:32:36Z",
+        "completed_at": "2026-09-21T12:22:37.845Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 24592,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 24601,
+        "stalled": true,
+        "time_budget": "50m",
+        "base_sha": "39e7bba5d7a4d0b398978e7f9e6dd3c84eb13c62",
+        "commits": [
+          "8935b6514722513f7d513a2901594328a15837df",
+          "a9b217c4dd6a0a84f29cc479fb6ace4e9fee4bc1",
+          "e7bb8a3e98bd3bd7756e97d56618b22ba8119107",
+          "006dc4fe91e73701f0607822693e76e068a10482",
+          "f12261e8a7841e8875d10a6180362d025e2388b4",
+          "fe128951ab6114500256bb386a2df1bc7027dc51",
+          "dcf458dc57f2a6244aa4d815214b0fb54bc73354",
+          "65bf2443a292472b2b2e1799482d9688c1b011bc",
+          "b9bbdeb0dee0dda652f18ea41f3d5a81b66b3e13",
+          "2d02965c01250c3940d854fe434d51efbc435990",
+          "6c9a9019fffa023b3a7b44d1eb5dd7bcc1f56a5a"
+        ],
+        "changed_lines": {
+          "added": 1518,
+          "removed": 2,
+          "files": 5
+        },
+        "tests_added": 34,
+        "gate": "passed",
+        "gate_check": {
+          "command": "tests/test_node_probe.py at the reviewed head on an all_debug allocation",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T053228459971-node-probe/test-node-probe.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "Six independent review rounds; the sixth returned ZERO findings at 96 with goal_fidelity and scope_discipline both 20. Five defects closed, every one demonstrated by mutation and none visible by reading: the card index map read SLURM_STEP_GPUS which an sbatch-launched serve never sets, the timeout knob was inert, the job read's declared 15s bound never reached the wire, the recording runner keyed two cat reads to one dict key leaving one bound unasserted, and the expected query vector was composed from the constant it existed to pin. Six control logs, each naming its mutation verbatim, including the declared absence control whose two sections show 23 and 5 red against a probe that emits an empty section instead of omitting it",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T053228459971-node-probe/manifest.md",
+        "scope_changed": false,
+        "session_id": "4f29bc38-c4e7-44eb-8850-b7c9c4c04ba4",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 2804662,
+            "input_tokens_cumulative": 2804662,
+            "output_tokens": 13257,
+            "output_tokens_cumulative": 13257,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-21T12:22:37.845Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": {
+          "status": "parsed",
+          "scores": {
+            "durability": 18,
+            "evidence": 19,
+            "fit": 19,
+            "goal_fidelity": 20,
+            "scope_discipline": 20
+          },
+          "absent": [],
+          "total": 96
+        },
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 50617873,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 971.209,
+          "generated_tokens": 267283,
+          "generation_seconds": 785.188,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 27.1,
+          "machine_seconds": 186.021,
+          "peak_input_tokens": 130309,
+          "tokens_per_second": 340.41,
+          "wall_tokens_per_second": 275.21
+        },
+        "follow_on_paths": [
+          "node_probe.NodeProbe.sample",
+          "serving_receipts.py",
+          "cards/host/jobs",
+          "tests/test_node_probe.py",
+          "15.0",
+          "docs/figures/node-probe/",
+          "docs/figures/serve-telemetry-spine/."
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "resume",
+        "attempt": 6,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/telemetry-spine/node-probe",
+          "session_id": "4f29bc38-c4e7-44eb-8850-b7c9c4c04ba4",
+          "session_source": "pointer",
+          "retained_at": "2026-09-21T12:22:37.845Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "plan_impl_at_dispatch": 0.4,
+        "impl_move": {
+          "plan": "serve-telemetry-spine",
+          "at_dispatch": 0.4,
+          "at_complete": 0.6,
+          "verdict": "moved"
+        },
+        "negative_control": {
+          "verdict": "matched",
+          "reason": "node-writes-no-test-path",
+          "test_paths": [
+            "tests/test_node_probe.py"
+          ],
+          "declaration": "make a failing probe return an empty section instead of omitting it; the absence test must fail",
+          "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T053228459971-node-probe/negative-control-absent-section.log",
+          "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T053228459971-node-probe/negative-control-absent-section.log"
+        },
+        "tool_steps": 83.0,
+        "orientation_input_tokens": 1332579.0,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -56229,6 +56478,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 856
+    "_version": 857
   }
 }
