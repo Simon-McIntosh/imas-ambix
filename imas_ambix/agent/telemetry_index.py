@@ -10,16 +10,17 @@ index can therefore never itself be the only copy of anything: it is built by
 reading the record, deleted and rebuilt on corruption, on a schema change, or
 on demand, and a rebuild is expected to reproduce the same query results.
 
-**Tail state is kept per path, and content identity is per inode and byte
-offset.** The two are different jobs. The path-keyed row records how far this
-index has consumed each file, so ordinary appends cost only the new bytes. The
-``(inode, offset)`` uniqueness on the sample table is what makes a re-read
-harmless: a rolled file is rediscovered under a new path, its lines are read
-from the start, and every one of them collides with the sample already stored
-under that inode and offset, so nothing is counted twice and nothing that was
-appended after the roll is missed. Offset alone would not do it — a path that
-is replaced by a new file is a new inode at offset zero — and path alone would
-not do it either, because the rolled file keeps its bytes and loses its name.
+**The tail is keyed on the inode, and a line's identity is its inode and byte
+offset.** The two are different jobs, and each covers what the other cannot.
+The offset records how far this index has consumed a byte stream, so an
+ordinary append costs only the new bytes, and it is looked up by inode rather
+than by path because a rolled file keeps its bytes and loses its name —
+resuming per path would re-read everything the rolled file holds. The
+``(inode, offset)`` uniqueness on the sample table then makes a re-read
+harmless anyway: the bytes come back under a new path, and every line collides
+with the sample already stored for that inode and offset. Offset alone would
+not do it either, because a path replaced by a new file is a new inode at
+offset zero, and its lines must be read.
 
 **A quantity the record does not carry stays absent.** An aggregate over a
 measurement no sample in the window carried returns ``None`` rather than
@@ -260,11 +261,14 @@ class TelemetryIndex:
     ) -> tuple[Iterator[tuple[int, bytes]], int]:
         """Complete lines to consume and the offset they carry the file to."""
         row = self._conn.execute(
-            "SELECT offset FROM source WHERE path = ? AND inode = ?",
-            (str(path), stat.st_ino),
+            # Keyed on the inode, not the name: a rolled file keeps its bytes
+            # and its offset while losing its path, so resuming per path would
+            # re-read everything it holds.
+            "SELECT MAX(offset) AS offset FROM source WHERE inode = ?",
+            (stat.st_ino,),
         ).fetchone()
         start = 0
-        if row is not None:
+        if row is not None and row["offset"] is not None:
             if stat.st_size < row["offset"]:
                 # Rewritten in place: the bytes past the new end no longer
                 # describe anything, so their samples go with them.
