@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-21">
-<meta name="plan-version" content="38">
+<meta name="plan-version" content="39">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="c23be8f8,f5c3c91f,493e0281,f743fcea,0f9ce03f,b1696d31,0e9a656c,bacf490f">
 <meta name="plan-impl" content="0.8">
@@ -695,6 +695,9 @@
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20260921T160617069735-review-of-what-a-completed-receipt-promises" data-who="reckon-ship" data-when="2026-09-21T17:14:37.691Z">
     <div class="r-comment-body"><p>scored 89 at a04ac778 and found the most consequential defect of the sprint: commit a04ac778, subjected fix(agent) and described in the landing record as closing the departure race, changes NO executable code - both modules parse identically with docstrings stripped. The coordinator had confirmed that fix by grepping the head for a mechanism that predated the commit. It also found nothing pinned the sampling position: moving the read past the hand-over left both focused files green at 19 and 24 passed while a live drive stored a different status</p></div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-run-r-20260921T084952190551-receipt-records-the-outcome-it-saw" data-who="reckon-ship" data-when="2026-09-21T17:54:19.960Z">
+    <div class="r-comment-body"><p>Three review rounds. Six defects closed, each demonstrated by mutation: an upstream dying mid-body recorded COMPLETED because status was set on the 2xx before the body loop; requests the router answered itself left no receipt at all; the sampling ceiling had no operator surface; a caller departing mid-upload left no row, the one outcome the section requires be recorded; the self-answered sites took their status as a literal rather than from what the caller received; and the status assertions compared against constants imported from the module under test. THE DEPARTURE RACE IS NOT FIXED AND IS DOCUMENTED AS UNCLOSEABLE FROM INSIDE THE APP: a review found the commit claiming to close it changed no executable code, and the node then established that the server marks a response complete inside the send that writes the body, after which the receive channel answers identically for a completed response and a departed caller, so a read after the hand-over reports every caller as gone and waiting longer only relocates the window. A test pins the read&#x27;s position so it cannot move silently</p></div>
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20260921T061330049782-review-of-telemetry-store" data-who="reckon-ship" data-when="2026-09-21T06:25:06.340Z">
     <div class="r-comment-body"><p>Reviewed telemetry-store at 79/100 and found four defects including data corruption: a null leaf folded as identity erased its window, and the fixture populated every leaf so the defect could not fail the suite while the real record is null-rich. All four repaired.</p></div>
