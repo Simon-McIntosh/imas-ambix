@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="circular-assertion-guard">
+  <meta name="plan-title" content="Circular Assertion Guard">
+  <meta name="plan-summary" content="A check that catches a test asserting a value against the very constant the code under test reads, and a disposal of the sites it finds">
+  <meta name="plan-status" content="draft">
+  <meta name="plan-roi" content="mid">
+  <meta name="plan-effort-hours" content="5.0">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="orchestrator">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-sprint" content="S25">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-tags" content="agent-serving">
+  <title>Circular Assertion Guard | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-09-21">
+<meta name="plan-version" content="1">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — The defect, and why it survives every review</h2>
+
+    <p>A test that reads a constant out of the module it is testing and asserts
+    a produced value equals it cannot fail on that constant's value. Change the
+    constant and both sides move together; the test stays green and reports that
+    the behaviour was checked. It is the test-suite form of the guard that
+    disables itself to pass its own test — it certifies something, just not the
+    thing its name claims.</p>
+
+    <p>This is not a hypothetical shape. It was found by a reviewer on the
+    telemetry spine, in a module whose own six review rounds had not surfaced it,
+    because every round read the module and its tests as a pair and the pair is
+    internally consistent. That is the mechanism: <strong>a circular assertion is
+    invisible to any reader who holds both sides at once</strong>, which is
+    exactly what a focused review does. Only a check that compares the two sides
+    <em>mechanically</em> sees it.</p>
+
+    <h3>What was measured, and the number that was wrong</h3>
+
+    <p>An earlier scan of this repository reported 210 sites. That figure counted
+    any <code>assert a == b</code> in which either side referenced a symbol
+    imported from <code>imas_ambix</code>, which sweeps in the two shapes that are
+    the <em>opposite</em> of the defect: a chain that pins a literal somewhere
+    along it, and a comparison whose other side is a written-out literal. Scanned
+    again with those excluded:</p>
+
+    <table>
+      <caption>Assert chains of the form <code>x == y</code> (all-<code>Eq</code>)
+      in <code>tests/</code>, where at least one side is a bare reference into
+      <code>imas_ambix</code>.</caption>
+      <thead>
+        <tr><th>Scan</th><th>Sites</th><th>Files</th><th>Of which spine modules</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Any imported reference on either side</td><td>185</td><td>63</td><td>20 in 4</td></tr>
+        <tr><td>Excluding chains a literal pins</td><td><strong>135</strong></td><td><strong>51</strong></td><td><strong>10 in 4</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p>Neither figure is 210, and the difference between the two rows is the whole
+    design problem: <strong>the scan is easy and the classification is not.</strong>
+    A guard that reports the first row is a guard nobody will keep.</p>
+
+    <h3>Three shapes that look identical to a scanner and are not defects</h3>
+
+    <p>Every one of these was found among the ten spine sites, so an allowlist is
+    not a concession to legacy code — it is required for the guard to be correct
+    on code written this week.</p>
+
+    <table>
+      <thead>
+        <tr><th>Shape</th><th>Example</th><th>Why it is sound</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Wiring</strong></td>
+          <td><code>derived["occupancy_target"] == LaneCapacity.OCCUPANCY_TARGET</code></td>
+          <td>The claim is that the published field is fed by that constant, not
+              that the constant holds a particular value. Pinning a number here
+              would assert the wrong thing and would churn on every retune.</td>
+        </tr>
+        <tr>
+          <td><strong>Pinned once, referenced after</strong></td>
+          <td><code>rows[0]["upstream"] == SELF_ANSWERED_UPSTREAM</code>, where the
+              same file elsewhere asserts <code>SELF_ANSWERED_UPSTREAM == "(router)"</code></td>
+          <td>The value is pinned exactly once, and every later use reads as prose.
+              Repeating the literal at each site would be worse, not better.</td>
+        </tr>
+        <tr>
+          <td><strong>Written-out literal</strong></td>
+          <td><code>_CARD_QUERY_FIELDS_LITERAL == node_probe.CARD_QUERY_FIELDS</code></td>
+          <td>The left side is spelled out in the test file itself, so the
+              comparison does pin the value. A scanner sees a <code>Name</code> on
+              both sides and cannot tell.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>The third shape is the one that decides the guard's architecture. Telling it
+    apart from a genuine circular assertion needs the test module's own bindings
+    resolved, not just the comparison node — so the check is a small AST pass over
+    each test file, not a regular expression, and it must be written that way from
+    the start.</p>
+
+    <h2 id="s2">§2 — The guard</h2>
+
+    <p>Deliver one check that walks <code>tests/</code>, parses each test module,
+    resolves which names it binds locally and which it imports from
+    <code>imas_ambix</code>, and reports an <code>assert</code> whose equality
+    chain is <em>anchored to nothing</em>: no literal anywhere in the chain, no
+    side bound to a literal within the test module, and at least one side a bare
+    reference into the package under test.</p>
+
+    <p>It carries an explicit allowlist keyed on file and symbol, with a required
+    one-line reason per entry, so a wiring assertion is recorded as a decision
+    rather than as an absence. An entry without a reason is a failure of the guard,
+    not an exemption from it — the reason is the thing a later reader checks.</p>
+
+    <p>Done when: the guard runs from the repository root and exits 0 on an empty
+    finding set; a test asserts it reports a deliberately planted circular
+    assertion; a second test asserts it stays silent on each of the three sound
+    shapes in §1, one case each; and the allowlist refuses an entry with no
+    reason. The whole-tree lint gate stays green.</p>
+
+    <p>Not in scope: wiring it into CI. A guard that fires on 135 pre-existing
+    sites cannot be made blocking on the day it lands, and making it blocking
+    before §3 and §4 have run would force exactly the reflex this plan exists to
+    prevent — silencing the check to get green.</p>
+
+    <h2 id="s3">§3 — Dispose of the spine modules' ten sites</h2>
+
+    <p>Ten sites across <code>test_lane.py</code> (5),
+    <code>test_engine_metrics.py</code> (2), <code>test_node_probe.py</code> (2)
+    and <code>test_request_receipts.py</code> (1). Inspection while writing §1
+    suggests most are the sound shapes rather than defects, so the expected
+    outcome here is mostly allowlist entries with reasons — and that is a real
+    deliverable, because an unrecorded sound assertion is indistinguishable from
+    an unnoticed circular one.</p>
+
+    <p>Each site is disposed of one of three ways, and the disposal is stated per
+    site: pin the value with a literal; keep it and add an allowlist entry naming
+    which of the three sound shapes it is; or delete it as carrying no claim.
+    Every pinned site must be demonstrated by a mutation — change the constant in
+    the module and show the named test reddens — because a site repaired without
+    that demonstration has only been rewritten, not fixed.</p>
+
+    <p>Done when: the guard reports zero unallowlisted findings under those four
+    files; every allowlist entry added carries its reason; every pinned site has a
+    mutation receipt quoting the exact changed line and the test that failed; the
+    focused suites pass and the whole-tree lint gate is green.</p>
+
+    <h2 id="s4">§4 — Dispose of the remaining tree</h2>
+
+    <p>125 sites across 47 files once §3 has run. This section is partitioned by
+    file rather than by subject, because the inventory the guard emits already
+    exists and coverage is then checkable by arithmetic: each worker takes a
+    disjoint set of test files, disposes of every finding in them, and a merge
+    step verifies the tiling by count against the guard's own output. The
+    heaviest files are the place to start — <code>test_machine_artifact_arm.py</code>
+    and <code>test_geometry_export.py</code> carry 12 each,
+    <code>test_provenance.py</code> 10, <code>test_artifact_resolution.py</code> 9.</p>
+
+    <p>The same three-way disposal and the same mutation requirement as §3 apply.
+    Nothing here is urgent; it is the long tail, and it is sequenced last so the
+    guard has been exercised on the spine before it is pointed at unfamiliar code.</p>
+
+    <p>Done when: the guard reports zero unallowlisted findings across
+    <code>tests/</code>; the tiling is verified by count; and a decision is
+    recorded on whether the guard becomes blocking in CI, which is the only point
+    at which that question can be answered from evidence rather than from
+    intent.</p>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="guard-blocking" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Once the tree is clean, does the guard become a blocking CI check or stay an advisory report?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="blocking">Blocking — a new circular assertion fails the build</button>
+      <button class="r-opt" data-value="advisory">Advisory — reported, not enforced</button>
+      </p>
+    <p class="r-dec-rat">Deferred to §4 on purpose. Answering it now would be answering from intent; after the disposal the false-positive rate on real code is measured and the question has an evidenced answer.</p>
+    </div>
+<div class="r-dec" data-key="allowlist-location" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Where does the allowlist live — beside the guard, or as a marker at each site?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="central">One file beside the guard</button>
+      <button class="r-opt" data-value="inline">An inline marker comment at each site</button>
+      </p>
+    <p class="r-dec-rat">An inline marker keeps the reason next to the code it explains, which is where a reader wants it; a central file makes the whole set of exemptions readable at once and is harder to add to casually. Settle this in §2 before any entry is written, because migrating entries afterwards is pure churn.</p>
+    </div>
+</section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-cag-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-09-21" data-recommends-skill="/reckon-ship circular-assertion-guard §2" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Build the guard and settle where the allowlist lives</h4>
+    <div class="r-fu-body">Start at <strong>&sect;2</strong>. The check is an AST pass over each test module, not a regular expression: telling a written-out literal apart from a circular reference needs the test module's own bindings resolved, and that decision cannot be retrofitted onto a regex later. Settle the <code>allowlist-location</code> decision before any entry is written, because migrating entries afterwards is pure churn. &sect;3 is gated on the telemetry spine's wire nodes landing, since they are writing tests into the same four files right now.</div>
+    <pre class="r-fu-prompt">/reckon-ship circular-assertion-guard §2</pre>
+    </article>
+</section>
+
+  <section data-reckon="gates" id="gates" class="r-gates">
+<h2><span class="sec">§</span> Evidence gates</h2>
+<div class="r-gate" data-id="g-circular-assertion-guard-1" data-section="s3" data-gated-sections="s3" data-status="open" data-verdict="">
+    <h4 class="r-gate-measure">the telemetry spine&#x27;s wire nodes have landed, so the four spine test files are no longer being written by concurrent work</h4>
+    <p class="r-gate-required-evidence">serve-telemetry-spine#s7</p>
+    </div>
+</section>
+</main>
+</body>
+</html>
