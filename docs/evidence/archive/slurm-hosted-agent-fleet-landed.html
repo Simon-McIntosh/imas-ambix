@@ -719,6 +719,113 @@ uv run python -m imas_ambix.agent.throttling interval \
     branch was observed live at exit 0.</p>
   </section>
 
+<section id="fleet-status-sees-the-allocation">
+    <h2>The status surface, looking in the account the allocation is charged to</h2>
+    <p>Commits <code>5b6f84e7</code> and its record commit. The
+    <code>fleet status</code> command queried the queue through
+    <code>_running_jobs(SiteConfig.from_env())</code>, which filters on
+    <code>site.account</code> — the GPU serving account <code>grpa</code> — while the
+    hold generator charges the allocation to <code>site.fleet_account</code>,
+    <code>iter</code>. An allocation charged to one account cannot appear in a query
+    filtered on another, so the command reported
+    <em>“No fleet allocation is held”</em> at exit 0 while the allocation was running.
+    The lookup now takes the charged account as an operand and the status command reads
+    it from <code>site.fleet_account</code>; every other caller of the same query keeps
+    the site-account default.</p>
+
+    <h3>The defect reproduced before it was repaired</h3>
+    <p>Read against the base revision <code>0dcf297d</code>: the hold generator emits
+    <code>#SBATCH --account=iter</code> (from a live read of
+    <code>generate_fleet_hold_script(SiteConfig())</code>), while the query the status
+    command built carried <code>-A grpa</code>. Reverting the repair to the site-account
+    filter reproduces the miss directly: the faked runner receives
+    <code>-A grpa</code> and the account assertion fails with
+    <code>assert 'grpa' == 'iter'</code>, which is the defect stated as an operand in the
+    argv rather than inferred from the command's silence. No SLURM job was submitted,
+    cancelled or modified at any point; every queue and node state quoted here is fixture
+    text.</p>
+
+    <h3>The warning that could not fire, and the one that can</h3>
+    <p>The only warning was a remaining-wall-clock threshold below
+    <code>REMAINING_WARNING_SECONDS</code>, and this allocation is unbounded by
+    construction (<code>--time=UNLIMITED</code>), so that threshold is unreachable for
+    it. The node's own scheduler state is now read and a draining or drained node adds a
+    warning on its own, which is the case that ends the allocation regardless of its wall
+    clock. §5 names four ways the allocation's control group dies; the table states which
+    this surface now reports rather than implying it reports all four.</p>
+
+    <table>
+      <thead><tr><th>How the control group dies</th><th>Surfaced by this surface</th><th>Instrument</th></tr></thead>
+      <tbody>
+        <tr><td>Wall-clock time limit</td>
+        <td>Only for a finite allocation — <strong>unreachable for the held one</strong>,
+        which is unbounded</td>
+        <td>remaining-time threshold on <code>squeue %L</code></td></tr>
+        <tr><td><code>scancel</code></td><td>Not surfaced</td>
+        <td>none — no advance notice exists to read</td></tr>
+        <tr><td>Node drain</td><td><strong>Surfaced</strong></td>
+        <td>node state from <code>scontrol show node</code></td></tr>
+        <tr><td>Preemption</td><td>Not surfaced</td>
+        <td>none — preemption is off cluster-wide on this stack, so the drain is the
+        operative out-of-band loss</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Node state is read by prefix, because the spelling varies</h3>
+    <p><code>scontrol show node</code> reports the state as a <code>State=</code> field
+    whose value may carry flags after a <code>+</code>
+    (<code>DRAINING+NOT_RESPONDING</code>). The parser drops the flags and upper-cases the
+    leading token, and the drain test matches on a prefix (<code>DRAIN</code>) rather
+    than an equality, so <code>DRAIN</code>, <code>DRAINED</code> and
+    <code>DRAINING</code> all warn. A value that is not a node name — a pending job
+    reports its <em>reason</em> in that field — and a failed query both read as unknown,
+    which is not warned about and is not read as healthy either.</p>
+
+    <h3>The assertion that could not fail</h3>
+    <p><code>test_fleet_status_warns_inside_the_threshold</code> asserted
+    <code>REMAINING_WARNING_SECONDS == 1800</code>, comparing the imported constant
+    against the number it is defined as; retuning the threshold would have kept that
+    assertion green and moved the boundary the test is meant to defend. It is replaced by
+    a property: both fixtures are derived from the constant, one sixty seconds inside it
+    and one sixty seconds outside, and a warning firing too late and one firing too early
+    are each a newly failing test. The warning boundary is exercised at both edges, not
+    only from the inside.</p>
+
+    <h3>Gates, and the declared negative control applied</h3>
+    <table>
+      <thead><tr><th>Gate</th><th>Observed result</th></tr></thead>
+      <tbody>
+        <tr><td>Focused suite</td>
+        <td><code>uv run --no-sync pytest tests/agent/test_fleet.py</code>:
+        <code>15 passed in 0.69s</code>, exit 0</td></tr>
+        <tr><td>Whole-tree lint</td>
+        <td><code>uv run --no-sync ruff check imas_ambix tests</code>:
+        <code>All checks passed!</code>, exit 0</td></tr>
+        <tr><td>Wider consumer of the same query</td>
+        <td><code>uv run --no-sync pytest tests/test_agent.py</code>:
+        <code>192 passed in 21.95s</code></td></tr>
+        <tr><td>Declared negative control</td>
+        <td><strong>1 failed, 14 deselected</strong>; the source was restored and the
+        named file re-run to <code>15 passed</code></td></tr>
+      </tbody>
+    </table>
+    <p>The declared mutation is <em>account=site.fleet_account → account=site.account in
+    the fleet status job lookup</em>, which is the defect reintroduced. It makes the
+    account assertion red with <code>assert 'grpa' == 'iter'</code>, reported
+    <strong>1 failed, 14 deselected</strong>; the source was restored and the named file
+    re-run to <strong>15 passed</strong>. The log's first line repeats the declared
+    mutation verbatim, so a log that failed for another reason is refused:
+    <code>~/.config/reckon/crew/runs/r-20260921T085932378383-fleet-status-sees-the-allocation/negative-control.log</code>.</p>
+
+    <h3>What this record does not establish</h3>
+    <p>No held <code>ambix-fleet</code> allocation existed to query, so the present branch
+    is evidenced over fixture rows and the node-state read is exercised through the faked
+    runner rather than against a live draining node. The four-cause coverage above is a
+    statement about what the surface reads, not a claim that the remaining two causes can
+    be given advance notice at all. The plan record is edited in place by hand rather than
+    through the reckon writer, because the plan is being landed against concurrently.</p>
+  </section>
+
 </main>
 </body>
 </html>
