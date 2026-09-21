@@ -612,7 +612,6 @@ SECONDARY_LOCAL_MODEL="${_CATALOG_FIELDS[10]}"
 SECONDARY_LOCAL_DESCRIPTION="${_CATALOG_FIELDS[11]}"
 RUNTIME_LABEL="${ACCELERATOR_COUNT}×${ACCELERATOR_FAMILY} · ${CHECKPOINT_PRECISION}"
 CONTEXT_LABEL="unknown"
-BUDGET_LABEL="engine context unavailable"
 if [[ -n "$MAX_CONTEXT" ]]; then
     if (( MAX_CONTEXT < 2 )); then
         echo "clive: selected release '$MODEL_ID' has too little context for a prompt and response." >&2
@@ -635,7 +634,6 @@ if [[ -n "$MAX_CONTEXT" ]]; then
     # it the ceiling turns that refusal into context pressure it can compact.
     export CLAUDE_CODE_MAX_CONTEXT_TOKENS="$USABLE_INPUT_BUDGET"
     CONTEXT_LABEL="$(( MAX_CONTEXT / 1024 ))k"
-    BUDGET_LABEL="${USABLE_INPUT_BUDGET}-token usable input budget · ${OUTPUT_RESERVATION}-token output reservation"
 else
     unset CLAUDE_CODE_MAX_CONTEXT_TOKENS
     unset CLAUDE_CODE_MAX_OUTPUT_TOKENS
@@ -648,14 +646,12 @@ SUPPORTED_CAPABILITIES="thinking"
 
 if [[ "$HARNESS" == "codex" ]]; then
     command -v codex >/dev/null 2>&1 || { echo "clive: 'codex' not on PATH." >&2; exit 127; }
-    printf "\nClive (Codex) — serving: %s · %s\n\n" "$MODEL_ID" "$RUNTIME_LABEL" >&2
     OPENAI_BASE_URL="${GLOBAL_ORIGIN}/v1" OPENAI_API_KEY="$KEY" exec codex --model "$MODEL_ID" "${ARGS[@]}"
 fi
 
 command -v claude >/dev/null 2>&1 || { echo "clive: 'claude' not on PATH." >&2; exit 127; }
 
 if [[ "$MODE" == "local" ]]; then
-    printf "\nClive — global only — serving: %s · %s · %s\n\n" "$MODEL_ID" "$RUNTIME_LABEL" "$BUDGET_LABEL" >&2
     ANTHROPIC_BASE_URL="$GLOBAL_ORIGIN" \
     ANTHROPIC_AUTH_TOKEN="$KEY" \
     ANTHROPIC_API_KEY="" \
@@ -710,7 +706,6 @@ if ! $_PROXY_READY; then
     exit 1
 fi
 
-printf "\nClive — global + OpenRouter — picker: %s, or-opus-4.8, or-gpt-5.5, or-glm-5.2 · %s\n\n" "$MODEL_ID" "$BUDGET_LABEL" >&2
 ANTHROPIC_BASE_URL="http://127.0.0.1:$LITELLM_PORT" \
 ANTHROPIC_AUTH_TOKEN="clive" \
 ANTHROPIC_API_KEY="" \

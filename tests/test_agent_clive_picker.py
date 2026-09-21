@@ -192,8 +192,10 @@ def test_each_release_gets_its_own_topology_and_context(tmp_path):
     assert environment["CLAUDE_CODE_MAX_CONTEXT_TOKENS"] == "492288"
     assert environment["CLAUDE_CODE_MAX_OUTPUT_TOKENS"] == "32000"
     assert 492_288 + 32_000 <= 524_288
-    assert "492288-token usable input budget" in result.stderr
-    assert "32000-token output reservation" in result.stderr
+    # A launch is silent: the selected release and its budget reach the
+    # harness as model descriptions and exported limits, so repeating them
+    # on the terminal would only prefix every session with a stray line.
+    assert result.stderr == ""
 
 
 def test_small_context_uses_its_own_safe_output_reservation(tmp_path):
@@ -223,8 +225,7 @@ def test_small_context_uses_its_own_safe_output_reservation(tmp_path):
     # A prompt filled to the declared ceiling still leaves the reservation
     # inside the served window, which is what keeps the engine from refusing.
     assert usable_input + reservation <= 65_536
-    assert "49152-token usable input budget" in result.stderr
-    assert "16384-token output reservation" in result.stderr
+    assert result.stderr == ""
 
 
 @pytest.mark.parametrize("max_model_len", [2, 3, 65_536, 524_288])
