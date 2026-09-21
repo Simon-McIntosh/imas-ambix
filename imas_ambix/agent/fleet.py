@@ -27,6 +27,13 @@ FLEET_COMMENT = "ambix-fleet"
 # arrive while the allocation still has time left to act in.
 REMAINING_WARNING_SECONDS = 30 * 60
 
+# Scheduler node-state prefixes that mean the node is being taken out of
+# service. A draining node still runs its jobs, but the allocation ends when
+# the drain completes, so the operator has to be told before that happens.
+# The spelling varies (`DRAIN`, `DRAINED`, `DRAINING`) and may carry flags
+# after a `+`, so the match is a prefix rather than an equality.
+_DRAINING_STATE_PREFIX = "DRAIN"
+
 
 def generate_fleet_hold_script(site: SiteConfig) -> str:
     """Generate the whole-node allocation that hosts interactive sessions.
@@ -117,6 +124,27 @@ def remaining_seconds(time_left: str) -> int | None:
     return day_count * 86400 + hours * 3600 + minutes * 60 + secs
 
 
+def parse_node_state(node_info: str) -> str | None:
+    """Upper-cased state token from ``scontrol show node`` output, or ``None``.
+
+    The row is whitespace-separated ``key=value`` fields and the state is the
+    ``State=`` one. Flags are reported after a ``+`` (``DRAINING+NOT_RESPONDING``)
+    and are dropped, because the leading token is what decides whether the node
+    is going out of service.
+    """
+    for token in node_info.split():
+        if not token.startswith("State="):
+            continue
+        value = token.split("=", 1)[1].split("+", 1)[0].strip().upper()
+        return value or None
+    return None
+
+
+def node_is_draining(state: str | None) -> bool:
+    """Whether a scheduler node state means the node is going out of service."""
+    return bool(state) and state.upper().startswith(_DRAINING_STATE_PREFIX)
+
+
 def _format_duration(seconds: int) -> str:
     """Render a second count compactly: ``2d03h``, ``1h05m``, ``25m``, ``40s``."""
     days, rest = divmod(seconds, 86400)
@@ -131,13 +159,20 @@ def _format_duration(seconds: int) -> str:
     return f"{secs}s"
 
 
-def describe_fleet_allocation(job: dict[str, str]) -> list[str]:
+def describe_fleet_allocation(
+    job: dict[str, str], *, node_state: str | None = None
+) -> list[str]:
     """Operator-readable lifetime for one scheduler row, as plain-text lines.
 
-    An allocation with no wall clock reads as unbounded and never warns; a
-    finite one below :data:`REMAINING_WARNING_SECONDS` adds a warning line.
-    The warning is the only place a remaining time is compared to a
+    An allocation with no wall clock reads as unbounded and never warns on
+    time; a finite one below :data:`REMAINING_WARNING_SECONDS` adds a warning
+    line. The time warning is the only place a remaining time is compared to a
     threshold, and an unbounded or unreadable value never reaches it.
+
+    ``node_state`` is the scheduler state of the node the allocation runs on.
+    A node that is draining or drained ends the allocation when the drain
+    completes regardless of any wall clock, so it warns on its own — which is
+    the only way an unbounded allocation is warned about at all.
     """
     job_id = job.get("jobid", "") or "unknown"
     state = job.get("state", "") or "unknown"
@@ -157,6 +192,12 @@ def describe_fleet_allocation(job: dict[str, str]) -> list[str]:
         f"  elapsed    {elapsed}",
         f"  remaining  {remaining}",
     ]
+    if node_is_draining(node_state):
+        lines.append(
+            f"WARNING: fleet allocation {job_id} runs on {node}, which the "
+            f"scheduler reports {node_state}; the allocation ends when the "
+            f"drain completes"
+        )
     if seconds is not None and seconds < REMAINING_WARNING_SECONDS:
         lines.append(
             f"WARNING: fleet allocation {job_id} has {_format_duration(seconds)} "

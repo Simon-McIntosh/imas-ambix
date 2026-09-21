@@ -320,16 +320,19 @@ def fleet_status() -> None:
     """Report the held fleet allocation, its node and its remaining lifetime.
 
     The allocation is found from the scheduler by the comment token the hold
-    generator emits. A missing allocation is reported in words rather than as
-    an empty table, and an allocation with no wall clock reads as unbounded
-    and never warns.
+    generator emits, queried under the account the hold is charged to. A
+    missing allocation is reported in words rather than as an empty table.
+    An allocation with no wall clock reads as unbounded and never warns on
+    time, so the node's own scheduler state is read too: a draining node ends
+    the allocation when the drain completes and is warned about on its own.
     """
     from imas_ambix.agent.fleet import (
         describe_fleet_allocation,
         find_fleet_allocation,
     )
 
-    jobs = _running_jobs(SiteConfig.from_env())
+    site = SiteConfig.from_env()
+    jobs = _running_jobs(site, account=site.fleet_account)
     allocation = find_fleet_allocation(jobs)
     if allocation is None:
         console.print(
@@ -337,7 +340,8 @@ def fleet_status() -> None:
             "whole-node allocation in the queue."
         )
         return
-    for line in describe_fleet_allocation(allocation):
+    node_state = _fleet_node_state(allocation.get("node", ""))
+    for line in describe_fleet_allocation(allocation, node_state=node_state):
         console.print(line, markup=False, highlight=False)
 
 
@@ -1181,7 +1185,10 @@ def _mask_key(key: str) -> str:
 
 
 def _running_jobs(
-    site: SiteConfig, *, job_ids: tuple[str, ...] = ()
+    site: SiteConfig,
+    *,
+    job_ids: tuple[str, ...] = (),
+    account: str | None = None,
 ) -> list[dict[str, str]]:
     """Return Ambix SLURM jobs as a list of field dicts.
 
@@ -1192,6 +1199,11 @@ def _running_jobs(
     leaves the lifetime unknown. With explicit ids the query reconciles shared
     registrations independent of their owner; otherwise it retains the
     operator-scoped status view. Query failure is distinct from an empty queue.
+
+    ``account`` selects the charged account to query, defaulting to the site
+    account. A job charged to a different account is invisible to a query
+    filtered on this one, so a caller looking for such a job must pass the
+    account it is billed to.
     """
     selector = (
         ["-j", ",".join(job_ids)]
@@ -1207,7 +1219,7 @@ def _running_jobs(
             "-h",
             *selector,
             "-A",
-            site.account,
+            account if account is not None else site.account,
             "-o",
             "%i|%j|%T|%M|%R|%b|%k|%L",
         ],
@@ -1235,6 +1247,30 @@ def _running_jobs(
             entry["timeleft"] = parts[7].strip()
         jobs.append(entry)
     return jobs
+
+
+def _fleet_node_state(node: str) -> str | None:
+    """Scheduler state of the node an allocation runs on, or ``None``.
+
+    An allocation with no wall clock is still ended by its node going out of
+    service, and only the node's own state reports that. A value that is not a
+    node name (a pending job reports its reason in that field) or a failed
+    query yields ``None``, which reads as unknown rather than healthy.
+    """
+    from imas_ambix.agent.fleet import parse_node_state
+
+    name = node.strip()
+    if not name or any(char in name for char in " ()"):
+        return None
+    result = subprocess.run(
+        ["scontrol", "show", "node", name],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return None
+    return parse_node_state(result.stdout)
 
 
 def _serving_slugs(site: SiteConfig) -> set[str]:
