@@ -334,7 +334,7 @@
     a non-zero exit is not a reading even when the command printed.</p>
 
     <p><strong>Gates.</strong> <code>uv run --no-sync pytest
-    tests/test_node_probe.py -q</code> reports <strong>34 passed</strong>;
+    tests/test_node_probe.py -q</code> reports <strong>35 passed</strong>;
     <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0; and
     <code>pytest tests/test_agent_serve_registry.py -k serving_python</code> reports
     <strong>2 passed</strong>, which is the guard this module needs because the serve
@@ -412,6 +412,59 @@
     blind, and it is the mapping under review that was. That pair of runs is the finding
     rather than a description of it.</p>
 
+    <p><strong>The rewritten file still held two further derived expectations, and
+    that is the fifth finding.</strong> The two query vectors the probe sends were
+    expected in the same form the probe composes them: the test built the
+    <code>nvidia-smi</code> field list from <code>node_probe.CARD_QUERY_FIELDS</code>
+    and the job format from <code>node_probe.SQUEUE_FORMAT</code>, which are the
+    constants the probe itself reads to build the query. An expectation composed from
+    the constant it checks moves with every edit to that constant, so it agrees with
+    production by construction and asserts nothing about <em>which</em> quantities
+    reach the device: drop <code>temperature.gpu</code> from the field list, or reorder
+    the fields, and the expected vector shortens in step while the suite stays green
+    and the probe has silently stopped reading a quantity the section names. This is
+    the same defect as the three before it — a check reporting coverage it does not
+    have — and it is the fifth round in this node where the module was correct and the
+    assertion could not fail.</p>
+
+    <p>Both vectors are now written out in the test file as literals, spelled as they
+    must reach the wire, so a field added to, dropped from or reordered in either
+    constant reddens the assertion about the wire rather than travelling with it. That
+    property depends on the literals being the <em>only</em> place the vectors are
+    stated, so the coupling back to the module is asserted once, in a single labelled
+    test, and that is the sole derived expectation among the file's wire assertions. The
+    literal field list is nine entries — the read index first, then one per quantity —
+    and it is checkable by eye against the section above.</p>
+
+    <p>The control removes <code>temperature.gpu</code> from
+    <code>CARD_QUERY_FIELDS</code>, leaving the other eight fields and the query's
+    shape untouched, and is run as a pytest plugin that rebinds the module attribute
+    before collection. Its pair of runs is what makes the finding visible rather than
+    described:</p>
+
+    <table>
+      <thead><tr><th>Test file under that control</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>at the current head, vectors written out</td>
+          <td><strong>3 failed, 32 passed</strong> — the literal-vector assertion, and the
+          two tests that pin the bound each command was invoked with, because the
+          recording runner no longer answers the vector the probe sends</td>
+        </tr>
+        <tr>
+          <td>at the previous head, vectors derived from the constants</td>
+          <td><strong>34 passed</strong> — the expectation shortened with the query, so
+          the mutation was invisible while the probe had stopped reading a field</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>Those two vectors were the only derived expectations among the file's wire
+    assertions; every other expectation in <code>tests/test_node_probe.py</code> was
+    examined and is a literal. The one remaining term that names a module attribute —
+    the class default pinning the job read's own bound — carries its literal on the same
+    line, so it reddens against that literal rather than moving with the constant.</p>
+
     <h2 id="node-readings-commits">Commits</h2>
 
     <table>
@@ -423,6 +476,7 @@
         <tr><td><code>f12261e8</code></td><td>correct the node-readings record after review</td></tr>
         <tr><td><code>fe128951</code></td><td>give the job probe the bound its signature declares, after recheck</td></tr>
         <tr><td><code>65bf2443</code></td><td>pin each probe read's bound by its own argument vector, after recheck</td></tr>
+        <tr><td><code>2d02965c</code></td><td>write the probe's query vectors out in the test instead of deriving them, after recheck</td></tr>
       </tbody>
     </table>
 
