@@ -915,15 +915,38 @@ uv run python -m imas_ambix.agent.throttling interval \
       </tbody>
     </table>
 
-    <h3>Node state is read by prefix, because the spelling varies</h3>
+    <h3>Node state is read as a token set, because the drain token is not first</h3>
     <p><code>scontrol show node</code> reports the state as a <code>State=</code> field
-    whose value may carry flags after a <code>+</code>
-    (<code>DRAINING+NOT_RESPONDING</code>). The parser drops the flags and upper-cases the
-    leading token, and the drain test matches on a prefix (<code>DRAIN</code>) rather
-    than an equality, so <code>DRAIN</code>, <code>DRAINED</code> and
-    <code>DRAINING</code> all warn. A value that is not a node name — a pending job
-    reports its <em>reason</em> in that field — and a failed query both read as unknown,
-    which is not warned about and is not read as healthy either.</p>
+    whose value is a <code>+</code>-separated set of tokens
+    (<code>ALLOCATED</code>, <code>MIXED</code>, <code>DRAIN</code>,
+    <code>REBOOT_REQUESTED</code>, and so on). The parser keeps the whole set and the
+    drain test inspects every member of it, so <code>DRAIN</code>, <code>DRAINED</code>
+    and <code>DRAINING</code> warn wherever they sit in the set.</p>
+    <p><strong>The leading token is not where the drain token sits on this cluster.</strong>
+    A live <code>scontrol show node -o | grep -o "State=[A-Z_+]*"</code> read on
+    2026-09-21 returned <strong>82 nodes carrying a drain token, none of them leading with
+    it</strong>: <strong>43</strong> at <code>MIXED+DRAIN+REBOOT_REQUESTED</code> and
+    <strong>39</strong> at <code>ALLOCATED+DRAIN+REBOOT_REQUESTED</code>. A predicate
+    restricted to the leading token therefore warned on none of them, and the guard
+    did not run on any node it was written for. The command surveys every node
+    the scheduler reports, so the table is the cluster reading rather than a sample:</p>
+    <p>The remainder of the survey, for the false-positive direction — 180 nodes at
+    <code>ALLOCATED</code>, 115 at <code>IDLE</code>, 42 at <code>MIXED</code>, one at
+    <code>MIXED+RESERVED</code>, one at <code>ALLOCATED+MAINTENANCE+RESERVED</code>, one at
+    <code>IDLE+MAINTENANCE+RESERVED</code>, 82 at <code>RESUME</code>, five at
+    <code>DOWN</code> and one at <code>DOWN+NOT_RESPONDING</code> — carries no drain token
+    and must stay silent.</p>
+    <table>
+      <thead><tr><th>State value</th><th>Nodes</th><th>Drain token position</th></tr></thead>
+      <tbody>
+        <tr><td><code>MIXED+DRAIN+REBOOT_REQUESTED</code></td><td>43</td><td>second of three</td></tr>
+        <tr><td><code>ALLOCATED+DRAIN+REBOOT_REQUESTED</code></td><td>39</td><td>second of three</td></tr>
+        <tr><td colspan="3">No node in the survey reported a value whose first token was <code>DRAIN</code>.</td></tr>
+      </tbody>
+    </table>
+    <p>A value that is not a node name — a pending job reports its <em>reason</em> in that
+    field — and a failed query both read as unknown, which is not warned about and is not
+    read as healthy either.</p>
 
     <h3>The assertion that could not fail</h3>
     <p><code>test_fleet_status_warns_inside_the_threshold</code> asserted
@@ -1059,6 +1082,101 @@ uv run python -m imas_ambix.agent.throttling interval \
     <p>One defect surfaced by the attempt: the sampler raises <code>FileNotFoundError</code> when
     <code>cpu.max</code> is absent rather than reporting an unconfigured ceiling, so it cannot run
     on the compute side of the very comparison it was built to make.</p>
+  </section>
+
+  <section id="fleet-drain-guard">
+    <h2>The drain warning did not fire, because the drain token is not the first one</h2>
+    <p>A guard that never runs at all is invisible from a green suite. The drain warning this
+    record's earlier section describes read the scheduler's <code>State=</code> value after the
+    parser had dropped everything following the first <code>+</code>, and then matched a prefix
+    of what remained — so only a value whose <em>leading</em> token was the drain could warn.
+    Measured against the cluster on 2026-09-21, no node the scheduler reports does that:
+    <code>scontrol show node -o | grep -o "State=[A-Z_+]*"</code> returns <strong>43</strong> nodes
+    at <code>MIXED+DRAIN+REBOOT_REQUESTED</code>, <strong>39</strong> at
+    <code>ALLOCATED+DRAIN+REBOOT_REQUESTED</code>, and <b>zero of the 82 nodes carrying any drain
+    token lead with it</b>. The warning therefore fired on none of them — it was a guard that
+    never ran on the cluster it was written for.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/fleet-drain-guard/drain-token-position.svg"
+           alt="Four scheduler State values laid out as token chips: DRAINING leading warns under
+                both readings; MIXED+DRAIN+REBOOT_REQUESTED and ALLOCATED+DRAIN+REBOOT_REQUESTED
+                carry the drain token second, so a leading-token match misses them; MIXED+RESERVED
+                carries no drain token and stays silent."
+           style="max-width:100%;height:auto"/>
+      <figcaption>The drain token is a member of a <code>+</code>-separated set, and it sits
+      second in the two spellings this cluster reports. A match on the leading token warns on
+      neither.</figcaption>
+    </figure>
+
+    <p>The parser now returns the whole upper-cased <code>State value</code> and the predicate
+    inspects every member of the <code>+</code>-separated set, so the drain token warns wherever
+    it sits. The full survey is in the section above: 82 draining nodes in the two spellings
+    below, and the remaining 428 nodes carrying no drain token at all, which stay silent.</p>
+
+    <table>
+      <thead><tr><th>State value</th><th>Nodes</th><th>Drain token position</th><th>Old reading</th></tr></thead>
+      <tbody>
+        <tr><td><code>MIXED+DRAIN+REBOOT_REQUESTED</code></td><td>43</td><td>second of three</td><td><strong>silent</strong></td></tr>
+        <tr><td><code>ALLOCATED+DRAIN+REBOOT_REQUESTED</code></td><td>39</td><td>second of three</td><td><strong>silent</strong></td></tr>
+        <tr><td><code>ALLOCATED</code></td><td>180</td><td>none</td><td>silent (correct)</td></tr>
+        <tr><td><code>IDLE</code></td><td>115</td><td>none</td><td>silent (correct)</td></tr>
+        <tr><td><code>MIXED</code></td><td>42</td><td>none</td><td>silent (correct)</td></tr>
+        <tr><td><code>MIXED+RESERVED</code>, <code>+MAINTENANCE+RESERVED</code> forms</td><td>3</td><td>none</td><td>silent (correct)</td></tr>
+        <tr><td><code>RESUME</code></td><td>82</td><td>none</td><td>silent (correct)</td></tr>
+        <tr><td><code>DOWN</code>, <code>DOWN+NOT_RESPONDING</code></td><td>6</td><td>none</td><td>silent (correct)</td></tr>
+      </tbody>
+    </table>
+
+    <h3>The two unknown-state branches now rest on execution</h3>
+    <p>The node lookup has two early returns — a value that is not a node name (a pending job
+    writes its <em>reason</em> where the node name goes) and a query that fails — and both read
+    as unknown rather than healthy. Neither was exercised by any test, so the claim they make was
+    inspection. Both now run with the query runner replaced: a fleet row whose node field is
+    <code>(Priority)</code> is not a node name, so no node query is issued at all and no warning is
+    printed; and a node query returning a non-zero status reads as unknown and prints no warning,
+    with the query observed to have been attempted.</p>
+
+    <h3>Gates, and the guard forced to fail</h3>
+    <table>
+      <thead><tr><th>Gate</th><th>Observed result</th></tr></thead>
+      <tbody>
+        <tr><td>Focused suite</td>
+        <td><code>UV_PROJECT_ENVIRONMENT=&lt;main-checkout&gt;/.venv uv run --no-sync pytest
+        tests/agent/test_fleet.py</code>: <code>20 passed in 2.72s</code>, exit 0</td></tr>
+        <tr><td>Whole-tree lint</td>
+        <td><code>uv run --no-sync ruff check --no-cache imas_ambix tests</code>:
+        <code>All checks passed!</code>, exit 0</td></tr>
+      </tbody>
+    </table>
+    <p>A green suite cannot show that a guard fires, so the guard was made to fail. The declared
+    mutation <em>restricts the drain predicate to the leading token of the State value only</em>,
+    which is the behaviour being replaced. Under it the named test —
+    <code>test_fleet_status_warns_on_the_drain_spelling_this_cluster_reports</code>, which asserts
+    that a node the scheduler reports as <code>MIXED+DRAIN+REBOOT_REQUESTED</code> raises the
+    warning — is observed to fail:</p>
+    <pre>E           AssertionError: MIXED+DRAIN+REBOOT_REQUESTED
+E           assert 'WARNING' in 'Fleet allocation 1275000 · RUNNING · node rigel-03\n ...'
+...
+FAILED tests/agent/test_fleet.py::test_fleet_status_warns_on_the_drain_spelling_this_cluster_reports
+1 failed in 2.19s
+MUTATED_EXIT=1</pre>
+    <p>The source was restored to its pre-mutation bytes (the worktree copy verified identical to
+    the backup) and the same test then reports <code>1 passed in 0.72s</code>. The receipt's first
+    line repeats the declared mutation verbatim, so a log that failed for any other reason is
+    refused; <code>[ "$(head -1 "$OUT")" = "$(head -1 "$D")</code> ]` reported
+    <strong>IDENTICAL</strong>. Log:
+    <code>~/.config/reckon/crew/runs/r-20260921T102128084713-fleet-drain-guard-fires-on-this-cluster/negative-control.log</code>.</p>
+    <p>The live node table is the command's own output, captured to
+    <code>.../runs/r-20260921T102128084713-fleet-drain-guard-fires-on-this-cluster/logs/live-node-table-states.txt</code>.
+    No SLURM job was submitted, cancelled or modified; reading the node table is a read.</p>
+
+    <h3>What this record does not establish</h3>
+    <p>The node-state read is exercised through a faked runner, not against a live draining node
+    held by the fleet. The counts above are the scheduler's report of which nodes carry a drain
+    token; they are not a claim about how many will carry one when the fleet is placed on
+    <code>rigel</code>, and the guard's job is to warn if one does. The threshold and remaining-time
+    paths are unchanged by this work.</p>
   </section>
 
 </main>
