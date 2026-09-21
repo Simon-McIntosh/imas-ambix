@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-21T09:28:57",
+  "updated": "2026-09-21T09:32:19",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -45167,6 +45167,215 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260921T071444795886-review-of-fleet-allocation-holder",
+        "plan": "slurm-hosted-agent-fleet",
+        "section": "\u00a77",
+        "node": "review-of-fleet-allocation-holder",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 363,
+                "cached_input_tokens": 306538,
+                "input_tokens": 306903,
+                "output_tokens": 723,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 307626,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "10680e94-61e5-4916-bab0-968fa2503f57",
+            "session_id": "slurm-fleet"
+          },
+          "done_when": "the review for r-20260921T065502703572-fleet-allocation-holder stores a parsed record scoring all 5 dimensions in the range 0..20, and its prose additionally answers three specific questions with a verdict each: whether the negative control the run ACTUALLY executed is the one its dispatch DECLARED (the declared mutation is recorded on the run), whether any value the generator hard-codes duplicates a field that imas_ambix/agent/profile.py SiteConfig already owns, and whether the unlimited wall-clock spelling the generator emits is anywhere validated against sbatch rather than only asserted against a string",
+          "estimated_hours": null,
+          "goal": "attach an independent review to run r-20260921T065502703572-fleet-allocation-holder",
+          "id": "review-of-fleet-allocation-holder",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-21T07:14:45Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no 'binding_observed'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T071444795886-review-of-fleet-allocation-holder/manifest.md",
+          "negative_control": "none: a review writes no test file and adds no executable behaviour; its falsifiable element is that each of the three named questions receives an explicit yes or no with the file:line or run-record evidence behind it, so a question that cannot be answered is reported as unanswered rather than scored",
+          "plan": "slurm-hosted-agent-fleet",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "review",
+          "section": "\u00a77",
+          "spec_level": "exact",
+          "time_budget": "30m",
+          "token_budget": null,
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260921T065502703572-fleet-allocation-holder.json"
+          ]
+        },
+        "role": "review",
+        "spec_level": "exact",
+        "member": "fleet-review-allocation",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "xhigh",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "read-only",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-21T07:14:55Z",
+        "completed_at": "2026-09-21T07:28:47.388Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 814,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 832,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "fcd4de54e605600a80c32858a33abba5052bac14",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": 0,
+        "gate": "passed",
+        "gate_check": {
+          "command": "parse and store the emitted review, then read back the stored record and independently re-measure the reviewed artefact and three mutations in memory",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T071444795886-review-of-fleet-allocation-holder/artefact-and-mutation-check.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T071444795886-review-of-fleet-allocation-holder/manifest.md",
+        "scope_changed": false,
+        "session_id": "51d54058-bf7b-47c4-b3d8-97060ad8182c",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 3377404,
+            "input_tokens_cumulative": 3377404,
+            "output_tokens": 39627,
+            "output_tokens_cumulative": 39627,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-21T07:28:47.388Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": null,
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 3377404,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 828.325,
+          "generated_tokens": 39627,
+          "generation_seconds": 788.642,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 29.5,
+          "machine_seconds": 39.683,
+          "peak_input_tokens": 141753,
+          "tokens_per_second": 50.25,
+          "wall_tokens_per_second": 47.84
+        },
+        "follow_on_paths": [
+          "partition/account/memory",
+          "tests/agent/test_fleet.py:28-31",
+          "tests/agent/test_fleet.py:58."
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": false,
+          "matched_measure": null,
+          "override": false,
+          "role": "review",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": "review role; the deliverable is the review record in the crew review store, outside every git worktree, and the reviewed worktree was never written to",
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/slurm-fleet/review-of-fleet-allocation-holder",
+          "session_id": "51d54058-bf7b-47c4-b3d8-97060ad8182c",
+          "session_source": "stream",
+          "retained_at": "2026-09-21T07:28:47.388Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "plan_impl_at_dispatch": 0.333,
+        "impl_move": {
+          "plan": "slurm-hosted-agent-fleet",
+          "at_dispatch": 0.333,
+          "at_complete": null,
+          "verdict": "exempt",
+          "reason": "role-not-enforced:review"
+        },
+        "negative_control": {
+          "verdict": "exempt",
+          "reason": "node-writes-no-test-path"
+        },
+        "tool_steps": 50.0,
+        "orientation_input_tokens": null,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -45241,6 +45450,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 779
+    "_version": 780
   }
 }
