@@ -25,8 +25,8 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-21">
-<meta name="plan-version" content="21">
-<meta name="plan-impl" content="0.833">
+<meta name="plan-version" content="22">
+<meta name="plan-impl" content="0.9">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="e523036b842dbd9c6dbc205bfd0753335e82c342,e0a990fb4486ac0e75ff217a1fecb432ae5b0962,a8a4c82b2186a4abd43c32b9ccdbe8189cb06bbe,0805cb74255001f2bbd8ad9446e10da6119c45ad,3a59eccf14c735fe9a9fd289a3528f425d788628,cff4e0d5c976b8d2d9e71edfc6913eb9700e1aed,3452b5799770701d9e8d596773f5dd40365a127f,435e896560cb7974743a75077fa4ed038a49bd81,5e3e0adc97e4299520d2779eaba2568837b9009f,04febe688b92501981ee03200bc8bd52ada451cc,ddadc8d4766491e59be40726f977c45fd8643cba,bc82504e581e04ff5e173a6bee2a60335ef13a2a,13acbd2029b31eae9e4f2a417b0e5ac5c062e178,8fa8f0eec7e4685d4f47341e776dfbf24aa2e70f,5507cd9f3b18e9ac55218a897d0c3fc27b999718">
 <meta name="plan-artifacts" content="docs/research/site-request-user-lingering.html,imas_ambix/agent/fleet.py,imas_ambix/agent/throttling.py,tests/agent/test_fleet.py,tests/agent/test_throttling.py">
@@ -358,7 +358,7 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-shaf-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-09-19" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-shaf-001" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-09-19" data-recommends-skill="" data-resolved-at="2026-09-21T21:36:53+00:00" data-resolved-by="">
     <h4 class="r-fu-title">Size the allocation from measured CPU demand</h4>
     <div class="r-fu-body"><p>All three decisions are locked: rigel, one whole node held as an
           interactive reservation, and no site quota request. Reachability from a rigel
@@ -366,6 +366,12 @@
           longer an assumption. The first executable step is §7.1 — take a throttling
           baseline across a normal working day, so the comparison that decides whether
           this worked is against a range rather than the single reading in §2.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship slurm-hosted-agent-fleet §7</pre>
+    <p class="r-fu-outcome">The step it named is done. The throttling baseline landed and reads a cumulative throttled share of 0.3396 of permitted thread-time on the login slice, re-derivable from the counters beside it, and the allocation it asked to size is held on 98dci4-clu-2002 at 28 cores. Superseded by f-shaf-002, which names what is actually next.</p>
+    </article>
+<article class="r-fu" data-id="f-shaf-002" data-status="open" data-written-by="reckon-ship" data-written-at="2026-09-21" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Three steps that need an operator, not a worker</h4>
+    <div class="r-fu-body"><p>Every node a worker can take on this plan has landed and been independently reviewed. What remains cannot be delegated and is not blocked on anything in the repository.</p><p><strong>Step two</strong> — the site request is written, committed and validated at <a href="/imas-ambix/site-request-user-lingering">the lingering request</a>; sending it is an outward-facing act. <strong>Step four</strong> — a clive worker completing a real task from inside the allocation. A placed step and an ssh session are both measured, so the mechanism is proven, but no worker has done work there. <strong>Step seven</strong> — the deciding measure, and by the lead's direction it is attrition rather than a cutover: dispatch new work to the node and let the login sessions drain, then compare the cumulative throttled share against the 0.3396 baseline. Use the cumulative ratio, not a window: five adjacent 60-second windows spanned 0.425 to 1.865.</p><p>Held for this: rigel job 1274732 on 98dci4-clu-2002, unbounded, idle, and offered to the reckon session for its own placement prototype.</p></div>
     <pre class="r-fu-prompt">/reckon-ship slurm-hosted-agent-fleet §7</pre>
     </article>
 </section>
@@ -457,6 +463,9 @@
 </div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20260921T211439392430-review-of-accounting" data-who="reckon-ship" data-when="2026-09-21T21:33:55.571Z">
     <div class="r-comment-body"><p>independent review stored at 19/18/17/18/19 with no findings. It was asked to check EVERY provenance-claiming fixture in the file rather than only the one already caught, since a fabricated fixture found once is reason to check its siblings, and it found none remaining</p></div>
+</div>
+<div class="r-comment" data-section="s7" data-id="c-20260921-drain-ledger" data-who="reckon-ship" data-when="2026-09-21T21:40:00Z">
+    <div class="r-comment-body">DRAIN LEDGER. f-shaf-001 size the allocation from measured demand — folded, the baseline landed as fleet-throttling-baseline and the allocation is held, resolved and superseded by f-shaf-002. Step two, send the site request — authority-required, the document is written and sending it is outward-facing. Step four, a worker completing a task inside the allocation — authority-required, needs an operator attached inside it. Step seven, move the fleet — authority-required, it is the deciding measure and it moves live sessions. The reckon audit-doc anchor-resolution defect — foreign-owner, the reckon repository, reported with the diagnosis. Reflex-review failures and the departed-pointer render — foreign-owner, reckon, reported with three priors and a code citation. The lane.py comment recording the collapse at 63 percent and not the onset near 56 — authority-required, the lead instructed no change to that file. Worker manifests classified unreadable on YAML keys and a delivered status — foreign-owner, the reckon manifest reader. rows 8, foldable-remaining 0, unreconciled-runs 0 for this session; the three live pointers in this project belong to the peer session wire-telemetry-spine.</div>
 </div>
 <div class="r-comment" data-section="s6" data-id="c-20260921-reckon-already-has-placement" data-who="reckon-ship" data-when="2026-09-21T07:27:00Z">
     <div class="r-comment-body">This section's boundary needs revisiting. It says a dispatch change would be a dependency to raise in reckon. Measured on 2026-09-21: reckon has already built that path — a persistent salloc --no-shell reservation, workers placed into it as srun --overlap --jobid steps, published reservation state and a reckon crew placement --ensure operator command — and it is unarmed, with zero placement keys in the live flight config and no reservation record on disk. So nothing needs raising; what is open is whether the fleet's interactive allocation and reckon's worker reservation are one allocation or two, and reckon's defaults (partition all, 32 cores, 128 GB) differ from this plan's locked rigel, 28 cores, 120G.</div>
