@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-21T11:08:09",
+  "updated": "2026-09-21T11:10:08",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -49928,6 +49928,272 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260921T084552301916-fleet-closing-review",
+        "plan": "slurm-hosted-agent-fleet",
+        "section": "\u00a77",
+        "node": "fleet-closing-review",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1432,
+                "cached_input_tokens": 481725,
+                "input_tokens": 483159,
+                "output_tokens": 1619,
+                "reasoning_output_tokens": 479,
+                "total_tokens": 484778,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "10680e94-61e5-4916-bab0-968fa2503f57",
+            "session_id": "slurm-fleet"
+          },
+          "done_when": "a report at /home/ITER/mcintos/.config/reckon/crew/reports/fleet-closing-review.md that, for EACH finding it raises, names the file and line, states the concrete failure scenario in terms of inputs and resulting wrong behaviour, and says whether it is confirmed by evidence you gathered or merely plausible \u2014 a finding with no failure scenario is not reported. It must additionally return an explicit verdict, with evidence, on each of these six: (1) whether every quantitative claim in docs/evidence/archive/slurm-hosted-agent-fleet-landed.html is re-derivable from the raw figures that record also carries, naming any that is not; (2) whether docs/plans/slurm-hosted-agent-fleet.html is internally consistent \u2014 in particular whether its implementation steps reference each other by the right numbers, since its prose appears to cite a step by one index and mean another, and whether its stated figures still match what the code does; (3) whether the coordinator merge resolutions lost any content: several conflicts were resolved by keeping both sides, and one such resolution is known to have left the plan stating its version twice and a stray element closer inside the head, so check for any further residue of that kind in the plan and the evidence record; (4) whether the fleet allocation the generator emits would actually behave as the plan claims when held \u2014 you may run sbatch with --test-only, which submits nothing, but you must NOT submit any job, cancel any job, or touch any running allocation; (5) whether the throttling sampler and the allocation surface agree about the machine they describe, since one reads a login-node control group and the other a compute allocation; (6) whether any test added across this plan asserts agreement with a literal the code itself hard-codes rather than a property \u2014 one such tautology was already found and fixed, so the question is whether any remains. State plainly if a verdict cannot be reached and why, rather than guessing.",
+          "estimated_hours": null,
+          "goal": "an adversarial closing review of everything this plan landed, judged at the merged head rather than at any single worker base",
+          "id": "fleet-closing-review",
+          "lane_declaration": {
+            "backend": "claude-opus",
+            "headroom": "known",
+            "metered": true,
+            "observed_at": "2026-09-05T13:24:07.483Z",
+            "read_at": "2026-09-21T08:45:53Z",
+            "resolved_backend": "claude-opus",
+            "utilisation_pct": 1.21
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "backend declares no lane document",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T084552301916-fleet-closing-review/manifest.md",
+          "negative_control": "none: this review writes no test file and adds no executable behaviour; its falsifiable element is that every finding carries a concrete failure scenario and a confirmed-or-plausible label, so a finding that cannot be given one is withdrawn rather than reported",
+          "plan": "slurm-hosted-agent-fleet",
+          "requested_backend": "claude-opus",
+          "requires_decisions": [],
+          "role": "review",
+          "section": "\u00a77",
+          "spec_level": "open",
+          "time_budget": "45m",
+          "token_budget": null,
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/fleet-closing-review.md"
+          ]
+        },
+        "role": "review",
+        "spec_level": "open",
+        "member": "fleet-closing-review",
+        "backend": "claude-opus",
+        "local": false,
+        "agent": {
+          "alias": "opus 5",
+          "backend": "claude-opus",
+          "effort": "high",
+          "launch": "cli",
+          "model": "claude-opus-5",
+          "sandbox": "read-only"
+        },
+        "dispatched_at": "2026-09-21T08:46:03Z",
+        "completed_at": "2026-09-21T08:56:08.470Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 599,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 605,
+        "stalled": false,
+        "time_budget": "45m",
+        "base_sha": "ff604666ddd831015fd3884f3f68fc98534fc267",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": 0,
+        "gate": "passed",
+        "gate_check": {
+          "command": "pytest tests/agent/test_fleet.py tests/agent/test_throttling.py at the merged head, so every finding is raised against a green suite",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T084552301916-fleet-closing-review/closing-review-gate.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T084552301916-fleet-closing-review/manifest.md",
+        "scope_changed": false,
+        "session_id": "2ddb81f0-808f-4966-b31b-28302ed236e1",
+        "budget": {
+          "headroom": "known",
+          "utilisation_pct": 30.0,
+          "rate_limit_type": "seven_day",
+          "rate_limit_period_minutes": null,
+          "resets_at": "2026-09-27T06:00:00Z",
+          "threshold_status": "allowed",
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 165962,
+            "cache_creation_input_tokens_cumulative": 165962,
+            "cache_read_input_tokens": 5583563,
+            "cache_read_input_tokens_cumulative": 5583563,
+            "inference_geo": "not_available",
+            "input_tokens": 90,
+            "input_tokens_cumulative": 90,
+            "output_tokens": 45259,
+            "output_tokens_cumulative": 45259,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": 5.583326499999999,
+          "refusal": false,
+          "detail": "backend reports utilisation and reset time",
+          "cost_usd_cumulative": 5.583326499999999
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-21T08:56:08.470Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "missing_rollout"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "15m",
+          "requested": true,
+          "waived_runs": [
+            {
+              "budget_overrun": false,
+              "budget_overrun_seconds": 0,
+              "budget_seconds": 3000,
+              "classification": "scoring",
+              "commits_beyond_base": 0,
+              "detail": "the worker manifest reports completion, but no independent review is attached; an independent review must be produced before promotion",
+              "elapsed_seconds": 114,
+              "external_wait": null,
+              "lifting_condition": null,
+              "liveness_proven": true,
+              "log_age_seconds": 1397,
+              "log_fresh": false,
+              "manifest_commits": [
+                "13acbd2029b31eae9e4f2a417b0e5ac5c062e178",
+                "8fa8f0eec7e4685d4f47341e776dfbf24aa2e70f",
+                "5507cd9f3b18e9ac55218a897d0c3fc27b999718"
+              ],
+              "manifest_derived": false,
+              "manifest_digest": "efb59d61f6e266049ee6fdb199aea3f60e8958c131146faa0834f16881fd43a5",
+              "manifest_error": null,
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T081131624322-fleet-lifetime-surface/manifest.md",
+              "manifest_present": true,
+              "manifest_reported_status": "complete",
+              "manifest_status": "complete",
+              "marker": null,
+              "needs_help_complete": null,
+              "next_action": "reckon crew dispatch --project imas-ambix --plan slurm-hosted-agent-fleet --section '\u00a77' --role review --spec-level exact --node review-of-fleet-lifetime-surface --goal 'attach an independent review to run r-20260921T081131624322-fleet-lifetime-surface' --done-when 'the review for r-20260921T081131624322-fleet-lifetime-surface stores a parsed record scoring all 5 dimensions in the range 0..20' --write-path /home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260921T081131624322-fleet-lifetime-surface.json --time-budget 50m --session slurm-fleet --local",
+              "node": "fleet-lifetime-surface",
+              "phase": "working",
+              "plan": "slurm-hosted-agent-fleet",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "recovery": "review",
+              "recovery_classification": "scoring",
+              "resets_at": null,
+              "review_error": null,
+              "review_present": false,
+              "review_status": null,
+              "run_id": "r-20260921T081131624322-fleet-lifetime-surface",
+              "session": "slurm-fleet",
+              "terminal_age_seconds": 1479,
+              "terminal_at": "2026-09-21T08:21:17Z",
+              "wait_age_seconds": null,
+              "wait_condition_state": null,
+              "wait_key_defect": null,
+              "wait_observed": null,
+              "wait_overdue": null,
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/slurm-fleet/fleet-lifetime-surface"
+            }
+          ]
+        },
+        "review": null,
+        "throughput": {
+          "cumulative_cached_input_tokens": 5583563,
+          "cumulative_input_tokens": 5749615,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the stream window 1000000",
+          "elapsed_seconds": 601.302,
+          "generated_tokens": 45259,
+          "generation_seconds": 569.965,
+          "input_budget_tokens": 1000000,
+          "input_utilisation_pct": 17.6,
+          "machine_seconds": 31.337,
+          "peak_input_tokens": 176307,
+          "tokens_per_second": 79.41,
+          "wall_tokens_per_second": 75.27
+        },
+        "follow_on_paths": [
+          "imas_ambix/agent/cli.py:332",
+          "/",
+          "drain/cancel/preempt",
+          "%T/%R",
+          "docs/plans/slurm-hosted-agent-fleet.html:30",
+          "tests/agent/test_fleet.py:150"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": false,
+          "matched_measure": null,
+          "override": false,
+          "role": "review",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": "review role; the deliverable is the report under the crew reports directory, outside every git worktree, and no repository path was written",
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/slurm-fleet/fleet-closing-review",
+          "session_id": "2ddb81f0-808f-4966-b31b-28302ed236e1",
+          "session_source": "stream",
+          "retained_at": "2026-09-21T08:56:08.470Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "plan_impl_at_dispatch": 0.429,
+        "impl_move": {
+          "plan": "slurm-hosted-agent-fleet",
+          "at_dispatch": 0.429,
+          "at_complete": null,
+          "verdict": "exempt",
+          "reason": "role-not-enforced:review"
+        },
+        "negative_control": {
+          "verdict": "exempt",
+          "reason": "node-writes-no-test-path"
+        },
+        "tool_steps": 50.0,
+        "orientation_input_tokens": null,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -50002,6 +50268,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 815
+    "_version": 816
   }
 }
