@@ -315,6 +315,32 @@ def fleet_hold(submit: bool) -> None:
     console.print(f"Submitted fleet allocation job {job_id}.")
 
 
+@fleet_group.command(name="status")
+def fleet_status() -> None:
+    """Report the held fleet allocation, its node and its remaining lifetime.
+
+    The allocation is found from the scheduler by the comment token the hold
+    generator emits. A missing allocation is reported in words rather than as
+    an empty table, and an allocation with no wall clock reads as unbounded
+    and never warns.
+    """
+    from imas_ambix.agent.fleet import (
+        describe_fleet_allocation,
+        find_fleet_allocation,
+    )
+
+    jobs = _running_jobs(SiteConfig.from_env())
+    allocation = find_fleet_allocation(jobs)
+    if allocation is None:
+        console.print(
+            "No fleet allocation is held; the interactive fleet has no "
+            "whole-node allocation in the queue."
+        )
+        return
+    for line in describe_fleet_allocation(allocation):
+        console.print(line, markup=False, highlight=False)
+
+
 @agent.command(name="list")
 def list_command() -> None:
     """List available model profiles, marking any that are serving."""
@@ -1161,7 +1187,9 @@ def _running_jobs(
 
     Each entry has ``jobid``, ``name`` (the profile slug), ``state``,
     ``time``, ``node`` (or the pending reason), allocated ``gres``, and the
-    scheduler ``comment``. With explicit ids the query reconciles shared
+    scheduler ``comment``. The remaining wall clock is read when the row
+    carries it; a row without it still identifies an allocation and simply
+    leaves the lifetime unknown. With explicit ids the query reconciles shared
     registrations independent of their owner; otherwise it retains the
     operator-scoped status view. Query failure is distinct from an empty queue.
     """
@@ -1181,7 +1209,7 @@ def _running_jobs(
             "-A",
             site.account,
             "-o",
-            "%i|%j|%T|%M|%R|%b|%k",
+            "%i|%j|%T|%M|%R|%b|%k|%L",
         ],
         capture_output=True,
         text=True,
@@ -1192,19 +1220,20 @@ def _running_jobs(
     jobs: list[dict[str, str]] = []
     for line in result.stdout.strip().splitlines():
         parts = line.split("|")
-        if len(parts) != 7:
+        if len(parts) not in (7, 8):
             continue
-        jobs.append(
-            {
-                "jobid": parts[0].strip(),
-                "name": parts[1].strip(),
-                "state": parts[2].strip(),
-                "time": parts[3].strip(),
-                "node": parts[4].strip(),
-                "gres": parts[5].strip(),
-                "comment": parts[6].strip(),
-            }
-        )
+        entry = {
+            "jobid": parts[0].strip(),
+            "name": parts[1].strip(),
+            "state": parts[2].strip(),
+            "time": parts[3].strip(),
+            "node": parts[4].strip(),
+            "gres": parts[5].strip(),
+            "comment": parts[6].strip(),
+        }
+        if len(parts) == 8:
+            entry["timeleft"] = parts[7].strip()
+        jobs.append(entry)
     return jobs
 
 
