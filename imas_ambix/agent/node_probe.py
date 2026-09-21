@@ -49,9 +49,11 @@ from __future__ import annotations
 
 import os
 import subprocess
-from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any, Protocol
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
 
 #: ``nvidia-smi`` query field for each card quantity, and the name it is
 #: recorded under. The names carry their unit because the query returns bare
@@ -81,10 +83,22 @@ CARD_QUERY_FIELDS: tuple[str, ...] = (
 #: the same way, since an unreadable field is not a reading.
 _UNAVAILABLE = frozenset({"N/A", "NA", "not supported", "unknown", "[n/a]"})
 
-#: A runner takes an argument vector and returns the command's stdout, or
-#: ``None`` when the command could not be run or did not succeed. Nothing in
-#: this module raises for a failed probe.
-RunFn = Callable[[Sequence[str]], "str | None"]
+
+class RunFn(Protocol):
+    """A runner takes an argument vector and a timeout, and returns stdout.
+
+    ``None`` is the answer for a command that could not be run, did not
+    succeed, or outlived *timeout_s*. Nothing in this module raises for a
+    failed probe.
+
+    The timeout is part of the call rather than the runner's own construction
+    because it is the caller that knows how long this reading may take: a
+    probe holding a recorder tick open must be bounded, and a runner that
+    cannot be told is a knob that does nothing.
+    """
+
+    def __call__(self, argv: Sequence[str], *, timeout_s: float) -> str | None: ...
+
 
 #: Everything a failed local call raises: a binary that is not on the node, a
 #: call that could not be started, and one that outlived its timeout. Held as a
@@ -95,7 +109,7 @@ RunFn = Callable[[Sequence[str]], "str | None"]
 _CALL_FAILURES = (OSError, subprocess.SubprocessError)
 
 
-def run_capture(argv: Sequence[str], timeout_s: float = 10.0) -> str | None:
+def run_capture(argv: Sequence[str], *, timeout_s: float = 10.0) -> str | None:
     """Run *argv* locally and return its stdout, or ``None`` if it failed.
 
     A non-zero exit is a failure even when the command printed something: the
@@ -256,7 +270,8 @@ def read_cards(
             "nvidia-smi",
             f"--query-gpu={','.join(CARD_QUERY_FIELDS)}",
             "--format=csv,noheader,nounits",
-        )
+        ),
+        timeout_s=timeout_s,
     )
     if not text:
         return None
@@ -413,7 +428,7 @@ def read_cpu_times(
     run: RunFn = run_capture, *, timeout_s: float = 10.0
 ) -> CpuTimes | None:
     """One read of ``/proc/stat``'s aggregate CPU counters."""
-    text = run(("cat", "/proc/stat"))
+    text = run(("cat", "/proc/stat"), timeout_s=timeout_s)
     return parse_proc_stat(text) if text else None
 
 
@@ -421,7 +436,7 @@ def read_meminfo(
     run: RunFn = run_capture, *, timeout_s: float = 10.0
 ) -> dict[str, float]:
     """One read of ``/proc/meminfo`` in MiB, empty when it could not be read."""
-    text = run(("cat", "/proc/meminfo"))
+    text = run(("cat", "/proc/meminfo"), timeout_s=timeout_s)
     return parse_meminfo(text) if text else {}
 
 
@@ -493,7 +508,8 @@ def read_jobs(
     question the record answers is what else was resident on this node. A node
     with no jobs is a reading and is kept; a ``squeue`` that failed is not.
     """
-    text = run(("squeue", "-h", "-w", hostname, "-o", SQUEUE_FORMAT))
+    argv = ("squeue", "-h", "-w", hostname, "-o", SQUEUE_FORMAT)
+    text = run(argv, timeout_s=timeout_s)
     if text is None:
         return None
     jobs = parse_squeue(text)

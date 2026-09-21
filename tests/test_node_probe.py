@@ -31,6 +31,8 @@ the index mapping needs to be visible.
 
 from __future__ import annotations
 
+import time
+
 import pytest
 
 from imas_ambix.agent import node_probe
@@ -76,9 +78,11 @@ def _runner(responses: dict[str, str | None]):
 
     A ``None`` entry is a command that did not answer, which is what the real
     runner reports for a non-zero exit, an absent binary and a timeout alike.
+    The timeout is accepted and ignored: a fixture says nothing about it, and
+    the forwarding is asserted separately by a runner that records it.
     """
 
-    def run(argv):
+    def run(argv, *, timeout_s):
         return responses.get(argv[0])
 
     return run
@@ -92,7 +96,7 @@ def _node_runner(*, cards: str | None = _CARDS_TWO, jobs: str | None = _SQUEUE):
 def _host_runner(stat: str | None, meminfo: str | None):
     """A runner whose two ``cat`` reads answer differently by their argument."""
 
-    def run(argv):
+    def run(argv, *, timeout_s):
         if argv[0] != "cat":
             return None
         if argv[1] == "/proc/stat":
@@ -102,6 +106,21 @@ def _host_runner(stat: str | None, meminfo: str | None):
         return None
 
     return run
+
+
+def _recording_runner():
+    """A runner that records the argument vector and timeout of every call."""
+    calls: list[tuple[list[str], float]] = []
+
+    def run(argv, *, timeout_s):
+        calls.append((list(argv), timeout_s))
+        return {
+            "nvidia-smi": _CARDS_TWO,
+            "cat": _PROC_MEMINFO,
+            "squeue": _SQUEUE,
+        }.get(argv[0])
+
+    return run, calls
 
 
 # ── Cards ────────────────────────────────────────────────────────────
@@ -298,7 +317,7 @@ def test_a_node_holding_no_jobs_is_a_reading_and_is_kept():
 def test_the_job_table_carries_the_node_it_describes():
     calls: list[list[str]] = []
 
-    def run(argv):
+    def run(argv, *, timeout_s):
         calls.append(list(argv))
         return _SQUEUE
 
@@ -383,7 +402,7 @@ def test_a_nonzero_exit_is_not_a_reading_even_when_the_command_printed():
 def test_the_job_table_is_read_on_its_own_slower_cadence():
     calls: list[str] = []
 
-    def run(argv):
+    def run(argv, *, timeout_s):
         calls.append(argv[0])
         return {
             "nvidia-smi": _CARDS_TWO,
@@ -400,3 +419,40 @@ def test_the_job_table_is_read_on_its_own_slower_cadence():
     assert set(between) == {"cards", "host"}
     assert set(after) == {"cards", "host", "jobs"}
     assert calls.count("squeue") == 2
+
+
+# ── The timeout ──────────────────────────────────────────────────────
+
+
+def test_every_read_forwards_the_timeout_it_was_given():
+    """A read that swallowed the timeout would hold the recorder tick open.
+
+    Each source is a separate call, so each is checked rather than one standing
+    for the rest: the argument is the caller's only lever on a probe that hangs.
+    """
+    run, calls = _recording_runner()
+
+    node_probe.read_cards(run, env={}, timeout_s=1.25)
+    node_probe.read_cpu_times(run, timeout_s=1.25)
+    node_probe.read_meminfo(run, timeout_s=1.25)
+    node_probe.read_jobs("98dci4-gpu-0003", run, timeout_s=1.25)
+
+    assert len(calls) == 4
+    assert [timeout_s for _argv, timeout_s in calls] == [1.25] * 4
+
+
+def test_the_probe_gives_its_own_timeout_to_every_source_it_reads():
+    run, calls = _recording_runner()
+
+    node_probe.NodeProbe(run=run, env={}, hostname="n", timeout_s=2.5).sample(0.0)
+
+    assert len(calls) == 4
+    assert {timeout_s for _argv, timeout_s in calls} == {2.5}
+
+
+def test_the_real_runner_cuts_a_command_off_at_the_timeout_it_was_given():
+    """The bound itself, measured on the runner rather than on a fixture."""
+    started = time.monotonic()
+
+    assert node_probe.run_capture(["sleep", "2"], timeout_s=0.05) is None
+    assert time.monotonic() - started < 1.0
