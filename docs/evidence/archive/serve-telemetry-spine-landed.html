@@ -312,12 +312,14 @@
     the <code>(inode, offset)</code> uniqueness on the sample — the guard that makes a
     re-read of known bytes a no-op.</p>
 
-    <p>Exactly one test reddens:
-    <code>test_reingest_after_lost_tail_state_is_still_one_copy</code>, exit 1. The plain
-    double-ingest test <em>still passes</em> under the mutation, because the recorded offset
-    already prevents that re-read — which is precisely the division of labour the two
-    mechanisms exist for, and the reason the fixture above rolls the file rather than
-    merely re-reading it. The log's first line repeats the declared mutation verbatim.</p>
+    <p><strong>Corrected to the measured count.</strong> The mutation reddens <strong>two</strong>
+    tests, not one: <code>test_reingest_after_lost_tail_state_is_still_one_copy</code> and
+    <code>test_a_source_rebuilt_in_place_drops_its_stale_samples</code>, exit 1. The minimised
+    re-read in the first is one of the two paths that insertion can duplicate; the second
+    deletes a rebuilt source's samples and re-reads the file, so a second insert of the same
+    bytes is caught there as well. A reader who took the earlier count would have concluded
+    the uniqueness was holding one path when it holds two, and the record is the only place
+    that count was written down. The log's first line names the declared mutation and its site.</p>
 
     <h3 id="index-gates">Gates and commits</h3>
 
@@ -327,6 +329,13 @@
     green, 5 passed between them — 20 across the three files.
     <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0.</p>
 
+    <p><strong>With the guards above in place the same file reports 19 passed</strong>, and
+    21 across it and <code>test_agent_receipt_bins.py</code>, exit 0. The four added tests are
+    the roll-pattern, the same-length rewrite, the classification, and the cascade. Measured
+    before the guards: <code>15 passed</code> and, under each of the five mutations, the
+    counts in the table above — so every one of the four was a behaviour the earlier figure
+    was resting on without asserting it.</p>
+
     <table>
       <thead><tr><th>Commit</th><th>Subject</th></tr></thead>
       <tbody>
@@ -335,6 +344,76 @@
         <tr><td><code>47dd89b4</code></td><td>formatting and lint, kept out of the change</td></tr>
       </tbody>
     </table>
+
+    <h3 id="index-guards-asserted">The behaviours the index rested on, and what each one holds</h3>
+
+    <p>A green suite under a mutation is the only evidence that a guard was never being
+    tested. Five behaviours this index depends on were in that state: the suite passed with
+    each one removed. Each now has a test, and each test has a control log whose first line
+    names the mutation applied and quotes the exact replacement fed to the module, and whose
+    body shows the assertion red. The mutation column quotes the replacement verbatim; the
+    last column is what the log reports.</p>
+
+    <table>
+      <thead><tr><th>Behaviour</th><th>Mutation applied</th><th>What the log reports</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>a dropped sample takes its measurements with it</td>
+          <td><code>self._conn.execute("PRAGMA foreign_keys = ON")</code> removed from the connection</td>
+          <td><code>test_dropping_a_sample_cascades_to_its_measurements</code> fails;
+          <code>measurement_count('spec_draft_tokens')</code> answers <code>1</code> where the
+          cascade leaves <code>0</code> — 1 failed, 18 passed, exit 1</td>
+        </tr>
+        <tr>
+          <td>a rewrite that is not shorter still replaces its samples</td>
+          <td><code>return _tail_digest(path, offset) != tail_sha</code> becomes
+          <code>return False</code></td>
+          <td><code>test_a_rewrite_that_is_not_shorter_still_replaces_its_samples</code> fails;
+          <code>sum_measurements('prefix_cache_query_delta', …)</code> answers <code>60.0</code>
+          where the rebuilt file's own values sum to <code>150</code> — 1 failed, 18 passed, exit 1</td>
+        </tr>
+        <tr>
+          <td>a running total is differenced, by its suffix</td>
+          <td><code>if name in CUMULATIVE_MEASUREMENTS or name.endswith("_total"):</code> loses
+          its suffix clause</td>
+          <td><code>test_running_totals_are_differenced_and_intervals_are_summed</code> fails at
+          <code>(3350.0, None) == (None, None)</code>: the suffix route answered a sum while the
+          listed route still answered absence — 1 failed, 18 passed, exit 1</td>
+        </tr>
+        <tr>
+          <td>a running total is differenced, at all</td>
+          <td><code>return "counter"</code> becomes <code>return "interval"</code>, so no name
+          is ever a counter</td>
+          <td>the same test fails at <code>(3350.0, 3210.0) == (None, None)</code>: both routes
+          answered a sum. These two rows are deliberately different logs. Asserted as separate
+          statements, the two mutations report one identical first failure and the log cannot
+          say which clause was holding — 1 failed, 18 passed, exit 1</td>
+        </tr>
+        <tr>
+          <td>the default discovery pattern reaches a rolled file</td>
+          <td><code>pattern: str = "*.jsonl*"</code> becomes <code>pattern: str = "*.jsonl"</code></td>
+          <td><code>test_default_discovery_reaches_a_rolled_file</code> fails at
+          <code>['serve.jsonl'] == ['serve.jsonl', 'serve.jsonl.1']</code>: one more item on the
+          right, the rolled tail a default-pattern caller silently loses — 1 failed, 18 passed,
+          exit 1</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>Each row reads a value the index <em>answers with</em>, never a symbol it exposes. That
+    distinction is the point of the exercise: an assertion that a method exists, or that it was
+    called, passes against a call whose result nothing used. The cascade is read as a
+    measurement count, the rewrite as a window sum, the classification through both query
+    shapes, and discovery as the set of filenames returned, which is the value the caller acts
+    on.</p>
+
+    <p><strong>The record's reader is the interval summary, not the path entry point.</strong>
+    <code>collect_receipt_bins</code> had no production caller, and the reason is not an
+    omission: the index aggregates rows the record already holds and calls
+    <code>summarise_receipt_rows</code> directly, so routing through the path-reading entry
+    point would re-read the very file the index exists to read once. The entry point therefore
+    waits for a caller that holds a receipt path and no index, and its docstring says so where
+    a reader of the module will find it.</p>
 
     <p><strong>Remaining.</strong> <code>watch.py</code> and its panel test are §5's other
     write paths and are not touched here; the ledger's hour/day/week/month rows are asserted
