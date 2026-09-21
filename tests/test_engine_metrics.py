@@ -52,9 +52,7 @@ _CANONICAL_KEYS = (
 # scrape re-assert the served field set offline.
 #
 # One entry is (quantity, value path, series name, required label fragment).
-_PLAN_CANONICAL_FIELDS: tuple[
-    tuple[str, tuple[str, ...], str, str], ...
-] = (
+_PLAN_CANONICAL_FIELDS: tuple[tuple[str, tuple[str, ...], str, str], ...] = (
     ("requests running", ("requests_running",), "num_running_reqs", ""),
     ("requests queued", ("requests_queued",), "num_queue_reqs", ""),
     ("KV-pool occupancy", ("kv_pool_occupancy",), "full_token_usage", ""),
