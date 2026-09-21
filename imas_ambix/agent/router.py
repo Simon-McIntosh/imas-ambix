@@ -846,7 +846,11 @@ class RouterApp:
         so a reader attributing rows per upstream never folds the router's own
         answers into a sink's traffic.
 
-        The status is what the caller got, not what the router decided.
+        The status is what the caller was sent, not what the router composed:
+        a departure reported before the answer was handed over records as
+        ``aborted`` whatever status the router put on it. That is a statement
+        about the send and not about receipt, and ``_response`` states exactly
+        what a ``completed`` row does and does not promise.
 
         ``http_status`` is the status the router composed, or None when the
         caller had gone before any answer was sent. ``caller_gone`` is the
@@ -1001,14 +1005,27 @@ class RouterApp:
         """Send an answer this process composed, and report if the caller had gone.
 
         The departure is read on the same channel the relay reads, and read
-        while the answer is still unsent: an ASGI server reports a completed
-        response on that channel as well, so a watch allowed to outlive the
-        send cannot tell a caller that left from one that is simply done, and
-        every answer would be recorded the same way. The status line is what
-        the router decided, and this tells the row whether anyone received it.
+        while the answer is still unsent: uvicorn marks a response complete
+        inside the send that writes its body, and its channel then answers
+        http.disconnect for a completed response exactly as it does for a
+        caller that left, so a watch read after the hand-over reports every
+        caller as gone. The hand-over carries no signal of its own either: a
+        server that finds the caller gone when it writes the body returns from
+        that send without raising, so the outcome of the send reports nothing
+        either way.
 
-        Returns True when the caller had already gone, so the row says what
-        happened to the request rather than what the router intended.
+        The sample is therefore taken here, before the answer changes hands,
+        and the row's ``completed`` is what the answer's own send can promise
+        -- the router composed the answer and handed it over with no departure
+        reported first. It is not a promise that the caller read it, which
+        nothing on this side of the server can state, and a departure landing
+        in the gap between this read and the hand-over is not observable. A
+        reader summing completed rows is counting answers sent, not answers
+        received.
+
+        Returns True when the caller had already gone, so the row records what
+        the caller's side of the exchange showed rather than the status the
+        router composed.
         """
         watcher = asyncio.create_task(RouterApp._wait_for_disconnect(receive))
         try:
@@ -1017,6 +1034,8 @@ class RouterApp:
             )
             # One turn of the loop, so a watcher that has an answer to give --
             # the caller is already gone -- gives it before the body is sent.
+            # This is the last read the channel can answer: once the response
+            # is complete it reports a departure for every caller alike.
             await asyncio.sleep(0)
             caller_gone = watcher.done()
             await send({"type": "http.response.body", "body": body})

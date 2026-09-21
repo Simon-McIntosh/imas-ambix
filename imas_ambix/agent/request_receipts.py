@@ -60,12 +60,16 @@ HEAD_BYTES = 4 << 20
 DEFAULT_MAX_ROWS_PER_S = 20.0
 DEFAULT_WINDOW_S = 1.0
 
-# Outcome labels. ``completed`` is a 2xx answer the caller received whole --
-# relayed from the owning engine, or composed by the router itself where it
-# answered without relaying; ``aborted`` is a caller that went away before it
-# received its answer, mid-relay or before the answer was sent; and ``failed``
-# is anything else -- an upstream error status, a refusal delivered to a caller
-# that was still there to receive it, or a relay that raised.
+# Outcome labels. ``completed`` is an answer the router sent whole -- relayed
+# from the owning engine, or composed by the router itself where it answered
+# without relaying. It says the answer was handed over with no departure
+# reported first; whether the caller read it is not observable from the serving
+# side of the exchange, so a reader summing completed rows is counting answers
+# sent rather than answers received. ``aborted`` is a caller that went away
+# before its answer was handed over -- mid-relay, before the answer was sent,
+# or while still uploading its request; and ``failed`` is anything else -- an
+# upstream error status, a refusal handed over to a caller that had not gone,
+# or a relay that raised.
 STATUS_COMPLETED = "completed"
 STATUS_ABORTED = "aborted"
 STATUS_FAILED = "failed"

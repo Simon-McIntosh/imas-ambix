@@ -181,7 +181,7 @@ def test_every_relayed_request_writes_one_fully_populated_row(tmp_path: Path) ->
             assert row["time_to_first_token_s"] is not None
             assert row["duration_s"] >= 0.0
             assert row["caller_hint"]
-            assert row["status"] == STATUS_COMPLETED
+            assert row["status"] == "completed"
             assert row["sample_fraction"] == 1.0
             assert row["timestamp"].endswith("Z")
 
@@ -224,7 +224,7 @@ def test_aborted_request_is_recorded_as_aborted_rather_than_dropped(
 
         rows = _read_rows(receipts)
         assert len(rows) == 1
-        assert rows[0]["status"] == STATUS_ABORTED
+        assert rows[0]["status"] == "aborted"
 
     asyncio.run(exercise())
 
@@ -246,7 +246,7 @@ def test_upstream_error_is_recorded_as_failed(tmp_path: Path) -> None:
 
         rows = _read_rows(receipts)
         assert len(rows) == 1
-        assert rows[0]["status"] == STATUS_FAILED
+        assert rows[0]["status"] == "failed"
         assert rows[0]["prompt_tokens"] is None
         assert rows[0]["cached_prompt_tokens"] is None
         assert rows[0]["completion_tokens"] is None
@@ -542,7 +542,7 @@ def test_an_upstream_that_dies_mid_body_is_recorded_as_failed(tmp_path: Path) ->
         # case the row must not read as a success.
         assert _status(sent) == 200
         assert len(rows) == 1
-        assert rows[0]["status"] == STATUS_FAILED
+        assert rows[0]["status"] == "failed"
         assert rows[0]["upstream"] == engine_url
 
     asyncio.run(exercise())
@@ -581,7 +581,7 @@ def test_a_request_the_router_answers_itself_is_recorded(tmp_path: Path) -> None
         rows = _read_rows(receipts)
         assert len(rows) == 3
 
-        assert rows[0]["status"] == STATUS_FAILED
+        assert rows[0]["status"] == "failed"
         assert rows[0]["model"] == "nope"
         # Written out rather than read from the module under test: a sentinel
         # assertion held by the constant it checks follows that constant
@@ -589,11 +589,11 @@ def test_a_request_the_router_answers_itself_is_recorded(tmp_path: Path) -> None
         # value it exists to be distinguishable from.
         assert rows[0]["upstream"] == "(router)"
 
-        assert rows[1]["status"] == STATUS_COMPLETED
+        assert rows[1]["status"] == "completed"
         assert rows[1]["model"] == ""
         assert rows[1]["upstream"] == "(router)"
 
-        assert rows[2]["status"] == STATUS_FAILED
+        assert rows[2]["status"] == "failed"
         assert rows[2]["model"] == ""
 
     asyncio.run(exercise())
@@ -687,6 +687,21 @@ def test_the_self_answered_sentinel_is_the_value_a_reader_sums_around() -> None:
     assert SELF_ANSWERED_UPSTREAM == "(router)"
 
 
+def test_the_outcome_labels_are_the_values_a_reader_sums_by() -> None:
+    """The outcome words are stated here, once, and nowhere else by reference.
+
+    Every row assertion in this module names the literal, which is what leaves
+    this as the one place a moved label fails loudly. An assertion against the
+    constant that writes the row follows that constant wherever it goes --
+    including to a word no consumer of the record greps for -- and two sides
+    that move together cannot fail at all, so a reader counting outcomes would
+    have no test telling them the words they sum by had changed.
+    """
+    assert STATUS_COMPLETED == "completed"
+    assert STATUS_ABORTED == "aborted"
+    assert STATUS_FAILED == "failed"
+
+
 async def _invoke_over(
     app: RouterApp, method: str, path: str, incoming: Sequence[SendMessage]
 ) -> list[SendMessage]:
@@ -751,7 +766,7 @@ def test_a_caller_that_leaves_while_uploading_its_request_is_recorded(
 
         rows = _read_rows(receipts)
         assert len(rows) == 1
-        assert rows[0]["status"] == STATUS_ABORTED
+        assert rows[0]["status"] == "aborted"
         assert rows[0]["upstream"] == "(router)"
         assert rows[0]["model"] == ""
 
@@ -784,7 +799,7 @@ def test_a_self_answered_request_whose_caller_had_gone_is_recorded_as_aborted(
 
         rows = _read_rows(receipts)
         assert len(rows) == 1
-        assert rows[0]["status"] == STATUS_ABORTED
+        assert rows[0]["status"] == "aborted"
         assert rows[0]["upstream"] == "(router)"
         assert rows[0]["model"] == ""
 
