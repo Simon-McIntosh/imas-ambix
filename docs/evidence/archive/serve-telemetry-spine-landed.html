@@ -336,6 +336,12 @@ E           Extra items in the left set:
 E             'imas_ambix/agent/bench.py'
 1 failed, 5 passed in 14.90s</pre>
 
+    <p>That is the output at <code>f7ff97ee</code>, quoted as it was produced: for
+    readers of the current tree the test it names is
+    <code>test_every_guarded_symbol_has_one_owner</code>, which the review round below
+    renamed once the guarded set grew past the exposition grammar. The run itself is
+    unchanged.</p>
+
     <p>The mutation was then reverted — <code>bench.py</code> byte-identical to its
     base revision (<code>sha256 aacd8211…</code>, <code>git diff</code> empty) — and
     the scan re-run green. An import of the owner's name is deliberately
@@ -424,6 +430,53 @@ except ImportError:
     <code>imas_ambix</code> package, and each control log's first line states its
     mutation verbatim.</p>
 
+    <p><strong>A second review round found the exporting-scope rule imprecise in both
+    directions — the same walk answering wrongly at each end — and proved both.</strong>
+    A class body reached <em>through</em> a function was still counted: the walk answered
+    as soon as it reached a <code>Module</code> or a <code>ClassDef</code> and never
+    noticed the <code>def</code> above it, so a module holding <code>def
+    build_grammar()</code> whose body binds <code>class Holder</code> whose body binds
+    <code>_SAMPLE_RE</code> reddened an innocent module. Such a body binds attributes on
+    a class no caller can reach, so it is as local as a plain function variable. The walk
+    now runs all the way to the module root and any function, async function or lambda
+    anywhere on the path disqualifies what it encloses. In the other direction, a
+    module-level assignment expression inside a comprehension was invisible: a
+    comprehension opens a scope for its own loop targets, but a walrus target binds in
+    the scope <em>containing</em> the comprehension, so <code>pairs = [(_LABEL_RE :=
+    index) for index in range(3)]</code> at module level really does export
+    <code>_LABEL_RE</code> (confirmed under <code>runpy</code>: the name reaches the
+    module namespace) while a plain comprehension target does not. The walk steps over
+    comprehensions for an assignment expression and stops at one for every other form,
+    none of which a comprehension body can contain. The snapshot assertion was the third
+    finding: its two sides were both computed by the code under test, so a defect moving
+    both stayed green; the expectation is now written out as literals.</p>
+
+    <p><strong>Each rule direction is proven with a counterpart that runs the same rival
+    against the rule and mutated rule, because a control that only exercises the repaired
+    rule cannot show which half does the work.</strong> A class body inside a function
+    appended to <code>bench.py</code> is <code>12 passed</code> under the repaired walk —
+    no false positive — and <code>2 failed, 10 passed</code> under the pre-repair walk,
+    the failures being the whole-package owner test (naming
+    <code>imas_ambix/agent/bench.py</code> as an extra definer) and the class-body test.
+    A module-level walrus rival appended to <code>bench.py</code> is <code>1 failed, 11
+    passed</code> under the repaired walk, the failure being the whole-package owner test
+    — so the rival is named rather than passed over. With the walrus flag dropped from
+    the call site, the whole-package owner test alone is <code>1 passed</code> against
+    the same bytes: a real second owner in the package, and the owner test does not see
+    it. That is the under-fire measured directly; the dedicated walrus test is what holds
+    the repaired rule, which is why the flagless mutation reddens the file as a whole
+    while the owner test stays green.</p>
+
+    <p><strong>Five control logs, each with its mutation stated verbatim on line
+    1</strong>, all on <code>all_debug</code> allocations against a scratch tree carrying
+    the real <code>imas_ambix</code> package:
+    <code>controls/control-class-in-function-green.txt</code> (12 passed),
+    <code>controls/control-class-in-function-pre-repair-red.txt</code> (2 failed),
+    <code>controls/control-walrus-rival-red.txt</code> (1 failed, the owner test),
+    <code>controls/control-walrus-rival-flagless.txt</code> (1 failed, the walrus test),
+    and <code>controls/control-walrus-rival-flagless-package-test-alone.txt</code> (1
+    passed, 11 deselected).</p>
+
     <p><strong>The signature's boundary is recorded, not chased.</strong> Shapes still
     invisible to the scan, and deliberately so: augmented assignment
     (<code>_SAMPLE_RE += ...</code>), <code>except Exception as parse_metrics</code>,
@@ -446,14 +499,19 @@ except ImportError:
     <code>all_debug</code> run is. At the repaired head the same three files report
     <strong>43 passed</strong>, zero failures (9 guard tests + the same 34), on an
     <code>all_debug</code> allocation; <code>uv run --no-sync ruff check imas_ambix
-    tests</code> reports <code>All checks passed!</code>. Every run of the three-file
-    suite this node made is listed above with the machine it ran on; none is
-    omitted.</p>
+    tests</code> reports <code>All checks passed!</code>. At the second-review head
+    <code>b596e011</code> the same three files report <strong>46 passed</strong>, zero
+    failures (12 guard tests + the same 34), on an <code>all_debug</code> allocation in
+    77.47s, and the ruff gate again reports <code>All checks passed!</code>. Every run of
+    the three-file suite this node made is listed above with the machine it ran on; none
+    is omitted.</p>
 
     <table>
       <thead><tr><th>Commit</th><th>Subject</th></tr></thead>
       <tbody>
         <tr><td><code>f7ff97ee</code></td><td>find a second exposition owner at any indentation</td></tr>
+        <tr><td><code>ee1dddeb</code></td><td>count a second exposition owner only at exporting scope</td></tr>
+        <tr><td><code>b596e011</code></td><td>walk the owner scan to the module root</td></tr>
       </tbody>
     </table>
   </main>
