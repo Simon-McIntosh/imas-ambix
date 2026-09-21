@@ -719,6 +719,150 @@ uv run python -m imas_ambix.agent.throttling interval \
     branch was observed live at exit 0.</p>
   </section>
 
+<section id="throttling-reading-host-identity">
+    <h2>A throttling reading names the machine it came from</h2>
+
+    <p><strong>What the payload said before.</strong> The emitted object carried the
+    control group <code>directory</code>, the <code>cpu_max</code> ceiling and the
+    counters, and nothing that identifies the machine. The only host-distinguishing
+    input was the <code>--directory</code> operand, and that operand is not
+    host-distinguishing at all: <code>/sys/fs/cgroup/user.slice/user-39486.slice</code>
+    resolves on every node in this cluster with different contents. The comparison the
+    plan's step seven rests on is a before-and-after throttled share, so two readings
+    taken on different machines would have compared as though they were the same one.</p>
+
+    <p><strong>What it says now.</strong> A <code>host</code> block carries the
+    hostname, the kernel's per-boot identifier and the time since boot:</p>
+
+    <table>
+      <thead>
+        <tr><th>Field</th><th>Source</th><th>What it settles</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>hostname</code></td>
+          <td><code>socket.gethostname()</code></td>
+          <td>Whether two shares describe the same computer at all</td>
+        </tr>
+        <tr>
+          <td><code>boot_id</code></td>
+          <td><code>/proc/sys/kernel/random/boot_id</code></td>
+          <td>Whether a fall between two readings is a recovery or a restart</td>
+        </tr>
+        <tr>
+          <td><code>uptime_seconds</code></td>
+          <td>first field of <code>/proc/uptime</code></td>
+          <td>How long the counter run behind a reading has been going</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>The boot identity is the load-bearing half of the second requirement. The
+    counters are cumulative since boot, so a reboot restarts them and the arithmetic
+    reads as a sudden improvement: <code>throttled_usec</code> and
+    <code>permitted_usec</code> both fall, and their ratio falls with them. Without a
+    boot identity the two readings are indistinguishable from a machine that was just
+    throttled less. The uptime makes that difference readable rather than merely
+    detectable — the counter run behind the reading is roughly as old as the uptime
+    says.</p>
+
+    <p>The host identity is passed into the command as the control group already is,
+    defaulting to the running machine. That keeps the module's existing contract —
+    the caller decides what is measured — and lets the tests assert the fields over a
+    fixture machine rather than over whatever host the suite happens to run on.</p>
+
+    <p><strong>Gate and declared negative control.</strong> The declared mutation,
+    stated in the node's own contract, is <em>remove the hostname field from the
+    emitted payload</em>. It was applied, the named test observed to fail, the source
+    restored and the same file re-run green:</p>
+
+    <table>
+      <thead>
+        <tr><th>Phase</th><th>Command</th><th>Result</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Baseline</td>
+          <td><code>uv run --no-sync pytest tests/agent/test_throttling.py</code></td>
+          <td>48 passed, exit 0</td>
+        </tr>
+        <tr>
+          <td>Whole-tree lint</td>
+          <td><code>uv run --no-sync ruff check imas_ambix tests</code></td>
+          <td>exit 0</td>
+        </tr>
+        <tr>
+          <td>Declared mutation applied</td>
+          <td><code>"hostname": host.hostname,</code> removed from <code>_host_payload</code></td>
+          <td>mutation line is the first line of the log</td>
+        </tr>
+        <tr>
+          <td>Named test, mutated source</td>
+          <td><code>pytest tests/agent/test_throttling.py::TestMain::test_the_payload_names_the_machine_the_reading_came_from</code></td>
+          <td><strong>1 failed</strong>, exit 1, <code>KeyError: 'hostname'</code></td>
+        </tr>
+        <tr>
+          <td>Source restored</td>
+          <td>the removed line re-added</td>
+          <td><code>git status --short</code> clean against the commit</td>
+        </tr>
+        <tr>
+          <td>Same command, restored source</td>
+          <td><code>uv run --no-sync pytest tests/agent/test_throttling.py</code></td>
+          <td>48 passed, exit 0</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>The red log is
+    <code>~/.config/reckon/crew/reports/fleet-throttling-host-negative-control.log</code>,
+    whose first line repeats the declared mutation verbatim, so a log that failed for
+    any other reason is refused. The failure is on the assertion rather than on
+    collection:
+    <code>assert payload["host"]["hostname"] == "srv-alpha"</code> raises
+    <code>KeyError: 'hostname'</code>, which is the test reading the field out of the
+    emitted object and not finding it.</p>
+
+    <p><strong>Live read, and it reproduces the earlier baseline.</strong> Run on this
+    login node against the account slice the plan measures:</p>
+
+    <pre><code>{
+  "directory": "/sys/fs/cgroup/user.slice/user-39486.slice",
+  "host": {
+    "hostname": "98dci4-srv-1006.iter.org",
+    "boot_id": "82c41dfa-a445-4fb2-8416-04b44c3d874c",
+    "uptime_seconds": 3798078.02
+  },
+  "cpu_max": "400000 100000",
+  "cumulative": {
+    "usage_usec": 4876098120155,
+    "nr_periods": 37274306,
+    "nr_throttled": 4121994,
+    "throttled_usec": 5028366755968,
+    "permitted_usec": 14909722400000,
+    "throttled_share": 0.33725421715215836
+  }
+}</code></pre>
+
+    <p>That reading is the second independent arrival at the baseline: the earlier
+    baseline comment records a cumulative share of <strong>0.3366</strong> over
+    43&nbsp;d 20&nbsp;h of uptime, and this reads <strong>0.3373</strong> over
+    43&nbsp;d 23&nbsp;h. The counters moved and the ratio did not, which is what a
+    correctly-attributed reading of one uninterrupted boot should do. It is also the
+    demonstration the change exists for: the same operand on a different node would
+    have produced a payload differing only in the counters, with nothing in it to say
+    the two were not the same machine.</p>
+
+    <p><strong>Scope.</strong> The change is confined to
+    <code>imas_ambix/agent/throttling.py</code> and
+    <code>imas_ambix/agent/test_throttling.py</code>. The existing JSON equality
+    assertions were extended deliberately rather than deleted: the key set in
+    <code>TestMain</code> gained <code>host</code>, and the pre-existing assertions on
+    <code>directory</code>, <code>cpu_max</code>, the counters and the undefined-share
+    spelling are all still there. Nothing in this node's own gate covers the merged
+    result — the fleet and CLI surfaces belong to other nodes.</p>
+  </section>
+
 </main>
 </body>
 </html>

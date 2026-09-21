@@ -9,16 +9,20 @@ import pytest
 from imas_ambix.agent.throttling import (
     CpuMax,
     CpuStat,
+    HostIdentity,
     Sample,
     Unmeasured,
     _counters_payload,
+    _host_payload,
     _parser,
     format_cpu_max,
     interval_delta,
     interval_throttled_share,
     main,
+    parse_boot_id,
     parse_cpu_max,
     parse_cpu_stat,
+    parse_uptime,
     permitted_thread_usec,
     read_sample,
     throttled_share,
@@ -26,6 +30,17 @@ from imas_ambix.agent.throttling import (
 
 # The account slice on the login node: four cores out of each 100 ms period.
 _QUOTA_ED_MAX = "400000 100000"
+
+# A machine identity fixture: one host, one boot of it, and how long that boot
+# has run. The readings are attributed to this rather than to whatever machine
+# the suite happens to run on, so the fields are asserted over known values.
+_HOST = HostIdentity(
+    hostname="srv-alpha",
+    boot_id="5f2c9d84-1e3a-4b70-9c11-8a3f2d6b04c7",
+    uptime_seconds=3_534_804.72,
+)
+
+_UPTIME_TEXT = "3534804.72 987654.32\n"
 
 # The kernel adds fields this module does not report on; a host on a later
 # kernel must still produce a reading.
@@ -99,6 +114,59 @@ class TestParseCpuStat:
 
         with pytest.raises(ValueError, match="nr_throttled"):
             parse_cpu_stat(text)
+
+
+class TestParseUptime:
+    def test_reads_the_first_field_and_ignores_the_idle_total(self):
+        # The second field sums idle time over every processor, which is not
+        # how long the machine has been running.
+        assert parse_uptime(_UPTIME_TEXT) == pytest.approx(3_534_804.72)
+
+    def test_a_machine_that_has_just_booted_states_a_small_age(self):
+        assert parse_uptime("12.34 100.00\n") == pytest.approx(12.34)
+
+    def test_surrounding_whitespace_does_not_change_the_age(self):
+        assert parse_uptime("  42.5\n") == pytest.approx(42.5)
+
+    @pytest.mark.parametrize("text", ["", "   ", "\n", "not-a-number 5.0"])
+    def test_text_that_states_no_age_is_refused(self, text):
+        with pytest.raises(ValueError):
+            parse_uptime(text)
+
+
+class TestParseBootId:
+    def test_takes_the_identifier_apart_from_whitespace(self):
+        assert parse_boot_id(f"{_HOST.boot_id}\n") == _HOST.boot_id
+
+    @pytest.mark.parametrize("text", ["", "\n", "   "])
+    def test_blank_text_is_refused_rather_than_reported_as_a_blank_boot(self, text):
+        with pytest.raises(ValueError):
+            parse_boot_id(text)
+
+
+class TestHostPayload:
+    def test_carries_the_machine_the_boot_and_the_age(self):
+        assert _host_payload(_HOST) == {
+            "hostname": "srv-alpha",
+            "boot_id": _HOST.boot_id,
+            "uptime_seconds": pytest.approx(3_534_804.72),
+        }
+
+    def test_a_reboot_between_two_readings_is_visible_in_the_block(self):
+        # Two readings of cumulative counters can be compared only if a reboot
+        # between them is visible: those counters restart at boot, so a share
+        # that fell may describe a new boot rather than a recovered machine.
+        after_reboot = HostIdentity(
+            hostname=_HOST.hostname,
+            boot_id="0b6d51a9-7c48-42e0-b3f5-9d1cbe27a804",
+            uptime_seconds=120.0,
+        )
+
+        assert _host_payload(after_reboot)["boot_id"] != _host_payload(_HOST)["boot_id"]
+        assert (
+            _host_payload(after_reboot)["uptime_seconds"]
+            < _host_payload(_HOST)["uptime_seconds"]
+        )
 
 
 class TestThrottledShare:
@@ -309,21 +377,49 @@ class TestMain:
     def test_sample_prints_the_cumulative_reading_as_json(self, tmp_path, capsys):
         self._write_group(tmp_path)
 
-        status = main(["sample", "--directory", str(tmp_path)])
+        status = main(["sample", "--directory", str(tmp_path)], _HOST)
 
         assert status == 0
         payload = json.loads(capsys.readouterr().out)
-        assert set(payload) == {"directory", "cpu_max", "cumulative"}
+        assert set(payload) == {"directory", "host", "cpu_max", "cumulative"}
         assert payload["directory"] == str(tmp_path)
         assert payload["cpu_max"] == _QUOTA_ED_MAX
         assert payload["cumulative"]["throttled_share"] == pytest.approx(0.25)
+
+    def test_the_payload_names_the_machine_the_reading_came_from(
+        self, tmp_path, capsys
+    ):
+        # The counter directory resolves on every machine in the cluster with
+        # different contents, so without the hostname two readings taken on
+        # different computers are indistinguishable and compare as though they
+        # described one.
+        self._write_group(tmp_path)
+
+        main(["sample", "--directory", str(tmp_path)], _HOST)
+
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["host"]["hostname"] == "srv-alpha"
+
+    def test_the_payload_states_which_boot_and_how_long_it_has_run(
+        self, tmp_path, capsys
+    ):
+        # Two readings of cumulative counters can be compared only if a reboot
+        # between them is visible: those counters restart at boot, so a share
+        # that fell may describe a new boot rather than a recovered machine.
+        self._write_group(tmp_path)
+
+        main(["sample", "--directory", str(tmp_path)], _HOST)
+
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["host"]["boot_id"] == _HOST.boot_id
+        assert payload["host"]["uptime_seconds"] == pytest.approx(_HOST.uptime_seconds)
 
     def test_an_unbounded_group_serialises_its_share_as_its_cause(
         self, tmp_path, capsys
     ):
         self._write_group(tmp_path, cpu_max="max 100000")
 
-        main(["sample", "--directory", str(tmp_path)])
+        main(["sample", "--directory", str(tmp_path)], _HOST)
 
         payload = json.loads(capsys.readouterr().out)
         assert payload["cumulative"]["throttled_share"] == "unbounded"
@@ -334,10 +430,20 @@ class TestMain:
         # an unbounded one.
         self._write_group(tmp_path)
 
-        status = main(["interval", "--directory", str(tmp_path), "--seconds", "0"])
+        status = main(
+            ["interval", "--directory", str(tmp_path), "--seconds", "0"], _HOST
+        )
 
         assert status == 0
         payload = json.loads(capsys.readouterr().out)
+        assert set(payload) == {
+            "directory",
+            "host",
+            "cpu_max",
+            "cumulative",
+            "interval",
+        }
+        assert payload["host"]["hostname"] == "srv-alpha"
         interval = payload["interval"]
         assert set(interval) == {
             "usage_usec",

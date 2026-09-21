@@ -17,12 +17,20 @@ on each, so they are kept apart rather than collapsed into one missing value.
 An unbounded group can never yield a share however long it is watched, while a
 group with no accounted period yet has simply not run long enough and will
 state a share at a later reading. ``Unmeasured`` names both.
+
+A share is comparable only between readings of the same machine, and nothing in
+the cgroup text says which machine it came from: the counter paths resolve on
+every host in the cluster with different contents. The payload therefore names
+the host and the boot it was read on. The boot matters because the counters are
+cumulative since boot, so a reboot restarts them and the drop reads as an
+improvement unless the two readings can be attributed to different boots.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import socket
 import time
 from dataclasses import dataclass
 from enum import StrEnum
@@ -34,6 +42,10 @@ if TYPE_CHECKING:
 
 _CPU_MAX_FILE = "cpu.max"
 _CPU_STAT_FILE = "cpu.stat"
+
+# The kernel's own record of which boot this is, and how long it has run.
+_BOOT_ID_FILE = "/proc/sys/kernel/random/boot_id"
+_UPTIME_FILE = "/proc/uptime"
 
 # The cpu.max quota field when no ceiling is set.
 _UNLIMITED = "max"
@@ -70,6 +82,22 @@ class Sample:
 
     cpu_max: CpuMax
     stat: CpuStat
+
+
+@dataclass(frozen=True, slots=True)
+class HostIdentity:
+    """Which machine a reading came from, and which boot of that machine.
+
+    ``boot_id`` is the kernel's own per-boot identifier, so two readings
+    carrying the same value describe one uninterrupted run of counters and two
+    different values mark a reboot between them. ``uptime_seconds`` says how
+    long that run has been going, which makes the difference readable rather
+    than merely detectable.
+    """
+
+    hostname: str
+    boot_id: str
+    uptime_seconds: float
 
 
 class Unmeasured(StrEnum):
@@ -135,12 +163,50 @@ def parse_cpu_stat(text: str) -> CpuStat:
     return CpuStat(**counters)
 
 
+def parse_uptime(text: str) -> float:
+    """Seconds since boot, read from the first field of ``/proc/uptime``.
+
+    The second field is the sum of per-CPU idle time, which is not the
+    machine's age and is ignored. A machine that has just rebooted reports a
+    small value, which is what makes this useful beside a cumulative counter.
+    """
+    fields = text.split()
+    if not fields:
+        raise ValueError("uptime is empty")
+    try:
+        return float(fields[0])
+    except ValueError as exc:
+        raise ValueError(f"uptime is not a number: {fields[0]!r}") from exc
+
+
+def parse_boot_id(text: str) -> str:
+    """The kernel's identifier for the current boot, from ``boot_id``.
+
+    A fresh value is drawn at each boot, so two readings carrying the same
+    identifier share one run of cumulative counters and two different ones do
+    not, however similar their shares look.
+    """
+    boot_id = text.strip()
+    if not boot_id:
+        raise ValueError("boot_id is empty")
+    return boot_id
+
+
 def read_sample(directory: str | Path) -> Sample:
     """Read one control group's ceiling and counters from its directory."""
     base = Path(directory)
     return Sample(
         cpu_max=parse_cpu_max((base / _CPU_MAX_FILE).read_text()),
         stat=parse_cpu_stat((base / _CPU_STAT_FILE).read_text()),
+    )
+
+
+def read_host() -> HostIdentity:
+    """The running machine's name, boot identifier and time since boot."""
+    return HostIdentity(
+        hostname=socket.gethostname(),
+        boot_id=parse_boot_id(Path(_BOOT_ID_FILE).read_text()),
+        uptime_seconds=parse_uptime(Path(_UPTIME_FILE).read_text()),
     )
 
 
@@ -236,6 +302,23 @@ def _counters_payload(stat: CpuStat, cpu_max: CpuMax) -> dict[str, object]:
     }
 
 
+def _host_payload(host: HostIdentity) -> dict[str, object]:
+    """The machine a reading came from, shaped for JSON.
+
+    The hostname is what lets a reader compare two shares at all: the counter
+    directory resolves identically on every machine in the cluster, so without
+    it two readings taken on different computers are indistinguishable and
+    compare as though they described one. The boot identity and the uptime
+    separate two readings of cumulative counters across a reboot, whose
+    restart would otherwise read as a sudden improvement.
+    """
+    return {
+        "hostname": host.hostname,
+        "boot_id": host.boot_id,
+        "uptime_seconds": host.uptime_seconds,
+    }
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Read cgroup v2 CPU throttling counters"
@@ -249,12 +332,21 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: Sequence[str] | None = None) -> int:
-    """Read one control group and print its throttled share as JSON."""
+def main(argv: Sequence[str] | None = None, host: HostIdentity | None = None) -> int:
+    """Read one control group and print its throttled share as JSON.
+
+    The emitted payload names the machine the reading came from, and which boot
+    of it, so two shares can be compared only when they describe one computer
+    over one uninterrupted run of counters. The host identity is passed in
+    rather than read here, as the control group is, so a caller decides which
+    machine is named; it defaults to the machine the command runs on.
+    """
     args = _parser().parse_args(argv)
+    reading_host = read_host() if host is None else host
     first = read_sample(args.directory)
     payload: dict[str, object] = {
         "directory": args.directory,
+        "host": _host_payload(reading_host),
         "cpu_max": format_cpu_max(first.cpu_max),
         "cumulative": _counters_payload(first.stat, first.cpu_max),
     }
