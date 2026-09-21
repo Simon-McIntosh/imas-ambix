@@ -300,6 +300,109 @@ E             'imas_ambix/agent/bench.py'
         <tr><td><code>d9521c16</code></td><td>the benchmark reader resolves its serving quantities through the shared module</td></tr>
       </tbody>
     </table>
+
+    <h2 id="one-owner-any-indentation">§2 — the single-owner guard finds a rival wherever it is declared</h2>
+
+    <p>The uniqueness scan that asserts <code>bench.py</code> holds no second owner
+    matched a declaration only where it began in column 0, so it reported a unique
+    tree for any rival declared inside a block. A rival does not arrive at column 0:
+    the duplicate this check exists to catch compiled its own <code>_SAMPLE_RE</code>
+    and <code>_LABEL_RE</code> inside the function that read with them, and the shape
+    an importer-facing fallback takes is a replacement declared inside an
+    <code>except</code> block. Both are indented, so both were invisible, and both
+    are in the exercised rival tree now.</p>
+
+    <p><strong>The blindness was reproduced before it was repaired.</strong> Appending
+    an importer-facing fallback to <code>bench.py</code> — a <code>try</code>
+    importing <code>parse_metrics</code> from <code>engine_metrics</code>, an
+    <code>except ImportError</code> declaring <code>parse_metrics</code> and
+    compiling <code>_SAMPLE_RE</code>, every line of it inside the
+    <code>try</code> or the <code>except</code> — left the guard at <strong>5
+    passed</strong>: a full second owner, and a green scan. The scan now parses each
+    module with <code>ast</code> and counts a <code>def</code>, an <code>async
+    def</code>, a <code>class</code> or a binding assignment of the name at any
+    nesting depth. The same mutation against the widened scan fails:</p>
+
+    <pre>FAILED tests/test_agent_bench_shared_reader.py::test_exposition_grammar_has_one_owner
+E           AssertionError: _SAMPLE_RE
+E           Extra items in the left set:
+E             'imas_ambix/agent/bench.py'
+1 failed, 5 passed in 14.90s</pre>
+
+    <p>The mutation was then reverted — <code>bench.py</code> byte-identical to its
+    base revision (<code>sha256 aacd8211…</code>, <code>git diff</code> empty) — and
+    the scan re-run green. An import of the owner's name is deliberately
+    <em>not</em> a declaration, or every future caller would read as a rival; the
+    exercised rival tree carries a third module that only imports
+    <code>parse_metrics</code> and is required absent from the answer.</p>
+
+    <p><strong>The recorded negative control was not replayable as written.</strong>
+    <code>bench.py</code> no longer imports <code>re</code>, so a replay that appends
+    <code>_SAMPLE_RE = re.compile(...)</code> and <code>parse_metrics</code> dies at
+    import rather than in the guard — <code>Interrupted: 1 error during
+    collection</code>, <code>0 tests run</code>, <code>NameError: name 're' is not
+    defined</code> at <code>bench.py:1610</code>. A red that comes from a collection
+    error tests nothing about the scan, so the receipt now quotes the exact text to
+    append, import included:</p>
+
+    <pre>import re
+
+try:
+    from imas_ambix.agent.engine_metrics import parse_metrics
+except ImportError:
+
+    def parse_metrics(text):
+        return []
+
+    _SAMPLE_RE = re.compile(r"^x$")</pre>
+
+    <p>Replayed verbatim that reddens the widened scan (<code>1 failed, 5 passed</code>,
+    the failure naming <code>imas_ambix/agent/bench.py</code> as the extra definer)
+    and leaves the pre-widening scan at <code>5 passed</code> — the two halves of the
+    pair, from the same appended bytes. The symbol coverage the widened scan is
+    exercised over, at one declaration shape each:</p>
+
+    <table>
+      <thead><tr><th>Symbol</th><th>Rival declaration shape</th><th>Expected definers</th></tr></thead>
+      <tbody>
+        <tr><td><code>_SAMPLE_RE</code></td><td>assigned inside the rival's
+        function</td><td>owner + rival</td></tr>
+        <tr><td><code>_LABEL_RE</code></td><td>assigned inside the rival's
+        function</td><td>owner + rival</td></tr>
+        <tr><td><code>parse_metrics</code></td><td><code>def</code> inside an
+        <code>except ImportError</code></td><td>owner + rival</td></tr>
+        <tr><td><code>SPEC_DECODE_SERIES</code></td><td>assigned inside an
+        <code>except ImportError</code></td><td>owner + rival</td></tr>
+        <tr><td><code>SPEC_DECODE_PER_POSITION</code></td><td>absent from the
+        rival</td><td>owner only</td></tr>
+        <tr><td><code>_bare_metric_name</code> (retired)</td><td>assigned inside the
+        rival's function</td><td>rival only</td></tr>
+        <tr><td><code>parse_metrics</code> imported by a third module</td><td>import
+        only, no declaration</td><td>not a definer</td></tr>
+      </tbody>
+    </table>
+
+    <p>This relationship is a symbol-to-module mapping and a set of expected results,
+    which is naturally a table rather than a picture; no figure is drawn for it. A
+    figure would live under <code>docs/figures/</code>, which is outside this node's
+    write scope.</p>
+
+    <p><strong>Gates.</strong> Base <code>5d8ce3d9</code>: the guard file alone
+    <strong>5 passed</strong>. The two pre-existing bench test files are unmodified by
+    this change, and the 40 total below with six guard tests gives them 34 by
+    subtraction. After: <code>uv run --no-sync pytest -p no:cacheprovider
+    tests/test_agent_bench_shared_reader.py tests/test_bench.py
+    tests/agent/test_bench_provenance.py</code> reports <strong>40 passed</strong>,
+    zero failures (6 guard tests + the same 34), so zero added failures;
+    <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0. Both runs were
+    submitted to an <code>all_debug</code> allocation rather than the login node.</p>
+
+    <table>
+      <thead><tr><th>Commit</th><th>Subject</th></tr></thead>
+      <tbody>
+        <tr><td><code>f7ff97ee</code></td><td>find a second exposition owner at any indentation</td></tr>
+      </tbody>
+    </table>
   </main>
 </body>
 </html>
