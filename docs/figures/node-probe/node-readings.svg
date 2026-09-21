@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 470" width="900" height="470" font-family="system-ui, sans-serif">
+  <title>Three local probes contribute sparse sections to one recorder tick</title>
+  <desc>Local commands at the serving node produce card, host and job-table sections; each section is omitted entirely when its probe did not run. An inset shows the card index map from the step's read order to the physical indices held in SLURM_STEP_GPUS.</desc>
+  <rect width="900" height="470" fill="#ffffff"/>
+
+  <!-- Tick -->
+  <rect x="20" y="30" width="150" height="80" rx="6" fill="#eef3fa" stroke="#4a6fa5" stroke-width="1.5"/>
+  <text x="95" y="58" text-anchor="middle" font-size="13" font-weight="600" fill="#1f3350">recorder tick</text>
+  <text x="95" y="78" text-anchor="middle" font-size="11" fill="#3c4d66">every 5 s, on the serve</text>
+  <text x="95" y="95" text-anchor="middle" font-size="11" fill="#3c4d66">inside its own allocation</text>
+
+  <!-- Probes -->
+  <g>
+    <rect x="230" y="10" width="215" height="52" rx="5" fill="#f7f9fc" stroke="#7d93b2" stroke-width="1.2"/>
+    <text x="242" y="31" font-size="12" font-weight="600" fill="#1f3350">nvidia-smi --query-gpu</text>
+    <text x="242" y="48" font-size="10.5" fill="#4a5b73">one query, every card, one instant</text>
+
+    <rect x="230" y="76" width="215" height="52" rx="5" fill="#f7f9fc" stroke="#7d93b2" stroke-width="1.2"/>
+    <text x="242" y="97" font-size="12" font-weight="600" fill="#1f3350">cat /proc/stat, /proc/meminfo</text>
+    <text x="242" y="114" font-size="10.5" fill="#4a5b73">cumulative jiffies; memory in MiB</text>
+
+    <rect x="230" y="142" width="215" height="52" rx="5" fill="#f7f9fc" stroke="#7d93b2" stroke-width="1.2"/>
+    <text x="242" y="163" font-size="12" font-weight="600" fill="#1f3350">squeue -h -w &lt;hostname&gt;</text>
+    <text x="242" y="180" font-size="10.5" fill="#4a5b73">a SLURM RPC: read on its own</text>
+    <text x="242" y="191" font-size="10.5" fill="#4a5b73">slower cadence, not every tick</text>
+  </g>
+
+  <g stroke="#7d93b2" stroke-width="1.2" fill="none">
+    <path d="M170 62 C 200 62, 200 36, 230 36"/>
+    <path d="M170 70 C 200 70, 200 102, 230 102"/>
+    <path d="M170 78 C 200 78, 200 168, 230 168"/>
+  </g>
+
+  <!-- Arrow to row -->
+  <path d="M445 102 L 505 102" stroke="#4a6fa5" stroke-width="1.6" fill="none" marker-end="url(#a)"/>
+  <defs>
+    <marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 z" fill="#4a6fa5"/>
+    </marker>
+  </defs>
+
+  <!-- Sections -->
+  <text x="600" y="30" text-anchor="middle" font-size="13" font-weight="600" fill="#1f3350">row sections</text>
+  <g font-size="11">
+    <rect x="515" y="42" width="185" height="52" rx="5" fill="#eaf4ec" stroke="#4f8a5b" stroke-width="1.2"/>
+    <text x="607" y="62" text-anchor="middle" font-size="12" font-weight="600" fill="#235c2e">cards</text>
+    <text x="607" y="79" text-anchor="middle" font-size="10.5" fill="#33653c">physical index, 8 quantities</text>
+
+    <rect x="515" y="102" width="185" height="52" rx="5" fill="#eaf4ec" stroke="#4f8a5b" stroke-width="1.2"/>
+    <text x="607" y="122" text-anchor="middle" font-size="12" font-weight="600" fill="#235c2e">host</text>
+    <text x="607" y="139" text-anchor="middle" font-size="10.5" fill="#33653c">busy fraction, memory</text>
+
+    <rect x="515" y="162" width="185" height="52" rx="5" fill="#eaf4ec" stroke="#4f8a5b" stroke-width="1.2"/>
+    <text x="607" y="182" text-anchor="middle" font-size="12" font-weight="600" fill="#235c2e">jobs</text>
+    <text x="607" y="199" text-anchor="middle" font-size="10.5" fill="#33653c">what else is resident</text>
+  </g>
+
+  <rect x="740" y="42" width="140" height="172" rx="5" fill="#fdf6ec" stroke="#c08a3e" stroke-width="1.3"/>
+  <text x="810" y="66" text-anchor="middle" font-size="12" font-weight="600" fill="#7a4f13">a probe that did</text>
+  <text x="810" y="82" text-anchor="middle" font-size="12" font-weight="600" fill="#7a4f13">not run</text>
+  <text x="810" y="108" text-anchor="middle" font-size="11" fill="#8a5c1d">contributes</text>
+  <text x="810" y="124" text-anchor="middle" font-size="11" font-weight="600" fill="#8a5c1d">no section</text>
+  <text x="810" y="150" text-anchor="middle" font-size="10.5" fill="#8a5c1d">not an empty list,</text>
+  <text x="810" y="165" text-anchor="middle" font-size="10.5" fill="#8a5c1d">not a zeroed one:</text>
+  <text x="810" y="180" text-anchor="middle" font-size="10.5" fill="#8a5c1d">both read as a</text>
+  <text x="810" y="195" text-anchor="middle" font-size="10.5" fill="#8a5c1d">measurement</text>
+
+  <!-- Index inset -->
+  <rect x="20" y="240" width="860" height="205" rx="6" fill="#fbfbfd" stroke="#b9c2d0" stroke-width="1.2"/>
+  <text x="40" y="266" font-size="13" font-weight="600" fill="#1f3350">Card index: the step's read order is not the node's numbering</text>
+
+  <rect x="60" y="288" width="240" height="42" rx="5" fill="#eef3fa" stroke="#4a6fa5" stroke-width="1.2"/>
+  <text x="180" y="305" text-anchor="middle" font-size="11.5" fill="#1f3350">device cgroup restricts the step</text>
+  <text x="180" y="322" text-anchor="middle" font-size="11.5" fill="#1f3350">nvidia-smi numbers from 0</text>
+
+  <rect x="620" y="288" width="240" height="42" rx="5" fill="#eef3fa" stroke="#4a6fa5" stroke-width="1.2"/>
+  <text x="740" y="305" text-anchor="middle" font-size="11.5" fill="#1f3350">SLURM_STEP_GPUS holds the</text>
+  <text x="740" y="322" text-anchor="middle" font-size="11.5" fill="#1f3350">indices on the node</text>
+
+  <path d="M300 309 L 620 309" stroke="#4a6fa5" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+  <text x="460" y="301" text-anchor="middle" font-size="11" fill="#4a6fa5">pair by position, all or nothing</text>
+
+  <g font-size="12">
+    <text x="80" y="365" font-size="11" fill="#4a5b73">read order</text>
+    <rect x="160" y="350" width="70" height="26" rx="4" fill="#eef3fa" stroke="#7d93b2"/>
+    <text x="195" y="368" text-anchor="middle" fill="#1f3350">0</text>
+    <rect x="238" y="350" width="70" height="26" rx="4" fill="#eef3fa" stroke="#7d93b2"/>
+    <text x="273" y="368" text-anchor="middle" fill="#1f3350">1</text>
+
+    <text x="80" y="405" font-size="11" fill="#4a5b73">physical</text>
+    <rect x="160" y="390" width="70" height="26" rx="4" fill="#eaf4ec" stroke="#4f8a5b"/>
+    <text x="195" y="408" text-anchor="middle" fill="#235c2e">6</text>
+    <rect x="238" y="390" width="70" height="26" rx="4" fill="#eaf4ec" stroke="#4f8a5b"/>
+    <text x="273" y="408" text-anchor="middle" fill="#235c2e">7</text>
+  </g>
+
+  <text x="470" y="368" font-size="11" fill="#3c4d66">A 2-card step on cards 6 and 7 reads 0, 1 and is recorded as 6, 7.</text>
+  <text x="470" y="386" font-size="11" fill="#3c4d66">Recording the read order would make one job's card 0 and another's</text>
+  <text x="470" y="404" font-size="11" fill="#3c4d66">card 0 different silicon; the section states which numbering it used.</text>
+  <text x="470" y="428" font-size="11" fill="#8a5c1d">An allocation whose length does not describe the cards read is not applied.</text>
+</svg>

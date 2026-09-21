@@ -16,6 +16,7 @@
   <meta name="plan-summary" content="Cumulative execution evidence for per-request receipts from the routing relay.">
   <meta name="plan-evidence-for" content="serve-telemetry-spine">
   <meta name="plan-verifies" content="serve-telemetry-spine#s6">
+  <meta name="plan-verifies" content="serve-telemetry-spine#s3">
   <meta name="plan-owner" content="Simon McIntosh">
   <title>Serve Telemetry Spine — Landed Record | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
@@ -231,6 +232,120 @@
     <code>create_router_app</code> and <code>serve_router</code> accept an explicit
     <code>request_receipts_path</code> for a caller that wants another location. No launch
     command needed changing, and none did.</p>
+  <h1>Serve telemetry spine — node readings</h1>
+
+    <h2 id="node-readings">§3 — The serving node's own cards, host and job table</h2>
+
+    <figure>
+      <img src="/imas-ambix/figures/node-probe/node-readings.svg"
+           alt="Three local commands at the serving node feed one recorder tick, producing the card, host and job-table sections; a probe that did not run contributes no section at all. An inset shows a two-card step read as 0,1 by nvidia-smi and recorded as 6,7 from SLURM_STEP_GPUS.">
+      <figcaption>Three local probes, the sparse sections they contribute, and the card index map.</figcaption>
+    </figure>
+
+    <p><code>imas_ambix/agent/node_probe.py</code> produces the readings the engine's
+    own <code>/metrics</code> scrape cannot carry: what the cards were doing, what the
+    host was short of, and which other jobs were resident. All three are ordinary local
+    calls inside the serve's allocation — one <code>nvidia-smi --query-gpu</code>, one
+    <code>/proc/stat</code> and <code>/proc/meminfo</code> pair, and <code>squeue</code>
+    scoped to the node — so none of them needs an <code>srun</code> step or a hop
+    through the scheduler.</p>
+
+    <h3 id="absence-is-omission-again">A probe that did not run contributes no section</h3>
+
+    <p>Each reading is a sparse section in the row, following the rule §2 established
+    for the engine fields: a field is present because it was measured. A command that
+    failed, is absent from the node, or outlived its timeout yields <code>None</code>,
+    and its section is omitted rather than written as an empty list or a zeroed
+    mapping — both of which read as a measurement. The same applies inside a reading
+    taken partially: a quantity a card does not expose (<code>nvidia-smi</code> prints
+    <code>[N/A]</code>) is absent from that card, so a present key is always a
+    reading. The distinction is asserted per source, and a probe with nothing at all to
+    report emits an empty mapping rather than four empty sections.</p>
+
+    <h3 id="card-index-map">Cards carry the node's index, not the step's</h3>
+
+    <p>SLURM restricts a step to its allocated devices through the device cgroup, so
+    <code>nvidia-smi</code> inside the step numbers the visible cards from zero while
+    <code>SLURM_STEP_GPUS</code> holds the physical indices they are. A two-card step
+    on the node's cards 6 and 7 therefore reads <code>0, 1</code> and is recorded as
+    <code>6, 7</code>; recording the read order would make one job's card 0 and another
+    job's card 0 different silicon. The map is <strong>all-or-nothing</strong>: an
+    allocation whose length does not describe the cards actually read is not applied,
+    because pairing a partial allocation positionally would label a card with another
+    job's silicon — worse than leaving it under the numbering it was read with. The
+    section states which numbering it used and carries the raw allocation, so an
+    unmapped reading is explicable from the row itself.</p>
+
+    <p><strong>The rule was shown to be load-bearing rather than decorative.</strong> A
+    mutated copy that labels cards by read order fails exactly the mapping assertion
+    (<code>assert [0, 1] == [6, 7]</code>) and nothing else. The mutation, the command
+    and the red are recorded verbatim in the node's negative-control log. Two further
+    shapes are refused by construction: an unstated allocation keeps the read numbering
+    and says so, and a one-element allocation for a two-card step is not guessed at.</p>
+
+    <h3 id="cadence">The job table is read on its own clock, and omitted between</h3>
+
+    <p>The cards and the host are cheap local reads on every tick. The job table is a
+    SLURM RPC and changes on the scale of minutes, so it is read at its own interval
+    and <em>omitted</em> from the ticks between — omitted rather than repeated, because
+    a tick repeating an earlier reading dates a stale table as current. A failed job
+    read advances that clock instead of retrying on the next tick, so a node refusing
+    <code>squeue</code> is not asked twice a second. A node holding no jobs is a
+    reading and is kept.</p>
+
+    <p>The CPU busy fraction is differenced from two cumulative <code>/proc/stat</code>
+    samples with <code>iowait</code> counted as not busy, so it is the conventional
+    CPU-busy reading rather than one that blames the CPU for waiting on I/O. The first
+    tick of a run has no interval and reports no fraction; the cumulative jiffies are
+    carried beside it so a reader can difference any two rows across a window that
+    dropped a tick.</p>
+
+    <h2 id="node-readings-evidence">Evidence</h2>
+
+    <p><strong>A recorded body yields every field the section names.</strong>
+    <code>tests/test_node_probe.py</code> drives the module against recorded
+    <code>nvidia-smi</code>, <code>/proc/stat</code>, <code>/proc/meminfo</code> and
+    <code>squeue</code> fixtures — the job table captured from the serving node
+    <code>98dci4-gpu-0003</code>, the <code>proc</code> bodies from this workstation.
+    A recorded two-card body asserts full per-card dict equality for both cards,
+    including the unit-carrying key names; a card printing bracketed non-values asserts
+    the two unexposed quantities are absent while its other six survive.</p>
+
+    <p><strong>Absence is asserted per source.</strong> Six tests cover it: each of the
+    three commands absent in turn while the other two contribute, a partially readable
+    host keeping only the source that answered, and a probe with nothing to report
+    emitting no sections at all. The runner these rest on is exercised against real
+    commands — a clean exit, a non-zero exit that printed, and an absent binary — since
+    a non-zero exit is not a reading even when the command printed.</p>
+
+    <p><strong>Gates.</strong> <code>uv run --no-sync pytest
+    tests/test_node_probe.py -q</code> reports <strong>27 passed</strong>;
+    <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0; and
+    <code>pytest tests/test_agent_serve_registry.py -k serving_python</code> reports
+    <strong>2 passed</strong>, which is the guard this module needs because the serve
+    imports it under the engine's Python 3.12 rather than the repository's 3.14.</p>
+
+    <p>That last gate earned its keep here. The local runner's exception clause is
+    accepted by the repository's interpreter in its unparenthesised form, and the
+    repository's own formatter actively <em>strips</em> the parentheses back off when
+    it runs, because the formatter targets the newer grammar — so a fix written the way
+    the serving-interpreter rule says is silently undone by a formatting pass over the
+    same file. The failures are therefore held as a named tuple constant, which is
+    stable under both.</p>
+
+    <h2 id="node-readings-commits">Commits</h2>
+
+    <table>
+      <thead><tr><th>Commit</th><th>Subject</th></tr></thead>
+      <tbody>
+        <tr><td><code>8935b651</code></td><td>the three probes, their sparse sections, the index map and the cadence</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Not this node's to close.</strong> The wire node owns
+    <code>serving_receipts.py</code>, where these three sections merge into the tick's
+    row; until that lands, this module's readings are reachable only by direct call.
+    Verifying the merged head belongs to the separately dispatched test node.</p>
   </main>
 </body>
 </html>
