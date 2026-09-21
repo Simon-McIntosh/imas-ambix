@@ -108,47 +108,42 @@ def _resolve(section: dict[str, object], path: tuple[str, ...]) -> object:
 
 
 def _has_sample_line(text: str, name: str, label: str) -> bool:
-    """Whether the scrape carries a *sample* of *name*, not merely its HELP text.
+    """Whether the reader sees a *sample* of *name*, not merely its HELP text.
 
     The exposition repeats every series name in a ``# HELP`` and a ``# TYPE``
     line above its samples, so a substring search for the name is satisfied by a
-    series whose samples are all gone. This requires a line that actually
-    carries a value: the name alone, or the name followed by its label set, and
-    then a value token.
+    series whose samples are all gone. What counts as a sample is therefore
+    asked of the reader itself -- ``parse_metrics`` strips each line, drops the
+    comments and matches the same name-then-labels-then-value form -- rather
+    than peeled by hand beside it. A second peeler is stricter than production
+    wherever the exposition format is looser than it: an indented samples
+    section is legal and the reader accepts it, so a hand-rolled guard that
+    required the name at column zero would call a series unsourced while the
+    reader read its value.
     """
-    prefix = f"{engine_metrics.FAMILY_SGLANG}:{name}"
-    for line in text.splitlines():
-        if not line.startswith(prefix):
+    qualified = f"{engine_metrics.FAMILY_SGLANG}:{name}"
+    wanted = _label_fragment(label)
+    for sample_name, labels, _value in engine_metrics.parse_metrics(text):
+        if sample_name != qualified:
             continue
-        rest = line[len(prefix) :]
-        if rest[:1] == "{":
-            close = rest.find("}")
-            if close == -1:
-                continue
-            labels, value = rest[: close + 1], rest[close + 1 :]
-        elif rest[:1] == " ":
-            labels, value = "", rest
-        else:
-            # A longer series name that merely begins the same way.
-            continue
-        if label and label not in labels:
-            continue
-        if not _begins_with_value(value):
+        if wanted is not None and labels.get(wanted[0]) != wanted[1]:
             continue
         return True
     return False
 
 
-def _begins_with_value(remainder: str) -> bool:
-    """Whether *remainder* begins with a Prometheus sample value token."""
-    tokens = remainder.split()
-    if not tokens:
-        return False
-    try:
-        float(tokens[0])
-    except ValueError:
-        return False
-    return True
+def _label_fragment(label: str) -> tuple[str, str] | None:
+    """The key and value a required label fragment names, or ``None`` if empty.
+
+    Read with the reader's own label syntax, so a fragment is parsed the same
+    way the line it is looked for in is.
+    """
+    if not label:
+        return None
+    match = engine_metrics._LABEL_RE.search(label)
+    if match is None:
+        raise ValueError(f"not a label fragment: {label!r}")
+    return match.group("key"), match.group("val")
 
 
 def _per_pos_head(labels: str) -> str:
@@ -288,6 +283,14 @@ def test_a_series_name_without_a_value_is_not_a_source() -> None:
     sample are covered, label-bearing and unlabelled: the value is required of
     each independently, and an unlabelled line has nothing but the value to hold
     it to.
+
+    The guard is also held to what the reader ACCEPTS, not only to what it
+    refuses: the shapes below differ only in leading whitespace or in whether a
+    tab separates the value, and a guard requiring the name at column zero
+    REFUSED those while the reader resolved every value in them. What counts as
+    a sample is therefore asked of the reader itself, and the indented
+    assertions below fail if that delegation is ever replaced by a hand-rolled
+    peel again.
     """
     name = "num_running_reqs"
     labels = 'engine_type="unified",tp_rank="0"'
@@ -310,8 +313,28 @@ def test_a_series_name_without_a_value_is_not_a_source() -> None:
     for description, text in not_a_source.items():
         assert not _has_sample_line(text, name, ""), description
 
-    assert _has_sample_line(f"sglang:{name}{{{labels}}} 0.0", name, "")
-    assert _has_sample_line(f"sglang:{name} 0.0", name, "")
+    value_present = {
+        "the name and its labels": f"sglang:{name}{{{labels}}} 0.0",
+        "the bare name, unlabelled": f"sglang:{name} 0.0",
+        # Leading whitespace and a tab separator are legal exposition the reader
+        # accepts, and a guard refusing them would report a series unsourced
+        # that the reader resolves.
+        "the label-bearing line, indented": f"    sglang:{name}{{{labels}}} 0.0",
+        "the unlabelled line, indented": f"  sglang:{name} 0.0",
+        "tab-separated after the labels": f"sglang:{name}{{{labels}}}\t0.0",
+    }
+    for description, text in value_present.items():
+        assert _has_sample_line(text, name, ""), description
+
+    # The whole fixture, indented: the shape a hand-rolled peel refused while
+    # the reader resolved every value in it.
+    indented_fixture = "\n".join(
+        f"    {line}"
+        for line in _SGLANG_FIXTURE.read_text(encoding="utf-8").splitlines()
+    )
+    for _quantity, _path, source, fragment in _CANONICAL_FIELD_SOURCES:
+        assert _has_sample_line(indented_fixture, source, fragment), source
+
     assert not _has_sample_line(
         f"sglang:{name}{{{labels}}} 0.0", name, 'mode="input"'
     ), "the required label fragment must be read from the label set"
