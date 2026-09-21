@@ -1068,7 +1068,118 @@ uv run python -m imas_ambix.agent.throttling interval \
     holding real state is moved.</p>
     <p>One defect surfaced by the attempt: the sampler raises <code>FileNotFoundError</code> when
     <code>cpu.max</code> is absent rather than reporting an unconfigured ceiling, so it cannot run
-    on the compute side of the very comparison it was built to make.</p>
+    on the compute side of the very comparison it was built to make. It is repaired, with a second
+    absence found beside it, in <a href="#throttling-read-without-a-ceiling">a control group with no
+    ceiling</a>.</p>
+  </section>
+
+  <section id="throttling-read-without-a-ceiling">
+    <h2>A control group with no ceiling, and a reading that states the absence</h2>
+    <p>Commit <code>b331d140</code>, confined to <code>imas_ambix/agent/throttling.py</code> and its
+    test file. The three machine reads behind the payload's <code>host</code> block — the hostname,
+    the kernel's per-boot identifier and <code>/proc/uptime</code> — were exercised only by the live
+    machine. They are now exercised by tests, together with the two repairs below.</p>
+
+    <h3>Both defects reproduced before either was repaired</h3>
+    <p>Read against the base revision <code>7415d365</code>. The first was in the identifier parser,
+    which refused only emptiness, so a value that merely looked like a boot identifier was accepted
+    and reported as machine boot identity:</p>
+    <pre><code>parse_boot_id('not-a-uuid') -&gt; 'not-a-uuid'</code></pre>
+    <p>The second was taken live inside the held allocation, on job <code>1274732</code> at
+    <code>98dci4-clu-2002</code>, against the same path the ceiling-absent finding above used:</p>
+    <pre><code>read_sample('/sys/fs/cgroup/user.slice/user-39486.slice')
+FileNotFoundError: [Errno 2] No such file or directory:
+  '/sys/fs/cgroup/user.slice/user-39486.slice/cpu.max'</code></pre>
+
+    <h3>The second absence the first one hides</h3>
+    <p>The cpu controller accounts no period for a group it enforces no ceiling on, so the same
+    group's <code>cpu.stat</code> carries <em>no</em> <code>nr_periods</code>,
+    <code>nr_throttled</code> or <code>throttled_usec</code> — only the cumulative
+    <code>usage_usec</code>. Handling the missing <code>cpu.max</code> alone would therefore still
+    have killed the command, at the refusal of a missing counter in <code>parse_cpu_stat</code>,
+    leaving the sampler unable to run on the compute side for a reason the specification did not
+    name. Both absences are handled: the period counters are reported absent and never as zero,
+    because a measured zero asserts that periods elapsed and none was exceeded, while a
+    <code>cpu.stat</code> stating no <code>usage_usec</code> at all is still refused as malformed
+    text.</p>
+
+    <table>
+      <thead><tr><th>State of the control group</th><th>Before</th><th>Now</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>A ceiling granted and never hit</td>
+          <td><code>"cpu_max": "400000 100000"</code>, <code>"throttled_share": 0.0</code></td>
+          <td>unchanged</td>
+        </tr>
+        <tr>
+          <td>A ceiling granted with no quota (<code>max 100000</code>)</td>
+          <td><code>"cpu_max": "max 100000"</code>, <code>"throttled_share": "unbounded"</code></td>
+          <td>unchanged</td>
+        </tr>
+        <tr>
+          <td>No ceiling file at all, as on the compute node's user slice</td>
+          <td><code>FileNotFoundError</code>, no payload emitted</td>
+          <td><code>"cpu_max": "absent"</code>, period counters <code>null</code>,
+          <code>"throttled_share": "unbounded"</code></td>
+        </tr>
+      </tbody>
+    </table>
+    <p><code>max</code> and an absent file are kept apart deliberately: one is a ceiling the group
+    was given and the other is no ceiling at all, and the two readings a caller compares must be
+    distinguishable, which is the same reason the host block exists. No third
+    <code>Unmeasured</code> member was added: a group with no ceiling reports the permanent cause
+    <code>unbounded</code> for its share, which is the cause a caller acts on, and states the
+    distinct fact about its ceiling in <code>cpu_max</code>.</p>
+
+    <table>
+      <thead><tr><th>Gate</th><th>Observed result</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Focused suite</td>
+          <td><code>uv run --no-sync pytest tests/agent/test_throttling.py</code>:
+          <code>71 passed in 0.31s</code>, exit 0 (48 passed at the base revision)</td>
+        </tr>
+        <tr>
+          <td>Whole-tree lint</td>
+          <td><code>uv run --no-sync ruff check imas_ambix tests</code>:
+          <code>All checks passed!</code>, exit 0</td>
+        </tr>
+        <tr>
+          <td>Strict typing</td>
+          <td><code>uv run --no-sync mypy --strict imas_ambix/agent/throttling.py</code>:
+          <code>Success: no issues found in 1 source file</code></td>
+        </tr>
+        <tr>
+          <td>Declared negative control applied</td>
+          <td><strong>1 failed</strong> on
+          <code>TestReadHost::test_reads_the_name_the_boot_and_the_age_of_this_machine</code> with
+          <code>AssertionError: assert 'placeholder' == 'srv-beta'</code>; the source was restored
+          and the class re-run to <strong>6 passed</strong></td>
+        </tr>
+      </tbody>
+    </table>
+    <p>The declared mutation is <em>make <code>read_host</code> return a fixed placeholder hostname
+    instead of reading it from the machine</em>, and the test asserting that <code>read_host</code>
+    returns what the machine reports is the one observed to fail. The red log is
+    <code>.../runs/r-20260921T102535452002-fleet-host-read-is-exercised/logs/negative-control-receipt.txt</code>,
+    whose first line repeats the declared mutation verbatim; the header was checked rather than
+    assumed, and the check printed <strong>IDENTICAL</strong>.</p>
+
+    <h3>Post-repair markers, quoted from the repaired module</h3>
+    <p>A repair is shown by a refusal that did not happen before, not by a suite that passed both
+    before and after. Both are captured in
+    <code>.../runs/r-20260921T102535452002-fleet-host-read-is-exercised/logs/after-reproduction.log</code>:</p>
+    <pre><code>parse_boot_id('not-a-uuid') -&gt; ValueError: boot_id is not a boot identifier: 'not-a-uuid'
+read_sample(&lt;group with no cpu.max&gt;) -&gt;
+  cpu_max='absent' usage_usec=4846187612533 period_counters=None</code></pre>
+
+    <h3>What this record does not establish</h3>
+    <p>No compute-side reading has been taken with the repaired module: this node's fence covers the
+    reads behind the host block and the two absences, not a live comparison across the placement.
+    The absent-ceiling branch is exercised over text captured from the node's user slice and
+    replayed as a fixture, while the absence of the file on the node is the separate live finding
+    recorded above. The plan's section for this node is edited in place by hand, because the plan is
+    being landed against concurrently.</p>
   </section>
 
 </main>

@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
+from imas_ambix.agent import throttling
 from imas_ambix.agent.throttling import (
     CpuMax,
     CpuStat,
@@ -24,6 +26,7 @@ from imas_ambix.agent.throttling import (
     parse_cpu_stat,
     parse_uptime,
     permitted_thread_usec,
+    read_host,
     read_sample,
     throttled_share,
 )
@@ -54,6 +57,16 @@ nr_throttled 250
 throttled_usec 100000000
 nr_bursts 0
 burst_usec 0
+"""
+
+# A control group the cpu controller sees but enforces no ceiling on: it
+# accounts its cumulative usage and states no period counter at all. This is
+# the state of a compute node's user slice, which is one side of the comparison
+# the sampler exists to take.
+_CPU_STAT_WITHOUT_PERIODS = """\
+usage_usec 4846187612533
+user_usec 3238892601672
+system_usec 1607295010861
 """
 
 
@@ -459,3 +472,210 @@ class TestMain:
         assert interval["nr_periods"] == 0
         assert interval["throttled_share"] == "no_periods"
         assert interval["cpu_max_at_end"] == _QUOTA_ED_MAX
+
+
+class TestParseBootIdShape:
+    def test_the_kernel_s_own_identifier_is_the_one_accepted(self):
+        assert parse_boot_id(_HOST.boot_id) == _HOST.boot_id
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "not-a-uuid",
+            "5f2c9d841e3a4b709c118a3f2d6b04c7",
+            "5F2C9D84-1E3A-4B70-9C11-8A3F2D6B04C7",
+            "5f2c9d84-1e3a-4b70-9c11",
+            "5f2c9d84-1e3a-4b70-9c11-8a3f2d6b04c7-",
+            "5f2c9d84-1e3a-4b70-9c11-8a3f2d6b04cz",
+            "00000000-0000-0000-0000-00000000000",
+        ],
+    )
+    def test_a_value_that_is_not_a_boot_identifier_is_refused(self, text):
+        # A value merely shaped like one would be reported and compared as
+        # though it named a boot, so the accepted set is the kernel's own shape
+        # rather than anything non-empty.
+        with pytest.raises(ValueError, match="boot identifier"):
+            parse_boot_id(text)
+
+    def test_the_refusal_names_the_value_it_read(self):
+        with pytest.raises(ValueError, match="not-a-uuid"):
+            parse_boot_id("not-a-uuid")
+
+
+class TestReadHost:
+    def _write_identity(self, tmp_path: Path, boot_id: str, uptime: str) -> None:
+        (tmp_path / "boot_id").write_text(boot_id)
+        (tmp_path / "uptime").write_text(uptime)
+
+    def _point_at(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(throttling, "_BOOT_ID_FILE", str(tmp_path / "boot_id"))
+        monkeypatch.setattr(throttling, "_UPTIME_FILE", str(tmp_path / "uptime"))
+
+    def test_reads_the_name_the_boot_and_the_age_of_this_machine(
+        self, tmp_path, monkeypatch
+    ):
+        self._write_identity(tmp_path, f"{_HOST.boot_id}\n", _UPTIME_TEXT)
+        self._point_at(tmp_path, monkeypatch)
+        monkeypatch.setattr(throttling.socket, "gethostname", lambda: "srv-beta")
+
+        host = read_host()
+
+        assert host.hostname == "srv-beta"
+        assert host.boot_id == _HOST.boot_id
+        assert host.uptime_seconds == pytest.approx(3_534_804.72)
+
+    def test_a_boot_identifier_file_that_is_not_there_is_refused(
+        self, tmp_path, monkeypatch
+    ):
+        self._write_identity(tmp_path, f"{_HOST.boot_id}\n", _UPTIME_TEXT)
+        (tmp_path / "boot_id").unlink()
+        self._point_at(tmp_path, monkeypatch)
+
+        with pytest.raises(OSError):
+            read_host()
+
+    def test_an_uptime_file_that_is_not_there_is_refused(self, tmp_path, monkeypatch):
+        self._write_identity(tmp_path, f"{_HOST.boot_id}\n", _UPTIME_TEXT)
+        (tmp_path / "uptime").unlink()
+        self._point_at(tmp_path, monkeypatch)
+
+        with pytest.raises(OSError):
+            read_host()
+
+    def test_a_boot_identifier_that_is_not_one_is_refused(self, tmp_path, monkeypatch):
+        self._write_identity(tmp_path, "not-a-uuid\n", _UPTIME_TEXT)
+        self._point_at(tmp_path, monkeypatch)
+
+        with pytest.raises(ValueError, match="boot identifier"):
+            read_host()
+
+    def test_an_age_that_is_not_a_number_is_refused(self, tmp_path, monkeypatch):
+        self._write_identity(tmp_path, f"{_HOST.boot_id}\n", "not-a-number 5.0\n")
+        self._point_at(tmp_path, monkeypatch)
+
+        with pytest.raises(ValueError, match="uptime"):
+            read_host()
+
+    def test_a_hostname_that_cannot_be_read_is_not_swallowed(
+        self, tmp_path, monkeypatch
+    ):
+        # The hostname is what makes two readings comparable, so a machine whose
+        # name cannot be read must fail loudly rather than report the reading as
+        # unattributed.
+        self._write_identity(tmp_path, f"{_HOST.boot_id}\n", _UPTIME_TEXT)
+        self._point_at(tmp_path, monkeypatch)
+
+        def _cannot() -> str:
+            raise RuntimeError("no hostname")
+
+        monkeypatch.setattr(throttling.socket, "gethostname", _cannot)
+
+        with pytest.raises(RuntimeError, match="no hostname"):
+            read_host()
+
+
+class TestMainReadsTheHostWhenNoneIsGiven:
+    def test_the_reading_names_the_machine_the_command_runs_on(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        (tmp_path / "cpu.max").write_text(_QUOTA_ED_MAX)
+        (tmp_path / "cpu.stat").write_text(_CPU_STAT_TEXT)
+        (tmp_path / "boot_id").write_text(f"{_HOST.boot_id}\n")
+        (tmp_path / "uptime").write_text(_UPTIME_TEXT)
+        monkeypatch.setattr(throttling, "_BOOT_ID_FILE", str(tmp_path / "boot_id"))
+        monkeypatch.setattr(throttling, "_UPTIME_FILE", str(tmp_path / "uptime"))
+        monkeypatch.setattr(throttling.socket, "gethostname", lambda: "srv-beta")
+
+        status = main(["sample", "--directory", str(tmp_path)])
+
+        assert status == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["host"]["hostname"] == "srv-beta"
+        assert payload["host"]["boot_id"] == _HOST.boot_id
+        assert payload["host"]["uptime_seconds"] == pytest.approx(3_534_804.72)
+
+
+class TestGroupWithNoCeilingFile:
+    def _write_ceiling_less_group(self, directory: Path) -> None:
+        (directory / "cpu.stat").write_text(_CPU_STAT_WITHOUT_PERIODS)
+
+    def test_the_absence_is_reported_rather_than_raised_on(self, tmp_path):
+        self._write_ceiling_less_group(tmp_path)
+
+        sample = read_sample(tmp_path)
+
+        assert sample.cpu_max.can_throttle is False
+        assert sample.cpu_max.period_usec is None
+        assert sample.stat.usage_usec == 4_846_187_612_533
+
+    def test_the_period_counters_are_absent_rather_than_zero(self, tmp_path):
+        # A measured zero would assert that periods elapsed and none was
+        # exceeded; here nothing was ever accounted.
+        self._write_ceiling_less_group(tmp_path)
+
+        sample = read_sample(tmp_path)
+
+        assert sample.stat.nr_periods is None
+        assert sample.stat.nr_throttled is None
+        assert sample.stat.throttled_usec is None
+        assert sample.stat.period_counters is None
+
+    def test_the_ceiling_is_rendered_as_absent_and_not_as_unlimited(self, tmp_path):
+        self._write_ceiling_less_group(tmp_path)
+
+        assert format_cpu_max(read_sample(tmp_path).cpu_max) == "absent"
+        assert format_cpu_max(parse_cpu_max("max 100000")) == "max 100000"
+
+    def test_the_payload_states_the_absent_counters_as_absent(self, tmp_path, capsys):
+        self._write_ceiling_less_group(tmp_path)
+
+        status = main(["sample", "--directory", str(tmp_path)], _HOST)
+
+        assert status == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["cpu_max"] == "absent"
+        assert payload["cumulative"]["usage_usec"] == 4_846_187_612_533
+        assert payload["cumulative"]["nr_periods"] is None
+        assert payload["cumulative"]["permitted_usec"] is None
+        assert payload["cumulative"]["throttled_share"] == "unbounded"
+
+    def test_a_group_that_accounts_no_period_states_no_interval_of_them(
+        self, tmp_path
+    ):
+        self._write_ceiling_less_group(tmp_path)
+
+        delta = interval_delta(read_sample(tmp_path), read_sample(tmp_path))
+
+        assert delta.usage_usec == 0
+        assert delta.period_counters is None
+
+    def test_a_stat_that_states_no_usage_at_all_is_still_refused(self, tmp_path):
+        # The usage is what such a group does account, so its absence is
+        # malformed text rather than another unaccounted counter, and must not
+        # be read as an idle group.
+        (tmp_path / "cpu.stat").write_text("user_usec 100\nsystem_usec 50\n")
+
+        with pytest.raises(ValueError, match="usage_usec"):
+            read_sample(tmp_path)
+
+    def test_a_group_that_loses_a_ceiling_states_no_fabricated_period_counters(
+        self, tmp_path
+    ):
+        # A group moved out from under a ceiling accounts no period, and must
+        # not report the earlier counters as a delta it cannot substantiate.
+        self._write_ceiling_less_group(tmp_path)
+        ceiling_less = read_sample(tmp_path)
+        first = Sample(
+            cpu_max=parse_cpu_max(_QUOTA_ED_MAX),
+            stat=CpuStat(
+                usage_usec=1_000_000,
+                nr_periods=1000,
+                nr_throttled=250,
+                throttled_usec=100_000_000,
+            ),
+        )
+
+        delta = interval_delta(first, ceiling_less)
+
+        assert delta.period_counters is None
+        assert interval_throttled_share(first, ceiling_less) is Unmeasured.UNBOUNDED
