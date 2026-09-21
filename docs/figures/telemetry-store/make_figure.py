@@ -106,7 +106,6 @@ fig.suptitle(
     fontsize=10,
 )
 fig.tight_layout(rect=(0, 0, 1, 0.95))
-out = Path("docs/figures/telemetry-store/compaction.png")
-out.parent.mkdir(parents=True, exist_ok=True)
+out = Path(__file__).resolve().parent / "compaction.png"
 fig.savefig(out, dpi=140)
 print(f"wrote {out} ({out.stat().st_size} bytes)")
