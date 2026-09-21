@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-21T13:45:50",
+  "updated": "2026-09-21T14:05:11",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -55190,6 +55190,351 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260921T102128084713-fleet-drain-guard-fires-on-this-cluster",
+        "plan": "slurm-hosted-agent-fleet",
+        "section": "\u00a77",
+        "node": "fleet-drain-guard-fires-on-this-cluster",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1524,
+                "cached_input_tokens": 624409,
+                "input_tokens": 625935,
+                "output_tokens": 1568,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 627503,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "10680e94-61e5-4916-bab0-968fa2503f57",
+            "session_id": "slurm-fleet"
+          },
+          "done_when": "ALL of the following hold, each evidenced in the manifest. (1) THE DEFECT, measured: the drain predicate in imas_ambix/agent/fleet.py matches only the LEADING token of the scheduler State value. This cluster never reports it that way. Over the live node table, `scontrol show node -o | grep -o \"State=[A-Z_+]*\"` yields 43 nodes at MIXED+DRAIN+REBOOT_REQUESTED and 39 at ALLOCATED+DRAIN+REBOOT_REQUESTED, and ZERO of the 82 nodes carrying a DRAIN token lead with it. The warning therefore fires on none of them: it is a guard that never runs. Make the predicate treat the State value as a plus-separated SET of tokens and match a drain token anywhere in it. (2) The tests cover the real spellings as data, not just the synthetic one: at minimum MIXED+DRAIN+REBOOT_REQUESTED and ALLOCATED+DRAIN+REBOOT_REQUESTED must warn, and a healthy ALLOCATED, IDLE, MIXED or MIXED+RESERVED must NOT warn \u2014 the false-positive direction matters as much as the false-negative one. (3) The two unexecuted guard branches in _fleet_node_state in imas_ambix/agent/cli.py, the not-a-node-name return and the failed-query return, gain coverage, so the claim that an unknown state reads as unknown and is not warned about rests on execution rather than on inspection. (4) THE DECLARED NEGATIVE CONTROL is in a file, so you copy it rather than retype it: D=/home/ITER/mcintos/.config/reckon/crew/reports/fleet-drain-declared-mutation.txt. Apply that mutation, run the named test, and build the receipt so its FIRST LINE is that file copied: `head -1 \"$D\" > \"$OUT\"` then append the failing output, the restore and the green re-run. Prove it with `[ \"$(head -1 \"$OUT\")\" = \"$(head -1 \"$D\")\" ] && echo IDENTICAL || echo DIFFERS` and quote that result in the manifest. (5) Correct the landed record: docs/evidence/archive/slurm-hosted-agent-fleet-landed.html states the flag direction as fact, saying flags are reported after a plus and the leading token decides, and generalises that a draining node warns on its own. Replace that with what the live table shows, and quote the two real spellings with their counts. (6) `uv run --no-sync pytest tests/agent/test_fleet.py` and `uv run --no-sync ruff check imas_ambix tests` exit 0, commands and summary lines quoted. (7) Do NOT submit, cancel or modify any SLURM job; reading the node table is fine. (8) Write every log you cite under your own run directory, never /tmp.",
+          "estimated_hours": 1.0,
+          "goal": "a drain warning that fires on the spelling this scheduler actually reports, rather than on one it never uses",
+          "id": "fleet-drain-guard-fires-on-this-cluster",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-21T10:21:32Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no 'binding_observed'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T102128084713-fleet-drain-guard-fires-on-this-cluster/manifest.md",
+          "negative_control": "restrict the drain predicate to the leading token of the State value only, which is the behaviour being replaced; the test asserting that a node the scheduler reports as MIXED+DRAIN+REBOOT_REQUESTED raises the drain warning must then be observed to fail",
+          "plan": "slurm-hosted-agent-fleet",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a77",
+          "spec_level": "exact",
+          "time_budget": "45m",
+          "token_budget": null,
+          "write_paths": [
+            "imas_ambix/agent/fleet.py",
+            "imas_ambix/agent/cli.py",
+            "tests/agent/test_fleet.py",
+            "docs/plans/slurm-hosted-agent-fleet.html",
+            "docs/evidence/archive/slurm-hosted-agent-fleet-landed.html"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "fleet-drain-guard",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "high",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "worktree-full",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-21T10:22:35Z",
+        "completed_at": "2026-09-21T11:17:27.264Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 3274,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 3292,
+        "stalled": false,
+        "time_budget": "45m",
+        "base_sha": "8223d94d373ae3738e4abc7595ac2a1c6f1c719a",
+        "commits": [
+          "45f4cd8d95cebeff76db295cd2959e3071adef2d",
+          "555be4ac00dcd77a7c3460e5f6eadf696dcd7e88"
+        ],
+        "changed_lines": {
+          "added": 319,
+          "removed": 23,
+          "files": 5
+        },
+        "tests_added": 20,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/agent/test_fleet.py",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T102128084713-fleet-drain-guard-fires-on-this-cluster/logs/pytest-fleet-final.txt",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T102128084713-fleet-drain-guard-fires-on-this-cluster/manifest.md",
+        "scope_changed": false,
+        "session_id": "e0a155b4-b43f-4598-b141-7800a2a3ce79",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 14086123,
+            "input_tokens_cumulative": 14086123,
+            "output_tokens": 54707,
+            "output_tokens_cumulative": 54707,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-21T11:17:27.264Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "15m",
+          "requested": true,
+          "waived_runs": [
+            {
+              "budget_overrun": false,
+              "budget_overrun_seconds": 0,
+              "budget_seconds": 3000,
+              "classification": "promotable",
+              "commits_beyond_base": 0,
+              "detail": "the worker manifest reports completion and an independent parsed review is attached; the run is ready for promotion",
+              "elapsed_seconds": 156,
+              "external_wait": null,
+              "lifting_condition": null,
+              "liveness_proven": true,
+              "log_age_seconds": 3377,
+              "log_fresh": false,
+              "manifest_commits": [
+                "5b6f84e7ac02af5749cfd22cd247760056994d2e",
+                "7a8eb5bb"
+              ],
+              "manifest_derived": false,
+              "manifest_digest": "dda706c6279e0fbe48f177221be7f83216d837a75dc72819632518ec063b91fd",
+              "manifest_error": null,
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T085932378383-fleet-status-sees-the-allocation/manifest.md",
+              "manifest_present": true,
+              "manifest_reported_status": "complete",
+              "manifest_status": "complete",
+              "marker": null,
+              "needs_help_complete": null,
+              "next_action": "reckon crew complete --run r-20260921T085932378383-fleet-status-sees-the-allocation --gate <verdict> --commit 5b6f84e7ac02af5749cfd22cd247760056994d2e --commit 7a8eb5bb",
+              "node": "fleet-status-sees-the-allocation",
+              "phase": "working",
+              "plan": "slurm-hosted-agent-fleet",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "recovery": "promote",
+              "recovery_classification": "promotable",
+              "resets_at": null,
+              "review_error": null,
+              "review_present": true,
+              "review_status": "parsed",
+              "run_id": "r-20260921T085932378383-fleet-status-sees-the-allocation",
+              "session": "slurm-fleet",
+              "terminal_age_seconds": 3405,
+              "terminal_at": "2026-09-21T09:25:18Z",
+              "wait_age_seconds": null,
+              "wait_condition_state": null,
+              "wait_key_defect": null,
+              "wait_observed": null,
+              "wait_overdue": null,
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/slurm-fleet/fleet-status-sees-the-allocation"
+            },
+            {
+              "budget_overrun": false,
+              "budget_overrun_seconds": 0,
+              "budget_seconds": 2400,
+              "classification": "promotable",
+              "commits_beyond_base": 0,
+              "detail": "the worker manifest reports completion and an independent parsed review is attached; the run is ready for promotion",
+              "elapsed_seconds": 1075,
+              "external_wait": null,
+              "lifting_condition": null,
+              "liveness_proven": true,
+              "log_age_seconds": 2606,
+              "log_fresh": false,
+              "manifest_commits": [
+                "7a52e6e2b0f9f1016f979ef2cb1097ab27da05dd",
+                "16b5331d7f24ba6ec45e6d60f0fe343cc71b2675"
+              ],
+              "manifest_derived": false,
+              "manifest_digest": "bb929eae4d83f2f56d3d2a39e2f22425824750c61313e783716f24e852487871",
+              "manifest_error": null,
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T090055615010-fleet-sample-names-its-host/manifest.md",
+              "manifest_present": true,
+              "manifest_reported_status": "complete",
+              "manifest_status": "complete",
+              "marker": null,
+              "needs_help_complete": null,
+              "next_action": "reckon crew complete --run r-20260921T090055615010-fleet-sample-names-its-host --gate <verdict> --commit 7a52e6e2b0f9f1016f979ef2cb1097ab27da05dd --commit 16b5331d7f24ba6ec45e6d60f0fe343cc71b2675",
+              "node": "fleet-sample-names-its-host",
+              "phase": "working",
+              "plan": "slurm-hosted-agent-fleet",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "recovery": "promote",
+              "recovery_classification": "promotable",
+              "resets_at": null,
+              "review_error": null,
+              "review_present": true,
+              "review_status": "parsed",
+              "run_id": "r-20260921T090055615010-fleet-sample-names-its-host",
+              "session": "slurm-fleet",
+              "terminal_age_seconds": 3196,
+              "terminal_at": "2026-09-21T09:28:47Z",
+              "wait_age_seconds": null,
+              "wait_condition_state": null,
+              "wait_key_defect": null,
+              "wait_observed": null,
+              "wait_overdue": null,
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/slurm-fleet/fleet-sample-names-its-host"
+            }
+          ]
+        },
+        "review": {
+          "status": "parsed",
+          "scores": {
+            "durability": 17,
+            "evidence": 15,
+            "fit": 18,
+            "goal_fidelity": 18,
+            "scope_discipline": 19
+          },
+          "absent": [],
+          "total": 87
+        },
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 14250194,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 3284.907,
+          "generated_tokens": 62955,
+          "generation_seconds": 3192.405,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 33.9,
+          "machine_seconds": 92.502,
+          "peak_input_tokens": 162771,
+          "tokens_per_second": 19.72,
+          "wall_tokens_per_second": 19.16
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/agent/test_fleet.py`",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": [
+          {
+            "path": "docs/figures/fleet-drain-guard/drain-token-position.svg",
+            "reason": "the node added a figure showing the token position, which the coordinator did not declare; the repository mandate asks for a figure where a relationship is easier seen than read, so this is a coordinator under-declaration rather than a worker scope breach"
+          }
+        ],
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/slurm-fleet/fleet-drain-guard-fires-on-this-cluster",
+          "session_id": "e0a155b4-b43f-4598-b141-7800a2a3ce79",
+          "session_source": "pointer",
+          "retained_at": "2026-09-21T11:17:27.264Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "plan_impl_at_dispatch": 0.833,
+        "impl_move": {
+          "plan": "slurm-hosted-agent-fleet",
+          "at_dispatch": 0.833,
+          "at_complete": 0.833,
+          "verdict": "waived",
+          "reason": "this repairs a guard that never fired in a node that already landed; it closes a defect rather than adding executable scope, so the remainder is unchanged"
+        },
+        "negative_control": {
+          "verdict": "matched",
+          "reason": "node-writes-no-test-path",
+          "test_paths": [
+            "tests/agent/test_fleet.py"
+          ],
+          "declaration": "restrict the drain predicate to the leading token of the State value only, which is the behaviour being replaced; the test asserting that a node the scheduler reports as MIXED+DRAIN+REBOOT_REQUESTED raises the drain warning must then be observed to fail",
+          "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T102128084713-fleet-drain-guard-fires-on-this-cluster/negative-control.log",
+          "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T102128084713-fleet-drain-guard-fires-on-this-cluster/negative-control.log"
+        },
+        "tool_steps": 113.0,
+        "orientation_input_tokens": 1654981.0,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -55264,6 +55609,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 851
+    "_version": 852
   }
 }
