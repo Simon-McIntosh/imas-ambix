@@ -228,10 +228,10 @@
 
     <p><strong>Measured.</strong> The new assertion is red under a reader whose SGLang
     mapping for <code>requests_running</code> is renamed (<code>num_running_reqs_v2</code>):
-    6 of 15 tests in the file fail, the new one among them. Gates:
+    6 of 16 tests in the file fail, the new one among them. Gates:
     <code>uv run --no-sync pytest tests/test_engine_metrics.py
     tests/test_agent_lane_sglang.py tests/test_agent_lane_gzip.py
-    tests/test_agent_serving_receipts.py</code> reports <strong>34 passed</strong>, and
+    tests/test_agent_serving_receipts.py</code> reports <strong>35 passed</strong>, and
     <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0.</p>
 
     <p><strong>Measured against the declared control, which changed the test.</strong>
@@ -250,6 +250,16 @@
     the fixture was then restored byte-identically (sha256
     <code>8756c08150971947…</code>) and the suite re-run green. A fixture test never shown
     to fail cannot distinguish a preserved field set from an empty assertion.</p>
+
+    <p><strong>The sample-line check is held by a test of its own.</strong> A requirement
+    that no committed test pins can be removed without a signal: restoring the earlier
+    sample-line check, which accepted a name followed by an opening brace or a space and
+    required no value, left the file green. The new test feeds a labels-only exposition
+    line — <code>sglang:num_running_reqs{engine_type="unified",tp_rank="0"}</code>, with no
+    value — and asserts it is not a source, beside the HELP/TYPE-only, trailing-space and
+    longer-prefix shapes. Against the restored earlier implementation it is red on exactly
+    that line; against the shipped one it is green, which is what makes the check rather
+    than the assertion the thing under test.</p>
 
     <p><strong>What the fixture does not preserve, measured and left open.</strong> The
     commits <code>43b45b1b</code> and <code>87b12221</code> are scoped to the test; the

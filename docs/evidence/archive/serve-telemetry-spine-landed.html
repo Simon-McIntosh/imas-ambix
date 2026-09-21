@@ -151,33 +151,40 @@
     asserted against the fixture's bytes.</p>
 
     <table>
-      <caption>The new assertion under four reader mutations and one stored-scrape
-      deletion, and what the file's other tests do with each. The deletion row is the
-      declared control, run with only the field-set test selected; the reader rows ran the
-      whole file.</caption>
+      <caption>The new assertion under four reader mutations, one stored-scrape
+      deletion, and one mutation of the sample-line check itself, with what the file's other
+      tests do with each. The deletion row is the declared control, run with only the
+      field-set test selected; the other rows ran the whole file.</caption>
       <thead><tr><th>Mutation applied</th><th>New assertion</th><th>Result</th></tr></thead>
       <tbody>
         <tr>
           <td><code>GAUGE_SERIES["requests_running"][sglang]</code> renamed to a series the
           scrape does not carry</td>
           <td>red — <code>requests_running</code> unresolved</td>
-          <td>6 of 15 fail</td>
+          <td>6 of 16 fail</td>
         </tr>
         <tr>
           <td><code>COUNTER_SERIES["generation_tokens"][sglang]</code> renamed</td>
           <td>red — <code>generation_tokens</code> unresolved</td>
-          <td>5 of 15 fail</td>
+          <td>5 of 16 fail</td>
         </tr>
         <tr>
           <td><code>HISTOGRAM_SERIES["time_to_first_token"][sglang]</code> emptied</td>
           <td>red — <code>histograms.time_to_first_token</code> unresolved</td>
-          <td>4 of 15 fail</td>
+          <td>4 of 16 fail</td>
         </tr>
         <tr>
           <td><code>SGLANG_CACHE_TIERS["storage_hit"]</code> dropped, so the scraped
           <code>mode="storage_hit"</code> samples no longer reach a canonical key</td>
           <td>red — <code>cached_prompt_tokens['storage']</code> unresolved</td>
-          <td>2 of 15 fail</td>
+          <td>2 of 16 fail</td>
+        </tr>
+        <tr>
+          <td>the sample-line check itself restored to the earlier form that accepted a name
+          followed by an opening brace or a space with no value token required</td>
+          <td>red — <code>sglang:num_running_reqs{engine_type="unified",tp_rank="0"}</code>
+          (labels, no value) counted as a sourced series</td>
+          <td>1 of 16 fail</td>
         </tr>
         <tr>
           <td>the canonical field itself deleted from the stored scrape: the fixture line
@@ -202,11 +209,20 @@
     the suite re-run green. A control that fails for the wrong reason, or a check that cannot
     fail, is why this one is run against the fixture rather than only the reader.</p>
 
+    <p><strong>That repaired check is itself pinned, after it was found unpinned.</strong>
+    The value-token requirement had no committed test holding it: restoring the earlier
+    sample-line check left the whole file green, so a line carrying a series name and its
+    full label set but no value would count as a sourced series again, silently — a scrape
+    that lost its samples passing on its labels. The new test feeds exactly that line and
+    asserts it is not a source, and it is red against the restored earlier form and green
+    against the shipped one. The rows are re-measured, not carried over: the file carries 16
+    tests now, so each mutation's count is quoted against 16.</p>
+
     <p><strong>Gates.</strong> <code>uv run --no-sync pytest tests/test_engine_metrics.py
     tests/test_agent_lane_sglang.py tests/test_agent_lane_gzip.py
-    tests/test_agent_serving_receipts.py</code> reports <strong>34 passed</strong>;
+    tests/test_agent_serving_receipts.py</code> reports <strong>35 passed</strong>;
     <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0. The engine-metrics file
-    carries 15 tests against 13 before the change.</p>
+    carries 16 tests against 13 before the change.</p>
 
     <p><strong>Left open, with its measurement.</strong> The fixture is an early-life scrape:
     its canonical gauges are a uniform zero (<code>requests_running 0</code>,
