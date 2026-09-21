@@ -549,6 +549,73 @@ uv run python -m imas_ambix.agent.throttling interval \
   a move into an allocation is the host-lifetime question already carried by the lingering
   defect.</p>
 
+<section id="fleet-declared-control-receipt">
+    <h2>Independent declared-partition receipt for the allocation generator</h2>
+    <p><strong>Deliverable.</strong> The ordered receipt is
+    <code>~/.config/reckon/crew/reports/fleet-allocation-declared-control-receipt.log</code>,
+    and its first line states the mutation it records. It was produced on a fresh checkout of
+    the merged head (<code>04fe5259</code>), independently of the allocator's own landing
+    record, so the guard is shown to fail rather than reported as having failed.</p>
+
+    <p>The allocation generator's placement guard is two properties asserted by one test:
+    the emitted <code>--partition</code> directive equals the site's fleet partition, and it
+    does not end in <code>_debug</code>. The declared mutation changes the generated partition
+    from the site's fleet partition to that same value suffixed with <code>_debug</code>
+    — <code>rigel</code> to <code>rigel_debug</code>, the partition the plan records as
+    carrying zero nodes and a one-hour cap. Both a zero-node partition and a one-hour cap
+    would defeat the allocation, which is meant to hold a whole node with no wall clock.</p>
+
+    <table>
+      <thead>
+        <tr><th>Phase</th><th>Command</th><th>Result</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Baseline, merged head</td>
+          <td><code>uv run --no-sync pytest tests/agent/test_fleet.py</code></td>
+          <td>5 passed, exit 0</td>
+        </tr>
+        <tr>
+          <td>Declared mutation applied</td>
+          <td><code>partition=site.fleet_partition</code> → <code>partition=f"{site.fleet_partition}_debug"</code></td>
+          <td>diff recorded in the receipt</td>
+        </tr>
+        <tr>
+          <td>Same command, mutated source</td>
+          <td><code>uv run --no-sync pytest tests/agent/test_fleet.py</code></td>
+          <td>1 failed, 4 passed, exit 1</td>
+        </tr>
+        <tr>
+          <td>Source restored</td>
+          <td><code>cp</code> of the pre-mutation copy</td>
+          <td>sha256 matches; <code>git status --porcelain</code> empty</td>
+        </tr>
+        <tr>
+          <td>Same command, restored source</td>
+          <td><code>uv run --no-sync pytest tests/agent/test_fleet.py</code></td>
+          <td>5 passed, exit 0</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>The failing run reports
+    <code>test_fleet_hold_script_requests_unbounded_whole_node</code> with
+    <code>AssertionError: assert 'rigel_debug' == 'rigel'</code> — the partition property.
+    The <code>_debug</code>-absence property sits later in the same test, so pytest cannot
+    reach it: the partition assertion raises first. A separate probe therefore reads both
+    properties directly off the generated script and prints them, which also shows what the
+    suite alone cannot — that the second guard fires on the mutation rather than merely
+    sitting downstream of an untested branch. Against the mutated source the probe reads
+    <code>False</code> and <code>False</code>; against the restored source, <code>True</code>
+    and <code>True</code>. The second reading is what makes the first one evidence: an
+    instrument that returned false under both sources would be reporting nothing.</p>
+
+    <p>Restoration is proved by digest rather than by absence of complaint: the file's sha256
+    after restoration equals the value recorded before the mutation, and the worktree reports
+    no modification. Only the generator's source was touched, and only for the duration of
+    the red run.</p>
+  </section>
+
 </main>
 </body>
 </html>
