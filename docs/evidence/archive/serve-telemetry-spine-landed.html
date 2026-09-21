@@ -389,6 +389,29 @@
     and exactly the two on-the-wire assertions fail, reporting <code>squeue</code> invoked
     at 10 s against a declared 15 s.</p>
 
+    <p><strong>The rewritten assertion still covered three reads while reading as though
+    it covered four, and that is the fourth finding.</strong> It mapped the recorded calls
+    into a dictionary keyed by the command, and two of the four reads are <code>cat</code>
+    reads that differ only in their path — <code>read_cpu_times</code> and
+    <code>read_meminfo</code>. Both collapsed onto the same key, the later call won, and
+    the <code>/proc/stat</code> read's bound was therefore asserted by nothing: displacing
+    that one call's timeout left the assertion passing. It is the same defect as the one it
+    replaced, one level further in — a check that reports coverage it does not have. The
+    recording is now keyed by the whole argument vector, the runner answers each
+    <code>cat</code> with its own body rather than answering both from one, each of the
+    four vectors — the <code>nvidia-smi</code> query, both <code>/proc</code> paths and the
+    <code>squeue</code> RPC — is asserted separately, and the mapping is counted against
+    the recorded call list so a read collapsing onto another's key fails loudly.</p>
+
+    <p>Its control displaces only the <code>/proc/stat</code> call's bound, by a quarter of
+    a second, leaving its vector and the sibling read untouched; the exact invocation it
+    changes is <code>text = run(("cat", "/proc/stat"), timeout_s=timeout_s)</code>. Run
+    against the fixed suite, the three assertions that pin a command's bound go red. Run
+    against the test file as it stood at the previous head, the two mapping-keyed
+    assertions stay <em>green</em> under the same mutation — the positional one was never
+    blind, and it is the mapping under review that was. That pair of runs is the finding
+    rather than a description of it.</p>
+
     <h2 id="node-readings-commits">Commits</h2>
 
     <table>
@@ -399,6 +422,7 @@
         <tr><td><code>006dc4fe</code></td><td>thread the probe timeout into every local call, after review</td></tr>
         <tr><td><code>f12261e8</code></td><td>correct the node-readings record after review</td></tr>
         <tr><td><code>fe128951</code></td><td>give the job probe the bound its signature declares, after recheck</td></tr>
+        <tr><td><code>65bf2443</code></td><td>pin each probe read's bound by its own argument vector, after recheck</td></tr>
       </tbody>
     </table>
 
