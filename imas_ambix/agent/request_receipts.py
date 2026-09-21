@@ -41,6 +41,12 @@ logger = logging.getLogger(__name__)
 # router's launching command already names.
 RECEIPTS_FILENAME = "requests.jsonl"
 
+# The upstream field on a row for a request the router answered itself -- one it
+# refused before any engine was chosen, or a catalog listing it served from the
+# merged catalogs. Distinct from every engine origin, so a reader summing
+# traffic per upstream never adds these to a sink's share of it.
+SELF_ANSWERED_UPSTREAM = "(router)"
+
 # Bound the parse only where it protects the relay's memory: a single SSE line
 # longer than this is dropped rather than accumulated, and the non-streaming
 # fallback keeps at most this much of the body to parse at the end. Neither
@@ -54,9 +60,11 @@ HEAD_BYTES = 4 << 20
 DEFAULT_MAX_ROWS_PER_S = 20.0
 DEFAULT_WINDOW_S = 1.0
 
-# Outcome labels. ``completed`` is a 2xx answer relayed whole, ``aborted`` is a
-# caller that went away mid-relay, and ``failed`` is anything else -- an
-# upstream error status, or a relay that raised.
+# Outcome labels. ``completed`` is a 2xx answer relayed whole -- from the owning
+# engine, or from the router itself where it answered without relaying;
+# ``aborted`` is a caller that went away mid-relay; and ``failed`` is anything
+# else -- an upstream error status, a request the router refused itself with a
+# non-2xx, or a relay that raised.
 STATUS_COMPLETED = "completed"
 STATUS_ABORTED = "aborted"
 STATUS_FAILED = "failed"

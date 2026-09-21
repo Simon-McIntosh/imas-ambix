@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import math
 import time
 from collections.abc import Sequence
@@ -16,16 +17,24 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
+import aiohttp
+import pytest
 from aiohttp import web
 
 from imas_ambix.agent.request_receipts import (
+    SELF_ANSWERED_UPSTREAM,
     STATUS_ABORTED,
     STATUS_COMPLETED,
     STATUS_FAILED,
     RequestReceiptSink,
     StreamAccounting,
 )
-from imas_ambix.agent.router import RouterApp, Upstream
+from imas_ambix.agent.router import (
+    RECEIPT_MAX_ROWS_PER_S_ENV,
+    RECEIPT_WINDOW_S_ENV,
+    RouterApp,
+    Upstream,
+)
 from tests.test_agent_router import (
     Resolver,
     _card,
@@ -35,6 +44,8 @@ from tests.test_agent_router import (
 )
 
 SendMessage = dict[str, Any]
+
+_FIRST_DELTA = {"choices": [{"delta": {"content": "he"}}]}
 
 _USAGE_EVENT = {
     "choices": [],
@@ -82,16 +93,50 @@ def _sse_engine(*, status: int = 200, delay: float = 0.0) -> web.Application:
     return app
 
 
+def _truncating_engine() -> web.Application:
+    """An engine that accepts the request, answers 200, then aborts its transport.
+
+    It declares a content-length, writes one SSE event of it, and drops the
+    connection, so the relay's read of the body raises part-way through a
+    response it has already begun forwarding as a success.
+    """
+
+    async def catalog(_: web.Request) -> web.Response:
+        return web.json_response(
+            {"object": "list", "data": [_card("streamer", context=4096, count=2)]}
+        )
+
+    async def completion(request: web.Request) -> web.StreamResponse:
+        response = web.StreamResponse(
+            headers={"content-type": "text/event-stream", "content-length": "4096"}
+        )
+        await response.prepare(request)
+        await response.write(b"data: " + json.dumps(_FIRST_DELTA).encode() + b"\n\n")
+        request.transport.abort()
+        return response
+
+    app = web.Application()
+    app.router.add_get("/v1/models", catalog)
+    app.router.add_post("/v1/chat/completions", completion)
+    return app
+
+
 @asynccontextmanager
 async def _router_with_receipts(
-    upstreams: Sequence[Upstream], receipts_path: Path | None
+    upstreams: Sequence[Upstream],
+    receipts_path: Path | None,
+    **router_kwargs: Any,
 ):
-    app = RouterApp(Resolver(upstreams), request_receipts_path=receipts_path)
+    app = RouterApp(
+        Resolver(upstreams), request_receipts_path=receipts_path, **router_kwargs
+    )
     try:
         yield app
     finally:
         if app._session is not None:
             await app._session.close()
+        if app._receipts is not None:
+            app._receipts.close()
         if app._receipts is not None:
             app._receipts.close()
 
@@ -459,3 +504,167 @@ def test_an_unwritable_destination_cannot_disturb_the_relay(
         assert "request receipts disabled" in caplog.text
 
     asyncio.run(exercise())
+
+
+def test_an_upstream_that_dies_mid_body_is_recorded_as_failed(tmp_path: Path) -> None:
+    """A 200 whose body aborts mid-relay leaves a failed row, not a completed one.
+
+    The engine here answers 200, promises a content-length it never fulfils, and
+    drops the transport part-way through the body. The caller has already been
+    handed the 200 header, so the status alone attests to nothing the caller saw,
+    and the row must carry the outcome the relay actually observed.
+    """
+
+    async def exercise() -> None:
+        receipts = tmp_path / "requests.jsonl"
+        engine = _truncating_engine()
+        sent: list[SendMessage] = []
+
+        async def capture(message: SendMessage, _: asyncio.Queue[SendMessage]) -> None:
+            sent.append(message)
+
+        async with (
+            _server(engine) as engine_url,
+            _router_with_receipts([Upstream(engine_url)], receipts) as app,
+        ):
+            with pytest.raises(aiohttp.ClientPayloadError):
+                await _invoke(
+                    app,
+                    "POST",
+                    "/v1/chat/completions",
+                    _request_body(),
+                    on_send=capture,
+                )
+
+        rows = _read_rows(receipts)
+        # The caller did receive the engine's 200, which is what makes this the
+        # case the row must not read as a success.
+        assert _status(sent) == 200
+        assert len(rows) == 1
+        assert rows[0]["status"] == STATUS_FAILED
+        assert rows[0]["upstream"] == engine_url
+
+    asyncio.run(exercise())
+
+
+def test_a_request_the_router_answers_itself_is_recorded(tmp_path: Path) -> None:
+    """A refusal and a catalog listing the router served leave rows of their own.
+
+    Both are answered before any engine is chosen, so neither reaches the relay
+    and neither is a request any engine saw. The record of what the router served
+    is incomplete without them, and the refused request in particular is the one a
+    caller reports as broken.
+    """
+
+    async def exercise() -> None:
+        receipts = tmp_path / "requests.jsonl"
+        engine = _sse_engine()
+        async with (
+            _server(engine) as engine_url,
+            _router_with_receipts([Upstream(engine_url)], receipts) as app,
+        ):
+            refused = await _invoke(
+                app,
+                "POST",
+                "/v1/chat/completions",
+                json.dumps({"model": "nope", "messages": []}).encode(),
+            )
+            assert _status(refused) == 404
+            listed = await _invoke(app, "GET", "/v1/models", b"")
+            assert _status(listed) == 200
+            malformed = await _invoke(
+                app, "POST", "/v1/chat/completions", b"{not json"
+            )
+            assert _status(malformed) == 400
+
+        rows = _read_rows(receipts)
+        assert len(rows) == 3
+
+        assert rows[0]["status"] == STATUS_FAILED
+        assert rows[0]["model"] == "nope"
+        assert rows[0]["upstream"] == SELF_ANSWERED_UPSTREAM
+
+        assert rows[1]["status"] == STATUS_COMPLETED
+        assert rows[1]["model"] == ""
+        assert rows[1]["upstream"] == SELF_ANSWERED_UPSTREAM
+
+        assert rows[2]["status"] == STATUS_FAILED
+        assert rows[2]["model"] == ""
+
+    asyncio.run(exercise())
+
+
+def test_the_sampling_ceiling_is_read_from_the_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The ceiling is a setting, and the record shows which one was in force.
+
+    An unhonoured ceiling and an honoured one differ only in the rows kept, so the
+    ceiling in force is read from the rows themselves: at no ceiling every offered
+    request is kept whole, and at one row per second the kept rows are few and each
+    carries the fraction that lets a reader scale them back up.
+    """
+    caplog.set_level(logging.INFO, logger="imas_ambix.agent.router")
+
+    offered = 60
+    body = _request_body()
+
+    async def exercise() -> None:
+        engine = _sse_engine()
+        async with _server(engine) as engine_url:
+            unlimited = tmp_path / "unlimited.jsonl"
+            monkeypatch.setenv(RECEIPT_MAX_ROWS_PER_S_ENV, "inf")
+            async with _router_with_receipts(
+                [Upstream(engine_url)], unlimited
+            ) as app:
+                for _ in range(offered):
+                    await _invoke(app, "POST", "/v1/chat/completions", body)
+            rows = _read_rows(unlimited)
+            assert len(rows) == offered
+            assert {row["sample_fraction"] for row in rows} == {1.0}
+            assert "max_rows_per_s=inf" in caplog.text
+
+            monkeypatch.setenv(RECEIPT_MAX_ROWS_PER_S_ENV, "1")
+            throttled = tmp_path / "throttled.jsonl"
+            async with _router_with_receipts(
+                [Upstream(engine_url)], throttled
+            ) as throttled_app:
+                for _ in range(offered):
+                    await _invoke(
+                        throttled_app, "POST", "/v1/chat/completions", body
+                    )
+            sink = throttled_app._receipts
+            assert sink is not None
+            kept = _read_rows(throttled)
+            assert sink.rows_written + sink.rows_sampled_out == offered
+            assert sink.rows_sampled_out > 0
+            assert len(kept) < offered
+            # Each kept row states the rate it was weighed against and the share
+            # it represents, so the rows reconstruct the offered traffic.
+            for row in kept:
+                assert row["sample_fraction"] * row["sampling_rate_per_s"] <= 1.05
+
+    asyncio.run(exercise())
+
+
+def test_a_receipt_setting_that_is_not_positive_stops_the_launch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A malformed ceiling is refused at construction rather than silently defaulted.
+
+    Both a value that is not a number and a ceiling nothing can stay under are
+    caught before the router serves: the first would otherwise fall back to a
+    default nobody chose, and the second would drop every row while reading as an
+    unlimited ceiling.
+    """
+    engine = Upstream("http://engine")
+
+    for value in ("nope", "0", "-1", "nan"):
+        monkeypatch.setenv(RECEIPT_MAX_ROWS_PER_S_ENV, value)
+        with pytest.raises(ValueError):
+            RouterApp(Resolver([engine]), request_receipts_path=Path("requests.jsonl"))
+        monkeypatch.delenv(RECEIPT_MAX_ROWS_PER_S_ENV)
+
+    monkeypatch.setenv(RECEIPT_WINDOW_S_ENV, "0")
+    with pytest.raises(ValueError):
+        RouterApp(Resolver([engine]), request_receipts_path=Path("requests.jsonl"))
