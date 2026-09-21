@@ -27,6 +27,13 @@ measurement no sample in the window carried returns ``None`` rather than
 ``0.0``, which is the distinction the flat receipt row's recorded nulls
 destroyed: a missing reading and a measured zero must not read the same.
 
+**A rewrite is detected by content, not by length.** A file shorter than the
+recorded offset was plainly rebuilt in place, but a rewrite that is not shorter
+is invisible to a length comparison, and the index would then answer with the
+values the discarded content produced. The digest of the last line consumed is
+stored with the source and re-checked on resume, so a change to the bytes the
+index already read is caught before the tail is extended.
+
 Aggregation of receipt intervals is not reimplemented here.
 :mod:`imas_ambix.agent.receipt_bins` already owns it, and
 :meth:`TelemetryIndex.receipt_bins` is the production caller it was written
@@ -38,11 +45,12 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as _dt
+import hashlib
 import json
 import sqlite3
 from collections.abc import Mapping
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, BinaryIO
 
 from imas_ambix.agent.receipt_bins import (
     DEFAULT_WIDTH_BINS,
@@ -72,11 +80,12 @@ CUMULATIVE_MEASUREMENTS: frozenset[str] = frozenset(
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS source (
-    path   TEXT    NOT NULL,
-    inode  INTEGER NOT NULL,
-    size   INTEGER NOT NULL,
-    offset INTEGER NOT NULL,
-    rows   INTEGER NOT NULL DEFAULT 0,
+    path     TEXT    NOT NULL,
+    inode    INTEGER NOT NULL,
+    size     INTEGER NOT NULL,
+    offset   INTEGER NOT NULL,
+    rows     INTEGER NOT NULL DEFAULT 0,
+    tail_sha TEXT,
     PRIMARY KEY (path, inode)
 );
 
@@ -175,11 +184,17 @@ def _parse_timestamp(value: Any) -> float | None:
     return parsed.timestamp()
 
 
-def discover(directory: str | Path, pattern: str = "*.jsonl") -> list[Path]:
+def discover(directory: str | Path, pattern: str = "*.jsonl*") -> list[Path]:
     """Record files under *directory*, in a stable order.
 
     Sorted so that two ingests of the same directory agree, which is what lets
     a rebuild be compared against the index it replaces.
+
+    The default pattern reaches a rolled file as well as the live one. A roll
+    renames the live file to a name carrying the roll suffix -- ``serve.jsonl``
+    becomes ``serve.jsonl.1`` -- and keeps writing to the renamed bytes until
+    its writer notices, so a pattern that matches only a trailing ``.jsonl``
+    drops the tail that landed after the roll.
     """
     return sorted(Path(directory).glob(pattern))
 
@@ -224,7 +239,7 @@ class TelemetryIndex:
             if not path.is_file():
                 continue
             scanned += 1
-            lines, tail = self._resume(path, stat)
+            lines, tail, tail_sha = self._resume(path, stat)
             added = 0
             for offset, raw in lines:
                 read += len(raw)
@@ -239,12 +254,13 @@ class TelemetryIndex:
                     duplicate += 1
             with self._conn:
                 self._conn.execute(
-                    "INSERT INTO source (path, inode, size, offset, rows) "
-                    "VALUES (?, ?, ?, ?, ?) "
+                    "INSERT INTO source (path, inode, size, offset, rows, tail_sha) "
+                    "VALUES (?, ?, ?, ?, ?, ?) "
                     "ON CONFLICT (path, inode) DO UPDATE SET "
                     "  size = excluded.size, offset = excluded.offset, "
-                    "  rows = source.rows + excluded.rows",
-                    (str(path), stat.st_ino, stat.st_size, tail, added),
+                    "  rows = source.rows + excluded.rows, "
+                    "  tail_sha = COALESCE(excluded.tail_sha, source.tail_sha)",
+                    (str(path), stat.st_ino, stat.st_size, tail, added, tail_sha),
                 )
         with self._conn:
             self._conn.commit()
@@ -258,38 +274,61 @@ class TelemetryIndex:
 
     def _resume(
         self, path: Path, stat: os.stat_result
-    ) -> tuple[Iterator[tuple[int, bytes]], int]:
-        """Complete lines to consume and the offset they carry the file to."""
+    ) -> tuple[Iterator[tuple[int, bytes]], int, str | None]:
+        """Complete lines to consume, the offset they carry to, and the tail digest."""
         row = self._conn.execute(
             # Keyed on the inode, not the name: a rolled file keeps its bytes
             # and its offset while losing its path, so resuming per path would
             # re-read everything it holds.
-            "SELECT MAX(offset) AS offset FROM source WHERE inode = ?",
+            "SELECT offset, tail_sha FROM source WHERE inode = ? "
+            "ORDER BY offset DESC LIMIT 1",
             (stat.st_ino,),
         ).fetchone()
         start = 0
         if row is not None and row["offset"] is not None:
-            if stat.st_size < row["offset"]:
-                # Rewritten in place: the bytes past the new end no longer
-                # describe anything, so their samples go with them.
+            if self._was_rewritten(path, stat, row["offset"], row["tail_sha"]):
+                # Rewritten in place: the bytes this index already consumed no
+                # longer describe anything, so every sample from this inode
+                # goes with them before the new content is read.
                 with self._conn:
                     self._conn.execute(
-                        "DELETE FROM sample WHERE inode = ? AND offset >= ?",
-                        (stat.st_ino, stat.st_size),
+                        "DELETE FROM sample WHERE inode = ?", (stat.st_ino,)
                     )
             else:
                 start = row["offset"]
         if start >= stat.st_size:
-            return iter(()), start
+            return iter(()), start, None
         with path.open("rb") as handle:
             handle.seek(start)
             data = handle.read(stat.st_size - start)
         complete = data.rfind(b"\n")
         if complete < 0:
             # Nothing but a partial line so far: leave the offset alone.
-            return iter(()), start
+            return iter(()), start, None
         end = start + complete + 1
-        return iter(_lines(data[: complete + 1], start)), end
+        return iter(_lines(data[: complete + 1], start)), end, _tail_digest_of(
+            data[: complete + 1]
+        )
+
+    def _was_rewritten(
+        self, path: Path, stat: os.stat_result, offset: int, tail_sha: str | None
+    ) -> bool:
+        """Whether *path* no longer carries the bytes at *offset* this index read.
+
+        Size is not identity: a file rewritten in place at a length no shorter
+        than the recorded offset would pass a size comparison while its content
+        is entirely different, and the index would then answer with the values
+        the previous content produced. So the last line the index consumed is
+        re-read and its digest compared, which is the cheapest content identity
+        that stays bounded by one line rather than the whole file.
+        """
+        if stat.st_size < offset:
+            return True
+        if tail_sha is None:
+            # No content to compare against: fall back to the size evidence,
+            # which is all an index written before the digest column carries.
+            return False
+        return _tail_digest(path, offset) != tail_sha
 
     def _parse(
         self, raw: bytes, path: Path, offset: int
@@ -507,6 +546,44 @@ def _lines(data: bytes, base: int) -> Iterator[tuple[int, bytes]]:
     for line in data.splitlines(keepends=True):
         yield offset, line
         offset += len(line)
+
+
+def _tail_digest_of(data: bytes) -> str:
+    """Digest of the final newline-terminated line of *data*."""
+    previous = data.rfind(b"\n", 0, len(data) - 1)
+    return hashlib.sha256(data[previous + 1 :]).hexdigest()
+
+
+def _tail_digest(path: Path, end: int) -> str | None:
+    """Digest of the newline-terminated line whose last byte sits at ``end - 1``."""
+    if end <= 0:
+        return None
+    try:
+        with path.open("rb") as handle:
+            start = _line_start(handle, end - 1)
+            handle.seek(start)
+            return hashlib.sha256(handle.read(end - start)).hexdigest()
+    except OSError:
+        return None
+
+
+def _line_start(handle: BinaryIO, position: int, chunk: int = 65536) -> int:
+    """Offset of the first byte of the line whose newline sits at *position*.
+
+    Scanned backwards in bounded chunks so locating the line costs a read no
+    larger than the line itself, never the file.
+    """
+    search = position
+    while True:
+        lower = max(0, search - chunk)
+        handle.seek(lower)
+        block = handle.read(search - lower)
+        index = block.rfind(b"\n")
+        if index >= 0:
+            return lower + index + 1
+        if lower == 0:
+            return 0
+        search = lower
 
 
 def _as_text(value: Any) -> str | None:

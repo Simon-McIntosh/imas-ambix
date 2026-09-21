@@ -390,5 +390,119 @@ def test_receipt_bins_reads_its_rows_from_the_index(tmp_path):
     assert report.bins[0].intervals == 2
 
 
+def test_dropping_a_sample_cascades_to_its_measurements(tmp_path):
+    """The declared foreign key is enforced: a dropped sample leaves no orphan."""
+    source = tmp_path / "serve.jsonl"
+    _write(source, [_row(0)])
+    with TelemetryIndex(tmp_path / "index.db") as index:
+        index.ingest([source])
+        assert index.ingest([source]).rows_inserted == 0
+        assert index.measurement_count("spec_draft_tokens") == 1
+
+        with index._conn:
+            index._conn.execute("DELETE FROM sample")
+
+        assert index.measurement_count("spec_draft_tokens") == 0
+        assert (
+            index._conn.execute(
+                "SELECT COUNT(*) FROM measurement WHERE sample_id NOT IN "
+                "(SELECT id FROM sample)"
+            ).fetchone()[0]
+            == 0
+        )
+
+
+def test_a_rewrite_that_is_not_shorter_still_replaces_its_samples(tmp_path):
+    """A file rewritten in place at the same length is caught by content.
+
+    Length alone cannot separate an append from a replacement: the rewritten
+    file here is byte-for-byte the same size as the one already ingested, so a
+    size comparison passes and the index would answer 60.0 from the values the
+    discarded content produced rather than the 150.0 the file now carries.
+    """
+    source = tmp_path / "serve.jsonl"
+    _write(source, [_row(0), _row(10), _row(20)])
+    consumed_size = source.stat().st_size
+
+    with TelemetryIndex(tmp_path / "index.db") as index:
+        index.ingest([source])
+        assert (
+            index.sum_measurements("prefix_cache_query_delta", _at(-1), _at(60))
+            == 10 + 20 + 30
+        )
+
+        source.write_text(
+            "".join(
+                json.dumps(row) + "\n"
+                for row in (
+                    _row(0, prefix_cache_query_delta=40),
+                    _row(10, prefix_cache_query_delta=50),
+                    _row(20, prefix_cache_query_delta=60),
+                )
+            ),
+            encoding="utf-8",
+        )
+        assert source.stat().st_size == consumed_size
+
+        index.ingest([source])
+        assert index.sample_count() == 3
+        assert (
+            index.sum_measurements("prefix_cache_query_delta", _at(-1), _at(60))
+            == 40 + 50 + 60
+        )
+
+
+def test_running_totals_are_differenced_and_intervals_are_summed(tmp_path):
+    """The counter-versus-interval split, read through the two query shapes."""
+    source = tmp_path / "serve.jsonl"
+    _write(
+        source,
+        [
+            _row(0, requests_seen_total=1000.0),
+            _row(10, requests_seen_total=1100.0),
+            _row(20, requests_seen_total=1250.0),
+        ],
+    )
+    with TelemetryIndex(tmp_path / "index.db") as index:
+        index.ingest([source])
+
+        # A name ending in _total is cumulative even though the module does not
+        # list it: its window figure is the endpoint advance, never a sum.
+        assert index.sum_measurements("requests_seen_total", _at(0), _at(30)) is None
+        assert index.counter_span("requests_seen_total", _at(-1), _at(30)) == 250.0
+
+        # A listed cumulative name is classified the same way.
+        assert (
+            index.sum_measurements("engine.generation_tokens", _at(0), _at(30))
+            is None
+        )
+        assert index.measurement_count("engine.generation_tokens") == 3
+
+        # A per-interval quantity is still a sum over the window.
+        assert index.sum_measurements("spec_draft_tokens", _at(0), _at(30)) == (
+            100 + 110 + 120
+        )
+
+
+def test_default_discovery_reaches_a_rolled_file(tmp_path):
+    """The default pattern follows the naming a roll produces."""
+    records = tmp_path / "serve.jsonl"
+    _write(records, [_row(0), _row(5)])
+    records.rename(tmp_path / "serve.jsonl.1")
+    _write(records, [_row(10)])
+
+    assert [path.name for path in discover(tmp_path)] == [
+        "serve.jsonl",
+        "serve.jsonl.1",
+    ]
+
+    with TelemetryIndex(tmp_path / "index.db") as index:
+        index.ingest(discover(tmp_path))
+        assert index.sample_count() == 3
+        assert index.sum_measurements("prefix_cache_query_delta", _at(0), _at(20)) == (
+            10 + 15 + 20
+        )
+
+
 def _epoch(row: dict) -> float:
     return _dt.datetime.fromisoformat(row["timestamp"]).timestamp()
