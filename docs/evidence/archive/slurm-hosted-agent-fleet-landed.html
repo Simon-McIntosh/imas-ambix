@@ -1353,6 +1353,116 @@ false positives over the live table: 0   false negatives: 0</code></pre>
     <code>~/.config/reckon/crew/runs/r-20260921T102128084713-fleet-drain-guard-fires-on-this-cluster/logs/coordinator-live-node-states.log</code>.</p>
   </section>
 
+<section id="fleet-unaccounted-versus-zero">
+    <h2>An unaccounted period against a measured zero</h2>
+    <p>Commit <code>0b2c98d9</code>, confined to <code>imas_ambix/agent/throttling.py</code>
+    and its test file. The module held that a group with no <code>cpu.max</code> file is one
+    whose period is not accounted at all, and reported the three period counters as
+    <code>null</code> for any such group. The missing file does not decide what the group
+    accounts, and the two groups that carry no ceiling file are not in the same state.</p>
+
+    <p>Both were read live before the repair. Quoted from the terminal:</p>
+    <pre><code>$ cat /sys/fs/cgroup/cpu.max
+cat: /sys/fs/cgroup/cpu.max: No such file or directory
+$ cat /sys/fs/cgroup/cpu.stat
+usage_usec 8962276463874
+user_usec 6049293696034
+system_usec 2912982767840
+core_sched.force_idle_usec 4197
+nr_periods 0
+nr_throttled 0
+throttled_usec 0
+nr_bursts 0
+burst_usec 0</code></pre>
+    <p>Every period counter is present and genuinely zero. The root group has no ceiling of
+    its own and still accounts the machine's whole run, so reporting those counters as
+    absent discards a count the kernel kept. The second state was captured earlier inside
+    the held allocation on <code>98dci4-clu-2002</code>, whose user slice carries no
+    <code>cpu.max</code> and states no period counter at all.</p>
+
+    <table>
+      <thead><tr><th>Group</th><th>cpu.max</th><th>period counters in cpu.stat</th><th>Correct reading</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Root group <code>/sys/fs/cgroup</code>, login node <code>98dci4-srv-1006</code></td>
+          <td>absent</td>
+          <td>stated, all three zero</td>
+          <td><code>nr_periods 0</code>, <code>nr_throttled 0</code>, <code>throttled_usec 0</code></td>
+        </tr>
+        <tr>
+          <td>User slice on the compute node <code>98dci4-clu-2002</code></td>
+          <td>absent</td>
+          <td>none stated</td>
+          <td>all three <code>null</code></td>
+        </tr>
+        <tr>
+          <td>Account slice, <code>400000 100000</code></td>
+          <td>stated</td>
+          <td>stated</td>
+          <td>their values, <code>can_throttle</code> true</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p><code>read_sample</code> dispatches on the file it does not find to a parse that takes
+    the counters as <code>cpu.stat</code> states them: absent where the text states none, and
+    their genuine values where it does. A text stating some period counters but not all is
+    refused, because one kernel account writes the three together and a partial statement is
+    malformed rather than partly accounted. The share for a group with no ceiling remains
+    <code>unbounded</code>, which is the cause a caller acts on; what changed is the counters.</p>
+
+    <h3>The fixture claimed a provenance it did not have</h3>
+    <p>The fixture standing for the compute node's user slice was the login slice's counters
+    with the period lines deleted by hand, so its <code>usage_usec</code> matched the quotaed
+    fixture above it — a value no compute node ever reported. It is replaced by the genuine
+    capture, and a second fixture carries the root-group text above. Both comments state where
+    each was captured. The tests now assert the two no-ceiling states are distinguishable from
+    each other and from a quotaed group, that the zeros arrive in the JSON payload as zeros
+    rather than <code>null</code>, and that a partial statement of the period counters is
+    refused.</p>
+
+    <h3>Gates</h3>
+    <table>
+      <thead><tr><th>Gate</th><th>Observed result</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Focused suite</td>
+          <td><code>uv run --no-sync pytest tests/agent/test_throttling.py</code>:
+          <code>76 passed in 0.27s</code>, exit 0 (75 passed at the base revision, the count
+          moving because the suite gained tests and one fixture value changed)</td>
+        </tr>
+        <tr>
+          <td>Whole-tree lint</td>
+          <td><code>uv run --no-sync ruff check imas_ambix tests</code>:
+          <code>All checks passed!</code>, exit 0</td>
+        </tr>
+        <tr>
+          <td>Declared negative control applied</td>
+          <td><strong>1 failed</strong> on
+          <code>TestGroupWithNoCeilingFile::test_a_group_with_no_ceiling_still_reports_the_accounted_counters</code>
+          with <code>AssertionError: assert None == 0</code>; the source was restored and the
+          same test re-run to <strong>1 passed</strong>. The receipt's first line repeats the
+          declared mutation verbatim and the header check printed <strong>IDENTICAL</strong>.</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>The declared mutation is <em>make the sampler report null counters whenever
+    <code>cpu.max</code> is absent, regardless of whether <code>cpu.stat</code> carries
+    them</em>. Logs, all under
+    <code>~/.config/reckon/crew/runs/r-20260921T210109150827-fleet-accounting-is-not-the-ceiling/logs/</code>:
+    <code>pytest-throttling.log</code>, <code>ruff-whole-tree.log</code> and
+    <code>negative-control-receipt.txt</code>. Every gate log's first line names the revision
+    it ran at, the tree and the command.</p>
+
+    <h3>What this record does not establish</h3>
+    <p>The merged head is not verified here: this measures the node's own change in its own
+    worktree, and the live root-group read was taken on the login node, not through the
+    sampler's own command over the root directory. The compute-side capture is replayed as a
+    fixture rather than re-read at the repair. No figure accompanies this record because the
+    material is three discrete states across four fields, which reads as the table above and
+    would be a picture of a table.</p>
+  </section>
+
 </main>
 </body>
 </html>
