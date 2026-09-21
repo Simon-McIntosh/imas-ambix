@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-21">
-<meta name="plan-version" content="19">
+<meta name="plan-version" content="20">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="c23be8f8,f5c3c91f,493e0281,f743fcea,0f9ce03f,b1696d31,0e9a656c,bacf490f">
 <meta name="plan-impl" content="0.6">
@@ -530,6 +530,9 @@
 </div>
 <div class="r-comment" data-section="s3" data-id="c-run-r-20260921T072901255087-review-of-the-job-bound-repair" data-who="reckon-ship" data-when="2026-09-21T07:51:15.785Z">
     <div class="r-comment-body"><p>third look, scored 94; found the recording runner keying two cat reads to one dict key</p></div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-run-r-20260921T085531493244-review-of-the-per-read-bound" data-who="reckon-ship" data-when="2026-09-21T09:56:32.437Z">
+    <div class="r-comment-body"><p>scored 94 at the repaired head b9bbdeb0, confirming every probe read&#x27;s bound now reaches the wire. Found one real defect: the expected card-query vector is built from node_probe.CARD_QUERY_FIELDS, the same constant the production code composes the query from, so the test compares the code against itself and a dropped field would not redden. NOTE ON THE RECORD ITSELF: the stored finding text was truncated mid-sentence while status read parsed, so the defect had to be recovered by reading the cited line rather than the record</p></div>
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20260921T061330049782-review-of-telemetry-store" data-who="reckon-ship" data-when="2026-09-21T06:25:06.340Z">
     <div class="r-comment-body"><p>Reviewed telemetry-store at 79/100 and found four defects including data corruption: a null leaf folded as identity erased its window, and the fixture populated every leaf so the defect could not fail the suite while the real record is null-rich. All four repaired.</p></div>
