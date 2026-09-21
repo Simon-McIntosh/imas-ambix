@@ -151,9 +151,11 @@
     asserted against the fixture's bytes.</p>
 
     <table>
-      <caption>The new assertion under three reader mutations, and what the file's other
-      tests do with each.</caption>
-      <thead><tr><th>Mutation applied to the reader</th><th>New assertion</th><th>File result</th></tr></thead>
+      <caption>The new assertion under three reader mutations and one stored-scrape
+      deletion, and what the file's other tests do with each. The deletion row is the
+      declared control, run with only the field-set test selected; the reader rows ran the
+      whole file.</caption>
+      <thead><tr><th>Mutation applied</th><th>New assertion</th><th>Result</th></tr></thead>
       <tbody>
         <tr>
           <td><code>GAUGE_SERIES["requests_running"][sglang]</code> renamed to a series the
@@ -171,8 +173,27 @@
           <td>red — <code>histograms.time_to_first_token</code> unresolved</td>
           <td>4 of 15 fail</td>
         </tr>
+        <tr>
+          <td>the canonical field itself deleted from the stored scrape: the
+          <code>sglang:num_running_reqs</code> sample line removed from the fixture</td>
+          <td>red — <code>unresolved ['requests running (requests_running)']</code> and
+          <code>unsourced ['requests running (requests_running) &lt;- num_running_reqs']</code></td>
+          <td>1 failed, 14 deselected</td>
+        </tr>
       </tbody>
     </table>
+
+    <p><strong>The fixture-deletion control found a defect in the check it was testing.</strong>
+    On its first run the sourcing half stayed silent: it searched for the series name
+    anywhere in the file, and the exposition repeats every name in a <code># HELP</code>
+    and a <code># TYPE</code> line above its samples, so deleting the samples left the name
+    behind. The check now requires a line carrying the name and a value (with the entry's
+    label fragment where it has one), and the two failure lists are reported together rather
+    than one assertion hiding the other. Re-run against the same deletion it is red on both
+    halves, naming the field. The fixture was then restored byte-identically (sha256
+    <code>8756c08150971947…</code>, matching the committed blob's working-tree digest) and
+    the suite re-run green. A control that fails for the wrong reason, or a check that cannot
+    fail, is why this one is run against the fixture rather than only the reader.</p>
 
     <p><strong>Gates.</strong> <code>uv run --no-sync pytest tests/test_engine_metrics.py
     tests/test_agent_lane_sglang.py tests/test_agent_lane_gzip.py

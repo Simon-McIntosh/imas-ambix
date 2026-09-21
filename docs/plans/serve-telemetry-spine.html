@@ -234,8 +234,25 @@
     tests/test_agent_serving_receipts.py</code> reports <strong>34 passed</strong>, and
     <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0.</p>
 
+    <p><strong>Measured against the declared control, which changed the test.</strong>
+    Deleting one canonical field from the stored scrape — the
+    <code>sglang:num_running_reqs</code> sample line, which is where
+    <code>requests_running</code> resolves from — must fail the field-set test. The first
+    run of that control failed the resolution half and left the <em>sourcing</em> half
+    silent, because it searched for the series name anywhere in the file and the
+    exposition repeats every name in a <code># HELP</code> and a <code># TYPE</code> line
+    above its samples. The check now requires a line that carries the name and a value —
+    with the entry's label fragment where it has one — and both failure lists are reported
+    together. Re-run against the same deletion it fails with
+    <code>unresolved ['requests running (requests_running)']</code> and
+    <code>unsourced ['requests running (requests_running) &lt;- num_running_reqs']</code>,
+    the fixture was then restored byte-identically (sha256
+    <code>8756c08150971947…</code>) and the suite re-run green. A fixture test never shown
+    to fail cannot distinguish a preserved field set from an empty assertion.</p>
+
     <p><strong>What the fixture does not preserve, measured and left open.</strong> The
-    commit <code>43b45b1b</code> is scoped to the test; the fixture is unchanged, and it is
+    commits <code>43b45b1b</code> and <code>87b12221</code> are scoped to the test; the
+    fixture is unchanged, and it is
     an early-life scrape. Its canonical gauges are a uniform zero column
     (<code>requests_running 0</code>, <code>kv_pool_occupancy 0.0</code>, all three cache
     tiers 0.0), and the serve at <code>98dci4-gpu-0003:18810</code> now publishes eleven
