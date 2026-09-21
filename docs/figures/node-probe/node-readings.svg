@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 470" width="900" height="470" font-family="system-ui, sans-serif">
   <title>Three local probes contribute sparse sections to one recorder tick</title>
-  <desc>Local commands at the serving node produce card, host and job-table sections; each section is omitted entirely when its probe did not run. An inset shows the card index map from the step's read order to the physical indices held in SLURM_STEP_GPUS.</desc>
+  <desc>Local commands at the serving node produce card, host and job-table sections; each section is omitted entirely when its probe did not run. An inset shows the card index map from the read order inside the device cgroup to the physical indices the allocation states, which a serve reads from the job variable its batch step sets.</desc>
   <rect width="900" height="470" fill="#ffffff"/>
 
   <!-- Tick -->
@@ -66,16 +66,16 @@
   <text x="810" y="195" text-anchor="middle" font-size="10.5" fill="#8a5c1d">measurement</text>
 
   <!-- Index inset -->
-  <rect x="20" y="240" width="860" height="205" rx="6" fill="#fbfbfd" stroke="#b9c2d0" stroke-width="1.2"/>
-  <text x="40" y="266" font-size="13" font-weight="600" fill="#1f3350">Card index: the step's read order is not the node's numbering</text>
+  <rect x="20" y="240" width="860" height="228" rx="6" fill="#fbfbfd" stroke="#b9c2d0" stroke-width="1.2"/>
+  <text x="40" y="266" font-size="13" font-weight="600" fill="#1f3350">Card index: the read order is not the node's numbering</text>
 
   <rect x="60" y="288" width="240" height="42" rx="5" fill="#eef3fa" stroke="#4a6fa5" stroke-width="1.2"/>
   <text x="180" y="305" text-anchor="middle" font-size="11.5" fill="#1f3350">device cgroup restricts the step</text>
   <text x="180" y="322" text-anchor="middle" font-size="11.5" fill="#1f3350">nvidia-smi numbers from 0</text>
 
   <rect x="620" y="288" width="240" height="42" rx="5" fill="#eef3fa" stroke="#4a6fa5" stroke-width="1.2"/>
-  <text x="740" y="305" text-anchor="middle" font-size="11.5" fill="#1f3350">SLURM_STEP_GPUS holds the</text>
-  <text x="740" y="322" text-anchor="middle" font-size="11.5" fill="#1f3350">indices on the node</text>
+  <text x="740" y="305" text-anchor="middle" font-size="11.5" fill="#1f3350">SLURM_JOB_GPUS on the batch</text>
+  <text x="740" y="322" text-anchor="middle" font-size="11.5" fill="#1f3350">step holds the node's indices</text>
 
   <path d="M300 309 L 620 309" stroke="#4a6fa5" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
   <text x="460" y="301" text-anchor="middle" font-size="11" fill="#4a6fa5">pair by position, all or nothing</text>
@@ -94,8 +94,10 @@
     <text x="273" y="408" text-anchor="middle" fill="#235c2e">7</text>
   </g>
 
-  <text x="470" y="368" font-size="11" fill="#3c4d66">A 2-card step on cards 6 and 7 reads 0, 1 and is recorded as 6, 7.</text>
+  <text x="470" y="368" font-size="11" fill="#3c4d66">A 2-card allocation on cards 6 and 7 reads 0, 1 and is recorded as 6, 7.</text>
   <text x="470" y="386" font-size="11" fill="#3c4d66">Recording the read order would make one job's card 0 and another's</text>
-  <text x="470" y="404" font-size="11" fill="#3c4d66">card 0 different silicon; the section states which numbering it used.</text>
+  <text x="470" y="404" font-size="11" fill="#3c4d66">card 0 different silicon; the section names the variable it used. A serve</text>
+  <text x="470" y="422" font-size="11" fill="#3c4d66">runs in an sbatch step, so the job variable answers; CUDA_VISIBLE_DEVICES</text>
+  <text x="470" y="440" font-size="11" fill="#3c4d66">is remapped to 0..N-1 and names a position, so it is not on the ladder.</text>
   <text x="470" y="428" font-size="11" fill="#8a5c1d">An allocation whose length does not describe the cards read is not applied.</text>
 </svg>
