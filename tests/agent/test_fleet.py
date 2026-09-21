@@ -12,6 +12,7 @@ from imas_ambix.agent import slurm as slurm_mod
 from imas_ambix.agent.fleet import (
     REMAINING_WARNING_SECONDS,
     generate_fleet_hold_script,
+    parse_node_state,
     remaining_seconds,
 )
 from imas_ambix.agent.profile import SiteConfig
@@ -113,13 +114,28 @@ _SERVE_ROW = (
 )
 
 
-def _squeue(rows: str, monkeypatch) -> None:
-    """Answer every scheduler query with fixed rows instead of a live queue."""
+def _squeue(
+    rows: str, monkeypatch, *, node_state: str = "IDLE"
+) -> list[list[str]]:
+    """Answer scheduler queries with fixed rows instead of a live queue.
+
+    Returns every argv the CLI handed to the runner, so a test can assert the
+    operands a query was written from rather than only the text it printed.
+    """
+
+    commands: list[list[str]] = []
 
     def fake_run(command, *args, **kwargs):
+        commands.append(list(command))
+        if command and command[0] == "scontrol":
+            node = command[-1]
+            return subprocess.CompletedProcess(
+                command, 0, f"NodeName={node}\n   State={node_state}\n", ""
+            )
         return subprocess.CompletedProcess(command, 0, rows, "")
 
     monkeypatch.setattr(cli_mod.subprocess, "run", fake_run)
+    return commands
 
 
 def _fleet_row(time_left: str) -> str:
@@ -147,19 +163,102 @@ def test_fleet_status_warns_inside_the_threshold(monkeypatch) -> None:
     result = CliRunner().invoke(main, ["agent", "fleet", "status"])
 
     assert result.exit_code == 0, result.output
-    assert REMAINING_WARNING_SECONDS == 1800
     assert "WARNING" in result.output
     assert "10m" in result.output
 
 
+def _wall_clock(seconds: int) -> str:
+    """Render a second count the way ``squeue %L`` reports a finite limit."""
+    days, rest = divmod(seconds, 86400)
+    hours, rest = divmod(rest, 3600)
+    minutes, secs = divmod(rest, 60)
+    if days:
+        return f"{days}-{hours:02d}:{minutes:02d}:{secs:02d}"
+    return f"{hours}:{minutes:02d}:{secs:02d}"
+
+
+def test_fleet_status_warning_tracks_the_configured_threshold(monkeypatch) -> None:
+    """The boundary is derived from the constant, not asserted equal to it.
+
+    Comparing the constant against the number it is defined as cannot fail, so
+    it stops discriminating the moment the threshold moves. Both fixtures are
+    derived from the constant instead, so a warning firing too late and one
+    firing too early are each a failure.
+    """
+    inside = _wall_clock(max(1, REMAINING_WARNING_SECONDS - 60))
+    outside = _wall_clock(REMAINING_WARNING_SECONDS + 60)
+
+    _squeue(f"{_fleet_row(inside)}\n", monkeypatch)
+    warned = CliRunner().invoke(main, ["agent", "fleet", "status"])
+    assert warned.exit_code == 0, warned.output
+    assert "WARNING" in warned.output
+
+    _squeue(f"{_fleet_row(outside)}\n", monkeypatch)
+    quiet = CliRunner().invoke(main, ["agent", "fleet", "status"])
+    assert quiet.exit_code == 0, quiet.output
+    assert "WARNING" not in quiet.output
+
+
+def test_fleet_status_queries_the_account_the_allocation_is_charged_to(
+    monkeypatch,
+) -> None:
+    """The queue is queried by the account the hold is charged to.
+
+    The hold is billed to the fleet account, so a query filtered on the site's
+    serving account cannot see it: the command then reports no allocation while
+    the allocation is running.
+    """
+    site = SiteConfig.from_env()
+    commands = _squeue(f"{_fleet_row('2:30:00')}\n", monkeypatch)
+    result = CliRunner().invoke(main, ["agent", "fleet", "status"])
+
+    assert result.exit_code == 0, result.output
+    squeue = next(command for command in commands if command[0] == "squeue")
+    queried = squeue[squeue.index("-A") + 1]
+    assert queried == site.fleet_account
+    assert queried != site.account
+    assert "1275000" in result.output
+
+
 def test_fleet_status_unbounded_allocation_warns_nothing(monkeypatch) -> None:
-    """An allocation with no wall clock is unbounded, never expiring."""
-    _squeue(f"{_fleet_row('UNLIMITED')}\n", monkeypatch)
+    """An allocation with no wall clock never warns on time, on a healthy node."""
+    _squeue(f"{_fleet_row('UNLIMITED')}\n", monkeypatch, node_state="ALLOCATED")
     result = CliRunner().invoke(main, ["agent", "fleet", "status"])
 
     assert result.exit_code == 0, result.output
     assert "unbounded" in result.output
     assert "WARNING" not in result.output
+
+
+def test_fleet_status_warns_when_the_allocation_node_is_draining(monkeypatch) -> None:
+    """The unbounded hold is warned about by its node going out of service.
+
+    This allocation carries no wall clock, so no time threshold can fire for
+    it; the node's own scheduler state is the only advance notice that the
+    allocation's control group is about to be torn down.
+    """
+    _squeue(f"{_fleet_row('UNLIMITED')}\n", monkeypatch, node_state="DRAINING")
+    result = CliRunner().invoke(main, ["agent", "fleet", "status"])
+
+    assert result.exit_code == 0, result.output
+    assert "WARNING" in result.output
+    assert "DRAINING" in result.output
+    assert "rigel-03" in result.output
+
+
+def test_fleet_status_reads_the_allocation_node(monkeypatch) -> None:
+    commands = _squeue(f"{_fleet_row('2:30:00')}\n", monkeypatch)
+    result = CliRunner().invoke(main, ["agent", "fleet", "status"])
+
+    assert result.exit_code == 0, result.output
+    scontrol = next(command for command in commands if command[0] == "scontrol")
+    assert scontrol[-1] == "rigel-03"
+
+
+def test_parse_node_state_reads_the_state_field_and_drops_flags() -> None:
+    assert parse_node_state("NodeName=rigel-03\n   State=IDLE\n") == "IDLE"
+    assert parse_node_state("   State=DRAINING+NOT_RESPONDING\n") == "DRAINING"
+    assert parse_node_state("NodeName=rigel-03\n") is None
 
 
 def test_remaining_seconds_removes_the_unbounded_token_from_arithmetic() -> None:
