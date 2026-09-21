@@ -42,6 +42,60 @@ _CANONICAL_KEYS = (
 )
 
 
+# The canonical quantities the plan's engine-family section names, spelled out
+# here with their value path in a reading's canonical section and the vetted
+# scrape series each is sourced from. Written out rather than read from
+# ``engine_metrics``' own tables because an expectation derived from those
+# tables shrinks with them: dropping a family's series mapping empties both the
+# expectation and the delivered key together, so a canonical quantity can stop
+# resolving without a test noticing. This list is what makes the recorded
+# scrape re-assert the served field set offline.
+_PLAN_CANONICAL_FIELDS: tuple[
+    tuple[str, tuple[str, ...], tuple[str, ...]], ...
+] = (
+    ("requests running", ("requests_running",), ("num_running_reqs",)),
+    ("requests queued", ("requests_queued",), ("num_queue_reqs",)),
+    ("KV-pool occupancy", ("kv_pool_occupancy",), ("full_token_usage",)),
+    ("prompt tokens", ("prompt_tokens",), ("prompt_tokens_total",)),
+    ("generation tokens", ("generation_tokens",), ("generation_tokens_total",)),
+    (
+        "cached tokens, split by the tier that answered",
+        ("cached_prompt_tokens", "device"),
+        ("prefill_effective_tokens_total", 'mode="device_hit"'),
+    ),
+    (
+        "cached tokens, split by the tier that answered",
+        ("cached_prompt_tokens", "host"),
+        ("prefill_effective_tokens_total", 'mode="host_hit"'),
+    ),
+    (
+        "uncached prompt tokens",
+        ("uncached_prompt_tokens",),
+        ("prefill_effective_tokens_total", 'mode="input"'),
+    ),
+    (
+        "time to first token",
+        ("histograms", "time_to_first_token"),
+        ("time_to_first_token_seconds_count",),
+    ),
+    (
+        "inter-token latency",
+        ("histograms", "inter_token_latency"),
+        ("inter_token_latency_seconds_count",),
+    ),
+)
+
+
+def _resolve(section: dict[str, object], path: tuple[str, ...]) -> object:
+    """The value *path* addresses inside a canonical section, or ``None``."""
+    node: object = section
+    for key in path:
+        if not isinstance(node, dict) or key not in node:
+            return None
+        node = node[key]
+    return node
+
+
 def _per_pos_head(labels: str) -> str:
     """The series and label prefix a per-draft-position sample carries."""
     return "vllm:spec_decode_num_accepted_tokens_per_pos{" + labels + ",position="
@@ -136,6 +190,54 @@ def test_sglang_scrape_resolves_through_the_shared_reader() -> None:
         "inter_token_latency",
     }
     assert metrics.histograms["time_to_first_token"].count == 3.0
+
+
+def test_the_recorded_scrape_carries_every_canonical_field_the_plan_names() -> None:
+    """The plan's canonical set resolves from the fixture's own bytes.
+
+    Two things are asserted against the file rather than against the module.
+    Every canonical quantity the plan names resolves from the recorded scrape,
+    with the expectation written out here so a series mapping that is dropped or
+    renamed fails rather than silently shrinking the expectation with it. And
+    each quantity's source series is read out of the file's own text, so a
+    fixture that was hand-written, truncated or left behind by an older engine
+    revision cannot satisfy this test by carrying canned values.
+    """
+    assert _SGLANG_FIXTURE.is_file(), _SGLANG_FIXTURE
+    text = _SGLANG_FIXTURE.read_text(encoding="utf-8")
+    section = _section(text)
+
+    unresolved: list[str] = []
+    unsourced: list[str] = []
+    for quantity, path, series in _PLAN_CANONICAL_FIELDS:
+        if _resolve(section, path) is None:
+            unresolved.append(f"{quantity} ({'.'.join(path)})")
+        for name in series:
+            if name not in text:
+                unsourced.append(f"{quantity} ({'.'.join(path)}) <- {name}")
+
+    assert not unresolved, unresolved
+    assert not unsourced, unsourced
+
+
+def test_the_recorded_scrape_reads_as_measurements_not_a_column_of_zeros() -> None:
+    """The scrape is a working serve, so its readings are readings.
+
+    An all-zero column would resolve every canonical field and still carry no
+    information, so the instrument is shown to see something known present: the
+    counter and histogram observations are large, and the gauges are a measured
+    zero standing beside them rather than the only value the scrape publishes.
+    """
+    section = _sglang_section()
+
+    for counter in ("prompt_tokens", "generation_tokens", "uncached_prompt_tokens"):
+        assert section[counter] > 0, counter
+    for kind in ("time_to_first_token", "inter_token_latency"):
+        histogram = section["histograms"][kind]
+        assert histogram["count"] > 0, kind
+        assert histogram["buckets"], kind
+
+    assert section["requests_running"] == 0.0
 
 
 def test_vllm_scrape_resolves_through_the_same_reader() -> None:
