@@ -844,6 +844,16 @@ uv run python -m imas_ambix.agent.throttling interval \
   }
 }</code></pre>
 
+    <p><strong>Backing artifact, added after review.</strong> The payload above was
+    quoted from the run's own terminal rather than from a captured log. It is reproduced
+    independently at
+    <code>~/.config/reckon/crew/runs/r-20260921T090055615010-fleet-sample-names-its-host/logs/coordinator-live-read.log</code>,
+    which reads the same <code>hostname</code>, the same
+    <code>boot_id 82c41dfa-a445-4fb2-8416-04b44c3d874c</code>, a later
+    <code>uptime_seconds</code> of 3&nbsp;802&nbsp;225.31 and a share of
+    <strong>0.3378</strong>. The identical boot id across the two readings is the
+    constancy the paragraph below argues for, now measured twice rather than once.</p>
+
     <p>That reading is the second independent arrival at the baseline: the earlier
     baseline comment records a cumulative share of <strong>0.3366</strong> over
     43&nbsp;d 20&nbsp;h of uptime, and this reads <strong>0.3373</strong> over
@@ -855,7 +865,7 @@ uv run python -m imas_ambix.agent.throttling interval \
 
     <p><strong>Scope.</strong> The change is confined to
     <code>imas_ambix/agent/throttling.py</code> and
-    <code>imas_ambix/agent/test_throttling.py</code>. The existing JSON equality
+    <code>tests/agent/test_throttling.py</code>. The existing JSON equality
     assertions were extended deliberately rather than deleted: the key set in
     <code>TestMain</code> gained <code>host</code>, and the pre-existing assertions on
     <code>directory</code>, <code>cpu_max</code>, the counters and the undefined-share
