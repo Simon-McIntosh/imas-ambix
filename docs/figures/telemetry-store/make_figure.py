@@ -19,8 +19,8 @@ N = 25 * 60  # 25 minutes of 5 s samples
 raw = [
     {
         "timestamp": (START + timedelta(seconds=i * CADENCE)).isoformat(),
-        "prefix_cache_queries_total": 1000 + 7 * i,
-        "kv_cache_usage_perc": 40.0 + 25.0 * math.sin(i / 90.0),
+        "requests_served_total": 1000 + 7 * i,
+        "queue_utilisation_perc": 40.0 + 25.0 * math.sin(i / 90.0),
     }
     for i in range(N)
 ]
@@ -29,25 +29,25 @@ minute = store.compact_rows(raw, tier=store.TIER_MINUTE)
 hour = store.compact_rows(minute, tier=store.TIER_HOUR)
 
 raw_t = [datetime.fromisoformat(r["timestamp"]) for r in raw]
-raw_counter = [r["prefix_cache_queries_total"] for r in raw]
-raw_kv = [r["kv_cache_usage_perc"] for r in raw]
+raw_counter = [r["requests_served_total"] for r in raw]
+raw_kv = [r["queue_utilisation_perc"] for r in raw]
 
 min_t = [datetime.fromisoformat(r["timestamp"]) for r in minute]
-min_counter = [r["prefix_cache_queries_total"] for r in minute]
+min_counter = [r["requests_served_total"] for r in minute]
 # What a mean would have kept instead of the endpoint.
 min_mean = []
 for row in minute:
     bucket = int(datetime.fromisoformat(row["window_start"]).timestamp())
     window = [
-        r["prefix_cache_queries_total"]
+        r["requests_served_total"]
         for r in raw
         if math.floor(datetime.fromisoformat(r["timestamp"]).timestamp() / 60) * 60
         == bucket
     ]
     min_mean.append(sum(window) / len(window))
 
-min_kv = [r["kv_cache_usage_perc"] for r in minute]
-hour_kv = hour[0]["kv_cache_usage_perc"]
+min_kv = [r["queue_utilisation_perc"] for r in minute]
+hour_kv = hour[0]["queue_utilisation_perc"]
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4.4))
 
@@ -70,11 +70,10 @@ ax1.plot(
     label="what a mean would keep (forbidden)",
 )
 ax1.set_title("Cumulative counter: the endpoint is kept, never averaged")
-ax1.set_ylabel("prefix_cache_queries_total")
+ax1.set_ylabel("requests_served_total")
 ax1.legend(fontsize=8, loc="upper left")
 ax1.tick_params(axis="x", labelsize=8)
 
-step = [0, (N - 1) * CADENCE]
 # Draw the gauge at both compactions side by side on a shared time base.
 ax2.plot(raw_t, raw_kv, color="#bbbbbb", lw=1.6, label="raw 5 s samples")
 ax2.step(
@@ -83,7 +82,10 @@ ax2.step(
     where="post",
     color="#0b6e4f",
     lw=1.3,
-    label=f"minute tier: time-weighted mean ({minute[0]['obs']['samples']} samples/row)",
+    label=(
+        "minute tier: time-weighted mean "
+        f"({minute[0]['obs']['samples']} samples/row)"
+    ),
 )
 ax2.hlines(
     hour_kv,
@@ -95,10 +97,9 @@ ax2.hlines(
     label=f"hour tier: {hour[0]['obs']['samples']} samples/row",
 )
 ax2.set_title("Gauge: a time-weighted mean that carries its weight")
-ax2.set_ylabel("kv_cache_usage_perc")
+ax2.set_ylabel("queue_utilisation_perc")
 ax2.legend(fontsize=8, loc="upper right")
 ax2.tick_params(axis="x", labelsize=8)
-del step
 
 fig.suptitle(
     "One raw record, two compacted resolutions — endpoints for counters, "
