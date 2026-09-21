@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-21">
-<meta name="plan-version" content="16">
+<meta name="plan-version" content="17">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="c23be8f8,f5c3c91f,493e0281,f743fcea,0f9ce03f,b1696d31,0e9a656c,bacf490f">
 <meta name="plan-impl" content="0.6">
@@ -530,6 +530,9 @@
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20260921T061330049782-review-of-telemetry-store" data-who="reckon-ship" data-when="2026-09-21T06:25:06.340Z">
     <div class="r-comment-body"><p>Reviewed telemetry-store at 79/100 and found four defects including data corruption: a null leaf folded as identity erased its window, and the fixture populated every leaf so the defect could not fail the suite while the real record is null-rich. All four repaired.</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-run-r-20260921T070306959077-recheck-of-telemetry-store" data-who="reckon-ship" data-when="2026-09-21T07:19:55.096Z">
+    <div class="r-comment-body"><p>scored 87 after repair, up from 79, at reviewed_commit 25a92fe0369a; found the tier-weight table contradicting the cadence and main() unasserted. Delivered its review at 09:18 then its process ended before it could write a terminal manifest, so it read as running for 1h40m while its pid was gone - the artifact is durable, the status was not</p></div>
 </div>
 <div class="r-comment" data-section="s5" data-id="c-run-r-20260921T072347269272-review-of-telemetry-index" data-who="reckon-ship" data-when="2026-09-21T07:54:29.584Z">
     <div class="r-comment-body"><p>scored 85 with six findings on work promoted but never merged; repair node dispatched</p></div>
