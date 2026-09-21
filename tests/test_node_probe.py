@@ -20,6 +20,13 @@ Coverage
     reads as a measurement instead of as an absence.
 8.  The job table is read on its own slower cadence and omitted from the ticks
     in between, since a repeated reading dates a stale table as current.
+9.  The two query vectors the probe sends -- the ``nvidia-smi`` field list and
+    the ``squeue`` format string -- are written out in this file rather than
+    composed from the module's own constants, so an edit to a constant reddens
+    the assertion about the wire instead of moving the expectation with it. The
+    coupling back to the module is asserted once, in a single labelled test,
+    which is the only place a derived expectation belongs; every other
+    expectation here is a literal.
 
 The fixtures are recorded bodies.  ``_PROC_STAT``, ``_PROC_MEMINFO`` and
 ``_SQUEUE`` were captured on this workstation, the job table from the serving
@@ -108,17 +115,43 @@ def _host_runner(stat: str | None, meminfo: str | None):
     return run
 
 
+#: The card query as it must reach the device, written out rather than composed
+#: from ``node_probe.CARD_QUERY_FIELDS``. An expectation built from that constant
+#: moves with any edit to it, so it agrees with production by construction and
+#: asserts nothing about which quantities are read: drop a field, or reorder
+#: them, and the probe silently stops reading one the section names while the
+#: test stays green. The fields below are the section's list -- the read index
+#: first, then one per quantity -- and they are checkable by eye against it. The
+#: single place this literal is tied back to the module is
+#: :func:`test_the_literal_queries_are_the_ones_the_module_composes`.
+_CARD_QUERY_FIELDS_LITERAL = (
+    "index",
+    "utilization.gpu",
+    "temperature.gpu",
+    "power.draw",
+    "power.limit",
+    "clocks.sm",
+    "clocks.mem",
+    "memory.used",
+    "memory.total",
+)
 _CARD_ARGV = (
     "nvidia-smi",
-    f"--query-gpu={','.join(node_probe.CARD_QUERY_FIELDS)}",
+    "--query-gpu="
+    "index,utilization.gpu,temperature.gpu,power.draw,power.limit,"
+    "clocks.sm,clocks.mem,memory.used,memory.total",
     "--format=csv,noheader,nounits",
 )
 _CPU_ARGV = ("cat", "/proc/stat")
 _MEMINFO_ARGV = ("cat", "/proc/meminfo")
 
+#: The job-table format string as it must reach ``squeue``, written out for the
+#: same reason as the card query above.
+_SQUEUE_FORMAT = "%i|%u|%j|%T|%P|%C|%m|%b|%M"
+
 
 def _jobs_argv(hostname):
-    return ("squeue", "-h", "-w", hostname, "-o", node_probe.SQUEUE_FORMAT)
+    return ("squeue", "-h", "-w", hostname, "-o", _SQUEUE_FORMAT)
 
 
 def _recording_runner():
@@ -346,9 +379,7 @@ def test_the_job_table_carries_the_node_it_describes():
 
     node_probe.read_jobs("98dci4-gpu-0003", run)
 
-    assert calls == [
-        ["squeue", "-h", "-w", "98dci4-gpu-0003", "-o", node_probe.SQUEUE_FORMAT]
-    ]
+    assert calls == [["squeue", "-h", "-w", "98dci4-gpu-0003", "-o", _SQUEUE_FORMAT]]
 
 
 # ── A source that did not answer ─────────────────────────────────────
@@ -509,6 +540,28 @@ def test_the_job_read_carries_the_bound_it_declares_rather_than_the_local_one():
     assert invoked[_CARD_ARGV] == node_probe.NodeProbe.timeout_s == 10.0
     assert invoked[_CPU_ARGV] == node_probe.NodeProbe.timeout_s == 10.0
     assert invoked[_MEMINFO_ARGV] == node_probe.NodeProbe.timeout_s == 10.0
+
+
+def test_the_literal_queries_are_the_ones_the_module_composes():
+    """The one place the wire literals in this file are tied to the module.
+
+    Every other assertion here reads a literal, so a change to
+    ``CARD_QUERY_FIELDS`` or ``SQUEUE_FORMAT`` reddens the assertion about the
+    wire instead of travelling with it. That property depends on this being the
+    *only* derived expectation, so the coupling is stated deliberately and in
+    one place: the module currently composes the vectors written out above. A
+    constant edited without the literals is a disagreement, and this is where it
+    surfaces.
+    """
+    composed = (
+        "nvidia-smi",
+        f"--query-gpu={','.join(node_probe.CARD_QUERY_FIELDS)}",
+        "--format=csv,noheader,nounits",
+    )
+
+    assert _CARD_QUERY_FIELDS_LITERAL == node_probe.CARD_QUERY_FIELDS
+    assert composed == _CARD_ARGV
+    assert node_probe.SQUEUE_FORMAT == _SQUEUE_FORMAT
 
 
 def test_the_real_runner_cuts_a_command_off_at_the_timeout_it_was_given():
