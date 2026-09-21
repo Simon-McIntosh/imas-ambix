@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-21T09:24:00",
+  "updated": "2026-09-21T09:25:38",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -44926,6 +44926,211 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260921T065821787810-fleet-dispatch-placement-verdict",
+        "plan": "slurm-hosted-agent-fleet",
+        "section": "\u00a77",
+        "node": "fleet-dispatch-placement-verdict",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1158,
+                "cached_input_tokens": 246681,
+                "input_tokens": 247841,
+                "output_tokens": 1136,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 248977,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "10680e94-61e5-4916-bab0-968fa2503f57",
+            "session_id": "slurm-fleet"
+          },
+          "done_when": "ALL of the following hold and each is evidenced in the manifest. (1) You read the dispatch implementation in the reckon checkout at /home/ITER/mcintos/Code/reckon (read only \u2014 you must NOT write, commit or otherwise modify anything under that path, which belongs to another repository) and establish, with file:line citations that you have verified resolve, HOW a dispatched worker process is created: whether it is a child of the calling coordinator process, whether any placement, control-group, node or scheduler affinity is chosen by reckon itself, and whether any path it writes is tied to a per-host runtime directory such as /run/user rather than to shared storage. (2) From those citations you state the verdict in one of exactly two forms \u2014 \"no change required\" or \"change required\" \u2014 and, if change required, you name the specific contract element that must change, because plan \u00a76 records that such a change is a dependency to raise in reckon and NOT work to do in this repository. (3) You state explicitly and separately which part of the verdict is settled by reading the code and which part remains to be confirmed by an operator actually running a session inside the allocation, so the record does not claim more than it measured. (4) The verdict, its citations and that settled/unsettled split are written as a new anchored section in docs/evidence/archive/slurm-hosted-agent-fleet-landed.html and a two-line landing record is appended to \u00a77 of docs/plans/slurm-hosted-agent-fleet.html. (5) `reckon audit-doc` is run over both files you touched, reports OK with zero ERRORs, and its exact output is quoted \u2014 the binary is /home/ITER/mcintos/Code/reckon/.venv/bin/reckon. (6) No file path, symbol, comment or docstring you add carries a plan label, stage name, ticket number or version suffix.",
+          "estimated_hours": 0.75,
+          "goal": "the recorded verdict on whether hosting the fleet inside a scheduler allocation requires any change to the reckon crew dispatch contract",
+          "id": "fleet-dispatch-placement-verdict",
+          "lane_declaration": {
+            "backend": "codex",
+            "headroom": "known",
+            "metered": true,
+            "observed_at": "2026-09-21T06:58:22Z",
+            "read_at": "2026-09-21T06:58:23Z",
+            "resolved_backend": "codex",
+            "utilisation_pct": 7.0
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "backend declares no lane document",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T065821787810-fleet-dispatch-placement-verdict/manifest.md",
+          "negative_control": "none: this node writes no test file and adds no executable behaviour; its falsifiable check is that every cited file:line in the reckon checkout is independently resolved and printed with its line content, and that a citation which does not resolve is reported rather than dropped",
+          "plan": "slurm-hosted-agent-fleet",
+          "requested_backend": "codex",
+          "requires_decisions": [],
+          "role": "documentation",
+          "section": "\u00a77",
+          "spec_level": "guided",
+          "time_budget": "35m",
+          "token_budget": null,
+          "write_paths": [
+            "docs/plans/slurm-hosted-agent-fleet.html",
+            "docs/evidence/archive/slurm-hosted-agent-fleet-landed.html"
+          ]
+        },
+        "role": "documentation",
+        "spec_level": "guided",
+        "member": "fleet-dispatch-verdict",
+        "backend": "clive",
+        "local": false,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "xhigh",
+          "launch": "cli",
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "worktree-full",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-21T06:58:33Z",
+        "completed_at": "2026-09-21T07:22:38.604Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 894,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 1445,
+        "stalled": false,
+        "time_budget": "35m",
+        "base_sha": "d9167684ab2b7a11c70abd12424d1f76fe6b4811",
+        "commits": [
+          "3452b5799770701d9e8d596773f5dd40365a127f"
+        ],
+        "changed_lines": {
+          "added": 179,
+          "removed": 0,
+          "files": 2
+        },
+        "tests_added": 0,
+        "gate": "passed",
+        "gate_check": {
+          "command": "reckon audit-doc over both touched documents, re-run by the coordinator at the merged head",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T065821787810-fleet-dispatch-placement-verdict/coordinator-audit-at-merged-head.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T065821787810-fleet-dispatch-placement-verdict/manifest.md",
+        "scope_changed": false,
+        "session_id": null,
+        "budget": {
+          "cost_usd": null,
+          "detail": "",
+          "headroom": "unknown",
+          "rate_limit_period_minutes": null,
+          "rate_limit_type": null,
+          "refusal": false,
+          "resets_at": null,
+          "surpassed_threshold": null,
+          "threshold_status": null,
+          "tokens": null,
+          "utilisation_pct": null
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-21T07:22:38.604Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": {
+          "attempt": 2,
+          "kind": "lane-change",
+          "lanes": [
+            {
+              "changed_at": "2026-09-21T07:07:36Z",
+              "detail": "starting fresh because the session cannot follow the move from harness 'codex' to 'claude'",
+              "from_backend": "codex",
+              "from_harness": "codex",
+              "reason": "rationing the metered lane: the account surface reads burn 11.9x against a 1.5x ceiling, and this node is a careful read of an existing implementation plus a written verdict, not work that needs the stronger lane",
+              "session": "fresh",
+              "session_id": "01a0c2c2-64e8-7833-a233-b33c8143f9ce",
+              "session_source": "stream",
+              "to_backend": "clive",
+              "to_harness": "claude"
+            }
+          ],
+          "root_run_id": "r-20260921T065821787810-fleet-dispatch-placement-verdict"
+        },
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": null,
+        "follow_on_paths": [
+          "/home/ITER/mcintos/Code/reckon/.venv/bin/reckon",
+          "docs/camera-dynamics-wm-v0.html",
+          "evidence/archive/camera-dynamics-wm-v0-landed.html#frozen-probe-null",
+          "candidate.resolve",
+          ".../slurm-hosted-agent-fleet-landed#dispatch-placement",
+          "reckon/crew/runs.py:2058-2131"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "documentation",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "lane-change",
+        "attempt": 2,
+        "duration_measurement": {
+          "status": "underivable",
+          "reason": "model_span_unavailable_at_promotion"
+        },
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": null,
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "plan_impl_at_dispatch": 0.167,
+        "impl_move": {
+          "plan": "slurm-hosted-agent-fleet",
+          "at_dispatch": 0.167,
+          "at_complete": null,
+          "verdict": "exempt",
+          "reason": "role-not-enforced:documentation"
+        },
+        "negative_control": {
+          "verdict": "exempt",
+          "reason": "node-writes-no-test-path"
+        },
+        "tool_steps": 22.0,
+        "orientation_input_tokens": null,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -45000,6 +45205,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 774
+    "_version": 775
   }
 }

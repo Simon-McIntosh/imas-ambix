@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-21">
-<meta name="plan-version" content="6">
+<meta name="plan-version" content="5">
 <meta name="plan-impl" content="0.333">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="e523036b842dbd9c6dbc205bfd0753335e82c342">
@@ -386,9 +386,11 @@
 <div class="r-comment" data-section="s7" data-id="c-fleet-allocation-holder" data-who="fleet-allocation-holder" data-when="2026-09-21T09:05:36+02:00">
     <div class="r-comment-body"><p>Added the persistent fleet-allocation generator and the print-by-default <code>imas-ambix agent fleet hold</code> command in commit <code>e0a990fb</code>. The generated job holds one exclusive rigel node with 28 CPUs, 120G memory, unlimited time, <code>TMPDIR=/tmp</code> and scheduler identity <code>ambix-fleet</code>; submission remains opt-in through <code>--submit</code> and the shared adapter. Focused verification passed 3 tests in 1.20 s, the bounded-memory mutation failed its named test, and whole-tree Ruff exited 0. Full record: <a href="/imas-ambix/evidence/archive/slurm-hosted-agent-fleet-landed#fleet-allocation-holder">persistent allocation holder</a>.</p></div>
 </div>
-
 <div class="r-comment" data-section="s7" data-id="c-run-r-20260921T065359899293-fleet-throttling-baseline" data-who="reckon-ship" data-when="2026-09-21T07:09:58.000Z">
     <div class="r-comment-body"><p>Throttling baseline recorded for §7.1. The account slice <code>user.slice/user-39486.slice</code> on <code>98dci4-srv-1006</code> is quota-ed at <code>400000 100000</code> — four cores for the whole slice, not per session — and over 43 days 20 h of uptime reads a cumulative throttled share of <strong>0.3366</strong> of permitted CPU thread-time: a third, which reproduces the arithmetic in §2 from a live read. Five consecutive 60-second windows between 07:01:47Z and 07:06:51Z put the interval share between <strong>0.425 and 1.865</strong>, with 325 to 553 of every 600 periods throttled, so the comparison the plan's step six needs is against the cumulative ratio rather than any single window. The share is stalled thread-time over permitted thread-time and can exceed one; the sampler leaves it unclamped because the stall counter sums per stopped task while the budget is one quota per period. Sampler: <code>imas_ambix/agent/throttling.py</code>, gate <code>tests/agent/test_throttling.py</code> (22 passed), commits 0805cb7 and 3a59ecc. Raw counters, uptime, quota line and the window table are anchored in <a href="/imas-ambix/slurm-hosted-agent-fleet-landed">the landed evidence record</a>.</p></div>
+</div>
+<div class="r-comment" data-section="s7" data-id="c-run-r-20260921T065821787810-fleet-dispatch-placement-verdict" data-who="reckon-ship" data-when="2026-09-21T07:22:38.604Z">
+    <div class="r-comment-body"><p>verdict NO CHANGE REQUIRED, with a finding that reshapes the plan: reckon already implements the reservation path the plan proposed to build (persistent salloc --no-shell, workers placed as srun --overlap --jobid steps, published reservation state, a reckon crew placement --ensure command) and it is IMPLEMENTED BUT UNARMED — zero placement keys in the live flight config, no reservation record on disk. Crew state, watcher state and worktrees are all on GPFS so a move does not strand them. Coordinator note: the node kept no gate log on disk, so this log is the coordinator re-run</p></div>
 </div>
 </section>
 </main>
