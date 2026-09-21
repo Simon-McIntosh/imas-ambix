@@ -1330,6 +1330,29 @@ MUTATED_EXIT=1</pre>
     paths are unchanged by this work.</p>
   </section>
 
+  <section id="drain-guard-against-live-states">
+    <h2>The drain guard against live node states, both directions</h2>
+    <p>The node that repaired the guard certified it with a faked state string and a
+    mutation-forced red, and declared in its own follow-on that no live node state had exercised
+    it. Its reviewer raised the same gap. It is closed here by running the shipped predicate over
+    the whole live node table at the merged head:</p>
+<pre><code>live nodes: 428  carrying DRAIN: 82  healthy: 346
+   98dci4-clu-3025    ALLOCATED+DRAIN+REBOOT_REQUESTED    node_is_draining=True
+   98dci4-clu-2003    ALLOCATED+MAINTENANCE+RESERVED      node_is_draining=False
+false positives over the live table: 0   false negatives: 0</code></pre>
+    <p>Both directions matter and both are measured: every one of the 82 nodes the scheduler
+    reports with a drain token warns, and none of the 346 without one does. The negative set
+    includes multi-token states such as <code>ALLOCATED+MAINTENANCE+RESERVED</code>, so the
+    predicate is discriminating between tokens rather than merely reacting to a plus sign.</p>
+    <p>The coordinator's first attempt at this check failed in the same way the defect did: the
+    shell pattern used to pick a draining node was <code>State=[A-Z_]*DRAIN</code>, which cannot
+    span the <code>+</code>, so it selected nothing. Worth recording because it is the third
+    independent instance of the same mistake — the parser, the predicate, and the check written to
+    test them all assumed a drain token that leads.</p>
+    <p>Captured at
+    <code>~/.config/reckon/crew/runs/r-20260921T102128084713-fleet-drain-guard-fires-on-this-cluster/logs/coordinator-live-node-states.log</code>.</p>
+  </section>
+
 </main>
 </body>
 </html>
