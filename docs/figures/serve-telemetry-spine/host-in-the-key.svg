@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 500" width="940" height="500"
+     font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="13">
+  <rect width="940" height="500" fill="#fbfbfd"/>
+  <text x="24" y="30" font-size="16" font-weight="bold" fill="#1b1b1f">Two machines recording the same path, before and after the key gains a host</text>
+
+  <!-- BEFORE panel -->
+  <g>
+    <text x="24" y="62" font-size="14" font-weight="bold" fill="#8a1c1c">Before — key (inode, offset)</text>
+
+    <!-- node a -->
+    <rect x="24" y="76" width="150" height="46" rx="6" fill="#e8eef8" stroke="#3a5a9c"/>
+    <text x="99" y="96" text-anchor="middle" fill="#1b1b1f">node-a</text>
+    <text x="99" y="112" text-anchor="middle" font-family="monospace" font-size="11" fill="#3a3a44">serve.jsonl</text>
+
+    <!-- node b -->
+    <rect x="24" y="132" width="150" height="46" rx="6" fill="#f6e8ee" stroke="#9c3a5a"/>
+    <text x="99" y="152" text-anchor="middle" fill="#1b1b1f">node-b</text>
+    <text x="99" y="168" text-anchor="middle" font-family="monospace" font-size="11" fill="#3a3a44">serve.jsonl</text>
+
+    <line x1="174" y1="99" x2="248" y2="110" stroke="#3a5a9c" stroke-width="1.5"/>
+    <line x1="174" y1="155" x2="248" y2="138" stroke="#9c3a5a" stroke-width="1.5"/>
+
+    <!-- shared key box -->
+    <rect x="248" y="96" width="164" height="58" rx="6" fill="#fff" stroke="#8a1c1c" stroke-dasharray="4 3"/>
+    <text x="330" y="118" text-anchor="middle" font-family="monospace" font-size="11" fill="#8a1c1c">inode 4711</text>
+    <text x="330" y="134" text-anchor="middle" font-family="monospace" font-size="11" fill="#8a1c1c">offset 128</text>
+    <text x="330" y="148" text-anchor="middle" font-size="10" fill="#6a6a72">one key, two writers</text>
+
+    <line x1="412" y1="125" x2="470" y2="125" stroke="#8a1c1c" stroke-width="1.5"/>
+
+    <!-- surviving row -->
+    <rect x="470" y="96" width="196" height="58" rx="6" fill="#fdecec" stroke="#8a1c1c"/>
+    <text x="568" y="118" text-anchor="middle" font-family="monospace" font-size="11" fill="#1b1b1f">1 sample row</text>
+    <text x="568" y="136" text-anchor="middle" font-size="10" fill="#8a1c1c">the second writer is dropped</text>
+    <text x="568" y="149" text-anchor="middle" font-size="10" fill="#8a1c1c">as a duplicate of the first</text>
+
+    <text x="700" y="120" font-size="11" fill="#3a3a44">inode numbers are per-filesystem,</text>
+    <text x="700" y="136" font-size="11" fill="#3a3a44">so the number names no machine.</text>
+    <text x="700" y="152" font-size="11" fill="#3a3a44">Neither host is recoverable.</text>
+  </g>
+
+  <line x1="24" y1="196" x2="916" y2="196" stroke="#d5d5dd"/>
+
+  <!-- AFTER panel -->
+  <g>
+    <text x="24" y="224" font-size="14" font-weight="bold" fill="#12603a">After — key (host, inode, offset)</text>
+
+    <rect x="24" y="238" width="150" height="46" rx="6" fill="#e8eef8" stroke="#3a5a9c"/>
+    <text x="99" y="258" text-anchor="middle" fill="#1b1b1f">node-a</text>
+    <text x="99" y="274" text-anchor="middle" font-family="monospace" font-size="11" fill="#3a3a44">serve.jsonl</text>
+
+    <rect x="24" y="294" width="150" height="46" rx="6" fill="#f6e8ee" stroke="#9c3a5a"/>
+    <text x="99" y="314" text-anchor="middle" fill="#1b1b1f">node-b</text>
+    <text x="99" y="330" text-anchor="middle" font-family="monospace" font-size="11" fill="#3a3a44">serve.jsonl</text>
+
+    <!-- carried host label -->
+    <text x="24" y="366" font-size="10" fill="#6a6a72">each row names its host, or the</text>
+    <text x="24" y="379" font-size="10" fill="#6a6a72">recording nodename names it</text>
+
+    <line x1="174" y1="261" x2="258" y2="272" stroke="#3a5a9c" stroke-width="1.5"/>
+    <line x1="174" y1="317" x2="258" y2="300" stroke="#9c3a5a" stroke-width="1.5"/>
+
+    <rect x="258" y="240" width="196" height="56" rx="6" fill="#fff" stroke="#3a5a9c"/>
+    <text x="356" y="261" text-anchor="middle" font-family="monospace" font-size="11" fill="#1b1b1f">node-a | 4711 | 128</text>
+    <text x="356" y="281" text-anchor="middle" font-size="10" fill="#6a6a72">its own row</text>
+
+    <rect x="258" y="304" width="196" height="56" rx="6" fill="#fff" stroke="#9c3a5a"/>
+    <text x="356" y="325" text-anchor="middle" font-family="monospace" font-size="11" fill="#1b1b1f">node-b | 4711 | 128</text>
+    <text x="356" y="345" text-anchor="middle" font-size="10" fill="#6a6a72">its own row</text>
+
+    <line x1="454" y1="268" x2="512" y2="288" stroke="#3a5a9c" stroke-width="1.5"/>
+    <line x1="454" y1="332" x2="512" y2="312" stroke="#9c3a5a" stroke-width="1.5"/>
+
+    <rect x="512" y="272" width="196" height="58" rx="6" fill="#eaf7ef" stroke="#12603a"/>
+    <text x="610" y="294" text-anchor="middle" font-family="monospace" font-size="11" fill="#1b1b1f">2 sample rows</text>
+    <text x="610" y="313" text-anchor="middle" font-size="10" fill="#12603a">both kept, each attributable</text>
+
+    <text x="738" y="296" font-size="11" fill="#3a3a44">A window then belongs to one</text>
+    <text x="738" y="312" font-size="11" fill="#3a3a44">host, because a mean over two</text>
+    <text x="738" y="328" font-size="11" fill="#3a3a44">machines describes neither.</text>
+  </g>
+
+  <rect x="24" y="408" width="892" height="68" rx="6" fill="#f4f4f7" stroke="#d5d5dd"/>
+  <text x="38" y="430" font-size="12" font-weight="bold" fill="#1b1b1f">The cost of the change, stated where it lands</text>
+  <text x="38" y="450" font-size="11" fill="#3a3a44">The tables are created with IF NOT EXISTS, so an index written before this change keeps its old shape and the first</text>
+  <text x="38" y="466" font-size="11" fill="#3a3a44">ingest refuses — <tspan font-family="monospace">sqlite3.OperationalError: no such column: host</tspan> — rather than merging. Recover by rebuilding the index from the JSONL.</text>
+</svg>

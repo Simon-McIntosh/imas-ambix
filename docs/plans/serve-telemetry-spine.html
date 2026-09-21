@@ -454,6 +454,46 @@
     recorded serve; the watcher spawns no sampler step for the serve's cards; and the lint
     gate exits 0.</p>
 
+    <figure>
+      <img src="/imas-ambix/figures/serve-telemetry-spine/host-in-the-key.svg"
+           alt="Two machines recording serve.jsonl at the same path: keyed on inode and offset alone they resolve to one row and the second writer is dropped, while keyed on host, inode and offset each keeps its own row.">
+      <figcaption>An inode names a file on a filesystem, not the machine that wrote it — so the host enters the key.</figcaption>
+    </figure>
+
+    <p><strong>Landed: the index and the store key on the host that recorded the row.</strong> A second
+    machine recording <code>serve.jsonl</code> at the same path produced the same inode and offset as
+    the first, so the two writers resolved to one key and the second was dropped as a duplicate — a
+    silent, irreversible merge, already a live risk rather than a hypothetical one. Every key now
+    carries a host: <code>source</code> is <code>(host, path, inode)</code> and <code>sample</code> is
+    unique on <code>(host, inode, offset)</code>, resolved per row from its own top-level
+    <code>host</code> or <code>hostname</code>, then from the file's own source row, then from the
+    recording nodename. The public signatures of <code>ingest</code> and <code>discover</code> do not
+    move — the recording host is a property of the index, not an argument — so the watcher being wired
+    onto the index concurrently is unaffected.</p>
+
+    <p>Two consequences the change had to get right. An inode-only resume lookup and a
+    <code>(path, inode)</code> lookup are not interchangeable: only a path match can conclude that a
+    file was rewritten in place, so a row found by inode alone is treated as a different file sharing
+    the number, read from zero, and no samples are discarded. And a compaction window belongs to one
+    host, partitioned before the weights are computed, because gaps inferred across interleaved
+    machines would halve every time-weighted mean in the window.</p>
+
+    <p><strong>An index already on disk is invalidated, and it refuses rather than merging.</strong>
+    The tables are declared <code>CREATE TABLE IF NOT EXISTS</code> with no schema-version marker, so a
+    pre-existing index keeps its old shape and the first ingest raises
+    <code>sqlite3.OperationalError: no such column: host</code> — measured, not inferred, against a
+    database written by the previous revision. Recovery is the index's own contract:
+    <code>TelemetryIndex.rebuild()</code> from the JSONL, which is the only copy that matters. No
+    migration is attempted, because the index is disposable by construction and a half-migrated one
+    would be the one object in the system whose contents nobody could describe.</p>
+
+    <p><strong>Gates.</strong> <code>pytest tests/test_telemetry_index.py tests/test_telemetry_store.py</code>
+    reports <strong>46 passed</strong>, exit 0; <code>ruff check imas_ambix tests</code> exits 0. The
+    declared mutation — dropping <code>host</code> from the sample's uniqueness, restoring
+    <code>UNIQUE (inode, offset)</code> — reddens exactly
+    <code>test_two_hosts_at_one_inode_and_offset_are_both_kept</code> with
+    <code>assert 2 == 4</code>, which is the merge the change exists to prevent.</p>
+
     <h2 id="s6">§6 — Per-request receipts from the router</h2>
 
     <p>Aggregate gauges answer how the lane is behaving; they cannot attribute. The router

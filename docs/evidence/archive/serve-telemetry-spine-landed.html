@@ -1621,6 +1621,119 @@ except ImportError:
     <strong>16 passed at base</strong> for the same two files, the twenty-fifth being the
     test that holds the read on the near side of the send; whole-tree
     <code>ruff</code> exits 0.</p>
+  <h2 id="host-key">§5 — the record's keys name the machine that wrote the row</h2>
+
+    <figure>
+      <img src="/imas-ambix/figures/serve-telemetry-spine/host-in-the-key.svg"
+           alt="Two machines recording serve.jsonl at the same path: keyed on inode and offset alone they resolve to one key and the second writer is dropped as a duplicate, while keyed on host, inode and offset each writer keeps its own row.">
+      <figcaption>One path and one inode on two machines: the second writer lost, then kept.</figcaption>
+    </figure>
+
+    <p>An inode is a number a filesystem hands out, so the same path on two machines can
+    produce the same inode and the same byte offset. Keyed on <code>(inode, offset)</code>
+    alone the two writers resolve to one sample and the second arrives as a duplicate of
+    the first — a merge that is silent and cannot be undone, because nothing recorded
+    that two rows were ever intended. A second host is already producing readings under
+    this account, so this was a live exposure and not a hypothetical one.</p>
+
+    <p>Every key now carries a host. <code>source</code> is <code>(host, path, inode)</code>,
+    <code>sample</code> is unique on <code>(host, inode, offset)</code>, and both offset
+    lookups and both partitioned aggregations carry the host with them. The host is
+    resolved per row: the row's own top-level <code>host</code> or <code>hostname</code>,
+    otherwise the host of the file's own source row, otherwise the nodename of the process
+    recording. <code>TelemetryIndex.ingest</code> and <code>TelemetryIndex.discover</code>
+    keep their signatures — the recording host is a property of the index, not an argument —
+    so a watcher being wired onto the index concurrently does not move.</p>
+
+    <table>
+      <thead><tr><th>Behaviour</th><th>What was measured</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>A row naming its own host is keyed on that host</td>
+          <td><code>row_host</code> returns the top-level <code>host</code> when the row carries
+          one and the top-level <code>hostname</code> when it carries that instead; a host in a
+          nested section is not read, because one file's rows would then split between two hosts
+          by which section they fell in.</td>
+        </tr>
+        <tr>
+          <td>A row naming no host takes the recording nodename</td>
+          <td>With no host in the row, the samples and the source row are both written under
+          <code>os.uname().nodename</code>, and the same value is what a compaction pass with no
+          host given stamps on its window.</td>
+        </tr>
+        <tr>
+          <td>Two hosts at one inode and one offset are both kept</td>
+          <td>Two files at different paths, both pinned to inode <code>424242</code> and both
+          writing at the same offset, ingest as <strong>4 rows inserted and 0 duplicates</strong>,
+          counting <strong>2 rows per host</strong> across <strong>2 source rows</strong> and
+          <strong>4 samples</strong>. Before the change this is the pass that collapsed to one
+          host's two rows.</td>
+        </tr>
+        <tr>
+          <td>An inode-only lookup is not a rewrite verdict</td>
+          <td>When the resumed row was found by inode alone it does not describe this file's
+          bytes, so the file is read from zero and <em>nothing is deleted</em>. Deleting there
+          was the first implementation, and it destroyed the other host's samples on exactly the
+          case the change exists to keep — the test above is what caught it.</td>
+        </tr>
+        <tr>
+          <td>A compaction window belongs to one host</td>
+          <td>Three ticks from each of two hosts interleaved within one minute compact to
+          <strong>one row per host</strong>, each carrying its own host, and a compacted row
+          carries its host into the next tier. Partitioning happens before the weights are
+          computed: a gap inferred across two interleaved machines would halve every
+          time-weighted mean in the window.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 id="host-key-negative-control">The negative control, and what it separates</h3>
+
+    <p>A passing suite never shows that a guard fires. The declared mutation removes
+    <code>host</code> from the sample's uniqueness — the line
+    <code>UNIQUE (host, inode, offset)</code> is replaced with <code>UNIQUE (inode, offset)</code>,
+    restoring the key this change exists to replace. It reddens exactly one test, the one
+    above: <code>test_two_hosts_at_one_inode_and_offset_are_both_kept</code>, on
+    <code>assert [('node-b', 2)] == [('node-a', 2), ('node-b', 2)]</code> — reported as
+    <code>assert 2 == 4</code> — 1 failed and 25 deselected, exit 1. The log's first line
+    states the mutation verbatim and its site; the mutated lines are the two schema
+    declarations. This is the one measurement that separates "<code>host</code> is in the key"
+    from "the schema text says <code>host</code>".</p>
+
+    <h3 id="host-key-migration">An index already on disk, and what happens to it</h3>
+
+    <p><strong>Every index written before this change is invalidated, and the failure is a
+    refusal rather than a merge — which is the safe half of the pair.</strong> The tables are
+    declared <code>CREATE TABLE IF NOT EXISTS</code> and the index carries no schema-version
+    marker, so an existing database keeps its old shape and the new code never notices until
+    it writes. Measured against a database built by the previous revision: the first
+    <code>ingest</code> raises
+    <code>sqlite3.OperationalError: no such column: host</code>. It cannot silently merge,
+    because every path that would merge goes through a column that is not there.</p>
+
+    <p>The recovery is the index's own contract — <code>TelemetryIndex.rebuild()</code> from the
+    JSONL, which is the durable copy and the only one that matters. No in-place migration was
+    written, for the reason the index exists: it is disposable by construction, and a
+    half-migrated index would be the one object in the system whose contents nobody could
+    describe. An operator running this for the first time sees a loud exception naming the
+    missing column; the rebuild is one call.</p>
+
+    <h3 id="host-key-gates">Gates and commits</h3>
+
+    <p><code>uv run --no-sync pytest tests/test_telemetry_index.py tests/test_telemetry_store.py</code>
+    reports <strong>46 passed</strong>, exit 0; <code>uv run --no-sync ruff check imas_ambix tests</code>
+    exits 0. Both runs are on the login node — the file is a unit suite of a few seconds against
+    fixtures it builds itself, with no corpus read, which is the case the compute rule leaves there.
+    The commit is <code>feat(telemetry): key the serving record by the host that wrote it</code>,
+    four files, 394 insertions and 49 deletions, verified trailer-clean and bodied before push.</p>
+
+    <p>Two limits are recorded with the change rather than left to be discovered. The host is
+    carried into the keys, not into the query surface: filtering a sum or a weighted mean by host is
+    not yet an option any caller has, so a reader wanting one host's total must still partition
+    outside the index. And the merge this closes was two hosts at <em>one path</em>; two hosts whose
+    readings land at the same path <em>and</em> the same inode <em>and</em> the same offset within one
+    host's own key space cannot arise, but a recording host that misreports its own name would
+    reintroduce the same collision under the new key.</p>
   </main>
 </body>
 </html>
