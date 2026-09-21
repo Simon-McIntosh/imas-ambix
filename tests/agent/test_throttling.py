@@ -59,14 +59,32 @@ nr_bursts 0
 burst_usec 0
 """
 
-# A control group the cpu controller sees but enforces no ceiling on: it
-# accounts its cumulative usage and states no period counter at all. This is
-# the state of a compute node's user slice, which is one side of the comparison
-# the sampler exists to take.
+# Captured from the held allocation's control group
+# /sys/fs/cgroup/user.slice/user-39486.slice on 98dci4-clu-2002: no cpu.max,
+# and a cpu.stat that states no period counter at all. This is one side of the
+# comparison the sampler exists to take.
 _CPU_STAT_WITHOUT_PERIODS = """\
-usage_usec 4846187612533
-user_usec 3238892601672
-system_usec 1607295010861
+usage_usec 401401
+user_usec 244704
+system_usec 156696
+core_sched.force_idle_usec 0
+"""
+
+# Captured from the root control group /sys/fs/cgroup on the login node
+# 98dci4-srv-1006: no cpu.max of its own, and a cpu.stat carrying the three
+# period counters with genuinely zero values. The root group accounts the whole
+# machine's run, so it keeps those counters while declaring no ceiling that
+# could be exceeded.
+_CPU_STAT_ROOT_WITHOUT_CEILING = """\
+usage_usec 8962276463874
+user_usec 6049293696034
+system_usec 2912982767840
+core_sched.force_idle_usec 4197
+nr_periods 0
+nr_throttled 0
+throttled_usec 0
+nr_bursts 0
+burst_usec 0
 """
 
 
@@ -599,6 +617,9 @@ class TestGroupWithNoCeilingFile:
     def _write_ceiling_less_group(self, directory: Path) -> None:
         (directory / "cpu.stat").write_text(_CPU_STAT_WITHOUT_PERIODS)
 
+    def _write_root_group(self, directory: Path) -> None:
+        (directory / "cpu.stat").write_text(_CPU_STAT_ROOT_WITHOUT_CEILING)
+
     def test_the_absence_is_reported_rather_than_raised_on(self, tmp_path):
         self._write_ceiling_less_group(tmp_path)
 
@@ -606,7 +627,7 @@ class TestGroupWithNoCeilingFile:
 
         assert sample.cpu_max.can_throttle is False
         assert sample.cpu_max.period_usec is None
-        assert sample.stat.usage_usec == 4_846_187_612_533
+        assert sample.stat.usage_usec == 401_401
 
     def test_the_period_counters_are_absent_rather_than_zero(self, tmp_path):
         # A measured zero would assert that periods elapsed and none was
@@ -619,6 +640,71 @@ class TestGroupWithNoCeilingFile:
         assert sample.stat.nr_throttled is None
         assert sample.stat.throttled_usec is None
         assert sample.stat.period_counters is None
+
+    def test_a_group_with_no_ceiling_still_reports_the_accounted_counters(
+        self, tmp_path
+    ):
+        # The root group declares no ceiling of its own and yet accounts the
+        # machine's whole run, so its period counters are genuine values that
+        # happen to be zero. Reporting them as absent would discard a count the
+        # kernel did keep, which is not the same reading as a group that never
+        # accounted one.
+        self._write_root_group(tmp_path)
+
+        sample = read_sample(tmp_path)
+
+        assert sample.cpu_max.can_throttle is False
+        assert sample.cpu_max.period_usec is None
+        assert sample.stat.nr_periods == 0
+        assert sample.stat.nr_throttled == 0
+        assert sample.stat.throttled_usec == 0
+        assert sample.stat.period_counters == (0, 0, 0)
+
+    def test_the_two_no_ceiling_states_are_distinguishable_from_each_other(
+        self, tmp_path
+    ):
+        # An unaccounted group and one accounting zero periods both carry no
+        # ceiling, and they are different facts: the first has no count to
+        # report, the second a count that reads zero.
+        root = tmp_path / "root"
+        compute = tmp_path / "compute"
+        root.mkdir()
+        compute.mkdir()
+        self._write_root_group(root)
+        self._write_ceiling_less_group(compute)
+
+        accounted = read_sample(root).stat
+        unaccounted = read_sample(compute).stat
+
+        assert accounted.period_counters == (0, 0, 0)
+        assert unaccounted.period_counters is None
+        assert accounted.nr_periods is not None
+        assert unaccounted.nr_periods is None
+        assert accounted != unaccounted
+
+    def test_both_no_ceiling_states_are_distinguishable_from_a_quota_ed_group(
+        self, tmp_path
+    ):
+        root = tmp_path / "root"
+        quota_ed = tmp_path / "quotaed"
+        root.mkdir()
+        quota_ed.mkdir()
+        self._write_root_group(root)
+        self._write_quota_ed_group(quota_ed)
+
+        no_ceiling = read_sample(root)
+        ceiling = read_sample(quota_ed)
+
+        assert format_cpu_max(no_ceiling.cpu_max) == "absent"
+        assert format_cpu_max(ceiling.cpu_max) == _QUOTA_ED_MAX
+        assert no_ceiling.cpu_max.can_throttle is False
+        assert ceiling.cpu_max.can_throttle is True
+        assert no_ceiling.stat.nr_periods == 0
+        assert ceiling.stat.nr_periods == 1000
+
+    def _write_quota_ed_group(self, directory: Path) -> None:
+        (directory / "cpu.max").write_text(_QUOTA_ED_MAX)
+        (directory / "cpu.stat").write_text(_CPU_STAT_TEXT)
 
     def test_the_ceiling_is_rendered_as_absent_and_not_as_unlimited(self, tmp_path):
         self._write_ceiling_less_group(tmp_path)
@@ -634,14 +720,28 @@ class TestGroupWithNoCeilingFile:
         assert status == 0
         payload = json.loads(capsys.readouterr().out)
         assert payload["cpu_max"] == "absent"
-        assert payload["cumulative"]["usage_usec"] == 4_846_187_612_533
+        assert payload["cumulative"]["usage_usec"] == 401_401
         assert payload["cumulative"]["nr_periods"] is None
         assert payload["cumulative"]["permitted_usec"] is None
         assert payload["cumulative"]["throttled_share"] == "unbounded"
 
-    def test_a_group_that_accounts_no_period_states_no_interval_of_them(
-        self, tmp_path
-    ):
+    def test_the_payload_states_the_accounted_zeros_as_zeros(self, tmp_path, capsys):
+        # The distinction has to survive serialisation and not only the
+        # in-process return value, or a monitor reading the JSON sees one
+        # missing value for two different states.
+        self._write_root_group(tmp_path)
+
+        status = main(["sample", "--directory", str(tmp_path)], _HOST)
+
+        assert status == 0
+        cumulative = json.loads(capsys.readouterr().out)["cumulative"]
+        assert cumulative["nr_periods"] == 0
+        assert cumulative["nr_throttled"] == 0
+        assert cumulative["throttled_usec"] == 0
+        assert cumulative["permitted_usec"] is None
+        assert cumulative["throttled_share"] == "unbounded"
+
+    def test_a_group_that_accounts_no_period_states_no_interval_of_them(self, tmp_path):
         self._write_ceiling_less_group(tmp_path)
 
         delta = interval_delta(read_sample(tmp_path), read_sample(tmp_path))
@@ -658,6 +758,17 @@ class TestGroupWithNoCeilingFile:
         with pytest.raises(ValueError, match="usage_usec"):
             read_sample(tmp_path)
 
+    def test_a_stat_that_states_some_period_counters_but_not_all_is_refused(
+        self, tmp_path
+    ):
+        # The kernel writes the three period counters as one account, so a text
+        # stating one of them is malformed rather than partly accounted, and
+        # neither the count it does state nor an absence may be reported from it.
+        (tmp_path / "cpu.stat").write_text("usage_usec 100\nnr_periods 0\n")
+
+        with pytest.raises(ValueError, match="nr_throttled"):
+            read_sample(tmp_path)
+
     def test_a_group_that_loses_a_ceiling_states_no_fabricated_period_counters(
         self, tmp_path
     ):
@@ -668,7 +779,7 @@ class TestGroupWithNoCeilingFile:
         first = Sample(
             cpu_max=parse_cpu_max(_QUOTA_ED_MAX),
             stat=CpuStat(
-                usage_usec=1_000_000,
+                usage_usec=100_000,
                 nr_periods=1000,
                 nr_throttled=250,
                 throttled_usec=100_000_000,

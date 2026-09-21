@@ -18,12 +18,16 @@ An unbounded group can never yield a share however long it is watched, while a
 group with no accounted period yet has simply not run long enough and will
 state a share at a later reading. ``Unmeasured`` names both.
 
-A group with no ``cpu.max`` file states no ceiling at all: the cpu controller is
-not enabled for it, so the kernel enforces no quota there and accounts no period
-either. That is the state of a compute node's user slice, which is one side of
-the comparison this sampler exists to take, so such a group is reported — the
-ceiling as absent, the counters it does state with the period counters absent —
-rather than raised on the missing file.
+A group with no ``cpu.max`` file states no ceiling in that file, which is one
+side of the comparison this sampler exists to take, so such a group is reported
+rather than raised on. The missing file does not decide what the group accounts,
+so its counters are taken from ``cpu.stat`` as that text states them. A group
+the cpu controller never attached a ceiling to accounts no period, and a compute
+node's user slice states none. A group with no ceiling file of its own can still
+carry accounted periods — the root group the machine's whole run is accounted
+under is exactly that — and those counters are genuine values, zeros included.
+Reporting the first as zeros would invent periods that never elapsed; reporting
+the second as absent would discard a count the kernel did keep.
 
 A share is comparable only between readings of the same machine, and nothing in
 the cgroup text says which machine it came from: the counter paths resolve on
@@ -70,7 +74,9 @@ _BOOT_ID_SHAPE = re.compile(
 )
 
 # The counters a control group accounts for throttling: the cumulative usage is
-# accounted everywhere, the three period counters only where a ceiling exists.
+# accounted everywhere, the three period counters wherever the kernel accounts
+# periods — a group with no ceiling of its own may carry them, and a group with
+# no accounted period states none.
 _USAGE_FIELD = "usage_usec"
 _PERIOD_FIELDS = ("nr_periods", "nr_throttled", "throttled_usec")
 _COUNTER_FIELDS = (_USAGE_FIELD, *_PERIOD_FIELDS)
@@ -93,11 +99,13 @@ class CpuMax:
 class CpuStat:
     """Cumulative CPU accounting counters from ``cpu.stat``.
 
-    The cumulative usage is accounted for every group the cpu controller sees,
-    while the three period counters are stated only for a group it enforces a
-    ceiling on. A group with no ceiling therefore reports its usage with the
-    period counters absent, which is not the same as zero: a measured zero
-    asserts that periods elapsed and none was exceeded.
+    The cumulative usage is accounted for every group the cpu controller sees.
+    The three period counters are accounted for a group the controller enforces
+    a ceiling on, and are read where the text states them for a group whose
+    ceiling is not declared in a ``cpu.max`` file of its own: the root group
+    accounts the machine's whole run. They are absent only where the text states
+    none, which is not the same as zero — a measured zero asserts that periods
+    elapsed and none was exceeded.
     """
 
     usage_usec: int
@@ -229,20 +237,39 @@ def parse_cpu_stat(text: str) -> CpuStat:
     )
 
 
-def parse_usage_counters(text: str) -> CpuStat:
-    """Parse ``cpu.stat`` for a group the kernel keeps no ceiling on.
+def parse_cpu_stat_without_ceiling(text: str) -> CpuStat:
+    """Parse ``cpu.stat`` for a group whose ceiling is not stated by a file.
 
-    Such a group accounts its cumulative usage and no period, because there is
-    no period in which it could be stopped. Its period counters are reported as
-    absent rather than zero; text that does state them is read by
-    :func:`parse_cpu_stat` instead.
+    The usage is required, as it is everywhere. The three period counters are
+    taken as the text states them rather than assumed either way: a group the
+    cpu controller never attached a ceiling to states none of them, while a
+    group that accounts periods states all three together with genuine values,
+    and a value of zero there means periods elapsed and none was exceeded. The
+    three are read as one set, because one kernel account writes them together
+    and a text stating some but not others is malformed rather than partly
+    accounted.
     """
     counters = _stat_fields(text)
+    usage_usec = _required(_USAGE_FIELD, counters)
+    stated = [field for field in _PERIOD_FIELDS if field in counters]
+    if not stated:
+        return CpuStat(
+            usage_usec=usage_usec,
+            nr_periods=None,
+            nr_throttled=None,
+            throttled_usec=None,
+        )
+    unstated = [field for field in _PERIOD_FIELDS if field not in counters]
+    if unstated:
+        raise ValueError(
+            "cpu.stat states some period counters but not "
+            f"{', '.join(unstated)}: the kernel accounts them together"
+        )
     return CpuStat(
-        usage_usec=_required(_USAGE_FIELD, counters),
-        nr_periods=None,
-        nr_throttled=None,
-        throttled_usec=None,
+        usage_usec=usage_usec,
+        nr_periods=counters["nr_periods"],
+        nr_throttled=counters["nr_throttled"],
+        throttled_usec=counters["throttled_usec"],
     )
 
 
@@ -285,17 +312,23 @@ def read_sample(directory: str | Path) -> Sample:
     """Read one control group's ceiling and counters from its directory.
 
     A group with no ``cpu.max`` file is reported rather than refused: it states
-    no ceiling, and the kernel accounts no period for it either, so the reading
-    carries the usage it does state. A control group the sampler exists to
-    compare lives on a compute node in exactly that state, so refusing the
-    missing file would make the comparison the sampler exists for unreadable.
+    no ceiling there, which is the state a compute node's user slice is always
+    in and one side of the comparison this sampler exists to take. Its counters
+    are read from ``cpu.stat`` as that text states them, because two groups with
+    no ceiling file do not account the same periods — the root group states
+    accounted zeros while a compute node's user slice states no period counter
+    at all — and reporting either as the other would state a count the kernel
+    did not keep.
     """
     base = Path(directory)
     stat_text = (base / _CPU_STAT_FILE).read_text()
     try:
         cpu_max_text = (base / _CPU_MAX_FILE).read_text()
     except FileNotFoundError:
-        return Sample(cpu_max=_NO_CEILING, stat=parse_usage_counters(stat_text))
+        return Sample(
+            cpu_max=_NO_CEILING,
+            stat=parse_cpu_stat_without_ceiling(stat_text),
+        )
     return Sample(
         cpu_max=parse_cpu_max(cpu_max_text),
         stat=parse_cpu_stat(stat_text),
