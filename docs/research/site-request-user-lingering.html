@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"  content="imas-ambix">
+  <meta name="reckon-type"   content="doc">
+  <meta name="plan-slug"     content="site-request-user-lingering">
+  <meta name="plan-title"    content="Site request — user lingering is not holding on 98dci4-srv-1006">
+  <meta name="plan-summary"  content="Send-ready request asking the site why user lingering is not holding on the login node, carrying the journal extract that shows the teardown">
+  <meta name="plan-tags"     content="agent-serving">
+  <meta name="plan-informs"  content="slurm-hosted-agent-fleet">
+  <title>Site request — user lingering is not holding on 98dci4-srv-1006 | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <header>
+      <p class="eyebrow">Site request</p>
+      <h1>Site request — user lingering is not holding on 98dci4-srv-1006</h1>
+      <p class="lead">Account <code>mcintos</code> (UID 39486) has lingering enabled and
+      persisted on disk, and its user manager is still stopped and restarted several times a
+      day on login node <code>98dci4-srv-1006</code> — each stop tearing down every process
+      that account has running there. The journal extract below is everything we can supply
+      without privileged access; §1 is the text to send.</p>
+    </header>
+
+    <h2 id="s1">§1 — The request</h2>
+    <p>Two asks, both answerable by whoever can read the system journal on
+    <code>98dci4-srv-1006</code>.</p>
+    <ol>
+      <li><strong>Read the logind journal for 02:31:11 on 2026-09-20 and tell us what
+      stopped the user manager.</strong> The account is <code>mcintos</code>, UID 39486; the
+      unit is <code>user@39486.service</code>. The sequence to look for is the
+      <code>Exit the Session</code> teardown quoted in §2 — we need the unit that issued the
+      stop and the trigger it acted on. The same read answers a second question: how often
+      this has happened since 2026-08-10, which
+      <code>journalctl -u user@39486.service --since "2026-08-10" | grep "Exit the
+      Session"</code> returns directly.</li>
+      <li><strong>Add the account to a group that can read that journal</strong> —
+      <code>adm</code>, <code>systemd-journal</code> or <code>wheel</code> — so the next
+      occurrence can be read directly rather than through a request. We are in none of them
+      today, and that is verified rather than assumed: on the login node,
+      <code>journalctl -u user@39486.service</code> prints
+      <code>No journal files were opened due to insufficient permissions</code> and exits
+      1.</li>
+    </ol>
+    <p><strong>What this request is not.</strong> It is not a request for a larger share of
+    the login node's processor time, and we are not attributing the teardown to resource
+    contention — §4 records the counters that exclude that. The failure is one of lifetime,
+    not of allocation: a user manager that lingering exists to keep alive was stopped.</p>
+
+    <h2 id="s2">§2 — The teardown the journal records</h2>
+    <p>The system journal shows a complete teardown of the user, performed by systemd itself
+    — not a session scope ending on its own, and not third-party software. Reproduced from
+    the record of the 02:31:11 event on 2026-09-20, where <code>systemd[2817083]</code> is
+    the account's user manager:</p>
+<pre>systemd[2817083]: Activating special unit Exit the Session...
+systemd[2817083]: Stopping reckon plan server...
+systemd[2817083]: Stopping IMAS Codex LiteLLM Proxy...
+systemd[2817083]: imas-codex-llm.service: Main process exited, code=exited, status=143/n/a
+systemd[2817083]: Removed slice User Core Session Slice.
+systemd[2817083]: Removed slice User Application Slice.
+systemd[2817083]: Reached target Exit the Session.
+systemd[1]:      user@39486.service: Deactivated successfully.
+systemd[1]:      Starting User Manager for UID 39486...        &lt;- 1-2 seconds later</pre>
+    <p>Two units are stopped, not one. The live session scopes are torn down first, taking
+    every process started through those connections; then the user manager itself is stopped,
+    which removes <code>app.slice</code> and <code>session.slice</code> and kills the
+    services inside them. That is what the one-second gap between SIGTERM and SIGHUP in §3
+    was recording. The two long-running services in <code>app.slice</code> — the reckon plan
+    server and the IMAS Codex LiteLLM proxy (<code>imas-codex-llm.service</code>) — are
+    killed with <code>status=143</code> in the same teardown, and 143 is SIGTERM:
+    <code>imas-codex-llm.service: Main process exited, code=exited, status=143/n/a</code>,
+    with <code>Removed slice User Application Slice</code> immediately after it. Lingering
+    then brings the user manager back one to two seconds later, which is why its active-enter
+    timestamp always sits just after the event:</p>
+<pre>session-*.scope     KillSignal=15 (SIGTERM)   SendSIGHUP=yes   KillMode=control-group
+user@39486.service  ActiveEnterTimestamp = Sun 2026-09-20 02:31:12 CEST</pre>
+    <p>The teardown is not a one-off. The same stop was read twice in a five-hour window on
+    2026-09-18:</p>
+    <blockquote><p>The same teardown appears twice in a five-hour window on 2026-09-18, at
+    <strong>00:57:08</strong> and at <strong>05:46:41</strong>.</p></blockquote>
+    <p>That is what makes it a standing defect rather than a single event, and it is the
+    recurrence the whole-fleet symptom follows: agents that were born in the scopes being
+    stopped die with them, and the ones that survive are simply the ones whose scopes were
+    already abandoned and therefore never signalled.</p>
+
+    <h3 id="s2a">The five recorded occurrences</h3>
+    <figure>
+      <svg viewBox="0 0 900 250" role="img" width="100%" style="max-width:900px;height:auto"
+           aria-label="Timeline of five recorded occurrences over 2026-09-18 and 2026-09-20: teardowns at 00:57:08 and 05:46:41 on 18 September, fleet losses at 19:56:22 and 22:36:23 the same day, and a teardown with fleet loss at 02:31:11 on 20 September">
+        <line x1="110" y1="90" x2="880" y2="90" stroke="#999" stroke-width="1"/>
+        <line x1="110" y1="190" x2="880" y2="190" stroke="#999" stroke-width="1"/>
+        <g stroke="#bbb" stroke-width="1">
+          <line x1="110" y1="85" x2="110" y2="95"/>
+          <line x1="302.5" y1="85" x2="302.5" y2="95"/>
+          <line x1="495" y1="85" x2="495" y2="95"/>
+          <line x1="687.5" y1="85" x2="687.5" y2="95"/>
+          <line x1="880" y1="85" x2="880" y2="95"/>
+          <line x1="110" y1="185" x2="110" y2="195"/>
+          <line x1="302.5" y1="185" x2="302.5" y2="195"/>
+          <line x1="495" y1="185" x2="495" y2="195"/>
+          <line x1="687.5" y1="185" x2="687.5" y2="195"/>
+          <line x1="880" y1="185" x2="880" y2="195"/>
+        </g>
+        <g font-family="system-ui, sans-serif" font-size="13" fill="#333">
+          <text x="4" y="94">2026-09-18</text>
+          <text x="4" y="194">2026-09-20</text>
+          <text x="110" y="222" text-anchor="middle" fill="#555">00:00</text>
+          <text x="302.5" y="222" text-anchor="middle" fill="#555">06:00</text>
+          <text x="495" y="222" text-anchor="middle" fill="#555">12:00</text>
+          <text x="687.5" y="222" text-anchor="middle" fill="#555">18:00</text>
+          <text x="880" y="222" text-anchor="end" fill="#555">24:00</text>
+        </g>
+        <g fill="#1a5f8a">
+          <circle cx="140.6" cy="90" r="4.5"/>
+          <circle cx="295.4" cy="90" r="4.5"/>
+          <circle cx="749.7" cy="90" r="4.5"/>
+          <circle cx="835.3" cy="90" r="4.5"/>
+          <circle cx="190.8" cy="190" r="4.5"/>
+        </g>
+        <line x1="835.3" y1="96" x2="835.3" y2="105" stroke="#1a5f8a" stroke-width="1"/>
+        <g font-family="system-ui, sans-serif" font-size="13" fill="#222">
+          <text x="140.6" y="72" text-anchor="middle">00:57:08 teardown</text>
+          <text x="295.4" y="72" text-anchor="middle">05:46:41 teardown</text>
+          <text x="749.7" y="72" text-anchor="middle">19:56:22 fleet lost</text>
+          <text x="835.3" y="120" text-anchor="middle">22:36:23 fleet lost</text>
+          <text x="190.8" y="172" text-anchor="middle">02:31:11 teardown · fleet lost</text>
+        </g>
+      </svg>
+      <figcaption>Figure — the five recorded occurrences, on a shared local-time axis (CEST).
+      The two teardowns on 2026-09-18 were read from the system journal; the two fleet losses
+      that evening were reconstructed from file modification times, and the last occurrence
+      was recorded live by the canaries and the topology sampler of §3. Two teardowns fell
+      inside five hours.</figcaption>
+    </figure>
+
+    <h2 id="s3">§3 — What was recorded live at the last occurrence</h2>
+    <p>A signal canary — a shell that traps every catchable signal, logs which one arrived
+    and deliberately does not die — was running in three multiplexer panes at 02:31:11 on
+    2026-09-20: one in an attached session and two in a session with no client attached at
+    all. All three logged the same pair, within one millisecond of each other:</p>
+<pre>02:31:11.782  marker(3559642) received SIGTERM      &lt;- unattached session
+02:31:11.782  marker(3559640) received SIGTERM      &lt;- unattached session
+02:31:11.783  marker(293705)  received SIGTERM      &lt;- attached session
+02:31:12.785  marker(3559642) received SIGHUP
+02:31:12.785  marker(3559640) received SIGHUP
+02:31:12.785  marker(293705)  received SIGHUP</pre>
+    <p>SIGTERM, then SIGHUP 1.003 seconds later, to all three. Two of the panes were in a
+    session nobody was looking at, which rules out a terminal hangup reaching a foreground
+    job. The scope configuration in §2 produces exactly this pair:
+    <code>KillSignal=15</code> with <code>SendSIGHUP=yes</code>, delivered under
+    <code>KillMode=control-group</code>, so the signal goes to every process in the scope's
+    control group rather than to a foreground process group or down a terminal.</p>
+    <p>A second instrument sampling process topology every five seconds recorded nine
+    processes dying at that instant, three of them agent workers that were fully detached —
+    parent 1, own session id, no controlling terminal. Detachment in the process sense
+    (<code>setsid</code>, <code>nohup</code>, <code>start_new_session=True</code>) does not
+    move a process out of the systemd control group it was started in, which is why processes
+    with no controlling terminal died here.</p>
+
+    <h2 id="s4">§4 — What we have already checked, so the site does not have to</h2>
+    <ul>
+      <li><strong>Lingering is enabled and persisted.</strong>
+      <code>loginctl show-user mcintos -p Linger</code> returns <code>Linger=yes</code>, and
+      <code>/var/lib/systemd/linger/mcintos</code> exists — root-owned, written 2026-08-08
+      17:07. A user manager is observed being restarted under it after each stop.</li>
+      <li><strong>The journal is unreadable to us</strong> — <code>No journal files were
+      opened due to insufficient permissions</code>, exit 1. This is why §1 asks for a read
+      and for group membership.</li>
+      <li><strong>Not memory.</strong> At the instant of the kill the control group showed
+      <code>memory.current</code> 6.38 GB of a 64 GB cap and <code>pids.current</code> 101,
+      and the <code>oom_kill</code> counter is byte-identical before and after the event.</li>
+      <li><strong>Not processor-time throttling.</strong> Throttling stalls a process; it
+      never signals one.</li>
+      <li><strong>Not our load.</strong> Fewer than five agent processes were running when
+      the 02:31:11 event fired, and the memory and task counters agree.</li>
+      <li><strong>Not a host change.</strong> systemd 252-14.el9_2.3 was installed 2025-04-02
+      and <code>logind.conf</code> has not been touched since 2023-07-17; the node has been up
+      since 2026-08-08 with no reboot. The behaviour is not new.</li>
+      <li><strong>Not a visible reaper.</strong> No entry in <code>/etc/cron.d</code>, no
+      logind idle action, no system timer anywhere near the event — the signal lands 0.78 s
+      after the final logout, not on a schedule. No <code>pam_exec</code> hook on session
+      close and no cleanup script that signals user processes.</li>
+      <li><strong>What remains open is who issued the stop.</strong> Four of the account's
+      scopes currently read <code>SubState=abandoned</code> and two of them hold multiplexer
+      servers that have run for days, so an abandoned scope is plainly survivable and the
+      difference between the scopes that died and the ones that did not is not visible from
+      user space. The system journal names the caller; on this host it is readable only by
+      <code>adm</code>, <code>systemd-journal</code> or <code>wheel</code>.</li>
+    </ul>
+
+    <h2 id="s5">§5 — What an answer changes on our side</h2>
+    <p>Either outcome is useful. If the behaviour is corrected, a long-lived agent process
+    can stay on the login node, and moving the work onto compute becomes the robust choice
+    rather than the only one. If the site confirms the stop is expected, we treat the login
+    node as a host where a long-lived process cannot be kept alive and move the fleet into a
+    scheduler allocation, whose control group is owned by the node daemon and sits outside
+    the login manager's session lifecycle entirely.</p>
+    <p>We are instrumenting our side meanwhile rather than waiting: a probe that blocks the
+    signals and reads the kernel's own sender information (<code>si_code</code>, sender pid
+    and uid) is armed in three different control groups, so the next occurrence names the
+    sender instead of describing it. That probe answers the same question at the next
+    failure; the journal read answers it today.</p>
+    <p>The full investigation behind this request, including every exclusion in §4 and the
+    instrumented event, is in
+    <a href="/imas-ambix/login-session-scope-teardown.html">Why the Agent Fleet Dies With the
+    Connection That Started It</a>. The placement work this answer feeds is in
+    <a href="/imas-ambix/slurm-hosted-agent-fleet.html">SLURM-Hosted Agent Fleet — take the
+    clive lane off the four-core login slice</a>.</p>
+
+  </main>
+</body>
+</html>

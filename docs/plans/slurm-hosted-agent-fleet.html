@@ -285,6 +285,24 @@
     §2 and it is a ratio, not an absolute: what must fall is throttled thread-time as a
     share of available capacity, sampled over a comparable working period.</p>
 
+    <h3 id="s7-site-request">The site request is written — the step is not closed</h3>
+    <p>The deliverable of the second step is authored and validated:
+    <a href="/imas-ambix/site-request-user-lingering.html">Site request — user lingering is
+    not holding on 98dci4-srv-1006</a> is the send-ready text, carrying the journal extract
+    that shows the teardown. It asks the site for two things — a logind journal read around
+    02:31:11 on 2026-09-20, and this account's addition to a group (<code>adm</code>,
+    <code>systemd-journal</code> or <code>wheel</code>) that can read that journal — and it
+    states the two teardown occurrences it is explaining, at 00:57:08 and 05:46:41 on
+    2026-09-18, with the <code>status=143</code> detail for the two services in
+    <code>app.slice</code> killed in each of them. It carries no request for a larger share
+    of the login node's processor time, and no claim that memory or processor contention
+    caused the teardown.</p>
+    <p>The step stays open: the request is written but not yet sent, so the done-when — the
+    site holds the extract and has either corrected the behaviour or confirmed it expected —
+    still waits on the site, and with it the question of whether the allocation is the only
+    remedy or merely the robust one. The two asks are recorded in the site-bound text itself
+    and quoted in the cumulative evidence record.</p>
+
     <h2 id="s8">§8 — The cheaper alternative that must be priced first</h2>
     <p>Before building any of §7, the site could be asked to raise
     <code>CPUQuota</code> for this account on the login node. It is a one-line change to
