@@ -466,16 +466,16 @@ def test_running_totals_are_differenced_and_intervals_are_summed(tmp_path):
     with TelemetryIndex(tmp_path / "index.db") as index:
         index.ingest([source])
 
-        # A name ending in _total is cumulative even though the module does not
-        # list it: its window figure is the endpoint advance, never a sum.
-        assert index.sum_measurements("requests_seen_total", _at(0), _at(30)) is None
+        # Both cumulative routes in one assertion, so a red log shows WHICH
+        # clause gave way: the suffix route alone, the listed route alone, or
+        # both. Split across two assertions, either mutation would report the
+        # same first failure, and the log could not say which clause was held.
+        assert (
+            index.sum_measurements("requests_seen_total", _at(0), _at(30)),
+            index.sum_measurements("engine.generation_tokens", _at(0), _at(30)),
+        ) == (None, None)
         assert index.counter_span("requests_seen_total", _at(-1), _at(30)) == 250.0
 
-        # A listed cumulative name is classified the same way.
-        assert (
-            index.sum_measurements("engine.generation_tokens", _at(0), _at(30))
-            is None
-        )
         assert index.measurement_count("engine.generation_tokens") == 3
 
         # A per-interval quantity is still a sum over the window.
