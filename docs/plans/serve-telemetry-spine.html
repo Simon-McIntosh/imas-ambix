@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-21">
-<meta name="plan-version" content="28">
+<meta name="plan-version" content="29">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="c23be8f8,f5c3c91f,493e0281,f743fcea,0f9ce03f,b1696d31,0e9a656c,bacf490f">
 <meta name="plan-impl" content="0.6">
@@ -554,6 +554,9 @@
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20260921T101045414947-review-of-the-relayed-outcome" data-who="reckon-ship" data-when="2026-09-21T11:00:50.970Z">
     <div class="r-comment-body"><p>scored 84, durability 14, with three findings on the main-destined receipts repair. A caller disconnecting while still uploading its body still leaves no row at all, which is the outcome section 6 requires be recorded, reproduced twice on two instruments including a live uvicorn. The self-answered sentinel is asserted against the constant under test, so changing it to an engine-shaped value leaves the suite green. And the self-answered sites pass status as a literal rather than deriving it from what the caller received, so a disconnected catalog GET still writes a row for an answer nobody got</p></div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-run-r-20260921T121240571048-review-of-the-caller-departure-record" data-who="reckon-ship" data-when="2026-09-21T13:16:04.845Z">
+    <div class="r-comment-body"><p>scored 86 at fe0f7819 with two findings. The repair reintroduced the derived-expectation defect one line from where it removed it: the two new outcome assertions compare against STATUS_ABORTED imported from the module while the adjacent sentinel assertion correctly names the literal (router). And the self-answered departure is sampled one event-loop turn after the status line and before the body, so a caller aborting in that window is still recorded completed - the original defect surviving in a narrower window</p></div>
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20260921T061330049782-review-of-telemetry-store" data-who="reckon-ship" data-when="2026-09-21T06:25:06.340Z">
     <div class="r-comment-body"><p>Reviewed telemetry-store at 79/100 and found four defects including data corruption: a null leaf folded as identity erased its window, and the fixture populated every leaf so the defect could not fail the suite while the real record is null-rich. All four repaired.</p></div>
