@@ -12,6 +12,7 @@ from imas_ambix.agent import slurm as slurm_mod
 from imas_ambix.agent.fleet import (
     REMAINING_WARNING_SECONDS,
     generate_fleet_hold_script,
+    node_is_draining,
     parse_node_state,
     remaining_seconds,
 )
@@ -115,7 +116,11 @@ _SERVE_ROW = (
 
 
 def _squeue(
-    rows: str, monkeypatch, *, node_state: str = "IDLE"
+    rows: str,
+    monkeypatch,
+    *,
+    node_state: str = "IDLE",
+    node_returncode: int = 0,
 ) -> list[list[str]]:
     """Answer scheduler queries with fixed rows instead of a live queue.
 
@@ -129,9 +134,10 @@ def _squeue(
         commands.append(list(command))
         if command and command[0] == "scontrol":
             node = command[-1]
-            return subprocess.CompletedProcess(
-                command, 0, f"NodeName={node}\n   State={node_state}\n", ""
+            stdout = (
+                "" if node_returncode else f"NodeName={node}\n   State={node_state}\n"
             )
+            return subprocess.CompletedProcess(command, node_returncode, stdout, "")
         return subprocess.CompletedProcess(command, 0, rows, "")
 
     monkeypatch.setattr(cli_mod.subprocess, "run", fake_run)
@@ -246,6 +252,74 @@ def test_fleet_status_warns_when_the_allocation_node_is_draining(monkeypatch) ->
     assert "rigel-03" in result.output
 
 
+def test_fleet_status_warns_on_the_drain_spelling_this_cluster_reports(
+    monkeypatch,
+) -> None:
+    """The drain token is not the leading one, and the warning still fires.
+
+    A live read of ``scontrol show node -o`` on this cluster returned the two
+    spellings below and no other draining form; a match restricted to the
+    leading token warns on none of the 82 draining nodes.
+    """
+    spellings = (
+        "MIXED+DRAIN+REBOOT_REQUESTED",
+        "ALLOCATED+DRAIN+REBOOT_REQUESTED",
+    )
+    for state in spellings:
+        _squeue(f"{_fleet_row('UNLIMITED')}\n", monkeypatch, node_state=state)
+        result = CliRunner().invoke(main, ["agent", "fleet", "status"])
+
+        assert result.exit_code == 0, result.output
+        assert "WARNING" in result.output, state
+
+
+def test_fleet_status_does_not_warn_on_a_healthy_node(monkeypatch) -> None:
+    """A healthy node carrying another flag is not read as draining.
+
+    The false-positive direction matters as much as the false-negative one: a
+    node running work with a reservation is not going out of service.
+    """
+    for state in ("ALLOCATED", "IDLE", "MIXED", "MIXED+RESERVED"):
+        _squeue(
+            f"{_fleet_row('UNLIMITED')}\n", monkeypatch, node_state=state
+        )
+        result = CliRunner().invoke(main, ["agent", "fleet", "status"])
+
+        assert result.exit_code == 0, result.output
+        assert "WARNING" not in result.output, state
+
+
+def test_fleet_status_reads_a_non_node_value_as_unknown(monkeypatch) -> None:
+    """A pending job reports its reason where the node name goes.
+
+    That value is not a node name, so it is not queried and reads as unknown —
+    which is not warned about, and is not read as healthy either.
+    """
+    row = (
+        "1275000|ambix-fleet|PENDING|0:00|(Priority)|"
+        "billing=28,cpu=28,mem=120G,node=1|ambix-fleet|N/A"
+    )
+    commands = _squeue(f"{row}\n", monkeypatch)
+    result = CliRunner().invoke(main, ["agent", "fleet", "status"])
+
+    assert result.exit_code == 0, result.output
+    assert "WARNING" not in result.output
+    assert not any(
+        command[0] == "scontrol" and len(command) > 3 for command in commands
+    )
+
+
+def test_fleet_status_reads_a_failed_node_query_as_unknown(monkeypatch) -> None:
+    """A node query that fails reads as unknown, not as a healthy node."""
+    commands = _squeue(
+        f"{_fleet_row('UNLIMITED')}\n", monkeypatch, node_returncode=1)
+    result = CliRunner().invoke(main, ["agent", "fleet", "status"])
+
+    assert result.exit_code == 0, result.output
+    assert "WARNING" not in result.output
+    assert any(command[0] == "scontrol" and len(command) > 3 for command in commands)
+
+
 def test_fleet_status_reads_the_allocation_node(monkeypatch) -> None:
     commands = _squeue(f"{_fleet_row('2:30:00')}\n", monkeypatch)
     result = CliRunner().invoke(main, ["agent", "fleet", "status"])
@@ -255,10 +329,51 @@ def test_fleet_status_reads_the_allocation_node(monkeypatch) -> None:
     assert scontrol[-1] == "rigel-03"
 
 
-def test_parse_node_state_reads_the_state_field_and_drops_flags() -> None:
+def test_parse_node_state_reads_the_state_field_and_keeps_the_set() -> None:
+    """The parser keeps the whole token set rather than one of its members.
+
+    The drain token sits among the others, so a parser that keeps only the
+    leading token discards the very token the operator needs.
+    """
     assert parse_node_state("NodeName=rigel-03\n   State=IDLE\n") == "IDLE"
-    assert parse_node_state("   State=DRAINING+NOT_RESPONDING\n") == "DRAINING"
+    assert (
+        parse_node_state("   State=MIXED+DRAIN+REBOOT_REQUESTED\n")
+        == "MIXED+DRAIN+REBOOT_REQUESTED"
+    )
     assert parse_node_state("NodeName=rigel-03\n") is None
+
+
+def test_node_is_draining_matches_a_drain_token_anywhere_in_the_set() -> None:
+    """Real scheduler spellings, as data, in both directions.
+
+    The two spellings the live cluster reports carry the drain token second or
+    third, so a leading-token match fires on none of the 82 draining nodes.
+    """
+    warned = (
+        "DRAIN",
+        "DRAINED",
+        "DRAINING",
+        "DRAINING+NOT_RESPONDING",
+        "MIXED+DRAIN+REBOOT_REQUESTED",
+        "ALLOCATED+DRAIN+REBOOT_REQUESTED",
+    )
+    quiet = (
+        None,
+        "",
+        "ALLOCATED",
+        "IDLE",
+        "MIXED",
+        "MIXED+RESERVED",
+        "ALLOCATED+MAINTENANCE+RESERVED",
+        "ALLOCATED+REBOOT_REQUESTED",
+        "RESUME",
+        "DOWN",
+        "DOWN+NOT_RESPONDING",
+    )
+    for state in warned:
+        assert node_is_draining(state), state
+    for state in quiet:
+        assert not node_is_draining(state), state
 
 
 def test_remaining_seconds_removes_the_unbounded_token_from_arithmetic() -> None:
