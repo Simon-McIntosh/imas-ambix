@@ -1621,6 +1621,120 @@ except ImportError:
     <strong>16 passed at base</strong> for the same two files, the twenty-fifth being the
     test that holds the read on the near side of the send; whole-tree
     <code>ruff</code> exits 0.</p>
+  <h2 id="recorder-row">§3 — The recorder writes the node readings into every row</h2>
+
+    <figure>
+      <img src="/imas-ambix/figures/serve-telemetry-spine/recorder-row-and-tiers.svg"
+           alt="Two sources — the engine's /metrics scrape and the node probe — feed one receipt row that carries a schema version, the producing hostname, the flat vLLM fields and the sparse engine, cards, host and jobs sections; the raw JSONL rolls into a minute and an hour tier between samples.">
+      <figcaption>One recorder tick: two sources, one sparse row, three resolutions.</figcaption>
+    </figure>
+
+    <p><code>imas_ambix/agent/serving_receipts.py</code> now drives the node probe
+    once per tick and attaches what it read. The row gained
+    <code>schema_version</code>, <code>hostname</code>, and the three sparse
+    sections <code>cards</code>, <code>host</code> and <code>jobs</code> beside the
+    existing <code>engine</code> section, so a slow hour can be explained from the
+    record itself rather than re-derived from SLURM accounting afterwards. The
+    version is on the row because the flat vocabulary alone cannot say whether the
+    sections below are absent or merely empty; the sectionless rows carry no
+    version, and <code>2</code> is the first shape that has them.</p>
+
+    <h3 id="recorder-omission">The omission rule is enforced where a fixed-schema row can enforce it</h3>
+
+    <p>The three node sections follow §2's rule: a section nothing read contributes
+    no key at all, so a present key always means a measurement and an absent one can
+    never read as a zero. In a module that returns mappings from a probe this is
+    simply not writing the key, but a <code>ReceiptRow</code> is a fixed-schema
+    dataclass whose fields all exist, so the rule cannot be honoured by construction
+    — it is enforced at the single point where the row becomes bytes,
+    <code>ReceiptRow.to_json</code>, which drops every section still
+    <code>None</code>. That is the only place it can be enforced for this row shape,
+    and it is enforced once rather than at each of the four sections. The flat vLLM
+    fields keep their established <code>null</code> semantics: they are a fixed
+    vocabulary a saved reader resolves through, and there a null has always meant
+    <em>not observed</em>.</p>
+
+    <h3 id="recorder-probe-ownership">The CLI owns the probe, and the tick clock is shared</h3>
+
+    <p><code>main()</code> constructs the probe, because the process that invokes it
+    is the serve's own background sidecar and therefore runs inside the job's
+    allocation — the only place <code>nvidia-smi</code>, <code>/proc</code> and
+    <code>squeue</code> are free. The library call has no default probe: a caller
+    that wants no node readings passes none and gets a row naming the local host with
+    the engine section alone, which is also what keeps the test suite off the login
+    node's own hardware. Each tick takes <strong>one</strong> monotonic reading and
+    offers it to the probe; the duration check then reads the same instant rather
+    than paying for a second call, so the probe's cadence and the recorder's cannot
+    disagree about when a tick happened.</p>
+
+    <h3 id="recorder-compaction">Compaction runs between samples, and its failure is not the record's</h3>
+
+    <p>Between samples the recorder rolls its own file through
+    <code>telemetry_store</code>'s tiers, at most once per cadence (five minutes by
+    default), reusing that module's semantics rather than restating them: cumulative
+    counters compact by their endpoint, gauges by a time-weighted mean carrying its
+    own weight, and a compaction never retires its source. The tier paths are derived
+    from the raw path as siblings between its stem and its suffix
+    (<code>&lt;name&gt;.minute.jsonl</code>, <code>&lt;name&gt;.hour.jsonl</code>), so
+    a serve's whole retention ladder sits in the receipts directory beside the file a
+    reader already has, and no change to the generated serve script is needed for it
+    to happen. A compaction that cannot finish — a path it may not write, a row the
+    store will not parse, a short write on a busy filesystem — is reported on
+    <code>stderr</code> and skipped, because the sample loop is the durable thing and
+    the transform is idempotent, so the retry at the next cadence reaches the same
+    result.</p>
+
+    <h2 id="recorder-row-evidence">Evidence</h2>
+
+    <p><strong>Gates.</strong> <code>uv run --no-sync pytest
+    tests/test_agent_serve_registry.py -k serving_python</code> reports
+    <strong>2 passed</strong>, which matters here because the repository's linter
+    targets a newer interpreter than the one that imports this module during a serve.
+    Beside it the focused gate and the whole-tree lint gate are reported on the plan's
+    §3 landing record.</p>
+
+    <p><strong>The omission rule was shown to be load-bearing rather than
+    decorative.</strong> The mutation changes one loop header in
+    <code>ReceiptRow.to_json</code> so the sections whose source did not read are
+    serialized as they stand. Three tests redden and twenty-four pass — the two
+    row-shape tests that name the absent section and the end-to-end test that reads a
+    staggered tick back out of the file, which is the one that shows the rule reaching
+    the bytes rather than stopping at the object. The mutated line, quoted verbatim in
+    the control log, and its red:</p>
+
+    <table>
+      <thead><tr><th>Mutation, applied verbatim</th><th>Observed</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>for section in ROW_SECTIONS:</code> in
+          <code>ReceiptRow.to_json</code> becomes <code>for section in ():</code>, so
+          every absent section serializes as <code>null</code></td>
+          <td><code>3 failed, 24 passed</code>, exit 1: the two row-shape tests and the
+          staggered-from-the-file test, which report
+          <code>assert 'jobs' not in {'jobs': None, ...}</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>The file was restored and confirmed byte-identical to the commit before the
+    focused gate was re-run; the raw log's first line states the mutation verbatim and
+    its path is named in the node's own report manifest, which is where a node's
+    scratch evidence lives rather than in the repository.</p>
+
+    <p><strong>Where the wiring is reachable from.</strong> The generated serve
+    script <code>slurm.py::generate_serve_script</code> launches the recorder as
+    <code>"$_REGISTRY_PYTHON" -m imas_ambix.agent.serving_receipts --base-url …
+    --receipts-path "$_RECEIPTS_DIR/&lt;slug&gt;-$SLURM_JOB_ID.jsonl" --interval 5
+    --job-id … --profile-slug … --served-name … --gpus …</code>. It passes none of
+    the new opt-out flags, so the probe and the tier paths are both on for every
+    recorded serve without touching that file. The probe reads the node while the
+    engine it samples is live, and the row that carries the readings names the host,
+    which is what makes one receipts directory's rows attributable across the nodes a
+    job moved through.</p>
+
+    <p><strong>Left for others.</strong> The tier-rebuild mode is reachable from this
+    module's own command line; a front-end flag on the agent command would put it
+    beside the operator's other verbs, and that file belongs to another node.</p>
   </main>
 </body>
 </html>
