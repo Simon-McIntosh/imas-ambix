@@ -138,6 +138,12 @@ def permitted_thread_usec(stat: CpuStat, cpu_max: CpuMax) -> int | None:
 def throttled_share(stat: CpuStat, cpu_max: CpuMax) -> float | None:
     """Fraction of permitted thread-time spent stalled at the ceiling.
 
+    This can exceed one, and that is a property of the quantity rather than a
+    fault: the stall counter sums over every task that was stopped, while the
+    budget is one quota per period. Once more tasks are runnable than the quota
+    admits, several of them stall together for the remainder of each period, so
+    the thread-time lost can pass the thread-time the ceiling allowed.
+
     ``None`` means there is no fraction to state -- either the group has no
     ceiling, or no period has yet been accounted to divide by.
     """

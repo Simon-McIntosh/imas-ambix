@@ -119,6 +119,16 @@ class TestThrottledShare:
 
         assert throttled_share(stat, parse_cpu_max("max 100000")) is None
 
+    def test_share_passes_one_when_more_tasks_stall_than_the_ceiling_admits(self):
+        # 1000 periods permit 4e8 usec of thread-time; 5e8 was stopped, because
+        # more tasks were runnable than the quota admitted and they stalled
+        # together for the rest of each period.
+        stat = _stat(nr_periods=1000, throttled_usec=500_000_000)
+
+        share = throttled_share(stat, parse_cpu_max(_QUOTA_ED_MAX))
+
+        assert share == pytest.approx(1.25)
+
     def test_no_accounted_period_yields_an_undefined_share(self):
         # A freshly created group has no periods to divide by; that is an
         # absence of a window, not a window in which nothing was refused.
