@@ -436,6 +436,67 @@
     the reply records <code>aborted</code>, and one that left mid-upload records
     <code>aborted</code> with a row of its own. The focused gate was taken on the
     <code>all_debug</code> partition, not the login node.</p>
+  <h3 id="rr-guarantee">What a <code>completed</code> row promises, and the window it cannot see</h3>
+
+    <p>The self-answered reply sampled the caller's departure one event-loop turn after
+    the status line had been sent and before the body was sent, so a caller that aborted
+    inside that window was still recorded <code>completed</code>. Sampling later does not
+    close the window and was measured, not assumed: uvicorn marks a response complete
+    inside the send that writes its body, and its receive channel then answers
+    <code>http.disconnect</code> for a completed response exactly as it does for a caller
+    that left, so a watch read after the hand-over reports every caller as gone. The send
+    reports nothing either way, because a server that finds the caller gone when it writes
+    the body returns from that send without raising. The row's word was therefore narrowed
+    as the record's word, and the residual window named.</p>
+
+    <table>
+      <thead>
+        <tr><th>Row's word</th><th>Does it mean</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>completed</code></td><td>the answer was sent whole, with no departure
+        reported before it changed hands</td></tr>
+        <tr><td><code>aborted</code></td><td>the caller had gone when the departure was
+        sampled: mid-relay, before its answer was sent, or while still uploading its
+        request</td></tr>
+        <tr><td><code>failed</code></td><td>everything else: an upstream error status, a
+        refusal handed to a caller that had not gone, or a relay that raised</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Sent is not received, and the count is of sends.</strong> Nothing on the
+    serving side of the exchange can state that a caller read its answer, so a reader
+    summing <code>completed</code> rows is counting answers delivered into the record of
+    departure. The docstring on the self-answered reply, the outcome-label documentation
+    and this table each state that limit, so the sum has one meaning wherever it is read.
+    A departure that lands between the sample and the hand-over is unobservable from here
+    and is named rather than relied on silently.</p>
+
+    <table>
+      <thead>
+        <tr><th>Control (applied verbatim, read from the stored row)</th><th>Result</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>the <code>aborted</code> label renamed to a spelling no consumer of the
+        record greps for</td><td>the module as it stood before the fix passes <strong>3 of
+        3</strong> — both sides of the comparison moved together; the module as it stands
+        fails <strong>4 of 4</strong> with <code>assert 'cancelled' == 'aborted'</code>,
+        three of them the stored-row assertions and one the test that pins the
+        labels</td></tr>
+        <tr><td>the self-answered departure sampled after the body is sent rather than
+        before it</td><td>a caller that received the whole answer is stored as
+        <code>aborted</code>, because the channel answers a completed response the same
+        way it answers a departing caller</td></tr>
+      </tbody>
+    </table>
+
+    <p>Both logs open with the mutation they apply, so a reader replays it rather than
+    infers it. The second control drives the real router under a live
+    <code>uvicorn</code> server and its three stored rows are kept beside the run
+    (<code>logs/live-router-rows-uvicorn.jsonl</code>). The focused gate was taken on the
+    <code>all_debug</code> partition and reads <strong>24 passed</strong> against
+    <strong>16 passed at base</strong> for the same two files; whole-tree
+    <code>ruff</code> exits 0.</p>
   </main>
 </body>
 </html>
