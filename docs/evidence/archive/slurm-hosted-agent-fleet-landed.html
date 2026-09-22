@@ -1561,6 +1561,79 @@ burst_usec 0</code></pre>
   is not claimed here. The refusal path was measured against a faked scheduler against a
   faked queue rather than by cancelling the live allocation, which must not be cancelled.</p>
   </section>
+
+  <section id="placement-answers-the-scheduler">
+    <h2>A placed run now takes its liveness from the scheduler</h2>
+    <p>Commit <code>9559fbd4e8b03d75dafbba6febfa216188d3076a</code> extends the
+    existing <code>backends.clive.placement</code> declaration with the three pieces that
+    join launch placement to observation: a <code>job_id_probe</code> reads the held
+    allocation from <code>imas-ambix agent fleet status</code>, then
+    <code>state_query</code> and <code>reason_query</code> substitute that identifier for
+    the <code>{job}</code> token in two <code>squeue</code> argument vectors. Reckon can
+    therefore distinguish the scheduler's view of the placed job from the lifetime of a
+    launcher process on the dispatching host.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/slurm-hosted-agent-fleet/placement-scheduler-liveness.svg"
+           alt="Reckon asks the allocation identity probe which held job owns the placed worker, substitutes that identifier into scheduler state and reason queries, and receives RUNNING and None as scheduler-owned liveness instead of consulting a launcher process on another host."
+           style="max-width:100%;height:auto">
+      <figcaption>Figure — the observation path uses the same live allocation identity as
+      the placement wrapper. No job identifier is copied into configuration.</figcaption>
+    </figure>
+
+    <h3 id="placement-scheduler-liveness-gates">Refusal, repair and live answers</h3>
+    <table>
+      <thead><tr><th>Measure</th><th>Observed result</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Dry-run local dispatch before the declaration</td>
+          <td>Exit <strong>1</strong>. The refusal named both missing keys,
+          <code>state_query</code> and <code>reason_query</code>, and stated that placed-run
+          liveness would otherwise fall back to a process identifier on the wrong host.</td>
+        </tr>
+        <tr>
+          <td>The same project and plan after the declaration</td>
+          <td>Exit <strong>0</strong>, <code>dry_run: true</code>, <code>ok: true</code>,
+          with an empty validation finding list. An intermediate probe exited 2 because its
+          own done-when named no emitted evidence; the instrument was corrected to require
+          command output and exit code 0 before the passing invocation.</td>
+        </tr>
+        <tr>
+          <td>Allocation identity probe</td>
+          <td><code>imas-ambix agent fleet status</code> exited <strong>0</strong> and
+          reported the held allocation as <strong>RUNNING</strong> on
+          <code>98dci4-clu-2002</code>. Its sole all-digit token is the identifier Reckon
+          records for the queries; the configuration records only the probe command.</td>
+        </tr>
+        <tr>
+          <td>Declared state query, with the live identifier substituted once</td>
+          <td>Exit <strong>0</strong>, output <code>RUNNING</code>.</td>
+        </tr>
+        <tr>
+          <td>Declared reason query, with the live identifier substituted once</td>
+          <td>Exit <strong>0</strong>, output <code>None</code>.</td>
+        </tr>
+        <tr>
+          <td>No allocation identifier in the flight layer</td>
+          <td><code>grep -E '[0-9]{5,}' docs/state/imas-ambix/flight.yaml</code> exited
+          <strong>1</strong> with empty output: zero matches.</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>The complete ordered receipt is
+    <code>~/.config/reckon/crew/runs/r-20260922T195432401622-placement-answers-the-scheduler/placement-scheduler-queries.log</code>.
+    Its first line names the revision, worktree and dry-run command; it preserves the
+    before and after invocations, both exit statuses, the instrument correction, the job
+    identity probe and both live scheduler answers.</p>
+
+    <h3>What this record does not establish</h3>
+    <p>This node measures its own project-layer configuration and the live scheduler
+    queries it declares. It does not claim the merged result, which belongs to the
+    separately dispatched verification node, and it does not claim that a newly dispatched
+    clive worker completed a model task inside the allocation. The held allocation was read,
+    not cancelled or resubmitted.</p>
+  </section>
+
 <section id="throttling-share-over-the-span">
     <h2>The throttled share over the span between two samples, beside the cumulative one</h2>
     <p>Commit <code>f8921dec</code>, confined to <code>imas_ambix/agent/throttling.py</code>

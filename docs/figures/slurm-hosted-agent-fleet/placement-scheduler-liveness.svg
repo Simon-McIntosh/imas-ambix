@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 330" role="img"
+     aria-labelledby="psl-title psl-desc" font-family="system-ui, sans-serif">
+  <title id="psl-title">Scheduler-owned liveness for a placed worker</title>
+  <desc id="psl-desc">Reckon asks the placement wrapper which allocation the worker belongs to, substitutes that job identifier into state and reason queries, and uses the scheduler answers instead of a process identifier on the login host.</desc>
+  <defs>
+    <marker id="psl-arrow" viewBox="0 0 10 10" refX="9" refY="5"
+            markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#667085"></path>
+    </marker>
+  </defs>
+
+  <rect x="20" y="28" width="210" height="116" rx="8" fill="#f6f7f9" stroke="#c8ccd2"></rect>
+  <text x="38" y="55" font-size="15" font-weight="600" fill="#222">Reckon run record</text>
+  <text x="38" y="79" font-size="12" fill="#555">placed backend: clive</text>
+  <text x="38" y="99" font-size="12" fill="#555">launcher PID is on another host</text>
+  <text x="38" y="123" font-size="12" font-weight="600" fill="#a11">PID liveness is not authority</text>
+
+  <rect x="294" y="18" width="222" height="136" rx="8" fill="#eef3fb" stroke="#b9c8de"></rect>
+  <text x="312" y="47" font-size="15" font-weight="600" fill="#1d3557">Allocation identity probe</text>
+  <text x="312" y="72" font-size="12" fill="#333">imas-ambix agent fleet status</text>
+  <text x="312" y="98" font-size="12" fill="#555">matches the held comment token</text>
+  <text x="312" y="120" font-size="12" fill="#1b5e20">returns job from the live row</text>
+  <text x="312" y="140" font-size="11" fill="#777">no identifier is stored in flight.yaml</text>
+
+  <rect x="580" y="28" width="200" height="116" rx="8" fill="#fdf6e3" stroke="#e0d3a8"></rect>
+  <text x="598" y="55" font-size="15" font-weight="600" fill="#6b5200">SLURM</text>
+  <text x="598" y="82" font-size="12" fill="#333">state_query(job) → RUNNING</text>
+  <text x="598" y="104" font-size="12" fill="#333">reason_query(job) → None</text>
+  <text x="598" y="126" font-size="11" fill="#777">the scheduler owns both answers</text>
+
+  <g fill="none" stroke="#667085" stroke-width="1.6" marker-end="url(#psl-arrow)">
+    <line x1="230" y1="86" x2="290" y2="86"></line>
+    <line x1="516" y1="86" x2="576" y2="86"></line>
+    <path d="M680 144 L680 210 L126 210 L126 148"></path>
+  </g>
+  <text x="242" y="77" font-size="11" fill="#667085">ask which job</text>
+  <text x="526" y="77" font-size="11" fill="#667085">substitute {job}</text>
+  <text x="325" y="202" font-size="11" fill="#667085">state and reason become the placed run's liveness receipt</text>
+
+  <rect x="160" y="242" width="480" height="58" rx="8" fill="#f3faf4" stroke="#bdd8c2"></rect>
+  <text x="182" y="268" font-size="13" font-weight="600" fill="#1b5e20">One scheduler identity joins launch placement to observation.</text>
+  <text x="182" y="288" font-size="12" fill="#555">A resubmit changes the live row; the next probe follows it without a configuration edit.</text>
+</svg>
