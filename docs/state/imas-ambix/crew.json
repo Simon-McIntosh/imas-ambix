@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-22T12:28:34",
+  "updated": "2026-09-22T12:45:02",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -66718,6 +66718,220 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260922T102209760241-review-of-serve-provenance",
+        "plan": "serve-telemetry-spine",
+        "section": "\u00a73",
+        "node": "review-of-serve-provenance",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1455,
+                "cached_input_tokens": 733987,
+                "input_tokens": 735444,
+                "output_tokens": 2117,
+                "reasoning_output_tokens": 801,
+                "total_tokens": 737561,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "98f13dbe-0703-4abd-a5e4-65bfdb2eeee2",
+            "session_id": "probe-and-provenance"
+          },
+          "done_when": "The stored review parses with all five dimensions scored and its text answers four stated questions with evidence. FIRST, the node evidence artifact at docs/figures/serve-telemetry-spine/controls/serve-config-live-row.jsonl records hostname 98dci4-srv-1006.iter.org, which is the login node, while the done-when asked for a row recorded against the live engine on the GPU node; the review states whether that artifact demonstrates what was asked, and whether recording it from the login node changes any value in it. SECOND, every prefix_cache and spec field in that row is null while the same fields carry numbers in rows the on-node recorder writes; the review states whether that is a scrape gap, a login-node artefact, or a real absence, and names the evidence. THIRD, the seven settings are recorded under serve_config with tensor_parallel_size spelled tp_size, which is the engine own name rather than the launch flag; the review states whether every one of the seven is present and resolvable by a reader who knows only the launch flags. FOURTH, the review states which of the seven the engine reported and which came from elsewhere, and whether a setting the engine does not report is omitted rather than written as null, as the sparse-section rule requires.",
+          "estimated_hours": 0.5,
+          "goal": "Review run r-20260922T095849575314-serve-provenance at head 0665bb99 against base 782cc5f2 and store the five-dimension verdict.",
+          "id": "review-of-serve-provenance",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-22T10:22:10Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no numeric 'headroom'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/reports/review-of-serve-provenance.md",
+          "negative_control": "none: a read-only review writes no test and runs no gate, so no mutation of the reviewed tree is available to it.",
+          "plan": "serve-telemetry-spine",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "review",
+          "section": "\u00a73",
+          "spec_level": "exact",
+          "time_budget": "30m",
+          "token_budget": null,
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/probe-and-provenance/review-of-serve-provenance"
+          ]
+        },
+        "role": "review",
+        "spec_level": "exact",
+        "member": "review-serve-provenance",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "xhigh",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "read-only",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-22T10:22:21Z",
+        "completed_at": "2026-09-22T10:42:28.190Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 1194,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 1207,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "829a09b01eebddf662a2d5b6f06793860411838c",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "the stored review record parses with all five dimensions scored",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260922T095849575314-serve-provenance.json",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/reports/review-of-serve-provenance.md",
+        "scope_changed": false,
+        "session_id": "4b35056f-6f3e-4a21-8d15-78dd5f3fb20b",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 7378682,
+            "input_tokens_cumulative": 7378682,
+            "output_tokens": 48096,
+            "output_tokens_cumulative": 48096,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-22T10:42:28.190Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "15m",
+          "requested": true,
+          "waived_runs": []
+        },
+        "review": null,
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 7378682,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 1203.444,
+          "generated_tokens": 48096,
+          "generation_seconds": 1134.373,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 34.3,
+          "machine_seconds": 69.071,
+          "peak_input_tokens": 164558,
+          "tokens_per_second": 42.4,
+          "wall_tokens_per_second": 39.97
+        },
+        "follow_on_paths": [
+          "imas_ambix/agent/slurm.py:507",
+          "imas_ambix/agent/engine_metrics.py:551",
+          "spec_accept_rate/spec_accept_length",
+          "draft/accepted"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": false,
+          "matched_measure": null,
+          "override": false,
+          "role": "review",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": "A review's deliverable is its stored verdict outside the repository; no repository file changed, by design for a read-only role.",
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/probe-and-provenance/review-of-serve-provenance",
+          "session_id": "4b35056f-6f3e-4a21-8d15-78dd5f3fb20b",
+          "session_source": "stream",
+          "retained_at": "2026-09-22T10:42:28.190Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "plan_impl_at_dispatch": 0.95,
+        "impl_move": {
+          "plan": "serve-telemetry-spine",
+          "at_dispatch": 0.95,
+          "at_complete": null,
+          "verdict": "exempt",
+          "reason": "role-not-enforced:review"
+        },
+        "negative_control": {
+          "verdict": "exempt",
+          "reason": "node-writes-no-test-path"
+        },
+        "tool_steps": 80.0,
+        "orientation_input_tokens": null,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -66792,6 +67006,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 920
+    "_version": 921
   }
 }
