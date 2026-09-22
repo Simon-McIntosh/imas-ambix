@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-22T21:09:51",
+  "updated": "2026-09-22T21:14:18",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -68659,6 +68659,237 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260922T183129460322-fleet-throttle-delta",
+        "plan": "slurm-hosted-agent-fleet",
+        "section": "\u00a77",
+        "node": "fleet-throttle-delta",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1450,
+                "cached_input_tokens": 195480,
+                "input_tokens": 196932,
+                "output_tokens": 239,
+                "reasoning_output_tokens": 83,
+                "total_tokens": 197171,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "230b9fc6-569c-40eb-97d2-19af05ea3982",
+            "session_id": "slurm-fleet-placement"
+          },
+          "done_when": "imas_ambix/agent/throttling.py gains a function taking two samples and returning the throttled share over the interval between them, computed as the rise in throttled_usec divided by the quota's core count times the elapsed wall seconds; it refuses rather than returns a number when either sample states no period counters or when the quota is unstated, preserving the absent-versus-genuinely-zero distinction the existing reader already makes; a reading is taken on the login slice against the recorded baseline of 0.3396 and written into the cumulative evidence record beside that baseline, with both the interval ratio and the cumulative ratio stated so their difference is visible; pytest tests/agent/test_throttling.py passes; ruff check imas_ambix tests exits 0; and the declared mutation is applied, the named refusal check is observed to fail, and that log is recorded",
+          "estimated_hours": null,
+          "goal": "The login slice's throttled share can be measured over the interval between two samples, so relief is attributable to the period since a baseline rather than diluted by weeks of node uptime already in the cumulative counter",
+          "id": "fleet-throttle-delta",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-22T18:31:31Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no 'binding_observed'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260922T183129460322-fleet-throttle-delta/manifest.md",
+          "negative_control": "treat an absent period counter as a zero when differencing the two samples, instead of refusing; the refusal test for a sample stating no counters must then fail",
+          "plan": "slurm-hosted-agent-fleet",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a77",
+          "spec_level": "guided",
+          "time_budget": "35m",
+          "token_budget": null,
+          "write_paths": [
+            "imas_ambix/agent/throttling.py",
+            "tests/agent/test_throttling.py",
+            "docs/evidence/archive/slurm-hosted-agent-fleet-landed.html",
+            "docs/figures/slurm-hosted-agent-fleet",
+            "docs/plans/slurm-hosted-agent-fleet.html"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "fleet-throttle-delta",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "high",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "worktree-full",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-22T18:31:43Z",
+        "completed_at": "2026-09-22T18:44:14.436Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 743,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 751,
+        "stalled": false,
+        "time_budget": "35m",
+        "base_sha": "f3f2cd84fd97ab57d9218dc96d10ab2af40d8f75",
+        "commits": [
+          "f8921dec707d8d679f46bc77bde4502f386d6738",
+          "05741465f33f08f820016e5f71f0c4f90bfe8116"
+        ],
+        "changed_lines": {
+          "added": 365,
+          "removed": 0,
+          "files": 5
+        },
+        "tests_added": 8,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest -p no:cacheprovider tests/agent/test_throttling.py && uv run --no-sync ruff check imas_ambix tests",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260922T183129460322-fleet-throttle-delta/logs/pytest-focused.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260922T183129460322-fleet-throttle-delta/manifest.md",
+        "scope_changed": false,
+        "session_id": "a4785700-8298-477a-8bab-1d22c9ec6b51",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 6573341,
+            "input_tokens_cumulative": 6573341,
+            "output_tokens": 35001,
+            "output_tokens_cumulative": 35001,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-22T18:44:14.436Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": {
+          "status": "parsed",
+          "scores": {
+            "durability": 17,
+            "evidence": 16,
+            "fit": 19,
+            "goal_fidelity": 19,
+            "scope_discipline": 20
+          },
+          "absent": [],
+          "total": 91
+        },
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 6573341,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 747.494,
+          "generated_tokens": 35001,
+          "generation_seconds": 565.004,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 34.6,
+          "machine_seconds": 182.49,
+          "peak_input_tokens": 165970,
+          "tokens_per_second": 61.95,
+          "wall_tokens_per_second": 46.82
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/agent/test_throttling.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/slurm-fleet-placement/fleet-throttle-delta",
+          "session_id": "a4785700-8298-477a-8bab-1d22c9ec6b51",
+          "session_source": "stream",
+          "retained_at": "2026-09-22T18:44:14.436Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "plan_impl_at_dispatch": 0.9,
+        "impl_move": {
+          "plan": "slurm-hosted-agent-fleet",
+          "at_dispatch": 0.9,
+          "at_complete": 0.94,
+          "verdict": "moved"
+        },
+        "negative_control": {
+          "verdict": "matched",
+          "test_paths": [
+            "tests/agent/test_throttling.py"
+          ],
+          "declaration": "treat an absent period counter as a zero when differencing the two samples, instead of refusing; the refusal test for a sample stating no counters must then fail",
+          "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260922T183129460322-fleet-throttle-delta/logs/negative-control-receipt.txt",
+          "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260922T183129460322-fleet-throttle-delta/logs/negative-control-receipt.txt"
+        },
+        "tool_steps": 50.0,
+        "orientation_input_tokens": 754636.0,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -68733,6 +68964,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 940
+    "_version": 941
   }
 }
