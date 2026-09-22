@@ -320,6 +320,47 @@ def test_counter_reset_declines_rather_than_going_negative(tmp_path: Path) -> No
     index.close()
 
 
+def test_cost_is_declined_when_the_token_totals_are_absent(tmp_path: Path) -> None:
+    """An unmeasured period is not a free one.
+
+    A price is a measurement of traffic, so with no traffic figure to price the
+    cost must decline alongside the token columns rather than coerce the
+    missing totals to zero and publish ``$0.00`` for a period nothing measured.
+    """
+    price = {"prompt": 1e-6, "completion": 2e-6, "cache_read": 1e-7}
+    assert watch.ledger_cost({"in": None, "cached": None, "out": None}, price) is None
+    # One absent total is enough: the cached split is what the two input rates
+    # divide, so the bill cannot be reconstructed without it either.
+    assert watch.ledger_cost({"in": 1000.0, "cached": None, "out": 5.0}, price) is None
+
+    now = _dt.datetime.now(_dt.UTC).timestamp()
+    rows = [
+        _row(now - 1800, prompt_tokens=5000, generation_tokens=500),
+        _row(now - 1200, prompt_tokens=9000, generation_tokens=900),
+        _row(now - 100, prompt_tokens=10, generation_tokens=1),
+    ]
+    index = _index(tmp_path, rows)
+    prices = [
+        {
+            "id": "deepseek/deepseek-v4-flash",
+            "pricing": {"prompt": 1e-6, "completion": 2e-6, "input_cache_read": 1e-7},
+        }
+    ]
+    period = watch.ledger(
+        index,
+        now=now,
+        periods=((3600.0, "1 hour"),),
+        prices=prices,
+        model="deepseek-v4-flash",
+    )[0]
+    assert period.tokens_in is None
+    assert period.cost is None
+    # And the panel dashes it rather than printing a figure of zero.
+    text = watch.render_document(index, now=now, prices=prices)
+    assert "$0.00" not in text
+    index.close()
+
+
 def test_the_subcommand_renders_the_record_it_is_pointed_at(tmp_path: Path) -> None:
     """The command the operator runs reaches the renderer over a real record.
 

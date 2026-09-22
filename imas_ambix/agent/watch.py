@@ -318,20 +318,31 @@ def load_prices(path: str | Path | None = None) -> list[float | dict] | None:
     return models if isinstance(models, list) else None
 
 
-def ledger_cost(total: dict, price: dict) -> float:
+def ledger_cost(total: dict, price: dict) -> float | None:
     """Open-market cost of one period's traffic at a provider's list rates.
 
     Cached input is billed at the cache-read tier and only the remainder at
     the prompt rate, which is the point of the split: on this deployment the
     two differ by a factor of fifty, so pricing all input at the prompt rate
     overstates the figure by an order of magnitude.
+
+    A total the record did not carry is not a zero. When a counter reset inside
+    the period the traffic cannot be integrated at all, and when a series was
+    never recorded its share of the bill is unknown; in either case a price
+    derived from the remaining terms publishes a measurement that was never
+    taken, so the cost is declined and the row dashes.
     """
-    cached = max(0.0, float(total.get("cached") or 0.0))
-    computed = max(0.0, float(total.get("in") or 0.0) - cached)
+    tokens_in = total.get("in")
+    cached_in = total.get("cached")
+    tokens_out = total.get("out")
+    if tokens_in is None or cached_in is None or tokens_out is None:
+        return None
+    cached = max(0.0, float(cached_in))
+    computed = max(0.0, float(tokens_in) - cached)
     return (
         computed * price["prompt"]
         + cached * price["cache_read"]
-        + max(0.0, float(total.get("out") or 0.0)) * price["completion"]
+        + max(0.0, float(tokens_out)) * price["completion"]
     )
 
 
