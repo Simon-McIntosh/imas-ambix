@@ -402,7 +402,12 @@ def test_receipt_bins_reads_its_rows_from_the_index(tmp_path):
             num_requests_running=12,
             generation_throughput_toks_per_s=480.0,
             prompt_throughput_toks_per_s=120.0,
-            prefix_cache_hit_rate_interval=0.25,
+            engine={
+                "family": "sglang",
+                "generation_tokens": 1000.0 + second * 7,
+                "prompt_tokens": 500.0 + second * 3,
+                "prefix_cache_hit_rate": 0.25,
+            },
         )
         for second in (0, 5)
     ]
@@ -685,12 +690,9 @@ def test_a_row_naming_its_host_is_keyed_on_that_host(tmp_path):
 
     with TelemetryIndex(tmp_path / "index.db", host="node-z") as index:
         index.ingest([source])
-        kept = index._conn.execute(
-            "SELECT host FROM sample ORDER BY id"
-        ).fetchall()
+        kept = index._conn.execute("SELECT host FROM sample ORDER BY id").fetchall()
         assert [row["host"] for row in kept] == ["node-a", "node-a"]
-        sources = index._conn.execute(
-            "SELECT host, path FROM source").fetchall()
+        sources = index._conn.execute("SELECT host, path FROM source").fetchall()
         assert [(row["host"], row["path"]) for row in sources] == [
             ("node-a", str(source))
         ]
@@ -771,9 +773,7 @@ def test_the_receipts_host_is_resolved_from_the_job_id(monkeypatch):
     def fake_run(argv, **kwargs):
         calls.append(list(argv))
         if argv[0] == "sacct":
-            return SimpleNamespace(
-                returncode=0, stdout="98dci4-gpu-0003\n", stderr=""
-            )
+            return SimpleNamespace(returncode=0, stdout="98dci4-gpu-0003\n", stderr="")
         assert argv == ["scontrol", "show", "hostnames", "98dci4-gpu-0003"]
         return SimpleNamespace(returncode=0, stdout="98dci4-gpu-0003\n", stderr="")
 
@@ -854,13 +854,12 @@ def test_an_unavailable_scheduler_refuses_the_promised_exception(monkeypatch):
     meet an ``OSError`` instead, which would abort the ingest rather than
     degrade it.
     """
+
     def missing(tool):
         def run(argv, **kwargs):
             if argv[0] == tool:
                 raise FileNotFoundError(2, "No such file or directory", tool)
-            return SimpleNamespace(
-                returncode=0, stdout="98dci4-gpu-0003\n", stderr=""
-            )
+            return SimpleNamespace(returncode=0, stdout="98dci4-gpu-0003\n", stderr="")
 
         return run
 

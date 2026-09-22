@@ -1,0 +1,34 @@
+DECLARED MUTATION (verbatim, imas_ambix/agent/watch.py, _latest_reading):
+            hit_rate = round(hits / queries, 4)   ->   hit_rate = round(queries / hits, 4)
+
+Named test expected to redden: tests/test_agent_telemetry_watch.py::test_latest_reading_assembles_the_hit_rate_from_engine_counters
+
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______ test_latest_reading_assembles_the_hit_rate_from_engine_counters ________
+
+tmp_path = PosixPath('/run/user/39486/pytest-of-mcintos/pytest-4764/test_latest_reading_assembles_0')
+
+    def test_latest_reading_assembles_the_hit_rate_from_engine_counters(
+        tmp_path: Path,
+    ) -> None:
+        """A family stating only the cumulative pair still yields a hit rate."""
+        now = 1_800_000_000.0
+        row = _row(now - 1, prompt_tokens=1000, generation_tokens=100)
+        row["engine"]["prefix_cache_queries"] = 8_000
+        row["engine"]["prefix_cache_hits"] = 6_800
+        index = _index(tmp_path, [row])
+    
+        reading = watch._latest_reading(index, now)
+    
+>       assert reading["hit_rate"] == pytest.approx(0.85)
+E       assert 1.1765 == 0.85 ± 8.5e-07
+E         
+E         comparison failed
+E         Obtained: 1.1765
+E         Expected: 0.85 ± 8.5e-07
+
+tests/test_agent_telemetry_watch.py:408: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_agent_telemetry_watch.py::test_latest_reading_assembles_the_hit_rate_from_engine_counters
+1 failed in 0.86s

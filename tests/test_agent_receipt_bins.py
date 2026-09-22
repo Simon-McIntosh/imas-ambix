@@ -15,12 +15,12 @@ def _interval(
     generation: float | None,
     prefill: float | None,
     prefix_hit_rate: float | None,
-) -> dict[str, int | float | None]:
+) -> dict[str, object]:
     return {
         "num_requests_running": running,
         "generation_throughput_toks_per_s": generation,
         "prompt_throughput_toks_per_s": prefill,
-        "prefix_cache_hit_rate_interval": prefix_hit_rate,
+        "engine": {"prefix_cache_hit_rate": prefix_hit_rate},
     }
 
 
@@ -83,3 +83,34 @@ def test_collector_reports_single_interval_distribution_without_meaningless_erro
         "median": pytest.approx(0.9),
         "deciles": {f"p{decile * 10}": pytest.approx(0.9) for decile in range(1, 10)},
     }
+
+
+def test_collector_takes_prefix_hit_rate_from_engine_counters(tmp_path) -> None:
+    """A family stating only cumulative hits and queries rates their advance."""
+    receipts = tmp_path / "receipts.jsonl"
+    rows = [
+        {
+            "num_requests_running": 10,
+            "generation_throughput_toks_per_s": 100.0,
+            "prompt_throughput_toks_per_s": 500.0,
+            "engine": {"prefix_cache_queries": 1_000.0, "prefix_cache_hits": 400.0},
+        },
+        {
+            "num_requests_running": 12,
+            "generation_throughput_toks_per_s": 120.0,
+            "prompt_throughput_toks_per_s": 600.0,
+            "engine": {"prefix_cache_queries": 1_200.0, "prefix_cache_hits": 500.0},
+        },
+    ]
+    receipts.write_text(
+        "".join(f"{json.dumps(row)}\n" for row in rows), encoding="utf-8"
+    )
+
+    report = collect_receipt_bins(receipts).to_dict()
+
+    assert report["rows_read"] == 2
+    # The opening row has no earlier reading to difference its counters against.
+    assert report["excluded_intervals"] == 1
+    first_bin = report["bins"]["10-14"]
+    assert first_bin["intervals"] == 1
+    assert first_bin["prefix_hit_rate"]["median"] == pytest.approx(0.5)

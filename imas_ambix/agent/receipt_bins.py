@@ -76,7 +76,6 @@ class ReceiptBinReport:
 _INTERVAL_FIELDS = (
     "generation_throughput_toks_per_s",
     "prompt_throughput_toks_per_s",
-    "prefix_cache_hit_rate_interval",
 )
 
 
@@ -124,7 +123,15 @@ def summarise_receipt_rows(
     *,
     width_bins: tuple[tuple[int, int], ...] = DEFAULT_WIDTH_BINS,
 ) -> ReceiptBinReport:
-    """Summarise receipt rows without replacing interval distributions by means."""
+    """Summarise receipt rows without replacing interval distributions by means.
+
+    Every interval quantity is read from the row's own ``engine`` section. The
+    prefix-cache rate is the one that may need two rows: a family that
+    publishes the rate as a gauge states it on one row, while a family that
+    publishes only the cumulative hits and queries states it as the advance
+    between consecutive rows, so the rows are walked in order and the previous
+    row's engine section is carried alongside the current one.
+    """
     _validate_width_bins(width_bins)
     grouped: dict[tuple[int, int], list[tuple[float, float, float]]] = {
         width_bin: [] for width_bin in width_bins
@@ -132,10 +139,19 @@ def summarise_receipt_rows(
     rows_read = 0
     excluded_intervals = 0
     unbinned_intervals = 0
+    previous_engine: Mapping[str, Any] | None = None
 
     for row in rows:
         rows_read += 1
-        if any(row.get(field) is None for field in _INTERVAL_FIELDS):
+        raw_engine = row.get("engine")
+        engine: Mapping[str, Any] = raw_engine if isinstance(raw_engine, dict) else {}
+        prefix_hit_rate = _prefix_hit_rate(engine, previous_engine)
+        previous_engine = engine
+
+        if (
+            any(row.get(field) is None for field in _INTERVAL_FIELDS)
+            or prefix_hit_rate is None
+        ):
             excluded_intervals += 1
             continue
 
@@ -151,7 +167,6 @@ def summarise_receipt_rows(
 
         generation = _as_float(row["generation_throughput_toks_per_s"])
         prefill = _as_float(row["prompt_throughput_toks_per_s"])
-        prefix_hit_rate = _as_float(row["prefix_cache_hit_rate_interval"])
         grouped[width_bin].append((generation / running, prefill, prefix_hit_rate))
 
     return ReceiptBinReport(
@@ -184,6 +199,45 @@ def _as_float(value: Any) -> float:
     if isinstance(value, bool) or not isinstance(value, int | float):
         raise ValueError(f"receipt interval value must be numeric, got {value!r}")
     return float(value)
+
+
+def _number(value: Any) -> float | None:
+    """*value* as a float, or ``None`` when the engine did not state it."""
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    return float(value)
+
+
+def _prefix_hit_rate(
+    engine: Mapping[str, Any], previous: Mapping[str, Any] | None
+) -> float | None:
+    """The prefix-cache hit rate one row states, from its engine section.
+
+    A family that publishes the rate as a gauge states it on a single row. One
+    that publishes only the cumulative hits and queries states nothing until a
+    second reading exists, so the rate is the advance of the two counters since
+    the previous row. A counter that went backwards — a serve that restarted
+    inside the interval — declines rather than reporting a negative, on the
+    same rule the ledger applies to every other cumulative quantity.
+    """
+    rate = _number(engine.get("prefix_cache_hit_rate"))
+    if rate is not None:
+        return rate
+    if previous is None:
+        return None
+    hits = _number(engine.get("prefix_cache_hits"))
+    queries = _number(engine.get("prefix_cache_queries"))
+    previous_hits = _number(previous.get("prefix_cache_hits"))
+    previous_queries = _number(previous.get("prefix_cache_queries"))
+    if hits is None or queries is None:
+        return None
+    if previous_hits is None or previous_queries is None:
+        return None
+    query_delta = queries - previous_queries
+    hit_delta = hits - previous_hits
+    if query_delta <= 0 or hit_delta < 0:
+        return None
+    return hit_delta / query_delta
 
 
 def _summarise_bin(
