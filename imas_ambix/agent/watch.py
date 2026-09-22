@@ -234,11 +234,11 @@ def _rates(p: dict, fallback: float | None = None) -> dict | None:
     try:
         prompt = float(p["prompt"])
         completion = float(p["completion"])
-    except KeyError, TypeError, ValueError:
+    except (KeyError, TypeError, ValueError):
         return None
     try:
         cache = float(p.get("input_cache_read", p.get("cache_read")))
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         # No published cache tier: charge cached input at the prompt rate,
         # which overstates rather than inventing a discount that may not exist.
         cache = prompt if fallback is None else fallback
@@ -312,7 +312,7 @@ def load_prices(path: str | Path | None = None) -> list[float | dict] | None:
     """
     try:
         doc = json.loads(Path(path or DEFAULT_PRICE_PATH).read_text(encoding="utf-8"))
-    except OSError, ValueError:
+    except (OSError, ValueError):
         return None
     models = doc.get("models")
     return models if isinstance(models, list) else None
