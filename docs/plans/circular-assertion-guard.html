@@ -15,14 +15,14 @@
   <meta name="plan-capability-class" content="orchestrator">
   <meta name="plan-capability-reasoning" content="deep">
   <meta name="plan-capability-verification" content="strict">
-  <meta name="plan-sprint" content="S25">
+  <meta name="plan-sprint" content="S26">
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-tags" content="agent-serving">
   <title>Circular Assertion Guard | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-22">
-<meta name="plan-version" content="2">
+<meta name="plan-version" content="3">
 </head>
 <body>
   <main class="plan-doc">
@@ -218,7 +218,7 @@
 </section>
 <section data-reckon="comments" id="comments" class="r-comments">
 <div class="r-comment" data-section="_top" data-id="c-cag-prose-form" data-who="coordinator" data-when="2026-09-22">
-    <div class="r-comment-body"><p><strong>The same circularity exists in prose, and this guard will not see it.</strong> Recorded so a later reader knows the omission is deliberate rather than an oversight.</p><p>Measured on the telemetry-spine wave: a node's docstring asserted that a boot identity resolves per row rather than per file, and gave the reason. I approved the design <em>from that docstring</em>. No test held it &mdash; every boot test separated the two boots across two files, so the exact regression the commit message rejected would have left the suite green. The claim was in the prose, the evidence offered for it was the same prose, and an independent review is what caught it.</p><p>That is this defect's shape with the assertion moved outside the test file: <em>evidence that paraphrases the claim instead of being independent of it</em>. An AST pass over <code>assert</code> statements cannot reach it, and widening the guard to parse docstrings for claims would be a worse instrument than a reviewer. What it does justify is a review-brief line that is machine-checkable where the prose is not: <strong>state the test that holds each claimed property, or say plainly that none does</strong>.</p></div>
+    <div class="r-comment-body"><p><strong>The same circularity exists in prose, and this guard will not see it.</strong> Recorded so a later reader knows the omission is deliberate rather than an oversight.</p><p>Measured on the telemetry-spine wave: a node's docstring asserted that a boot identity resolves per row rather than per file, and gave the reason. I approved the design <em>from that docstring</em>. No test held it — every boot test separated the two boots across two files, so the exact regression the commit message rejected would have left the suite green. The claim was in the prose, the evidence offered for it was the same prose, and an independent review is what caught it.</p><p>That is this defect's shape with the assertion moved outside the test file: <em>evidence that paraphrases the claim instead of being independent of it</em>. An AST pass over <code>assert</code> statements cannot reach it, and widening the guard to parse docstrings for claims would be a worse instrument than a reviewer. What it does justify is a review-brief line that is machine-checkable where the prose is not: <strong>state the test that holds each claimed property, or say plainly that none does</strong>.</p></div>
 </div>
 </section>
 </main>

@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="serving-record-warehouse">
+  <meta name="plan-title" content="Serving Record Warehouse">
+  <meta name="plan-summary" content="A persistent, rebuildable store over every serving receipt ever written, answering per model and per caller across any window">
+  <meta name="plan-status" content="draft">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort-hours" content="14.0">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="orchestrator">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-sprint" content="S26">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-tags" content="agent-serving">
+  <meta name="plan-depends-on" content="serve-telemetry-spine">
+  <title>Serving Record Warehouse | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-09-22">
+<meta name="plan-version" content="1">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — What is wrong today, measured</h2>
+
+    <p>The spine records well and reports badly. Its reader builds a throwaway
+    index, queries it with two endpoints, and prints a figure whose window it
+    did not cover. Run against the live record on 2026-09-22:</p>
+
+    <table>
+      <caption>One <code>agent watch</code> invocation over 258,594 recorded rows.</caption>
+      <thead><tr><th>Period</th><th>tokens_in reported</th><th>coverage claimed</th><th>measurement history behind it</th></tr></thead>
+      <tbody>
+        <tr><td>1 hour</td><td>96,524,542</td><td>3,539 s</td><td>3,539 s</td></tr>
+        <tr><td>1 day</td><td>304,834,377</td><td>86,338 s</td><td>11,038 s</td></tr>
+        <tr><td>1 week</td><td><strong>304,834,377</strong></td><td>600,329 s</td><td>11,038 s</td></tr>
+        <tr><td>1 month</td><td><strong>304,834,377</strong></td><td>1,347,728 s</td><td>11,038 s</td></tr>
+      </tbody>
+    </table>
+
+    <p>Day, week and month are the same number. The month row claims coverage
+    <strong>122&times; longer than the measurement history behind it</strong>.
+    A reader takes it for a month of traffic; it is three hours of one serve.</p>
+
+    <h3>Three independent causes, all of which must be fixed</h3>
+
+    <p><strong>A counter span has no concept of a serve.</strong>
+    <code>counter_span</code> differences the last reading at or before each
+    bound and refuses only when the two belong to different
+    <code>(host, boot)</code>. Every serve restarts its counters from zero, and
+    many serves share one boot, so within a boot it will happily difference
+    across job boundaries.</p>
+
+    <p><strong>Coverage and totals are drawn from different populations.</strong>
+    Coverage counts samples present in the window; totals come from one
+    contiguous counter run. Nothing requires them to describe the same interval,
+    and above they differ by two orders of magnitude.</p>
+
+    <p><strong>The record speaks two vocabularies and the reader knows one.</strong>
+    256,424 rows carry these quantities under flat names written by an earlier
+    recorder; 2,170 carry them under <code>engine.*</code>. A reader asking only
+    for the new name sees three hours of a fifteen-day record and reports it as
+    the whole.</p>
+
+    <h2 id="s2">§2 — What the store must be</h2>
+
+    <p><strong>The receipts are the record and are never rewritten.</strong> The
+    recorder appends; nothing else writes to a receipts file. Every correction,
+    re-keying or backfill happens in the store, which is derived. A store that
+    edits its own source cannot be rebuilt from it, and rebuildability is the
+    property that makes every other repair safe.</p>
+
+    <p><strong>The store persists and is rebuildable, and those are different
+    requirements.</strong> It survives across runs and accumulates, so the
+    ordinary cost of reading is an append of what is new rather than a re-read
+    of everything. And it can be discarded and reconstructed from the receipts
+    alone, so no fact exists only inside it. A rebuild must produce a store
+    equal to the appended one; that equality is a test, not an aspiration.</p>
+
+    <p><strong>Ingest is idempotent and resumable.</strong> A file already read
+    to a given offset is resumed from that offset, a file re-read from the start
+    inserts nothing new, and a file that rolled or was compressed is recognised
+    as the same source rather than as a new one. The existing index already keys
+    a sample on <code>(host, boot_id, inode, offset)</code>, which is the right
+    shape; what is missing is that nothing runs it on a schedule and nothing
+    keeps it.</p>
+
+    <p><strong>Retention compacts, it does not delete.</strong> Raw rows roll
+    into the minute and hour tiers the store already defines, and the tiers are
+    what answer long windows. Compaction is the reason a month query does not
+    scan a month of five-second samples, and it must never be the reason a month
+    of history stops existing.</p>
+
+    <h2 id="s3">§3 — The aggregation rule the reporter got wrong</h2>
+
+    <p>A cumulative counter is one serve's, over one boot, on one host. So the
+    only correct way to total a window is to <strong>partition it into
+    contiguous counter runs, difference within each run, and sum the
+    results</strong>. A run ends at a serve restart, a reboot, a host change, or
+    any gap the record cannot bridge.</p>
+
+    <p>Two figures must then be reported together and must describe the same
+    thing: the total, and the <strong>union of the runs that contributed to
+    it</strong>. Where that union is shorter than the requested window, the
+    report says so rather than printing the window's length beside a partial
+    total. A window the record cannot cover yields a partial figure that
+    announces itself, or no figure — never a full-looking one.</p>
+
+    <p>This is the same rule the spine already applies twice, at
+    <code>counter_span</code> across hosts and at <code>_prefix_hit_rate</code>
+    across serves, and it is stated here once because it was rediscovered as a
+    defect three separate times.</p>
+
+    <h2 id="s4">§4 — Per-model and per-caller, and the honest limit on "user"</h2>
+
+    <p>The serve recorder answers <em>per model</em> already: every row carries
+    <code>served_name</code>, <code>profile_slug</code>, <code>gpus</code> and
+    the seven settings the engine reports. Several models serving at once are
+    several recorders writing several files, which the store ingests as distinct
+    sources. Nothing new is needed for that dimension beyond keying on it.</p>
+
+    <p><strong>Per-caller is a different matter, and the data does not yet
+    exist.</strong> The router's <code>RequestReceipt</code> carries the right
+    fields — model, prompt, cached and completion tokens, time to first token,
+    duration, status, and a sampling fraction — but two facts block it:</p>
+
+    <ul>
+      <li><strong>No request receipt has ever been written.</strong> The wiring
+      landed 2026-09-21; the running router started six days earlier. The stream
+      does not exist on disk.</li>
+      <li><strong><code>caller_hint</code> is not an identity.</strong> It is
+      <code>"{host}:{port}|{user-agent[:32]}"</code>, and the client port changes
+      per connection. Its own docstring says it identifies a calling process
+      "well enough to group its own turns". Counting distinct values counts
+      connections. Dropping the port leaves a host, which on a login node is
+      every session at once.</li>
+    </ul>
+
+    <p>So <strong>"unique users" is not answerable from what is recorded</strong>,
+    and the plan must not pretend otherwise. This section's deliverable is the
+    decision and the field that follows from it, not a query over a field that
+    cannot bear it. The options differ in what they can attribute and in what
+    they cost, and the decision is recorded below.</p>
+
+    <p>Until it is settled, the store reports per <em>caller process</em> and
+    labels it as such. That is a real and useful dimension — it answers which
+    harness or job consumed a lane — and it is not a user count.</p>
+
+    <h2 id="s5">§5 — Who runs the ingest, and why it is not the recorder</h2>
+
+    <p>The ingest belongs to <strong>neither</strong> the recorder nor the
+    watcher, and the reasons are measured rather than stylistic.</p>
+
+    <p><strong>Not the recorder.</strong> It runs inside the serve's allocation,
+    lives and dies with that job, and sees only its own file. A store fed by the
+    recorder would exist once per serve and vanish with it, which is the present
+    defect restated. The recorder also already costs 4.25% of a core at its
+    five-second cadence, measured, and it is the one process whose failure stops
+    the record being written at all.</p>
+
+    <p><strong>Not the watcher.</strong> It is an interactive reader. Making a
+    person's report the thing that maintains the store means the store is
+    current only as often as someone looks, the first look after a quiet week
+    pays for the week, and two people looking at once contend on one file. The
+    warehouse must be current for a reader who has not run yet.</p>
+
+    <p><strong>A separate ingest, scheduled, owning the store alone.</strong>
+    One writer, many readers. It scans the receipts directory, appends what is
+    new from each source at its recorded offset, compacts what has aged past the
+    raw tier, and exits. A watcher then only reads. This also matches how the
+    record already behaves: receipts accumulate on shared storage whether or not
+    anyone is watching, and the store should too.</p>
+
+    <p>Its cadence is a decision recorded below. Its placement is not: it reads
+    shared GPFS and writes a store, needs no GPU and no serve, and must not run
+    on the login node when the corpus is large — so a short scheduled CPU job,
+    with the login node acceptable only while the whole scan stays under the
+    seconds-scale bound the repository sets for interactive work.</p>
+
+    <h2 id="s6">§6 — Queries the store must answer</h2>
+
+    <p>Each of these is a gate, and each must state the coverage behind its
+    answer under the §3 rule:</p>
+
+    <ul>
+      <li>Aggregate tokens in, cached and out over any window, including windows
+      spanning many serves and the whole record.</li>
+      <li>The same, split per model, for several models served concurrently.</li>
+      <li>The same, split per caller process, with the identity limit of §4
+      stated in the output rather than in a comment.</li>
+      <li>Throughput and utilisation over a window, derived from totals and the
+      covered union rather than from the window's nominal length.</li>
+      <li>Cache hit rate per model, from the family-correct source, over a window
+      the record actually covers.</li>
+      <li>A window the record cannot cover, answered as partial-with-coverage or
+      declined — never as a full figure. This is the gate that would have caught
+      today's month row.</li>
+    </ul>
+
+    <h2 id="s7">§7 — Sequencing</h2>
+
+    <p>The aggregation rule comes first, because every reported figure is wrong
+    until it holds and because it is testable against the existing record
+    without any new data. The persistent store follows, then the scheduled
+    ingest, then the per-model split, which needs only keying. The caller
+    dimension comes last and is gated on its decision and on a router that
+    writes receipts at all.</p>
+
+    <table>
+      <thead><tr><th>Node</th><th>Runs after</th><th>Effort</th></tr></thead>
+      <tbody>
+        <tr><td>Partitioned aggregation and honest coverage</td><td>—</td><td>2.5 h</td></tr>
+        <tr><td>Two-vocabulary read over the historical record</td><td>—</td><td>2.0 h</td></tr>
+        <tr><td>Persistent store: append, resume, rebuild-equality</td><td>aggregation</td><td>3.0 h</td></tr>
+        <tr><td>Scheduled ingest owning the store</td><td>persistent store</td><td>2.0 h</td></tr>
+        <tr><td>Per-model split and the multi-recorder case</td><td>persistent store</td><td>2.0 h</td></tr>
+        <tr><td>Per-caller attribution</td><td>identity decision; router writing receipts</td><td>2.5 h</td></tr>
+      </tbody>
+    </table>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="caller-identity" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">What identifies a caller, given that caller_hint carries a per-connection port and the lane is keyless by default?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="api-key">A key per consumer — real attribution, but the lane stops being keyless</button>
+      <button class="r-opt" data-value="declared-header">A header the client declares — cheap and unauthenticated, so it attributes honesty not identity</button>
+      <button class="r-opt" data-value="host-only">Host only — stable, but every session on a login node is one caller</button>
+      <button class="r-opt" data-value="process-only">Keep the process hint and never claim users</button>
+      </p>
+    <p class="r-dec-rat">The last option is the current honest position and costs nothing. The others each buy a different kind of attribution at a different price; none is free, and the plan should not imply per-user reporting until this is answered.</p>
+    </div>
+<div class="r-dec" data-key="ingest-cadence" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">How often does the scheduled ingest run?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="hourly">Hourly — a report is at most an hour stale</button>
+      <button class="r-opt" data-value="on-serve-exit">On serve exit, plus a daily sweep — ingest a file when it stops growing</button>
+      <button class="r-opt" data-value="daily">Daily — cheapest, and a day stale</button>
+      </p>
+    <p class="r-dec-rat">Deferred until the append path is measured on the real corpus: the right cadence depends on what an incremental pass actually costs against 258,594 rows and 20 sources, which is not yet known.</p>
+    </div>
+</section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-srw-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-09-22" data-recommends-skill="/reckon-ship serving-record-warehouse §3" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Start at the aggregation rule; it invalidates every figure until it holds</h4>
+    <div class="r-fu-body"><p>Begin at <strong>&sect;3</strong>, not at the store. Every total the reporter prints is wrong until a window is partitioned into contiguous counter runs, differenced within each, and summed &mdash; and that is testable against the record already on disk, with no new data and no new infrastructure. The gate that matters is the one in &sect;6: <em>a window the record cannot cover must answer partial-with-coverage or decline, never a full-looking figure</em>. Point it at the live month query, which today reports 1,347,728 s of coverage behind 11,038 s of measurement.</p><p>Two things not to get wrong. <strong>Never write to a receipts file.</strong> The recorder appends and nothing else does; every repair belongs in the derived store, because a store that edits its source cannot be rebuilt from it. And <strong>do not build per-user reporting</strong> until the <code>caller-identity</code> decision is locked: <code>caller_hint</code> carries a per-connection port, so distinct values count connections, and no request receipt has ever been written because the running router predates the wiring.</p><p>A node touching <code>imas_ambix/agent/</code> must put the serving-interpreter guard in its done-when &mdash; <code>pytest tests/test_agent_serve_registry.py -k agent_package_modules_parse_with_serving_python</code>. That package is executed by a Python 3.12 environment, and a gate chosen from changed files never selects that test, which is how the same syntax defect landed four times.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship serving-record-warehouse §3</pre>
+    </article>
+</section>
+
+  </main>
+</body>
+</html>
