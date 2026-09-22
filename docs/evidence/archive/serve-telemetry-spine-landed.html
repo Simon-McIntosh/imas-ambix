@@ -1658,7 +1658,13 @@ except ImportError:
     two spellings are never both counted into one figure. Open-market cost is resolved
     per interval at the rate then in force — a schedule is matched by weekday and
     time-of-day window, wrapping past midnight — with the uncharged remainder billed at
-    the prompt rate and cached input at the cache-read tier.</p>
+    the prompt rate and cached input at the cache-read tier. A token total the record did
+    not carry declines the cost outright rather than pricing as zero: <code>ledger_cost</code>
+    returns <code>None</code> when any of the input, cached or output totals is absent, so a
+    period whose counters reset inside the window dashes its cost beside token columns that
+    dash for the same reason. The cached total is part of the test rather than exempt from
+    it, because the two input rates divide on it: pricing an entire input at the prompt rate
+    is the overstatement the split exists to avoid.</p>
 
     <h3 id="watcher-coverage">Coverage decides whether the mean is reported at all</h3>
 
@@ -1674,7 +1680,8 @@ except ImportError:
     <h3 id="watcher-gates">Gates, and the negative control</h3>
 
     <p>The focused gate is <code>tests/test_agent_telemetry_watch.py</code>:
-    <strong>11 passed in 1.72 s</strong>. Whole-tree
+    <strong>11 passed in 1.72 s</strong> at the landing commit, 12 after the repair
+    recorded below. Whole-tree
     <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0
     (<code>All checks passed!</code>). Every test builds a receipt record on disk and
     reads figures back through the index, so the tests also fix the contract between
@@ -1699,6 +1706,22 @@ except ImportError:
     <code>40628ce4</code>, with <code>git diff --quiet</code> confirming the file was
     byte-identical before the green run. The control log opens with the mutated line
     verbatim, so a reader replays it rather than infers it.</p>
+
+    <p>A review found one defect in that landing, in the cost column: with a price table
+    loaded, a period whose counters reset still priced. The three token totals arrive at
+    <code>ledger_cost</code> as <code>None</code> after the reset refusal, and the function
+    coerced every absent total to <code>0.0</code> — <code>float(total.get("in") or 0.0)</code>
+    — so the row rendered a dollar figure beside token columns that correctly dashed. It is
+    the absent-is-not-zero rule the panels apply everywhere else, one column to the right of
+    where the token columns already applied it. <code>ledger_cost</code> now returns <code>None</code>
+    when any total is absent, and the guarded thing was made to happen rather than assumed:
+    deleting the decline guard and re-coercing the three totals (one line, quoted verbatim at
+    the head of the control log) reddens
+    <code>test_cost_is_declined_when_the_token_totals_are_absent</code> with
+    <code>AssertionError: assert 0.0 is None</code> — the reviewer's own reproduction, from
+    the test rather than from a scratch script. The mutated arm is <strong>1 failed,
+    11 passed</strong>; the reverted arm is <strong>12 passed</strong>, and the whole-tree
+    lint exits 0 after it.</p>
 
     <h3 id="watcher-reachability">Reachability</h3>
 
@@ -1731,6 +1754,10 @@ except ImportError:
         <tr><td><code>40628ce4</code></td><td><code>imas_ambix/agent/watch.py</code></td>
         <td>the ledger's column header shortened to fit the line width, which is what
         the whole-tree lint gate was failing on</td></tr>
+        <tr><td><code>1d60fc45</code></td><td><code>imas_ambix/agent/watch.py</code>,
+        <code>tests/test_agent_telemetry_watch.py</code></td>
+        <td>the cost column declines an absent token total instead of coercing it to zero,
+        held by the test that reddens when the coercion returns</td></tr>
       </tbody>
     </table>
 
