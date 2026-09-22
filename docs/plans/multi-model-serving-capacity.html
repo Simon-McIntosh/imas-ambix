@@ -23,9 +23,9 @@
   <title>Multi-Model Serving Capacity | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-09-02">
+<meta name="plan-modified" content="2026-09-22">
 <meta name="plan-impl" content="1.0">
-<meta name="plan-version" content="16">
+<meta name="plan-version" content="17">
 <meta name="plan-commits" content="f63f3bae5c97aef7bf852404630eecb5f560b71f,b76d9cbfb26701fa98a54a2e34f7b74a327bbf0e,560038df708e4df868636da894965e4714e0c66c">
 <meta name="plan-artifacts" content="imas_ambix/agent/AGENTS.md,imas_ambix/agent/router.py,tests/test_agent_router_admission.py">
 </head>
@@ -175,9 +175,15 @@
     <pre class="r-fu-prompt">/reckon-ship multi-model-serving-capacity</pre>
     <p class="r-fu-outcome">Shipped. Both releases serve concurrently on one node inside a measured card and core budget, admission control is demonstrated live under deliberate overload with per-consumer separation and consumer addresses kept out of the engine log, the serving guidance describes the deployments as they are, and the service statement records the group best-effort audience. The self-imposed seven-day serve cap is gone. Continuation passes to clive-launch-modes as f-mmsc-02 for the interactive confirmation no automated node can produce.</p>
     </article>
-<article class="r-fu" data-id="f-mmsc-02" data-status="open" data-written-by="reckon-ship" data-written-at="2026-09-01" data-recommends-skill="/reckon-ship clive-launch-modes" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-mmsc-02" data-status="resolved" data-written-by="reckon-ship" data-written-at="2026-09-01" data-recommends-skill="/reckon-ship clive-launch-modes" data-resolved-at="2026-09-22T19:05:28+00:00" data-resolved-by="">
     <h4 class="r-fu-title">Confirm the refreshed launcher presents both releases at a terminal</h4>
     <div class="r-fu-body">Owned by <code>clive-launch-modes</code>, not by this plan. The shared launcher has been regenerated and deployed, and <code>--list</code> now returns both releases with their real topology and engine-reported context, discovered from a world-readable endpoint document rather than a single hard-pinned origin. What no automated node can show is the interactive path: a bare launch should present a numbered model prompt, and the model picker inside the harness should carry one row per release rather than one per alias slot. That needs a human at a terminal.</div>
+    <pre class="r-fu-prompt">/reckon-ship clive-launch-modes</pre>
+    <p class="r-fu-outcome">Moved, not completed. This carried real outstanding work — a person confirming the harness picker renders one row per release — on a plan at status shipped and impl 1.0, which the roadmap excludes from pending_work, so the check was invisible to anything asking what remains. Its own text said the work belonged to clive-launch-modes rather than here, which left it pointing back at the plan it was holding open. It now lives there as f-clm-02, on an active plan the roadmap surfaces. Half of what it described is separately closed: the launcher's own numbered prompt is fenced under a pseudo-terminal with a control showing the fence fires. What moved is the other half, the harness's own picker.</p>
+    </article>
+<article class="r-fu" data-id="f-mmsc-03" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-ship" data-written-at="2026-09-22" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Pointer: the interactive confirmation is owned by clive-launch-modes</h4>
+    <div class="r-fu-body"><p>A pointer, carrying no work. The interactive confirmation this plan once tracked is <code>f-clm-02</code> on <a href="/imas-ambix/clive-launch-modes.html">clive-launch-modes</a>, which is active and therefore visible to the roadmap. Nothing here is executable: this plan's own scope is shipped at impl 1.0.</p></div>
     <pre class="r-fu-prompt">/reckon-ship clive-launch-modes</pre>
     </article>
 </section>
@@ -195,7 +201,7 @@
     <div class="r-comment-body"><p>Restart now accepts every option serve does, so it can reproduce the endpoint it replaces instead of silently returning a differently-configured one, and the port guard runs on the dry-run path so a refusal is reported before submitting rather than discovered at submit time. 192/192, lint clean</p></div>
 </div>
 <div class="r-comment" data-section="s2" data-id="c-run-r-20260902T164419659119-agent-logs-command" data-who="s24-capacity-impl" data-when="2026-09-02T16:54:16Z">
-    <div class="r-comment-body"><p>Operators can now read a job&#x27;s log through the CLI rather than resolving scheduler paths by hand, resolving by default profile, slug or job id so routers are reachable too. The three failure modes stay distinct rather than collapsing into one message, which is what made the lost-log case hard to diagnose. 9/9 new, 192/192 existing, lint clean</p></div>
+    <div class="r-comment-body"><p>Operators can now read a job's log through the CLI rather than resolving scheduler paths by hand, resolving by default profile, slug or job id so routers are reachable too. The three failure modes stay distinct rather than collapsing into one message, which is what made the lost-log case hard to diagnose. 9/9 new, 192/192 existing, lint clean</p></div>
 </div>
 <div class="r-comment" data-section="s3" data-id="c-20260901-capacity-service-statement" data-who="reckon-ship" data-when="2026-09-01T12:52:00+00:00">
     <div class="r-comment-body">capacity-service-statement landed — commit f63f3ba; gate 'documentation content check' passed; measure 14/14 assertions over the rewritten guidance. The sub-tree guidance no longer calls both GLM profiles unusable stubs with unpublished weights: it records the four-card community INT4 requant at 321 GiB and the eight-card vendor FP8 release at 704 GiB, both downloaded, sharing served name glm-5.3 and differing only in checkpoint precision. It carries the locked audience statement — group-sized best effort on spare cards, no reserved floor, cancellable for a training campaign, admission sized for a handful of consumers, widening later a card-budget change rather than a redesign. The core thesis of §3 is now measured rather than argued: at 12:38 the reservation's 30 cores were held 8 by the DeepSeek serve and 16 by a co-running CPU-only job, leaving at most 6, so a 12-core serve could not be admitted even with four cards free. Cards were never the constraint. Artifacts imas_ambix/agent/AGENTS.md.</div>

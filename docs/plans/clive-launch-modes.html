@@ -21,8 +21,8 @@
   <title>Clive Launch Modes | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-09-18">
-<meta name="plan-version" content="23">
+<meta name="plan-modified" content="2026-09-22">
+<meta name="plan-version" content="24">
 <meta name="plan-commits" content="526195c8c059efe5f73439ae1fed626407f11322,5fd71b1b1e2d12c0e160816e24f3ca7055f718cf,cb5c6e12775124169e3402065a87c5e920a912ed,1c602d0ecc7f7fe1c03530bfe848266fd93b565b,c197e3d2f3ed6c57ecda748cebdd2262f5adfbcb,03bf0652e41fcf440c9254260e0f31221e132a89,8bea195">
 <meta name="plan-artifacts" content="imas_ambix/agent/clive.py,tests/test_agent_clive_modes.py,tests/test_agent_clive_picker.py,tests/test_agent_clive_dispatch_guidance.py">
 <meta name="plan-impl" content="0.99">
@@ -187,6 +187,11 @@ clive --mode hybrid      # local releases plus the hosted frontier slots</pre>
     <div class="r-fu-body">Two naming decisions gate the CLI surface and are the lead's to make: whether model scope is a <code>--mode</code> axis or a boolean opt-in, and what the non-default value is called (<code>tiered</code> recommended, because it names the working pattern rather than the vendor). Everything else is buildable now against the local-only default: curated picker rows with real topology labels, supported-capability declarations for every slot the launcher sets, and the session-scoped statement of which alias is local. Alias-resolution behaviour is already measured, so worker dispatch needs no harness change. The one unverified item is that curated rows actually render — confirm interactively, since a headless run cannot show a picker.</div>
     <pre class="r-fu-prompt">/reckon-ship clive-launch-modes</pre>
     <p class="r-fu-outcome">Shipped. The mode axis is named and locked with local as the default, fenced by the assertion that a present hosted credential changes zero bytes of an unqualified launch. Curated rows are generated from the live catalog with each release's own topology and context, capabilities are declared on every alias slot, and the session is told which alias is local without being asked. Both lineups now put the primary local release on the same alias, after landing that statement exposed a contradiction in the hybrid branch. The one item this could not close is interactive rendering, which no headless node can show; it is carried by f-mmsc-02.</p>
+    </article>
+<article class="r-fu" data-id="f-clm-02" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-ship" data-written-at="2026-09-22" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Confirm the harness picker shows one row per release</h4>
+    <div class="r-fu-body"><p>The last criterion this plan names, recovered here from a followup that was sitting on a shipped plan where the roadmap could not surface it. Every executable criterion is fenced; this one needs a person looking at a screen.</p><p><strong>The check.</strong> Launch <code>clive</code> at a terminal and open the model picker inside the harness. It should carry <strong>one row per release</strong> — each with its own topology and context, as <code>--list</code> already reports them — rather than one row per alias slot. Four identical rows is the failure this exists to catch, and it is exactly what the lead saw on 2026-09-01 when the deployed launcher turned out to be six days stale.</p><p><strong>Why no node can close it.</strong> The picker is the harness's own interface, not this repository's code. A driven harness would test the acceptance path rather than produce the confirmation. The launcher's own numbered prompt IS fenced, under a pseudo-terminal, with a control that shows the fence fires — that half is done and is not what this asks for.</p><p>When it renders correctly, this plan has no criterion left open and can go to shipped at impl 1.0.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship clive-launch-modes</pre>
     </article>
 </section>
   <section data-reckon="comments" id="comments" class="r-comments">
