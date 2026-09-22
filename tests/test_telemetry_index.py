@@ -980,3 +980,42 @@ def test_a_row_a_reader_gets_carries_the_key_it_was_stored_under(tmp_path):
             UNKNOWN_BOOT_ID,
             HOST_SCOPE,
         )
+
+
+def test_one_file_spanning_a_reboot_keys_each_of_its_rows_apart(tmp_path):
+    """The boot is resolved per row, because one file can span a reboot.
+
+    A reboot leaves the hostname alone, so a file written across one carries
+    two boots and only the rows themselves say where the change falls. Resolved
+    once per file from its first named boot, every later row is keyed on a boot
+    it was not written in -- silently, because the rows stay storable and the
+    counters they carry then difference across a reset as though the machine
+    had merely been quiet.
+    """
+    source = tmp_path / "serve.jsonl"
+    _write(
+        source,
+        [
+            _row(0, host="node-a", boot_id=_BOOT_BEFORE),
+            _row(5, host="node-a", boot_id=_BOOT_AFTER),
+            _row(10, host="node-a"),
+        ],
+    )
+
+    with TelemetryIndex(tmp_path / "index.db", host="node-z") as index:
+        index.ingest([source])
+        stored = index._conn.execute(
+            "SELECT boot_id FROM sample ORDER BY id"
+        ).fetchall()
+        assert [row["boot_id"] for row in stored] == [
+            _BOOT_BEFORE,
+            _BOOT_AFTER,
+            _BOOT_AFTER,
+        ]
+        # The row that names no boot belongs to the boot that was writing the
+        # file when it appeared, not to the reader's.
+        assert [row["boot_id"] for row in index.rows(_at(-1), _at(60))] == [
+            _BOOT_BEFORE,
+            _BOOT_AFTER,
+            _BOOT_AFTER,
+        ]
