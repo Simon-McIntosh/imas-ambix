@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-22T13:00:08",
+  "updated": "2026-09-22T13:05:18",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -67170,6 +67170,246 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260922T095703732441-probe-hostname",
+        "plan": "serve-telemetry-spine",
+        "section": "\u00a73",
+        "node": "probe-hostname",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1289,
+                "cached_input_tokens": 709500,
+                "input_tokens": 710791,
+                "output_tokens": 1110,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 711901,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "98f13dbe-0703-4abd-a5e4-65bfdb2eeee2",
+            "session_id": "probe-and-provenance"
+          },
+          "done_when": "Measured on 98dci4-gpu-0003 today from inside the live job step. node_probe.py:546 takes hostname from os.uname().nodename, yielding 98dci4-gpu-0003.iter.org, and node_probe.py:515 hands that same value to squeue -h -w. SLURM rejects it with \"squeue: error: Invalid node name 98dci4-gpu-0003.iter.org\" and exit 1. With the short name from hostname -s, which is 98dci4-gpu-0003, the identical query exits 0 and returns three jobs including the serve. So the jobs section has never read on the GPU node, and because an unread section is dropped from the row, that failure appears in the record exactly as a node with no job table would. One field serves two purposes needing different values: the recorded identity, where the fully qualified name is wanted, and the scheduler query argument, which must be the short name. Do two things. FIRST, hand squeue the scheduler name while the row keeps the fully qualified hostname. SECOND, record a section whose command exited non-zero under a different marker from one whose source was absent, following the two-resolution shape this spine already uses for a refused boot identity rather than a new mechanism. Done when: pytest tests/test_node_probe.py passes with more tests than the 34 at base; ruff check imas_ambix tests exits 0; the manifest quotes the mutated line verbatim beside the named test that reddens; and the manifest states the exact jobs-section value in three cases -- squeue answers, squeue exits non-zero, and squeue is absent from PATH.",
+          "estimated_hours": 1.0,
+          "goal": "Make the job-table probe actually read: squeue is given the scheduler short name rather than the fully qualified nodename it rejects, and a probe whose command fails is recorded differently from a source that is absent.",
+          "id": "probe-hostname",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-22T09:57:06Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no numeric 'headroom'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/reports/probe-hostname.md",
+          "negative_control": "In imas_ambix/agent/node_probe.py, change the value handed to squeue -w back to the fully qualified name so read_jobs queries with the FQDN again. A test asserting the job table reads on a host whose SLURM name is the short one must fail.",
+          "plan": "serve-telemetry-spine",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a73",
+          "spec_level": "exact",
+          "time_budget": "60m",
+          "token_budget": null,
+          "write_paths": [
+            "imas_ambix/agent/node_probe.py",
+            "tests/test_node_probe.py",
+            "docs/evidence/archive/serve-telemetry-spine-landed.html",
+            "docs/figures/serve-telemetry-spine",
+            "docs/plans/serve-telemetry-spine.html"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "telemetry-probe-hostname",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "high",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "worktree-full",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-22T09:57:17Z",
+        "completed_at": "2026-09-22T11:01:49.301Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 3862,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 3872,
+        "stalled": false,
+        "time_budget": "60m",
+        "base_sha": "7fecfdffe44e1f6b0cb673577e0c3fd682f2e7a5",
+        "commits": [
+          "5c06b24533ad68df658bd468c8fd30a257ea0201",
+          "a26af917460e8915948c8f4393e04b1e6d679691"
+        ],
+        "changed_lines": {
+          "added": 526,
+          "removed": 37,
+          "files": 5
+        },
+        "tests_added": 6,
+        "gate": "passed",
+        "gate_check": {
+          "command": "pytest tests/test_node_probe.py",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260922T095703732441-probe-hostname/probe-hostname-final.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "The job-table probe now reads. It asked squeue for the node under its fully qualified name, which SLURM rejects, so the section had never once read on the serving node in the life of the feature -- and because an unread section is dropped from the row, that failure looked in the record exactly like a node with no job table. The query now goes under the scheduler short name while the row keeps the qualified identity a reader joins on; verified from the main checkout on 98dci4-gpu-0003 at jobs count=3, including the serve itself and a peer job sharing the machine, which is precisely what the section exists to make explainable. A section whose command failed is recorded differently from one whose source was absent, since conflating those is what hid this. Reviewed 96/100, the highest of the session; its best finding was a cross-file contract break the node fence could not cover, recorded verbatim with line numbers as a followup rather than fixed out of scope.",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/reports/probe-hostname.md",
+        "scope_changed": false,
+        "session_id": "74415013-61f4-4aa3-887a-c0dc5b317158",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 760697,
+            "input_tokens_cumulative": 760697,
+            "output_tokens": 1163,
+            "output_tokens_cumulative": 1163,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-22T11:01:49.301Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "15m",
+          "requested": true,
+          "waived_runs": []
+        },
+        "review": {
+          "status": "parsed",
+          "scores": {
+            "durability": 19,
+            "evidence": 18,
+            "fit": 20,
+            "goal_fidelity": 19,
+            "scope_discipline": 20
+          },
+          "absent": [],
+          "total": 96
+        },
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 17299722,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 49.268,
+          "generated_tokens": 92868,
+          "generation_seconds": 47.847,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 26.7,
+          "machine_seconds": 1.421,
+          "peak_input_tokens": 128073,
+          "tokens_per_second": 1940.94,
+          "wall_tokens_per_second": 1884.96
+        },
+        "follow_on_paths": [
+          "imas_ambix/agent/serving_receipts.py",
+          "imas_ambix/agent/node_probe.py's"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_node_probe.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        },
+        "attempt_kind": "resume",
+        "attempt": 3,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/probe-and-provenance/probe-hostname",
+          "session_id": "74415013-61f4-4aa3-887a-c0dc5b317158",
+          "session_source": "stream",
+          "retained_at": "2026-09-22T11:01:49.301Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "plan_impl_at_dispatch": 0.95,
+        "impl_move": {
+          "plan": "serve-telemetry-spine",
+          "at_dispatch": 0.95,
+          "at_complete": 0.95,
+          "verdict": "waived",
+          "reason": "Repairs a defect in already-shipped s3 code; no section moved from unshipped to shipped. Plan impl stays at 0.95 pending the recorder on-node cost measure, now taken at 4.25 percent of one core against a stated 1 percent bound, with the lead accepting that cost for the 5 second cadence, so the plan bound needs revising rather than further node work."
+        },
+        "negative_control": {
+          "verdict": "waived",
+          "test_paths": [
+            "tests/test_node_probe.py"
+          ],
+          "declaration": "In imas_ambix/agent/node_probe.py, change the value handed to squeue -w back to the fully qualified name so read_jobs queries with the FQDN again. A test asserting the job table reads on a host whose SLURM name is the short one must fail.",
+          "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260922T095703732441-probe-hostname/probe-hostname-negctl-wire.log",
+          "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260922T095703732441-probe-hostname/probe-hostname-negctl-wire.log",
+          "reason": "Same mutation, different words: I declared it in prose and the log states it in code, so the verbatim header comparison cannot match though nothing about the control is wrong. I declared changing the value handed to squeue -w back to the fully qualified name. The log at probe-hostname-negctl-wire.log opens with MUTATION: argv = (\"squeue\", \"-h\", \"-w\", hostname, \"-o\", SQUEUE_FORMAT) and the line below it reads (reverted from: scheduler_node_name(hostname)) -- which is exactly that change, expressed as the argv it produces. It reports 1 failed, 39 passed, with test_the_scheduler_is_given_the_short_name_the_row_keeps_the_qualified_one as the reddening test, which is the claim I asked to be held. A second control at probe-hostname-negctl-marker.log reverts COMMAND_ABSENT to COMMAND_FAILED and reddens two tests, holding the failed-versus-absent distinction this node added. The lesson for my own dispatches: declare the mutation as the line to be changed rather than as a sentence describing the change, so the worker log and the declaration can be compared at all."
+        },
+        "tool_steps": 81.0,
+        "orientation_input_tokens": 2128876.0,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -67244,6 +67484,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 922
+    "_version": 923
   }
 }
