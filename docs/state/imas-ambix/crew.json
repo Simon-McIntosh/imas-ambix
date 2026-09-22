@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-22T22:11:56",
+  "updated": "2026-09-22T22:12:57",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -69197,24 +69197,17 @@
         },
         "integrated_gate_check": {
           "base_verdict": "passed",
-          "integrated_verdict": "failed",
-          "integrated_revision": "16e377745f522e9e699853f72b56fbb999831ab7",
-          "checkout_revision": "16e377745f522e9e699853f72b56fbb999831ab7",
+          "integrated_verdict": "passed",
+          "integrated_revision": "8a324fa37d728744438d52d222a9a7f7b0509f0a",
+          "checkout_revision": "8a324fa37d728744438d52d222a9a7f7b0509f0a",
           "checkout_on_integrated_revision": true,
-          "gate_command": "reckon audit-doc on the four edited documents; grep -ni 'lingering is not holding' over both research documents",
-          "gate_command_source": "stored",
+          "gate_command": "/home/ITER/mcintos/Code/reckon/.venv/bin/reckon audit-doc docs/research/site-request-user-lingering.html docs/research/login-session-scope-teardown.html docs/evidence/archive/slurm-hosted-agent-fleet-landed.html docs/plans/slurm-hosted-agent-fleet.html && ! grep -qni 'lingering is not holding' docs/research/site-request-user-lingering.html docs/research/login-session-scope-teardown.html",
+          "gate_command_source": "option",
           "ran": true,
-          "exit_status": 2,
+          "exit_status": 0,
           "timed_out": false,
           "reason": null,
-          "finding": {
-            "base_verdict": "passed",
-            "integrated_verdict": "failed",
-            "integrated_revision": "16e377745f522e9e699853f72b56fbb999831ab7",
-            "exit_status": 2,
-            "reason": null,
-            "message": "the gate passed at the worker's base but reports failed on the integrated revision 16e377745f52: the merge changes what this node's gate proves, so a base-green run alone is not enough to push. Re-run the node's gate on the merged tree, land the code the merged tree requires, or record explicitly why this finding is accepted"
-          }
+          "finding": null
         }
       },
       {
@@ -70100,6 +70093,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 951
+    "_version": 952
   }
 }
