@@ -9,15 +9,28 @@ module produces those three readings, as ordinary local calls at the GPU node
 inside the serve's own allocation -- ``nvidia-smi``, ``/proc`` and ``squeue``
 are all present there, and none of them needs a ``srun`` step.
 
-**A probe that did not run contributes no section.** Each reading is either a
-populated mapping or nothing at all: a failed command (non-zero exit, absent
-binary, timeout) yields ``None``, and so does a successful command whose output
-carries no reading. That is the same rule the engine section follows, for the
-same reason -- a field that is present means it was measured, so an unavailable
-source must not appear as an empty list or a zero. A reading taken *partially*
-keeps only the fields it observed, which is why every field below is omitted
-rather than nulled when its own sample was unparseable (``nvidia-smi`` reports
-``[N/A]`` for a quantity a card does not expose).
+**A probe that did not run contributes no section -- with one exception, the
+job table, where an unread table is itself a reading about the node.** Each
+other reading is either a populated mapping or nothing at all: a failed command
+(non-zero exit, timeout) yields ``None``, and so does a successful command whose
+output carries no reading. That is the same rule the engine section follows, for
+the same reason -- a field that is present means it was measured, so an
+unavailable source must not appear as an empty list or a zero. A reading taken
+*partially* keeps only the fields it observed, which is why every field below is
+omitted rather than nulled when its own sample was unparseable (``nvidia-smi``
+reports ``[N/A]`` for a quantity a card does not expose).
+
+**Why the job table is the exception.** The record exists to explain an hour a
+serve spent slow, and "the scheduler refused this node's query" is a different
+fact from "this node held no jobs": the first says there were neighbours whose
+names this record does not carry, the second says there were none. An omitted
+section conflates both with a tick where the table was not yet due, so
+:func:`read_jobs` records how its read resolved -- a :data:`UNREAD_KEY` field
+naming :data:`COMMAND_FAILED` or :data:`COMMAND_ABSENT` -- and only the table's
+own *fields* follow the omit-when-unmeasured rule above. Both resolutions are
+stored, following the shape a refused boot identity already uses in this spine:
+never a refusal to record, and the marker says which degraded case the reading
+is.
 
 **Cards are labelled by the number the node knows them by.** SLURM restricts
 each process to its allocated devices through the device cgroup, so
@@ -87,9 +100,11 @@ _UNAVAILABLE = frozenset({"N/A", "NA", "not supported", "unknown", "[n/a]"})
 class RunFn(Protocol):
     """A runner takes an argument vector and a timeout, and returns stdout.
 
-    ``None`` is the answer for a command that could not be run, did not
-    succeed, or outlived *timeout_s*. Nothing in this module raises for a
-    failed probe.
+    ``None`` is the answer for a command that did not succeed or that outlived
+    *timeout_s*. A program the node does not carry at all is raised as
+    ``FileNotFoundError`` instead -- the one failure whose reason only the spawn
+    knows, and the one that :func:`resolve_command` turns into a marker rather
+    than propagating. No read in this module raises for a failed probe.
 
     The timeout is part of the call rather than the runner's own construction
     because it is the caller that knows how long this reading may take: a
@@ -100,12 +115,16 @@ class RunFn(Protocol):
     def __call__(self, argv: Sequence[str], *, timeout_s: float) -> str | None: ...
 
 
-#: Everything a failed local call raises: a binary that is not on the node, a
-#: call that could not be started, and one that outlived its timeout. Held as a
-#: name because the serving interpreter requires the parenthesised form of a
-#: multi-exception clause and the repository's formatter strips those
-#: parentheses back off against its newer syntax target -- a name is stable
-#: under both.
+#: Everything a failed local call raises on its own: a call that could not be
+#: started and one that outlived its timeout. Held as a name because the
+#: serving interpreter requires the parenthesised form of a multi-exception
+#: clause and the repository's formatter strips those parentheses back off
+#: against its newer syntax target -- a name is stable under both.
+#:
+#: ``FileNotFoundError`` is deliberately not in this tuple even though it is an
+#: ``OSError``: it is the one failure that says *why* the call did not happen,
+#: and swallowing it here is what made a node with no ``squeue`` on it
+#: indistinguishable from one whose ``squeue`` refused the query.
 _CALL_FAILURES = (OSError, subprocess.SubprocessError)
 
 
@@ -114,7 +133,11 @@ def run_capture(argv: Sequence[str], *, timeout_s: float = 10.0) -> str | None:
 
     A non-zero exit is a failure even when the command printed something: the
     probe reports what a command measured, and a command that did not succeed
-    did not measure. A missing binary and a hang are the same kind of absence.
+    did not measure. A hang is the same kind of absence.
+
+    A program this node does not carry is raised rather than answered: the
+    spawn's own exception is the only place that fact exists, and
+    :func:`resolve_command` is where it becomes a marker.
     """
     try:
         completed = subprocess.run(
@@ -124,11 +147,57 @@ def run_capture(argv: Sequence[str], *, timeout_s: float = 10.0) -> str | None:
             timeout=timeout_s,
             check=False,
         )
+    except FileNotFoundError:
+        raise
     except _CALL_FAILURES:
         return None
     if completed.returncode != 0:
         return None
     return completed.stdout
+
+
+#: The field a job section names its resolution under when the table could not
+#: be read, and the two resolutions that field can carry. Present only when
+#: there is no table: a section holding rows states its resolution by holding
+#: them, on the rule every other field here follows.
+UNREAD_KEY = "unread"
+
+#: ``squeue`` ran and refused -- a non-zero exit, or a call that outlived its
+#: bound. The scheduler was asked and declined, so the node's job table exists
+#: and this record does not carry it.
+COMMAND_FAILED = "command-failed"
+
+#: No ``squeue`` on this node at all. The question could not be put, which is a
+#: different fact from an answer that was declined and is worth telling apart:
+#: a refused query is worth retrying on a node whose scheduler was momentarily
+#: busy, and a missing command never is.
+COMMAND_ABSENT = "command-absent"
+
+
+def resolve_command(
+    argv: Sequence[str], run: RunFn, *, timeout_s: float
+) -> tuple[str | None, str | None]:
+    """``(stdout, unread marker)`` for one local call.
+
+    ``(text, None)`` when the command answered with output, and
+    ``(None, marker)`` when it did not, the marker naming which kind of
+    not-answering it was -- :data:`COMMAND_FAILED` for a command that ran and
+    refused, :data:`COMMAND_ABSENT` for a program this node does not carry.
+
+    The two are separable only at this point. A runner reports both as no
+    output, and only the spawn knows why: a missing program raises
+    ``FileNotFoundError`` while a command that ran and refused returns non-zero.
+    A caller that records a reading *of the node* needs the distinction (see
+    :func:`read_jobs`); a caller whose field is simply absent either way may
+    ignore the marker, which is what the card and host reads do.
+    """
+    try:
+        text = run(argv, timeout_s=timeout_s)
+    except FileNotFoundError:
+        return None, COMMAND_ABSENT
+    if text is None:
+        return None, COMMAND_FAILED
+    return text, None
 
 
 # ── GPU cards ────────────────────────────────────────────────────────
@@ -265,12 +334,13 @@ def read_cards(
     All fields come from a single query, so a card's readings describe one
     instant rather than several a query apart.
     """
-    text = run(
+    text, _unread = resolve_command(
         (
             "nvidia-smi",
             f"--query-gpu={','.join(CARD_QUERY_FIELDS)}",
             "--format=csv,noheader,nounits",
         ),
+        run,
         timeout_s=timeout_s,
     )
     if not text:
@@ -428,7 +498,7 @@ def read_cpu_times(
     run: RunFn = run_capture, *, timeout_s: float = 10.0
 ) -> CpuTimes | None:
     """One read of ``/proc/stat``'s aggregate CPU counters."""
-    text = run(("cat", "/proc/stat"), timeout_s=timeout_s)
+    text, _unread = resolve_command(("cat", "/proc/stat"), run, timeout_s=timeout_s)
     return parse_proc_stat(text) if text else None
 
 
@@ -436,7 +506,7 @@ def read_meminfo(
     run: RunFn = run_capture, *, timeout_s: float = 10.0
 ) -> dict[str, float]:
     """One read of ``/proc/meminfo`` in MiB, empty when it could not be read."""
-    text = run(("cat", "/proc/meminfo"), timeout_s=timeout_s)
+    text, _unread = resolve_command(("cat", "/proc/meminfo"), run, timeout_s=timeout_s)
     return parse_meminfo(text) if text else {}
 
 
@@ -496,26 +566,59 @@ def parse_squeue(text: str) -> list[dict[str, Any]]:
     return jobs
 
 
+def scheduler_node_name(nodename: str) -> str:
+    """The name the scheduler knows a node by, from the node's own nodename.
+
+    A node's own nodename is its fully qualified domain name -- ``hostname``
+    and ``os.uname().nodename`` both report ``98dci4-gpu-0003.iter.org`` on the
+    serving node -- while the scheduler's node names are the short host names,
+    which is the same string cut at the first dot. ``squeue -w`` does not accept
+    the qualified spelling quietly: it refuses it with ``squeue: error: Invalid
+    node name 98dci4-gpu-0003.iter.org`` and exit 1, so the job table of any
+    node whose nodename carries a domain has never been read, and its absence
+    from the record was indistinguishable from a node holding nothing.
+
+    The cut is the whole transformation because it is the relation the two
+    spellings have rather than a guess at one: a nodename carrying no dot is
+    already the short name and comes back unchanged, so a node reporting either
+    spelling is queried under the name the scheduler has for it.
+    """
+    return nodename.split(".", 1)[0]
+
+
 def read_jobs(
     hostname: str,
     run: RunFn = run_capture,
     *,
     timeout_s: float = 15.0,
-) -> dict[str, Any] | None:
-    """The node's job table as the row's jobs reading, or ``None``.
+) -> dict[str, Any]:
+    """The node's job table as the row's jobs reading.
 
     Scoped to *hostname* rather than to a user or an account, because the
     question the record answers is what else was resident on this node. A node
-    with no jobs is a reading and is kept; a ``squeue`` that failed is not.
+    with no jobs is a reading and is kept.
+
+    *hostname* is the recorded identity and is kept verbatim, because a reader
+    joins rows on the node's fully qualified name. The query is put to the
+    scheduler under :func:`scheduler_node_name`, which is a different string:
+    the two spellings are not interchangeable at the wire, and passing the
+    recorded one to ``squeue`` is what left this section unread on the serving
+    node.
+
+    A ``squeue`` that did not answer still contributes a section, carrying a
+    :data:`UNREAD_KEY` marker that says whether the scheduler refused the query
+    or the node has no ``squeue`` at all -- see the module docstring for why the
+    job table is the one reading that records its own non-answer. Such a section
+    holds no ``count`` and no ``jobs``, so it cannot be read as an empty table.
 
     *timeout_s* bounds a command that crosses the scheduler, so the default is
     wider than the local reads' -- see ``NodeProbe.job_timeout_s``, which is
     what the probe passes here.
     """
-    argv = ("squeue", "-h", "-w", hostname, "-o", SQUEUE_FORMAT)
-    text = run(argv, timeout_s=timeout_s)
+    argv = ("squeue", "-h", "-w", scheduler_node_name(hostname), "-o", SQUEUE_FORMAT)
+    text, unread = resolve_command(argv, run, timeout_s=timeout_s)
     if text is None:
-        return None
+        return {"hostname": hostname, UNREAD_KEY: unread}
     jobs = parse_squeue(text)
     return {"hostname": hostname, "count": len(jobs), "jobs": jobs}
 
@@ -568,12 +671,14 @@ class NodeProbe:
             self._previous_cpu = times
 
         if self._jobs_at is None or now - self._jobs_at >= self.job_interval_s:
-            jobs = read_jobs(self.hostname, self.run, timeout_s=self.job_timeout_s)
+            # read_jobs always answers a section, so an unread table reaches the
+            # row here rather than being dropped -- see the module docstring.
+            sections["jobs"] = read_jobs(
+                self.hostname, self.run, timeout_s=self.job_timeout_s
+            )
             # A failed job-table read does not retry on the next tick: it is a
             # SLURM RPC, and the following one is due on the same clock either
             # way, so a node refusing squeue is not asked twice a second.
             self._jobs_at = now
-            if jobs is not None:
-                sections["jobs"] = jobs
 
         return sections

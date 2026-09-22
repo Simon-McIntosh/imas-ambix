@@ -977,6 +977,13 @@ E             'imas_ambix/agent/bench.py'
     reading. The distinction is asserted per source, and a probe with nothing at all to
     report emits an empty mapping rather than four empty sections.</p>
 
+    <p><strong>Amended:</strong> the job table is the one source this rule does not
+    cover, because for it a non-answer is itself a fact about the node. That reading, and
+    the two markers that now separate a refused query from a node carrying no
+    <code>squeue</code>, are recorded in
+    <a href="#job-table-two-spellings">§3 — the job table reads, and its non-answers are
+    told apart</a> below.</p>
+
     <h3 id="card-index-map">Cards carry the node's index, not the step's</h3>
 
     <p>SLURM restricts a process to its allocated devices through the device cgroup, so
@@ -2482,6 +2489,103 @@ except ImportError:
     the job id, which is a fact about the writer; a reader wanting the host a particular
     <em>row</em> was recorded on still reads the row, and the two agree only because one file is
     written by one machine.</p>
+
+<h2 id="job-table-two-spellings">§3 — the job table reads, and its non-answers are told apart</h2>
+
+<figure>
+  <img src="/imas-ambix/figures/serve-telemetry-spine/job-table-two-spellings.svg"
+       alt="Before: one nodename passed to both the row and to squeue -w, which SLURM refuses, so no jobs section is written and the failure reads as a node with no job table. Now: the recorded identity and the query argument are resolved apart — the row keeps the fully qualified name, the wire carries the short one. Below, the jobs section in its three cases: answered, carrying count and rows; refused, carrying the command-failed marker; absent, carrying the command-absent marker, none of them carrying a zero count.">
+  <figcaption>One field serving two consumers that need different values, and the three values the jobs section can hold.</figcaption>
+</figure>
+
+<p><strong>The job table never read on the serving node, and the record could not say so.</strong>
+<code>read_jobs</code> took the node's identity from <code>os.uname().nodename</code> — its fully
+qualified domain name — and handed that same string to <code>squeue -h -w</code>. SLURM refuses the
+qualified spelling at the wire: <code>squeue: error: Invalid node name
+98dci4-gpu-0003.iter.org</code>, exit 1. One field was serving two consumers with different needs:
+the recorded identity, where the qualified name is what a reader joins rows on, and the scheduler
+argument, which must be the short name. The reproduction was repeated independently on the login
+node: <code>squeue -h -w 98dci4-gpu-0003.iter.org</code> answers <code>Invalid node name</code>,
+while <code>squeue -h -w 98dci4-gpu-0003</code> exits 0 and returns three jobs, the serve among
+them.</p>
+
+<p><strong>The second half is why the first half was invisible.</strong> Following §3's rule that a
+probe which did not answer omits its section, the refused query wrote no section at all — and a
+dropped section is byte-identical in the row to a node whose <code>squeue</code> returned an empty
+table. The failure was not merely unrecorded, it was recorded as the opposite reading. The
+resolution follows the shape this spine already uses for a refused boot identity, where the row is
+still stored and announces which degraded case it is, rather than inventing a second mechanism: the
+job table now always contributes a section, carrying a <code>unread</code> marker when it did not
+answer. The marker names which non-answer it was, because the two are worth different things to a
+reader — a refused query may answer on the next tick, while a node with no scheduler client never
+will.</p>
+
+<h3 id="job-table-two-markers">The two markers are separated where they can be separated, and nowhere else</h3>
+
+<p>At the spawn the two cases are already distinct: a program the node does not carry raises
+<code>FileNotFoundError</code>, while a command that ran and refused returns non-zero and a command
+that outlived its bound is killed. Inside the process they are the same <code>None</code>. So
+<code>run_capture</code> re-raises the missing-program case instead of folding it in, and a new
+<code>resolve_command</code> answers <code>(text, None)</code> for an output,
+<code>(None, COMMAND_ABSENT)</code> for a program this node lacks and
+<code>(None, COMMAND_FAILED)</code> otherwise. Every read in the module routes through it, so nothing
+a probe does can raise and hold a tick open; the card and host reads discard the marker and keep
+their existing behaviour of omitting the section, and only the job read records it.</p>
+
+<p><strong>The three values the jobs section can hold.</strong> <code>squeue</code> answers:
+<code>{"hostname": "98dci4-gpu-0003.iter.org", "count": 3, "jobs": [...]}</code>.
+<code>squeue</code> exits non-zero:
+<code>{"hostname": "98dci4-gpu-0003.iter.org", "unread": "command-failed"}</code>.
+<code>{"hostname": "98dci4-gpu-0003.iter.org", "unread": "command-absent"}</code> for
+<code>squeue</code> absent from <code>PATH</code>. None of the three carries a <code>count</code>,
+which is the property that keeps a non-answer from being read as an empty table; the answered value
+states its resolution by carrying its rows, and the other two state theirs with the marker.</p>
+
+<h3 id="job-table-short-name">The scheduler name is derived from the name in hand</h3>
+
+<p><code>scheduler_node_name</code> is <code>nodename.split(".", 1)[0]</code> — the
+<code>hostname -s</code> relation, computed rather than fetched, so the fix needs no second
+subprocess and no <code>shutil.which</code>. The recorded identity is unchanged at every call site:
+the row's <code>jobs.hostname</code> is still the fully qualified name it always was. A nodename
+carrying no domain is already the scheduler's spelling, and the test asserts that rather than
+assuming the cut, so the relation is pinned on both sides of the boundary.</p>
+
+<h3 id="job-table-gates">Gates, controls and the records this changes</h3>
+
+<p><code>pytest tests/test_node_probe.py</code> is <strong>40 passed</strong> at the change against
+<strong>35 passed</strong> at base <code>7fecfdff</code>; <code>uv run --no-sync ruff check imas_ambix
+tests</code> exits 0. Both runs are on the login node: the suite is a unit run of a fraction of a
+second over fixtures it builds itself, with no corpus read, which is the case the compute rule leaves
+there. The module also parses under the serving environment's interpreter, checked with that
+interpreter (Python 3.12.11) rather than inferred from the repository's 3.14 lint target.</p>
+
+<p><strong>The declared negative control, run verbatim.</strong> Restoring
+<code>argv = ("squeue", "-h", "-w", hostname, "-o", SQUEUE_FORMAT)</code> in <code>read_jobs</code>
+reddens exactly <code>test_the_scheduler_is_given_the_short_name_the_row_keeps_the_qualified_one</code>
+— <strong>1 failed and 39 passed</strong>, exit 1. The log's first line is that mutated line
+verbatim. A second control collapses the two markers (<code>return None, COMMAND_ABSENT</code>
+becomes <code>return None, COMMAND_FAILED</code> in <code>resolve_command</code>) and reddens
+<code>test_a_node_with_no_squeue_records_a_different_marker_from_a_refused_query</code> and
+<code>test_the_three_job_resolutions_are_the_values_this_node_records</code> —
+<strong>2 failed and 38 passed</strong>, exit 1, again with the mutation verbatim on line 1. That is
+the measurement separating "a non-answer is recorded" from "every non-answer is recorded the same
+way".</p>
+
+<p><strong>Two records read stale against this change, and both are disclosed rather than quietly
+left, because rewriting §3's own paragraphs is outside this node's write paths and editing the
+plan's <code>plan-version</code> and <code>plan-modified</code> meta lines is out of scope.</strong>
+§3's prose names the wire as <code>squeue -w $(hostname)</code>, which is the defect this change
+removes, and §3's done-when states that "a probe that fails or is unavailable omits its section and
+the tick still completes" — which the job table now deliberately does not do. The directive for this
+node names the job table as the one source whose non-answer is itself a reading, so the code follows
+the directive, the module docstring and the <code>run_capture</code> contract were amended to match,
+and the section text is left for whoever closes the driving followup. The dispatch brief also priced
+the base suite at 34 tests where the base revision runs 35, so "more tests than at base" is met
+against the measured figure, not the stated one.</p>
+
+<p><strong>Not this node's to close.</strong> Verifying the merged head belongs to the separately
+dispatched test node, and a node does not resolve its own driving followup or set its own terminal
+status.</p>
 
 </main>
 </body>

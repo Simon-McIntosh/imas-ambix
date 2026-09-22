@@ -27,6 +27,14 @@ Coverage
     coupling back to the module is asserted once, in a single labelled test,
     which is the only place a derived expectation belongs; every other
     expectation here is a literal.
+10. The job query is put to the scheduler under the short host name while the
+    section keeps the fully qualified one it was given, because ``squeue -w``
+    refuses the qualified spelling and has therefore never read the table on the
+    serving node; the two are asserted apart at the wire and in the section.
+11. A job read that did not answer still yields a section, marked differently
+    for a scheduler that refused the query and for a node with no ``squeue`` at
+    all, so an unread table cannot be read as an empty one. The marker a failed
+    read carries is pinned separately from the one an absent program carries.
 
 The fixtures are recorded bodies.  ``_PROC_STAT``, ``_PROC_MEMINFO`` and
 ``_SQUEUE`` were captured on this workstation, the job table from the serving
@@ -152,6 +160,29 @@ _SQUEUE_FORMAT = "%i|%u|%j|%T|%P|%C|%m|%b|%M"
 
 def _jobs_argv(hostname):
     return ("squeue", "-h", "-w", hostname, "-o", _SQUEUE_FORMAT)
+
+
+#: The two spellings of the serving node, as the node and the scheduler each
+#: state them. ``os.uname().nodename`` reports the qualified one there, and
+#: ``squeue -w`` accepts only the short one.
+_NODE_FQDN = "98dci4-gpu-0003.iter.org"
+_NODE_SHORT = "98dci4-gpu-0003"
+
+
+def _absent_runner(program: str):
+    """A runner for every source except one the node does not carry.
+
+    A missing program is raised rather than answered, which is the real
+    runner's behaviour: only the spawn knows the call could not be started, and
+    that is the fact separating it from a command that ran and refused.
+    """
+
+    def run(argv, *, timeout_s):
+        if argv[0] == program:
+            raise FileNotFoundError(2, "No such file or directory", program)
+        return None
+
+    return run
 
 
 def _recording_runner():
@@ -382,6 +413,34 @@ def test_the_job_table_carries_the_node_it_describes():
     assert calls == [["squeue", "-h", "-w", "98dci4-gpu-0003", "-o", _SQUEUE_FORMAT]]
 
 
+def test_the_scheduler_is_given_the_short_name_the_row_keeps_the_qualified_one():
+    """``squeue -w`` refuses the qualified spelling, so it must not receive it.
+
+    The serving node's own nodename is ``98dci4-gpu-0003.iter.org``; handed that,
+    ``squeue`` exits 1 with ``Invalid node name`` and the table is never read,
+    while the section records the node a reader joins on. One field serves both
+    and they are different strings, which is asserted at the wire rather than
+    only in the section.
+    """
+    calls: list[list[str]] = []
+
+    def run(argv, *, timeout_s):
+        calls.append(list(argv))
+        return _SQUEUE
+
+    section = node_probe.read_jobs(_NODE_FQDN, run)
+
+    assert calls == [list(_jobs_argv(_NODE_SHORT))]
+    assert section["hostname"] == _NODE_FQDN
+    assert section["count"] == 3
+
+
+def test_a_nodename_carrying_no_domain_is_already_the_scheduler_name():
+    """The cut is the relation between the two spellings, not an assumption."""
+    assert node_probe.scheduler_node_name(_NODE_FQDN) == _NODE_SHORT
+    assert node_probe.scheduler_node_name(_NODE_SHORT) == _NODE_SHORT
+
+
 # ── A source that did not answer ─────────────────────────────────────
 
 
@@ -400,10 +459,63 @@ def test_a_failed_host_read_contributes_no_host_section():
     assert "host" not in probe.sample(0.0)
 
 
-def test_a_job_query_that_did_not_answer_contributes_no_job_section():
+def test_a_failed_job_read_reaches_the_row_marked_and_without_a_count():
+    """A refused ``squeue`` is a reading about the node, so it is not dropped.
+
+    Dropped, it is indistinguishable in the record from a tick where the table
+    was not due -- and, read as an empty table, from a node that held no jobs.
+    The section therefore carries the marker and no ``count``, so nothing can
+    read it as a table that answered with zero.
+    """
     probe = node_probe.NodeProbe(run=_node_runner(jobs=None), env={}, hostname="n")
 
-    assert "jobs" not in probe.sample(0.0)
+    assert probe.sample(0.0)["jobs"] == {
+        "hostname": "n",
+        "unread": node_probe.COMMAND_FAILED,
+    }
+
+
+def test_a_node_with_no_squeue_records_a_different_marker_from_a_refused_query():
+    """The two non-answers are separated, because only one is worth retrying."""
+    failed = node_probe.read_jobs(_NODE_FQDN, _node_runner(jobs=None))
+    absent = node_probe.read_jobs(_NODE_FQDN, _absent_runner("squeue"))
+
+    assert failed == {"hostname": _NODE_FQDN, "unread": node_probe.COMMAND_FAILED}
+    assert absent == {"hostname": _NODE_FQDN, "unread": node_probe.COMMAND_ABSENT}
+    assert failed != absent
+    assert "count" not in failed and "count" not in absent
+
+
+def test_the_three_job_resolutions_are_the_values_this_node_records():
+    """The one place the three section values are written out together.
+
+    Answers, exits non-zero, and is absent from ``PATH``: three distinct values
+    for one section, which is what the record needs to tell an empty node from
+    an unreadable one. Only the first carries a table.
+    """
+    answered = node_probe.read_jobs(_NODE_FQDN, _node_runner())
+    failed = node_probe.read_jobs(_NODE_FQDN, _node_runner(jobs=None))
+    absent = node_probe.read_jobs(_NODE_FQDN, _absent_runner("squeue"))
+
+    assert answered == {
+        "hostname": _NODE_FQDN,
+        "count": 3,
+        "jobs": node_probe.parse_squeue(_SQUEUE),
+    }
+    assert failed == {"hostname": _NODE_FQDN, "unread": "command-failed"}
+    assert absent == {"hostname": _NODE_FQDN, "unread": "command-absent"}
+    assert len({str(answered), str(failed), str(absent)}) == 3
+
+
+def test_a_program_the_node_does_not_have_is_raised_rather_than_swallowed():
+    """The real runner, which is where the two markers come from.
+
+    A missing program raises, a command that ran and refused does not: if the
+    runner answered ``None`` for both, no caller could tell a node with no
+    ``squeue`` from one whose scheduler declined the query.
+    """
+    with pytest.raises(FileNotFoundError):
+        node_probe.run_capture(["ambix-no-such-binary-probe"])
 
 
 @pytest.mark.parametrize(
@@ -432,22 +544,28 @@ def test_a_host_with_one_unreadable_source_keeps_only_what_it_read(
     assert not (absent & set(section))
 
 
-def test_a_probe_with_nothing_at_all_to_report_emits_no_sections():
-    """The whole-node case: no source answered, so the row carries no node keys."""
+def test_a_probe_with_nothing_at_all_to_report_still_carries_the_unread_job_table():
+    """The whole-node case, and the one section that survives it.
+
+    Every source refused, so cards and host are dropped as before. The job
+    table is the exception: dropped, a refusal is indistinguishable from a
+    node with no jobs, which is the reading this column was added to stop.
+    """
     probe = node_probe.NodeProbe(
         run=_runner({"nvidia-smi": None, "cat": None, "squeue": None}),
         env={},
         hostname="n",
     )
 
-    assert probe.sample(0.0) == {}
+    assert probe.sample(0.0) == {
+        "jobs": {"hostname": "n", "unread": node_probe.COMMAND_FAILED}
+    }
 
 
 def test_a_nonzero_exit_is_not_a_reading_even_when_the_command_printed():
     """The real runner, which is the guard every probe above rests on."""
     assert node_probe.run_capture(["true"]) == ""
     assert node_probe.run_capture(["bash", "-c", "echo hi; exit 3"]) is None
-    assert node_probe.run_capture(["ambix-no-such-binary-probe"]) is None
 
 
 # ── Cadence ──────────────────────────────────────────────────────────

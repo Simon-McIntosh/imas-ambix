@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 620" width="960" height="620"
+     font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="13">
+  <rect width="960" height="620" fill="#fbfbfd"/>
+  <text x="24" y="30" font-size="16" font-weight="bold" fill="#1b1b1f">One nodename, two consumers: the identity the row keeps, the name the scheduler answers to</text>
+
+  <!-- BEFORE -->
+  <g>
+    <rect x="24" y="46" width="912" height="150" rx="8" fill="#fdf1f1" stroke="#8a1c1c"/>
+    <text x="38" y="70" font-size="14" font-weight="bold" fill="#8a1c1c">Before — one string passed to both, and the query refused</text>
+
+    <rect x="44" y="86" width="196" height="56" rx="6" fill="#e8eef8" stroke="#3a5a9c"/>
+    <text x="142" y="108" text-anchor="middle" fill="#1b1b1f">the node's nodename</text>
+    <text x="142" y="127" text-anchor="middle" font-family="monospace" font-size="11" fill="#3a5a9c">98dci4-gpu-0003.iter.org</text>
+
+    <line x1="240" y1="114" x2="292" y2="114" stroke="#3a5a9c" stroke-width="1.5"/>
+    <rect x="292" y="86" width="252" height="56" rx="6" fill="#fff" stroke="#6a6a72"/>
+    <text x="418" y="107" text-anchor="middle" font-family="monospace" font-size="11" fill="#1b1b1f">squeue -h -w 98dci4-gpu-0003.iter.org</text>
+    <text x="418" y="127" text-anchor="middle" font-size="10.5" fill="#8a1c1c">Invalid node name … exit 1</text>
+
+    <line x1="544" y1="114" x2="596" y2="114" stroke="#8a1c1c" stroke-width="1.5"/>
+    <rect x="596" y="86" width="316" height="56" rx="6" fill="#fff" stroke="#8a1c1c" stroke-dasharray="4 3"/>
+    <text x="754" y="108" text-anchor="middle" fill="#8a1c1c">no jobs section is written</text>
+    <text x="754" y="127" text-anchor="middle" font-size="10.5" fill="#8a1c1c">which reads exactly as a node with no job table</text>
+
+    <text x="44" y="168" font-size="11.5" fill="#8a1c1c">The column never read on the serving node: every row of that serve is silent about what else was resident on it.</text>
+    <text x="44" y="186" font-size="11.5" fill="#8a1c1c">A refused query and an empty table are the same row — the failure is invisible in the record.</text>
+  </g>
+
+  <!-- NOW -->
+  <g>
+    <rect x="24" y="208" width="912" height="188" rx="8" fill="#eef7f1" stroke="#12603a"/>
+    <text x="38" y="232" font-size="14" font-weight="bold" fill="#12603a">Now — the recorded identity and the query argument are resolved apart</text>
+
+    <rect x="44" y="248" width="196" height="56" rx="6" fill="#e8eef8" stroke="#3a5a9c"/>
+    <text x="142" y="270" text-anchor="middle" fill="#1b1b1f">os.uname().nodename</text>
+    <text x="142" y="289" text-anchor="middle" font-family="monospace" font-size="11" fill="#3a5a9c">98dci4-gpu-0003.iter.org</text>
+
+    <line x1="240" y1="276" x2="292" y2="276" stroke="#12603a" stroke-width="1.5"/>
+    <rect x="292" y="248" width="252" height="56" rx="6" fill="#fff" stroke="#12603a"/>
+    <text x="418" y="269" text-anchor="middle" font-family="monospace" font-size="11" fill="#1b1b1f">scheduler_node_name(…) = split(".", 1)[0]</text>
+    <text x="418" y="289" text-anchor="middle" font-size="10.5" fill="#12603a">the wire: accepted, exit 0</text>
+
+    <line x1="544" y1="276" x2="596" y2="276" stroke="#12603a" stroke-width="1.5"/>
+    <rect x="596" y="248" width="316" height="56" rx="6" fill="#fff" stroke="#12603a" stroke-dasharray="4 3"/>
+    <text x="754" y="269" text-anchor="middle" fill="#12603a">the row: hostname kept verbatim</text>
+    <text x="754" y="289" text-anchor="middle" font-size="10.5" fill="#12603a">a reader joins rows on the qualified name</text>
+
+    <rect x="44" y="320" width="868" height="60" rx="6" fill="#fff" stroke="#6a6a72"/>
+    <text x="58" y="343" font-family="monospace" font-size="11" fill="#1b1b1f">jobs = {"hostname": "98dci4-gpu-0003.iter.org", "count": 3, "jobs": [ … ]}</text>
+    <text x="58" y="366" font-size="11" fill="#3a3a44">the section states its resolution by carrying the rows; the two spellings never meet again</text>
+  </g>
+
+  <!-- THREE RESOLUTIONS -->
+  <g>
+    <rect x="24" y="410" width="912" height="186" rx="8" fill="#f4f4f7" stroke="#3a3a44"/>
+    <text x="38" y="434" font-size="14" font-weight="bold" fill="#1b1b1f">The jobs section in its three cases — the marker says which non-answer it was</text>
+
+    <rect x="44" y="450" width="284" height="126" rx="6" fill="#eef7f1" stroke="#12603a"/>
+    <text x="58" y="474" font-size="12.5" font-weight="bold" fill="#12603a">squeue answers</text>
+    <text x="58" y="496" font-family="monospace" font-size="10.5" fill="#1b1b1f">{"hostname": "…iter.org",</text>
+    <text x="58" y="512" font-family="monospace" font-size="10.5" fill="#1b1b1f"> "count": 3,</text>
+    <text x="58" y="528" font-family="monospace" font-size="10.5" fill="#1b1b1f"> "jobs": [ … ]}</text>
+    <text x="58" y="556" font-size="10.5" fill="#3a3a44">a table was read</text>
+
+    <rect x="338" y="450" width="284" height="126" rx="6" fill="#fdf6e8" stroke="#8a6a1c"/>
+    <text x="352" y="474" font-size="12.5" font-weight="bold" fill="#8a6a1c">squeue exits non-zero</text>
+    <text x="352" y="496" font-family="monospace" font-size="10.5" fill="#1b1b1f">{"hostname": "…iter.org",</text>
+    <text x="352" y="512" font-family="monospace" font-size="10.5" fill="#1b1b1f"> "unread": "command-failed"}</text>
+    <text x="352" y="556" font-size="10.5" fill="#8a6a1c">ran and refused; retrying can help</text>
+
+    <rect x="632" y="450" width="284" height="126" rx="6" fill="#fdf1f1" stroke="#8a1c1c"/>
+    <text x="646" y="474" font-size="12.5" font-weight="bold" fill="#8a1c1c">squeue is absent from PATH</text>
+    <text x="646" y="496" font-family="monospace" font-size="10.5" fill="#1b1b1f">{"hostname": "…iter.org",</text>
+    <text x="646" y="512" font-family="monospace" font-size="10.5" fill="#1b1b1f"> "unread": "command-absent"}</text>
+    <text x="646" y="556" font-size="10.5" fill="#8a1c1c">the node carries no scheduler client</text>
+
+    <text x="338" y="588" font-size="11" fill="#3a3a44">None of the three carries a zero count, so no reader can mistake a non-answer for an empty node. The two markers separate at the spawn:</text>
+    <text x="338" y="604" font-family="monospace" font-size="11" fill="#1b1b1f">FileNotFoundError → command-absent;   returned None → command-failed</text>
+  </g>
+</svg>
