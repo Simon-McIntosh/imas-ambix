@@ -1463,6 +1463,156 @@ burst_usec 0</code></pre>
     would be a picture of a table.</p>
   </section>
 
+<section id="throttling-share-over-the-span">
+    <h2>The throttled share over the span between two samples, beside the cumulative one</h2>
+    <p>Commit <code>f8921dec</code>, confined to <code>imas_ambix/agent/throttling.py</code>
+    and its test file. The baseline above is a cumulative ratio: the counters it divides are
+    running totals since boot, so the figure describes every day the login slice has been up
+    and moves by a fraction of a point across a working day however much of that day was lost.
+    Reading it before and after a change therefore cannot attribute relief to the period
+    between the two readings — 43 days of uptime is in the numerator whichever week is being
+    judged.</p>
+    <p><code>throttled_share_over_elapsed(first, second, seconds)</code> takes the two samples
+    and the span's wall-clock length and computes the rise in <code>throttled_usec</code> over
+    the ceiling's own capacity for that span — the quota's core count, times the elapsed
+    seconds. The ceiling is taken from the earlier sample, so the figure describes the quota
+    that was in force while those counters accumulated, as the existing period-derived interval
+    share does. It <em>refuses</em> rather than returning a number wherever no share exists,
+    because a caller asking for a bounded-period figure is asking because the cumulative one
+    cannot answer it, and a substituted number would be read as the answer. A span that begins
+    in a group with no stated ceiling is a refusal, and so is one whose samples state no period
+    counters.</p>
+
+    <h3>The live reading, against the recorded baseline</h3>
+    <p>Read on <code>98dci4-srv-1006</code>, control group
+    <code>user.slice/user-39486.slice</code>, over a 60-second span. Both ratios are stated so
+    their difference is visible, which is the whole point of the node: the cumulative figure has
+    moved 2.6&nbsp;percent since the baseline was recorded, while the span figure is a third
+    below it.</p>
+    <table>
+      <thead><tr><th>reading</th><th>value</th><th>what divides what</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>recorded baseline, cumulative since boot</td>
+          <td><strong>0.3396</strong></td>
+          <td>the baseline this plan carries</td>
+        </tr>
+        <tr>
+          <td>cumulative since boot at this reading</td>
+          <td><strong>0.3483</strong></td>
+          <td>the cumulative stall counter over 4 cores &times; every period accounted since boot</td>
+        </tr>
+        <tr>
+          <td>over the 60-second span between the two samples</td>
+          <td><strong>0.2323</strong></td>
+          <td>55,743,624 usec stalled over 4 cores &times; 60.0 s</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>The denominator is exact rather than approximate here: <code>cpu.max</code> reads
+    <code>400000 100000</code> in both samples, so the ceiling is four cores, and the span
+    permits <code>4 &times; 60.0 &times; 1e6 = 240,000,000</code> usec of thread-time.
+    <code>55,743,624 / 240,000,000 = 0.232265</code>, which is the emitted figure. The span's counters
+    are <code>usage_usec +174,225,595</code>, <code>nr_periods +600</code>,
+    <code>nr_throttled +157</code>, <code>throttled_usec +55,743,624</code> — 600 periods in
+    60.0 s at one period per 100&nbsp;ms, which is the check that the span's own accounting agrees
+    with the wall clock it was divided by.</p>
+    <figure>
+      <img src="/imas-ambix/figures/slurm-hosted-agent-fleet/interval-share-over-elapsed.svg"
+           alt="The recorded cumulative baseline 0.3396, the cumulative share at this reading 0.3483, and the share over the 60-second span 0.2323."
+           style="max-width:100%;height:auto">
+      <figcaption>Throttled share of permitted CPU thread-time on the login slice. The two grey
+      bars are the same quantity — stalled thread-time over permitted thread-time since boot —
+      and differ by 2.6 percent across the interval since the baseline was recorded. The blue
+      bar is the same counters differenced over the span alone. The gap between them is what the
+      cumulative figure cannot show: it is the recent period, undiluted.</figcaption>
+    </figure>
+    <p>A single span remains a draw rather than a level — five adjacent 60-second windows at the
+    baseline spanned 0.425 to 1.865 — so this one reading is evidence that the instrument
+    produces a figure attributable to its interval, not evidence about the current level of
+    throttling. It is stated beside the cumulative ratio, which is the stable one, rather than in
+    place of it.</p>
+
+    <h3>What is refused, and what is preserved</h3>
+    <p>The absent-versus-genuinely-zero distinction the reader already makes is carried through
+    rather than collapsed: the new function refuses on either absence instead of differencing a
+    zero that was never accounted.</p>
+    <table>
+      <thead><tr><th>state of the span</th><th>result</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>a quotaed group, both samples stating all three period counters</td>
+          <td>the rise over the ceiling's capacity for the span</td>
+        </tr>
+        <tr>
+          <td>either sample stating no period counter (the compute-side group)</td>
+          <td><code>ValueError</code> — no rise to measure, rather than a zero</td>
+        </tr>
+        <tr>
+          <td>the span beginning in a group with no stated ceiling of its own</td>
+          <td><code>ValueError</code> — the core count the denominator needs does not exist</td>
+        </tr>
+        <tr>
+          <td>a zero-length span</td>
+          <td><code>ValueError</code> — there is nothing to divide by</td>
+        </tr>
+        <tr>
+          <td>a counter going backwards between the samples</td>
+          <td><code>ValueError</code>, delegated to the existing differencing refusal</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>The <code>interval</code> subcommand now emits the span it measured
+    (<code>elapsed_seconds</code>, from the monotonic clock around the sleep, so it is the span
+    actually divided by rather than the one requested) and that share beside the cumulative one.
+    Where no share of the span exists it states the cause rather than raising, so the sampler
+    stays usable on the ceiling-less compute side it exists to compare against — the same
+    constraint the absent-ceiling repair above carries.</p>
+
+    <table>
+      <thead><tr><th>Gate</th><th>Observed result</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Focused suite</td>
+          <td><code>uv run --no-sync pytest tests/agent/test_throttling.py</code>:
+          <code>85 passed in 0.20s</code>, exit 0 (76 passed at the base revision)</td>
+        </tr>
+        <tr>
+          <td>Whole-tree lint</td>
+          <td><code>uv run --no-sync ruff check imas_ambix tests</code>:
+          <code>All checks passed!</code>, exit 0</td>
+        </tr>
+        <tr>
+          <td>Declared negative control applied</td>
+          <td><strong>1 failed</strong> on
+          <code>TestShareOverElapsedSpan::test_a_sample_that_states_no_period_counter_is_refused</code>
+          with <code>Failed: DID NOT RAISE &lt;class 'ValueError'&gt;</code>; the source was
+          restored and the class re-run to <strong>8 passed</strong>, exit 0</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>The declared mutation is <em>treat an absent period counter as a zero when differencing
+    the two samples, instead of refusing; the refusal test for a sample stating no counters must
+    then fail</em>, applied to <em>the unaccounted branch of the differencing function</em>. The
+    red log is
+    <code>~/.config/reckon/crew/runs/r-20260922T183129460322-fleet-throttle-delta/logs/negative-control-receipt.txt</code>,
+    whose first line repeats the declared mutation verbatim; the header was checked rather than
+    assumed, and the check printed <strong>IDENTICAL</strong>. The other logs for this section
+    are <code>logs/pytest-focused.log</code>, <code>logs/ruff.log</code>,
+    <code>logs/live-interval-read.log</code> and
+    <code>logs/negative-control-restore.log</code>, under that same run directory. Each gate
+    log's first line names the revision it ran at, the tree and the command.</p>
+
+    <h3>What this record does not establish</h3>
+    <p>No claim is made about the current level of throttling: one 60-second span is a draw, as
+    the baseline section above already measured, and the figure is quoted with the span it came
+    from rather than as a rate. The merged head is not verified here — this measures the node's
+    own change in its own worktree, and verifying the merged result belongs to a separately
+    dispatched test node. The sample on the compute side is not re-read here; the refusal over a
+    span beginning in a group with no ceiling is exercised over constructed samples, and the
+    live compute-side absence is the finding recorded in the section above.</p>
+  </section>
+
 </main>
 </body>
 </html>
