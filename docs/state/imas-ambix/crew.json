@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-22T04:15:36",
+  "updated": "2026-09-22T04:18:45",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -65253,6 +65253,321 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260922T014909768834-review-of-host-key",
+        "plan": "serve-telemetry-spine",
+        "section": "\u00a75",
+        "node": "review-of-host-key",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1580,
+                "cached_input_tokens": 480112,
+                "input_tokens": 481694,
+                "output_tokens": 1346,
+                "reasoning_output_tokens": 266,
+                "total_tokens": 483040,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "98f13dbe-0703-4abd-a5e4-65bfdb2eeee2",
+            "session_id": "wire-telemetry-spine"
+          },
+          "done_when": "The stored review parses with all five dimensions scored and its text answers five stated questions with evidence. FIRST, the review states whether the pinned-inode test reproduces the collision it claims: _pin_inode(monkeypatch, 424242) forces every path to one inode, and the review states whether test_two_hosts_at_one_inode_and_offset_are_both_kept fails against the previous keys of (path, inode) and (inode, offset), by running it at the base revision or by stating why it cannot. SECOND, the node catches throttling.parse_boot_id rather than inheriting its refusal and records key_kind naming which key each row got; the review states whether a host-only row is distinguishable from a host-and-boot row at every read path, or names a path conflating them. THIRD, the boot identity is resolved per row rather than per file, on the ground that one file can hold rows from both sides of a reboot while its hostname never moves; the review states whether that is implemented as described and whether any per-file cache defeats it. FOURTH, discover and ingest signatures had to stay stable because a concurrent node wired a watcher onto them; the review states whether they did, by comparing both revisions. FIFTH, the node records two follow-ons, that no query surface filters by host so every reader sees every host, and that nothing validates a misreported nodename; the review states for each whether it is a genuine out-of-scope follow-on or an in-scope gap it should have closed.",
+          "estimated_hours": 0.5,
+          "goal": "Review run r-20260921T213948977678-host-key at head 273853b5 against base ecd1869b and store the five-dimension verdict.",
+          "id": "review-of-host-key",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-22T01:49:11Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no 'binding_observed'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/reports/review-of-host-key.md",
+          "negative_control": "none: a read-only review writes no test and runs no gate, so no mutation of the reviewed tree is available to it.",
+          "plan": "serve-telemetry-spine",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "review",
+          "section": "\u00a75",
+          "spec_level": "exact",
+          "time_budget": "30m",
+          "token_budget": null,
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/wire-telemetry-spine/review-of-host-key"
+          ]
+        },
+        "role": "review",
+        "spec_level": "exact",
+        "member": "review-host-key",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "xhigh",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "read-only",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-22T01:49:30Z",
+        "completed_at": "2026-09-22T02:07:35.065Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 1067,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 1085,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "1510d5cb9408139abe125ecedd09b2060997b5f8",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "the stored review record parses with all five dimensions scored",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260921T213948977678-host-key.json",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/reports/review-of-host-key.md",
+        "scope_changed": false,
+        "session_id": "31b3c8b1-573a-4dc1-8b68-2e5565906eb2",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 9563560,
+            "input_tokens_cumulative": 9563560,
+            "output_tokens": 74725,
+            "output_tokens_cumulative": 74725,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-22T02:07:35.065Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "15m",
+          "requested": true,
+          "waived_runs": [
+            {
+              "budget_overrun": false,
+              "budget_overrun_seconds": 0,
+              "budget_seconds": 3600,
+              "classification": "scoring",
+              "commits_beyond_base": 0,
+              "detail": "the worker manifest reports completion, but no independent review is attached; an independent review must be produced before promotion",
+              "elapsed_seconds": 2171,
+              "external_wait": null,
+              "lifting_condition": null,
+              "liveness_proven": true,
+              "log_age_seconds": 13301,
+              "log_fresh": false,
+              "manifest_commits": [
+                "14c6b0a2"
+              ],
+              "manifest_derived": false,
+              "manifest_digest": "b12d755fac4145fe4e3dd218e034e1ccd181ba578f248cdb3dd1a7348c41c097",
+              "manifest_error": null,
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/reports/wire-engine-names-repair.md",
+              "manifest_present": true,
+              "manifest_reported_status": "complete",
+              "manifest_status": "complete",
+              "marker": null,
+              "needs_help_complete": null,
+              "next_action": "reckon crew dispatch --project imas-ambix --plan serve-telemetry-spine --section '\u00a72' --role review --spec-level exact --node review-of-engine-names-repair --goal 'attach an independent review to run r-20260921T213106812308-engine-names-repair' --done-when 'the review for r-20260921T213106812308-engine-names-repair stores a parsed record scoring all 5 dimensions in the range 0..20' --write-path /home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260921T213106812308-engine-names-repair.json --time-budget 60m --session wire-telemetry-spine --allow-unreconciled-runs --local",
+              "node": "engine-names-repair",
+              "phase": "complete",
+              "plan": "serve-telemetry-spine",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "recovery": "review",
+              "recovery_classification": "scoring",
+              "resets_at": null,
+              "review_error": null,
+              "review_present": false,
+              "review_status": null,
+              "run_id": "r-20260921T213106812308-engine-names-repair",
+              "session": "wire-telemetry-spine",
+              "terminal_age_seconds": 13316,
+              "terminal_at": "2026-09-21T22:07:22Z",
+              "wait_age_seconds": null,
+              "wait_condition_state": null,
+              "wait_key_defect": null,
+              "wait_observed": null,
+              "wait_overdue": null,
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/wire-telemetry-spine/engine-names-repair"
+            },
+            {
+              "budget_overrun": false,
+              "budget_overrun_seconds": 0,
+              "budget_seconds": 3600,
+              "classification": "scoring",
+              "commits_beyond_base": 0,
+              "detail": "the worker manifest reports completion, but no independent review is attached; an independent review must be produced before promotion",
+              "elapsed_seconds": 1341,
+              "external_wait": null,
+              "lifting_condition": null,
+              "liveness_proven": true,
+              "log_age_seconds": 11608,
+              "log_fresh": false,
+              "manifest_commits": [
+                "8c6fb10f feat(telemetry): key the serving record by the host that wrote it [4 files, 394 insertions / 49 deletions]",
+                "873aab5a docs(telemetry): land the host-keyed record in the plan and its evidence [3 files, additions only]",
+                "5cf8b599 feat(telemetry): key the serving record by the boot that wrote it [4 files, 577 insertions / 73 deletions]",
+                "273853b5 docs(telemetry): land the boot-keyed record in the plan and its evidence [2 files, 127 insertions, additions only]"
+              ],
+              "manifest_derived": false,
+              "manifest_digest": "07c6294a74febdbd0f4f17f7a5df8b902b967d7f48604f7280c62401ca46adbe",
+              "manifest_error": null,
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/reports/wire-host-key.md",
+              "manifest_present": true,
+              "manifest_reported_status": "complete",
+              "manifest_status": "complete",
+              "marker": null,
+              "needs_help_complete": null,
+              "next_action": "reckon crew dispatch --project imas-ambix --plan serve-telemetry-spine --section '\u00a75' --role review --spec-level exact --node review-of-host-key --goal 'attach an independent review to run r-20260921T213948977678-host-key' --done-when 'the review for r-20260921T213948977678-host-key stores a parsed record scoring all 5 dimensions in the range 0..20' --write-path /home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260921T213948977678-host-key.json --time-budget 60m --session wire-telemetry-spine --allow-unreconciled-runs --local",
+              "node": "host-key",
+              "phase": "working",
+              "plan": "serve-telemetry-spine",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "recovery": "review",
+              "recovery_classification": "scoring",
+              "resets_at": null,
+              "review_error": null,
+              "review_present": false,
+              "review_status": null,
+              "run_id": "r-20260921T213948977678-host-key",
+              "session": "wire-telemetry-spine",
+              "terminal_age_seconds": 11621,
+              "terminal_at": "2026-09-21T22:35:36Z",
+              "wait_age_seconds": null,
+              "wait_condition_state": null,
+              "wait_key_defect": null,
+              "wait_observed": null,
+              "wait_overdue": null,
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/wire-telemetry-spine/host-key"
+            }
+          ]
+        },
+        "review": null,
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 9731256,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 1080.028,
+          "generated_tokens": 83887,
+          "generation_seconds": 891.803,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 34.7,
+          "machine_seconds": 188.225,
+          "peak_input_tokens": 166396,
+          "tokens_per_second": 94.06,
+          "wall_tokens_per_second": 77.67
+        },
+        "follow_on_paths": [
+          "/"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": false,
+          "matched_measure": null,
+          "override": false,
+          "role": "review",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": "A review's deliverable is its stored verdict outside the repository; no repository file changed, by design for a read-only role.",
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/wire-telemetry-spine/review-of-host-key",
+          "session_id": "31b3c8b1-573a-4dc1-8b68-2e5565906eb2",
+          "session_source": "stream",
+          "retained_at": "2026-09-22T02:07:35.065Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "plan_impl_at_dispatch": 0.8,
+        "impl_move": {
+          "plan": "serve-telemetry-spine",
+          "at_dispatch": 0.8,
+          "at_complete": null,
+          "verdict": "exempt",
+          "reason": "role-not-enforced:review"
+        },
+        "negative_control": {
+          "verdict": "exempt",
+          "reason": "node-writes-no-test-path"
+        },
+        "tool_steps": 106.0,
+        "orientation_input_tokens": null,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -65327,6 +65642,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 906
+    "_version": 907
   }
 }
