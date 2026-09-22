@@ -2419,15 +2419,19 @@ except ImportError:
           <td>The receipts host is resolved, or refused</td>
           <td><code>receipts_host</code> resolves the node in two reads — <code>sacct -j 1271709 -X
           -n -P -o NodeList</code> for the job's node list, then <code>scontrol show hostnames</code>
-          to expand it — and returns the node only when the expansion yields exactly one line. Both
+          to expand it — and returns the node only when the expansion yields exactly one line that
+          is a plausible node name. Both
           reads are load-bearing: <code>sacct</code> reports a multi-node allocation as one
           compressed hostlist token (<code>98dci4-clu-[5073-5086]</code>, one whitespace-delimited
           field naming fourteen machines), and at its default column width it truncates the same
           token to <code>98dci4-clu-[50+</code>, so counting fields cannot separate one node from
           many and a truncated token is not a hostname at all. It raises rather than guessing when
           the name carries no job id, when <code>sacct</code> or <code>scontrol</code> is
-          unavailable, or when the expansion is not exactly one node — a host is recorded or
-          refused, never inferred.</td>
+          unavailable, or when the expansion is not one plausible node name. A placeholder such as
+          the word <code>None</code> is echoed back by <code>scontrol</code> as a single line
+          rather than refused, and a token carrying hostlist syntax or whitespace was never
+          expanded, so neither passes as a machine — a host is recorded or refused, never
+          inferred.</td>
         </tr>
       </tbody>
     </table>

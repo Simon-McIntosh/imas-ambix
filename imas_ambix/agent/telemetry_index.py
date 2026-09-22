@@ -158,6 +158,18 @@ UNKNOWN_BOOT_ID = ""
 #: ``.jsonl`` and does not move the digits.
 _JOB_ID_IN_NAME = re.compile(r"-(\d+)\.jsonl(?:\.\d+)?(?:\.gz)?\Z")
 
+#: What ``sacct`` prints in place of a node name when the field carries none.
+#: These are words rather than machines, and ``scontrol`` echoes each one back
+#: as though it had resolved it -- one line, exit zero -- so a placeholder must
+#: be refused by name and not by shape.
+_UNRESOLVED_NODE_NAMES = frozenset({"none", "unknown", "n/a", "null"})
+
+#: The shape of one node name: a single unpunctuated token carrying no hostlist
+#: syntax and no whitespace. An unexpanded hostlist token carries ``[``, ``]``,
+#: ``,`` or ``+``, and a report naming several nodes carries spaces, so a value
+#: matching this is one machine's name rather than a list or its truncation.
+_NODE_NAME = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._-]*\Z")
+
 #: Quantity names whose value is a cumulative total since the engine started,
 #: so their period figure is the difference of two endpoints and never a sum.
 #: The flat row spells them one way and the canonical engine section another;
@@ -353,11 +365,20 @@ def receipts_host(path: str | Path) -> str:
     hostnames`` expands the list to one node per line, which is the count that
     means what it says.
 
+    The expansion must also be a plausible node name rather than merely a single
+    line, because ``scontrol`` echoes a placeholder it did not resolve instead
+    of refusing it: handed the word ``None`` it prints that word back, one line,
+    exit zero. A name carrying hostlist syntax or whitespace is a token that was
+    echoed unexpanded rather than parsed, and the words ``sacct`` prints for an
+    absent field name no machine at all.
+
     The lookup is deliberately allowed to fail: a job still running, purged from
     ``sacct``, or spanning more than one node resolves to nothing usable, and a
     guess here is a key silently asserting a machine no row recorded. Refusing
     is the only safe answer, because the caller can name *host* explicitly or
-    leave the row under the unknown-host marker.
+    leave the row under the unknown-host marker. An unavailable ``sacct`` or
+    ``scontrol`` refuses the same way, so a caller catching ``ValueError`` for
+    an unresolvable host never meets an ``OSError`` instead.
     """
     job_id = receipts_job_id(path)
     if job_id is None:
@@ -396,7 +417,12 @@ def receipts_host(path: str | Path) -> str:
             f"could not resolve the host of {path}: scontrol is unavailable"
         ) from error
     nodes = [line.strip() for line in expanded.stdout.splitlines() if line.strip()]
-    if expanded.returncode != 0 or len(nodes) != 1:
+    if (
+        expanded.returncode != 0
+        or len(nodes) != 1
+        or nodes[0].lower() in _UNRESOLVED_NODE_NAMES
+        or _NODE_NAME.match(nodes[0]) is None
+    ):
         raise ValueError(
             f"job {job_id} ({path}) did not resolve to one node: "
             f"{', '.join(nodes) or expanded.stderr.strip() or 'no node reported'}"

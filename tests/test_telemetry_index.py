@@ -788,7 +788,8 @@ def test_the_receipts_host_is_resolved_from_the_job_id(monkeypatch):
 
 
 def test_a_job_that_does_not_resolve_is_refused_not_guessed(monkeypatch):
-    """A name with no job id, a purged job, and a many-node job all refuse.
+    """A name with no job id, a purged job, a placeholder, and a many-node job
+    all refuse.
 
     A guess here is a key silently asserting a machine no row recorded, so
     every unresolved shape raises rather than falling back to the reader. The
@@ -797,7 +798,11 @@ def test_a_job_that_does_not_resolve_is_refused_not_guessed(monkeypatch):
     counting the fields of that report sees one host, and the same token at the
     default column width reads ``98dci4-clu-[50+`` -- still one field, and not
     a hostname at all. Counting the lines of the expanded list is what separates
-    one machine from many, and both shapes are refused here.
+    one machine from many, and both shapes are refused here. The single line is
+    not sufficient on its own either: a field ``sacct`` leaves empty prints the
+    word ``None``, and ``scontrol`` echoes that word back as one line rather
+    than rejecting it, so a placeholder is refused by name and an echoed token
+    by its shape.
     """
     with pytest.raises(ValueError):
         receipts_host("serve.jsonl")
@@ -819,8 +824,12 @@ def test_a_job_that_does_not_resolve_is_refused_not_guessed(monkeypatch):
     fourteen_nodes = "".join(f"98dci4-clu-{n}\n" for n in range(5073, 5087))
 
     for fake in (
-        # Purged from sacct, or otherwise unreadable: nothing is reported.
-        scheduler("", sacct_rc=1),
+        # Purged from sacct: a job that does not exist reports nothing and
+        # exits zero, and the empty report names no node list.
+        scheduler("", sacct_rc=0),
+        # A field sacct left empty prints a placeholder, which scontrol echoes
+        # back as one line rather than refusing.
+        scheduler("None\n", "None\n"),
         # Fourteen nodes compressed into one token -- one field, many machines.
         scheduler("98dci4-clu-[5073-5086]\n", fourteen_nodes),
         # The same token truncated at the default column width: scontrol rejects
@@ -834,6 +843,34 @@ def test_a_job_that_does_not_resolve_is_refused_not_guessed(monkeypatch):
         monkeypatch.setattr(telemetry_index.subprocess, "run", fake)
         with pytest.raises(ValueError):
             receipts_host("deepseek-v4-1-flash-1271709.jsonl")
+
+
+def test_an_unavailable_scheduler_refuses_the_promised_exception(monkeypatch):
+    """A missing ``sacct`` or ``scontrol`` refuses with ``ValueError``.
+
+    The tools may simply not be on the path, and the docstring promises a
+    caller the same exception for that as for an unresolvable host: a caller
+    catching ``ValueError`` to fall back to the unknown-host marker must not
+    meet an ``OSError`` instead, which would abort the ingest rather than
+    degrade it.
+    """
+    def missing(tool):
+        def run(argv, **kwargs):
+            if argv[0] == tool:
+                raise FileNotFoundError(2, "No such file or directory", tool)
+            return SimpleNamespace(
+                returncode=0, stdout="98dci4-gpu-0003\n", stderr=""
+            )
+
+        return run
+
+    monkeypatch.setattr(telemetry_index.subprocess, "run", missing("sacct"))
+    with pytest.raises(ValueError):
+        receipts_host("deepseek-v4-1-flash-1271709.jsonl")
+
+    monkeypatch.setattr(telemetry_index.subprocess, "run", missing("scontrol"))
+    with pytest.raises(ValueError):
+        receipts_host("deepseek-v4-1-flash-1271709.jsonl")
 
 
 def test_two_hosts_at_one_inode_and_offset_are_both_kept(tmp_path, monkeypatch):
