@@ -273,16 +273,30 @@ def _bare(name: str) -> str:
     return name.rpartition(":")[2]
 
 
+def _of_family(samples: list[MetricSample], family: str) -> list[MetricSample]:
+    """The subset of *samples* that *family*'s namespace publishes.
+
+    A bare series name is shared vocabulary rather than an identity — SGLang
+    and vLLM both spell a prompt-token counter ``prompt_tokens_total`` — so a
+    reader told to answer for one family must not be answered by the other's
+    samples. Absence is the honest reading there, and it is what distinguishes
+    this from a lookup that ignores the family it was given.
+    """
+    prefix = f"{family}:"
+    return [sample for sample in samples if sample[0].startswith(prefix)]
+
+
 def series_total(
     samples: list[MetricSample], family: str, names: tuple[str, ...]
 ) -> float | None:
     """Sum of one series' values, or ``None`` when the family publishes none.
 
-    Summed across label sets so a multi-label scrape totals correctly; the
-    samples are expected to have passed :func:`eligible_samples` already.
+    Summed across label sets so a multi-label scrape totals correctly, and
+    scoped to the family that was asked for so a series name shared by both
+    families cannot be answered by the other family's samples.
     """
     total: float | None = None
-    for name, _labels, value in samples:
+    for name, _labels, value in _of_family(samples, family):
         if _bare(name) in names:
             total = value if total is None else total + value
     return total
@@ -296,7 +310,7 @@ def series_first(
     A gauge repeated per rank or per engine is one reading, so the first is the
     reading rather than a term to be summed.
     """
-    for name, _labels, value in samples:
+    for name, _labels, value in _of_family(samples, family):
         if _bare(name) in names:
             return value
     return None
@@ -306,7 +320,7 @@ def series_labels(
     samples: list[MetricSample], family: str, names: tuple[str, ...]
 ) -> dict[str, str] | None:
     """Labels of the first sample of one series, or ``None`` when absent."""
-    for name, labels, _value in samples:
+    for name, labels, _value in _of_family(samples, family):
         if _bare(name) in names:
             return labels
     return None

@@ -1,0 +1,23 @@
+f2: delete the reason-labelled breakdown filter in eligible_samples, so a partial series is summed into its own family total
+
+  -         if family == FAMILY_VLLM and "reason" in labels:
+  -             continue
+  + <deleted>
+
+target: tests/test_engine_metrics.py tests/agent/test_lane.py
+command: uv run --no-sync pytest -p no:cacheprovider -q --tb=line
+
+...F.F.........F.........................................                [100%]
+=================================== FAILURES ===================================
+E   AssertionError: a reason-labelled breakdown, which is part of a total
+    assert True == False
+/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/wire-telemetry-spine/engine-names-repair/tests/test_engine_metrics.py:446: AssertionError: a reason-labelled breakdown, which is part of a total
+E   assert 964.0 == 64.0
+/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/wire-telemetry-spine/engine-names-repair/tests/test_engine_metrics.py:480: assert 964.0 == 64.0
+E   assert 964.0 == 64.0
+/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/wire-telemetry-spine/engine-names-repair/tests/test_engine_metrics.py:665: assert 964.0 == 64.0
+=========================== short test summary info ============================
+FAILED tests/test_engine_metrics.py::test_the_sourcing_guard_answers_as_the_reader_does
+FAILED tests/test_engine_metrics.py::test_vllm_scrape_resolves_through_the_same_reader
+FAILED tests/test_engine_metrics.py::test_vllm_reason_series_are_not_folded_into_the_total
+3 failed, 54 passed in 0.55s

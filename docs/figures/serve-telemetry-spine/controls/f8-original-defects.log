@@ -1,0 +1,73 @@
+f8-original-defect-a: write an unobserved quantity as null instead of omitting it from the receipt row
+
+  -                 if name in values:
+  -                     section[name] = values[name]
+  +                 section[name] = values.get(name)
+
+target: tests/test_engine_metrics.py tests/agent/test_lane.py
+command: uv run --no-sync pytest -p no:cacheprovider -q --tb=line
+
+......FF....F....FF......................................                [100%]
+=================================== FAILURES ===================================
+E   AssertionError: sglang
+    assert {'cached_prom...odel_id', ...} == frozenset({'c...del_id', ...})
+      
+      Extra items in the left set:
+      'prefix_cache_hits'
+      'prefix_cache_queries'
+      Use -v to get more diff
+/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/wire-telemetry-spine/engine-names-repair/tests/test_engine_metrics.py:505: AssertionError: sglang
+E   AssertionError: prefix_cache_queries
+    assert 'prefix_cache_queries' not in {'family': 'sglang', 'model_id': 'deepseek-v4.1-flash', 'requests_running': 0.0, 'requests_queued': 0.0, ...}
+/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/wire-telemetry-spine/engine-names-repair/tests/test_engine_metrics.py:522: AssertionError: prefix_cache_queries
+E   AssertionError: assert {'requests_ru...s': None, ...} == {}
+      
+      Left contains 7 more items:
+      {'generation_tokens': None,
+       'kv_pool_occupancy': None,
+       'prefix_cache_hits': None,
+       'prefix_cache_queries': None,
+       'prompt_tokens': None,...
+      
+      ...Full output truncated (3 lines hidden), use '-vv' to show
+/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/wire-telemetry-spine/engine-names-repair/tests/test_engine_metrics.py:596: AssertionError: assert {'requests_ru...s': None, ...} == {}
+E   assert False
+     +  where False = all(<generator object test_a_recorded_row_carries_the_canonical_section_per_family.<locals>.<genexpr> at 0x7fcfc6b29490>)
+/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/wire-telemetry-spine/engine-names-repair/tests/test_engine_metrics.py:719: assert False
+E   AssertionError: assert 'prefix_cache_queries' not in {'family': 'sglang', 'model_id': 'deepseek-v4.1-flash', 'requests_running': 0.0, 'requests_queued': 0.0, ...}
+/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/wire-telemetry-spine/engine-names-repair/tests/test_engine_metrics.py:731: AssertionError: assert 'prefix_cache_queries' not in {'family': 'sglang', 'model_id': 'deepseek-v4.1-flash', 'requests_running': 0.0, 'requests_queued': 0.0, ...}
+=========================== short test summary info ============================
+FAILED tests/test_engine_metrics.py::test_both_families_report_every_quantity_they_publish
+FAILED tests/test_engine_metrics.py::test_unpublished_quantities_are_absent_rather_than_null_or_zero
+FAILED tests/test_engine_metrics.py::test_a_document_from_neither_family_reads_as_nothing
+FAILED tests/test_engine_metrics.py::test_a_recorded_row_carries_the_canonical_section_per_family
+FAILED tests/test_engine_metrics.py::test_the_row_omits_the_quantity_sglang_does_not_publish
+5 failed, 52 passed in 0.74s
+
+f8-original-defect-b: fold a counter's name-stem match into its total, so the _created companion is counted as data
+
+  -         if _bare(name) in names:
+  -             total = value if total is None else total + value
+  +         if any(n.removesuffix("_total") in _bare(name) for n in names):
+  +             total = value if total is None else total + value
+
+target: tests/test_engine_metrics.py tests/agent/test_lane.py
+command: uv run --no-sync pytest -p no:cacheprovider -q --tb=line
+
+F....F...F......F........................................                [100%]
+=================================== FAILURES ===================================
+E   assert 670419.0 == 223435.0
+/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/wire-telemetry-spine/engine-names-repair/tests/test_engine_metrics.py:265: assert 670419.0 == 223435.0
+E   assert 1700010000.0 == 10000.0
+/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/wire-telemetry-spine/engine-names-repair/tests/test_engine_metrics.py:479: assert 1700010000.0 == 10000.0
+E   AssertionError: assert 1700007000.0 == 7000.0
+     +  where 1700007000.0 = EngineMetrics(family='vllm', model_id='vllm-model', gauges={'requests_running': 3.0, 'requests_queued': 2.0, 'kv_pool_...ec_decode={'draft_tokens_total': 1700000500.0, 'accepted_tokens_total': 710.0, 'num_accepted_per_pos': [180.0, 130.0]}).uncached_prompt_tokens
+/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/wire-telemetry-spine/engine-names-repair/tests/test_engine_metrics.py:557: AssertionError: assert 1700007000.0 == 7000.0
+E   assert 1700010000.0 == 10000.0
+/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/wire-telemetry-spine/engine-names-repair/tests/test_engine_metrics.py:676: assert 1700010000.0 == 10000.0
+=========================== short test summary info ============================
+FAILED tests/test_engine_metrics.py::test_sglang_scrape_resolves_through_the_shared_reader
+FAILED tests/test_engine_metrics.py::test_vllm_scrape_resolves_through_the_same_reader
+FAILED tests/test_engine_metrics.py::test_a_cache_tier_with_no_series_is_absent_from_the_split
+FAILED tests/test_engine_metrics.py::test_created_companions_are_not_counted_as_data
+4 failed, 53 passed in 0.40s

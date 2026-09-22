@@ -1999,6 +1999,115 @@ except ImportError:
     panel test; it lands here as <code>tests/test_agent_telemetry_watch.py</code>, which
     is the repository's naming for agent CLI tests and the module it covers.</p>
 
+  <h2 id="engine-names-repair">§2 — the family a series helper answers for, and a mutation for each rule</h2>
+
+    <figure>
+      <img src="/imas-ambix/figures/serve-telemetry-spine/engine-names-mutation-controls.png"
+           alt="Six rows, one per repaired rule: F1 family scoping, F2 the reason-labelled skip, F3 the tp_rank skip, F6 the negative-remainder refusal, F8a unobserved quantities written as null, F8b a counter's name-stem match. Each row states the mutation applied, the test that reddens against it, and the failed/passed split; the three rows whose mutation also reddens a second test are marked collateral.">
+      <figcaption>Every repaired rule, the mutation that removes it, and the test that
+      reddens. Each control log under
+      <code>docs/figures/serve-telemetry-spine/controls/</code> opens with its mutation
+      verbatim, so a reader replays it rather than infers it.</figcaption>
+    </figure>
+
+    <p><strong>The three series helpers now answer for the family they were asked
+    about.</strong> <code>series_total</code>, <code>series_first</code> and
+    <code>series_labels</code> each took a <code>family</code> and never read it,
+    so the parameter's only effect was on how the signature read. They resolve
+    through <code>_of_family</code> now, which keeps the samples carrying
+    <code>f"{family}:"</code> and nothing else — necessary because a series name
+    is shared vocabulary rather than an identity: both families spell a
+    prompt-token counter <code>prompt_tokens_total</code>. The finding's own
+    concrete input, a <code>vllm:</code> sample read for
+    <code>FAMILY_SGLANG</code>, returned <code>10000.0</code> and now reports
+    absence. One of the two callers resolved this matters for is
+    <code>lane.py</code>'s pool reader, which passes raw samples rather than the
+    eligible set. No correct caller changes: <code>read_metrics</code> and
+    <code>tier_split</code> already read eligible samples, and
+    <code>eligible_samples</code> keeps the prefix rule, so the file's own
+    behaviour is unchanged at 55 passed before the two new tests were added.</p>
+
+    <h3 id="engine-names-controls">The controls, and what each one separates</h3>
+
+    <table>
+      <thead><tr><th>finding</th><th>declared mutation (line 1 of its log)</th><th>test that reddens</th><th>result</th></tr></thead>
+      <tbody>
+        <tr><td>F1</td><td><code>_of_family</code>: drop the family prefix test, returning every sample</td><td><code>test_a_family_scoped_reader_is_not_answered_by_the_other_family</code></td><td>1 failed, 56 passed</td></tr>
+        <tr><td>F2</td><td><code>eligible_samples</code>: delete the <code>reason</code>-labelled skip</td><td><code>test_vllm_reason_series_are_not_folded_into_the_total</code> (+2 collateral)</td><td>3 failed, 54 passed</td></tr>
+        <tr><td>F3</td><td><code>eligible_samples</code>: delete the <code>tp_rank</code> skip</td><td><code>test_sglang_rank_zero_is_the_one_shared_pool</code> (+1 collateral)</td><td>2 failed, 55 passed</td></tr>
+        <tr><td>F6</td><td><code>tier_split</code>: publish the negative remainder instead of withholding it</td><td><code>test_a_cache_total_larger_than_its_prompt_total_leaves_the_rest_unread</code></td><td>1 failed, 56 passed</td></tr>
+        <tr><td>F8a</td><td><code>row_section</code>: write an unobserved quantity as null rather than omitting the key</td><td><code>test_unpublished_quantities_are_absent_rather_than_null_or_zero</code> (+4)</td><td>5 failed, 52 passed</td></tr>
+        <tr><td>F8b</td><td><code>series_total</code>: match a counter's name stem instead of its exact name</td><td><code>test_created_companions_are_not_counted_as_data</code> (+3 collateral)</td><td>4 failed, 53 passed</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>F2 and F3 were the pair whose tests could not fail, and one number in
+    the record needed correcting before they could be repaired.</strong> The review
+    recorded that deleting either filter leaves <strong>31 passed / 0 failed</strong>.
+    Re-derived at this head (base <code>61995960</code>), neither deletion is green for
+    the suite as a whole: each reddens
+    <code>test_the_sourcing_guard_answers_as_the_reader_does</code>, the agreement test
+    a later node added which delegates its notion of a sample to the reader. It was
+    still true of the tests <em>named for the rules</em>, and that is the defect the
+    finding is about: a gauge answers with its first sample whether or not the rank and
+    reason samples are dropped, and nothing fed a per-rank counter, so neither filter
+    was observable on the path where it acts. The repair is in the inputs —
+    <code>_vllm_metrics()</code> now carries a <code>reason</code>-labelled counter
+    beside its total, as it already carried one beside a gauge, and the SGLang rank
+    test repeats a counter at equal value on all four ranks, where a sum without the
+    filter reads 4,000 instead of 1,000. Collateral reddening is disclosed rather than
+    tuned away: a second test reads the same fixture, and the named test is the one
+    written for the rule.</p>
+
+    <p><strong>F3's second half is out of reach, not closed.</strong> The finding also
+    notes that the recorded scrape cannot settle whether the ranks are one shared pool
+    or N pools, since a non-zero rank 0 beside zeros is consistent with both. The
+    filter is now pinned by a mutation; the premise behind it remains an interpretive
+    reading of the fixture, and no artifact this node may write would discriminate it.
+    Recording that distinction is the honest closure.</p>
+
+    <p><strong>F6's refusal is under test.</strong> A cache total larger than the
+    prompt total yields a negative remainder; the test asserts the tier the scrape
+    does settle, <code>uncached_prompt_tokens is None</code>, and the key's absence
+    from <code>row_section()</code>. Publishing <code>-4900.0</code> reddens it.</p>
+
+    <p><strong>F7 was verified rather than redone.</strong> At this head
+    <code>bench.py</code> resolves its spec-decode snapshot through
+    <code>read_metrics(text).spec_decode</code> and carries no second exposition
+    parser, no second bare-name helper and no second spec-decode table, so §2's
+    three-caller goal is met on both callers this section owns.</p>
+
+    <p><strong>F8 asked for the record, and the record is now durable.</strong> The two
+    mutations that reproduce the original defect were re-run rather than quoted from
+    the review, and their counts are disclosed as measured here: unobserved quantities
+    written as null is <strong>5 failed, 52 passed</strong>, and the stem match that
+    folds a <code>_created</code> companion into its counter is <strong>4 failed, 53
+    passed</strong>. The suite genuinely constrains both defects; what was missing was
+    a log, and six now exist.</p>
+
+    <p><strong>Two findings are not closed here and are not silently dropped.</strong>
+    F5 asks that the vLLM confrontation be asserted against a recorded scrape rather
+    than a body synthesized in the test file. No vLLM serve exists to record one from
+    — the serving node carries the SGLang <code>deepseek-v4.1-flash</code> lane only
+    and no other port answers — no recorded vLLM exposition exists in the repository,
+    its history, or the run records, and <code>tests/data/</code>, where such a fixture
+    would live, is outside this node's write paths. A recorded scrape is the only
+    closure. F4, and F1's flat-vocabulary half, live in
+    <code>serving_receipts.py</code>, held by the recorder node, and F4's own evidence
+    shows the flat columns still write ten unjustified nulls for a family that does
+    publish those quantities.</p>
+
+    <p><strong>Gates.</strong>
+    <code>pytest tests/test_engine_metrics.py tests/agent/test_lane.py</code> is
+    <strong>57 passed</strong>, against <strong>55 passed at base</strong> for the same
+    two files — the two additions being the family-scoped reader test and the withheld
+    remainder. The identical command was run in the worktree on
+    <code>UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv</code> with
+    <code>--no-sync</code>, so the shared environment was neither rebuilt nor
+    repointed. <code>uv run --no-sync ruff check imas_ambix tests</code> reports
+    <code>All checks passed!</code>. Six control logs and the mapping figure are
+    committed beside this record.</p>
+
 </main>
 </body>
 </html>

@@ -1,0 +1,16 @@
+f6: publish the negative prompt remainder instead of refusing it
+
+  -             uncached = remainder if remainder >= 0 else None
+  +             uncached = remainder
+
+target: tests/test_engine_metrics.py tests/agent/test_lane.py
+command: uv run --no-sync pytest -p no:cacheprovider -q --tb=line
+
+..........F..............................................                [100%]
+=================================== FAILURES ===================================
+E   AssertionError: assert -4900.0 is None
+     +  where -4900.0 = EngineMetrics(family='vllm', model_id=None, gauges={}, counters={'prompt_tokens': 100.0, 'prefix_cache_hits': 5000.0},..., histograms={}, spec_decode={'draft_tokens_total': None, 'accepted_tokens_total': None, 'num_accepted_per_pos': None}).uncached_prompt_tokens
+/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/wire-telemetry-spine/engine-names-repair/tests/test_engine_metrics.py:580: AssertionError: assert -4900.0 is None
+=========================== short test summary info ============================
+FAILED tests/test_engine_metrics.py::test_a_cache_total_larger_than_its_prompt_total_leaves_the_rest_unread
+1 failed, 56 passed in 0.37s

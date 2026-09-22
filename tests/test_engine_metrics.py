@@ -209,6 +209,8 @@ def _vllm_metrics(
         f"vllm:kv_cache_usage_perc{{{labels}}} 0.4",
         f"vllm:prompt_tokens_total{{{labels}}} {prompt_tokens}",
         f"vllm:generation_tokens_total{{{labels}}} 64.0",
+        # A breakdown of the counter above, not a second batch of tokens.
+        f'vllm:generation_tokens_total{{{labels},reason="capacity"}} 900.0',
         # The ``_created`` sibling is a creation timestamp, not a data point.
         f"vllm:prompt_tokens_created{{{labels}}} 1.7e9",
         f"vllm:prefix_cache_queries_total{{{labels}}} 40.0",
@@ -557,6 +559,28 @@ def test_a_cache_tier_with_no_series_is_absent_from_the_split() -> None:
     assert "external" not in section["cached_prompt_tokens"]
 
 
+def test_a_cache_total_larger_than_its_prompt_total_leaves_the_rest_unread() -> None:
+    """A negative prompt remainder is refused rather than published.
+
+    Here the cache counter describes more tokens than the prompt total, so the
+    two are not commensurate and their difference is not a token count. The
+    tiers the scrape does settle are reported; the rest is withheld, which is
+    the reading and not an error -- a published -4,900 would be read as a
+    measurement.
+    """
+    text = "\n".join(
+        (
+            'vllm:prompt_tokens_total{engine="0"} 100.0',
+            'vllm:prefix_cache_hits_total{engine="0"} 5000.0',
+        )
+    )
+    metrics = engine_metrics.read_metrics(text)
+
+    assert metrics.cached_prompt_tokens == {"device": 5_000.0}
+    assert metrics.uncached_prompt_tokens is None
+    assert "uncached_prompt_tokens" not in metrics.row_section()
+
+
 def test_an_unpublished_speculative_counter_leaves_no_null_behind() -> None:
     """A vLLM scrape with no speculator carries no spec_decode subsection."""
     section = _section(_vllm_metrics(with_spec_decode=False))
@@ -577,27 +601,68 @@ def test_a_document_from_neither_family_reads_as_nothing() -> None:
 # ---------------------------------------------------------------------------
 
 
+def test_a_family_scoped_reader_is_not_answered_by_the_other_family() -> None:
+    """Both families spell a prompt-token counter ``prompt_tokens_total``.
+
+    A series name is shared vocabulary rather than an identity, so a reader
+    asked for one family's series reports absence when the document publishes
+    only the other family's -- answering with the other family's value is a
+    reading of a document that was never asked about.
+    """
+    text = 'vllm:prompt_tokens_total{engine="0",model_name="m"} 10000.0'
+    samples = engine_metrics.parse_metrics(text)
+    names = ("prompt_tokens_total",)
+    sglang = engine_metrics.FAMILY_SGLANG
+
+    assert engine_metrics.series_total(samples, sglang, names) is None
+    assert engine_metrics.series_first(samples, sglang, names) is None
+    assert engine_metrics.series_labels(samples, sglang, names) is None
+    # The family that does publish it is still answered.
+    assert (
+        engine_metrics.series_total(samples, engine_metrics.FAMILY_VLLM, names)
+        == 10_000.0
+    )
+
+
 def test_sglang_rank_zero_is_the_one_shared_pool() -> None:
-    """Per-rank repeats are one reading, so a rank's value is not a term to sum."""
+    """Per-rank repeats are one reading, so a rank's value is not a term to sum.
+
+    Both paths are asserted because only one of them can move: a gauge answers
+    with its first sample whether or not the other ranks are dropped, so a
+    counter repeated per rank is what tells the dropping rule apart from its
+    absence -- without it, summing the four ranks would read 4,000.
+    """
     text = "\n".join(
         (
             'sglang:num_running_reqs{tp_rank="0"} 7.0',
             'sglang:num_running_reqs{tp_rank="1"} 7.0',
             'sglang:num_running_reqs{tp_rank="2"} 7.0',
             'sglang:num_running_reqs{tp_rank="3"} 7.0',
+            'sglang:prompt_tokens_total{tp_rank="0"} 1_000.0',
+            'sglang:prompt_tokens_total{tp_rank="1"} 1_000.0',
+            'sglang:prompt_tokens_total{tp_rank="2"} 1_000.0',
+            'sglang:prompt_tokens_total{tp_rank="3"} 1_000.0',
         )
     )
     metrics = engine_metrics.read_metrics(text)
 
     assert metrics.gauges["requests_running"] == 7.0
+    assert metrics.counters["prompt_tokens"] == 1_000.0
 
 
 def test_vllm_reason_series_are_not_folded_into_the_total() -> None:
-    """A ``reason``-labelled breakdown double-counts its own family total."""
+    """A ``reason``-labelled breakdown double-counts its own family total.
+
+    The breakdown sits beside its total on both paths, but only the counter
+    path can show the fold: the gauge answers with the first sample either way,
+    while the counter sums, so 900 added to 64 would read 964.
+    """
     metrics = engine_metrics.read_metrics(_vllm_metrics())
 
     # The fixture's waiting gauge is 2.0 with a reason="capacity" 4.0 beside it.
     assert metrics.gauges["requests_queued"] == 2.0
+    # Its generation counter is 64.0 with a reason="capacity" 900.0 beside it.
+    assert metrics.counters["generation_tokens"] == 64.0
 
 
 def test_created_companions_are_not_counted_as_data() -> None:
