@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-22T04:18:45",
+  "updated": "2026-09-22T04:34:23",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -65568,6 +65568,250 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260921T213948977678-host-key",
+        "plan": "serve-telemetry-spine",
+        "section": "\u00a75",
+        "node": "host-key",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 2746,
+                "cached_input_tokens": 195852,
+                "input_tokens": 198600,
+                "output_tokens": 1135,
+                "reasoning_output_tokens": 101,
+                "total_tokens": 199735,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "98f13dbe-0703-4abd-a5e4-65bfdb2eeee2",
+            "session_id": "wire-telemetry-spine"
+          },
+          "done_when": "Measured today and the reason this node exists: node_probe tags every reading with os.uname().nodename, while source keys on (path, inode) and sample on (inode, offset), so neither carries a host \u2014 and inode numbers are per-filesystem, so two machines recording serve.jsonl at the same path merge silently and irrecoverably. A second host is already producing readings under this account. A concurrent node is wiring a watcher onto TelemetryIndex, so its ingest and discover signatures must not move. Done when: pytest tests/test_telemetry_index.py tests/test_telemetry_store.py passes; ruff check imas_ambix tests exits 0; the manifest quotes the mutated line verbatim beside the test that reddens; and it states whether any index file already on disk is invalidated by the key change, with the migration or the refusal that follows.",
+          "estimated_hours": 1.0,
+          "goal": "Give the telemetry index and store a host dimension in their keys, derived from the row when it carries one and falling back to the recording nodename, without changing the public signatures of TelemetryIndex ingest or discover.",
+          "id": "host-key",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-21T21:39:50Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no 'binding_observed'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/reports/wire-host-key.md",
+          "negative_control": "In imas_ambix/agent/telemetry_index.py, revert the source table primary key to PRIMARY KEY (path, inode). A test ingesting two hosts that report the same path and the same inode number, and asserting their readings stay separable, must fail.",
+          "plan": "serve-telemetry-spine",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a75",
+          "spec_level": "guided",
+          "time_budget": "60m",
+          "token_budget": null,
+          "write_paths": [
+            "imas_ambix/agent/telemetry_index.py",
+            "imas_ambix/agent/telemetry_store.py",
+            "tests/test_telemetry_index.py",
+            "tests/test_telemetry_store.py",
+            "docs/evidence/archive/serve-telemetry-spine-landed.html",
+            "docs/figures/serve-telemetry-spine",
+            "docs/plans/serve-telemetry-spine.html"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "telemetry-host-key",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "high",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "worktree-full",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-21T21:40:06Z",
+        "completed_at": "2026-09-22T02:24:16.931Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 17039,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 17050,
+        "stalled": true,
+        "time_budget": "60m",
+        "base_sha": "ecd1869b5f63add915623eec567606bf8f017275",
+        "commits": [
+          "8c6fb10fe79e98bbb6ade983998f75e6c8dbf9a5",
+          "873aab5a94fe34c76675a9495d68a6ddf9be7988",
+          "5cf8b599d2db17d9fd362c07a28be233c34806ac",
+          "273853b592e509b08a40b4937144bcf4fadef6f5",
+          "ef8b0bdbf358efc5608a1f18b864707899db7b0f",
+          "be96f999adeeb120bc764f221c1712833267a3ec",
+          "0d4a5fcac7d0b92a62033ed077eef9ae4b078ad8",
+          "ce8ad195a7f12756d61f3b000a8b8051b2b0a89d"
+        ],
+        "changed_lines": {
+          "added": 1534,
+          "removed": 66,
+          "files": 7
+        },
+        "tests_added": 11,
+        "gate": "passed",
+        "gate_check": {
+          "command": "pytest tests/test_telemetry_index.py tests/test_telemetry_store.py",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/reports/wire-host-key.repairs-gate.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/reports/wire-host-key.md",
+        "scope_changed": false,
+        "session_id": "8ddd8965-121d-4f03-9510-0b4d1cd3f358",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 8095169,
+            "input_tokens_cumulative": 8095169,
+            "output_tokens": 45301,
+            "output_tokens_cumulative": 45301,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-22T02:24:16.931Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": {
+          "status": "parsed",
+          "scores": {
+            "durability": 15,
+            "evidence": 18,
+            "fit": 19,
+            "goal_fidelity": 18,
+            "scope_discipline": 18
+          },
+          "absent": [],
+          "total": 88
+        },
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 35607426,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 852.132,
+          "generated_tokens": 259410,
+          "generation_seconds": 548.462,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 34.9,
+          "machine_seconds": 303.67,
+          "peak_input_tokens": 167452,
+          "tokens_per_second": 472.98,
+          "wall_tokens_per_second": 304.42
+        },
+        "follow_on_paths": [
+          "TelemetryIndex.rebuild"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_telemetry_index.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        },
+        "attempt_kind": "resume",
+        "attempt": 3,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/wire-telemetry-spine/host-key",
+          "session_id": "8ddd8965-121d-4f03-9510-0b4d1cd3f358",
+          "session_source": "pointer",
+          "retained_at": "2026-09-22T02:24:16.931Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "plan_impl_at_dispatch": 0.8,
+        "impl_move": {
+          "plan": "serve-telemetry-spine",
+          "at_dispatch": 0.8,
+          "at_complete": 0.8,
+          "verdict": "waived",
+          "reason": "Merged to main at 0668aaac, the last of the wave. The plan impl and its two stale entries move in one edit now that no node holds the plan file."
+        },
+        "negative_control": {
+          "verdict": "waived",
+          "test_paths": [
+            "tests/test_telemetry_index.py",
+            "tests/test_telemetry_store.py"
+          ],
+          "declaration": "In imas_ambix/agent/telemetry_index.py, revert the source table primary key to PRIMARY KEY (path, inode). A test ingesting two hosts that report the same path and the same inode number, and asserting their readings stay separable, must fail.",
+          "log": "/home/ITER/mcintos/.config/reckon/crew/reports/wire-host-key.boot-negative-control.log",
+          "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/reports/wire-host-key.boot-negative-control.log",
+          "reason": "Five controls hold this node and the declared claim is among them; the mismatch is which key the mutation touched and which log the manifest cites. I declared reverting the source table to PRIMARY KEY (path, inode), with a two-host same-inode test that must then fail. The node mutated the sibling key instead, at /home/ITER/mcintos/.config/reckon/crew/reports/wire-host-key.negative-control.log: UNIQUE (host, inode, offset) became UNIQUE (inode, offset) on the sample table, quoted verbatim with the sed that applied it, and the test that reddens is the exact one I named -- test_two_hosts_at_one_inode_and_offset_are_both_kept, 1 failed, 25 deselected. That aim is better than mine: the sample UNIQUE is what dedupes readings, so dropping host there is the mutation that actually merges two machines, where the source PRIMARY KEY governs file identity. The manifest cites the boot arm log instead, and three further repair controls sit beside it -- repair1 reddening on assert -950.0 is None, repair2 on test_a_row_a_reader_gets_carries_the_key_it_was_stored_under, repair3 on the per-file cache regression giving (node-a, \"\", host) where (node-a, boot, host+boot) is required. I verified all three against the merged head myself: cross-host counter_span returns None and watch._span passes it through, and a refused NOT-A-UUID spelling reads back as empty with key_kind host rather than as a boot identity."
+        },
+        "tool_steps": 111.0,
+        "orientation_input_tokens": 2436793.0,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -65642,6 +65886,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 907
+    "_version": 908
   }
 }

@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-22">
-<meta name="plan-version" content="45">
+<meta name="plan-version" content="46">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="c23be8f8,f5c3c91f,493e0281,f743fcea,0f9ce03f,b1696d31,0e9a656c,bacf490f">
 <meta name="plan-impl" content="0.8">
@@ -871,6 +871,9 @@
 </div>
 <div class="r-comment" data-section="s5" data-id="c-run-r-20260922T014909768834-review-of-host-key" data-who="reckon-ship" data-when="2026-09-22T02:07:35.065Z">
     <div class="r-comment-body"><p>Reviewed host-key at 88/100, the lowest and most valuable verdict of the wave. Three findings, all in scope and all real: counter_span differences its endpoints across host and boot boundaries with no predicate, returning -950.0 one way and 1050.0 the other on one file carrying two hosts, and watch.py prints the positive one; rows() returns the payload own boot_id so a refused spelling reads as a boot identity while key_kind is exposed at no read path; and the per-row boot resolution is held by no test, so a regression to the per-file cache the commit message rejects would leave the suite green. Two of the three are failures of coordinator verification rather than only of implementation -- the design was praised from its docstring and the announce-itself requirement was checked in storage but at no read path.</p></div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-run-r-20260921T213948977678-host-key" data-who="reckon-ship" data-when="2026-09-22T02:24:16.931Z">
+    <div class="r-comment-body"><p>Gave the index and store a host and boot dimension: PRIMARY KEY (host, boot_id, path, inode) and UNIQUE (host, boot_id, inode, offset), where before the probe tagged every reading with its hostname and neither key carried one. Resolved per row rather than per file, because one file can hold rows from both sides of a reboot while its hostname never moves. Reviewed 88/100, the lowest and most useful verdict of the wave; all three findings were in scope and all three are repaired here with a control each: counter_span differenced endpoints across hosts and now declines, rows() returned the payload own boot spelling and now carries the resolved key and its kind, and the per-row resolution that no test held is now held.</p></div>
 </div>
 <div class="r-comment" data-section="s7" data-id="c-20260921T163348467175" data-who="reckon-ship" data-when="">
     <div class="r-comment-body"><p><strong>Build phase landed; wiring outstanding.</strong> Every implementable section now has its module on main: engine_metrics.py, node_probe.py, telemetry_store.py, telemetry_index.py and request_receipts.py. Two reached a clean independent verdict after six review rounds each — node-probe at 96 and telemetry-store at 98, both zero findings — and the rest carry review evidence with their repairs promoted or under confirming review.</p><p>What remains is this section's three wire nodes: the recorder edit into serving_receipts.py, the watcher moving into watch.py and cli.py, and the router edit. Until they land, three of the five modules have no production caller, so every defect found so far is necessarily intra-module. The integration class — what the recorder tick actually supplies, ordering, and the row contract met in practice — is untested, and lives entirely in work that has not started.</p></div>
