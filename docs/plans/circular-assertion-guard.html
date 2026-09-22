@@ -21,8 +21,8 @@
   <title>Circular Assertion Guard | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-09-21">
-<meta name="plan-version" content="1">
+<meta name="plan-modified" content="2026-09-22">
+<meta name="plan-version" content="2">
 </head>
 <body>
   <main class="plan-doc">
@@ -203,17 +203,23 @@
 <h2><span class="sec">§</span> Followups</h2>
 <article class="r-fu" data-id="f-cag-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-09-21" data-recommends-skill="/reckon-ship circular-assertion-guard §2" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Build the guard and settle where the allowlist lives</h4>
-    <div class="r-fu-body">Start at <strong>&sect;2</strong>. The check is an AST pass over each test module, not a regular expression: telling a written-out literal apart from a circular reference needs the test module's own bindings resolved, and that decision cannot be retrofitted onto a regex later. Settle the <code>allowlist-location</code> decision before any entry is written, because migrating entries afterwards is pure churn. &sect;3 is gated on the telemetry spine's wire nodes landing, since they are writing tests into the same four files right now.</div>
+    <div class="r-fu-body">Start at <strong>§2</strong>. The check is an AST pass over each test module, not a regular expression: telling a written-out literal apart from a circular reference needs the test module's own bindings resolved, and that decision cannot be retrofitted onto a regex later. Settle the <code>allowlist-location</code> decision before any entry is written, because migrating entries afterwards is pure churn. §3 is gated on the telemetry spine's wire nodes landing, since they are writing tests into the same four files right now.</div>
     <pre class="r-fu-prompt">/reckon-ship circular-assertion-guard §2</pre>
     </article>
 </section>
 
   <section data-reckon="gates" id="gates" class="r-gates">
 <h2><span class="sec">§</span> Evidence gates</h2>
-<div class="r-gate" data-id="g-circular-assertion-guard-1" data-section="s3" data-gated-sections="s3" data-status="open" data-verdict="">
+<div class="r-gate" data-id="g-circular-assertion-guard-1" data-section="s3" data-gated-sections="s3" data-status="closed" data-verdict="passed">
     <h4 class="r-gate-measure">the telemetry spine&#x27;s wire nodes have landed, so the four spine test files are no longer being written by concurrent work</h4>
     <p class="r-gate-required-evidence">serve-telemetry-spine#s7</p>
-    </div>
+    <a class="r-gate-evidence" href="All five telemetry-spine wire nodes are merged, reviewed and promoted; that plan is at impl 0.95 and main is at 8c725019. None of the four files this section disposes of is held by a live run any longer: tests/agent/test_lane.py, tests/test_engine_metrics.py, tests/test_node_probe.py, tests/test_request_receipts.py. One caveat for whoever ships it -- the site count moved while the gate was open, because the wave added tests to two of those four files, so re-run the scan before partitioning rather than reusing the 10 recorded in the section text.">Evidence</a>
+</div>
+</section>
+<section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="_top" data-id="c-cag-prose-form" data-who="coordinator" data-when="2026-09-22">
+    <div class="r-comment-body"><p><strong>The same circularity exists in prose, and this guard will not see it.</strong> Recorded so a later reader knows the omission is deliberate rather than an oversight.</p><p>Measured on the telemetry-spine wave: a node's docstring asserted that a boot identity resolves per row rather than per file, and gave the reason. I approved the design <em>from that docstring</em>. No test held it &mdash; every boot test separated the two boots across two files, so the exact regression the commit message rejected would have left the suite green. The claim was in the prose, the evidence offered for it was the same prose, and an independent review is what caught it.</p><p>That is this defect's shape with the assertion moved outside the test file: <em>evidence that paraphrases the claim instead of being independent of it</em>. An AST pass over <code>assert</code> statements cannot reach it, and widening the guard to parse docstrings for claims would be a worse instrument than a reviewer. What it does justify is a review-brief line that is machine-checkable where the prose is not: <strong>state the test that holds each claimed property, or say plainly that none does</strong>.</p></div>
+</div>
 </section>
 </main>
 </body>
