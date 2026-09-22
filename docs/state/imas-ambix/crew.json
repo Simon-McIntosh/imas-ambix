@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-22T19:40:55",
+  "updated": "2026-09-22T20:02:36",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -68106,6 +68106,255 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260922T160007783783-flat-columns",
+        "plan": "serve-telemetry-spine",
+        "section": "\u00a73",
+        "node": "flat-columns",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1210,
+                "cached_input_tokens": 879234,
+                "input_tokens": 880446,
+                "output_tokens": 1672,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 882118,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "98f13dbe-0703-4abd-a5e4-65bfdb2eeee2",
+            "session_id": "flat-columns"
+          },
+          "done_when": "The lead has decided to drop the flat columns. Ten fields on ReceiptRow duplicate what the engine section carries: prefix_cache_queries_total, prefix_cache_hits_total, prefix_cache_query_delta, prefix_cache_hit_delta, prefix_cache_hit_rate_interval, prefix_cache_hit_rate, spec_draft_tokens, spec_accepted_tokens, spec_acceptance_rate and spec_num_accepted_per_pos. Measured on the live serve, the engine section carries prefix_cache_hit_rate 0.9966, prefix_cache_hits, cached_prompt_tokens split by device, host and storage, uncached_prompt_tokens, and spec_decode with accept_rate 0.565 and accept_length, while several of those flat columns are null for an SGLang engine because they are derived from counters that family does not publish. Three consumers read the flat columns and two already know the engine path, so the move was anticipated and never finished: imas_ambix/agent/watch.py line 555 reads latest.get(\"prefix_cache_hit_rate\") for its ledger panel while line 64 already defines PREFIX_CACHE_HITS as engine.prefix_cache_hits; imas_ambix/agent/receipt_bins.py reads prefix_cache_hit_rate and prefix_cache_hit_rate_interval; imas_ambix/agent/telemetry_index.py lists both the flat names at lines 180 and 181 and the engine-prefixed ones at 184 and 185. Remove the ten fields, point every consumer at the engine section, and drop the now-dead flat names from the index measure list. Keep the five fields that are NOT duplicates unless you can show the engine section reproduces them: generation_throughput_toks_per_s, prompt_throughput_toks_per_s, num_requests_running, num_requests_waiting and kv_cache_usage_perc; state per field which it is. Bump the row schema version, since a reader distinguishes shapes by it, and state in the manifest what a reader of the 82,000 already-recorded rows must do: those rows carry the old shape and the index must keep reading them. Done when: pytest over the four named test files passes with no fewer tests than at base; ruff check imas_ambix tests exits 0; the serving-interpreter guard at tests/test_agent_serve_registry.py -k agent_package_modules_parse_with_serving_python passes, because the agent package is executed by a Python 3.12 environment and a gate chosen from changed files never reaches that guard; the manifest quotes the mutated line verbatim beside the named test that reddens; and it states, from a row built against the live engine, which quantities a reader now gets from the engine section in place of each removed column.",
+          "estimated_hours": 1.5,
+          "goal": "Remove the cache and speculative flat columns from the receipt row and move every consumer onto the engine section that already carries the same quantities.",
+          "id": "flat-columns",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-22T16:00:10Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no 'binding_observed'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/reports/flat-columns.md",
+          "negative_control": "In imas_ambix/agent/watch.py, change the ledger panel hit-rate lookup back to latest.get(\"prefix_cache_hit_rate\") so it reads the removed flat column. A test asserting the panel shows a hit rate from a recorded row must fail.",
+          "plan": "serve-telemetry-spine",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a73",
+          "spec_level": "exact",
+          "time_budget": "60m",
+          "token_budget": null,
+          "write_paths": [
+            "imas_ambix/agent/serving_receipts.py",
+            "imas_ambix/agent/watch.py",
+            "imas_ambix/agent/receipt_bins.py",
+            "imas_ambix/agent/telemetry_index.py",
+            "tests/test_agent_serving_receipts.py",
+            "tests/test_agent_telemetry_watch.py",
+            "tests/test_receipt_bins.py",
+            "tests/test_telemetry_index.py",
+            "docs/evidence/archive/serve-telemetry-spine-landed.html",
+            "docs/figures/serve-telemetry-spine",
+            "docs/plans/serve-telemetry-spine.html"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "telemetry-flat-columns",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "high",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "worktree-full",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-22T16:00:32Z",
+        "completed_at": "2026-09-22T17:57:00.721Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 6977,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 6988,
+        "stalled": false,
+        "time_budget": "60m",
+        "base_sha": "913bd953fa8de7e010cf615d9c05c8a64d7b9d79",
+        "commits": [
+          "4d540b354fd9a2a0b9d4c0c8b6c7a1ec38f1689f",
+          "7b20f00807ecc1283cb0c86703f8997466b18b13"
+        ],
+        "changed_lines": {
+          "added": 941,
+          "removed": 207,
+          "files": 15
+        },
+        "tests_added": 14,
+        "gate": "passed",
+        "gate_check": {
+          "command": "pytest tests/test_agent_serving_receipts.py tests/test_agent_telemetry_watch.py tests/test_agent_receipt_bins.py tests/test_telemetry_index.py",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260922T160007783783-flat-columns/gate.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "Ten row fields duplicating the engine section are gone and every consumer reads that section; two of the three already defined the engine path and had never been moved onto it. The five fields the engine section does not reproduce are kept, and the schema version moves with the shape so the 258,594 rows already recorded keep their meaning. Reviewed 81/100, the lowest and most useful verdict of the session, four findings all repaired. The first corrected data I supplied to both the lead and the node: I scanned one receipts file, found the flat hit rate null in all 84,049 rows and reported it as the corpus figure, where across twenty files it is non-null in 141,598 of 258,594 rows, split by engine family. The second was the third appearance in this plan of differencing two readings without establishing they share a source -- 0.2857 from counters belonging to different serves -- now declined, verified against the reviewer own counterexample at the merged head. The third held a refusal nothing held. The fourth was a schema version asserted against the constant under test at three sites, now pinned to a literal, which is the circular-assertion-guard plan subject appearing in code written the same day that plan was drafted.",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/reports/flat-columns.md",
+        "scope_changed": false,
+        "session_id": "d8fed1e0-fdcd-4023-8fc6-208924aad38d",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 11563144,
+            "input_tokens_cumulative": 11563144,
+            "output_tokens": 44553,
+            "output_tokens_cumulative": 44553,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-22T17:57:00.721Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": {
+          "status": "parsed",
+          "scores": {
+            "durability": 13,
+            "evidence": 18,
+            "fit": 16,
+            "goal_fidelity": 16,
+            "scope_discipline": 18
+          },
+          "absent": [],
+          "total": 81
+        },
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 35469685,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 1367.242,
+          "generated_tokens": 181543,
+          "generation_seconds": 1241.942,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 34.7,
+          "machine_seconds": 125.3,
+          "peak_input_tokens": 166531,
+          "tokens_per_second": 146.18,
+          "wall_tokens_per_second": 132.78
+        },
+        "follow_on_paths": [
+          "tests/test_telemetry_store.py"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest over",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        },
+        "attempt_kind": "resume",
+        "attempt": 2,
+        "duration_measurement": null,
+        "scope_acceptances": [
+          {
+            "path": "tests/test_agent_receipt_bins.py",
+            "reason": "My fence named tests/test_receipt_bins.py, which does not exist in this repository; the real file covering receipt_bins.py is tests/test_agent_receipt_bins.py, following the repository dominant test_agent_*.py convention. The node wrote the file that exists rather than creating one at the path I invented, which is correct, and the defect is in my dispatch."
+          }
+        ],
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/flat-columns/flat-columns",
+          "session_id": "d8fed1e0-fdcd-4023-8fc6-208924aad38d",
+          "session_source": "stream",
+          "retained_at": "2026-09-22T17:57:00.721Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "plan_impl_at_dispatch": 0.95,
+        "impl_move": {
+          "plan": "serve-telemetry-spine",
+          "at_dispatch": 0.95,
+          "at_complete": 0.95,
+          "verdict": "waived",
+          "reason": "Removes duplicate columns from already-shipped s3 rows. The plan impl and its superseded CPU bound move together in a coordinator edit now that the last node has released the plan."
+        },
+        "negative_control": {
+          "verdict": "waived",
+          "test_paths": [
+            "tests/test_agent_serving_receipts.py",
+            "tests/test_agent_telemetry_watch.py",
+            "tests/test_receipt_bins.py",
+            "tests/test_telemetry_index.py"
+          ],
+          "declaration": "In imas_ambix/agent/watch.py, change the ledger panel hit-rate lookup back to latest.get(\"prefix_cache_hit_rate\") so it reads the removed flat column. A test asserting the panel shows a hit rate from a recorded row must fail.",
+          "log": "/home/ITER/mcintos/.config/reckon/crew/reports/flat-columns-negative-control.log",
+          "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/reports/flat-columns-negative-control.log",
+          "reason": "The declared mutation was run by me and it fires; the node own log opens with a different one. I declared restoring latest.get(\"prefix_cache_hit_rate\") in the watcher panel, which after this change returns None so the panel loses its hit rate. Run at merged head 7078e5b5: anchor watch.py:561 hit_rate = round(hits / queries, 4), asserted to match exactly once, replaced by the removed flat lookup -- 1 failed, 13 passed, reddening test_latest_reading_assembles_the_hit_rate_from_engine_counters, then restored byte-identical. Recorded at /home/ITER/mcintos/.config/reckon/crew/reports/flat-columns-declared-control.log. The node control inverted the hits-over-queries division instead; this is the one time this wave my declaration was better aimed than the node own."
+        },
+        "tool_steps": 185.0,
+        "orientation_input_tokens": 4955063.0,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -68180,6 +68429,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 930
+    "_version": 931
   }
 }
