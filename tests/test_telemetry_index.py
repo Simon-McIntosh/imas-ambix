@@ -237,7 +237,10 @@ def test_a_source_rebuilt_in_place_drops_its_stale_samples(tmp_path):
         index.ingest([source])
 
         assert index.sample_count() == 1
-        assert index.rows(_at(-1), _at(60)) == [_row(0)]
+        kept = index.rows(_at(-1), _at(60))
+        assert len(kept) == 1
+        # The record's own fields survive the key the read surface adds.
+        assert {key: kept[0][key] for key in _row(0)} == _row(0)
 
 
 def test_period_query_agrees_with_the_jsonl_computed_directly(tmp_path):
@@ -935,3 +938,45 @@ def test_a_counter_span_between_two_hosts_is_declined_not_differenced(tmp_path):
         # The same pair the other way round, which would otherwise return the
         # larger figure of the two.
         assert index.counter_span("engine.generation_tokens", _at(-1), _at(11)) is None
+
+
+def test_a_row_a_reader_gets_carries_the_key_it_was_stored_under(tmp_path):
+    """A refused boot spelling is not read back as a boot identity.
+
+    The stored columns hold the distinction between a row keyed on its boot and
+    one keyed on its host alone, and a reader that takes the row's own spelling
+    sees the second as the first: the refused text reads as the identity the
+    store keyed on, when the key it holds is the unknown-boot sentinel. So the
+    row a reader gets carries the resolved key and its kind, and the reboot
+    guarantee is visible as absent exactly where it is.
+    """
+    source = tmp_path / "serve.jsonl"
+    _write(
+        source,
+        [
+            _row(0, host="node-a", boot_id=_BOOT_BEFORE),
+            _row(5, host="node-a", boot_id="not-a-uuid"),
+        ],
+    )
+
+    with TelemetryIndex(tmp_path / "index.db", host="node-z") as index:
+        index.ingest([source])
+        keyed, degraded = index.rows(_at(-1), _at(60))
+
+        # The spelling the parser refused is not presented as a key anywhere in
+        # the row a reader holds...
+        assert "not-a-uuid" not in json.dumps(degraded)
+        # ...while the record this index was read from still carries it.
+        assert _direct_rows(source)[1]["boot_id"] == "not-a-uuid"
+
+        # Each row carries the key it was stored under, and the kind of key.
+        assert (keyed["host"], keyed["boot_id"], keyed["key_kind"]) == (
+            "node-a",
+            _BOOT_BEFORE,
+            BOOT_SCOPE,
+        )
+        assert (degraded["host"], degraded["boot_id"], degraded["key_kind"]) == (
+            "node-a",
+            UNKNOWN_BOOT_ID,
+            HOST_SCOPE,
+        )

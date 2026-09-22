@@ -121,6 +121,11 @@ _HOST_KEYS = ("host", "hostname")
 _HOST_SECTION = "host"
 _BOOT_ID_KEY = "boot_id"
 
+#: The column naming which of the two keys a stored row got. It is carried back
+#: out to every read surface that returns rows, so a degraded key announces
+#: itself to a reader instead of looking like the keyed case.
+_KEY_KIND_KEY = "key_kind"
+
 #: Key-scope markers, stored beside every key so a row says which identity it
 #: was keyed by. ``BOOT_SCOPE`` means the key carried a boot identity and two
 #: such rows may be differenced; ``HOST_SCOPE`` means the boot was unknown, so
@@ -867,15 +872,38 @@ class TelemetryIndex:
         return (row["host"], row["boot_id"], float(row["value"]))
 
     def rows(self, start: float, end: float) -> list[dict[str, Any]]:
-        """Records whose timestamp falls in ``[start, end)``, in time order."""
+        """Records whose timestamp falls in ``[start, end)``, in time order.
+
+        Each record carries the key it was stored under -- ``host`` and
+        ``boot_id`` -- together with ``key_kind``, so a reader grouping rows by
+        ``(host, boot)`` groups them exactly as the store did and a row whose
+        boot was refused is visible as the degraded case it is.
+
+        The record's own spelling of those fields is replaced rather than
+        passed through: a boot the producer's parser refused is not the
+        identity any lookup matched on, and presented as one it makes the
+        reboot guarantee look like it holds on a row where it does not. The
+        spelling is not lost, because it is in the record itself -- the file
+        this index is derived from and can be rebuilt from at any time.
+        """
         return [
-            json.loads(row["payload"])
+            self._keyed_row(row)
             for row in self._conn.execute(
-                "SELECT payload FROM sample WHERE ts_epoch >= ? AND ts_epoch < ? "
+                "SELECT host, boot_id, key_kind, payload FROM sample "
+                "WHERE ts_epoch >= ? AND ts_epoch < ? "
                 "ORDER BY ts_epoch, host, boot_id, inode, offset",
                 (start, end),
             )
         ]
+
+    @staticmethod
+    def _keyed_row(row: sqlite3.Row) -> dict[str, Any]:
+        """The stored record, stamped with the key it was stored under."""
+        record = json.loads(row["payload"])
+        record[_HOST_SECTION] = row["host"]
+        record[_BOOT_ID_KEY] = row["boot_id"]
+        record[_KEY_KIND_KEY] = row["key_kind"]
+        return record
 
     def receipt_bins(
         self,
