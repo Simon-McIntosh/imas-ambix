@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-22T12:45:02",
+  "updated": "2026-09-22T13:00:08",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -66932,6 +66932,244 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260922T095849575314-serve-provenance",
+        "plan": "serve-telemetry-spine",
+        "section": "\u00a73",
+        "node": "serve-provenance",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1895,
+                "cached_input_tokens": 710789,
+                "input_tokens": 712686,
+                "output_tokens": 1330,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 714016,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "98f13dbe-0703-4abd-a5e4-65bfdb2eeee2",
+            "session_id": "probe-and-provenance"
+          },
+          "done_when": "Measured on the live serve today. Job 1273253 is launched with seven settings that determine what its numbers mean -- context-length 512000, max-total-tokens 4000000, mem-fraction-static 0.85, max-running-requests 36, hicache-ratio 2.0, speculative-algorithm DSPARK, tensor-parallel-size 4 -- and a row carries none of them. It carries profile_slug, served_name, gpus and job_id only. imas_ambix/agent/AGENTS.md records why that matters: a pool figure needs its topology, its max_model_len and its mem_fraction_static or it cannot be read, and all three moved within one week, mem fraction 0.92 to 0.85 and the pool 2,557,835 to 2,200,283 tokens. So a kv_cache_usage_perc of 47 percent recorded today means different absolute traffic under each and the record cannot say which. Put all seven on every row. Prefer asking the engine over being told by the launcher, since a value the engine reports is the one in force rather than the one requested -- SGLang exposes its server arguments over HTTP and the recorder already holds the base URL, so check what that endpoint returns before falling back to arguments passed in. A setting the engine does not report is omitted rather than written as null, on the same rule the sparse sections already follow. Done when: pytest tests/test_agent_serving_receipts.py passes with more tests than the 27 at base; ruff check imas_ambix tests exits 0; the manifest quotes the mutated line verbatim beside the named test that reddens; and it states, from a row recorded against the live engine on the GPU node, which of the seven the engine reported and which had to come from elsewhere.",
+          "estimated_hours": 1.5,
+          "goal": "Carry the serve configuration on every receipt row, so a recorded occupancy figure states the settings it was measured under instead of leaving them to be guessed later.",
+          "id": "serve-provenance",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-22T09:58:50Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no 'binding_observed'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/reports/serve-provenance.md",
+          "negative_control": "In imas_ambix/agent/serving_receipts.py, delete the line that attaches the serve configuration to the emitted row. A test asserting a recorded row carries the context length and the memory fraction it was measured under must fail.",
+          "plan": "serve-telemetry-spine",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a73",
+          "spec_level": "guided",
+          "time_budget": "60m",
+          "token_budget": null,
+          "write_paths": [
+            "imas_ambix/agent/serving_receipts.py",
+            "tests/test_agent_serving_receipts.py",
+            "docs/evidence/archive/serve-telemetry-spine-landed.html",
+            "docs/figures/serve-telemetry-spine",
+            "docs/plans/serve-telemetry-spine.html"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "telemetry-serve-provenance",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "high",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "worktree-full",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-22T09:58:59Z",
+        "completed_at": "2026-09-22T10:49:37.357Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 3030,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 3038,
+        "stalled": false,
+        "time_budget": "60m",
+        "base_sha": "782cc5f20c441ef57c58634142ab85739201cc6e",
+        "commits": [
+          "b45dbc5c36d996df29f65707465359fe72a130fa",
+          "0665bb9937e9c15c8f250fe4ca3615a72524eb79",
+          "a72915ae54e2d3190a89d555a3c6617ab1cbd3f0"
+        ],
+        "changed_lines": {
+          "added": 753,
+          "removed": 16,
+          "files": 7
+        },
+        "tests_added": 11,
+        "gate": "passed",
+        "gate_check": {
+          "command": "pytest tests/test_agent_serving_receipts.py",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260922T095849575314-serve-provenance/gate-repair.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/reports/serve-provenance.md",
+        "scope_changed": false,
+        "session_id": "7e5b6864-30ae-48b4-ab26-f2cb59c19108",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 1795317,
+            "input_tokens_cumulative": 1795317,
+            "output_tokens": 5827,
+            "output_tokens_cumulative": 5827,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-22T10:49:37.357Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "15m",
+          "requested": true,
+          "waived_runs": []
+        },
+        "review": {
+          "status": "parsed",
+          "scores": {
+            "durability": 18,
+            "evidence": 18,
+            "fit": 17,
+            "goal_fidelity": 19,
+            "scope_discipline": 20
+          },
+          "absent": [],
+          "total": 92
+        },
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 13609630,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 371.706,
+          "generated_tokens": 69506,
+          "generation_seconds": 361.614,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 27.5,
+          "machine_seconds": 10.092,
+          "peak_input_tokens": 132081,
+          "tokens_per_second": 192.21,
+          "wall_tokens_per_second": 186.99
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent_serving_receipts.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        },
+        "attempt_kind": "resume",
+        "attempt": 2,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/probe-and-provenance/serve-provenance",
+          "session_id": "7e5b6864-30ae-48b4-ab26-f2cb59c19108",
+          "session_source": "stream",
+          "retained_at": "2026-09-22T10:49:37.357Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "plan_impl_at_dispatch": 0.95,
+        "impl_move": {
+          "plan": "serve-telemetry-spine",
+          "at_dispatch": 0.95,
+          "at_complete": 0.95,
+          "verdict": "waived",
+          "reason": "Adds provenance to already-shipped s3 rows; no section moved from unshipped to shipped. Plan impl stays at 0.95 pending the recorder on-node cost measure, which is now taken and needs the plan bound revising rather than further node work."
+        },
+        "negative_control": {
+          "verdict": "waived",
+          "test_paths": [
+            "tests/test_agent_serving_receipts.py"
+          ],
+          "declaration": "In imas_ambix/agent/serving_receipts.py, delete the line that attaches the serve configuration to the emitted row. A test asserting a recorded row carries the context length and the memory fraction it was measured under must fail.",
+          "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260922T095849575314-serve-provenance/negative-control.log",
+          "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260922T095849575314-serve-provenance/negative-control.log",
+          "reason": "The node ran a better-aimed mutation than the one I declared, and running mine would have proved nothing. I declared deleting the line that attaches the serve configuration to the row; every test this node adds asserts serve_config content, so that deletion reddens loudly against a path the new tests already cover. The node instead removed \"if engine_config:\" and \"merged.update(engine_config)\" from _merge_serve_config, which mutates the ENGINE-OVER-CALLER PRECEDENCE -- the rule that what gets recorded is the configuration in force rather than the one requested, and the part nothing held before this node. Its log opens with that mutation verbatim and reports 1 failed, 37 deselected, with test_record_receipts_prefers_the_engine_over_the_caller_settings as the reddening test. This is the fourth time this wave my declared control aimed at what the code does rather than at what nothing holds; the defect is in my briefs, not in the nodes. Log: /home/ITER/mcintos/.config/reckon/crew/runs/r-20260922T095849575314-serve-provenance/negative-control.log"
+        },
+        "tool_steps": 108.0,
+        "orientation_input_tokens": 1732609.0,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -67006,6 +67244,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 921
+    "_version": 922
   }
 }
