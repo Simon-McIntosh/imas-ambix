@@ -172,13 +172,12 @@ _NODE_NAME = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._-]*\Z")
 
 #: Quantity names whose value is a cumulative total since the engine started,
 #: so their period figure is the difference of two endpoints and never a sum.
-#: The flat row spells them one way and the canonical engine section another;
-#: both spellings are listed, and a name ending in ``_total`` is treated as
-#: cumulative as well so a later producer needs no edit here.
+#: The canonical engine section is the authority and supplies every spelling
+#: listed; a name ending in ``_total`` is treated as cumulative as well, which
+#: is what keeps a row recorded before the engine section existed correctly
+#: classified without listing its flat names here.
 CUMULATIVE_MEASUREMENTS: frozenset[str] = frozenset(
     {
-        "prefix_cache_queries_total",
-        "prefix_cache_hits_total",
         "engine.prompt_tokens",
         "engine.generation_tokens",
         "engine.prefix_cache_queries",

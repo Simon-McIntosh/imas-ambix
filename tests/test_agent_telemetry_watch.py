@@ -391,3 +391,33 @@ def test_the_subcommand_renders_the_record_it_is_pointed_at(tmp_path: Path) -> N
     assert figures.exit_code == 0, figures.output
     document = json.loads(figures.output)
     assert {"record", "ledger", "periods"} <= set(document)
+
+
+def test_latest_reading_assembles_the_hit_rate_from_engine_counters(
+    tmp_path: Path,
+) -> None:
+    """A family stating only the cumulative pair still yields a hit rate."""
+    now = 1_800_000_000.0
+    row = _row(now - 1, prompt_tokens=1000, generation_tokens=100)
+    row["engine"]["prefix_cache_queries"] = 8_000
+    row["engine"]["prefix_cache_hits"] = 6_800
+    index = _index(tmp_path, [row])
+
+    reading = watch._latest_reading(index, now)
+
+    assert reading["hit_rate"] == pytest.approx(0.85)
+
+
+def test_latest_reading_prefers_the_engine_rate_gauge(tmp_path: Path) -> None:
+    """When the family publishes the rate itself, the counters are not used."""
+    now = 1_800_000_000.0
+    row = _row(now - 1, prompt_tokens=1000, generation_tokens=100)
+    row["engine"]["family"] = "sglang"
+    row["engine"]["prefix_cache_hit_rate"] = 0.41
+    row["engine"]["prefix_cache_queries"] = 8_000
+    row["engine"]["prefix_cache_hits"] = 6_800
+    index = _index(tmp_path, [row])
+
+    reading = watch._latest_reading(index, now)
+
+    assert reading["hit_rate"] == pytest.approx(0.41)

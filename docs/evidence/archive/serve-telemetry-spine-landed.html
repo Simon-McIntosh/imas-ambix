@@ -2823,6 +2823,105 @@ status.</p>
     published rate needs that layer repointed at the new canonical column before it reaches a
     row — a gap already recorded on the plan's followup list and not repaired here.</p>
 
+<h2 id="flat-columns-folded-into-the-engine-section">The flat columns folded into the engine section</h2>
+
+    <figure>
+      <img src="/imas-ambix/figures/serve-telemetry-spine/flat-columns-folded-into-engine.svg"
+           alt="Left: the ten flat columns of row schema 3, derived inside the recorder from the vLLM spellings only and therefore null on the SGLang serve. Right: the row schema 4 engine section carrying the same quantities under each family's own names, cumulatively. Below, a table mapping each removed column onto the engine field a reader now uses and the value measured on the live engine, and the five kept fields classified by whether the engine section also carries them.">
+      <figcaption>Ten columns removed, their quantities read from the engine section; five kept, three of them duplicates the section already carries.</figcaption>
+    </figure>
+
+    <p><code>ReceiptRow</code> no longer carries <code>prefix_cache_queries_total</code>,
+    <code>prefix_cache_hits_total</code>, <code>prefix_cache_query_delta</code>,
+    <code>prefix_cache_hit_delta</code>, <code>prefix_cache_hit_rate_interval</code>,
+    <code>prefix_cache_hit_rate</code>, <code>spec_draft_tokens</code>,
+    <code>spec_accepted_tokens</code>, <code>spec_acceptance_rate</code> or
+    <code>spec_num_accepted_per_pos</code>. Every one of them duplicated a quantity the
+    <code>engine</code> section already carries — the duplication having been the defect both
+    earlier reviews recorded, since the flat columns were computed from the vLLM series names
+    inside <code>serving_receipts.py</code> and were therefore <code>null</code> in every one
+    of 79,265 recorded rows against a serve whose engine published those quantities the whole
+    time.</p>
+
+    <p><strong>The replacement is measured on the live engine, not inferred from the shape.</strong>
+    One row built against SGLang <code>deepseek-v4-1-flash</code> (job <code>1273253</code>,
+    port 18810) carries <code>schema_version: 4</code> and no flat
+    <code>prefix_cache_*</code> or <code>spec_*</code> key at all. What the removed columns'
+    readers get instead:</p>
+
+    <table>
+      <thead>
+        <tr><th>removed flat column</th><th>engine field</th><th>live value, job 1273253</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>prefix_cache_queries_total</code></td><td><code>engine.prefix_cache_queries</code></td><td>absent — a vLLM-only series, omitted rather than nulled</td></tr>
+        <tr><td><code>prefix_cache_hits_total</code></td><td><code>engine.prefix_cache_hits</code></td><td>6,158,605,312</td></tr>
+        <tr><td><code>prefix_cache_query_delta</code>, <code>prefix_cache_hit_delta</code></td><td>the difference of two rows' engine sections</td><td>2,000 / 1,800 in the recorder's own test</td></tr>
+        <tr><td><code>prefix_cache_hit_rate_interval</code>, <code>prefix_cache_hit_rate</code></td><td><code>engine.prefix_cache_hit_rate</code>, else hits / queries</td><td>0.9981884</td></tr>
+        <tr><td><code>spec_draft_tokens</code>, <code>spec_accepted_tokens</code></td><td><code>engine.spec_decode</code></td><td><code>{accept_rate: 0.66926, accept_length: 4.34632, active_draft_tokens: 6.0}</code></td></tr>
+        <tr><td><code>spec_acceptance_rate</code>, <code>spec_num_accepted_per_pos</code></td><td><code>engine.spec_decode</code> (vLLM's own spellings)</td><td>vLLM reads <code>{draft_tokens_total, accepted_tokens_total, num_accepted_per_pos}</code>; the two families' shapes do not correspond</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>The five kept fields were classified per field rather than kept as a block.</strong>
+    Two are not duplicates — the engine section carries only cumulative
+    <code>engine.generation_tokens</code> (48,865,489) and <code>engine.prompt_tokens</code>
+    (6,357,941,133), not the interval rates <code>generation_throughput_toks_per_s</code>
+    (742.9209) and <code>prompt_throughput_toks_per_s</code> (77174.5704), so nothing in the
+    section reproduces them. Three are duplicates the section already carries and were kept as
+    the dispatch instructed, removable in a later pass: <code>num_requests_running</code> 5
+    against <code>engine.requests_running</code> 5.0, <code>num_requests_waiting</code> 0
+    against <code>engine.requests_queued</code> 0.0, and <code>kv_cache_usage_perc</code> 0.2
+    against <code>engine.kv_pool_occupancy</code> 0.2.</p>
+
+    <p><strong>The schema version moves 3 → 4, and the rows already on disk keep the old
+    shape.</strong> A reader must key on <code>schema_version</code> and take the flat columns
+    from a version-3 row and the engine section from a version-4 row, rather than assuming
+    either vocabulary. The index needs no branch to do this: <code>telemetry_index._kind</code>
+    classifies a measure as a counter when its name is in
+    <code>CUMULATIVE_MEASUREMENTS</code> <em>or</em> ends in <code>_total</code>, so the engine
+    names were added to that list and the suffix fallback keeps pre-engine-section rows
+    correctly classified once the flat names are dropped from it. Both flat names are gone from
+    the index's measure list.</p>
+
+    <p><strong>Every consumer moved onto the section.</strong> <code>watch.py</code> read
+    <code>latest.get("prefix_cache_hit_rate")</code> while its own constant
+    <code>PREFIX_CACHE_HITS</code> already named <code>engine.prefix_cache_hits</code>; its
+    reading now prefers the rate gauge and falls back to hits/queries, so it reports a figure
+    for a family publishing either shape. <code>receipt_bins.py</code> read
+    <code>prefix_cache_hit_rate_interval</code>; it now takes the rate from the engine section,
+    gauge first and the differenced cumulative pair otherwise, and declines the interval when
+    the pair cannot be differenced — a query delta at or below zero, or a negative hit delta —
+    rather than publishing a ratio assembled from a reset counter.</p>
+
+    <p><strong>The negative control, applied verbatim.</strong> The declared mutation inverts
+    the fallback assembly's ratio in <code>watch.py::_latest_reading</code>:</p>
+
+    <pre><code>hit_rate = round(hits / queries, 4)   ->   hit_rate = round(queries / hits, 4)</code></pre>
+
+    <p>It reddens exactly
+    <code>tests/test_agent_telemetry_watch.py::test_latest_reading_assembles_the_hit_rate_from_engine_counters</code>,
+    reported as <strong>1 failed</strong> at <code>1.1765</code> against the expected
+    <code>0.85</code>. The log, its declared mutation verbatim on line 1, is
+    <code>docs/figures/serve-telemetry-spine/controls/flat-columns-negative-control.log</code>.
+    Gates: <strong>94 passed</strong> over the four named files against <strong>91 collected at
+    base revision <code>913bd953</code></strong>, so three added and none removed;
+    <code>uv run --no-sync ruff check imas_ambix tests</code> exit 0; and
+    <code>tests/test_agent_serve_registry.py -k agent_package_modules_parse_with_serving_python</code>
+    passing, which is the guard that caught the unparenthesized exception tuples this node's own
+    edits introduced into <code>telemetry_index.py</code> and <code>watch.py</code> — four
+    occurrences, all restored to the parenthesised form before the commit.</p>
+
+    <p><strong>Three discrepancies between the dispatch and the tree, and one fence left
+    alone.</strong> The write-path list names <code>tests/test_receipt_bins.py</code>, which does
+    not exist; the real file is <code>tests/test_agent_receipt_bins.py</code>, which is what was
+    edited. It says <code>receipt_bins.py</code> reads both
+    <code>prefix_cache_hit_rate</code> and <code>prefix_cache_hit_rate_interval</code>; it read
+    only the interval one. And <code>tests/test_telemetry_store.py</code> still lists the flat
+    names in its <code>_UNOBSERVED_LEAVES</code> set — outside this node's fence, describing
+    historic rows and generic compaction rather than a live consumer, left untouched and still
+    passing, with the question of whether it should follow left to the owner of that file.</p>
+
 </main>
 </body>
 </html>

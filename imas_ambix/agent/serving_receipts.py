@@ -3,20 +3,22 @@
 :mod:`imas_ambix.agent.engine_metrics` owns which series carries which
 quantity for each engine family, and :mod:`imas_ambix.agent.bench` differences
 cumulative counters across a window
-(:func:`~imas_ambix.agent.bench._counter_delta`,
-:func:`~imas_ambix.agent.bench._per_position_delta`). This module reuses both
+(:func:`~imas_ambix.agent.bench._counter_delta`). This module reuses it
 to build a *continuous* recorder: it samples a serve's ``/metrics`` on an
 interval and appends one JSON row per sample to a durable, append-only
 receipts file, so a serve's whole life is a readable record rather than
 something reconstructed afterwards from a terminal summary.
 
-The row carries several views of one tick. The flat fields are the established
-vLLM-shaped vocabulary, kept because saved runs and readers resolve through
-them; the ``engine`` section is the canonical family-agnostic set, and it is
-where the quantities that flat vocabulary has no home for live — the cached
-prompt tokens split by the tier that answered them, the uncached remainder,
-and both latency histograms. The ``engine`` section carries only what was
-observed, so an absent quantity is absent rather than null or zero.
+The row carries a small flat field set and the canonical ``engine`` section.
+The flat fields are the established vLLM-shaped vocabulary a saved run and a
+reader resolve through, and they are only the ones the engine section states
+in a different *shape* rather than a different name: the recorded throughputs
+are rates over the sampling interval, where the engine section carries the
+cumulative token counters they were differenced from. Prefix-cache and
+speculative-decode quantities are read from the engine section, which carries
+them directly rather than only as a derived flat column. The ``engine``
+section carries only what was observed, so an absent quantity is absent
+rather than null or zero.
 
 Beside it the row carries what the node itself measured:
 :mod:`imas_ambix.agent.node_probe` supplies the ``cards``, ``host`` and
@@ -64,7 +66,6 @@ from imas_ambix.agent import engine_metrics, node_probe, telemetry_store
 from imas_ambix.agent.bench import (
     _counter_delta,
     _fetch_body,
-    _per_position_delta,
 )
 
 if TYPE_CHECKING:
@@ -77,7 +78,9 @@ if TYPE_CHECKING:
 # wants the name it already knows, and the engine section beside it carries the
 # canonical name. One direction only — the canonical set is the source, so a
 # family that resolves a quantity under every engine spelling produces the same
-# flat field the single-family reader always produced.
+# flat field the single-family reader always produced. Only the quantities the
+# flat row still states a *shape* for appear here; a quantity whose canonical
+# spelling the engine section already carries needs no flat mirror.
 _LEGACY_GAUGE_NAMES: dict[str, str] = {
     "requests_running": "num_requests_running",
     "requests_queued": "num_requests_waiting",
@@ -86,16 +89,16 @@ _LEGACY_GAUGE_NAMES: dict[str, str] = {
 _LEGACY_COUNTER_NAMES: dict[str, str] = {
     "prompt_tokens": "prompt_tokens_total",
     "generation_tokens": "generation_tokens_total",
-    "prefix_cache_queries": "prefix_cache_queries_total",
-    "prefix_cache_hits": "prefix_cache_hits_total",
 }
 
 #: Version of the row shape. A reader that ingests old and new files together
 #: needs the value on the row, because the flat vocabulary alone cannot say
 #: whether the sparse sections below are absent or merely empty. The flat,
 #: sectionless rows carry no version; ``2`` is the first shape that has them,
-#: and ``3`` adds the serve configuration beside them.
-ROW_SCHEMA_VERSION = 3
+#: ``3`` adds the serve configuration beside them, and ``4`` drops the flat
+#: prefix-cache and speculative-decode columns whose quantities the engine
+#: section already carries.
+ROW_SCHEMA_VERSION = 4
 
 #: The row's sparse sections. A section whose probe did not run is *omitted*
 #: from the serialized payload rather than written as ``null``, so a present
@@ -136,10 +139,11 @@ def _serving_snapshot(text: str) -> dict[str, Any]:
     scrape from any engine family populates the same fields; the flat keys are
     then filled from the canonical values under their established names.
 
-    Speculative-decode counters keep their exact-name discipline there too:
-    vLLM pairs every counter with a same-named ``_created`` gauge — its
-    creation timestamp, not a data point — and a substring test folds that
-    sibling into the token total (measured on the live four-card engine).
+    Only the flat fields whose shape differs from the engine section are
+    mirrored. The prefix-cache and speculative-decode quantities are read
+    straight off the engine section, which carries them under their canonical
+    names, and where vLLM's exact-name discipline (a same-named ``_created``
+    gauge sibling is a creation timestamp, not a data point) is applied.
     """
     metrics = engine_metrics.read_metrics(text)
     gauges = {
@@ -152,15 +156,9 @@ def _serving_snapshot(text: str) -> dict[str, Any]:
         for canon, legacy in _LEGACY_COUNTER_NAMES.items()
         if canon in metrics.counters
     }
-    spec_decode = {
-        "draft_tokens_total": metrics.spec_decode.get("draft_tokens_total"),
-        "accepted_tokens_total": metrics.spec_decode.get("accepted_tokens_total"),
-        "num_accepted_per_pos": metrics.spec_decode.get("num_accepted_per_pos"),
-    }
     return {
         "gauges": gauges,
         "counters": counters,
-        "spec_decode": spec_decode,
         "engine": metrics.row_section(),
     }
 
@@ -174,7 +172,9 @@ class ReceiptRow:
     than writing a null. The flat fields above keep their established meaning,
     ``None`` included -- they are a fixed vocabulary where a null has always
     said *not observed*, and a reader resolving through them is entitled to
-    see the key.
+    see the key. Prefix-cache and speculative-decode quantities have no flat
+    field: the ``engine`` section carries them under their canonical names,
+    and its own rule (absent rather than null) then applies to them.
     """
 
     schema_version: int
@@ -189,16 +189,6 @@ class ReceiptRow:
     num_requests_running: int | None
     num_requests_waiting: int | None
     kv_cache_usage_perc: float | None
-    prefix_cache_queries_total: int | None
-    prefix_cache_hits_total: int | None
-    prefix_cache_query_delta: int | None
-    prefix_cache_hit_delta: int | None
-    prefix_cache_hit_rate_interval: float | None
-    prefix_cache_hit_rate: float | None
-    spec_draft_tokens: int | None
-    spec_accepted_tokens: int | None
-    spec_acceptance_rate: float | None
-    spec_num_accepted_per_pos: list[int] | None
     engine: dict[str, Any] | None = None
     cards: dict[str, Any] | None = None
     host: dict[str, Any] | None = None
@@ -230,20 +220,6 @@ def _coerce_int(value: Any) -> int | None:
         return None
 
 
-def _prefix_cache_hit_rate(counters: dict[str, float]) -> float | None:
-    """Cumulative prefix-cache hit rate, available from a single scrape.
-
-    Unlike throughput, a hit rate is a ratio of two lifetime counters, so it
-    needs no second sample to be meaningful — which is what lets the very
-    first row in a run already carry a non-null value.
-    """
-    queries = counters.get("prefix_cache_queries_total")
-    hits = counters.get("prefix_cache_hits_total")
-    if not queries or hits is None:
-        return None
-    return round(hits / queries, 4)
-
-
 def build_receipt_row(
     previous: dict[str, Any] | None,
     previous_at: _dt.datetime | None,
@@ -263,9 +239,10 @@ def build_receipt_row(
     Throughput is a rate, so it needs the wall-clock delta between two
     samples; a lone snapshot (the first sample of a run) reports it as
     ``None`` rather than a lifetime average passed off as an instantaneous
-    rate. The prefix-cache hit rate carries no such requirement and is
-    computed from *current* alone. Prefix-cache interval fields, by contrast,
-    require the preceding snapshot and remain ``None`` on the first row.
+    rate. The prefix-cache and speculative-decode counters are not differenced
+    here: the engine section carries the cumulative values themselves, and a
+    reader that wants an interval difference takes it from two rows' engine
+    sections.
 
     *hostname* names the host this row was taken on, defaulting to the local
     node because a recorder only ever writes rows about the machine it runs
@@ -278,7 +255,6 @@ def build_receipt_row(
     """
     gauges = current["gauges"]
     counters = current["counters"]
-    spec = current["spec_decode"]
 
     gen_tps: float | None = None
     prompt_tps: float | None = None
@@ -296,45 +272,6 @@ def build_receipt_row(
             if prompt_delta is not None:
                 prompt_tps = round(prompt_delta / elapsed, 4)
 
-    prev_spec = previous["spec_decode"] if previous is not None else None
-    draft_delta = (
-        _counter_delta(prev_spec, spec, "draft_tokens_total")
-        if prev_spec is not None
-        else None
-    )
-    accepted_delta = (
-        _counter_delta(prev_spec, spec, "accepted_tokens_total")
-        if prev_spec is not None
-        else None
-    )
-    per_pos_delta = (
-        _per_position_delta(prev_spec, spec) if prev_spec is not None else None
-    )
-    acceptance_rate = (
-        round(accepted_delta / draft_delta, 4)
-        if draft_delta is not None and draft_delta > 0 and accepted_delta is not None
-        else None
-    )
-
-    prev_counters = previous["counters"] if previous is not None else None
-    prefix_cache_query_delta = (
-        _counter_delta(prev_counters, counters, "prefix_cache_queries_total")
-        if prev_counters is not None
-        else None
-    )
-    prefix_cache_hit_delta = (
-        _counter_delta(prev_counters, counters, "prefix_cache_hits_total")
-        if prev_counters is not None
-        else None
-    )
-    prefix_cache_hit_rate_interval = (
-        round(prefix_cache_hit_delta / prefix_cache_query_delta, 4)
-        if prefix_cache_query_delta is not None
-        and prefix_cache_query_delta > 0
-        and prefix_cache_hit_delta is not None
-        else None
-    )
-
     sections = node_sections or {}
     return ReceiptRow(
         schema_version=ROW_SCHEMA_VERSION,
@@ -349,18 +286,6 @@ def build_receipt_row(
         num_requests_running=_coerce_int(gauges.get("num_requests_running")),
         num_requests_waiting=_coerce_int(gauges.get("num_requests_waiting")),
         kv_cache_usage_perc=gauges.get("kv_cache_usage_perc"),
-        prefix_cache_queries_total=_coerce_int(
-            counters.get("prefix_cache_queries_total")
-        ),
-        prefix_cache_hits_total=_coerce_int(counters.get("prefix_cache_hits_total")),
-        prefix_cache_query_delta=prefix_cache_query_delta,
-        prefix_cache_hit_delta=prefix_cache_hit_delta,
-        prefix_cache_hit_rate_interval=prefix_cache_hit_rate_interval,
-        prefix_cache_hit_rate=_prefix_cache_hit_rate(counters),
-        spec_draft_tokens=draft_delta,
-        spec_accepted_tokens=accepted_delta,
-        spec_acceptance_rate=acceptance_rate,
-        spec_num_accepted_per_pos=per_pos_delta,
         engine=current.get("engine") or None,
         cards=sections.get("cards"),
         host=sections.get("host"),

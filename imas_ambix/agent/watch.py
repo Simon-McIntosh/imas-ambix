@@ -61,6 +61,13 @@ DEFAULT_PRICE_PATH = Path.home() / ".cache" / "gpu-watch" / "openrouter-prices.j
 #: reached for it would work only for the one engine family that carries it.
 PROMPT_TOKENS = "engine.prompt_tokens"
 GENERATION_TOKENS = "engine.generation_tokens"
+#: The prefix-cache rate and the two cumulative counters it may be assembled
+#: from. The two engine families report it in different shapes rather than
+#: under different names: one publishes the rate itself as a gauge, the other
+#: only the counter pair, from which the ratio is taken. Both spellings are
+#: canonical engine-section names; no flat row column is consulted.
+PREFIX_CACHE_HIT_RATE = "engine.prefix_cache_hit_rate"
+PREFIX_CACHE_QUERIES = "engine.prefix_cache_queries"
 PREFIX_CACHE_HITS = "engine.prefix_cache_hits"
 CACHED_TIERS = (
     "engine.cached_prompt_tokens.device",
@@ -543,6 +550,16 @@ def _latest_reading(
         value = engine.get(leaf)
         return float(value) if isinstance(value, int | float) else None
 
+    # The rate gauge where the family publishes one; otherwise the ratio of
+    # the cumulative counters beside it, which is the same quantity assembled
+    # from the pair the engine does carry.
+    hit_rate = gauge(PREFIX_CACHE_HIT_RATE)
+    if hit_rate is None:
+        hits = gauge(PREFIX_CACHE_HITS)
+        queries = gauge(PREFIX_CACHE_QUERIES)
+        if hits is not None and queries:
+            hit_rate = round(hits / queries, 4)
+
     return {
         "row": latest,
         "family": engine.get("family"),
@@ -552,7 +569,7 @@ def _latest_reading(
         "running": gauge(REQUESTS_RUNNING),
         "queued": gauge(REQUESTS_QUEUED),
         "kv": gauge(KV_OCCUPANCY),
-        "hit_rate": latest.get("prefix_cache_hit_rate"),
+        "hit_rate": hit_rate,
     }
 
 

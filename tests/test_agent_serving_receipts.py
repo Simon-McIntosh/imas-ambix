@@ -2,15 +2,17 @@
 
 Coverage
 --------
-1.  ``_serving_snapshot`` reads gauges (running/waiting/KV usage), counters
-    (prompt/generation tokens, prefix-cache queries and hits), and the
-    speculative-decode sub-snapshot out of one recorded scrape.
-2.  ``build_receipt_row`` on a lone snapshot: no throughput yet (needs a
-    second sample), but a non-null prefix-cache hit rate and spec-decode
-    fields are absent (no prior spec snapshot).
+1.  ``_serving_snapshot`` reads gauges (running/waiting/KV usage) and counters
+    (prompt/generation tokens, prefix-cache queries and hits, speculative-decode
+    draft and accepted tokens) out of one recorded scrape, into the engine
+    section the row carries.
+2.  ``build_receipt_row`` on a lone snapshot: no throughput yet (needs a second
+    sample), while the engine section still states the cumulative counters the
+    interval quantities are assembled from.
 3.  ``build_receipt_row`` on two snapshots separated in time: generation and
-    prompt throughput are the counter deltas over the elapsed wall time, and
-    speculative-decode acceptance is the delta-derived rate.
+    prompt throughput are the counter deltas over the elapsed wall time, and the
+    prefix-cache rate and speculative-decode acceptance come from the two
+    engine sections rather than from flat columns on the row.
 4.  A zero-elapsed pair yields no throughput rather than dividing by zero.
 5.  ``record_receipts`` samples on an interval, appends one JSON row per
     successful scrape to a durable file, and a failed scrape is skipped
@@ -156,6 +158,7 @@ SECOND_SAMPLE_AT = FIRST_SAMPLE_AT + _dt.timedelta(seconds=5)
 # defect a live scrape exposes immediately.
 # ---------------------------------------------------------------------------
 
+
 def _live_sample(name: str, labels: str, value: str) -> str:
     """One data line, in the engine's own exposition shape.
 
@@ -165,7 +168,7 @@ def _live_sample(name: str, labels: str, value: str) -> str:
     lint line-length gate; every value below is transcribed unchanged from
     the live scrape.
     """
-    return f'vllm:{name}{{{labels}}} {value}'
+    return f"vllm:{name}{{{labels}}} {value}"
 
 
 _ENGINE_LABELS = 'engine="0",model_name="deepseek-v4-flash"'
@@ -184,9 +187,7 @@ LIVE_METRICS_T0 = "\n".join(
             _ENGINE_LABELS,
             "1.7886160770691533e+09",
         ),
-        _live_sample(
-            "spec_decode_num_accepted_tokens_total", _ENGINE_LABELS, "6425.0"
-        ),
+        _live_sample("spec_decode_num_accepted_tokens_total", _ENGINE_LABELS, "6425.0"),
         _live_sample(
             "spec_decode_num_accepted_tokens_created",
             _ENGINE_LABELS,
@@ -256,9 +257,7 @@ LIVE_METRICS_T0 = "\n".join(
             "prefix_cache_hits_created", _ENGINE_LABELS, "1.788616077069351e+09"
         ),
         _live_sample("prompt_tokens_total", _ENGINE_LABELS, "3.153518e+06"),
-        _live_sample(
-            "prompt_tokens_created", _ENGINE_LABELS, "1.7886160770694067e+09"
-        ),
+        _live_sample("prompt_tokens_created", _ENGINE_LABELS, "1.7886160770694067e+09"),
         _live_sample("generation_tokens_total", _ENGINE_LABELS, "9170.0"),
         _live_sample(
             "generation_tokens_created", _ENGINE_LABELS, "1.7886160770694497e+09"
@@ -281,9 +280,7 @@ LIVE_METRICS_T1 = "\n".join(
             _ENGINE_LABELS,
             "1.7886160770691533e+09",
         ),
-        _live_sample(
-            "spec_decode_num_accepted_tokens_total", _ENGINE_LABELS, "6535.0"
-        ),
+        _live_sample("spec_decode_num_accepted_tokens_total", _ENGINE_LABELS, "6535.0"),
         _live_sample(
             "spec_decode_num_accepted_tokens_created",
             _ENGINE_LABELS,
@@ -353,9 +350,7 @@ LIVE_METRICS_T1 = "\n".join(
             "prefix_cache_hits_created", _ENGINE_LABELS, "1.788616077069351e+09"
         ),
         _live_sample("prompt_tokens_total", _ENGINE_LABELS, "3.254449e+06"),
-        _live_sample(
-            "prompt_tokens_created", _ENGINE_LABELS, "1.7886160770694067e+09"
-        ),
+        _live_sample("prompt_tokens_created", _ENGINE_LABELS, "1.7886160770694067e+09"),
         _live_sample("generation_tokens_total", _ENGINE_LABELS, "9322.0"),
         _live_sample(
             "generation_tokens_created", _ENGINE_LABELS, "1.7886160770694497e+09"
@@ -398,8 +393,10 @@ def _stub_urlopen(
     def _urlopen(req: Any, timeout: float | None = None, **_kwargs: Any) -> Any:
         url = str(getattr(req, "full_url", ""))
         if url.endswith("/server_info"):
-            outcome: bytes | Exception = info.pop(0) if len(info) > 1 else (
-                info[0] if info else OSError("no /server_info route")
+            outcome: bytes | Exception = (
+                info.pop(0)
+                if len(info) > 1
+                else (info[0] if info else OSError("no /server_info route"))
             )
         else:
             outcome = pending.pop(0) if len(pending) > 1 else pending[0]
@@ -415,7 +412,7 @@ def _stub_urlopen(
 # ---------------------------------------------------------------------------
 
 
-def test_serving_snapshot_reads_gauges_counters_and_spec_decode() -> None:
+def test_serving_snapshot_reads_gauges_counters_and_engine_section() -> None:
     snapshot = sr._serving_snapshot(SAMPLE_T0.decode())
 
     assert snapshot["gauges"]["num_requests_running"] == 3.0
@@ -423,10 +420,13 @@ def test_serving_snapshot_reads_gauges_counters_and_spec_decode() -> None:
     assert snapshot["gauges"]["kv_cache_usage_perc"] == 0.12
     assert snapshot["counters"]["prompt_tokens_total"] == 128_301.0
     assert snapshot["counters"]["generation_tokens_total"] == 542_213.0
-    assert snapshot["counters"]["prefix_cache_queries_total"] == 984_123.0
-    assert snapshot["counters"]["prefix_cache_hits_total"] == 812_004.0
-    assert snapshot["spec_decode"]["draft_tokens_total"] == 40_000.0
-    assert snapshot["spec_decode"]["accepted_tokens_total"] == 24_000.0
+    # The prefix-cache and speculative-decode quantities are read from the
+    # engine section, under the names it carries them by.
+    engine = snapshot["engine"]
+    assert engine["prefix_cache_queries"] == 984_123.0
+    assert engine["prefix_cache_hits"] == 812_004.0
+    assert engine["spec_decode"]["draft_tokens_total"] == 40_000.0
+    assert engine["spec_decode"]["accepted_tokens_total"] == 24_000.0
 
 
 def test_serving_snapshot_ignores_created_gauges_and_external_counters() -> None:
@@ -461,7 +461,7 @@ def test_serving_snapshot_ignores_created_gauges_and_external_counters() -> None
     snapshot = sr._serving_snapshot(text)
 
     assert snapshot["counters"]["prompt_tokens_total"] == 4.4481e08
-    assert snapshot["counters"]["prefix_cache_queries_total"] == 4.4523e08
+    assert snapshot["engine"]["prefix_cache_queries"] == 4.4523e08
 
 
 def test_serving_snapshot_reads_live_four_card_spec_decode_names() -> None:
@@ -476,9 +476,10 @@ def test_serving_snapshot_reads_live_four_card_spec_decode_names() -> None:
     """
     snapshot = sr._serving_snapshot(LIVE_METRICS_T0)
 
-    assert snapshot["spec_decode"]["draft_tokens_total"] == 13695.0
-    assert snapshot["spec_decode"]["accepted_tokens_total"] == 6425.0
-    assert snapshot["spec_decode"]["num_accepted_per_pos"] == [
+    spec = snapshot["engine"]["spec_decode"]
+    assert spec["draft_tokens_total"] == 13695.0
+    assert spec["accepted_tokens_total"] == 6425.0
+    assert spec["num_accepted_per_pos"] == [
         2048.0,
         1588.0,
         1235.0,
@@ -487,12 +488,14 @@ def test_serving_snapshot_reads_live_four_card_spec_decode_names() -> None:
     ]
 
 
-def test_receipt_row_over_live_four_card_window_is_nonzero_and_descending() -> None:
-    """The delta-derived receipt fields on a real 15s window from the engine.
+def test_receipt_row_over_live_four_card_window_carries_engine_counters() -> None:
+    """The speculative-decode quantities on a real 15s window from the engine.
 
-    This is the regression the plan named directly: reading these fields
-    against a hand-written fixture cannot catch a name the engine does not
-    actually publish, so this asserts against the engine's own bytes.
+    The row no longer differences these counters into flat fields; it carries
+    the engine's own cumulative values, and the interval figure is the advance
+    between two rows. This is the regression the plan named directly: reading
+    these names against a hand-written fixture cannot catch a name the engine
+    does not actually publish, so this asserts against the engine's own bytes.
     """
     prev = sr._serving_snapshot(LIVE_METRICS_T0)
     curr = sr._serving_snapshot(LIVE_METRICS_T1)
@@ -507,13 +510,25 @@ def test_receipt_row_over_live_four_card_window_is_nonzero_and_descending() -> N
         gpus=4,
     )
 
-    assert row.spec_draft_tokens == 205
-    assert row.spec_accepted_tokens == 110
-    assert row.spec_acceptance_rate == round(110 / 205, 4)
-    assert row.spec_num_accepted_per_pos == [35, 30, 20, 15, 10]
-    assert row.spec_num_accepted_per_pos == sorted(
-        row.spec_num_accepted_per_pos, reverse=True
-    )
+    assert row.engine is not None
+    spec = row.engine["spec_decode"]
+    assert spec["draft_tokens_total"] == 13_900.0
+    assert spec["accepted_tokens_total"] == 6_535.0
+
+    previous = prev["engine"]["spec_decode"]
+    draft_delta = spec["draft_tokens_total"] - previous["draft_tokens_total"]
+    accepted_delta = spec["accepted_tokens_total"] - previous["accepted_tokens_total"]
+    assert draft_delta == 205.0
+    assert accepted_delta == 110.0
+    assert round(accepted_delta / draft_delta, 4) == round(110 / 205, 4)
+
+    per_pos = [
+        current - before
+        for current, before in zip(
+            spec["num_accepted_per_pos"], previous["num_accepted_per_pos"], strict=True
+        )
+    ]
+    assert per_pos == [35.0, 30.0, 20.0, 15.0, 10.0]
 
 
 def test_sample_serving_metrics_returns_none_on_fetch_failure() -> None:
@@ -555,17 +570,14 @@ def test_receipt_row_on_lone_snapshot_has_no_throughput_yet() -> None:
     assert row.num_requests_running == 3
     assert row.num_requests_waiting == 0
     assert row.kv_cache_usage_perc == 0.12
-    assert row.prefix_cache_queries_total == 984_123
-    assert row.prefix_cache_hits_total == 812_004
-    assert row.prefix_cache_query_delta is None
-    assert row.prefix_cache_hit_delta is None
-    assert row.prefix_cache_hit_rate_interval is None
-    # Cumulative ratio needs no second sample.
-    assert row.prefix_cache_hit_rate == round(812_004 / 984_123, 4)
-    # No prior spec-decode snapshot to difference against.
-    assert row.spec_draft_tokens is None
-    assert row.spec_accepted_tokens is None
-    assert row.spec_acceptance_rate is None
+    # The prefix-cache and speculative-decode quantities have no flat field;
+    # a lone snapshot still carries the engine's cumulative values, and only
+    # the interval difference between two rows needs a second sample.
+    assert row.engine is not None
+    assert row.engine["prefix_cache_queries"] == 984_123.0
+    assert row.engine["prefix_cache_hits"] == 812_004.0
+    assert row.engine["spec_decode"]["draft_tokens_total"] == 40_000.0
+    assert row.engine["spec_decode"]["accepted_tokens_total"] == 24_000.0
 
 
 def test_receipt_row_over_a_window_computes_throughput_and_acceptance() -> None:
@@ -588,17 +600,40 @@ def test_receipt_row_over_a_window_computes_throughput_and_acceptance() -> None:
     assert row.num_requests_running == 2
     assert row.num_requests_waiting == 1
     assert row.kv_cache_usage_perc == 0.15
-    # +2000 queries, +1800 hits over the window.
-    assert row.spec_draft_tokens == 500
-    assert row.spec_accepted_tokens == 300
-    assert row.spec_acceptance_rate == round(300 / 500, 4)
-    assert row.spec_num_accepted_per_pos == [90, 60, 45, 25, 20]
-    assert row.prefix_cache_query_delta == 2_000
-    assert row.prefix_cache_hit_delta == 1_800
-    assert row.prefix_cache_hit_rate_interval == 0.9
-    # Cumulative ratio at the later sample, not windowed.
-    assert row.prefix_cache_hit_rate == round(813_804 / 986_123, 4)
-    assert row.prefix_cache_hit_rate == 0.8253
+    # The row's own engine section states the cumulative counters at the later
+    # sample; the interval difference between two rows is +2000 queries and
+    # +1800 hits, +500 draft tokens and +300 accepted, taken from the sections
+    # rather than stored as flat columns.
+    engine = row.engine
+    assert engine is not None
+    assert engine["prefix_cache_queries"] == 986_123.0
+    assert engine["prefix_cache_hits"] == 813_804.0
+    previous = prev["engine"]
+    assert engine["prefix_cache_queries"] - previous["prefix_cache_queries"] == 2_000.0
+    assert engine["prefix_cache_hits"] - previous["prefix_cache_hits"] == 1_800.0
+    assert round(
+        engine["prefix_cache_hits"] / engine["prefix_cache_queries"], 4
+    ) == round(813_804 / 986_123, 4)
+
+    spec = engine["spec_decode"]
+    previous_spec = previous["spec_decode"]
+    assert spec["draft_tokens_total"] == 40_500.0
+    assert spec["accepted_tokens_total"] == 24_300.0
+    draft_delta = spec["draft_tokens_total"] - previous_spec["draft_tokens_total"]
+    accepted_delta = (
+        spec["accepted_tokens_total"] - previous_spec["accepted_tokens_total"]
+    )
+    assert draft_delta == 500.0
+    assert accepted_delta == 300.0
+    assert round(accepted_delta / draft_delta, 4) == round(300 / 500, 4)
+    assert [
+        later - earlier
+        for later, earlier in zip(
+            spec["num_accepted_per_pos"],
+            previous_spec["num_accepted_per_pos"],
+            strict=True,
+        )
+    ] == [90.0, 60.0, 45.0, 25.0, 20.0]
 
 
 def test_receipt_row_zero_elapsed_reports_no_throughput() -> None:
@@ -633,7 +668,23 @@ def test_receipt_row_serializes_to_json() -> None:
     )
     payload = json.loads(row.to_json())
     assert payload["profile_slug"] == "deepseek-v4-flash"
-    assert payload["prefix_cache_hit_rate"] == row.prefix_cache_hit_rate
+    assert payload["schema_version"] == sr.ROW_SCHEMA_VERSION
+    assert payload["engine"]["prefix_cache_queries"] == 984_123.0
+    # The flat prefix-cache and speculative-decode columns are gone from the
+    # serialized row; their quantities are in the engine section above.
+    for removed in (
+        "prefix_cache_queries_total",
+        "prefix_cache_hits_total",
+        "prefix_cache_query_delta",
+        "prefix_cache_hit_delta",
+        "prefix_cache_hit_rate_interval",
+        "prefix_cache_hit_rate",
+        "spec_draft_tokens",
+        "spec_accepted_tokens",
+        "spec_acceptance_rate",
+        "spec_num_accepted_per_pos",
+    ):
+        assert removed not in payload
 
 
 # ---------------------------------------------------------------------------
@@ -667,14 +718,24 @@ def test_record_receipts_appends_one_row_per_successful_sample(
     first = json.loads(lines[0])
     second = json.loads(lines[1])
     assert first["generation_throughput_toks_per_s"] is None
-    assert first["prefix_cache_query_delta"] is None
-    assert first["prefix_cache_hit_delta"] is None
-    assert first["prefix_cache_hit_rate_interval"] is None
+    assert first["engine"]["prefix_cache_queries"] == 984_123.0
+    assert first["engine"]["prefix_cache_hits"] == 812_004.0
     assert second["generation_throughput_toks_per_s"] is not None
-    assert second["prefix_cache_query_delta"] == 2_000
-    assert second["prefix_cache_hit_delta"] == 1_800
-    assert second["prefix_cache_hit_rate_interval"] == 0.9
-    assert second["prefix_cache_hit_rate"] is not None
+    # The engine section carries the cumulative counters on every row, so the
+    # interval difference is the advance between the two rows' sections.
+    assert second["engine"]["prefix_cache_queries"] == 986_123.0
+    assert second["engine"]["prefix_cache_hits"] == 813_804.0
+    assert (
+        second["engine"]["prefix_cache_queries"]
+        - first["engine"]["prefix_cache_queries"]
+        == 2_000.0
+    )
+    assert (
+        second["engine"]["prefix_cache_hits"] - first["engine"]["prefix_cache_hits"]
+        == 1_800.0
+    )
+    assert "prefix_cache_query_delta" not in second
+    assert "prefix_cache_hit_rate" not in second
     assert slept == [5.0]
 
 
@@ -1372,9 +1433,7 @@ def test_record_receipts_prefers_the_engine_over_the_caller_settings(
 
     with patch(
         "urllib.request.urlopen",
-        _stub_urlopen(
-            [SAMPLE_T0, SAMPLE_T1], [json.dumps(LIVE_SERVER_INFO).encode()]
-        ),
+        _stub_urlopen([SAMPLE_T0, SAMPLE_T1], [json.dumps(LIVE_SERVER_INFO).encode()]),
     ):
         sr.record_receipts(
             "http://98dci4-gpu-0003:18810",
