@@ -2362,6 +2362,117 @@ except ImportError:
     across sources rather than scoped to one, which is the conservative half of the same gap: a
     window holding two machines now returns nothing rather than picking one.</p>
 
+<h2 id="hostless-key">§5 — a hostless row says so, instead of becoming the reader</h2>
+
+    <figure>
+      <img src="/imas-ambix/figures/serve-telemetry-spine/hostless-row-resolution.svg"
+           alt="Top: a file written on a GPU node and read on the login node, whose rows carry no host, was keyed under the login node's nodename, its boot and a key_kind of host+boot that reads exactly like a recorded pair. Bottom: the host a key carries now comes from the row's own host, or the caller's host, or the receipts file's job id resolved through sacct, and otherwise is the explicit unknown-host marker; a job that does not resolve is refused rather than guessed.">
+      <figcaption>A file written on one machine and read on another: the reader's identity removed, the file's own job id added.</figcaption>
+    </figure>
+
+    <p>The host and boot dimensions are only as good as where their values come from, and the
+    fallback this change removes supplied a value the record never carried. A receipts file is
+    written on a GPU node and read wherever the reader happens to be — very often a login node —
+    so a row that names no host, ingested by that reader, was keyed under the reader's nodename
+    and the reader's boot with <code>key_kind = host+boot</code>. Nothing on the row marked the
+    machine as inferred: the stored key is byte-identical to one built from a recorded pair, and
+    a reader asking which machine wrote a window would be answered, confidently, with the wrong
+    one. This is the same shape the host and boot dimensions exist to prevent, arriving through
+    the one field they trusted.</p>
+
+    <p><strong>The defect reproduced on the real record before it was repaired.</strong>
+    <code>deepseek-v4-1-flash-1271709.jsonl</code> in the agents' receipts directory holds 514
+    rows carrying no host. Ingested on the login node under the old code they were stored as
+    <code>('98dci4-srv-1006.iter.org', '82c41dfa-a445-4fb2-8416-04b44c3d874c', 'host+boot')</code>.
+    <code>sacct -j 1271709 -X -n -o NodeList</code> reports <code>98dci4-gpu-0003</code>: the
+    writer and the reader are different machines, and the key named the reader. This is not a
+    fixture — it is the production directory, and the fallback had the direction of the fact
+    backwards for every file in it.</p>
+
+    <table>
+      <thead><tr><th>Behaviour</th><th>What was measured</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>A hostless row is keyed under the unknown-host marker</td>
+          <td>Two rows naming no host ingest under
+          <code>('', '', 'unknown-host')</code> — the empty host sentinel, the empty boot sentinel
+          and the scope marker — and neither the reading machine's nodename nor <code>host+boot</code>
+          appears anywhere in the rows read back out.</td>
+        </tr>
+        <tr>
+          <td>The marker outranks the boot scope</td>
+          <td><code>key_scope(host, boot_scope)</code> returns <code>unknown-host</code> whenever the
+          host is the sentinel, whatever the boot resolved to, because a key whose host is unknown
+          cannot be host-scoped or boot-scoped. A key with a host and no boot stays
+          <code>host</code>, unchanged.</td>
+        </tr>
+        <tr>
+          <td>A receipts name yields the job id it carries</td>
+          <td>The digits after the final hyphen and before <code>.jsonl</code>:
+          <code>deepseek-v4-1-flash-1271709.jsonl</code> → <code>1271709</code>, a roll suffix
+          <code>serve-9.jsonl.1</code> → <code>9</code>, a compressed roll
+          <code>serve-9.jsonl.1.gz</code> → <code>9</code>; a name with no job id, or a summary
+          beside the record such as <code>summary-1271709.minute.jsonl</code>, yields
+          <code>None</code>.</td>
+        </tr>
+        <tr>
+          <td>The receipts host is resolved, or refused</td>
+          <td><code>receipts_host</code> runs exactly
+          <code>sacct -j 1271709 -X -n -o NodeList</code> and returns the single node it prints. It
+          raises rather than guessing when the name carries no job id, when <code>sacct</code> is
+          unavailable, when it exits nonzero, or when it prints anything other than exactly one
+          node — a host is recorded or refused, never inferred.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 id="hostless-key-negative-control">The negative control, and what it separates</h3>
+
+    <p>The declared mutation restores the pre-repair constructor line — <code>self.host =
+    resolve_host(host)</code> becomes <code>self.host = host or os.uname().nodename</code> — which
+    is the reader-identity fallback itself, and also re-adds the module-level <code>import os</code>
+    the repair had moved into the type-checking block, so the mutation fails for its own reason and
+    not a <code>NameError</code>. It reddens exactly one test,
+    <code>test_a_row_naming_no_host_is_keyed_under_the_unknown_host_marker</code>, on
+    <code>(UNKNOWN_HOST, UNKNOWN_BOOT_ID, UNKNOWN_HOST_SCOPE) == [('98dci4-srv-1006.iter.org', '',
+    'host'), …]</code> — the reader's own nodename back in the key, 1 failed and 37 passed, exit 1.
+    The log's first line is the mutated line verbatim. This is the one measurement that separates
+    "a hostless row does not become the reader" from "the constructor no longer names the reader".</p>
+
+    <h3 id="hostless-key-migration">An index already on disk, and what happens to it</h3>
+
+    <p><strong>An index built before this change holds the misattribution, and it must be
+    rebuilt.</strong> Every hostless row in it is keyed under
+    <code>(reader nodename, reader boot, inode, offset)</code> with <code>key_kind = host+boot</code>.
+    After the change the same row keys as <code>('', '', inode, offset)</code> with
+    <code>key_kind = unknown-host</code>. The stored key moves, and the older rows are not merely
+    differently keyed: they assert a host and a boot the record never carried, which is the wrong
+    answer rather than a stale arrangement of the right one, and it is indistinguishable in storage
+    from a row that recorded them. The tables are <code>CREATE TABLE IF NOT EXISTS</code> with no
+    schema-version marker, so such an index keeps its rows and the new code does not notice at
+    ingest. The recovery is <code>TelemetryIndex.rebuild()</code> from the JSONL — the durable copy,
+    and the whole recovery, because the index is disposable by construction. An index that never held
+    a hostless row is unaffected and needs no rebuild.</p>
+
+    <h3 id="hostless-key-gates">Gates and commits</h3>
+
+    <p><code>uv run --no-sync pytest tests/test_telemetry_index.py</code> reports <strong>38
+    passed</strong>, exit 0, against a base-revision baseline of <strong>34 passed</strong>;
+    <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0. Both runs are on the login
+    node: the suite is a unit run of a few seconds over fixtures it builds itself, with no corpus
+    read, which is the case the compute rule leaves there. The four added tests are the hostless
+    marker test, the host-key precedence test, the job-id extraction test and the resolution test,
+    alongside the refusal test.</p>
+
+    <p>Two limits are recorded with the change rather than left to be discovered. The
+    unknown-host marker is a single sentinel, so two different unknown writers remain
+    indistinguishable from each other — which is the honest state, since nothing recorded which
+    machine they were; the marker's job is to say that no machine is known, not to invent a
+    partition. And <code>receipts_host</code> resolves the host a file was <em>written on</em> from
+    the job id, which is a fact about the writer; a reader wanting the host a particular
+    <em>row</em> was recorded on still reads the row, and the two agree only because one file is
+    written by one machine.</p>
+
 </main>
 </body>
 </html>

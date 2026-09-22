@@ -7,19 +7,27 @@ import gzip
 import json
 import os
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
+import imas_ambix.agent.telemetry_index as telemetry_index
 from imas_ambix.agent.receipt_bins import summarise_receipt_rows
 from imas_ambix.agent.telemetry_index import (
     BOOT_SCOPE,
     HOST_SCOPE,
     UNKNOWN_BOOT_ID,
+    UNKNOWN_HOST,
+    UNKNOWN_HOST_SCOPE,
     TelemetryIndex,
     discover,
+    key_scope,
     local_boot_id,
     measure_row,
+    receipts_host,
+    receipts_job_id,
     resolve_boot_id,
+    resolve_host,
     row_boot_id,
 )
 
@@ -668,9 +676,9 @@ def _pin_inode(monkeypatch, inode: int) -> None:
 def test_a_row_naming_its_host_is_keyed_on_that_host(tmp_path):
     """A record that says where it was written is not attributed to its reader.
 
-    The reader's own nodename is a fallback for a record that names nothing, not
-    a label to overwrite what a record does name, or two hosts' readings would
-    still land under the host that happened to read them.
+    A host the row records is the identity it is keyed by, whatever the index
+    was told for the hostless case, or two hosts' readings would land under one
+    key and the second writer's row would be dropped as a duplicate.
     """
     source = tmp_path / "serve.jsonl"
     _write(source, [_row(0, host="node-a"), _row(5, host="node-a")])
@@ -688,22 +696,110 @@ def test_a_row_naming_its_host_is_keyed_on_that_host(tmp_path):
         ]
 
 
-def test_a_row_naming_no_host_falls_back_to_the_recording_nodename(tmp_path):
-    """A record whose rows name no machine was written where it is being read."""
+def test_a_row_naming_no_host_is_keyed_under_the_unknown_host_marker(tmp_path):
+    """A record that names no machine has not said where it was written.
+
+    A receipts directory on shared storage collects files written on the node
+    that ran the serve and read from a login node, so the reading machine's
+    nodename is not evidence of the writer. Adopting it keys the row under an
+    identity nothing recorded, and -- because the same fallback also supplied
+    the boot -- presents the reader's boot as the row's, so the row reads as
+    keyed on a machine and a boot that are both inferred rather than recorded.
+    """
     here = tmp_path / "plain.jsonl"
     named = tmp_path / "named.jsonl"
-    _write(here, [_row(0)])
+    _write(here, [_row(0), _row(5)])
     _write(named, [_row(5)])
 
     with TelemetryIndex(tmp_path / "own.db") as index:
         index.ingest([here])
-        row = index._conn.execute("SELECT host FROM sample").fetchone()
-        assert row["host"] == os.uname().nodename
+        stored = index._conn.execute(
+            "SELECT host, boot_id, key_kind FROM sample ORDER BY id"
+        ).fetchall()
+        assert [(row["host"], row["boot_id"], row["key_kind"]) for row in stored] == [
+            (UNKNOWN_HOST, UNKNOWN_BOOT_ID, UNKNOWN_HOST_SCOPE),
+            (UNKNOWN_HOST, UNKNOWN_BOOT_ID, UNKNOWN_HOST_SCOPE),
+        ]
+        # The reader's own identity appears nowhere in the row a caller holds.
+        assert os.uname().nodename not in json.dumps(index.rows(_at(-1), _at(60)))
+        assert "host+boot" not in json.dumps(index.rows(_at(-1), _at(60)))
 
     with TelemetryIndex(tmp_path / "other.db", host="node-b") as index:
         index.ingest([named])
         row = index._conn.execute("SELECT host FROM sample").fetchone()
         assert row["host"] == "node-b"
+
+
+def test_the_host_key_is_the_recorded_one_or_the_unknown_marker():
+    """A host enters the key only as recorded; the reader's name never does.
+
+    The unknown-host marker is the outer dimension of the key kind: a row with
+    no host of its own is announced as unknown-host whatever its boot resolved
+    to, because a boot identity names one uninterrupted run of counters on one
+    machine and a record that never named the machine has no such run.
+    """
+    assert resolve_host("node-a") == "node-a"
+    assert resolve_host(None) == UNKNOWN_HOST
+    assert resolve_host("") == UNKNOWN_HOST
+    assert key_scope("node-a", BOOT_SCOPE) == BOOT_SCOPE
+    assert key_scope("node-a", HOST_SCOPE) == HOST_SCOPE
+    assert key_scope(UNKNOWN_HOST, BOOT_SCOPE) == UNKNOWN_HOST_SCOPE
+    assert key_scope(UNKNOWN_HOST, HOST_SCOPE) == UNKNOWN_HOST_SCOPE
+
+
+def test_a_receipts_name_yields_the_job_id_it_carries():
+    """The digits before the ``.jsonl`` suffix, and nothing that merely looks
+    like one."""
+    assert receipts_job_id("deepseek-v4-1-flash-1271709.jsonl") == "1271709"
+    assert receipts_job_id("/shared/receipts/serve-9.jsonl.1") == "9"
+    assert receipts_job_id("serve-9.jsonl.1.gz") == "9"
+    assert receipts_job_id("serve.jsonl") is None
+    # A tier file is a derived sibling, not a receipts file's own name.
+    assert receipts_job_id("summary-1271709.minute.jsonl") is None
+
+
+def test_the_receipts_host_is_resolved_from_the_job_id(monkeypatch):
+    """The job's ``NodeList`` is the machine the recorder's rows came from."""
+    captured = {}
+
+    def fake_run(argv, **kwargs):
+        captured["argv"] = argv
+        return SimpleNamespace(returncode=0, stdout="98dci4-gpu-0003\n")
+
+    monkeypatch.setattr(telemetry_index.subprocess, "run", fake_run)
+    assert receipts_host("/shared/receipts/deepseek-v4-1-flash-1271709.jsonl") == (
+        "98dci4-gpu-0003"
+    )
+    assert captured["argv"] == [
+        "sacct",
+        "-j",
+        "1271709",
+        "-X",
+        "-n",
+        "-o",
+        "NodeList",
+    ]
+
+
+def test_a_job_that_does_not_resolve_is_refused_not_guessed(monkeypatch):
+    """A name with no job id, a purged job, and an ambiguous one all refuse.
+
+    A guess here is a key silently asserting a machine no row recorded, so
+    every unresolved shape raises rather than falling back to the reader.
+    """
+    with pytest.raises(ValueError):
+        receipts_host("serve.jsonl")
+
+    def output(text, returncode=0):
+        def run(argv, **kwargs):
+            return SimpleNamespace(returncode=returncode, stdout=text)
+
+        return run
+
+    for fake in (output("\n"), output("node-a\nnode-b\n"), output("", 1)):
+        monkeypatch.setattr(telemetry_index.subprocess, "run", fake)
+        with pytest.raises(ValueError):
+            receipts_host("deepseek-v4-1-flash-1271709.jsonl")
 
 
 def test_two_hosts_at_one_inode_and_offset_are_both_kept(tmp_path, monkeypatch):
