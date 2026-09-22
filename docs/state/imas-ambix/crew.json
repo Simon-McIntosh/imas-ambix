@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-22T21:52:36",
+  "updated": "2026-09-22T22:04:04",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -68927,6 +68927,274 @@
           "reason": null,
           "finding": null
         }
+      },
+      {
+        "run_id": "r-20260922T182916246197-fleet-lingering-retire",
+        "plan": "slurm-hosted-agent-fleet",
+        "section": "\u00a77",
+        "node": "fleet-lingering-retire",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1277,
+                "cached_input_tokens": 192641,
+                "input_tokens": 193920,
+                "output_tokens": 1004,
+                "reasoning_output_tokens": 351,
+                "total_tokens": 194924,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "230b9fc6-569c-40eb-97d2-19af05ea3982",
+            "session_id": "slurm-fleet-placement"
+          },
+          "done_when": "docs/research/site-request-user-lingering.html carries a retirement note stating it was never sent, naming that fixture cause and the evidence that user@39486.service has been continuously active since 2026-09-20 15:34:42 CEST with Linger=yes and 14 sessions held; docs/research/login-session-scope-teardown.html records the same cause as its outcome; grep -ni 'lingering is not holding' over both files returns no surviving assertion in the documents' own voice; 'reckon audit-doc' reports no ERROR on both files; and the same audit is observed to report an ERROR on a deliberately broken scratch copy of one of them, with that log recorded",
+          "estimated_hours": null,
+          "goal": "The two lingering documents record that the login-session teardown came from a reckon test fixture whose process teardown matched every process in the slice rather than only finished workers, and the site request is retired unsent",
+          "id": "fleet-lingering-retire",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-22T18:29:17Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no 'binding_observed'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260922T182916246197-fleet-lingering-retire/manifest.md",
+          "negative_control": "",
+          "plan": "slurm-hosted-agent-fleet",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "documentation",
+          "section": "\u00a77",
+          "spec_level": "exact",
+          "time_budget": "30m",
+          "token_budget": null,
+          "write_paths": [
+            "docs/research/site-request-user-lingering.html",
+            "docs/research/login-session-scope-teardown.html",
+            "docs/evidence/archive/slurm-hosted-agent-fleet-landed.html",
+            "docs/figures/slurm-hosted-agent-fleet",
+            "docs/plans/slurm-hosted-agent-fleet.html"
+          ]
+        },
+        "role": "documentation",
+        "spec_level": "exact",
+        "member": "fleet-lingering-retire",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "xhigh",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "worktree-full",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-22T18:29:31Z",
+        "completed_at": "2026-09-22T18:55:54.472Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 1571,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 1583,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "7d6702d96f6d72a83537036c844f4272159f1846",
+        "commits": [
+          "f425580a5e1c30747be3b6e071138dfe2904e2a1"
+        ],
+        "changed_lines": {
+          "added": 390,
+          "removed": 40,
+          "files": 5
+        },
+        "tests_added": 0,
+        "gate": "passed",
+        "gate_check": {
+          "command": "reckon audit-doc on the four edited documents; grep -ni 'lingering is not holding' over both research documents",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260922T182916246197-fleet-lingering-retire/logs/audit-doc-final.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260922T182916246197-fleet-lingering-retire/manifest.md",
+        "scope_changed": false,
+        "session_id": "8e3ad675-91b9-4a09-bce0-0f61a8fba6e3",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 8660823,
+            "input_tokens_cumulative": 8660823,
+            "output_tokens": 73902,
+            "output_tokens_cumulative": 73902,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-22T18:55:54.472Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": {
+          "status": "parsed",
+          "scores": {
+            "durability": 8,
+            "evidence": 14,
+            "fit": 19,
+            "goal_fidelity": 19,
+            "scope_discipline": 20
+          },
+          "absent": [],
+          "total": 80
+        },
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 8827417,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 1579.154,
+          "generated_tokens": 84054,
+          "generation_seconds": 1537.06,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 34.4,
+          "machine_seconds": 42.094,
+          "peak_input_tokens": 165294,
+          "tokens_per_second": 54.68,
+          "wall_tokens_per_second": 53.23
+        },
+        "follow_on_paths": [
+          "lingering-retire-timline.svg",
+          "logs/audit-doc-instrument-probe.log."
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "documentation",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/slurm-fleet-placement/fleet-lingering-retire",
+          "session_id": "8e3ad675-91b9-4a09-bce0-0f61a8fba6e3",
+          "session_source": "stream",
+          "retained_at": "2026-09-22T18:55:54.472Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "plan_impl_at_dispatch": 0.9,
+        "impl_move": {
+          "plan": "slurm-hosted-agent-fleet",
+          "at_dispatch": 0.9,
+          "at_complete": null,
+          "verdict": "exempt",
+          "reason": "role-not-enforced:documentation"
+        },
+        "negative_control": {
+          "verdict": "exempt",
+          "reason": "node-writes-no-test-path"
+        },
+        "lane_advisory": {
+          "backend": "clive",
+          "burn_multiple": null,
+          "cheaper_lane": {
+            "detail": "",
+            "lane": null,
+            "state": "not_evaluated"
+          },
+          "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+          "horizon_ends_at": "2026-09-22T18:59:17.889766+00:00",
+          "horizon_seconds": 1800,
+          "metered": false,
+          "observed_at": null,
+          "precedes_horizon": null,
+          "projected_exhaustion_at": null,
+          "resets_at": null,
+          "seconds_until_reset": null,
+          "state": "quiet",
+          "utilisation_pct": null
+        },
+        "lane_declaration": {
+          "backend": null,
+          "headroom": null,
+          "metered": false,
+          "observed_at": null,
+          "read_at": "2026-09-22T18:29:17Z",
+          "resolved_backend": "clive",
+          "utilisation_pct": null
+        },
+        "lane_reading": {
+          "age_seconds": null,
+          "binding_observed": "unknown",
+          "detail": "lane document carries no 'binding_observed'",
+          "headroom": "unknown",
+          "mean_context": "unknown",
+          "observed_at": null,
+          "state": "unknown",
+          "suggested_shelf_life_seconds": null
+        },
+        "tool_steps": 95.0,
+        "orientation_input_tokens": 1823706.0,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -69001,6 +69269,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 946
+    "_version": 947
   }
 }
