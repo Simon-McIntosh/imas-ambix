@@ -27,3 +27,9 @@ backends:
       # wrapper's argument parsing, so the resolved launch is carried through
       # unchanged.
       options: ["agent", "fleet", "place", "--"]
+      # The same wrapper's status surface identifies the allocation selected by
+      # its comment token. Reckon reads the numeric token from this output and
+      # substitutes it into both scheduler queries below.
+      job_id_probe: ["imas-ambix", "agent", "fleet", "status"]
+      state_query: ["squeue", "-h", "-j", "{job}", "-o", "%T"]
+      reason_query: ["squeue", "-h", "-j", "{job}", "-o", "%r"]
