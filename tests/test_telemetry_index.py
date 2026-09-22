@@ -56,6 +56,11 @@ def _row(seconds: float, **overrides: object) -> dict:
     return row
 
 
+def _engine_tokens(value: float) -> dict:
+    """A row's engine section carrying one cumulative counter reading."""
+    return {"family": "sglang", "generation_tokens": value}
+
+
 def _write(path: Path, rows: list[dict], **kwargs: object) -> None:
     with path.open("a", encoding="utf-8") as handle:
         for row in rows:
@@ -882,3 +887,51 @@ def test_the_recording_boot_is_the_one_this_process_is_on():
     assert row_boot_id({"host": {"boot_id": _BOOT_BEFORE}}) == _BOOT_BEFORE
     assert row_boot_id({"boot_id": _BOOT_AFTER}) == _BOOT_AFTER
     assert row_boot_id({"host": {"hostname": "node-a"}}) is None
+
+
+def test_a_counter_span_between_two_hosts_is_declined_not_differenced(tmp_path):
+    """A counter's advance is one machine's, so two hosts are not differenced.
+
+    A window opening on one machine's reading and closing on another's yields
+    the difference of two numbers that never described one counter: negative
+    when the later reading is the further behind, positive when it is the
+    further ahead, and both read exactly like a measured advance. The host is
+    carried per file -- one recorder writes one file -- so two machines
+    recording one path arrive as two files, which is the shape built here.
+    """
+    early = tmp_path / "early.jsonl"
+    later = tmp_path / "later.jsonl"
+    _write(
+        early,
+        [
+            _row(0, host="node-a", engine=_engine_tokens(1000.0)),
+            _row(5, host="node-a", engine=_engine_tokens(1100.0)),
+        ],
+    )
+    _write(later, [_row(10, host="node-b", engine=_engine_tokens(50.0))])
+    late_first = tmp_path / "late-first.jsonl"
+    first = tmp_path / "first.jsonl"
+    _write(late_first, [_row(0, host="node-b", engine=_engine_tokens(50.0))])
+    _write(first, [_row(10, host="node-a", engine=_engine_tokens(1000.0))])
+
+    with TelemetryIndex(tmp_path / "index.db") as index:
+        index.ingest([early, later])
+        # Both machines are in the index under their own keys, so the windows
+        # below are read against a genuinely mixed record and not one host's.
+        hosts = index._conn.execute(
+            "SELECT DISTINCT host FROM sample ORDER BY host"
+        ).fetchall()
+        assert [row["host"] for row in hosts] == ["node-a", "node-b"]
+        # One machine's readings alone still difference to its own advance.
+        assert index.counter_span("engine.generation_tokens", _at(-1), _at(6)) == (
+            pytest.approx(100.0)
+        )
+        # An endpoint on each host is declined, at both window ends.
+        assert index.counter_span("engine.generation_tokens", _at(-1), _at(11)) is None
+        assert index.counter_span("engine.generation_tokens", _at(-1), _at(15)) is None
+
+    with TelemetryIndex(tmp_path / "reversed.db") as index:
+        index.ingest([late_first, first])
+        # The same pair the other way round, which would otherwise return the
+        # larger figure of the two.
+        assert index.counter_span("engine.generation_tokens", _at(-1), _at(11)) is None

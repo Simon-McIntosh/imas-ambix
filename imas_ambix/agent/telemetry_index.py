@@ -816,6 +816,12 @@ class TelemetryIndex:
         window whose own first sample already carries the counter needs no
         earlier row to be meaningful, and a counter that rose and fell in
         between is not turned into a sum of its snapshots.
+
+        A cumulative counter is one machine's over one boot: a reboot resets it
+        and no other machine ever advanced it. So the two endpoints must belong
+        to one ``(host, boot)``; where they do not, the span is declined rather
+        than differenced, because their difference is a number no machine ever
+        advanced and it reads exactly like a measurement.
         """
         opening = self._last_at_or_before(name, start)
         if opening is None:
@@ -825,30 +831,40 @@ class TelemetryIndex:
         closing = self._last_at_or_before(name, end, strict=True)
         if opening is None or closing is None:
             return None
-        return closing - opening
+        if opening[:2] != closing[:2]:
+            return None
+        return closing[2] - opening[2]
 
     def _last_at_or_before(
         self, name: str, bound: float, *, strict: bool = False
-    ) -> float | None:
+    ) -> tuple[str, str, float] | None:
+        """``(host, boot_id, value)`` of the latest reading at or before *bound*."""
         comparison = "<" if strict else "<="
         row = self._conn.execute(
-            "SELECT m.value AS value FROM measurement m "
-            "JOIN sample s ON s.id = m.sample_id "
+            "SELECT s.host AS host, s.boot_id AS boot_id, m.value AS value "
+            "FROM measurement m JOIN sample s ON s.id = m.sample_id "
             f"WHERE m.name = ? AND s.ts_epoch {comparison} ? "
-            "ORDER BY s.ts_epoch DESC, s.offset DESC LIMIT 1",
+            "ORDER BY s.ts_epoch DESC, s.offset DESC, s.host, s.boot_id LIMIT 1",
             (name, bound),
         ).fetchone()
-        return None if row is None else float(row["value"])
+        return None if row is None else self._keyed_value(row)
 
-    def _first_in_window(self, name: str, start: float, end: float) -> float | None:
+    def _first_in_window(
+        self, name: str, start: float, end: float
+    ) -> tuple[str, str, float] | None:
+        """``(host, boot_id, value)`` of the earliest reading inside the window."""
         row = self._conn.execute(
-            "SELECT m.value AS value FROM measurement m "
-            "JOIN sample s ON s.id = m.sample_id "
+            "SELECT s.host AS host, s.boot_id AS boot_id, m.value AS value "
+            "FROM measurement m JOIN sample s ON s.id = m.sample_id "
             "WHERE m.name = ? AND s.ts_epoch >= ? AND s.ts_epoch < ? "
-            "ORDER BY s.ts_epoch, s.offset LIMIT 1",
+            "ORDER BY s.ts_epoch, s.offset, s.host, s.boot_id LIMIT 1",
             (name, start, end),
         ).fetchone()
-        return None if row is None else float(row["value"])
+        return None if row is None else self._keyed_value(row)
+
+    @staticmethod
+    def _keyed_value(row: sqlite3.Row) -> tuple[str, str, float]:
+        return (row["host"], row["boot_id"], float(row["value"]))
 
     def rows(self, start: float, end: float) -> list[dict[str, Any]]:
         """Records whose timestamp falls in ``[start, end)``, in time order."""
