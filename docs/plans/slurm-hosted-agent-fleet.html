@@ -25,8 +25,8 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-22">
-<meta name="plan-version" content="27">
-<meta name="plan-impl" content="0.94">
+<meta name="plan-version" content="28">
+<meta name="plan-impl" content="0.96">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="e523036b842dbd9c6dbc205bfd0753335e82c342,e0a990fb4486ac0e75ff217a1fecb432ae5b0962,a8a4c82b2186a4abd43c32b9ccdbe8189cb06bbe,0805cb74255001f2bbd8ad9446e10da6119c45ad,3a59eccf14c735fe9a9fd289a3528f425d788628,cff4e0d5c976b8d2d9e71edfc6913eb9700e1aed,3452b5799770701d9e8d596773f5dd40365a127f,435e896560cb7974743a75077fa4ed038a49bd81,5e3e0adc97e4299520d2779eaba2568837b9009f,04febe688b92501981ee03200bc8bd52ada451cc,ddadc8d4766491e59be40726f977c45fd8643cba,bc82504e581e04ff5e173a6bee2a60335ef13a2a,13acbd2029b31eae9e4f2a417b0e5ac5c062e178,8fa8f0eec7e4685d4f47341e776dfbf24aa2e70f,5507cd9f3b18e9ac55218a897d0c3fc27b999718,0fa4a8f521a678ff4024343966913d1b6b557413,e661a52a189c084a136aff1d0d0344cf89251d52">
 <meta name="plan-artifacts" content="docs/research/site-request-user-lingering.html,docs/research/login-session-scope-teardown.html,docs/state/imas-ambix/flight.yaml,imas_ambix/agent/fleet.py,imas_ambix/agent/throttling.py,tests/agent/test_fleet.py,tests/agent/test_throttling.py">
@@ -246,18 +246,21 @@
       on the login node supplies process counts and <code>cpu.stat</code> supplies the
       throttled fraction. Done when a baseline share is written into this plan.</li>
 
-      <li><strong>Ask the site why lingering is not holding.</strong> This is the only
-      interim lever, because no user-space placement survives. The system journal shows
-      the user manager being stopped and <code>app.slice</code> removed in the same
-      teardown that stops the session scopes, so a transient user unit escapes one of the
-      two units being stopped and not the other — the evidence, including the two services
-      killed at <code>status=143</code> each time, is in
-      <a href="/imas-ambix/login-session-scope-teardown">the session-scope teardown
-      record</a>. Lingering is enabled for this account and persisted on disk, and exists
-      precisely to keep a user manager alive with no sessions open; it is not holding, and
-      the teardown recurred twice inside five hours. Done when the site holds the journal
-      extract and has either corrected the behaviour or confirmed it is expected — which
-      decides whether the allocation is the only remedy or merely the robust one.</li>
+      <li><strong>Find why the user manager is being torn down.</strong> <em>Closed
+      2026-09-22 — the cause was on this side and no site request was needed.</em> This
+      step was written as the only interim lever, on the reading that lingering was
+      enabled and not holding. It was holding. The teardown came from a process teardown
+      in a test fixture in the reckon repository whose signalled set was wider than the
+      work it had started, so it reached the login node's user manager alongside its
+      intended targets; the fixture was corrected on 2026-09-20. The
+      <a href="/imas-ambix/login-session-scope-teardown">session-scope teardown
+      record</a> carries the journal evidence and now the answer, and the site request
+      drafted against the earlier reading is retired unsent rather than left send-ready
+      against a premise that no longer holds. Closed on a measure rather than on the
+      correction alone: the user manager has been continuously active since 2026-09-20
+      15:34:42 CEST with lingering enabled, against a failure that had recurred twice
+      inside five hours. This removes the step's own question — the allocation is the
+      robust remedy, not the only one.</li>
 
       <li><strong>Hold the interactive reservation on one whole rigel node.</strong>
       Twenty-eight cores, 128 GB, no time limit, not on a draining node, with
@@ -527,6 +530,9 @@ Measured live against the allocation held since the third step: <code>fleet stat
 </div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20260922T183129460322-fleet-throttle-delta" data-who="reckon-ship" data-when="2026-09-22T18:44:14.436Z">
     <div class="r-comment-body"><p>throttled_share_over_elapsed differences two samples over the span; live login-slice reading cumulative 0.3483 against interval 0.2323 over 60s; review 91/100, findings on a baseline the record states twice (0.3366 vs 0.3396) and a log-header claim false for two of four logs</p></div>
+</div>
+<div class="r-comment" data-section="s7" data-id="c-20260922-step-two-closes-obsolete" data-who="reckon-ship" data-when="2026-09-22T20:05:00Z">
+    <div class="r-comment-body">The second step closes as obsolete rather than as answered, and the account of why is worth more than the closure. The teardown it was written to explain came from a process teardown in a test fixture in the reckon repository, corrected at 586a1ac6 on 2026-09-20 at 15:06:18, whose signalled set was wider than the work it had started and so reached the login node's user manager. The site request would have asked the site to read a journal for damage originating in this account's own tooling, so it is retired unsent. Measured on the login node rather than restated: the user manager has been continuously active since 2026-09-20 15:34:42 CEST with lingering enabled and fourteen sessions held, an unbroken interval of about two days against a failure that had recurred twice inside five hours. What is not established, and is stated as unestablished in both documents and in the figure: the twenty-eight minutes between the fixture's correction and the last restart of the manager. The quiet interval is measured from the restart, not from the fix. The independent review scored 80 of 100 and took its deduction on durability, for three receipts that misdescribe what shipped while every fact behind them holds: a transcript attributing the lingering value to a command that cannot emit it, a figure size copied forward from an earlier read rather than re-derived, and an append-only check quoted in a form that counts the diff header. The coordinator re-derived all three independently with the correct instruments and reached the same facts, which is why the node lands rather than returning for repair; the receipts are corrected by the record repair that follows.</div>
 </div>
 <div class="r-comment" data-section="s6" data-id="c-20260921-reckon-already-has-placement" data-who="reckon-ship" data-when="2026-09-21T07:27:00Z">
     <div class="r-comment-body">This section's boundary needs revisiting. It says a dispatch change would be a dependency to raise in reckon. Measured on 2026-09-21: reckon has already built that path — a persistent salloc --no-shell reservation, workers placed into it as srun --overlap --jobid steps, published reservation state and a reckon crew placement --ensure operator command — and it is unarmed, with zero placement keys in the live flight config and no reservation record on disk. So nothing needs raising; what is open is whether the fleet's interactive allocation and reckon's worker reservation are one allocation or two, and reckon's defaults (partition all, 32 cores, 128 GB) differ from this plan's locked rigel, 28 cores, 120G.</div>
