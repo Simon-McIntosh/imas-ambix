@@ -130,7 +130,7 @@ def summarise_receipt_rows(
     publishes the rate as a gauge states it on one row, while a family that
     publishes only the cumulative hits and queries states it as the advance
     between consecutive rows, so the rows are walked in order and the previous
-    row's engine section is carried alongside the current one.
+    row is carried alongside the current one.
     """
     _validate_width_bins(width_bins)
     grouped: dict[tuple[int, int], list[tuple[float, float, float]]] = {
@@ -139,14 +139,12 @@ def summarise_receipt_rows(
     rows_read = 0
     excluded_intervals = 0
     unbinned_intervals = 0
-    previous_engine: Mapping[str, Any] | None = None
+    previous_row: Mapping[str, Any] | None = None
 
     for row in rows:
         rows_read += 1
-        raw_engine = row.get("engine")
-        engine: Mapping[str, Any] = raw_engine if isinstance(raw_engine, dict) else {}
-        prefix_hit_rate = _prefix_hit_rate(engine, previous_engine)
-        previous_engine = engine
+        prefix_hit_rate = _prefix_hit_rate(row, previous_row)
+        previous_row = row
 
         if (
             any(row.get(field) is None for field in _INTERVAL_FIELDS)
@@ -208,27 +206,47 @@ def _number(value: Any) -> float | None:
     return float(value)
 
 
+def _engine_section(row: Mapping[str, Any]) -> Mapping[str, Any]:
+    """The row's engine section, or an empty mapping where it carries none."""
+    section = row.get("engine")
+    return section if isinstance(section, dict) else {}
+
+
 def _prefix_hit_rate(
-    engine: Mapping[str, Any], previous: Mapping[str, Any] | None
+    row: Mapping[str, Any], previous: Mapping[str, Any] | None
 ) -> float | None:
     """The prefix-cache hit rate one row states, from its engine section.
 
     A family that publishes the rate as a gauge states it on a single row. One
     that publishes only the cumulative hits and queries states nothing until a
     second reading exists, so the rate is the advance of the two counters since
-    the previous row. A counter that went backwards — a serve that restarted
-    inside the interval — declines rather than reporting a negative, on the
-    same rule the ledger applies to every other cumulative quantity.
+    the previous row.
+
+    That advance is the serve's own rate only when both readings came from it.
+    A cumulative counter belongs to one process on one host, so two rows
+    disagreeing on ``job_id`` or ``hostname`` are two serves, and the ratio of
+    their counters is a number neither of them served — a window that
+    interleaves two serves otherwise states a plausible rate at the join,
+    assembled from readings that never formed a pair. A positive advance is not
+    evidence that the two readings share a source: two healthy serves
+    interleaving produce exactly that, which is the case this declines. A
+    counter that went backwards — a serve that restarted inside the interval —
+    declines on the same rule the ledger applies to every other cumulative
+    quantity.
     """
+    engine = _engine_section(row)
     rate = _number(engine.get("prefix_cache_hit_rate"))
     if rate is not None:
         return rate
     if previous is None:
         return None
+    if _serve_identity(row) != _serve_identity(previous):
+        return None
+    previous_engine = _engine_section(previous)
     hits = _number(engine.get("prefix_cache_hits"))
     queries = _number(engine.get("prefix_cache_queries"))
-    previous_hits = _number(previous.get("prefix_cache_hits"))
-    previous_queries = _number(previous.get("prefix_cache_queries"))
+    previous_hits = _number(previous_engine.get("prefix_cache_hits"))
+    previous_queries = _number(previous_engine.get("prefix_cache_queries"))
     if hits is None or queries is None:
         return None
     if previous_hits is None or previous_queries is None:
@@ -238,6 +256,11 @@ def _prefix_hit_rate(
     if query_delta <= 0 or hit_delta < 0:
         return None
     return hit_delta / query_delta
+
+
+def _serve_identity(row: Mapping[str, Any]) -> tuple[Any, Any]:
+    """The serve a receipt row was taken from: its job on its host."""
+    return (row.get("hostname"), row.get("job_id"))
 
 
 def _summarise_bin(

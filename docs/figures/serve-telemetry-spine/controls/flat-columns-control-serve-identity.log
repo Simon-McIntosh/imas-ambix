@@ -1,0 +1,69 @@
+declared mutation (serve-identity guard in receipt_bins._prefix_hit_rate)
+  file: imas_ambix/agent/receipt_bins.py
+  removed:  if _serve_identity(row) != _serve_identity(previous):
+  inserted: if False:
+
+$ uv run --no-sync pytest -q tests/test_agent_receipt_bins.py::test_collector_declines_a_rate_spanning_two_serves
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______________ test_collector_declines_a_rate_spanning_two_serves ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-mcintos/pytest-439/test_collector_declines_a_rate0')
+
+    def test_collector_declines_a_rate_spanning_two_serves(tmp_path) -> None:
+        """Counters from two serves differenced would state a rate neither served.
+    
+        Both rows carry a valid interval and the counters advance, so nothing but
+        the serve identity distinguishes this from the pair above.
+        """
+        receipts = tmp_path / "receipts.jsonl"
+    
+        def _write(job_ids: tuple[str, str]) -> dict[str, object]:
+            rows = [
+                {
+                    "num_requests_running": 10,
+                    "generation_throughput_toks_per_s": 100.0,
+                    "prompt_throughput_toks_per_s": 500.0,
+                    "hostname": "98dci4-gpu-0003",
+                    "job_id": job_ids[0],
+                    "engine": {
+                        "prefix_cache_queries": 500_000.0,
+                        "prefix_cache_hits": 400_000.0,
+                    },
+                },
+                {
+                    "num_requests_running": 12,
+                    "generation_throughput_toks_per_s": 120.0,
+                    "prompt_throughput_toks_per_s": 600.0,
+                    "hostname": "98dci4-gpu-0003",
+                    "job_id": job_ids[1],
+                    "engine": {
+                        "prefix_cache_queries": 1_000_000.0,
+                        "prefix_cache_hits": 900_000.0,
+                    },
+                },
+            ]
+            receipts.write_text(
+                "".join(f"{json.dumps(row)}\n" for row in rows), encoding="utf-8"
+            )
+            return collect_receipt_bins(receipts).to_dict()
+    
+        # Control: one serve across both rows, so the advance is its own and bins.
+        same_serve = _write(("1001", "1001"))
+        assert same_serve["excluded_intervals"] == 1
+        assert same_serve["bins"]["10-14"]["intervals"] == 1
+        assert same_serve["bins"]["10-14"]["prefix_hit_rate"]["median"] == pytest.approx(
+            1.0
+        )
+    
+        # Two serves: the same counters and the same positive advance, declined.
+        across_serves = _write(("1001", "1002"))
+>       assert across_serves["excluded_intervals"] == 2
+E       assert 1 == 2
+
+tests/test_agent_receipt_bins.py:167: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_agent_receipt_bins.py::test_collector_declines_a_rate_spanning_two_serves
+1 failed in 0.79s
+
+exit=1  restored=True

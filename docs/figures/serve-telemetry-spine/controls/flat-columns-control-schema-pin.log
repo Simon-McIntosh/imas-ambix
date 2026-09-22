@@ -1,0 +1,36 @@
+declared mutation (row schema version reverted to the pre-engine-section value)
+  file: imas_ambix/agent/serving_receipts.py
+  removed:  ROW_SCHEMA_VERSION = 4
+  inserted: ROW_SCHEMA_VERSION = 3
+
+$ uv run --no-sync pytest -q tests/test_agent_serving_receipts.py::test_receipt_row_serializes_to_json tests/test_agent_serving_receipts.py::test_receipt_row_carries_node_sections_and_the_producing_host
+F.                                                                       [100%]
+=================================== FAILURES ===================================
+_____________________ test_receipt_row_serializes_to_json ______________________
+
+    def test_receipt_row_serializes_to_json() -> None:
+        snapshot = sr._serving_snapshot(SAMPLE_T0.decode())
+        row = sr.build_receipt_row(
+            None,
+            None,
+            snapshot,
+            FIRST_SAMPLE_AT,
+            job_id="1234567",
+            profile_slug="deepseek-v4-flash",
+            served_name="deepseek-v4-flash",
+            gpus=4,
+        )
+        payload = json.loads(row.to_json())
+        assert payload["profile_slug"] == "deepseek-v4-flash"
+        # Pinned rather than compared to the constant under test: the version is the
+        # bit that tells a reader which vocabulary the row speaks, so a silent
+        # revert to the pre-engine-section shape has to redden something.
+>       assert payload["schema_version"] == 4
+E       assert 3 == 4
+
+tests/test_agent_serving_receipts.py:674: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_agent_serving_receipts.py::test_receipt_row_serializes_to_json
+1 failed, 1 passed in 1.12s
+
+exit=1  restored=True

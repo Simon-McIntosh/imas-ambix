@@ -2922,6 +2922,97 @@ status.</p>
     historic rows and generic compaction rather than a live consumer, left untouched and still
     passing, with the question of whether it should follow left to the owner of that file.</p>
 
+    <h3 id="flat-columns-corrections">Corrections and repairs to this record</h3>
+
+    <p><strong>A figure in the two paragraphs above is wrong, and it is left standing so this
+    correction has something to correct.</strong> That record says the flat columns were
+    <code>null</code> "in every one of 79,265 recorded rows against a serve whose engine
+    published those quantities the whole time." The <code>79,265</code> came from scanning
+    <em>one</em> receipt file and generalising from it to the corpus, which is a defect in the
+    instrument rather than a typo: the column is filled wherever a family publishes the two
+    counters it is derived from, so the scan reported a property of the SGLang file and was
+    reported as a property of the corpus. Measured across the recorded corpus on
+    <strong>2026-09-22</strong> — 22 receipt files, <strong>265,952 rows</strong> — the count
+    of rows carrying a non-null flat <code>prefix_cache_hit_rate</code> is
+    <strong>141,598</strong>, not zero. Every one of them belongs to the vLLM family
+    (<code>deepseek-v4-flash</code>, <code>deepseek-v4-flash-2x</code>), every one is
+    <em>pre-schema</em>, and <strong>114,717</strong> of them sit in a single file,
+    <code>deepseek-v4-flash-1264576.jsonl</code>. The SGLang rows are the ones that carry it
+    null. The alt text on the figure above and its left-hand panel say the same wrong thing and
+    are corrected in the figure itself; this paragraph is the record of what they said.</p>
+
+    <p><strong>Three generations of row are on disk, not one old shape, and the reader contract
+    is stated by family because of it.</strong> The paragraph above says a reader "must key on
+    <code>schema_version</code> and take the flat columns from a version-3 row and the engine
+    section from a version-4 row". The direction is right and the uniformity is not. Pre-schema
+    rows from the counter-publishing (vLLM) family carry the flat rate and <em>no</em>
+    <code>engine</code> section; pre-schema rows from the gauge-only (SGLang) family carry every
+    flat column as a key with a null value and no engine section either, so there is no quantity
+    to read from them in either vocabulary — that is the population the one-file scan
+    generalised from; schema-3 rows (1,764, all SGLang) carry a flat
+    <code>prefix_cache_hits_total</code> <em>and</em> the <code>engine</code> section, so both
+    vocabularies are present and the two readers agree; and schema-4 rows carry the engine
+    section only, none of them yet on disk because the recorder writing these files predates the
+    change. Stated the other way round, as the review asked: pre-schema rows from a
+    counter-publishing family carry the flat rate; schema-3 rows carry a flat
+    <code>hits_total</code> and the engine section; schema-4 rows carry the engine section
+    only.</p>
+
+    <p><strong>A guard that differenced counters across two serves, repaired.</strong>
+    <code>receipt_bins.py</code>'s <code>_prefix_hit_rate</code> assembled a rate from the
+    advance of the current row's engine counters over the previous row's, with <strong>no serve
+    identity</strong> on either reading — so a window interleaving two serves stated a plausible
+    rate at the join, assembled from readings that never formed a pair, and the only refusal was
+    a non-positive advance. This is the third appearance of one shape in this plan:
+    <code>counter_span</code> had it across hosts and was repaired by declining when the
+    endpoints belong to different sources. This now does the same, declining when the two
+    readings disagree on <code>hostname</code> or <code>job_id</code> — the identity a receipt
+    row carries; it records no boot identity. The code states why a positive advance is not
+    evidence of a shared source: two healthy serves interleaving produce exactly that advance,
+    which is the case the guard declines.</p>
+
+    <p><strong>Two tests that bound nothing, repaired.</strong> Deleting the
+    non-positive-advance branch left the bin tests at <strong>3 passed</strong> — the suite bound
+    the output and not the branch — so <code>test_collector_declines_a_rate_whose_counters_fell</code>
+    now reddens when that refusal is removed, and
+    <code>test_collector_declines_a_rate_spanning_two_serves</code> reddens when the new identity
+    guard is. And the three assertions comparing <code>payload["schema_version"]</code> against
+    <code>sr.ROW_SCHEMA_VERSION</code> asserted the value against the constant under test, so
+    nothing reddened if the version reverted; the literal <code>4</code> is now pinned in two of
+    them, with the constant comparison left in the third so the pinned form is visibly the one
+    carrying the weight.</p>
+
+    <p><strong>Four controls, each mutated verbatim, all four reddening for their own
+    reason.</strong> Logs under <code>docs/figures/serve-telemetry-spine/controls/</code>, each
+    carrying its declared mutation verbatim on line 1:</p>
+
+    <table>
+      <thead>
+        <tr><th>control log</th><th>mutated line</th><th>reddens</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>flat-columns-control-serve-identity.log</code></td><td><code>if _serve_identity(row) != _serve_identity(previous):</code> → <code>if False:</code></td><td><code>test_collector_declines_a_rate_spanning_two_serves</code>, <code>assert 1 == 2</code></td></tr>
+        <tr><td><code>flat-columns-control-counter-reset.log</code></td><td><code>if query_delta &lt;= 0 or hit_delta &lt; 0:</code> → <code>if False:</code></td><td><code>test_collector_declines_a_rate_whose_counters_fell</code>, <code>assert 1 == 2</code></td></tr>
+        <tr><td><code>flat-columns-control-schema-pin.log</code></td><td><code>ROW_SCHEMA_VERSION = 4</code> → <code>ROW_SCHEMA_VERSION = 3</code></td><td>the pinned literal, <code>assert 3 == 4</code>; the constant comparison beside it stays green — 1 failed, 1 passed</td></tr>
+        <tr><td><code>flat-columns-negative-control.log</code></td><td><code>hit_rate = round(hits / queries, 4)</code> → <code>hit_rate = round(queries / hits, 4)</code></td><td><code>test_latest_reading_assembles_the_hit_rate_from_engine_counters</code>, <code>1.1765</code> against <code>0.85</code></td></tr>
+      </tbody>
+    </table>
+
+    <p>The serve-identity control mutates the <em>condition</em> and leaves the structure intact,
+    which is why its counterexample is a leaked rate rather than a crash: removing the guard and
+    its body together absorbs the following statement under the <code>previous is None</code>
+    branch and raises <code>UnboundLocalError</code>, which reddens the test without
+    demonstrating the leak. The recorded form is the one that leaks.</p>
+
+    <p><strong>Gates re-run at the repaired head.</strong> <strong>105 passed</strong> over the
+    four named files plus <code>tests/test_agent_serve_registry.py</code> (94 over the four named
+    files at the delivered head, 103 with the registry file, 91 collected at base
+    <code>913bd953</code>); <code>uv run --no-sync ruff check imas_ambix tests</code> exit 0; and
+    the serving-interpreter guard green. The corpus figures above were taken on
+    <code>all_debug</code>, not on the login node, and the count is a snapshot: the live
+    <code>deepseek-v4-1-flash-1273253.jsonl</code> file was still being appended to during the
+    scan, which is why its row count here is larger than any figure recorded earlier.</p>
+
 </main>
 </body>
 </html>

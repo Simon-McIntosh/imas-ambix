@@ -1,0 +1,53 @@
+declared mutation (non-positive-advance refusal in receipt_bins._prefix_hit_rate)
+  file: imas_ambix/agent/receipt_bins.py
+  removed:  if query_delta <= 0 or hit_delta < 0:
+  inserted: if False:
+
+$ uv run --no-sync pytest -q tests/test_agent_receipt_bins.py::test_collector_declines_a_rate_whose_counters_fell
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______________ test_collector_declines_a_rate_whose_counters_fell ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-mcintos/pytest-440/test_collector_declines_a_rate0')
+
+    def test_collector_declines_a_rate_whose_counters_fell(tmp_path) -> None:
+        """A serve that restarted inside the interval resets both counters.
+    
+        The advance is non-positive rather than merely detached, and the row states
+        nothing else missing, so only the refusal keeps it out of the bin.
+        """
+        receipts = tmp_path / "receipts.jsonl"
+        rows = [
+            {
+                "num_requests_running": 10,
+                "generation_throughput_toks_per_s": 100.0,
+                "prompt_throughput_toks_per_s": 500.0,
+                "hostname": "98dci4-gpu-0003",
+                "job_id": "1001",
+                "engine": {"prefix_cache_queries": 5_000.0, "prefix_cache_hits": 4_000.0},
+            },
+            {
+                "num_requests_running": 12,
+                "generation_throughput_toks_per_s": 120.0,
+                "prompt_throughput_toks_per_s": 600.0,
+                "hostname": "98dci4-gpu-0003",
+                "job_id": "1001",
+                "engine": {"prefix_cache_queries": 300.0, "prefix_cache_hits": 250.0},
+            },
+        ]
+        receipts.write_text(
+            "".join(f"{json.dumps(row)}\n" for row in rows), encoding="utf-8"
+        )
+    
+        report = collect_receipt_bins(receipts).to_dict()
+    
+        assert report["rows_read"] == 2
+>       assert report["excluded_intervals"] == 2
+E       assert 1 == 2
+
+tests/test_agent_receipt_bins.py:204: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_agent_receipt_bins.py::test_collector_declines_a_rate_whose_counters_fell
+1 failed in 0.65s
+
+exit=1  restored=True

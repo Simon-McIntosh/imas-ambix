@@ -668,7 +668,10 @@ def test_receipt_row_serializes_to_json() -> None:
     )
     payload = json.loads(row.to_json())
     assert payload["profile_slug"] == "deepseek-v4-flash"
-    assert payload["schema_version"] == sr.ROW_SCHEMA_VERSION
+    # Pinned rather than compared to the constant under test: the version is the
+    # bit that tells a reader which vocabulary the row speaks, so a silent
+    # revert to the pre-engine-section shape has to redden something.
+    assert payload["schema_version"] == 4
     assert payload["engine"]["prefix_cache_queries"] == 984_123.0
     # The flat prefix-cache and speculative-decode columns are gone from the
     # serialized row; their quantities are in the engine section above.
@@ -1341,7 +1344,7 @@ def test_receipt_row_carries_the_serve_configuration() -> None:
     )
 
     payload = json.loads(row.to_json())
-    assert payload["schema_version"] == sr.ROW_SCHEMA_VERSION
+    assert payload["schema_version"] == 4
     assert payload["serve_config"] == LIVE_SERVE_CONFIG
 
 
