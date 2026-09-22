@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-22T03:48:16",
+  "updated": "2026-09-22T04:12:58",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -64591,6 +64591,247 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260921T213106812308-engine-names-repair",
+        "plan": "serve-telemetry-spine",
+        "section": "\u00a72",
+        "node": "engine-names-repair",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 2747,
+                "cached_input_tokens": 183909,
+                "input_tokens": 186658,
+                "output_tokens": 1058,
+                "reasoning_output_tokens": 260,
+                "total_tokens": 187716,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "98f13dbe-0703-4abd-a5e4-65bfdb2eeee2",
+            "session_id": "wire-telemetry-spine"
+          },
+          "done_when": "pytest tests/test_engine_metrics.py tests/agent/test_lane.py passes; ruff check imas_ambix tests exits 0; and the manifest carries, per finding, the exact mutated line quoted verbatim and the named test that reddens against it.",
+          "estimated_hours": 1.0,
+          "goal": "Close eight findings in engine_metrics, each demonstrated by a mutation: three helpers take a parameter they never read, two filters and one branch are deletable with the suite still green, and the vLLM body is synthesized in-test rather than taken from a real scrape.",
+          "id": "engine-names-repair",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-21T21:31:08Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no 'binding_observed'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/reports/wire-engine-names-repair.md",
+          "negative_control": "In imas_ambix/agent/engine_metrics.py, inside eligible_samples, delete the two lines `        if family == FAMILY_SGLANG and labels.get(\"tp_rank\", \"0\") != \"0\":` and `            continue`. A test asserting that an SGLang scrape carrying tp_rank=\"1\" rows contributes nothing must fail.",
+          "plan": "serve-telemetry-spine",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a72",
+          "spec_level": "exact",
+          "time_budget": "60m",
+          "token_budget": null,
+          "write_paths": [
+            "imas_ambix/agent/engine_metrics.py",
+            "imas_ambix/agent/lane.py",
+            "tests/test_engine_metrics.py",
+            "tests/agent/test_lane.py",
+            "docs/evidence/archive/serve-telemetry-spine-landed.html",
+            "docs/figures/serve-telemetry-spine",
+            "docs/plans/serve-telemetry-spine.html"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "telemetry-engine-names-repair",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "high",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "worktree-full",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-21T21:31:25Z",
+        "completed_at": "2026-09-22T02:06:47.180Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 16511,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 16522,
+        "stalled": true,
+        "time_budget": "60m",
+        "base_sha": "61995960c28e3d75e9c8b19eb9713f3034a3d32e",
+        "commits": [
+          "14c6b0a274420955593db340757e731bc0a0b409"
+        ],
+        "changed_lines": {
+          "added": 347,
+          "removed": 7,
+          "files": 10
+        },
+        "tests_added": 2,
+        "gate": "passed",
+        "gate_check": {
+          "command": "pytest tests/test_engine_metrics.py tests/agent/test_lane.py",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T213106812308-engine-names-repair/gate-after-14c6b0a2.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "Six of eight findings closed, each with its own mutation control quoting the deleted line, and two fenced with settling evidence named -- both fences upheld by review as genuine. It reversed my brief and was right to: I asked for the unused family parameter to be removed from series_total, series_first and series_labels; it instead routed all three through a family-prefix filter, because a bare series name is shared vocabulary and both engines spell prompt_tokens_total, so removal would have locked the defect in. It also corrected a stale measurement I carried into the brief: the earlier review \"31 passed / 0 failed\" described commit 7adfc3a3, not the dispatch base, where each deletion already reddens an indirect test. Reviewed 90/100.",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/reports/wire-engine-names-repair.md",
+        "scope_changed": false,
+        "session_id": "80dc844b-d220-469a-b1b0-27828735434b",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 1313060,
+            "input_tokens_cumulative": 1313060,
+            "output_tokens": 7637,
+            "output_tokens_cumulative": 7637,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-22T02:06:47.180Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": {
+          "status": "parsed",
+          "scores": {
+            "durability": 18,
+            "evidence": 17,
+            "fit": 18,
+            "goal_fidelity": 18,
+            "scope_discipline": 19
+          },
+          "absent": [],
+          "total": 90
+        },
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 12848404,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 208.09,
+          "generated_tokens": 95565,
+          "generation_seconds": 198.564,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 34.2,
+          "machine_seconds": 9.526,
+          "peak_input_tokens": 164191,
+          "tokens_per_second": 481.28,
+          "wall_tokens_per_second": 459.25
+        },
+        "follow_on_paths": [
+          "/home/ITER/mcintos/.claude/projects/-home-ITER-mcintos-Code-imas-ambix/memory/MEMORY.md",
+          "memory-index-backup-14c6b0a2.md",
+          "tests/data/",
+          "serving_receipts.py",
+          "lane.py"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_engine_metrics.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        },
+        "attempt_kind": "resume",
+        "attempt": 2,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/wire-telemetry-spine/engine-names-repair",
+          "session_id": "80dc844b-d220-469a-b1b0-27828735434b",
+          "session_source": "pointer",
+          "retained_at": "2026-09-22T02:06:47.180Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "plan_impl_at_dispatch": 0.8,
+        "impl_move": {
+          "plan": "serve-telemetry-spine",
+          "at_dispatch": 0.8,
+          "at_complete": 0.8,
+          "verdict": "waived",
+          "reason": "Merged to main at 7c2f1c53. The plan impl moves in one edit for the whole wave once the last node lands, batched so the final merge does not conflict on the plan file."
+        },
+        "negative_control": {
+          "verdict": "waived",
+          "test_paths": [
+            "tests/agent/test_lane.py",
+            "tests/test_engine_metrics.py"
+          ],
+          "declaration": "In imas_ambix/agent/engine_metrics.py, inside eligible_samples, delete the two lines `        if family == FAMILY_SGLANG and labels.get(\"tp_rank\", \"0\") != \"0\":` and `            continue`. A test asserting that an SGLang scrape carrying tp_rank=\"1\" rows contributes nothing must fail.",
+          "log": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/wire-telemetry-spine/engine-names-repair/docs/figures/serve-telemetry-spine/controls/f1-family-scoping.log",
+          "resolved_log": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/wire-telemetry-spine/engine-names-repair/docs/figures/serve-telemetry-spine/controls/f1-family-scoping.log",
+          "reason": "Waived on a pointer, not on evidence: my declared mutation WAS run and it fired, but the manifest negative_control_log names f1 while the matching log is f3, and f3 own header paraphrases the mutation rather than repeating my wording, so the header comparison cannot match either file. The declared mutation was to delete the two lines of the tp_rank filter in eligible_samples. That is exactly f3, at /home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/wire-telemetry-spine/engine-names-repair/docs/figures/serve-telemetry-spine/controls/f3-tp-rank-filter.log, which records the deletion verbatim as \"-         if family == FAMILY_SGLANG and labels.get(\\\"tp_rank\\\", \\\"0\\\") != \\\"0\\\":\" followed by \"-             continue\", and reports 2 failed / 55 passed with AssertionError: a sample on a rank other than rank zero. The named test is test_sglang_rank_zero_is_the_one_shared_pool and the collateral one is test_the_sourcing_guard_answers_as_the_reader_does. The node ran six controls, one per closed finding, and f1 which the manifest cites covers the family-scoping deletion instead. So all six controls hold and the declared one is among them; what is wrong is only which log the manifest points at."
+        },
+        "tool_steps": 106.0,
+        "orientation_input_tokens": 4861753.0,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -64665,6 +64906,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 904
+    "_version": 905
   }
 }
