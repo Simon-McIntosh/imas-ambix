@@ -25,12 +25,21 @@ than re-derived from SLURM accounting later. Every row also names the host
 that produced it, since one receipts directory collects rows from every node
 a job ran on.
 
-**A section is omitted rather than nulled.** The three node sections are
-sparse in the same way the engine section is: a probe that failed, is absent,
-or did not run this tick contributes no key at all, so a reader never has to
-tell a measured zero from a section nothing measured. That rule is enforced
-at the point of serialization, which is the only place it can be enforced for
-a fixed-schema row.
+The row also carries the serve's own configuration in ``serve_config``: the
+engine-derived settings that decide what its numbers *mean*, so an occupancy
+figure recorded under one topology can be read without guessing the settings
+it was measured under. The settings are read from the engine rather than from
+the launcher, because a value the engine reports is the one in force while a
+launcher's is the one requested; a caller may pass values the engine did not
+report, and they fill gaps only.
+
+**A section is omitted rather than nulled.** The node sections and the serve
+configuration are sparse in the same way the engine section is: a probe that
+failed, is absent, or did not run this tick contributes no key at all, and a
+setting the engine did not report is absent from ``serve_config`` rather than
+present as a null. A reader therefore never has to tell a measured zero from a
+section nothing measured. That rule is enforced at the point of serialization,
+which is the only place it can be enforced for a fixed-schema row.
 
 Between samples the recorder also compacts its own record down through
 :mod:`imas_ambix.agent.telemetry_store`'s resolution tiers. The recorder is
@@ -84,13 +93,31 @@ _LEGACY_COUNTER_NAMES: dict[str, str] = {
 #: Version of the row shape. A reader that ingests old and new files together
 #: needs the value on the row, because the flat vocabulary alone cannot say
 #: whether the sparse sections below are absent or merely empty. The flat,
-#: sectionless rows carry no version; ``2`` is the first shape that has them.
-ROW_SCHEMA_VERSION = 2
+#: sectionless rows carry no version; ``2`` is the first shape that has them,
+#: and ``3`` adds the serve configuration beside them.
+ROW_SCHEMA_VERSION = 3
 
 #: The row's sparse sections. A section whose probe did not run is *omitted*
 #: from the serialized payload rather than written as ``null``, so a present
 #: key always means a measurement and an absent one never reads as a zero.
-ROW_SECTIONS: tuple[str, ...] = ("engine", "cards", "host", "jobs")
+ROW_SECTIONS: tuple[str, ...] = ("engine", "cards", "host", "jobs", "serve_config")
+
+#: The serve settings a row records, under the names the engine reports them.
+#: They are the inputs that give the row's own quantities their meaning: an
+#: occupancy figure, a pool total or a decode rate is a different measurement
+#: under a different context window, memory fraction or tensor-parallel width,
+#: and all of those move between launches of one profile. Held as an ordered
+#: tuple so the record states one fixed vocabulary rather than whatever a
+#: given engine build happened to expose.
+SERVE_CONFIG_OPTIONS: tuple[str, ...] = (
+    "context_length",
+    "max_total_tokens",
+    "mem_fraction_static",
+    "max_running_requests",
+    "hicache_ratio",
+    "speculative_algorithm",
+    "tp_size",
+)
 
 #: How often the recorder compacts its own record between samples. The
 #: compaction re-reads the whole raw file, so its cadence is minutes rather
@@ -173,6 +200,7 @@ class ReceiptRow:
     cards: dict[str, Any] | None = None
     host: dict[str, Any] | None = None
     jobs: dict[str, Any] | None = None
+    serve_config: dict[str, Any] | None = None
 
     def to_json(self) -> str:
         payload = dataclasses.asdict(self)
@@ -225,6 +253,7 @@ def build_receipt_row(
     gpus: int | None,
     hostname: str | None = None,
     node_sections: Mapping[str, Any] | None = None,
+    serve_config: Mapping[str, Any] | None = None,
 ) -> ReceiptRow:
     """One receipt row from two consecutive ``/metrics`` snapshots.
 
@@ -240,7 +269,9 @@ def build_receipt_row(
     on. *node_sections* is the sparse mapping
     :meth:`~imas_ambix.agent.node_probe.NodeProbe.sample` returned, passed
     through unchanged: a section it did not produce stays absent from the row
-    rather than arriving as an empty one.
+    rather than arriving as an empty one. *serve_config* is the settings
+    :func:`read_serve_config` resolved, likewise carried as a section that is
+    absent rather than empty when nothing was read.
     """
     gauges = current["gauges"]
     counters = current["counters"]
@@ -331,12 +362,68 @@ def build_receipt_row(
         cards=sections.get("cards"),
         host=sections.get("host"),
         jobs=sections.get("jobs"),
+        serve_config=dict(serve_config) if serve_config else None,
     )
 
 
 def local_hostname() -> str:
     """The node this process is running on, as the row should name it."""
     return os.uname().nodename
+
+
+def read_serve_config(base_url: str, *, api_key: str | None = None) -> dict[str, Any]:
+    """The serve settings *base_url*'s engine reports about itself.
+
+    The engine is asked rather than the launcher, because the two answer
+    different questions. A launcher states what was *requested* -- and a
+    request can be rescaled on the way to the engine, or silently replaced by
+    an engine default when its flag is omitted -- while the engine reports
+    what is *in force*, which is the value the row's own quantities were
+    measured under. Only the settings in :data:`SERVE_CONFIG_OPTIONS` are
+    kept, so an engine's full argument dump does not become the row's shape.
+
+    Returns the subset the engine reported, and an empty mapping when the
+    route is absent, the engine is down, the body is not JSON, or the engine
+    reports none of the settings -- a serve on an engine family that does not
+    publish its arguments simply carries no serve configuration. A setting
+    the engine did not report is left out rather than written as a null, on
+    the same rule the sparse sections follow.
+    """
+    body = _fetch_body(f"{base_url}/server_info", api_key)
+    if body is None:
+        return {}
+    try:
+        payload = json.loads(body)
+    except ValueError:
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    return {
+        option: payload[option]
+        for option in SERVE_CONFIG_OPTIONS
+        if payload.get(option) is not None
+    }
+
+
+def _merge_serve_config(
+    engine_config: Mapping[str, Any] | None,
+    caller_config: Mapping[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Combine the engine's settings with the caller's, engine winning.
+
+    A caller supplies only what the engine left out, so a value the engine
+    reports is never overwritten by one a launcher requested. The result is
+    ``None`` when neither source had anything, which is what keeps an unread
+    serve configuration absent from the row instead of present and empty.
+    """
+    merged: dict[str, Any] = {
+        option: caller_config[option]
+        for option in SERVE_CONFIG_OPTIONS
+        if caller_config and caller_config.get(option) is not None
+    }
+    if engine_config:
+        merged.update(engine_config)
+    return merged or None
 
 
 def _utcnow() -> _dt.datetime:
@@ -401,6 +488,7 @@ def record_receipts(
     profile_slug: str | None = None,
     served_name: str | None = None,
     gpus: int | None = None,
+    serve_config: Mapping[str, Any] | None = None,
     probe: node_probe.NodeProbe | None = None,
     compaction_paths: tuple[str | Path, str | Path] | None = None,
     compaction_interval_s: float = DEFAULT_COMPACTION_INTERVAL_S,
@@ -423,6 +511,14 @@ def record_receipts(
     generated serve script's own sidecar invocation knows these values
     directly and has no reason to reconstruct a profile object for them.
     *profile*, when given, takes precedence over the discrete fields.
+
+    *serve_config* is the settings a caller passes about the serve, used only
+    to fill what the engine did not report: the recorder asks the engine
+    first, because a reported value is the one in force. The resolution is
+    made once and carried on every later row, since these settings are fixed
+    for the life of a serve; a serve whose engine answers but publishes none
+    of them settles as carrying no configuration rather than asking again on
+    every tick.
 
     *probe* is the node-side sampler: when given, each tick is offered to
     :meth:`~imas_ambix.agent.node_probe.NodeProbe.sample` and the sections it
@@ -450,6 +546,8 @@ def record_receipts(
     rows_written = 0
     start = monotonic()
     next_compaction = start + compaction_interval_s
+    resolved_serve_config: dict[str, Any] | None = None
+    serve_config_settled = False
 
     with path.open("a", encoding="utf-8") as fh:
         while True:
@@ -465,6 +563,17 @@ def record_receipts(
             snapshot, sampled_at = sample_serving_metrics(
                 base_url, api_key=api_key, now=now
             )
+            if not serve_config_settled:
+                # Retried until the engine has answered at all: the recorder
+                # starts beside the engine and tolerates it not being up yet,
+                # and an engine that is up but publishes no settings will
+                # never start, so the ask stops there rather than repeating
+                # on every tick of a long serve.
+                resolved_serve_config = _merge_serve_config(
+                    read_serve_config(base_url, api_key=api_key), serve_config
+                )
+                if resolved_serve_config is not None or snapshot is not None:
+                    serve_config_settled = True
             if snapshot is not None:
                 row = build_receipt_row(
                     previous,
@@ -477,6 +586,7 @@ def record_receipts(
                     gpus=gpus,
                     hostname=hostname,
                     node_sections=sections,
+                    serve_config=resolved_serve_config,
                 )
                 fh.write(row.to_json() + "\n")
                 fh.flush()
@@ -510,6 +620,46 @@ def tier_paths(receipts_path: str | Path) -> tuple[Path, Path]:
     )
 
 
+def _coerce_setting(raw: str) -> Any:
+    """A ``--serve-setting`` value as a number when it reads as one.
+
+    The engine reports these as JSON numbers and strings; a caller stating the
+    same setting on a command line states it as text, and a numeric setting
+    written as a string would make two rows for one topology compare unequal.
+    """
+    try:
+        return int(raw)
+    except ValueError:
+        pass
+    try:
+        return float(raw)
+    except ValueError:
+        return raw
+
+
+def _parse_serve_settings(
+    pairs: Sequence[str] | None, *, parser: argparse.ArgumentParser
+) -> dict[str, Any] | None:
+    """The ``--serve-setting`` arguments as a mapping, or ``None`` when unset.
+
+    An unknown key is refused rather than dropped: a mistyped setting that
+    silently contributes nothing would leave a row claiming a configuration
+    it does not carry.
+    """
+    if not pairs:
+        return None
+    settings: dict[str, Any] = {}
+    for pair in pairs:
+        key, separator, raw = pair.partition("=")
+        if not separator or key not in SERVE_CONFIG_OPTIONS:
+            parser.error(
+                "--serve-setting expects KEY=VALUE with KEY one of "
+                f"{', '.join(SERVE_CONFIG_OPTIONS)}; got {pair!r}"
+            )
+        settings[key] = _coerce_setting(raw)
+    return settings
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Sample a live engine's /metrics and append receipt rows"
@@ -523,6 +673,17 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--profile-slug", default=None)
     parser.add_argument("--served-name", default=None)
     parser.add_argument("--gpus", type=int, default=None)
+    parser.add_argument(
+        "--serve-setting",
+        action="append",
+        default=None,
+        metavar="KEY=VALUE",
+        help=(
+            "A serve setting the engine does not report about itself; "
+            "repeatable, and used only where the engine reports nothing. "
+            f"KEY is one of {', '.join(SERVE_CONFIG_OPTIONS)}"
+        ),
+    )
     parser.add_argument(
         "--no-node-probe",
         action="store_true",
@@ -558,7 +719,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     the script that launched it, with no scheduler lookup of its own. It
     also owns the node probe, because the sidecar runs inside the job's own
     allocation: that is the only place the card, host and job readings are
-    free, and the row names the host it got them from.
+    free, and the row names the host it got them from. Serve settings come
+    from the engine's own report; ``--serve-setting`` fills only what that
+    engine does not report about itself.
 
     ``--compact-tier`` selects the other mode: rebuild one resolution tier
     from a source file and exit, which is how a record is caught up after
@@ -596,6 +759,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         profile_slug=args.profile_slug,
         served_name=args.served_name,
         gpus=args.gpus,
+        serve_config=_parse_serve_settings(args.serve_setting, parser=_parser()),
         probe=probe,
         compaction_paths=compaction_paths,
         compaction_interval_s=args.compaction_interval,

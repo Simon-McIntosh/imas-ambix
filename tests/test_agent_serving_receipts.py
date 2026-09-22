@@ -24,6 +24,12 @@ Coverage
 8.  The recorder compacts its own record into the resolution tiers between
     samples, on its own cadence, and a compaction that fails is reported and
     skipped rather than allowed to end the recording.
+9.  A row carries the serve settings its engine reported about itself, under
+    one fixed vocabulary -- so an occupancy figure states the context window,
+    memory fraction and topology it was measured under. The engine is asked
+    rather than the launcher, a caller's settings fill only what the engine
+    left out, and a setting nobody reported is absent from the row rather
+    than ``null``.
 
 All HTTP is stubbed at ``urllib.request.urlopen`` — no network, no GPU, and
 the node probe is a stub of the caller's — the real one shells out to
@@ -374,12 +380,29 @@ class _FakeResponse:
         return False
 
 
-def _stub_urlopen(bodies: list[bytes | Exception]) -> Callable[..., _FakeResponse]:
-    """Answer successive ``/metrics`` scrapes from *bodies*, in order."""
+def _stub_urlopen(
+    bodies: list[bytes | Exception],
+    info_bodies: list[bytes | Exception] | None = None,
+) -> Callable[..., _FakeResponse]:
+    """Answer successive ``/metrics`` scrapes from *bodies*, in order.
+
+    An engine's ``/server_info`` is a different route with its own cadence --
+    the recorder asks it once for the serve's whole life -- so it is answered
+    from *info_bodies* rather than from the scrape list, and defaults to
+    answering nothing, which is what a family that does not publish its
+    arguments does.
+    """
     pending = list(bodies)
+    info = list(info_bodies) if info_bodies is not None else []
 
     def _urlopen(req: Any, timeout: float | None = None, **_kwargs: Any) -> Any:
-        outcome = pending.pop(0) if len(pending) > 1 else pending[0]
+        url = str(getattr(req, "full_url", ""))
+        if url.endswith("/server_info"):
+            outcome: bytes | Exception = info.pop(0) if len(info) > 1 else (
+                info[0] if info else OSError("no /server_info route")
+            )
+        else:
+            outcome = pending.pop(0) if len(pending) > 1 else pending[0]
         if isinstance(outcome, Exception):
             raise outcome
         return _FakeResponse(outcome)
@@ -813,7 +836,9 @@ def test_receipt_row_omits_a_section_its_probe_did_not_read() -> None:
     )
 
     payload = json.loads(row.to_json())
-    assert set(sr.ROW_SECTIONS) - set(payload) == {"jobs"}
+    # The job table is on a slower cadence and the serve settings were never
+    # asked for here, so both are unread on this tick and both are absent.
+    assert set(sr.ROW_SECTIONS) - set(payload) == {"jobs", "serve_config"}
     assert all(payload[name] is not None for name in sr.ROW_SECTIONS if name in payload)
 
 
@@ -833,7 +858,7 @@ def test_receipt_row_without_a_probe_names_the_local_host() -> None:
 
     payload = json.loads(row.to_json())
     assert payload["hostname"] == sr.local_hostname()
-    for section in ("cards", "host", "jobs"):
+    for section in ("cards", "host", "jobs", "serve_config"):
         assert section not in payload
 
 
@@ -1164,3 +1189,251 @@ def test_receipts_main_can_record_without_the_probe_or_compaction(
     assert exit_code == 0
     assert captured["probe"] is None
     assert captured["compaction_paths"] is None
+
+
+# ---------------------------------------------------------------------------
+# Serve configuration — the settings the row's own quantities were measured
+# under.
+# ---------------------------------------------------------------------------
+
+#: The seven settings the live SGLang serve reported about itself, captured
+#: from ``http://98dci4-gpu-0003:18810/server_info`` (job 1273253, four cards)
+#: on 2026-09-22, with a few of the engine's other five hundred arguments kept
+#: alongside them to show the row keeps only the vocabulary it declares.
+LIVE_SERVER_INFO: dict[str, Any] = {
+    "context_length": 512000,
+    "max_total_tokens": 4000000,
+    "mem_fraction_static": 0.85,
+    "max_running_requests": 36,
+    "hicache_ratio": 2.0,
+    "speculative_algorithm": "DSPARK",
+    "tp_size": 4,
+    "chunked_prefill_size": 16384,
+    "max_prefill_tokens": 16384,
+    "model_path": "/work/projects/imas_gpu/agents/deepseek-v4-1-flash/model",
+}
+
+LIVE_SERVE_CONFIG: dict[str, Any] = {
+    key: LIVE_SERVER_INFO[key] for key in sr.SERVE_CONFIG_OPTIONS
+}
+
+
+def test_read_serve_config_keeps_the_settings_the_engine_reports() -> None:
+    """The row's vocabulary, not the engine's whole argument dump."""
+    with patch(
+        "urllib.request.urlopen",
+        _stub_urlopen([SAMPLE_T0], [json.dumps(LIVE_SERVER_INFO).encode()]),
+    ):
+        config = sr.read_serve_config("http://98dci4-gpu-0003:18810")
+
+    assert config == LIVE_SERVE_CONFIG
+    assert "model_path" not in config
+
+
+def test_read_serve_config_omits_a_setting_the_engine_left_out() -> None:
+    """An unreported setting is absent, never ``null``.
+
+    Writing the key with a null value would make a serve that does not state
+    its context window indistinguishable from one that stated none.
+    """
+    reported = {k: v for k, v in LIVE_SERVER_INFO.items() if k != "hicache_ratio"}
+    with patch(
+        "urllib.request.urlopen",
+        _stub_urlopen([SAMPLE_T0], [json.dumps(reported).encode()]),
+    ):
+        config = sr.read_serve_config("http://98dci4-gpu-0003:18810")
+
+    assert "hicache_ratio" not in config
+    assert config["tp_size"] == 4
+
+
+def test_read_serve_config_is_empty_when_the_route_is_absent() -> None:
+    """A family that does not publish its arguments carries no configuration."""
+    with patch("urllib.request.urlopen", _stub_urlopen([SAMPLE_T0])):
+        config = sr.read_serve_config("http://98dci4-gpu-0003:18800")
+
+    assert config == {}
+
+
+def test_read_serve_config_is_empty_when_the_body_is_not_json() -> None:
+    with patch(
+        "urllib.request.urlopen",
+        _stub_urlopen([SAMPLE_T0], [b"<html>not json</html>"]),
+    ):
+        config = sr.read_serve_config("http://98dci4-gpu-0003:18810")
+
+    assert config == {}
+
+
+def test_receipt_row_carries_the_serve_configuration() -> None:
+    snapshot = sr._serving_snapshot(SAMPLE_T0.decode())
+    row = sr.build_receipt_row(
+        None,
+        None,
+        snapshot,
+        FIRST_SAMPLE_AT,
+        job_id="1273253",
+        profile_slug="deepseek-v4-1-flash",
+        served_name="deepseek-v4.1-flash",
+        gpus=4,
+        serve_config=LIVE_SERVE_CONFIG,
+    )
+
+    payload = json.loads(row.to_json())
+    assert payload["schema_version"] == sr.ROW_SCHEMA_VERSION
+    assert payload["serve_config"] == LIVE_SERVE_CONFIG
+
+
+def test_receipt_row_omits_an_unread_serve_configuration() -> None:
+    """No configuration read means no key, on the sparse-section rule."""
+    snapshot = sr._serving_snapshot(SAMPLE_T0.decode())
+    row = sr.build_receipt_row(
+        None,
+        None,
+        snapshot,
+        FIRST_SAMPLE_AT,
+        job_id="1273253",
+        profile_slug="deepseek-v4-1-flash",
+        served_name="deepseek-v4.1-flash",
+        gpus=4,
+    )
+
+    payload = json.loads(row.to_json())
+    assert "serve_config" not in payload
+
+
+def test_record_receipts_reads_the_serve_config_from_the_engine_once(
+    tmp_path: Path,
+) -> None:
+    """Fixed for a serve's life, so the engine is asked once, not per tick."""
+    receipts_path = tmp_path / "receipts.jsonl"
+    calls: list[str] = []
+    scrapes = _stub_urlopen(
+        [SAMPLE_T0, SAMPLE_T1], [json.dumps(LIVE_SERVER_INFO).encode()]
+    )
+
+    def _counting_urlopen(req: Any, timeout: float | None = None, **kwargs: Any) -> Any:
+        calls.append(str(getattr(req, "full_url", "")))
+        return scrapes(req, timeout=timeout, **kwargs)
+
+    clock = iter([0.0, 5.0, 10.0])
+    wall_clock = iter([FIRST_SAMPLE_AT, SECOND_SAMPLE_AT])
+
+    with patch("urllib.request.urlopen", _counting_urlopen):
+        rows_written = sr.record_receipts(
+            "http://98dci4-gpu-0003:18810",
+            receipts_path,
+            interval_s=5.0,
+            duration_s=10.0,
+            sleep=lambda _s: None,
+            monotonic=lambda: next(clock),
+            now=lambda: next(wall_clock),
+        )
+
+    assert rows_written == 2
+    assert [row["serve_config"] for row in _read_rows(receipts_path)] == [
+        LIVE_SERVE_CONFIG
+    ] * 2
+    assert sum(url.endswith("/server_info") for url in calls) == 1
+
+
+def test_record_receipts_falls_back_to_caller_settings_the_engine_did_not_report(
+    tmp_path: Path,
+) -> None:
+    """A caller fills the gap the engine left, and only the gap."""
+    receipts_path = tmp_path / "receipts.jsonl"
+    clock = iter([0.0, 5.0, 10.0])
+    wall_clock = iter([FIRST_SAMPLE_AT, SECOND_SAMPLE_AT])
+
+    with patch("urllib.request.urlopen", _stub_urlopen([SAMPLE_T0, SAMPLE_T1])):
+        sr.record_receipts(
+            "http://98dci4-gpu-0003:18800",
+            receipts_path,
+            interval_s=5.0,
+            duration_s=10.0,
+            serve_config={"tp_size": 2, "hicache_ratio": 1.0},
+            sleep=lambda _s: None,
+            monotonic=lambda: next(clock),
+            now=lambda: next(wall_clock),
+        )
+
+    first, second = _read_rows(receipts_path)
+    assert first["serve_config"] == {"tp_size": 2, "hicache_ratio": 1.0}
+    assert second["serve_config"] == {"tp_size": 2, "hicache_ratio": 1.0}
+
+
+def test_record_receipts_prefers_the_engine_over_the_caller_settings(
+    tmp_path: Path,
+) -> None:
+    """A reported value is the one in force; a requested one is not."""
+    receipts_path = tmp_path / "receipts.jsonl"
+    clock = iter([0.0, 5.0, 10.0])
+    wall_clock = iter([FIRST_SAMPLE_AT, SECOND_SAMPLE_AT])
+
+    with patch(
+        "urllib.request.urlopen",
+        _stub_urlopen(
+            [SAMPLE_T0, SAMPLE_T1], [json.dumps(LIVE_SERVER_INFO).encode()]
+        ),
+    ):
+        sr.record_receipts(
+            "http://98dci4-gpu-0003:18810",
+            receipts_path,
+            interval_s=5.0,
+            duration_s=10.0,
+            serve_config={"context_length": 999, "hicache_ratio": 3.0},
+            sleep=lambda _s: None,
+            monotonic=lambda: next(clock),
+            now=lambda: next(wall_clock),
+        )
+
+    (row,) = _read_rows(receipts_path)[:1]
+    assert row["serve_config"]["context_length"] == 512000
+    assert row["serve_config"]["hicache_ratio"] == 2.0
+
+
+def test_receipts_main_passes_parsed_serve_settings(tmp_path: Path) -> None:
+    receipts_path = tmp_path / "receipts.jsonl"
+    captured: dict[str, Any] = {}
+
+    def _fake_record_receipts(base_url: str, path: Any, **kwargs: Any) -> int:
+        captured.update(kwargs)
+        return 0
+
+    with patch.object(sr, "record_receipts", _fake_record_receipts):
+        exit_code = sr.main(
+            [
+                "--base-url",
+                "http://98dci4-gpu-0003:18800",
+                "--receipts-path",
+                str(receipts_path),
+                "--serve-setting",
+                "tp_size=2",
+                "--serve-setting",
+                "hicache_ratio=1.0",
+                "--serve-setting",
+                "speculative_algorithm=EAGLE",
+            ]
+        )
+
+    assert exit_code == 0
+    assert captured["serve_config"] == {
+        "tp_size": 2,
+        "hicache_ratio": 1.0,
+        "speculative_algorithm": "EAGLE",
+    }
+
+
+def test_serve_setting_flag_refuses_an_unknown_key(tmp_path: Path) -> None:
+    """A mistyped setting is refused rather than silently contributing nothing."""
+    with pytest.raises(SystemExit):
+        sr.main(
+            [
+                "--base-url",
+                "http://98dci4-gpu-0003:18800",
+                "--receipts-path",
+                str(tmp_path / "receipts.jsonl"),
+                "--serve-setting",
+                "max_model_len=512000",
+            ]
+        )
