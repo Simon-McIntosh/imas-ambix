@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-22T22:04:04",
+  "updated": "2026-09-22T22:04:31",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -69194,6 +69194,27 @@
         "orientation_input_tokens": 1823706.0,
         "store_write": {
           "status": "written"
+        },
+        "integrated_gate_check": {
+          "base_verdict": "passed",
+          "integrated_verdict": "failed",
+          "integrated_revision": "16e377745f522e9e699853f72b56fbb999831ab7",
+          "checkout_revision": "16e377745f522e9e699853f72b56fbb999831ab7",
+          "checkout_on_integrated_revision": true,
+          "gate_command": "reckon audit-doc on the four edited documents; grep -ni 'lingering is not holding' over both research documents",
+          "gate_command_source": "stored",
+          "ran": true,
+          "exit_status": 2,
+          "timed_out": false,
+          "reason": null,
+          "finding": {
+            "base_verdict": "passed",
+            "integrated_verdict": "failed",
+            "integrated_revision": "16e377745f522e9e699853f72b56fbb999831ab7",
+            "exit_status": 2,
+            "reason": null,
+            "message": "the gate passed at the worker's base but reports failed on the integrated revision 16e377745f52: the merge changes what this node's gate proves, so a base-green run alone is not enough to push. Re-run the node's gate on the merged tree, land the code the merged tree requires, or record explicitly why this finding is accepted"
+          }
         }
       }
     ],
@@ -69269,6 +69290,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 947
+    "_version": 948
   }
 }
