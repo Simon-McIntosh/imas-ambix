@@ -108,7 +108,10 @@ ROW_SECTIONS: tuple[str, ...] = ("engine", "cards", "host", "jobs", "serve_confi
 #: under a different context window, memory fraction or tensor-parallel width,
 #: and all of those move between launches of one profile. Held as an ordered
 #: tuple so the record states one fixed vocabulary rather than whatever a
-#: given engine build happened to expose.
+#: given engine build happened to expose. The first six names are also the
+#: launcher's flag names (``--context-length``, ``--max-total-tokens``, ...);
+#: ``tp_size`` is the engine's own spelling of the setting the launch flag
+#: calls ``--tensor-parallel-size``.
 SERVE_CONFIG_OPTIONS: tuple[str, ...] = (
     "context_length",
     "max_total_tokens",
