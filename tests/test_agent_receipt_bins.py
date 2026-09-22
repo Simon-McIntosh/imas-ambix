@@ -114,3 +114,93 @@ def test_collector_takes_prefix_hit_rate_from_engine_counters(tmp_path) -> None:
     first_bin = report["bins"]["10-14"]
     assert first_bin["intervals"] == 1
     assert first_bin["prefix_hit_rate"]["median"] == pytest.approx(0.5)
+
+
+def test_collector_declines_a_rate_spanning_two_serves(tmp_path) -> None:
+    """Counters from two serves differenced would state a rate neither served.
+
+    Both rows carry a valid interval and the counters advance, so nothing but
+    the serve identity distinguishes this from the pair above.
+    """
+    receipts = tmp_path / "receipts.jsonl"
+
+    def _write(job_ids: tuple[str, str]) -> dict[str, object]:
+        rows = [
+            {
+                "num_requests_running": 10,
+                "generation_throughput_toks_per_s": 100.0,
+                "prompt_throughput_toks_per_s": 500.0,
+                "hostname": "98dci4-gpu-0003",
+                "job_id": job_ids[0],
+                "engine": {
+                    "prefix_cache_queries": 500_000.0,
+                    "prefix_cache_hits": 400_000.0,
+                },
+            },
+            {
+                "num_requests_running": 12,
+                "generation_throughput_toks_per_s": 120.0,
+                "prompt_throughput_toks_per_s": 600.0,
+                "hostname": "98dci4-gpu-0003",
+                "job_id": job_ids[1],
+                "engine": {
+                    "prefix_cache_queries": 1_000_000.0,
+                    "prefix_cache_hits": 900_000.0,
+                },
+            },
+        ]
+        receipts.write_text(
+            "".join(f"{json.dumps(row)}\n" for row in rows), encoding="utf-8"
+        )
+        return collect_receipt_bins(receipts).to_dict()
+
+    # Control: one serve across both rows, so the advance is its own and bins.
+    same_serve = _write(("1001", "1001"))
+    assert same_serve["excluded_intervals"] == 1
+    assert same_serve["bins"]["10-14"]["intervals"] == 1
+    assert same_serve["bins"]["10-14"]["prefix_hit_rate"]["median"] == pytest.approx(
+        1.0
+    )
+
+    # Two serves: the same counters and the same positive advance, declined.
+    across_serves = _write(("1001", "1002"))
+    assert across_serves["excluded_intervals"] == 2
+    assert across_serves["bins"]["10-14"]["intervals"] == 0
+    assert across_serves["bins"]["10-14"]["prefix_hit_rate"] is None
+
+
+def test_collector_declines_a_rate_whose_counters_fell(tmp_path) -> None:
+    """A serve that restarted inside the interval resets both counters.
+
+    The advance is non-positive rather than merely detached, and the row states
+    nothing else missing, so only the refusal keeps it out of the bin.
+    """
+    receipts = tmp_path / "receipts.jsonl"
+    rows = [
+        {
+            "num_requests_running": 10,
+            "generation_throughput_toks_per_s": 100.0,
+            "prompt_throughput_toks_per_s": 500.0,
+            "hostname": "98dci4-gpu-0003",
+            "job_id": "1001",
+            "engine": {"prefix_cache_queries": 5_000.0, "prefix_cache_hits": 4_000.0},
+        },
+        {
+            "num_requests_running": 12,
+            "generation_throughput_toks_per_s": 120.0,
+            "prompt_throughput_toks_per_s": 600.0,
+            "hostname": "98dci4-gpu-0003",
+            "job_id": "1001",
+            "engine": {"prefix_cache_queries": 300.0, "prefix_cache_hits": 250.0},
+        },
+    ]
+    receipts.write_text(
+        "".join(f"{json.dumps(row)}\n" for row in rows), encoding="utf-8"
+    )
+
+    report = collect_receipt_bins(receipts).to_dict()
+
+    assert report["rows_read"] == 2
+    assert report["excluded_intervals"] == 2
+    assert report["bins"]["10-14"]["intervals"] == 0
+    assert report["bins"]["10-14"]["prefix_hit_rate"] is None
