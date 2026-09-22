@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-22T03:24:02",
+  "updated": "2026-09-22T03:31:15",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -63250,6 +63250,244 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260921T213253382113-recorder-wire",
+        "plan": "serve-telemetry-spine",
+        "section": "\u00a73",
+        "node": "recorder-wire",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1984,
+                "cached_input_tokens": 186656,
+                "input_tokens": 188642,
+                "output_tokens": 1010,
+                "reasoning_output_tokens": 250,
+                "total_tokens": 189652,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "98f13dbe-0703-4abd-a5e4-65bfdb2eeee2",
+            "session_id": "wire-telemetry-spine"
+          },
+          "done_when": "pytest tests/test_agent_serving_receipts.py passes; ruff check imas_ambix tests exits 0; the manifest quotes the mutated line verbatim beside the test that reddens; and it names the production call sites the wiring is reachable from, or states plainly that there are none.",
+          "estimated_hours": 1.0,
+          "goal": "Wire node_probe and telemetry_store into the recorder so a serve writes rows carrying the card, host and job readings the node already makes free \u2014 and so every row names the host that produced it.",
+          "id": "recorder-wire",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-21T21:32:54Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no 'binding_observed'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/reports/wire-recorder.md",
+          "negative_control": "In imas_ambix/agent/serving_receipts.py, delete the call that attaches the node_probe section to the emitted row. A test asserting that a recorded row carries that section, with the probing host named in it, must fail.",
+          "plan": "serve-telemetry-spine",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a73",
+          "spec_level": "guided",
+          "time_budget": "60m",
+          "token_budget": null,
+          "write_paths": [
+            "imas_ambix/agent/serving_receipts.py",
+            "tests/test_agent_serving_receipts.py",
+            "docs/evidence/archive/serve-telemetry-spine-landed.html",
+            "docs/figures/serve-telemetry-spine",
+            "docs/plans/serve-telemetry-spine.html"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "telemetry-recorder-wire",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "high",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "worktree-full",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-21T21:33:13Z",
+        "completed_at": "2026-09-21T22:05:07.482Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 1903,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 1914,
+        "stalled": false,
+        "time_budget": "60m",
+        "base_sha": "61995960c28e3d75e9c8b19eb9713f3034a3d32e",
+        "commits": [
+          "aa51702b911c0ec9ec95d3fd514cbfbed1ba09b9",
+          "41bf16d311599f6a6263584f2a6e718c686595f2",
+          "1b115a13b852f6311e551ebdf8007da28c883bcc"
+        ],
+        "changed_lines": {
+          "added": 799,
+          "removed": 15,
+          "files": 5
+        },
+        "tests_added": 12,
+        "gate": "passed",
+        "gate_check": {
+          "command": "pytest tests/test_agent_serving_receipts.py",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/reports/recorder-wire-pytest.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "Wired node_probe into the recorder: every serving row carries the cards, host and jobs sections and names its producing host, an unread source is omitted rather than zeroed, and the record compacts into the telemetry_store tiers on its own cadence. Reviewed 92/100; both findings are reachability rather than correctness. Note for the ledger: the manifest left its test_logs field empty although the node did write the logs, so the gate citation here is the log it produced at 27 passed against 15 at base.",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/reports/wire-recorder.md",
+        "scope_changed": false,
+        "session_id": "f97d5a79-38d4-458f-aeb9-4e71faaf0eaf",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 652230,
+            "input_tokens_cumulative": 652230,
+            "output_tokens": 1457,
+            "output_tokens_cumulative": 1457,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-21T22:05:07.482Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": {
+          "status": "parsed",
+          "scores": {
+            "durability": 19,
+            "evidence": 18,
+            "fit": 18,
+            "goal_fidelity": 18,
+            "scope_discipline": 19
+          },
+          "absent": [],
+          "total": 92
+        },
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 16100857,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 45.616,
+          "generated_tokens": 83325,
+          "generation_seconds": 43.525,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 29.9,
+          "machine_seconds": 2.091,
+          "peak_input_tokens": 143572,
+          "tokens_per_second": 1914.42,
+          "wall_tokens_per_second": 1826.66
+        },
+        "follow_on_paths": [
+          "cli.py",
+          "tests/test_agent_serving_receipts.py",
+          "nvidia-smi/squeue"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent_serving_receipts.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        },
+        "attempt_kind": "resume",
+        "attempt": 2,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/wire-telemetry-spine/recorder-wire",
+          "session_id": "f97d5a79-38d4-458f-aeb9-4e71faaf0eaf",
+          "session_source": "pointer",
+          "retained_at": "2026-09-21T22:05:07.482Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "plan_impl_at_dispatch": 0.8,
+        "impl_move": {
+          "plan": "serve-telemetry-spine",
+          "at_dispatch": 0.8,
+          "at_complete": 0.8,
+          "verdict": "waived",
+          "reason": "The work landed and is merged to main at cd6722c8; the plan impl has not moved yet because I am batching one plan edit for the whole wave rather than conflicting every remaining merge on the plan file. The evidence-file merge already cost one hand resolution where a conflict split a table. The plan edit that moves impl and reconciles two stale entries follows once the last node merges."
+        },
+        "negative_control": {
+          "verdict": "waived",
+          "test_paths": [
+            "tests/test_agent_serving_receipts.py"
+          ],
+          "declaration": "In imas_ambix/agent/serving_receipts.py, delete the call that attaches the node_probe section to the emitted row. A test asserting that a recorded row carries that section, with the probing host named in it, must fail.",
+          "log": "/home/ITER/mcintos/.config/reckon/crew/reports/recorder-wire-negative-control.log",
+          "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/reports/recorder-wire-negative-control.log",
+          "reason": "The node ran a different mutation from the one I declared, and its own is better aimed. I declared deleting the call that attaches the node_probe section to the row. It instead disabled the omission loop -- \"for section in ROW_SECTIONS:\" became \"for section in ():\" -- so an unread section serialises as \"cards\": null rather than being dropped, testing the sparse-row guarantee rather than the attachment. 3 failed, 24 passed, and the third failing test reads the omission back out of the written file so the mutation is shown to reach the bytes. It asserted the line matched exactly once before applying and restored byte-identical afterwards. Log: /home/ITER/mcintos/.config/reckon/crew/reports/recorder-wire-negative-control.log"
+        },
+        "tool_steps": 122.0,
+        "orientation_input_tokens": 933516.0,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -63324,6 +63562,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 898
+    "_version": 899
   }
 }
