@@ -10,6 +10,12 @@ read downstream as zero. These tests drive a synthetic multi-day record through
 both tiers and assert all three, plus the two durability properties a tiered
 store must have -- a compaction is idempotent, and it never retires the tier it
 read.
+
+A window is further grouped by the recording host *and* the boot that host is
+in, because a cumulative counter resets when the machine reboots: a window
+holding both sides of a reboot would otherwise carry an endpoint from after the
+reboot beside a window whose opening value was before it, and the difference
+between them would be a figure about the reboot rather than about the machine.
 """
 
 from __future__ import annotations
@@ -17,6 +23,7 @@ from __future__ import annotations
 import html
 import json
 import math
+import os
 import re
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -24,6 +31,11 @@ from pathlib import Path
 import pytest
 
 import imas_ambix.agent.telemetry_store as telemetry_store
+from imas_ambix.agent.telemetry_index import (
+    UNKNOWN_BOOT_ID,
+    local_boot_id,
+    resolve_boot_id,
+)
 from imas_ambix.agent.telemetry_store import (
     TIER_HOUR,
     TIER_MINUTE,
@@ -35,6 +47,10 @@ from imas_ambix.agent.telemetry_store import (
     read_rows,
     run_compaction,
 )
+
+# Two canonical boot identifiers in the lowercase form the producer accepts.
+_BOOT_BEFORE = "3f8a1c2e-9b4d-4e6f-8a1b-2c3d4e5f6071"
+_BOOT_AFTER = "7d2e4f60-1a3b-4c5d-9e8f-0a1b2c3d4e5f"
 
 _CADENCE_S = 20
 _DAYS = 3
@@ -595,6 +611,182 @@ def test_the_landing_record_publishes_the_weights_the_cadence_yields():
         f"{minutes_per_hour} × {minute_samples} = {hour_samples} samples over "
         f"{hour_seconds:,} s"
     ) in text
+
+
+def _host_rows(**hosts: float) -> list[dict]:
+    """One window's worth of rows per host, interleaved as two writers land them.
+
+    Every host's rows fall inside the same minute, which is what makes the
+    grouping observable: merged into one window they produce one row and one
+    mean, and kept apart they produce one row per host with its own endpoint.
+    """
+    rows: list[dict] = []
+    for tick in range(3):
+        for host, base in hosts.items():
+            rows.append(
+                {
+                    "timestamp": (_START + timedelta(seconds=10 * tick)).isoformat(),
+                    "host": host,
+                    _SYNTHETIC_COUNTER: int(base) + tick,
+                    _SYNTHETIC_GAUGE: base + tick,
+                }
+            )
+    return rows
+
+
+def test_two_hosts_in_one_window_compact_to_one_row_each():
+    """A window belongs to one host: a mean over two machines is neither's.
+
+    The two hosts' counters differ by a constant, so a merged window would carry
+    one endpoint and one mean belonging to no machine -- and the difference taken
+    across that row would be a figure about the merge rather than about either
+    record.
+    """
+    compacted = compact_rows(
+        _host_rows(**{"node-a": 10.0, "node-b": 100.0}), tier=TIER_MINUTE
+    )
+    by_host = {row["host"]: row for row in compacted}
+
+    assert set(by_host) == {"node-a", "node-b"}
+    for host, base in (("node-a", 10.0), ("node-b", 100.0)):
+        row = by_host[host]
+        assert row[_SYNTHETIC_COUNTER] == base + 2  # the window's last, not a mean
+        assert row[_SYNTHETIC_GAUGE] == pytest.approx(base + 1)
+        assert row["obs"]["samples"] == 3
+    assert by_host["node-a"][_SYNTHETIC_GAUGE] != by_host["node-b"][_SYNTHETIC_GAUGE]
+
+
+def test_a_row_naming_no_host_takes_the_compacting_nodename():
+    """The fallback is the recorder's own machine, or one the caller names.
+
+    A record whose rows name no host was written where it is read, so the
+    compaction attributes it to the machine doing the compacting -- and a caller
+    reading another machine's record names that machine instead.
+    """
+    rows = [
+        {
+            "timestamp": (_START + timedelta(seconds=10 * tick)).isoformat(),
+            "gauge": float(tick),
+        }
+        for tick in range(3)
+    ]
+
+    assert compact_rows(rows, tier=TIER_MINUTE)[0]["host"] == os.uname().nodename
+    assert compact_rows(rows, tier=TIER_MINUTE, host="node-c")[0]["host"] == "node-c"
+
+
+def test_a_compacted_row_carries_its_host_into_the_next_tier():
+    """The minute row declares its host, so the hour tier needs no second telling.
+
+    The host is the window's identity rather than one of its readings, so it is
+    carried beside the payload instead of folded into it -- and a second tier
+    that had to be told the host again would merge two machines' hours the moment
+    it was not.
+    """
+    minute = compact_rows(
+        _host_rows(**{"node-a": 10.0, "node-b": 100.0}), tier=TIER_MINUTE
+    )
+    hour = compact_rows(minute, tier=TIER_HOUR)
+
+    by_host = {row["host"]: row for row in hour}
+    assert set(by_host) == {"node-a", "node-b"}
+    for host, base in (("node-a", 10.0), ("node-b", 100.0)):
+        assert by_host[host][_SYNTHETIC_COUNTER] == base + 2
+        assert by_host[host]["obs"]["samples"] == 3
+
+
+def _boot_rows(host: str, **boots: float) -> list[dict]:
+    """One window's worth of rows per boot of one host, as a reboot splits them.
+
+    Both boots' rows fall inside the same minute, so a window that grouped by
+    host alone would merge them into one row -- carrying one endpoint from after
+    the reboot and one mean belonging to neither boot.
+    """
+    rows: list[dict] = []
+    for tick in range(3):
+        for boot, base in boots.items():
+            rows.append(
+                {
+                    "timestamp": (_START + timedelta(seconds=10 * tick)).isoformat(),
+                    "host": host,
+                    "boot_id": boot,
+                    _SYNTHETIC_COUNTER: int(base) + tick,
+                    _SYNTHETIC_GAUGE: base + tick,
+                }
+            )
+    return rows
+
+
+def test_two_boots_of_one_host_in_one_window_compact_to_one_row_each():
+    """A reboot splits a window: a difference across it is about the reboot.
+
+    The two boots' counters sit an order of magnitude apart, as a reset makes
+    them, so a merged window would carry the post-reboot endpoint beside a
+    window whose opening value was pre-reboot -- and the difference taken across
+    that row would be a figure about the reboot rather than about the machine.
+    """
+    compacted = compact_rows(
+        _boot_rows("node-a", **{_BOOT_BEFORE: 10.0, _BOOT_AFTER: 100.0}),
+        tier=TIER_MINUTE,
+    )
+    by_boot = {row["boot_id"]: row for row in compacted}
+
+    assert set(by_boot) == {_BOOT_BEFORE, _BOOT_AFTER}
+    for boot, base in ((_BOOT_BEFORE, 10.0), (_BOOT_AFTER, 100.0)):
+        row = by_boot[boot]
+        assert row["host"] == "node-a"
+        assert row[_SYNTHETIC_COUNTER] == base + 2  # its own boot's last, not a mean
+        assert row[_SYNTHETIC_GAUGE] == pytest.approx(base + 1)
+        assert row["obs"]["samples"] == 3
+
+
+def test_a_row_naming_no_boot_takes_the_compacting_boot():
+    """The fallback is the boot this process is in, or one the caller names.
+
+    A record whose rows name no boot was written where it is read, so the
+    compaction attributes it to the boot doing the compacting; a caller reading
+    another machine's record names that boot instead, and one the producer's
+    parser refuses degrades to the shared unknown sentinel rather than keying.
+    """
+    rows = [
+        {
+            "timestamp": (_START + timedelta(seconds=10 * tick)).isoformat(),
+            "gauge": float(tick),
+        }
+        for tick in range(3)
+    ]
+    here, _ = resolve_boot_id(local_boot_id())
+
+    assert compact_rows(rows, tier=TIER_MINUTE)[0]["boot_id"] == here
+    assert (
+        compact_rows(rows, tier=TIER_MINUTE, boot_id=_BOOT_BEFORE)[0]["boot_id"]
+        == _BOOT_BEFORE
+    )
+    assert (
+        compact_rows(rows, tier=TIER_MINUTE, boot_id="not-a-uuid")[0]["boot_id"]
+        == UNKNOWN_BOOT_ID
+    )
+
+
+def test_a_compacted_row_carries_its_boot_into_the_next_tier():
+    """The minute row declares its boot, so the hour tier needs no second telling.
+
+    The boot is the window's identity rather than one of its readings, so it is
+    carried beside the payload instead of folded into it -- and a second tier
+    that had to be told the boot again would merge a machine's two boots the
+    moment it was not.
+    """
+    minute = compact_rows(
+        _boot_rows("node-a", **{_BOOT_BEFORE: 10.0, _BOOT_AFTER: 100.0}),
+        tier=TIER_MINUTE,
+    )
+    hour = compact_rows(minute, tier=TIER_HOUR)
+
+    by_boot = {row["boot_id"]: row for row in hour}
+    assert set(by_boot) == {_BOOT_BEFORE, _BOOT_AFTER}
+    for boot, base in ((_BOOT_BEFORE, 10.0), (_BOOT_AFTER, 100.0)):
+        assert by_boot[boot][_SYNTHETIC_COUNTER] == base + 2
+        assert by_boot[boot]["obs"]["samples"] == 3
 
 
 def test_a_row_without_a_usable_timestamp_is_refused():

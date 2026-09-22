@@ -43,6 +43,34 @@ work of consuming a line, not the bytes the digest is computed over. A source
 with no digest recorded carries no identity to compare against, so its region is
 re-read rather than trusted.
 
+**Every key carries the host that recorded the row, because an inode does not
+name a machine.** An inode number is unique within one filesystem and nowhere
+else, so two hosts recording a file of the same name at the same path produce
+the same ``(path, inode)`` and the same ``(inode, offset)`` while holding
+different readings -- and a key without a host merges the two irrecoverably,
+which is worse than either being wrong. The host is what the row says it was
+recorded on (:func:`row_host`), and a row that carries none falls back to the
+host this index is reading for -- its own nodename unless one is named --
+because a file whose rows do not name their machine is, by construction, being
+consumed where it was written.
+
+**Every key carries the boot as well, because a hostname does not survive a
+reboot.** The quantities this record holds are largely cumulative counters, and
+every one of them restarts from zero when the machine reboots, so two readings
+taken from one hostname on either side of a reboot difference as though the
+counter had jumped -- a real measurement, silently wrong, with nothing on either
+row to say so. The boot identity (:func:`row_boot_id`) is what separates them:
+the same value on two rows means one uninterrupted run of counters, and a
+different value means the counters between them are not differenceable at all.
+It is resolved per row rather than per file, because one file may hold rows from
+both sides of a reboot while its hostname never moves. A boot identity is
+validated by :func:`~imas_ambix.agent.throttling.parse_boot_id`, which accepts
+only the kernel's canonical lowercase spelling and raises on anything else, and
+the refusal does not drop the row: it is keyed by its host alone, and its
+``key_kind`` records which of the two keys it got. A row that announces its key
+is a different object from one that merely lacks a field -- the reboot guarantee
+holds on one side of a comparison and not the other, and a reader can see which.
+
 **Discovery reaches the roll suffixes it intends and nothing else.** A record and
 its numbered roll are selected by default; a name that merely contains
 ``.jsonl`` -- a summary written beside the record, or an archive of it -- is not,
@@ -65,6 +93,7 @@ import dataclasses
 import datetime as _dt
 import hashlib
 import json
+import os
 import re
 import sqlite3
 from collections.abc import Mapping
@@ -76,10 +105,39 @@ from imas_ambix.agent.receipt_bins import (
     ReceiptBinReport,
     summarise_receipt_rows,
 )
+from imas_ambix.agent.throttling import parse_boot_id, read_host
 
 if TYPE_CHECKING:
-    import os
     from collections.abc import Iterable, Iterator
+
+#: Record keys a row can name its recording host under, in precedence order.
+#: ``host`` is the row-level spelling and ``hostname`` the one the job section
+#: uses for the node it queried, so a producer that promotes that reading to the
+#: row needs no change here.
+_HOST_KEYS = ("host", "hostname")
+
+#: The record section a producer states its machine under when it does not state
+#: it at the row's top level, and the key it names the boot under.
+_HOST_SECTION = "host"
+_BOOT_ID_KEY = "boot_id"
+
+#: The column naming which of the two keys a stored row got. It is carried back
+#: out to every read surface that returns rows, so a degraded key announces
+#: itself to a reader instead of looking like the keyed case.
+_KEY_KIND_KEY = "key_kind"
+
+#: Key-scope markers, stored beside every key so a row says which identity it
+#: was keyed by. ``BOOT_SCOPE`` means the key carried a boot identity and two
+#: such rows may be differenced; ``HOST_SCOPE`` means the boot was unknown, so
+#: the row is stored and readable but no reboot guarantee attaches to it.
+BOOT_SCOPE = "host+boot"
+HOST_SCOPE = "host"
+
+#: The stored boot identity of a row whose boot is unknown. It is the empty
+#: string rather than ``NULL`` because ``UNIQUE`` treats NULLs as distinct from
+#: each other, which would make the uniqueness guard insert every unkeyed
+#: duplicate instead of refusing it.
+UNKNOWN_BOOT_ID = ""
 
 #: Quantity names whose value is a cumulative total since the engine started,
 #: so their period figure is the difference of two endpoints and never a sum.
@@ -99,6 +157,9 @@ CUMULATIVE_MEASUREMENTS: frozenset[str] = frozenset(
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS source (
+    host     TEXT    NOT NULL,
+    boot_id  TEXT    NOT NULL,
+    key_kind TEXT    NOT NULL,
     path     TEXT    NOT NULL,
     inode    INTEGER NOT NULL,
     size     INTEGER NOT NULL,
@@ -107,11 +168,14 @@ CREATE TABLE IF NOT EXISTS source (
     -- digest of the first `offset` bytes of the file; NULL means no identity is
     -- recorded for the consumed region, which makes that region unverifiable
     prefix_sha TEXT,
-    PRIMARY KEY (path, inode)
+    PRIMARY KEY (host, boot_id, path, inode)
 );
 
 CREATE TABLE IF NOT EXISTS sample (
     id           INTEGER PRIMARY KEY,
+    host         TEXT    NOT NULL,
+    boot_id      TEXT    NOT NULL,
+    key_kind     TEXT    NOT NULL,
     inode        INTEGER NOT NULL,
     offset       INTEGER NOT NULL,
     path         TEXT    NOT NULL,
@@ -122,7 +186,7 @@ CREATE TABLE IF NOT EXISTS sample (
     served_name  TEXT,
     gpus         INTEGER,
     payload      TEXT    NOT NULL,
-    UNIQUE (inode, offset)
+    UNIQUE (host, boot_id, inode, offset)
 );
 
 CREATE TABLE IF NOT EXISTS measurement (
@@ -153,6 +217,84 @@ class IngestReport:
 
     def to_dict(self) -> dict[str, Any]:
         return dataclasses.asdict(self)
+
+
+def _section_text(row: Mapping[str, Any], name: str) -> str | None:
+    """*name* from the row's own ``host`` section, or ``None``.
+
+    A producer that states its machine in a section of its own keeps the row's
+    top-level keys for the readings, and the section ``host`` is exactly the
+    machine the reading came from. Any other section is not read: a host named
+    inside one describes the scope of the reading that section holds, not the
+    machine the row was recorded on.
+    """
+    section = row.get(_HOST_SECTION)
+    if not isinstance(section, Mapping):
+        return None
+    value = section.get(name)
+    return value if isinstance(value, str) and value else None
+
+
+def row_host(row: Mapping[str, Any]) -> str | None:
+    """The host a record row says it was recorded on, or ``None``.
+
+    The row's own top level is read first, then a ``host`` section of its own.
+    A host named inside any other section is not this row's recording host but
+    the scope of the reading that section holds, and a record whose job table is
+    refreshed on a slower cadence than its other readings would then label its
+    ticks with two different hosts.
+    """
+    for key in _HOST_KEYS:
+        value = row.get(key)
+        if isinstance(value, str) and value:
+            return value
+    return _section_text(row, "hostname")
+
+
+def row_boot_id(row: Mapping[str, Any]) -> str | None:
+    """The boot identity a record row says it was recorded on, or ``None``.
+
+    Read from the row's own top level, then from its own ``host`` section, on
+    the same rule as :func:`row_host`. The value is not judged here: a producer's
+    spelling is validated where it is used as a key, by the same parser the
+    producer validated it with.
+    """
+    value = row.get(_BOOT_ID_KEY)
+    if isinstance(value, str) and value:
+        return value
+    return _section_text(row, _BOOT_ID_KEY)
+
+
+def resolve_boot_id(candidate: str | None) -> tuple[str, str]:
+    """``(stored boot identity, key scope)`` for a candidate boot identity.
+
+    A canonical boot identifier is stored as itself and the scope says the key
+    carried it. Anything the producer's parser refuses -- a malformed string, an
+    empty one, an uppercase spelling of a canonical identifier -- is not used as
+    a key and the scope says so; the row is still stored, under the same empty
+    sentinel for every unknown boot so that its own uniqueness still holds.
+    Never a refusal to store: a row whose boot cannot be established is a row to
+    read with a caveat, not a row to drop.
+    """
+    if candidate is not None:
+        try:
+            return parse_boot_id(candidate), BOOT_SCOPE
+        except ValueError:
+            pass
+    return UNKNOWN_BOOT_ID, HOST_SCOPE
+
+
+def local_boot_id() -> str | None:
+    """The boot identity of the machine this process is on, or ``None``.
+
+    Read through the producer's own reader, so a boot identifier means one thing
+    in the record and in whatever consumes it. ``None`` covers a machine without
+    one to read, which is a state a caller keys around rather than raises on.
+    """
+    try:
+        return read_host().boot_id
+    except (OSError, ValueError):
+        return None
 
 
 def _kind(name: str) -> str:
@@ -248,10 +390,28 @@ def discover(directory: str | Path, pattern: str | None = None) -> list[Path]:
 
 
 class TelemetryIndex:
-    """A local, rebuildable query layer over one or more record files."""
+    """A local, rebuildable query layer over one or more record files.
 
-    def __init__(self, path: str | Path) -> None:
+    *host* is the host rows that carry none are attributed to, because a record
+    whose rows do not name their machine was written where it is being read, and
+    *boot_id* is the boot those rows are attributed to, on the same reasoning:
+    the counters in a record read where it was written are the ones this machine
+    has accumulated since it booted. Every sample and source row records its
+    host, its boot identity where one could be established, and which of the two
+    keys it got, so two machines -- or two boots of one machine -- cannot take
+    each other's key.
+    """
+
+    def __init__(
+        self,
+        path: str | Path,
+        *,
+        host: str | None = None,
+        boot_id: str | None = None,
+    ) -> None:
         self.path = Path(path)
+        self.host = host or os.uname().nodename
+        self.boot_id = local_boot_id() if boot_id is None else boot_id
         self._conn = sqlite3.connect(str(self.path))
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA foreign_keys = ON")
@@ -297,15 +457,43 @@ class TelemetryIndex:
                     "can read"
                 )
             scanned += 1
-            lines, tail, prefix_sha = self._resume(path, stat)
+            lines, tail, prefix_sha, host, source_boot = self._resume(path, stat)
             added = 0
+            carried: str | None = None
+            # The boot the file's consumed region was read on, if the previous
+            # pass established one: a row that names no boot of its own belongs
+            # to the boot that was writing this file, not to this reader's.
+            carried_boot: str | None = source_boot
+            file_host = host
+            file_boot, file_kind = resolve_boot_id(source_boot or self.boot_id)
             for offset, raw in lines:
                 read += len(raw)
                 parsed = self._parse(raw, path, offset)
                 if parsed is None:
                     malformed += 1
                     continue
-                if self._insert(path, stat.st_ino, offset, parsed):
+                if carried is None:
+                    # One file is written by one recorder on one machine, so the
+                    # first row that names its host names it for every row here.
+                    carried = row_host(parsed)
+                own_boot = row_boot_id(parsed)
+                if own_boot is not None:
+                    # Resolved per row, unlike the host: a reboot inside one file
+                    # leaves the hostname alone and changes only this.
+                    carried_boot = own_boot
+                file_host = carried or host
+                file_boot, file_kind = resolve_boot_id(
+                    carried_boot if carried_boot is not None else self.boot_id
+                )
+                if self._insert(
+                    path,
+                    stat.st_ino,
+                    file_host,
+                    file_boot,
+                    file_kind,
+                    offset,
+                    parsed,
+                ):
                     inserted += 1
                     added += 1
                 else:
@@ -313,13 +501,24 @@ class TelemetryIndex:
             with self._conn:
                 self._conn.execute(
                     "INSERT INTO source "
-                    "(path, inode, size, offset, rows, prefix_sha) "
-                    "VALUES (?, ?, ?, ?, ?, ?) "
-                    "ON CONFLICT (path, inode) DO UPDATE SET "
+                    "(host, boot_id, key_kind, path, inode, size, offset, rows, "
+                    " prefix_sha) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                    "ON CONFLICT (host, boot_id, path, inode) DO UPDATE SET "
                     "  size = excluded.size, offset = excluded.offset, "
                     "  rows = source.rows + excluded.rows, "
                     "  prefix_sha = COALESCE(excluded.prefix_sha, source.prefix_sha)",
-                    (str(path), stat.st_ino, stat.st_size, tail, added, prefix_sha),
+                    (
+                        file_host,
+                        file_boot,
+                        file_kind,
+                        str(path),
+                        stat.st_ino,
+                        stat.st_size,
+                        tail,
+                        added,
+                        prefix_sha,
+                    ),
                 )
         with self._conn:
             self._conn.commit()
@@ -331,46 +530,98 @@ class TelemetryIndex:
             bytes_read=read,
         )
 
+    def _resumed_row(self, path: Path, inode: int) -> sqlite3.Row | None:
+        """The source row this file resumes from, or ``None`` if it has none.
+
+        The file's own path is tried first and the inode alone second, because
+        two filesystems number their inodes independently: an inode alone can
+        name one file here and a different file on another host, so matching it
+        without the path would resume this file from a stranger's offset. A roll
+        has no row under its new name, which is what the second lookup is for: it
+        finds the row the old name holds, and the bytes keep their offset while
+        the name is gone.
+
+        The two lookups are not interchangeable and the caller does not treat
+        them so: only a match on the path says *this file* has been consumed
+        before, and only that match can conclude the file was rewritten in place.
+        A row found by the inode alone that does not describe these bytes belongs
+        to another file sharing the number, and reading it as a rewrite would
+        discard that other file's samples for content they never held.
+
+        The boot is not part of these lookups even though it is part of the
+        source key. This is the one place the boot cannot be known before the
+        file is read, and a lookup that required it would miss a record written
+        under a different boot -- or read on another machine -- and re-read the
+        whole file as new. The highest offset for the file is taken instead,
+        which is the resume point whichever boot wrote last.
+        """
+        row = self._conn.execute(
+            "SELECT host, boot_id, path, offset, prefix_sha FROM source "
+            "WHERE inode = ? AND path = ? ORDER BY offset DESC LIMIT 1",
+            (inode, str(path)),
+        ).fetchone()
+        if row is not None:
+            return row
+        return self._conn.execute(
+            "SELECT host, boot_id, path, offset, prefix_sha FROM source "
+            "WHERE inode = ? ORDER BY offset DESC LIMIT 1",
+            (inode,),
+        ).fetchone()
+
     def _resume(
         self, path: Path, stat: os.stat_result
-    ) -> tuple[Iterator[tuple[int, bytes]], int, str | None]:
-        """Lines to consume, the offset they carry to, and the region's digest."""
-        row = self._conn.execute(
-            # Keyed on the inode, not the name: a rolled file keeps its bytes
-            # and its offset while losing its path, so resuming per path would
-            # re-read everything it holds.
-            "SELECT offset, prefix_sha FROM source WHERE inode = ? "
-            "ORDER BY offset DESC LIMIT 1",
-            (stat.st_ino,),
-        ).fetchone()
+    ) -> tuple[Iterator[tuple[int, bytes]], int, str | None, str, str | None]:
+        """Lines to consume, the offset they carry to, digest, host, boot.
+
+        The host returned is the one the file's already-consumed region was
+        attributed to, which is the host its samples must be dropped under if
+        the region turns out to have been rewritten -- the previous pass's rows
+        carry exactly that host, so attributing the drop to any other would
+        leave them behind or take another machine's. The boot returned is the
+        one that region was keyed by, which is where a row naming no boot of its
+        own is attributed; ``None`` means the file is new here, so this reading
+        process's own boot applies.
+        """
+        row = self._resumed_row(path, stat.st_ino)
+        host = self.host if row is None else row["host"]
+        boot = None if row is None else row["boot_id"]
         start = 0
         if row is not None and row["offset"]:
             if self._was_rewritten(path, stat, row["offset"], row["prefix_sha"]):
-                # Rewritten in place: the bytes this index already consumed no
-                # longer describe anything, so every sample from this inode
-                # goes with them before the new content is read.
-                with self._conn:
-                    self._conn.execute(
-                        "DELETE FROM sample WHERE inode = ?", (stat.st_ino,)
-                    )
+                if row["path"] == str(path):
+                    # Rewritten in place: the bytes this index already consumed
+                    # no longer describe anything, so every sample from this
+                    # inode goes with them before the new content is read.
+                    with self._conn:
+                        self._conn.execute(
+                            "DELETE FROM sample WHERE host = ? AND inode = ?",
+                            (host, stat.st_ino),
+                        )
+                # Otherwise this row was found by the inode alone and does not
+                # describe these bytes: it belongs to another file that happens
+                # to share the number, so this file is new here. It is read from
+                # zero, and the stranger's samples are left where they are --
+                # discarding them would destroy content this file never held.
             else:
                 start = row["offset"]
         if start >= stat.st_size:
             # Nothing was appended, so the consumed region is the whole file and
             # the digest stored beside it already describes it.
-            return iter(()), start, None
+            return iter(()), start, None, host, boot
         with path.open("rb") as handle:
             head = handle.read(start)
             data = handle.read(stat.st_size - start)
         complete = data.rfind(b"\n")
         if complete < 0:
             # Nothing but a partial line so far: leave the offset alone.
-            return iter(()), start, None
+            return iter(()), start, None, host, boot
         consumed = head + data[: complete + 1]
         return (
             iter(_lines(consumed[start:], start)),
             start + complete + 1,
             hashlib.sha256(consumed).hexdigest(),
+            host,
+            boot,
         )
 
     def _was_rewritten(
@@ -415,15 +666,36 @@ class TelemetryIndex:
         return parsed
 
     def _insert(
-        self, path: Path, inode: int, offset: int, row: Mapping[str, Any]
+        self,
+        path: Path,
+        inode: int,
+        host: str,
+        boot_id: str,
+        key_kind: str,
+        offset: int,
+        row: Mapping[str, Any],
     ) -> bool:
-        """Store one sample; ``False`` when this inode and offset are known."""
+        """Store one sample; ``False`` when this key is already known.
+
+        A sample is identified by where it was recorded as well as by which byte
+        of which inode it came from, and *where* takes two forms: inode numbers
+        are per-filesystem, so two machines recording at the same path produce
+        the same ``(inode, offset)`` while holding different readings, and the
+        counters are cumulative since a boot, so two readings of one machine on
+        either side of a reboot. The boot is empty when none could be
+        established, and it is empty rather than null so that the uniqueness
+        below still refuses a duplicate unkeyed row.
+        """
         with self._conn:
             cursor = self._conn.execute(
                 "INSERT OR IGNORE INTO sample "
-                "(inode, offset, path, ts, ts_epoch, job_id, profile_slug, "
-                " served_name, gpus, payload) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "(host, boot_id, key_kind, inode, offset, path, ts, ts_epoch, "
+                " job_id, profile_slug, served_name, gpus, payload) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
+                    host,
+                    boot_id,
+                    key_kind,
                     inode,
                     offset,
                     str(path),
@@ -504,7 +776,9 @@ class TelemetryIndex:
         weight rather than pulling the mean toward a stale reading. The final
         sample of a source is extended by the interval that preceded it -- the
         record ends there, so inventing coverage past its last line would be
-        reading a value into time that was never observed.
+        reading a value into time that was never observed. A source is one
+        machine's file over one boot, so the gap a reboot leaves is a gap in
+        coverage and not an interval one sample was held across.
         """
         row = self._conn.execute(
             """
@@ -513,12 +787,12 @@ class TelemetryIndex:
                        MAX(0.0, MIN(
                            COALESCE(
                                LEAD(s.ts_epoch) OVER (
-                                   PARTITION BY s.inode
+                                   PARTITION BY s.host, s.boot_id, s.inode
                                    ORDER BY s.ts_epoch, s.offset
                                ),
                                s.ts_epoch + COALESCE(
                                    s.ts_epoch - LAG(s.ts_epoch) OVER (
-                                       PARTITION BY s.inode
+                                       PARTITION BY s.host, s.boot_id, s.inode
                                        ORDER BY s.ts_epoch, s.offset
                                    ),
                                    0.0
@@ -547,6 +821,12 @@ class TelemetryIndex:
         window whose own first sample already carries the counter needs no
         earlier row to be meaningful, and a counter that rose and fell in
         between is not turned into a sum of its snapshots.
+
+        A cumulative counter is one machine's over one boot: a reboot resets it
+        and no other machine ever advanced it. So the two endpoints must belong
+        to one ``(host, boot)``; where they do not, the span is declined rather
+        than differenced, because their difference is a number no machine ever
+        advanced and it reads exactly like a measurement.
         """
         opening = self._last_at_or_before(name, start)
         if opening is None:
@@ -556,41 +836,74 @@ class TelemetryIndex:
         closing = self._last_at_or_before(name, end, strict=True)
         if opening is None or closing is None:
             return None
-        return closing - opening
+        if opening[:2] != closing[:2]:
+            return None
+        return closing[2] - opening[2]
 
     def _last_at_or_before(
         self, name: str, bound: float, *, strict: bool = False
-    ) -> float | None:
+    ) -> tuple[str, str, float] | None:
+        """``(host, boot_id, value)`` of the latest reading at or before *bound*."""
         comparison = "<" if strict else "<="
         row = self._conn.execute(
-            "SELECT m.value AS value FROM measurement m "
-            "JOIN sample s ON s.id = m.sample_id "
+            "SELECT s.host AS host, s.boot_id AS boot_id, m.value AS value "
+            "FROM measurement m JOIN sample s ON s.id = m.sample_id "
             f"WHERE m.name = ? AND s.ts_epoch {comparison} ? "
-            "ORDER BY s.ts_epoch DESC, s.offset DESC LIMIT 1",
+            "ORDER BY s.ts_epoch DESC, s.offset DESC, s.host, s.boot_id LIMIT 1",
             (name, bound),
         ).fetchone()
-        return None if row is None else float(row["value"])
+        return None if row is None else self._keyed_value(row)
 
-    def _first_in_window(self, name: str, start: float, end: float) -> float | None:
+    def _first_in_window(
+        self, name: str, start: float, end: float
+    ) -> tuple[str, str, float] | None:
+        """``(host, boot_id, value)`` of the earliest reading inside the window."""
         row = self._conn.execute(
-            "SELECT m.value AS value FROM measurement m "
-            "JOIN sample s ON s.id = m.sample_id "
+            "SELECT s.host AS host, s.boot_id AS boot_id, m.value AS value "
+            "FROM measurement m JOIN sample s ON s.id = m.sample_id "
             "WHERE m.name = ? AND s.ts_epoch >= ? AND s.ts_epoch < ? "
-            "ORDER BY s.ts_epoch, s.offset LIMIT 1",
+            "ORDER BY s.ts_epoch, s.offset, s.host, s.boot_id LIMIT 1",
             (name, start, end),
         ).fetchone()
-        return None if row is None else float(row["value"])
+        return None if row is None else self._keyed_value(row)
+
+    @staticmethod
+    def _keyed_value(row: sqlite3.Row) -> tuple[str, str, float]:
+        return (row["host"], row["boot_id"], float(row["value"]))
 
     def rows(self, start: float, end: float) -> list[dict[str, Any]]:
-        """Records whose timestamp falls in ``[start, end)``, in time order."""
+        """Records whose timestamp falls in ``[start, end)``, in time order.
+
+        Each record carries the key it was stored under -- ``host`` and
+        ``boot_id`` -- together with ``key_kind``, so a reader grouping rows by
+        ``(host, boot)`` groups them exactly as the store did and a row whose
+        boot was refused is visible as the degraded case it is.
+
+        The record's own spelling of those fields is replaced rather than
+        passed through: a boot the producer's parser refused is not the
+        identity any lookup matched on, and presented as one it makes the
+        reboot guarantee look like it holds on a row where it does not. The
+        spelling is not lost, because it is in the record itself -- the file
+        this index is derived from and can be rebuilt from at any time.
+        """
         return [
-            json.loads(row["payload"])
+            self._keyed_row(row)
             for row in self._conn.execute(
-                "SELECT payload FROM sample WHERE ts_epoch >= ? AND ts_epoch < ? "
-                "ORDER BY ts_epoch, inode, offset",
+                "SELECT host, boot_id, key_kind, payload FROM sample "
+                "WHERE ts_epoch >= ? AND ts_epoch < ? "
+                "ORDER BY ts_epoch, host, boot_id, inode, offset",
                 (start, end),
             )
         ]
+
+    @staticmethod
+    def _keyed_row(row: sqlite3.Row) -> dict[str, Any]:
+        """The stored record, stamped with the key it was stored under."""
+        record = json.loads(row["payload"])
+        record[_HOST_SECTION] = row["host"]
+        record[_BOOT_ID_KEY] = row["boot_id"]
+        record[_KEY_KIND_KEY] = row["key_kind"]
+        return record
 
     def receipt_bins(
         self,
@@ -648,9 +961,16 @@ def _as_int(value: Any) -> int | None:
 
 
 __all__ = [
+    "BOOT_SCOPE",
     "CUMULATIVE_MEASUREMENTS",
+    "HOST_SCOPE",
+    "UNKNOWN_BOOT_ID",
     "IngestReport",
     "TelemetryIndex",
     "discover",
+    "local_boot_id",
     "measure_row",
+    "resolve_boot_id",
+    "row_boot_id",
+    "row_host",
 ]

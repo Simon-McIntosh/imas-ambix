@@ -2108,6 +2108,260 @@ except ImportError:
     <code>All checks passed!</code>. Six control logs and the mapping figure are
     committed beside this record.</p>
 
+  <h2 id="host-key">§5 — the record's keys name the machine that wrote the row</h2>
+
+    <figure>
+      <img src="/imas-ambix/figures/serve-telemetry-spine/host-in-the-key.svg"
+           alt="Two machines recording serve.jsonl at the same path: keyed on inode and offset alone they resolve to one key and the second writer is dropped as a duplicate, while keyed on host, inode and offset each writer keeps its own row.">
+      <figcaption>One path and one inode on two machines: the second writer lost, then kept.</figcaption>
+    </figure>
+
+    <p>An inode is a number a filesystem hands out, so the same path on two machines can
+    produce the same inode and the same byte offset. Keyed on <code>(inode, offset)</code>
+    alone the two writers resolve to one sample and the second arrives as a duplicate of
+    the first — a merge that is silent and cannot be undone, because nothing recorded
+    that two rows were ever intended. A second host is already producing readings under
+    this account, so this was a live exposure and not a hypothetical one.</p>
+
+    <p>Every key now carries a host. <code>source</code> is <code>(host, path, inode)</code>,
+    <code>sample</code> is unique on <code>(host, inode, offset)</code>, and both offset
+    lookups and both partitioned aggregations carry the host with them. The host is
+    resolved per row: the row's own top-level <code>host</code> or <code>hostname</code>,
+    otherwise the host of the file's own source row, otherwise the nodename of the process
+    recording. <code>TelemetryIndex.ingest</code> and <code>TelemetryIndex.discover</code>
+    keep their signatures — the recording host is a property of the index, not an argument —
+    so a watcher being wired onto the index concurrently does not move.</p>
+
+    <table>
+      <thead><tr><th>Behaviour</th><th>What was measured</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>A row naming its own host is keyed on that host</td>
+          <td><code>row_host</code> returns the top-level <code>host</code> when the row carries
+          one and the top-level <code>hostname</code> when it carries that instead; a host in a
+          nested section is not read, because one file's rows would then split between two hosts
+          by which section they fell in.</td>
+        </tr>
+        <tr>
+          <td>A row naming no host takes the recording nodename</td>
+          <td>With no host in the row, the samples and the source row are both written under
+          <code>os.uname().nodename</code>, and the same value is what a compaction pass with no
+          host given stamps on its window.</td>
+        </tr>
+        <tr>
+          <td>Two hosts at one inode and one offset are both kept</td>
+          <td>Two files at different paths, both pinned to inode <code>424242</code> and both
+          writing at the same offset, ingest as <strong>4 rows inserted and 0 duplicates</strong>,
+          counting <strong>2 rows per host</strong> across <strong>2 source rows</strong> and
+          <strong>4 samples</strong>. Before the change this is the pass that collapsed to one
+          host's two rows.</td>
+        </tr>
+        <tr>
+          <td>An inode-only lookup is not a rewrite verdict</td>
+          <td>When the resumed row was found by inode alone it does not describe this file's
+          bytes, so the file is read from zero and <em>nothing is deleted</em>. Deleting there
+          was the first implementation, and it destroyed the other host's samples on exactly the
+          case the change exists to keep — the test above is what caught it.</td>
+        </tr>
+        <tr>
+          <td>A compaction window belongs to one host</td>
+          <td>Three ticks from each of two hosts interleaved within one minute compact to
+          <strong>one row per host</strong>, each carrying its own host, and a compacted row
+          carries its host into the next tier. Partitioning happens before the weights are
+          computed: a gap inferred across two interleaved machines would halve every
+          time-weighted mean in the window.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 id="host-key-negative-control">The negative control, and what it separates</h3>
+
+    <p>A passing suite never shows that a guard fires. The declared mutation removes
+    <code>host</code> from the sample's uniqueness — the line
+    <code>UNIQUE (host, inode, offset)</code> is replaced with <code>UNIQUE (inode, offset)</code>,
+    restoring the key this change exists to replace. It reddens exactly one test, the one
+    above: <code>test_two_hosts_at_one_inode_and_offset_are_both_kept</code>, on
+    <code>assert [('node-b', 2)] == [('node-a', 2), ('node-b', 2)]</code> — reported as
+    <code>assert 2 == 4</code> — 1 failed and 25 deselected, exit 1. The log's first line
+    states the mutation verbatim and its site; the mutated lines are the two schema
+    declarations. This is the one measurement that separates "<code>host</code> is in the key"
+    from "the schema text says <code>host</code>".</p>
+
+    <h3 id="host-key-migration">An index already on disk, and what happens to it</h3>
+
+    <p><strong>Every index written before this change is invalidated, and the failure is a
+    refusal rather than a merge — which is the safe half of the pair.</strong> The tables are
+    declared <code>CREATE TABLE IF NOT EXISTS</code> and the index carries no schema-version
+    marker, so an existing database keeps its old shape and the new code never notices until
+    it writes. Measured against a database built by the previous revision: the first
+    <code>ingest</code> raises
+    <code>sqlite3.OperationalError: no such column: host</code>. It cannot silently merge,
+    because every path that would merge goes through a column that is not there.</p>
+
+    <p>The recovery is the index's own contract — <code>TelemetryIndex.rebuild()</code> from the
+    JSONL, which is the durable copy and the only one that matters. No in-place migration was
+    written, for the reason the index exists: it is disposable by construction, and a
+    half-migrated index would be the one object in the system whose contents nobody could
+    describe. An operator running this for the first time sees a loud exception naming the
+    missing column; the rebuild is one call.</p>
+
+    <h3 id="host-key-gates">Gates and commits</h3>
+
+    <p><code>uv run --no-sync pytest tests/test_telemetry_index.py tests/test_telemetry_store.py</code>
+    reports <strong>46 passed</strong>, exit 0; <code>uv run --no-sync ruff check imas_ambix tests</code>
+    exits 0. Both runs are on the login node — the file is a unit suite of a few seconds against
+    fixtures it builds itself, with no corpus read, which is the case the compute rule leaves there.
+    The commit is <code>feat(telemetry): key the serving record by the host that wrote it</code>,
+    four files, 394 insertions and 49 deletions, verified trailer-clean and bodied before push.</p>
+
+    <p>Two limits are recorded with the change rather than left to be discovered. The host is
+    carried into the keys, not into the query surface: filtering a sum or a weighted mean by host is
+    not yet an option any caller has, so a reader wanting one host's total must still partition
+    outside the index. And the merge this closes was two hosts at <em>one path</em>; two hosts whose
+    readings land at the same path <em>and</em> the same inode <em>and</em> the same offset within one
+    host's own key space cannot arise, but a recording host that misreports its own name would
+    reintroduce the same collision under the new key.</p>
+  <h2 id="boot-key">§5 — the key names the boot as well, because a hostname does not survive one</h2>
+
+    <p>A hostname is stable across a reboot, but the counters these rows carry are not: they
+    are cumulative, and they start again from zero when the machine restarts. Two readings
+    from one genuinely correct hostname, one on each side of a reboot, therefore difference as
+    a sudden improvement — a real measurement of the wrong quantity, with nothing on either
+    row to say a reboot happened. The host dimension, added for the two-machines-at-one-path
+    collision, cannot separate the two sides of a reboot on a <em>single</em> machine.</p>
+
+    <p>Every key now carries the boot as well. <code>source</code> is
+    <code>(host, boot_id, path, inode)</code> and <code>sample</code> is unique on
+    <code>(host, boot_id, inode, offset)</code>. The boot is resolved <em>per row</em> rather
+    than per file, because one file can hold rows from both sides of a reboot while its
+    hostname never moves; the host stays per file, since a file is written by one machine.
+    Both are read from the row's own top level or from its own <code>host</code> section,
+    which is where the recorder states them — reading only the top level would leave the key
+    inert against the one producer here that emits a boot identity at all.</p>
+
+    <table>
+      <thead><tr><th>Behaviour</th><th>What was measured</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Two boots of one host at one inode and one offset are both kept</td>
+          <td>Two files pinned to inode <code>424242</code>, both naming <code>node-a</code> and
+          both writing at the same offsets, one naming boot A and the other boot B, ingest as
+          <strong>4 rows inserted and 0 duplicates</strong>, counting <strong>2 rows per
+          boot</strong> across <strong>2 sources</strong>. Both sources are keyed
+          <code>host+boot</code>. Under the un-keyed schema this is the pass that collapses to
+          one boot's two rows and silently discards the other.</td>
+        </tr>
+        <tr>
+          <td>A boot the producer refuses is a degraded key, announced and not dropped</td>
+          <td>The producer's parser raises on anything but a canonical lowercase identifier.
+          The index catches the refusal rather than loosening the parser: the row is stored
+          under the empty sentinel with <code>key_kind = host</code>, so it announces that it
+          was keyed by its host alone. A row that looked keyed while comparing as though it
+          were would be the failure this field exists to prevent.</td>
+        </tr>
+        <tr>
+          <td>A window belongs to one boot of that host</td>
+          <td>Three ticks from each of two boots of one host, interleaved within one minute,
+          compact to <strong>one row per boot</strong>, each carrying its own host and boot; a
+          compacted row carries both into the next tier. Partitioning happens before the
+          weights are computed, so a gap the reboot opened is a coverage gap rather than an
+          interval one sample was held across — and the difference across the boundary is not
+          taken between two counters that never met.</td>
+        </tr>
+        <tr>
+          <td>A null boot would fail open, so the sentinel is an empty string</td>
+          <td>SQLite treats nulls as distinct in a <code>UNIQUE</code> index, so a nullable
+          <code>boot_id</code> would insert every duplicate rather than deduplicating it. The
+          column is <code>NOT NULL</code> and unknown boots share one sentinel.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 id="boot-key-negative-control">The negative control, and what it separates</h3>
+
+    <p>The declared mutation removes <code>boot_id</code> from the sample's uniqueness — the
+    line <code>UNIQUE (host, boot_id, inode, offset)</code> is replaced with
+    <code>UNIQUE (host, inode, offset)</code>, the key the host change left behind. It reddens
+    exactly one test, the first above:
+    <code>test_two_boots_of_one_host_at_one_inode_and_offset_are_both_kept</code>, on
+    <code>assert report.rows_inserted == 4</code> — reported as <code>assert 2 == 4</code>, the
+    second boot's rows arriving as duplicates — 1 failed and 30 passed, exit 1. The log's first
+    line states the mutation verbatim and its site. This is the one measurement that separates
+    "<code>boot_id</code> is in the key" from "the schema text says <code>boot_id</code>".</p>
+
+    <h3 id="boot-key-migration">An index already on disk, and what happens to it</h3>
+
+    <p><strong>Every index written before this change is invalidated, and again the failure is a
+    refusal rather than a merge.</strong> Measured against a database carrying the previous
+    revision's shape — <code>sample</code> unique on <code>(host, inode, offset)</code> and no
+    <code>boot_id</code> column — the first <code>ingest</code> raises
+    <code>sqlite3.OperationalError: no such column: boot_id</code>. The tables are
+    <code>CREATE TABLE IF NOT EXISTS</code> and the index carries no schema-version marker, so
+    the old shape survives and the new code discovers the mismatch only when it writes. The
+    recovery is unchanged: <code>TelemetryIndex.rebuild()</code> from the JSONL.</p>
+
+    <h3 id="boot-key-gates">Gates and commits</h3>
+
+    <p><code>uv run --no-sync pytest tests/test_telemetry_index.py tests/test_telemetry_store.py</code>
+    reports <strong>54 passed</strong>, exit 0; <code>uv run --no-sync ruff check imas_ambix tests</code>
+    exits 0. Both on the login node, for the same reason as the host arm — a fixture-built unit
+    suite of a few seconds with no corpus read. The commit is
+    <code>feat(telemetry): key the serving record by the boot that wrote it</code>, four files,
+    verified trailer-clean and bodied before push.</p>
+
+    <p>One limit is recorded with the change. The boot is carried into the keys and into the
+    compaction grouping, not into a per-boot query surface: a reader wanting one boot's total
+    still partitions outside the index, as with the host. And the collision this arm is tested
+    on is contrived rather than observed — two files on one filesystem receive distinct inodes by
+    construction, so a test using their real numbering would pass having proved nothing. A search
+    of two filesystems on this node found their inode ranges disjoint, so the collision is pinned
+    and the case records that beside its result.</p>
+  <h3 id="boot-key-review-repairs">The read surfaces and the counter span, repaired</h3>
+
+    <p>Review of this arm found two defects inside it and one guard missing. <code>counter_span</code>
+    differenced its two endpoints with no regard for which source each came from, while the rest of
+    the arm had already been partitioned by <code>(host, boot)</code>: a window opening on one machine
+    and closing on another returned the difference of two counters that never met. Measured on one
+    path recorded by two machines, the window returned <code>-950.0</code> in one order and
+    <code>1050.0</code> reversed — a figure no machine advanced, and one a consumer of the span prints
+    as a measured advance. The endpoint lookups now carry the keys their readings were stored under,
+    and a span whose endpoints do not share one is declined rather than differenced.</p>
+
+    <p><code>rows()</code> returned the record's own boot spelling, so a row whose boot the producer's
+    parser refused read as though the store had keyed on that spelling — the refused text in the field
+    a reader takes for a boot identity — while the key actually held was the empty sentinel. The
+    stored columns carried the distinction and every read surface lost it, which is the one thing
+    <code>key_kind</code> exists to prevent. Each row a reader gets now carries the host and boot it
+    was stored under together with <code>key_kind</code>, and the record's own spelling of those two
+    fields is replaced rather than passed through; the spelling is not lost, because it lives in the
+    record the index is derived from.</p>
+
+    <p>The per-row boot resolution was held by no test: every boot test separated the two boots across
+    two files, so the shape the behaviour exists for — one file straddling a reboot — was unguarded.
+    The guard now carries boot A, then boot B, then a row naming no boot inside <em>one</em> file and
+    requires the resolutions A, B, B: the row naming no boot belongs to the boot that was writing the
+    file when it appeared, not to the reader's own.</p>
+
+    <p><strong>Gates after the repairs.</strong>
+    <code>uv run --no-sync pytest tests/test_telemetry_index.py tests/test_telemetry_store.py</code>
+    reports <strong>57 passed</strong>, exit 0; <code>uv run --no-sync ruff check imas_ambix tests</code>
+    exits 0. One declared mutation per repair, each quoted verbatim in its own control log and each
+    reddening its guard: deleting <code>if opening[:2] != closing[:2]:</code> from
+    <code>counter_span</code> reddens the two-host span test with the <code>-950.0</code> it declines;
+    replacing <code>self._keyed_row(row)</code> with <code>json.loads(row["payload"])</code> in
+    <code>rows()</code> reddens the read-surface test on <code>'not-a-uuid'</code> reaching a reader;
+    and resolving the boot once per file reddens the three-row guard at index 1, the second row taking
+    the first row's boot. That third mutation also reddens two earlier boot tests, because a file-wide
+    boot read from the resume state collides with the pinned inode those tests share — so the suite was
+    not blind to a per-file boot as such. What it could not state was the single-file shape, and that
+    is what the guard adds.</p>
+
+    <p><strong>What these repairs do not close.</strong> <code>sum_measurements</code> and
+    <code>time_weighted_mean</code> still take no host or boot argument, so a reader wanting one
+    machine's or one boot's total still partitions outside the index. The counter span is declined
+    across sources rather than scoped to one, which is the conservative half of the same gap: a
+    window holding two machines now returns nothing rather than picking one.</p>
+
 </main>
 </body>
 </html>

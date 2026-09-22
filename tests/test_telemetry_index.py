@@ -12,12 +12,22 @@ import pytest
 
 from imas_ambix.agent.receipt_bins import summarise_receipt_rows
 from imas_ambix.agent.telemetry_index import (
+    BOOT_SCOPE,
+    HOST_SCOPE,
+    UNKNOWN_BOOT_ID,
     TelemetryIndex,
     discover,
+    local_boot_id,
     measure_row,
+    resolve_boot_id,
+    row_boot_id,
 )
 
 _BASE = _dt.datetime(2026, 9, 20, 6, 0, 0, tzinfo=_dt.UTC)
+
+# Two canonical boot identifiers in the lowercase form the producer accepts.
+_BOOT_BEFORE = "3f8a1c2e-9b4d-4e6f-8a1b-2c3d4e5f6071"
+_BOOT_AFTER = "7d2e4f60-1a3b-4c5d-9e8f-0a1b2c3d4e5f"
 
 
 def _at(seconds: float) -> float:
@@ -44,6 +54,11 @@ def _row(seconds: float, **overrides: object) -> dict:
     }
     row.update(overrides)
     return row
+
+
+def _engine_tokens(value: float) -> dict:
+    """A row's engine section carrying one cumulative counter reading."""
+    return {"family": "sglang", "generation_tokens": value}
 
 
 def _write(path: Path, rows: list[dict], **kwargs: object) -> None:
@@ -222,7 +237,10 @@ def test_a_source_rebuilt_in_place_drops_its_stale_samples(tmp_path):
         index.ingest([source])
 
         assert index.sample_count() == 1
-        assert index.rows(_at(-1), _at(60)) == [_row(0)]
+        kept = index.rows(_at(-1), _at(60))
+        assert len(kept) == 1
+        # The record's own fields survive the key the read surface adds.
+        assert {key: kept[0][key] for key in _row(0)} == _row(0)
 
 
 def test_period_query_agrees_with_the_jsonl_computed_directly(tmp_path):
@@ -633,3 +651,371 @@ def test_a_compressed_roll_is_refused_by_name(tmp_path):
 
 def _epoch(row: dict) -> float:
     return _dt.datetime.fromisoformat(row["timestamp"]).timestamp()
+
+
+def _pin_inode(monkeypatch, inode: int) -> None:
+    """Give every path the same inode, as two filesystems' numbering can."""
+    real_stat = Path.stat
+
+    def stat(path: Path, *args: object, **kwargs: object) -> os.stat_result:
+        fields = list(real_stat(path, *args, **kwargs))
+        fields[1] = inode
+        return os.stat_result(fields)
+
+    monkeypatch.setattr(Path, "stat", stat)
+
+
+def test_a_row_naming_its_host_is_keyed_on_that_host(tmp_path):
+    """A record that says where it was written is not attributed to its reader.
+
+    The reader's own nodename is a fallback for a record that names nothing, not
+    a label to overwrite what a record does name, or two hosts' readings would
+    still land under the host that happened to read them.
+    """
+    source = tmp_path / "serve.jsonl"
+    _write(source, [_row(0, host="node-a"), _row(5, host="node-a")])
+
+    with TelemetryIndex(tmp_path / "index.db", host="node-z") as index:
+        index.ingest([source])
+        kept = index._conn.execute(
+            "SELECT host FROM sample ORDER BY id"
+        ).fetchall()
+        assert [row["host"] for row in kept] == ["node-a", "node-a"]
+        sources = index._conn.execute(
+            "SELECT host, path FROM source").fetchall()
+        assert [(row["host"], row["path"]) for row in sources] == [
+            ("node-a", str(source))
+        ]
+
+
+def test_a_row_naming_no_host_falls_back_to_the_recording_nodename(tmp_path):
+    """A record whose rows name no machine was written where it is being read."""
+    here = tmp_path / "plain.jsonl"
+    named = tmp_path / "named.jsonl"
+    _write(here, [_row(0)])
+    _write(named, [_row(5)])
+
+    with TelemetryIndex(tmp_path / "own.db") as index:
+        index.ingest([here])
+        row = index._conn.execute("SELECT host FROM sample").fetchone()
+        assert row["host"] == os.uname().nodename
+
+    with TelemetryIndex(tmp_path / "other.db", host="node-b") as index:
+        index.ingest([named])
+        row = index._conn.execute("SELECT host FROM sample").fetchone()
+        assert row["host"] == "node-b"
+
+
+def test_two_hosts_at_one_inode_and_offset_are_both_kept(tmp_path, monkeypatch):
+    """An inode names a file within one filesystem and nowhere else.
+
+    Two machines recording a file of the same name at the same path produce the
+    same ``(inode, offset)`` for readings that are not the same, so an index
+    keyed on that pair alone stores the second machine's row as a duplicate of
+    the first's and drops it -- no error, no count of what was lost, and nothing
+    afterwards that tells the two apart. The inode is pinned here to reproduce
+    what two filesystems' independent numbering makes collide in the record this
+    index reads.
+    """
+    _pin_inode(monkeypatch, 424_242)
+    here = tmp_path / "here" / "serve.jsonl"
+    there = tmp_path / "there" / "serve.jsonl"
+    here.parent.mkdir()
+    there.parent.mkdir()
+    _write(here, [_row(0, host="node-a"), _row(5, host="node-a")])
+    _write(there, [_row(0, host="node-b"), _row(5, host="node-b")])
+
+    with TelemetryIndex(tmp_path / "index.db", host="node-a") as index:
+        report = index.ingest([here, there])
+
+        assert report.rows_inserted == 4
+        assert report.rows_duplicate == 0
+        kept = index._conn.execute(
+            "SELECT host, COUNT(*) AS n FROM sample GROUP BY host ORDER BY host"
+        ).fetchall()
+        assert [(row["host"], row["n"]) for row in kept] == [
+            ("node-a", 2),
+            ("node-b", 2),
+        ]
+        assert index._conn.execute("SELECT COUNT(*) FROM source").fetchone()[0] == 2
+        assert index.sample_count() == 4
+
+
+def test_two_boots_of_one_host_at_one_inode_and_offset_are_both_kept(
+    tmp_path, monkeypatch
+):
+    """A hostname does not survive a reboot, and the counters prove it.
+
+    The counters this record carries are cumulative, so they reset when the
+    machine reboots. Two readings from one genuinely correct hostname on either
+    side of a reboot therefore difference as a large drop, and nothing on either
+    row says a reboot happened -- a real measurement of the wrong quantity.
+
+    The inode is pinned here because two files on one filesystem cannot collide:
+    the record this index reads is two machines', or one machine's across two
+    boots, where the same path and the same inode occur in two filesystems that
+    hand out their own numbering. Measured on this node, a search of 4,000
+    candidates in /tmp (xfs, inodes from about 5,000) against the pytest temp
+    filesystem (inodes near 39,761,983) found no match: the ranges do not
+    overlap, so a collision is contrived here rather than waited for.
+    """
+    _pin_inode(monkeypatch, 424_242)
+    before = tmp_path / "before" / "serve.jsonl"
+    after = tmp_path / "after" / "serve.jsonl"
+    before.parent.mkdir()
+    after.parent.mkdir()
+    _write(
+        before,
+        [
+            _row(0, host="node-a", boot_id=_BOOT_BEFORE),
+            _row(5, host="node-a", boot_id=_BOOT_BEFORE),
+        ],
+    )
+    _write(
+        after,
+        [
+            _row(0, host="node-a", boot_id=_BOOT_AFTER),
+            _row(5, host="node-a", boot_id=_BOOT_AFTER),
+        ],
+    )
+
+    with TelemetryIndex(tmp_path / "index.db", host="node-a") as index:
+        report = index.ingest([before, after])
+
+        assert report.rows_inserted == 4
+        assert report.rows_duplicate == 0
+        kept = index._conn.execute(
+            "SELECT boot_id, COUNT(*) AS n FROM sample "
+            "GROUP BY boot_id ORDER BY boot_id"
+        ).fetchall()
+        assert [(row["boot_id"], row["n"]) for row in kept] == [
+            (_BOOT_BEFORE, 2),
+            (_BOOT_AFTER, 2),
+        ]
+        # The boot is part of the source key, so one file spanning a reboot is
+        # two sources rather than one whose rows contradict each other.
+        assert (
+            index._conn.execute(
+                "SELECT COUNT(*) FROM source WHERE key_kind = ?", (BOOT_SCOPE,)
+            ).fetchone()[0]
+            == 2
+        )
+        assert index.sample_count() == 4
+
+
+def test_a_row_with_an_unusable_boot_is_keyed_by_its_host_and_says_so(tmp_path):
+    """A boot the producer refuses is a degraded key, announced and not dropped.
+
+    The producer's parser raises on anything but a canonical lowercase
+    identifier, and that strictness is not the index's to loosen. What the index
+    must not do is store such a row as though it were keyed: an unkeyed row that
+    looks keyed compares against keyed rows with nothing to say the guarantee
+    holds on one side only.
+    """
+    source = tmp_path / "serve.jsonl"
+    _write(
+        source,
+        [_row(0, host="node-a", boot_id="not-a-uuid"), _row(5, host="node-a")],
+    )
+
+    with TelemetryIndex(tmp_path / "index.db", host="node-z") as index:
+        report = index.ingest([source])
+
+        assert report.rows_inserted == 2
+        rows = index._conn.execute(
+            "SELECT host, boot_id, key_kind FROM sample ORDER BY id"
+        ).fetchall()
+        assert [(row["host"], row["boot_id"], row["key_kind"]) for row in rows] == [
+            ("node-a", UNKNOWN_BOOT_ID, HOST_SCOPE),
+            ("node-a", UNKNOWN_BOOT_ID, HOST_SCOPE),
+        ]
+
+
+def test_a_boot_identity_is_used_as_a_key_only_in_the_form_it_was_validated():
+    """Every spelling the producer refuses degrades the key; the canonical one keys it.
+
+    The empty string and an uppercase canonical identifier are both refused by
+    the same shape check, so they degrade rather than half-key: a row stored
+    under an uppercase spelling would never match its own lowercase spelling.
+    """
+    assert resolve_boot_id(_BOOT_BEFORE) == (_BOOT_BEFORE, BOOT_SCOPE)
+    assert resolve_boot_id(None) == (UNKNOWN_BOOT_ID, HOST_SCOPE)
+    for refused in ("not-a-uuid", UNKNOWN_BOOT_ID, _BOOT_BEFORE.upper()):
+        assert resolve_boot_id(refused) == (UNKNOWN_BOOT_ID, HOST_SCOPE)
+
+
+def test_a_row_carrying_its_identity_in_a_host_section_is_keyed_on_it(tmp_path):
+    """The producer states the machine and the boot in a section of its own.
+
+    Reading only the row's top level would leave the key inert against the one
+    producer here that emits a boot identity at all, so the section is read for
+    both -- and a host or boot named inside any other section is not this row's.
+    """
+    source = tmp_path / "serve.jsonl"
+    _write(
+        source,
+        [
+            _row(
+                0,
+                host={
+                    "hostname": "node-a",
+                    "boot_id": _BOOT_BEFORE,
+                    "uptime_seconds": 12.5,
+                },
+            )
+        ],
+    )
+
+    with TelemetryIndex(tmp_path / "index.db", host="node-z") as index:
+        index.ingest([source])
+        row = index._conn.execute(
+            "SELECT host, boot_id, key_kind FROM sample"
+        ).fetchone()
+        assert (row["host"], row["boot_id"], row["key_kind"]) == (
+            "node-a",
+            _BOOT_BEFORE,
+            BOOT_SCOPE,
+        )
+
+
+def test_the_recording_boot_is_the_one_this_process_is_on():
+    """A boot identity read here is the producer's, or absent rather than raised.
+
+    The value is read through the producer's own reader so a boot identifier
+    means one thing in the record and in whatever consumes it; a machine with
+    none to read is a state to key around, not one to fail on.
+    """
+    here = local_boot_id()
+    assert here is None or resolve_boot_id(here) == (here, BOOT_SCOPE)
+    assert row_boot_id({"host": {"boot_id": _BOOT_BEFORE}}) == _BOOT_BEFORE
+    assert row_boot_id({"boot_id": _BOOT_AFTER}) == _BOOT_AFTER
+    assert row_boot_id({"host": {"hostname": "node-a"}}) is None
+
+
+def test_a_counter_span_between_two_hosts_is_declined_not_differenced(tmp_path):
+    """A counter's advance is one machine's, so two hosts are not differenced.
+
+    A window opening on one machine's reading and closing on another's yields
+    the difference of two numbers that never described one counter: negative
+    when the later reading is the further behind, positive when it is the
+    further ahead, and both read exactly like a measured advance. The host is
+    carried per file -- one recorder writes one file -- so two machines
+    recording one path arrive as two files, which is the shape built here.
+    """
+    early = tmp_path / "early.jsonl"
+    later = tmp_path / "later.jsonl"
+    _write(
+        early,
+        [
+            _row(0, host="node-a", engine=_engine_tokens(1000.0)),
+            _row(5, host="node-a", engine=_engine_tokens(1100.0)),
+        ],
+    )
+    _write(later, [_row(10, host="node-b", engine=_engine_tokens(50.0))])
+    late_first = tmp_path / "late-first.jsonl"
+    first = tmp_path / "first.jsonl"
+    _write(late_first, [_row(0, host="node-b", engine=_engine_tokens(50.0))])
+    _write(first, [_row(10, host="node-a", engine=_engine_tokens(1000.0))])
+
+    with TelemetryIndex(tmp_path / "index.db") as index:
+        index.ingest([early, later])
+        # Both machines are in the index under their own keys, so the windows
+        # below are read against a genuinely mixed record and not one host's.
+        hosts = index._conn.execute(
+            "SELECT DISTINCT host FROM sample ORDER BY host"
+        ).fetchall()
+        assert [row["host"] for row in hosts] == ["node-a", "node-b"]
+        # One machine's readings alone still difference to its own advance.
+        assert index.counter_span("engine.generation_tokens", _at(-1), _at(6)) == (
+            pytest.approx(100.0)
+        )
+        # An endpoint on each host is declined, at both window ends.
+        assert index.counter_span("engine.generation_tokens", _at(-1), _at(11)) is None
+        assert index.counter_span("engine.generation_tokens", _at(-1), _at(15)) is None
+
+    with TelemetryIndex(tmp_path / "reversed.db") as index:
+        index.ingest([late_first, first])
+        # The same pair the other way round, which would otherwise return the
+        # larger figure of the two.
+        assert index.counter_span("engine.generation_tokens", _at(-1), _at(11)) is None
+
+
+def test_a_row_a_reader_gets_carries_the_key_it_was_stored_under(tmp_path):
+    """A refused boot spelling is not read back as a boot identity.
+
+    The stored columns hold the distinction between a row keyed on its boot and
+    one keyed on its host alone, and a reader that takes the row's own spelling
+    sees the second as the first: the refused text reads as the identity the
+    store keyed on, when the key it holds is the unknown-boot sentinel. So the
+    row a reader gets carries the resolved key and its kind, and the reboot
+    guarantee is visible as absent exactly where it is.
+    """
+    source = tmp_path / "serve.jsonl"
+    _write(
+        source,
+        [
+            _row(0, host="node-a", boot_id=_BOOT_BEFORE),
+            _row(5, host="node-a", boot_id="not-a-uuid"),
+        ],
+    )
+
+    with TelemetryIndex(tmp_path / "index.db", host="node-z") as index:
+        index.ingest([source])
+        keyed, degraded = index.rows(_at(-1), _at(60))
+
+        # The spelling the parser refused is not presented as a key anywhere in
+        # the row a reader holds...
+        assert "not-a-uuid" not in json.dumps(degraded)
+        # ...while the record this index was read from still carries it.
+        assert _direct_rows(source)[1]["boot_id"] == "not-a-uuid"
+
+        # Each row carries the key it was stored under, and the kind of key.
+        assert (keyed["host"], keyed["boot_id"], keyed["key_kind"]) == (
+            "node-a",
+            _BOOT_BEFORE,
+            BOOT_SCOPE,
+        )
+        assert (degraded["host"], degraded["boot_id"], degraded["key_kind"]) == (
+            "node-a",
+            UNKNOWN_BOOT_ID,
+            HOST_SCOPE,
+        )
+
+
+def test_one_file_spanning_a_reboot_keys_each_of_its_rows_apart(tmp_path):
+    """The boot is resolved per row, because one file can span a reboot.
+
+    A reboot leaves the hostname alone, so a file written across one carries
+    two boots and only the rows themselves say where the change falls. Resolved
+    once per file from its first named boot, every later row is keyed on a boot
+    it was not written in -- silently, because the rows stay storable and the
+    counters they carry then difference across a reset as though the machine
+    had merely been quiet.
+    """
+    source = tmp_path / "serve.jsonl"
+    _write(
+        source,
+        [
+            _row(0, host="node-a", boot_id=_BOOT_BEFORE),
+            _row(5, host="node-a", boot_id=_BOOT_AFTER),
+            _row(10, host="node-a"),
+        ],
+    )
+
+    with TelemetryIndex(tmp_path / "index.db", host="node-z") as index:
+        index.ingest([source])
+        stored = index._conn.execute(
+            "SELECT boot_id FROM sample ORDER BY id"
+        ).fetchall()
+        assert [row["boot_id"] for row in stored] == [
+            _BOOT_BEFORE,
+            _BOOT_AFTER,
+            _BOOT_AFTER,
+        ]
+        # The row that names no boot belongs to the boot that was writing the
+        # file when it appeared, not to the reader's.
+        assert [row["boot_id"] for row in index.rows(_at(-1), _at(60))] == [
+            _BOOT_BEFORE,
+            _BOOT_AFTER,
+            _BOOT_AFTER,
+        ]

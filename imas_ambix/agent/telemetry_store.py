@@ -55,6 +55,27 @@ suppress the values that follow it.
 re-read before anything is considered retired, so a crash mid-compaction loses
 no source data. Re-running a compaction over the same source produces
 byte-identical output: the transform is a pure function of the rows.
+
+**A window belongs to one recording host, because a mean over two machines is a
+reading of neither.** A row is grouped by the host it says it was recorded on
+(:func:`~imas_ambix.agent.telemetry_index.row_host`), and a row carrying none is
+attributed to the host doing the compacting -- its own nodename unless one is
+named. The host is carried on the compacted row, so a later tier buckets by it
+without having to be told again, and the window's duration and weight are
+measured between rows of the same host: gaps taken across two interleaved
+machines would halve every weight they touch.
+
+**A window belongs to one boot of that host as well, because a window that
+straddles a reboot differences two counters that never met.** Cumulative leaves
+compact by endpoint, and the endpoint a row carries is the last reading of its
+window, so a window holding rows from both sides of a reboot carries a
+post-reboot endpoint beside a pre-reboot window's and the difference between
+them is a figure about the reboot rather than about the machine. A row is
+grouped by the boot it names (:func:`~imas_ambix.agent.telemetry_index.row_boot_id`),
+and a row naming none is attributed to the boot doing the compacting; the boot
+is carried on the compacted row exactly as the host is. A boot identity the
+producer's parser refuses is stored as the empty string, so a row whose boot is
+unknown groups with other unknown-boot rows and not with a keyed one.
 """
 
 from __future__ import annotations
@@ -63,9 +84,17 @@ import argparse
 import datetime as _dt
 import json
 import math
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+from imas_ambix.agent.telemetry_index import (
+    local_boot_id,
+    resolve_boot_id,
+    row_boot_id,
+    row_host,
+)
 
 TIER_RAW = "raw"
 TIER_MINUTE = "minute"
@@ -87,6 +116,8 @@ NEXT_TIER: dict[str, str] = {
 _TIER_KEY = "tier"
 _WINDOW_START_KEY = "window_start"
 _OBS_KEY = "obs"
+_HOST_KEY = "host"
+_BOOT_KEY = "boot_id"
 
 #: Canonical cumulative quantities whose leaf name does not end in ``_total``.
 #: The engine section spells cumulative token counters bare (``prompt_tokens``),
@@ -256,10 +287,25 @@ def _parse_timestamp(row: dict[str, Any]) -> _dt.datetime:
 
 
 def _row_payload(row: dict[str, Any]) -> dict[str, Any]:
+    """A row's own readings, without the keys that describe the row's grouping.
+
+    The host and the boot are the window's identity rather than readings of it,
+    so they are excluded here and written back by the window that owns them;
+    merged as leaves they would be overwritten by whichever row of the window
+    happened to be last.
+    """
     return {
         key: value
         for key, value in row.items()
-        if key not in ("timestamp", _TIER_KEY, _WINDOW_START_KEY, _OBS_KEY)
+        if key
+        not in (
+            "timestamp",
+            _TIER_KEY,
+            _WINDOW_START_KEY,
+            _OBS_KEY,
+            _HOST_KEY,
+            _BOOT_KEY,
+        )
     }
 
 
@@ -327,9 +373,13 @@ def _row_samples(rows: list[dict[str, Any]]) -> list[int]:
 
 
 def compact_rows(
-    rows: list[dict[str, Any]], *, tier: str
+    rows: list[dict[str, Any]],
+    *,
+    tier: str,
+    host: str | None = None,
+    boot_id: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Compact *rows* into one row per window of *tier*.
+    """Compact *rows* into one window per tier, per recording host and boot.
 
     *tier* is the resolution being produced (``minute`` or ``hour``) and fixes
     the window: a row belongs to the window its timestamp floors into, measured
@@ -337,17 +387,59 @@ def compact_rows(
     ordered by timestamp; the store compacts the sequence it is given rather
     than reordering a record whose order is itself evidence.
 
-    Returns the compacted rows, each carrying ``tier``, the window's ``timestamp``
-    (its endpoint observation), ``window_start``, an ``obs`` block naming the
-    samples and seconds behind its means, and the compacted payload under the
-    same keys a raw row uses.
+    A window is per host, so two machines' readings in one window compact to two
+    rows rather than to a mean belonging to neither, and per boot, so a window
+    holding both sides of a reboot compacts to two rows rather than to a
+    difference taken across counters that never met. A row is grouped under the
+    host and boot it names
+    (:func:`~imas_ambix.agent.telemetry_index.row_host`,
+    :func:`~imas_ambix.agent.telemetry_index.row_boot_id`); *host* and *boot_id*
+    are what a row naming neither is attributed to, defaulting to this node's
+    own nodename and boot.
+
+    Returns the compacted rows, each carrying ``tier``, its recording ``host``
+    and ``boot_id``, the window's ``timestamp`` (its endpoint observation),
+    ``window_start``, an ``obs`` block naming the samples and seconds behind its
+    means, and the compacted payload under the same keys a raw row uses.
     """
     if tier not in TIER_WINDOW_SECONDS:
         raise TelemetryStoreError(f"no compaction window for tier {tier!r}")
-    window_seconds = TIER_WINDOW_SECONDS[tier]
     if not rows:
         return []
+    fallback_host = host or os.uname().nodename
+    fallback_boot, _ = resolve_boot_id(
+        local_boot_id() if boot_id is None else boot_id
+    )
+    strides: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for row in rows:
+        recorded = row_host(row) or fallback_host
+        boot, _ = resolve_boot_id(row_boot_id(row) or fallback_boot)
+        strides.setdefault((recorded, boot), []).append(row)
+    compacted: list[dict[str, Any]] = []
+    for (recorded, boot), stride in strides.items():
+        compacted.extend(
+            _compact_stride(
+                stride, tier, recorded, boot, TIER_WINDOW_SECONDS[tier]
+            )
+        )
+    return compacted
 
+
+def _compact_stride(
+    rows: list[dict[str, Any]],
+    tier: str,
+    host: str,
+    boot_id: str,
+    window_seconds: int,
+) -> list[dict[str, Any]]:
+    """Compact one host's boot's rows, in time order, into one row per window.
+
+    The rows are one recording machine's over one boot, which is what lets a raw
+    row's duration be read as the cadence gap it is: a raw row stands for the
+    interval running to the next row of the same source, so durations inferred
+    across two interleaved machines -- or across a reboot, where the cadence
+    genuinely stops -- would be a fraction of the truth for both.
+    """
     weights = _row_weights(rows, window_seconds)
     sample_counts = _row_samples(rows)
     windows: dict[int, _Window] = {}
@@ -371,6 +463,8 @@ def compact_rows(
         window = windows[bucket]
         row: dict[str, Any] = {
             _TIER_KEY: tier,
+            _HOST_KEY: host,
+            _BOOT_KEY: boot_id,
             "timestamp": (window.endpoint or window.start).isoformat(),
             _WINDOW_START_KEY: window.start.isoformat(),
             _OBS_KEY: {
@@ -417,9 +511,17 @@ def write_rows(path: str | Path, rows: list[dict[str, Any]]) -> None:
 
 
 def compact_file(
-    source: str | Path, destination: str | Path, *, tier: str
+    source: str | Path,
+    destination: str | Path,
+    *,
+    tier: str,
+    host: str | None = None,
+    boot_id: str | None = None,
 ) -> int:
     """Compact *source* JSONL into *destination* at *tier*; return the row count.
+
+    *host* and *boot_id* name the machine and boot rows that carry neither were
+    recorded on; omitted, they are this node's own.
 
     The source is read and left untouched: a compaction writes its successor and
     never retires what it read, so a crash between the two loses nothing and the
@@ -429,7 +531,9 @@ def compact_file(
     completed one -- on a network filesystem a silent short write is exactly the
     failure that would otherwise be indistinguishable from success.
     """
-    rows = compact_rows(read_rows(source), tier=tier)
+    rows = compact_rows(
+        read_rows(source), tier=tier, host=host, boot_id=boot_id
+    )
     write_rows(destination, rows)
     readback = read_rows(destination)
     if readback != rows:
@@ -452,15 +556,27 @@ def run_compaction(
     raw_path: str | Path,
     minute_path: str | Path,
     hour_path: str | Path,
+    *,
+    host: str | None = None,
+    boot_id: str | None = None,
 ) -> dict[str, int]:
     """Compact raw to minute to hour, leaving both sources in place.
+
+    *host* and *boot_id* name the machine and boot raw rows that carry neither
+    were recorded on; a compacted row carries both already, so the hour tier
+    reads the hosts and boots the minute tier recorded rather than reapplying
+    these.
 
     Returns the number of rows written to each compacted tier. Every source is
     read fully before its successor is written, so the hour tier never depends
     on a partial minute file.
     """
-    minute_rows = compact_file(raw_path, minute_path, tier=TIER_MINUTE)
-    hour_rows = compact_file(minute_path, hour_path, tier=TIER_HOUR)
+    minute_rows = compact_file(
+        raw_path, minute_path, tier=TIER_MINUTE, host=host, boot_id=boot_id
+    )
+    hour_rows = compact_file(
+        minute_path, hour_path, tier=TIER_HOUR, host=host, boot_id=boot_id
+    )
     return {TIER_MINUTE: minute_rows, TIER_HOUR: hour_rows}
 
 
@@ -471,6 +587,16 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--source", required=True)
     parser.add_argument("--destination", required=True)
     parser.add_argument("--tier", required=True, choices=sorted(TIER_WINDOW_SECONDS))
+    parser.add_argument(
+        "--host",
+        default=None,
+        help="host rows that carry none were recorded on (default: this nodename)",
+    )
+    parser.add_argument(
+        "--boot-id",
+        default=None,
+        help="boot rows that carry none were recorded on (default: this boot)",
+    )
     return parser
 
 
@@ -481,7 +607,13 @@ def main(argv: list[str] | None = None) -> int:
     tier can be caught up or rebuilt while the serve is down.
     """
     args = _parser().parse_args(argv)
-    compact_file(args.source, args.destination, tier=args.tier)
+    compact_file(
+        args.source,
+        args.destination,
+        tier=args.tier,
+        host=args.host,
+        boot_id=args.boot_id,
+    )
     return 0
 
 
