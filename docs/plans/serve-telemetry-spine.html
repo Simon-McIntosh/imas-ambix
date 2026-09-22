@@ -526,6 +526,32 @@
     ingest against a pre-existing database raises
     <code>sqlite3.OperationalError: no such column: boot_id</code>.</p>
 
+    <p><strong>The read surfaces and the counter span, repaired.</strong> Review of this arm found two
+    defects inside it and one guard missing. <code>counter_span</code> differenced its two endpoints
+    with no regard for which source each came from, while the rest of the arm had been partitioned by
+    <code>(host, boot)</code>: a window opening on one machine and closing on another returned the
+    difference of two counters that never met — negative in one order, positive in the other, and
+    either way a figure no machine advanced that a consumer of the span prints as a measured advance.
+    The endpoint lookups now carry their keys and a span whose endpoints do not share one is declined
+    rather than differenced. <code>rows()</code> handed back the record's own boot spelling, so an
+    identifier the producer's parser refused read as though the store had keyed on it while the key
+    actually held was the empty sentinel; every row a reader gets now carries the key it was stored
+    under together with its <code>key_kind</code>. And the per-row boot resolution — the part of this
+    change that was better than asked for — was held by no test, because every boot test separated the
+    two boots across two files: a guard now carries boot A, boot B and a row naming no boot inside
+    <em>one</em> file and requires A, B, B, so a regression to a per-file boot reddens at the second
+    row.</p>
+
+    <p><strong>Gates after the repairs.</strong> <code>pytest tests/test_telemetry_index.py
+    tests/test_telemetry_store.py</code> reports <strong>57 passed</strong>, exit 0;
+    <code>ruff check imas_ambix tests</code> exits 0. One declared mutation per repair: deleting the
+    endpoint key-agreement line reddens the two-host span test with the <code>-950.0</code> it
+    declines; returning the payload straight from <code>rows()</code> reddens the read-surface test
+    on the refused spelling reaching a reader; resolving the boot once per file reddens the three-row
+    guard at index 1, the second row taking the first row's boot. The third mutation also reddens two
+    earlier boot tests, so the suite was not blind to a per-file boot — what it could not state was
+    the single-file shape, which is what the guard adds.</p>
+
     <h2 id="s6">§6 — Per-request receipts from the router</h2>
 
     <p>Aggregate gauges answer how the lane is behaving; they cannot attribute. The router

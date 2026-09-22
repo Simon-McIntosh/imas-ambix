@@ -1829,6 +1829,51 @@ except ImportError:
     construction, so a test using their real numbering would pass having proved nothing. A search
     of two filesystems on this node found their inode ranges disjoint, so the collision is pinned
     and the case records that beside its result.</p>
+  <h3 id="boot-key-review-repairs">The read surfaces and the counter span, repaired</h3>
+
+    <p>Review of this arm found two defects inside it and one guard missing. <code>counter_span</code>
+    differenced its two endpoints with no regard for which source each came from, while the rest of
+    the arm had already been partitioned by <code>(host, boot)</code>: a window opening on one machine
+    and closing on another returned the difference of two counters that never met. Measured on one
+    path recorded by two machines, the window returned <code>-950.0</code> in one order and
+    <code>1050.0</code> reversed — a figure no machine advanced, and one a consumer of the span prints
+    as a measured advance. The endpoint lookups now carry the keys their readings were stored under,
+    and a span whose endpoints do not share one is declined rather than differenced.</p>
+
+    <p><code>rows()</code> returned the record's own boot spelling, so a row whose boot the producer's
+    parser refused read as though the store had keyed on that spelling — the refused text in the field
+    a reader takes for a boot identity — while the key actually held was the empty sentinel. The
+    stored columns carried the distinction and every read surface lost it, which is the one thing
+    <code>key_kind</code> exists to prevent. Each row a reader gets now carries the host and boot it
+    was stored under together with <code>key_kind</code>, and the record's own spelling of those two
+    fields is replaced rather than passed through; the spelling is not lost, because it lives in the
+    record the index is derived from.</p>
+
+    <p>The per-row boot resolution was held by no test: every boot test separated the two boots across
+    two files, so the shape the behaviour exists for — one file straddling a reboot — was unguarded.
+    The guard now carries boot A, then boot B, then a row naming no boot inside <em>one</em> file and
+    requires the resolutions A, B, B: the row naming no boot belongs to the boot that was writing the
+    file when it appeared, not to the reader's own.</p>
+
+    <p><strong>Gates after the repairs.</strong>
+    <code>uv run --no-sync pytest tests/test_telemetry_index.py tests/test_telemetry_store.py</code>
+    reports <strong>57 passed</strong>, exit 0; <code>uv run --no-sync ruff check imas_ambix tests</code>
+    exits 0. One declared mutation per repair, each quoted verbatim in its own control log and each
+    reddening its guard: deleting <code>if opening[:2] != closing[:2]:</code> from
+    <code>counter_span</code> reddens the two-host span test with the <code>-950.0</code> it declines;
+    replacing <code>self._keyed_row(row)</code> with <code>json.loads(row["payload"])</code> in
+    <code>rows()</code> reddens the read-surface test on <code>'not-a-uuid'</code> reaching a reader;
+    and resolving the boot once per file reddens the three-row guard at index 1, the second row taking
+    the first row's boot. That third mutation also reddens two earlier boot tests, because a file-wide
+    boot read from the resume state collides with the pinned inode those tests share — so the suite was
+    not blind to a per-file boot as such. What it could not state was the single-file shape, and that
+    is what the guard adds.</p>
+
+    <p><strong>What these repairs do not close.</strong> <code>sum_measurements</code> and
+    <code>time_weighted_mean</code> still take no host or boot argument, so a reader wanting one
+    machine's or one boot's total still partitions outside the index. The counter span is declined
+    across sources rather than scoped to one, which is the conservative half of the same gap: a
+    window holding two machines now returns nothing rather than picking one.</p>
   </main>
 </body>
 </html>
