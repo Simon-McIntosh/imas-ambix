@@ -17,8 +17,17 @@ Coverage
     rather than recorded or raised.
 6.  The written file is append-only JSONL: an existing row is never
     rewritten when the recorder is invoked again against the same path.
+7.  A row carries the probe's card, host and job sections beside the engine
+    section, and names the node whose readings they are; a section the probe
+    did not read this tick is *absent* from the row rather than ``null``, so a
+    reader never has to tell an unmeasured section from a measured zero.
+8.  The recorder compacts its own record into the resolution tiers between
+    samples, on its own cadence, and a compaction that fails is reported and
+    skipped rather than allowed to end the recording.
 
-All HTTP is stubbed at ``urllib.request.urlopen`` — no network, no GPU.
+All HTTP is stubbed at ``urllib.request.urlopen`` — no network, no GPU, and
+the node probe is a stub of the caller's — the real one shells out to
+``nvidia-smi``/``squeue`` on the machine running the suite.
 """
 
 from __future__ import annotations
@@ -30,6 +39,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
+import pytest
+
+from imas_ambix.agent import node_probe
 from imas_ambix.agent import serving_receipts as sr
 from imas_ambix.agent.profile import SiteConfig, load_profile
 from imas_ambix.agent.slurm import generate_serve_script
@@ -700,6 +712,337 @@ def test_record_receipts_is_append_only_across_invocations(tmp_path: Path) -> No
 
 
 # ---------------------------------------------------------------------------
+# Node sections, the producing host, and the recorder's own compaction
+# ---------------------------------------------------------------------------
+
+
+def _read_rows(path: Path) -> list[dict[str, Any]]:
+    """The JSONL rows written at *path*, one parsed object per line."""
+    return [
+        json.loads(line)
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+
+CARD_SECTION: dict[str, Any] = {
+    "index_source": "SLURM_JOB_GPUS",
+    "count": 1,
+    "cards": [{"index": 2, "utilization_percent": 91, "temperature_c": 61}],
+}
+HOST_SECTION: dict[str, Any] = {
+    "memory_total_mib": 1_048_576,
+    "memory_available_mib": 700_000,
+    "cpu_busy_fraction": 0.31,
+}
+JOB_SECTION: dict[str, Any] = {
+    "hostname": "98dci4-gpu-0003",
+    "count": 1,
+    "jobs": [{"job_id": "1262921", "state": "RUNNING"}],
+}
+
+
+class _StubProbe:
+    """A node probe that answers from a per-tick list and records its ticks.
+
+    The real probe owns its own cadence and shells out for each reading; this
+    one answers ticks in order, with the last answer repeating, so a section
+    that is due on the first tick and omitted afterwards is exercised without
+    waiting on a clock or a scheduler.
+    """
+
+    def __init__(self, sections_by_tick: list[dict[str, Any]]) -> None:
+        self.hostname = "98dci4-gpu-0003"
+        self.ticks: list[float] = []
+        self._by_tick = sections_by_tick
+
+    def sample(self, now: float) -> dict[str, Any]:
+        self.ticks.append(now)
+        index = min(len(self.ticks), len(self._by_tick)) - 1
+        return self._by_tick[index]
+
+
+def test_receipt_row_carries_node_sections_and_the_producing_host() -> None:
+    snapshot = sr._serving_snapshot(SAMPLE_T0.decode())
+    row = sr.build_receipt_row(
+        None,
+        None,
+        snapshot,
+        FIRST_SAMPLE_AT,
+        job_id="1262921",
+        profile_slug="deepseek-v4-flash",
+        served_name="deepseek-v4-flash",
+        gpus=4,
+        hostname="98dci4-gpu-0003",
+        node_sections={
+            "cards": CARD_SECTION,
+            "host": HOST_SECTION,
+            "jobs": JOB_SECTION,
+        },
+    )
+
+    payload = json.loads(row.to_json())
+    assert payload["schema_version"] == sr.ROW_SCHEMA_VERSION
+    assert payload["hostname"] == "98dci4-gpu-0003"
+    assert payload["cards"] == CARD_SECTION
+    assert payload["host"] == HOST_SECTION
+    assert payload["jobs"] == JOB_SECTION
+
+
+def test_receipt_row_omits_a_section_its_probe_did_not_read() -> None:
+    """A section absent this tick is absent from the row, never ``null``.
+
+    That is what lets a reader treat a present key as a measurement. Writing
+    the key with a null value would make an unread job table indistinguishable
+    from a job table that was read and found empty.
+    """
+    snapshot = sr._serving_snapshot(SAMPLE_T0.decode())
+    row = sr.build_receipt_row(
+        None,
+        None,
+        snapshot,
+        FIRST_SAMPLE_AT,
+        job_id="1262921",
+        profile_slug="deepseek-v4-flash",
+        served_name="deepseek-v4-flash",
+        gpus=4,
+        hostname="98dci4-gpu-0003",
+        # The job table is a SLURM RPC read on its own slower cadence, so this
+        # tick simply does not have one.
+        node_sections={"cards": CARD_SECTION, "host": HOST_SECTION},
+    )
+
+    payload = json.loads(row.to_json())
+    assert set(sr.ROW_SECTIONS) - set(payload) == {"jobs"}
+    assert all(payload[name] is not None for name in sr.ROW_SECTIONS if name in payload)
+
+
+def test_receipt_row_without_a_probe_names_the_local_host() -> None:
+    """With no probe the row still names its host, and carries no node section."""
+    snapshot = sr._serving_snapshot(SAMPLE_T0.decode())
+    row = sr.build_receipt_row(
+        None,
+        None,
+        snapshot,
+        FIRST_SAMPLE_AT,
+        job_id="1262921",
+        profile_slug="deepseek-v4-flash",
+        served_name="deepseek-v4-flash",
+        gpus=4,
+    )
+
+    payload = json.loads(row.to_json())
+    assert payload["hostname"] == sr.local_hostname()
+    for section in ("cards", "host", "jobs"):
+        assert section not in payload
+
+
+def test_record_receipts_attaches_probe_sections_and_names_the_host(
+    tmp_path: Path,
+) -> None:
+    receipts_path = tmp_path / "receipts.jsonl"
+    sections = {"cards": CARD_SECTION, "host": HOST_SECTION, "jobs": JOB_SECTION}
+    probe = _StubProbe([sections, sections])
+    clock = iter([0.0, 5.0, 10.0])
+    wall_clock = iter([FIRST_SAMPLE_AT, SECOND_SAMPLE_AT])
+
+    with patch("urllib.request.urlopen", _stub_urlopen([SAMPLE_T0, SAMPLE_T1])):
+        rows_written = sr.record_receipts(
+            "http://98dci4-gpu-0003:18800",
+            receipts_path,
+            interval_s=5.0,
+            duration_s=10.0,
+            probe=probe,
+            sleep=lambda _s: None,
+            monotonic=lambda: next(clock),
+            now=lambda: next(wall_clock),
+        )
+
+    assert rows_written == 2
+    written = _read_rows(receipts_path)
+    assert [row["hostname"] for row in written] == ["98dci4-gpu-0003"] * 2
+    assert [row["cards"] for row in written] == [CARD_SECTION] * 2
+    assert [row["jobs"] for row in written] == [JOB_SECTION] * 2
+    # The probe is offered the tick the recorder is already holding for its own
+    # elapsed check, so the two cannot disagree about when the tick happened.
+    assert probe.ticks == [5.0, 10.0]
+
+
+def test_record_receipts_writes_a_staggered_section_as_absent(tmp_path: Path) -> None:
+    """The omission survives serialization into the file, tick by tick."""
+    receipts_path = tmp_path / "receipts.jsonl"
+    probe = _StubProbe(
+        [
+            {"cards": CARD_SECTION, "host": HOST_SECTION, "jobs": JOB_SECTION},
+            {"cards": CARD_SECTION, "host": HOST_SECTION},
+        ]
+    )
+    clock = iter([0.0, 5.0, 10.0])
+    wall_clock = iter([FIRST_SAMPLE_AT, SECOND_SAMPLE_AT])
+
+    with patch("urllib.request.urlopen", _stub_urlopen([SAMPLE_T0, SAMPLE_T1])):
+        sr.record_receipts(
+            "http://98dci4-gpu-0003:18800",
+            receipts_path,
+            interval_s=5.0,
+            duration_s=10.0,
+            probe=probe,
+            sleep=lambda _s: None,
+            monotonic=lambda: next(clock),
+            now=lambda: next(wall_clock),
+        )
+
+    first, second = _read_rows(receipts_path)
+    assert "jobs" in first
+    assert "jobs" not in second
+    assert "cards" in second
+
+
+def test_tier_paths_are_siblings_of_the_raw_record() -> None:
+    minute, hour = sr.tier_paths("/receipts/deepseek-v4-flash-1262921.jsonl")
+    assert minute == Path("/receipts/deepseek-v4-flash-1262921.minute.jsonl")
+    assert hour == Path("/receipts/deepseek-v4-flash-1262921.hour.jsonl")
+
+
+def test_record_receipts_compacts_its_record_between_samples(tmp_path: Path) -> None:
+    receipts_path = tmp_path / "receipts.jsonl"
+    minute_path, hour_path = sr.tier_paths(receipts_path)
+    clock = iter([0.0, 5.0, 10.0])
+    wall_clock = iter([FIRST_SAMPLE_AT, SECOND_SAMPLE_AT])
+
+    with patch("urllib.request.urlopen", _stub_urlopen([SAMPLE_T0, SAMPLE_T1])):
+        rows_written = sr.record_receipts(
+            "http://98dci4-gpu-0003:18800",
+            receipts_path,
+            interval_s=5.0,
+            duration_s=10.0,
+            compaction_paths=(minute_path, hour_path),
+            compaction_interval_s=6.0,
+            sleep=lambda _s: None,
+            monotonic=lambda: next(clock),
+            now=lambda: next(wall_clock),
+        )
+
+    assert rows_written == 2
+    # Both raw ticks fall in one minute window, so the tier is coarser than its
+    # source by construction rather than by luck of the fixtures.
+    assert len(receipts_path.read_text(encoding="utf-8").splitlines()) == 2
+    minute_rows = _read_rows(minute_path)
+    assert len(minute_rows) == 1
+    assert minute_rows[0]["tier"] == "minute"
+    assert minute_rows[0]["obs"] == {"samples": 2, "seconds": 10.0}
+    hour_rows = _read_rows(hour_path)
+    assert len(hour_rows) == 1
+    assert hour_rows[0]["tier"] == "hour"
+
+
+def test_record_receipts_does_not_compact_before_the_first_cadence(
+    tmp_path: Path,
+) -> None:
+    """Compaction is on its own clock: a tick short of the cadence is untouched."""
+    receipts_path = tmp_path / "receipts.jsonl"
+    minute_path, hour_path = sr.tier_paths(receipts_path)
+    clock = iter([0.0, 5.0, 10.0])
+
+    with patch("urllib.request.urlopen", _stub_urlopen([SAMPLE_T0, SAMPLE_T1])):
+        sr.record_receipts(
+            "http://98dci4-gpu-0003:18800",
+            receipts_path,
+            interval_s=5.0,
+            duration_s=10.0,
+            compaction_paths=(minute_path, hour_path),
+            compaction_interval_s=100.0,
+            sleep=lambda _s: None,
+            monotonic=lambda: next(clock),
+            now=lambda: FIRST_SAMPLE_AT,
+        )
+
+    assert not minute_path.exists()
+    assert not hour_path.exists()
+
+
+def test_record_receipts_keeps_recording_when_a_compaction_fails(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A compaction that cannot finish costs one attempt, not the record."""
+    blocker = tmp_path / "not-a-directory"
+    blocker.write_text("occupied", encoding="utf-8")
+    receipts_path = tmp_path / "receipts.jsonl"
+    clock = iter([0.0, 5.0, 10.0])
+    wall_clock = iter([FIRST_SAMPLE_AT, SECOND_SAMPLE_AT])
+
+    with patch("urllib.request.urlopen", _stub_urlopen([SAMPLE_T0, SAMPLE_T1])):
+        rows_written = sr.record_receipts(
+            "http://98dci4-gpu-0003:18800",
+            receipts_path,
+            interval_s=5.0,
+            duration_s=10.0,
+            compaction_paths=(blocker / "minute.jsonl", blocker / "hour.jsonl"),
+            compaction_interval_s=1.0,
+            sleep=lambda _s: None,
+            monotonic=lambda: next(clock),
+            now=lambda: next(wall_clock),
+        )
+
+    assert rows_written == 2
+    assert len(receipts_path.read_text(encoding="utf-8").splitlines()) == 2
+    assert "compaction" in capsys.readouterr().err
+
+
+def test_receipts_main_rebuilds_one_tier_and_exits(tmp_path: Path) -> None:
+    """The other CLI mode: catch a tier up from a file and exit."""
+    source = tmp_path / "receipts.jsonl"
+    source.write_text(
+        "\n".join(
+            json.dumps(row)
+            for row in (
+                {
+                    "timestamp": FIRST_SAMPLE_AT.isoformat(),
+                    "schema_version": sr.ROW_SCHEMA_VERSION,
+                    "hostname": "98dci4-gpu-0003",
+                    "generation_throughput_toks_per_s": 10.0,
+                },
+                {
+                    "timestamp": SECOND_SAMPLE_AT.isoformat(),
+                    "schema_version": sr.ROW_SCHEMA_VERSION,
+                    "hostname": "98dci4-gpu-0003",
+                    "generation_throughput_toks_per_s": 30.0,
+                },
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    destination = tmp_path / "receipts.minute.jsonl"
+
+    exit_code = sr.main(
+        [
+            "--compact-tier",
+            "minute",
+            "--compact-source",
+            str(source),
+            "--compact-destination",
+            str(destination),
+        ]
+    )
+
+    assert exit_code == 0
+    rows = _read_rows(destination)
+    assert len(rows) == 1
+    assert rows[0]["tier"] == "minute"
+    assert rows[0]["obs"]["samples"] == 2
+    # A gauge compacts to the time-weighted mean of the two 5-second samples.
+    assert rows[0]["generation_throughput_toks_per_s"] == 20.0
+
+
+def test_receipts_main_refuses_a_tier_rebuild_without_its_paths(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(SystemExit):
+        sr.main(["--compact-tier", "minute"])
+
+
+# ---------------------------------------------------------------------------
 # Generated serve script — background sidecar wiring
 # ---------------------------------------------------------------------------
 
@@ -788,3 +1131,36 @@ def test_receipts_main_invokes_record_receipts_with_parsed_arguments(
     assert captured["profile_slug"] == "deepseek-v4-flash"
     assert captured["served_name"] == "deepseek-v4-flash"
     assert captured["gpus"] == 4
+    # The node probe is on by default, because the sidecar that invokes this is
+    # the process holding the job's allocation — the only place the readings
+    # are free — and the record's own tiers are derived from the raw path.
+    assert isinstance(captured["probe"], node_probe.NodeProbe)
+    assert captured["compaction_paths"] == sr.tier_paths(str(receipts_path))
+    assert captured["compaction_interval_s"] == sr.DEFAULT_COMPACTION_INTERVAL_S
+
+
+def test_receipts_main_can_record_without_the_probe_or_compaction(
+    tmp_path: Path,
+) -> None:
+    receipts_path = tmp_path / "receipts.jsonl"
+    captured: dict[str, Any] = {}
+
+    def _fake_record_receipts(base_url: str, path: Any, **kwargs: Any) -> int:
+        captured.update(kwargs)
+        return 0
+
+    with patch.object(sr, "record_receipts", _fake_record_receipts):
+        exit_code = sr.main(
+            [
+                "--base-url",
+                "http://98dci4-gpu-0003:18801",
+                "--receipts-path",
+                str(receipts_path),
+                "--no-node-probe",
+                "--no-compaction",
+            ]
+        )
+
+    assert exit_code == 0
+    assert captured["probe"] is None
+    assert captured["compaction_paths"] is None
