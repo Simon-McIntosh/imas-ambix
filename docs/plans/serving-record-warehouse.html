@@ -10,7 +10,7 @@
   <meta name="plan-summary" content="A persistent, rebuildable store over every serving receipt ever written, answering per model and per caller across any window">
   <meta name="plan-status" content="draft">
   <meta name="plan-roi" content="high">
-  <meta name="plan-effort-hours" content="14.0">
+  <meta name="plan-effort-hours" content="16.5">
   <meta name="plan-capability-version" content="1.0">
   <meta name="plan-capability-class" content="orchestrator">
   <meta name="plan-capability-reasoning" content="deep">
@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-22">
-<meta name="plan-version" content="1">
+<meta name="plan-version" content="5">
 </head>
 <body>
   <main class="plan-doc">
@@ -132,9 +132,11 @@
     duration, status, and a sampling fraction — but two facts block it:</p>
 
     <ul>
-      <li><strong>No request receipt has ever been written.</strong> The wiring
-      landed 2026-09-21; the running router started six days earlier. The stream
-      does not exist on disk.</li>
+      <li><strong>No request receipt has ever been written.</strong> The running
+      router started 2026-09-16 22:30:08; the receipt sink was wired into it
+      2026-09-18 19:39:08, one day and twenty-one hours later, and corrected
+      through 2026-09-21. The process serving today predates its own recorder,
+      so the stream does not exist on disk.</li>
       <li><strong><code>caller_hint</code> is not an identity.</strong> It is
       <code>"{host}:{port}|{user-agent[:32]}"</code>, and the client port changes
       per connection. Its own docstring says it identifies a calling process
@@ -143,15 +145,44 @@
       every session at once.</li>
     </ul>
 
-    <p>So <strong>"unique users" is not answerable from what is recorded</strong>,
-    and the plan must not pretend otherwise. This section's deliverable is the
-    decision and the field that follows from it, not a query over a field that
-    cannot bear it. The options differ in what they can attribute and in what
-    they cost, and the decision is recorded below.</p>
+    <p><strong>That second fact is not a prediction — it was measured as an
+    outage.</strong> A per-consumer admission filter keyed on exactly this pair,
+    client host joined with user-agent, lived in the router until 2026-09-14.
+    Every harness process on one login node resolved to a single bucket, so a
+    whole fleet shared six request slots: <strong>402 of 1,075 requests refused
+    over one afternoon, 37.4%</strong>, 252 of them queue timeouts burning thirty
+    seconds each, while the engine sat at <strong>0.0% KV occupancy</strong>.
+    Host and user-agent are therefore refuted as a caller identity by
+    measurement, not merely judged inadequate.</p>
 
-    <p>Until it is settled, the store reports per <em>caller process</em> and
-    labels it as such. That is a real and useful dimension — it answers which
-    harness or job consumed a lane — and it is not a user count.</p>
+    <h3>The channel already exists, and it already carries a constant</h3>
+
+    <p>The reason per-caller attribution is cheap rather than expensive is that
+    nothing new has to be transported. <strong>Every session already sends an
+    identity field on every request</strong>: the generated launcher sets
+    <code>ANTHROPIC_AUTH_TOKEN</code> to the fixed string
+    <code>clive-no-auth</code> — its own comment says the value is non-secret and
+    exists only because the client configuration requires the variable — and the
+    router forwards every header it receives except <code>host</code>,
+    <code>content-length</code> and <code>transfer-encoding</code>. So the field
+    arrives, is relayed, and identifies nothing, because it is the same string
+    for every caller.</p>
+
+    <p>Making it carry an identity is a launcher change and a recording change.
+    The launcher knows what the router cannot see — which consumer, which
+    session, which worker node, which project — and stamping that is what removes
+    the per-connection port problem at its source: the identity comes from the
+    client, not from the socket. An unknown header is ignored by the engine
+    downstream, so a declared field costs the serve nothing.</p>
+
+    <p><strong>What this buys is attribution of workload, not authentication of a
+    principal</strong>, and the report must say so in its own output. Any client
+    can claim any value, and on this workstation every process runs as the same
+    OS user, so a column headed <em>user</em> would be false in two separate ways.
+    The honest column is <em>caller</em>: which consumer, session or worker spent
+    the tokens. That answers utilisation and engagement per consumer, which is
+    what the question is actually for; it does not answer who a person is, and
+    nothing recorded here can.</p>
 
     <h2 id="s5">§5 — Who runs the ingest, and why it is not the recorder</h2>
 
@@ -210,8 +241,8 @@
     until it holds and because it is testable against the existing record
     without any new data. The persistent store follows, then the scheduled
     ingest, then the per-model split, which needs only keying. The caller
-    dimension comes last and is gated on its decision and on a router that
-    writes receipts at all.</p>
+    dimension comes last, because it is the only one that depends on a process
+    restart and on data that does not yet exist.</p>
 
     <table>
       <thead><tr><th>Node</th><th>Runs after</th><th>Effort</th></tr></thead>
@@ -221,21 +252,61 @@
         <tr><td>Persistent store: append, resume, rebuild-equality</td><td>aggregation</td><td>3.0 h</td></tr>
         <tr><td>Scheduled ingest owning the store</td><td>persistent store</td><td>2.0 h</td></tr>
         <tr><td>Per-model split and the multi-recorder case</td><td>persistent store</td><td>2.0 h</td></tr>
-        <tr><td>Per-caller attribution</td><td>identity decision; router writing receipts</td><td>2.5 h</td></tr>
+        <tr><td>Declared caller identity: launcher stamps it, receipt records it</td><td>identity decision</td><td>2.0 h</td></tr>
+        <tr><td>Relay restart onto the recording build</td><td>every receipt field complete</td><td>0.5 h</td></tr>
+        <tr><td>Per-caller attribution over the receipt stream</td><td>relay restart</td><td>2.5 h</td></tr>
       </tbody>
     </table>
 
+    <h3>The relay restart, and why it is not the serve</h3>
+
+    <p><strong>The relay and the model serve are two different SLURM jobs, and
+    only one of them is untouchable.</strong> This is the fact that makes the
+    restart cheap, and it is worth stating because the two are reached at one
+    address and are easily spoken of as one thing:</p>
+
+    <table>
+      <caption>Read from the scheduler, 2026-09-22.</caption>
+      <thead><tr><th>Job</th><th>Name</th><th>Holds</th><th>Restartable</th></tr></thead>
+      <tbody>
+        <tr><td>1273253</td><td><code>deepseek-v4-1-flash</code></td><td>the cards — the model itself</td><td><strong>No.</strong> Standing instruction; a rebuild of it is a separate plan gated on a drained-lane window</td></tr>
+        <tr><td>1272339</td><td><code>ambix-router</code></td><td>2 CPUs, 8&nbsp;GB, <strong>no GPU</strong></td><td>Yes — cancel and resubmit</td></tr>
+      </tbody>
+    </table>
+
+    <p>Restarting the relay does not touch the model, does not unload a
+    checkpoint, and does not surrender a card. Its node had 35 of 64 CPUs and
+    745&nbsp;GB of memory free inside the group reservation when this was written,
+    so the resubmit is granted immediately rather than queued.</p>
+
+    <p><strong>What it does cost is every request in flight at that instant</strong>,
+    and that is the whole cost. The relay is the fixed address every consumer
+    holds, so the zero-downtime rotation that works for a serve — bring the new
+    one up on its own port, let traffic move on health, stop the old one — has no
+    analogue here. There is no second address to move to. The lane carried nine
+    running requests when this was measured; the restart therefore waits for a
+    genuine zero rather than a quiet-looking moment, the same rule that governs
+    stopping a serve.</p>
+
+    <p><strong>Sequence it last among the recording changes, and do it once.</strong>
+    Each restart costs another set of in-flight turns, so the receipt must be
+    carrying every field it is going to carry before the relay is cycled —
+    including the declared caller identity, which is why that node runs first.
+    Restarting now would start a stream that a second restart would then have to
+    supersede, and a record that changes shape mid-stream is precisely what
+    &sect;1 measures the cost of.</p>
+
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
-<div class="r-dec" data-key="caller-identity" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="caller-identity" data-choice="declared-header" data-by="Simon McIntosh" data-when="2026-09-22T18:58:10+00:00">
     <p class="r-dec-q">What identifies a caller, given that caller_hint carries a per-connection port and the lane is keyless by default?</p>
     <p class="r-dec-opts">
       <button class="r-opt" data-value="api-key">A key per consumer — real attribution, but the lane stops being keyless</button>
-      <button class="r-opt" data-value="declared-header">A header the client declares — cheap and unauthenticated, so it attributes honesty not identity</button>
+      <button class="r-opt chosen" data-value="declared-header">A header the client declares — cheap and unauthenticated, so it attributes honesty not identity</button>
       <button class="r-opt" data-value="host-only">Host only — stable, but every session on a login node is one caller</button>
       <button class="r-opt" data-value="process-only">Keep the process hint and never claim users</button>
       </p>
-    <p class="r-dec-rat">The last option is the current honest position and costs nothing. The others each buy a different kind of attribution at a different price; none is free, and the plan should not imply per-user reporting until this is answered.</p>
+    <p class="r-dec-rat">The channel already exists and already carries a value on every request, which was not known when the options were written. The generated launcher sets ANTHROPIC_AUTH_TOKEN to the fixed string clive-no-auth on every session, because the harness requires the variable to be set, and the router forwards every header it receives except host, content-length and transfer-encoding. So a client-declared identity needs no new transport, no key management and no change to the keyless posture: the launcher stamps what only it knows -- which consumer, which session, which worker node -- and the router records it. What it buys is attribution of workload, not authentication of a principal: any client can claim any value, and on a single-user workstation the OS user is the same for all of them, so the report must say caller and never user. The alternative that would authenticate, a key per consumer, ends the keyless lane for every consumer to gain a distinction nothing here needs. The two rejected options are refuted rather than merely dispreferred: host-only and the process hint were both tried as an admission key in the router until 2026-09-14, and every harness process on one login node collapsed into a single bucket -- 402 of 1,075 requests refused, 37.4%, while the engine sat at 0.0% KV occupancy.</p>
     </div>
 <div class="r-dec" data-key="ingest-cadence" data-choice="" data-by="" data-when="">
     <p class="r-dec-q">How often does the scheduled ingest run?</p>
@@ -252,11 +323,16 @@
 <h2><span class="sec">§</span> Followups</h2>
 <article class="r-fu" data-id="f-srw-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-09-22" data-recommends-skill="/reckon-ship serving-record-warehouse §3" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Start at the aggregation rule; it invalidates every figure until it holds</h4>
-    <div class="r-fu-body"><p>Begin at <strong>&sect;3</strong>, not at the store. Every total the reporter prints is wrong until a window is partitioned into contiguous counter runs, differenced within each, and summed &mdash; and that is testable against the record already on disk, with no new data and no new infrastructure. The gate that matters is the one in &sect;6: <em>a window the record cannot cover must answer partial-with-coverage or decline, never a full-looking figure</em>. Point it at the live month query, which today reports 1,347,728 s of coverage behind 11,038 s of measurement.</p><p>Two things not to get wrong. <strong>Never write to a receipts file.</strong> The recorder appends and nothing else does; every repair belongs in the derived store, because a store that edits its source cannot be rebuilt from it. And <strong>do not build per-user reporting</strong> until the <code>caller-identity</code> decision is locked: <code>caller_hint</code> carries a per-connection port, so distinct values count connections, and no request receipt has ever been written because the running router predates the wiring.</p><p>A node touching <code>imas_ambix/agent/</code> must put the serving-interpreter guard in its done-when &mdash; <code>pytest tests/test_agent_serve_registry.py -k agent_package_modules_parse_with_serving_python</code>. That package is executed by a Python 3.12 environment, and a gate chosen from changed files never selects that test, which is how the same syntax defect landed four times.</p></div>
+    <div class="r-fu-body"><p>Begin at <strong>§3</strong>, not at the store. Every total the reporter prints is wrong until a window is partitioned into contiguous counter runs, differenced within each, and summed — and that is testable against the record already on disk, with no new data and no new infrastructure. The gate that matters is the one in §6: <em>a window the record cannot cover must answer partial-with-coverage or decline, never a full-looking figure</em>. Point it at the live month query, which today reports 1,347,728 s of coverage behind 11,038 s of measurement.</p><p>Two things not to get wrong. <strong>Never write to a receipts file.</strong> The recorder appends and nothing else does; every repair belongs in the derived store, because a store that edits its source cannot be rebuilt from it. And <strong>report callers, never users</strong>: the <code>caller-identity</code> decision is locked to a client-declared identity, which attributes workload and authenticates no one, so a column headed <em>user</em> would be false whatever the store contains.</p><p>The caller nodes carry a hard ordering the others do not. No request receipt exists yet, because the running relay predates its own recorder; the stream begins only at the restart in &sect;7, that restart kills every request in flight, and it is therefore taken once, at a drained lane, after the receipt carries every field it will carry. A node that restarts the relay to try its own change has spent the whole budget for that.</p><p>A node touching <code>imas_ambix/agent/</code> must put the serving-interpreter guard in its done-when — <code>pytest tests/test_agent_serve_registry.py -k agent_package_modules_parse_with_serving_python</code>. That package is executed by a Python 3.12 environment, and a gate chosen from changed files never selects that test, which is how the same syntax defect landed four times.</p></div>
     <pre class="r-fu-prompt">/reckon-ship serving-record-warehouse §3</pre>
     </article>
 </section>
 
-  </main>
+  <section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="_top" data-id="c-srw-identity-channel" data-who="coordinator" data-when="2026-09-22">
+    <div class="r-comment-body"><p><strong>The caller-identity decision was written as open and is now locked, because investigating the restart question answered it.</strong> The options were drafted on the belief that attribution needed a new transport &mdash; a key, or a header nothing yet sends. It does not: <code>ANTHROPIC_AUTH_TOKEN</code> is already set on every launched session, already relayed by the router, and already worthless, because its value is the constant <code>clive-no-auth</code> for every caller.</p><p>That changes the cost of the cheap option and leaves the expensive one buying nothing extra that is needed here. It does not change the limit: a declared identity is a claim, so the store attributes <em>callers</em> and must never print a column headed <em>user</em>. Recorded here rather than only in the rationale because the question this plan was asked was about users, and the answer is a qualified no with a useful yes beside it.</p></div>
+</div>
+</section>
+</main>
 </body>
 </html>

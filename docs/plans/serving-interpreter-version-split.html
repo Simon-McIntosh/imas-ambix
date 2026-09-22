@@ -22,8 +22,9 @@
   <title>Serving Interpreter Split | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-09-18">
-<meta name="plan-version" content="1">
+<meta name="plan-modified" content="2026-09-22">
+<meta name="plan-version" content="3">
+<meta name="plan-sprint" content="S26">
 </head>
 <body>
   <main class="plan-doc">
@@ -111,11 +112,13 @@
     <code>imas-ambix</code> projects. Taking it down is an irreversible action on shared
     infrastructure with an outward-facing effect on peers who did not ask for it, so it is
     not something an agent schedules on its own initiative.</p>
-    <p>Hence <strong>no sprint membership, deliberately</strong>: this is explicit backlog
-    pending a drained-lane window, not work that was left unscheduled by omission. The
-    standing rule that a serving lane is never hard-stopped applies — the window is a drain
-    to a genuine zero held across samples, then the rebuild, and the plan should be
-    scheduled into whichever sprint is advancing when that window is granted.</p>
+    <p>This plan therefore carried <strong>no sprint membership for as long as no window
+    existed</strong> — explicit backlog rather than work left unscheduled by omission. That
+    membership has now been granted, but <strong>scheduling it does not authorise taking the
+    lane</strong>: the two are separate permissions and only the first has been given. The
+    standing rule that a serving lane is never hard-stopped still governs the rebuild — the
+    window is a drain to a genuine zero held across samples, then the rebuild, and a drain
+    that has not reached zero is not a window however long it has been waited on.</p>
 
     <h2 id="s5">§5 — Done-when</h2>
     <ul>
@@ -153,6 +156,11 @@
     <pre class="r-fu-prompt">/reckon-ship serving-interpreter-version-split</pre>
     </article>
 </section>
-  </main>
+  <section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="_top" data-id="c-sivs-window-granted" data-who="coordinator" data-when="2026-09-22">
+    <div class="r-comment-body"><p><strong>The lead has granted sprint membership; the drain requirement is unchanged.</strong> This plan deliberately carried no sprint, and that was the correct state rather than an omission — §4 said so and the audit's <code>unscheduled-open-plan</code> finding was reporting a declaration, not drift.</p><p>What has changed is only the scheduling half. The plan now sits in the sprint whose other work touches the same package, which is the right place for it: the defect class it removes produced its fourth instance inside that package during the preceding sprint, landing through a gate, a review and a promotion because the test that would have caught it is never selected by a changed-files gate. <strong>The rebuild itself still waits on a drained-lane window</strong>, because it stops the model serve, and that remains the lead's to give and not an agent's to take. Until then the sprint's other nodes carry the interim guard in their done-when: <code>pytest tests/test_agent_serve_registry.py -k agent_package_modules_parse_with_serving_python</code>.</p></div>
+</div>
+</section>
+</main>
 </body>
 </html>
