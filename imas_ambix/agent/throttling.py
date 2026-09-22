@@ -441,6 +441,46 @@ def interval_throttled_share(first: Sample, second: Sample) -> float | Unmeasure
     return throttled_share(interval_delta(first, second), first.cpu_max)
 
 
+def throttled_share_over_elapsed(
+    first: Sample, second: Sample, seconds: float
+) -> float:
+    """Throttled share over a span of wall-clock length stated by the caller.
+
+    The cumulative counter is a running total since boot, so a share taken from
+    it describes every day the machine has been up and moves by a fraction of a
+    point over a working day however much of that day was lost. This figure is
+    taken over the span between the two samples instead, so what it reports is
+    attributable to the interval rather than diluted by the uptime in front of
+    it: the rise in ``throttled_usec`` over the ceiling's own capacity for that
+    span — the quota's core count, times the elapsed seconds.
+
+    The ceiling is taken from the earlier sample, so the figure describes the
+    quota that was in force while those counters accumulated, as
+    :func:`interval_throttled_share` does.
+
+    It refuses rather than returning a value wherever no share exists, because a
+    caller asking for a bounded-period figure is asking because the cumulative
+    one cannot answer it, and a substituted number would be read as the answer.
+    A span that begins in a group with no stated ceiling has no share, and so
+    does one whose samples state no period counters — either absence is a
+    refusal here, not a number.
+    """
+    if first.cpu_max.quota_usec is None or first.cpu_max.period_usec is None:
+        raise ValueError(
+            "the span began in a group with no ceiling, so no share exists"
+        )
+    if seconds <= 0:
+        raise ValueError(f"the elapsed span must be positive, got {seconds}")
+    counters = interval_delta(first, second).period_counters
+    if counters is None:
+        raise ValueError(
+            "a sample of the span states no period counters, so no share exists"
+        )
+    cores = first.cpu_max.quota_usec / first.cpu_max.period_usec
+    permitted_usec = cores * seconds * 1_000_000
+    return counters[2] / permitted_usec
+
+
 def format_cpu_max(cpu_max: CpuMax) -> str:
     """Render a ceiling back into the form ``cpu.max`` uses.
 
@@ -522,11 +562,28 @@ def main(argv: Sequence[str] | None = None, host: HostIdentity | None = None) ->
         "cumulative": _counters_payload(first.stat, first.cpu_max),
     }
     if args.command == "interval":
+        started = time.monotonic()
         time.sleep(args.seconds)
+        elapsed = time.monotonic() - started
         second = read_sample(args.directory)
         interval = _counters_payload(interval_delta(first, second), first.cpu_max)
         interval["seconds"] = args.seconds
+        interval["elapsed_seconds"] = elapsed
         interval["cpu_max_at_end"] = format_cpu_max(second.cpu_max)
+        try:
+            interval["share_over_elapsed"] = throttled_share_over_elapsed(
+                first, second, elapsed
+            )
+        except ValueError:
+            # No share of the span exists, and the cause is stated rather than
+            # the key dropped so a reader sees which absence applies: a group
+            # with no ceiling of its own can never yield one, while a span with
+            # no accounted period may state a share at a later reading.
+            interval["share_over_elapsed"] = (
+                Unmeasured.UNBOUNDED.value
+                if first.cpu_max.quota_usec is None
+                else Unmeasured.NO_PERIODS.value
+            )
         payload["interval"] = interval
     print(json.dumps(payload, indent=2))
     return 0

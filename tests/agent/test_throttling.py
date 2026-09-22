@@ -29,6 +29,7 @@ from imas_ambix.agent.throttling import (
     read_host,
     read_sample,
     throttled_share,
+    throttled_share_over_elapsed,
 )
 
 # The account slice on the login node: four cores out of each 100 ms period.
@@ -327,6 +328,94 @@ class TestIntervalShare:
         assert share is Unmeasured.NO_PERIODS
 
 
+class TestShareOverElapsedSpan:
+    """The span-length form: stall rise over the ceiling's capacity for it."""
+
+    def _samples(self) -> tuple[Sample, Sample]:
+        cpu_max = parse_cpu_max(_QUOTA_ED_MAX)
+        first = Sample(cpu_max=cpu_max, stat=_stat(throttled_usec=100_000_000))
+        second = Sample(cpu_max=cpu_max, stat=_stat(throttled_usec=160_000_000))
+        return first, second
+
+    def test_the_stall_rise_is_divided_by_the_capacity_over_the_span(self):
+        # Four cores over twenty seconds permit 8e7 usec, of which 6e7 stalled.
+        first, second = self._samples()
+
+        share = throttled_share_over_elapsed(first, second, 20.0)
+
+        assert share == pytest.approx(0.75)
+
+    def test_the_span_length_sets_the_denominator(self):
+        first, second = self._samples()
+
+        assert throttled_share_over_elapsed(first, second, 40.0) == pytest.approx(0.375)
+
+    def test_the_span_figure_is_not_the_cumulative_one(self):
+        # Against the same samples the cumulative share is 160e6 / (1200 * 4e5),
+        # so a figure taken from the counters rather than their rise would be
+        # three times smaller and would not move with the span.
+        first, second = self._samples()
+
+        assert throttled_share_over_elapsed(first, second, 20.0) != pytest.approx(
+            throttled_share(second.stat, second.cpu_max)
+        )
+
+    def test_a_sample_that_states_no_period_counter_is_refused(self):
+        # A span either side of a group that accounts no period has no rise to
+        # measure. Returning zero would assert a span over which nothing was
+        # refused, which is a different fact from one that was never measured.
+        cpu_max = parse_cpu_max(_QUOTA_ED_MAX)
+        first = Sample(cpu_max=cpu_max, stat=_stat())
+        second = Sample(
+            cpu_max=cpu_max,
+            stat=CpuStat(
+                usage_usec=2_000_000,
+                nr_periods=None,
+                nr_throttled=None,
+                throttled_usec=None,
+            ),
+        )
+
+        with pytest.raises(ValueError, match="no period counters"):
+            throttled_share_over_elapsed(first, second, 20.0)
+
+    def test_a_span_beginning_in_an_unbounded_group_is_refused(self):
+        cpu_max = parse_cpu_max("max 100000")
+        first = Sample(cpu_max=cpu_max, stat=_stat())
+        second = Sample(cpu_max=cpu_max, stat=_stat())
+
+        with pytest.raises(ValueError, match="no ceiling"):
+            throttled_share_over_elapsed(first, second, 20.0)
+
+    def test_a_ceiling_less_group_is_refused_rather_than_measured(self):
+        # No cpu.max at all: the group states neither a quota nor a period, so
+        # the ceiling's core count the denominator needs does not exist.
+        ceiling_less = Sample(
+            cpu_max=CpuMax(quota_usec=None, period_usec=None),
+            stat=CpuStat(
+                usage_usec=401_401,
+                nr_periods=None,
+                nr_throttled=None,
+                throttled_usec=None,
+            ),
+        )
+
+        with pytest.raises(ValueError, match="no ceiling"):
+            throttled_share_over_elapsed(ceiling_less, ceiling_less, 20.0)
+
+    def test_a_span_of_no_length_is_refused(self):
+        first, second = self._samples()
+
+        with pytest.raises(ValueError, match="positive"):
+            throttled_share_over_elapsed(first, second, 0.0)
+
+    def test_a_counter_going_backwards_is_refused(self):
+        first, second = self._samples()
+
+        with pytest.raises(ValueError, match="throttled_usec"):
+            throttled_share_over_elapsed(second, first, 20.0)
+
+
 class TestReadSample:
     def test_reads_both_files_from_the_given_directory(self, tmp_path):
         (tmp_path / "cpu.max").write_text(_QUOTA_ED_MAX)
@@ -484,12 +573,37 @@ class TestMain:
             "permitted_usec",
             "throttled_share",
             "seconds",
+            "elapsed_seconds",
             "cpu_max_at_end",
+            "share_over_elapsed",
         }
         assert interval["seconds"] == 0.0
         assert interval["nr_periods"] == 0
         assert interval["throttled_share"] == "no_periods"
+        # No period elapsed, so nothing was refused over the span however
+        # short it was — and the span it divided by is stated beside it.
+        assert interval["share_over_elapsed"] == 0.0
+        assert interval["elapsed_seconds"] >= 0.0
         assert interval["cpu_max_at_end"] == _QUOTA_ED_MAX
+
+    def test_an_interval_over_a_ceiling_less_group_states_the_cause(
+        self, tmp_path, capsys
+    ):
+        # The compute-side group states no ceiling and no period counter, so no
+        # span figure exists. The command still emits its reading, stating the
+        # cause rather than refusing: it is the side a caller compares against,
+        # and a refusal here would leave the sampler unusable where it is most
+        # needed.
+        (tmp_path / "cpu.stat").write_text(_CPU_STAT_WITHOUT_PERIODS)
+
+        status = main(
+            ["interval", "--directory", str(tmp_path), "--seconds", "0"], _HOST
+        )
+
+        assert status == 0
+        interval = json.loads(capsys.readouterr().out)["interval"]
+        assert interval["share_over_elapsed"] == "unbounded"
+        assert interval["throttled_share"] == "unbounded"
 
 
 class TestParseBootIdShape:
