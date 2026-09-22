@@ -1,0 +1,29 @@
+# Flight control — imas-ambix project layer.
+#
+# Merges over the host layer; only the keys named here change, so every other
+# routing property of the clive backend stays whatever the host layer declares.
+#
+# The clive lane routes to the endpoint served on the GPU node, so a worker is
+# free to run anywhere that endpoint is reachable. What the placement changes
+# is which host the worker runs on: the login node caps a user slice at a
+# fraction of four cores, and a held whole-node allocation has no such ceiling.
+#
+# The wrapper resolves the held allocation from the scheduler by the comment
+# token the hold generator emits, so the job identifier is deliberately absent
+# here. A literal identifier goes stale on a resubmit, a cancel-and-rehold or a
+# move to another node, and it does so silently: the launch would land back on
+# the login node while every record still claimed it was placed. Naming the
+# resolver instead means the placement follows the allocation.
+#
+# yaml-language-server: $schema=http://127.0.0.1:8765/_shared/flight.schema.json
+
+version: 1
+
+backends:
+  clive:
+    placement:
+      scheduler: imas-ambix
+      # The `--` is what keeps the wrapped command's own flags out of the
+      # wrapper's argument parsing, so the resolved launch is carried through
+      # unchanged.
+      options: ["agent", "fleet", "place", "--"]

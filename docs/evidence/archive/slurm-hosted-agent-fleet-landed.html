@@ -1463,6 +1463,105 @@ burst_usec 0</code></pre>
     would be a picture of a table.</p>
   </section>
 
+  <section id="fleet-placement-by-token">
+  <h2>Placement resolved by token — a clive worker as a step inside the held allocation</h2>
+  <p>The fleet's workers are launched by the coordinator on whatever host the coordinator
+  runs on, which on this workstation is a login node whose user slice is capped at a fraction
+  of four cores. The allocation that removes that ceiling has been held since the third step
+  landed. What was missing is the join between them: a launch that puts the worker on the
+  allocation's node without writing the allocation's job identifier down anywhere.</p>
+
+  <figure>
+    <img src="/imas-ambix/figures/slurm-hosted-agent-fleet/fleet-placement-token.svg"
+         alt="The coordinator on the login node spawns the fleet place wrapper; the wrapper queries squeue under the charged account and matches the ambix-fleet comment token to resolve the job id from the row, refusing if no row matches; it then runs the wrapped command as an srun --overlap step on the allocation's compute node, which reaches the router over the same fabric unchanged."
+         style="max-width:100%;height:auto">
+    <figcaption>Figure — the launch path of a placed worker. The job identifier exists only as
+    a field of the row the wrapper read, so it cannot go stale.</figcaption>
+  </figure>
+
+  <h3 id="fleet-placement-token-mechanism">The identifier is read, not written</h3>
+  <p><code>find_fleet_allocation()</code> already matched the held allocation by the
+  <code>ambix-fleet</code> comment token the hold generator emits, and the status surface
+  already queried it under the account the hold is charged to. The placement reuses both:
+  <code>imas-ambix agent fleet place -- CMD</code> resolves the allocation from the scheduler
+  and runs <code>CMD</code> as an <code>srun --overlap --jobid=&lt;resolved&gt;</code> step, so
+  the command lands on the allocation's node and shares its control group. Nothing about the
+  allocation is configuration, which is what makes a resubmit, a cancel-and-rehold or a move to
+  another node a non-event rather than a silent regression to the login node.</p>
+  <p>The wrapped command is carried through unchanged — its own flags reach it, not the
+  wrapper's argument parser. Holding no allocation is a refusal, not a fallback: the wrapper
+  exits nonzero naming the absence, because a worker that reaches the login node instead of the
+  held node runs under the very ceiling the placement exists to escape while every record
+  reports it as placed.</p>
+
+  <h3 id="fleet-placement-token-gates">Gates</h3>
+  <table>
+    <thead><tr><th>Measure</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Live placement, against the allocation held since the third step</td>
+        <td><code>agent fleet place -- hostname</code> printed
+        <strong>98dci4-clu-2002.iter.org</strong> at exit <strong>0</strong>, while
+        <code>agent fleet status</code> reported that same allocation as
+        <em>node 98dci4-clu-2002</em> (job shown as held, RUNNING, unbounded). The login
+        node's own hostname is <strong>98dci4-srv-1006.iter.org</strong>, so the printed name
+        is not the launcher's own — an instrument aimed at the wrong host would have printed
+        the login name and passed no such check.</td>
+      </tr>
+      <tr>
+        <td>The wrapped command's own flags survive the wrapper</td>
+        <td><code>agent fleet place -- echo -n hi</code> emitted <code>hi</code> with
+        <strong>no trailing newline</strong> (hex <code>6869</code>), so <code>-n</code>
+        reached <code>echo</code> rather than being consumed by the wrapper.</td>
+      </tr>
+      <tr>
+        <td>Declared placement resolves and is bounded to this repository</td>
+        <td>The project flight layer validates against the flight schema and resolves with
+        provenance <em>project</em> for <code>backends.clive.placement.scheduler</code> while
+        <code>backends.clive.command</code> still resolves to the <em>host</em> layer
+        (<code>clive</code>, launch <code>cli</code>), with no warnings. The layer is the only
+        source of the placement for this repository.</td>
+      </tr>
+      <tr>
+        <td>No identifier written into configuration</td>
+        <td><code>grep -E '[0-9]{5,}' docs/state/imas-ambix/flight.yaml</code> returns
+        <strong>0 matches</strong>. The file names the resolver, not an allocation.</td>
+      </tr>
+      <tr>
+        <td>Focused suite and whole-tree lint</td>
+        <td><code>pytest tests/agent/test_fleet.py</code> <strong>24 passed</strong>;
+        <code>ruff check imas_ambix tests</code> <strong>exit 0</strong>.</td>
+      </tr>
+      <tr>
+        <td>Declared negative control applied</td>
+        <td><strong>1 failed</strong> on
+        <code>test_fleet_place_refuses_when_no_allocation_is_held</code> with
+        <code>AssertionError: assert 0 != 0</code> — under the mutation the wrapper ran the
+        command directly and reported success where it owed a refusal. The source was
+        restored (<code>git status --porcelain</code> clean against the commit) and the module
+        re-run to <strong>24 passed</strong>.</td>
+      </tr>
+    </tbody>
+  </table>
+  <p>The declared mutation is <em>make the wrapper run the command directly when
+  find_fleet_allocation returns nothing, instead of refusing; the no-allocation refusal test
+  must then fail</em>. Logs, all under
+  <code>~/.config/reckon/crew/runs/r-20260922T182717694207-fleet-placement-token/logs/</code>:
+  <code>live-placement.log</code>, <code>flags-passthrough.log</code>,
+  <code>pytest-and-ruff.log</code> and <code>negative-control.log</code>. Every gate log's
+  first line names the revision it ran at, the tree and the command; the negative control's
+  first line repeats the declared mutation verbatim.</p>
+
+  <h3>What this record does not establish</h3>
+  <p>The merged head is not verified here: this measures the node's own change in its own
+  worktree. The live placement was exercised by running the worktree's own code against the
+  held allocation; the coordinator's dispatch path — reckon composing the wrapper in front of
+  a resolved clive launch — is read from reckon's own code and its declared shape, not
+  exercised end to end by a dispatched worker. That end-to-end run is the plan's next step and
+  is not claimed here. The refusal path was measured against a faked scheduler against a
+  faked queue rather than by cancelling the live allocation, which must not be cancelled.</p>
+  </section>
+
 </main>
 </body>
 </html>

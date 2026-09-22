@@ -393,3 +393,79 @@ def test_fleet_status_reports_no_allocation_in_words(monkeypatch) -> None:
     assert result.exit_code == 0, result.output
     assert "No fleet allocation is held" in result.output
     assert "1275001" not in result.output
+
+
+def _place_runner(rows: str, monkeypatch, *, step_returncode: int = 0):
+    """Answer the queue query with fixed rows and the placed step with a status.
+
+    Returns every argv the CLI handed to the runner, so a test can assert the
+    invocation the placement was written from rather than only what it printed
+    — the step's own output goes to the inherited descriptors, not to the
+    runner's capture buffer.
+    """
+    commands: list[list[str]] = []
+
+    def fake_run(command, *args, **kwargs):
+        commands.append(list(command))
+        if command and command[0] == "srun":
+            return subprocess.CompletedProcess(command, step_returncode, "", "")
+        return subprocess.CompletedProcess(command, 0, rows, "")
+
+    monkeypatch.setattr(cli_mod.subprocess, "run", fake_run)
+    return commands
+
+
+def test_fleet_place_runs_the_command_as_a_step_in_the_allocation(monkeypatch) -> None:
+    """The wrapped command is carried through unchanged behind the step.
+
+    The job id is the one the allocation was found by, so the placement follows
+    a resubmit rather than a remembered identifier.
+    """
+    commands = _place_runner(f"{_fleet_row('UNLIMITED')}\n", monkeypatch)
+    result = CliRunner().invoke(
+        main, ["agent", "fleet", "place", "--", "hostname"]
+    )
+
+    assert result.exit_code == 0, result.output
+    step = next(command for command in commands if command[0] == "srun")
+    assert step == ["srun", "--overlap", "--jobid=1275000", "hostname"]
+
+
+def test_fleet_place_queries_the_account_the_allocation_is_charged_to(
+    monkeypatch,
+) -> None:
+    """A held allocation is only findable under the account it is billed to."""
+    site = SiteConfig.from_env()
+    commands = _place_runner(f"{_fleet_row('UNLIMITED')}\n", monkeypatch)
+    CliRunner().invoke(main, ["agent", "fleet", "place", "--", "hostname"])
+
+    squeue = next(command for command in commands if command[0] == "squeue")
+    assert squeue[squeue.index("-A") + 1] == site.fleet_account
+
+
+def test_fleet_place_refuses_when_no_allocation_is_held(monkeypatch) -> None:
+    """No allocation is a refusal, never a launch on the login node.
+
+    A worker that reaches the login node instead of the held node runs under
+    the very ceiling the placement exists to escape, and reports as placed.
+    """
+    commands = _place_runner(f"{_SERVE_ROW}\n", monkeypatch)
+    result = CliRunner().invoke(
+        main, ["agent", "fleet", "place", "--", "hostname"]
+    )
+
+    assert result.exit_code != 0, result.output
+    assert "No fleet allocation is held" in result.output
+    assert not any(command[0] == "srun" for command in commands)
+
+
+def test_fleet_place_propagates_the_step_exit_status(monkeypatch) -> None:
+    """A step that failed is not reported as a placement that succeeded."""
+    _place_runner(
+        f"{_fleet_row('UNLIMITED')}\n", monkeypatch, step_returncode=3
+    )
+    result = CliRunner().invoke(
+        main, ["agent", "fleet", "place", "--", "hostname"]
+    )
+
+    assert result.exit_code == 3, result.output
