@@ -7,19 +7,27 @@ import gzip
 import json
 import os
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
+import imas_ambix.agent.telemetry_index as telemetry_index
 from imas_ambix.agent.receipt_bins import summarise_receipt_rows
 from imas_ambix.agent.telemetry_index import (
     BOOT_SCOPE,
     HOST_SCOPE,
     UNKNOWN_BOOT_ID,
+    UNKNOWN_HOST,
+    UNKNOWN_HOST_SCOPE,
     TelemetryIndex,
     discover,
+    key_scope,
     local_boot_id,
     measure_row,
+    receipts_host,
+    receipts_job_id,
     resolve_boot_id,
+    resolve_host,
     row_boot_id,
 )
 
@@ -668,9 +676,9 @@ def _pin_inode(monkeypatch, inode: int) -> None:
 def test_a_row_naming_its_host_is_keyed_on_that_host(tmp_path):
     """A record that says where it was written is not attributed to its reader.
 
-    The reader's own nodename is a fallback for a record that names nothing, not
-    a label to overwrite what a record does name, or two hosts' readings would
-    still land under the host that happened to read them.
+    A host the row records is the identity it is keyed by, whatever the index
+    was told for the hostless case, or two hosts' readings would land under one
+    key and the second writer's row would be dropped as a duplicate.
     """
     source = tmp_path / "serve.jsonl"
     _write(source, [_row(0, host="node-a"), _row(5, host="node-a")])
@@ -688,22 +696,181 @@ def test_a_row_naming_its_host_is_keyed_on_that_host(tmp_path):
         ]
 
 
-def test_a_row_naming_no_host_falls_back_to_the_recording_nodename(tmp_path):
-    """A record whose rows name no machine was written where it is being read."""
+def test_a_row_naming_no_host_is_keyed_under_the_unknown_host_marker(tmp_path):
+    """A record that names no machine has not said where it was written.
+
+    A receipts directory on shared storage collects files written on the node
+    that ran the serve and read from a login node, so the reading machine's
+    nodename is not evidence of the writer. Adopting it keys the row under an
+    identity nothing recorded, and -- because the same fallback also supplied
+    the boot -- presents the reader's boot as the row's, so the row reads as
+    keyed on a machine and a boot that are both inferred rather than recorded.
+    """
     here = tmp_path / "plain.jsonl"
     named = tmp_path / "named.jsonl"
-    _write(here, [_row(0)])
+    _write(here, [_row(0), _row(5)])
     _write(named, [_row(5)])
 
     with TelemetryIndex(tmp_path / "own.db") as index:
         index.ingest([here])
-        row = index._conn.execute("SELECT host FROM sample").fetchone()
-        assert row["host"] == os.uname().nodename
+        stored = index._conn.execute(
+            "SELECT host, boot_id, key_kind FROM sample ORDER BY id"
+        ).fetchall()
+        assert [(row["host"], row["boot_id"], row["key_kind"]) for row in stored] == [
+            (UNKNOWN_HOST, UNKNOWN_BOOT_ID, UNKNOWN_HOST_SCOPE),
+            (UNKNOWN_HOST, UNKNOWN_BOOT_ID, UNKNOWN_HOST_SCOPE),
+        ]
+        # The reader's own identity appears nowhere in the row a caller holds.
+        assert os.uname().nodename not in json.dumps(index.rows(_at(-1), _at(60)))
+        assert "host+boot" not in json.dumps(index.rows(_at(-1), _at(60)))
 
     with TelemetryIndex(tmp_path / "other.db", host="node-b") as index:
         index.ingest([named])
         row = index._conn.execute("SELECT host FROM sample").fetchone()
         assert row["host"] == "node-b"
+
+
+def test_the_host_key_is_the_recorded_one_or_the_unknown_marker():
+    """A host enters the key only as recorded; the reader's name never does.
+
+    The unknown-host marker is the outer dimension of the key kind: a row with
+    no host of its own is announced as unknown-host whatever its boot resolved
+    to, because a boot identity names one uninterrupted run of counters on one
+    machine and a record that never named the machine has no such run.
+    """
+    assert resolve_host("node-a") == "node-a"
+    assert resolve_host(None) == UNKNOWN_HOST
+    assert resolve_host("") == UNKNOWN_HOST
+    assert key_scope("node-a", BOOT_SCOPE) == BOOT_SCOPE
+    assert key_scope("node-a", HOST_SCOPE) == HOST_SCOPE
+    assert key_scope(UNKNOWN_HOST, BOOT_SCOPE) == UNKNOWN_HOST_SCOPE
+    assert key_scope(UNKNOWN_HOST, HOST_SCOPE) == UNKNOWN_HOST_SCOPE
+
+
+def test_a_receipts_name_yields_the_job_id_it_carries():
+    """The digits before the ``.jsonl`` suffix, and nothing that merely looks
+    like one."""
+    assert receipts_job_id("deepseek-v4-1-flash-1271709.jsonl") == "1271709"
+    assert receipts_job_id("/shared/receipts/serve-9.jsonl.1") == "9"
+    assert receipts_job_id("serve-9.jsonl.1.gz") == "9"
+    assert receipts_job_id("serve.jsonl") is None
+    # A tier file is a derived sibling, not a receipts file's own name.
+    assert receipts_job_id("summary-1271709.minute.jsonl") is None
+
+
+def test_the_receipts_host_is_resolved_from_the_job_id(monkeypatch):
+    """The job's node list is read parsably and expanded to one node per line.
+
+    Two reads, because the scheduler compresses an allocation's nodes into a
+    single hostlist token: ``-P`` keeps that token from being cut short at a
+    column width, and ``scontrol show hostnames`` turns it into one line per
+    machine. A one-node job passes through the expansion unchanged.
+    """
+    calls = []
+
+    def fake_run(argv, **kwargs):
+        calls.append(list(argv))
+        if argv[0] == "sacct":
+            return SimpleNamespace(
+                returncode=0, stdout="98dci4-gpu-0003\n", stderr=""
+            )
+        assert argv == ["scontrol", "show", "hostnames", "98dci4-gpu-0003"]
+        return SimpleNamespace(returncode=0, stdout="98dci4-gpu-0003\n", stderr="")
+
+    monkeypatch.setattr(telemetry_index.subprocess, "run", fake_run)
+    assert receipts_host("/shared/receipts/deepseek-v4-1-flash-1271709.jsonl") == (
+        "98dci4-gpu-0003"
+    )
+    assert calls == [
+        ["sacct", "-j", "1271709", "-X", "-n", "-P", "-o", "NodeList"],
+        ["scontrol", "show", "hostnames", "98dci4-gpu-0003"],
+    ]
+
+
+def test_a_job_that_does_not_resolve_is_refused_not_guessed(monkeypatch):
+    """A name with no job id, a purged job, a placeholder, and a many-node job
+    all refuse.
+
+    A guess here is a key silently asserting a machine no row recorded, so
+    every unresolved shape raises rather than falling back to the reader. The
+    many-node case is the one the scheduler's own output makes easy to miss: a
+    fourteen-node allocation is reported as a single compressed token, so
+    counting the fields of that report sees one host, and the same token at the
+    default column width reads ``98dci4-clu-[50+`` -- still one field, and not
+    a hostname at all. Counting the lines of the expanded list is what separates
+    one machine from many, and both shapes are refused here. The single line is
+    not sufficient on its own either: a field ``sacct`` leaves empty prints the
+    word ``None``, and ``scontrol`` echoes that word back as one line rather
+    than rejecting it, so a placeholder is refused by name and an echoed token
+    by its shape.
+    """
+    with pytest.raises(ValueError):
+        receipts_host("serve.jsonl")
+
+    def scheduler(
+        sacct_stdout, hosts_stdout="", sacct_rc=0, hosts_rc=0, hosts_stderr=""
+    ):
+        def run(argv, **kwargs):
+            if argv[0] == "sacct":
+                return SimpleNamespace(
+                    returncode=sacct_rc, stdout=sacct_stdout, stderr=""
+                )
+            return SimpleNamespace(
+                returncode=hosts_rc, stdout=hosts_stdout, stderr=hosts_stderr
+            )
+
+        return run
+
+    fourteen_nodes = "".join(f"98dci4-clu-{n}\n" for n in range(5073, 5087))
+
+    for fake in (
+        # Purged from sacct: a job that does not exist reports nothing and
+        # exits zero, and the empty report names no node list.
+        scheduler("", sacct_rc=0),
+        # A field sacct left empty prints a placeholder, which scontrol echoes
+        # back as one line rather than refusing.
+        scheduler("None\n", "None\n"),
+        # Fourteen nodes compressed into one token -- one field, many machines.
+        scheduler("98dci4-clu-[5073-5086]\n", fourteen_nodes),
+        # The same token truncated at the default column width: scontrol rejects
+        # it on stderr, exits 0, and prints no node at all.
+        scheduler(
+            "98dci4-clu-[50+\n",
+            "",
+            hosts_stderr="Invalid hostlist: 98dci4-clu-[50+\n",
+        ),
+    ):
+        monkeypatch.setattr(telemetry_index.subprocess, "run", fake)
+        with pytest.raises(ValueError):
+            receipts_host("deepseek-v4-1-flash-1271709.jsonl")
+
+
+def test_an_unavailable_scheduler_refuses_the_promised_exception(monkeypatch):
+    """A missing ``sacct`` or ``scontrol`` refuses with ``ValueError``.
+
+    The tools may simply not be on the path, and the docstring promises a
+    caller the same exception for that as for an unresolvable host: a caller
+    catching ``ValueError`` to fall back to the unknown-host marker must not
+    meet an ``OSError`` instead, which would abort the ingest rather than
+    degrade it.
+    """
+    def missing(tool):
+        def run(argv, **kwargs):
+            if argv[0] == tool:
+                raise FileNotFoundError(2, "No such file or directory", tool)
+            return SimpleNamespace(
+                returncode=0, stdout="98dci4-gpu-0003\n", stderr=""
+            )
+
+        return run
+
+    monkeypatch.setattr(telemetry_index.subprocess, "run", missing("sacct"))
+    with pytest.raises(ValueError):
+        receipts_host("deepseek-v4-1-flash-1271709.jsonl")
+
+    monkeypatch.setattr(telemetry_index.subprocess, "run", missing("scontrol"))
+    with pytest.raises(ValueError):
+        receipts_host("deepseek-v4-1-flash-1271709.jsonl")
 
 
 def test_two_hosts_at_one_inode_and_offset_are_both_kept(tmp_path, monkeypatch):

@@ -49,10 +49,14 @@ else, so two hosts recording a file of the same name at the same path produce
 the same ``(path, inode)`` and the same ``(inode, offset)`` while holding
 different readings -- and a key without a host merges the two irrecoverably,
 which is worse than either being wrong. The host is what the row says it was
-recorded on (:func:`row_host`), and a row that carries none falls back to the
-host this index is reading for -- its own nodename unless one is named --
-because a file whose rows do not name their machine is, by construction, being
-consumed where it was written.
+recorded on (:func:`row_host`). A row that names none is stored under an
+explicit unknown-host marker (:data:`UNKNOWN_HOST`) and its ``key_kind`` says so
+(:data:`UNKNOWN_HOST_SCOPE`), because a record shared across nodes is written on
+one machine and read on another: the reading machine's nodename is not evidence
+of where a row was written, and a row that adopted it would be keyed under an
+identity nothing recorded. A caller that knows the machine passes *host*, and
+:func:`receipts_host` resolves it from a receipts file's own job id for the
+caller that does not.
 
 **Every key carries the boot as well, because a hostname does not survive a
 reboot.** The quantities this record holds are largely cumulative counters, and
@@ -93,9 +97,9 @@ import dataclasses
 import datetime as _dt
 import hashlib
 import json
-import os
 import re
 import sqlite3
+import subprocess
 from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -108,6 +112,7 @@ from imas_ambix.agent.receipt_bins import (
 from imas_ambix.agent.throttling import parse_boot_id, read_host
 
 if TYPE_CHECKING:
+    import os
     from collections.abc import Iterable, Iterator
 
 #: Record keys a row can name its recording host under, in precedence order.
@@ -129,15 +134,41 @@ _KEY_KIND_KEY = "key_kind"
 #: Key-scope markers, stored beside every key so a row says which identity it
 #: was keyed by. ``BOOT_SCOPE`` means the key carried a boot identity and two
 #: such rows may be differenced; ``HOST_SCOPE`` means the boot was unknown, so
-#: the row is stored and readable but no reboot guarantee attaches to it.
+#: the row is stored and readable but no reboot guarantee attaches to it;
+#: ``UNKNOWN_HOST_SCOPE`` means the record named no machine at all, so not even
+#: the host is a recorded identity.
 BOOT_SCOPE = "host+boot"
 HOST_SCOPE = "host"
+UNKNOWN_HOST_SCOPE = "unknown-host"
+
+#: The stored host of a row whose machine is unknown. It is the empty string
+#: rather than ``NULL`` for the same reason as the unknown boot below: a
+#: ``UNIQUE`` treats NULLs as distinct from each other, so a null host would
+#: make the key accept every duplicate instead of refusing the second.
+UNKNOWN_HOST = ""
 
 #: The stored boot identity of a row whose boot is unknown. It is the empty
 #: string rather than ``NULL`` because ``UNIQUE`` treats NULLs as distinct from
 #: each other, which would make the uniqueness guard insert every unkeyed
 #: duplicate instead of refusing it.
 UNKNOWN_BOOT_ID = ""
+
+#: The job id a receipts filename carries, in the suffix the recorder writes:
+#: ``<slug>-<job id>.jsonl``. A roll suffix or a compression suffix trails the
+#: ``.jsonl`` and does not move the digits.
+_JOB_ID_IN_NAME = re.compile(r"-(\d+)\.jsonl(?:\.\d+)?(?:\.gz)?\Z")
+
+#: What ``sacct`` prints in place of a node name when the field carries none.
+#: These are words rather than machines, and ``scontrol`` echoes each one back
+#: as though it had resolved it -- one line, exit zero -- so a placeholder must
+#: be refused by name and not by shape.
+_UNRESOLVED_NODE_NAMES = frozenset({"none", "unknown", "n/a", "null"})
+
+#: The shape of one node name: a single unpunctuated token carrying no hostlist
+#: syntax and no whitespace. An unexpanded hostlist token carries ``[``, ``]``,
+#: ``,`` or ``+``, and a report naming several nodes carries spaces, so a value
+#: matching this is one machine's name rather than a list or its truncation.
+_NODE_NAME = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._-]*\Z")
 
 #: Quantity names whose value is a cumulative total since the engine started,
 #: so their period figure is the difference of two endpoints and never a sum.
@@ -284,6 +315,121 @@ def resolve_boot_id(candidate: str | None) -> tuple[str, str]:
     return UNKNOWN_BOOT_ID, HOST_SCOPE
 
 
+def resolve_host(candidate: str | None) -> str:
+    """The host a row is keyed by: the stated one, or the unknown-host marker.
+
+    Never the reading machine's own name. A record whose rows state no host has
+    not said where it was written -- a receipts directory on shared storage
+    collects files written on one node and read on another -- so keying such a
+    row under the reader's nodename asserts a machine nothing recorded. The
+    empty-string marker is stored rather than ``NULL`` so the key's uniqueness
+    still refuses a second unkeyed row, on the same rule as the unknown boot.
+    """
+    return candidate if candidate else UNKNOWN_HOST
+
+
+def key_scope(host: str, boot_scope: str) -> str:
+    """The ``key_kind`` a row keyed on *host* and *boot_scope* is stored with.
+
+    The host is the outer dimension: a row with no host of its own is announced
+    as unknown-host whatever its boot resolved to, because a boot identity says
+    which uninterrupted run of counters a machine accumulated, and a record that
+    never named the machine has no such run to point at.
+    """
+    return UNKNOWN_HOST_SCOPE if host == UNKNOWN_HOST else boot_scope
+
+
+def receipts_job_id(path: str | Path) -> str | None:
+    """The SLURM job id a receipts filename names, or ``None``.
+
+    The on-node recorder writes ``<slug>-<job id>.jsonl``, so the job that
+    produced a file -- and therefore the node that ran the serve -- is
+    recoverable from the name alone, before any row states it.
+    """
+    match = _JOB_ID_IN_NAME.search(Path(path).name)
+    return None if match is None else match.group(1)
+
+
+def receipts_host(path: str | Path) -> str:
+    """The node a receipts file was written on, from the job id in its name.
+
+    The recorder runs inside the allocation, so the job's node list is the
+    machine its rows came from. Two reads are needed because the scheduler
+    reports an allocation's nodes as a single compressed hostlist token -- a
+    fourteen-node job is ``98dci4-clu-[5073-5086]``, one whitespace-delimited
+    field that names fourteen machines -- and because ``sacct`` truncates that
+    field at its default column width, so the same job also reads
+    ``98dci4-clu-[50+``. Counting fields therefore cannot separate one node from
+    many, and a truncated token is not a hostname at all. ``sacct`` is asked for
+    parsable output so the value is never cut short, and ``scontrol show
+    hostnames`` expands the list to one node per line, which is the count that
+    means what it says.
+
+    The expansion must also be a plausible node name rather than merely a single
+    line, because ``scontrol`` echoes a placeholder it did not resolve instead
+    of refusing it: handed the word ``None`` it prints that word back, one line,
+    exit zero. A name carrying hostlist syntax or whitespace is a token that was
+    echoed unexpanded rather than parsed, and the words ``sacct`` prints for an
+    absent field name no machine at all.
+
+    The lookup is deliberately allowed to fail: a job still running, purged from
+    ``sacct``, or spanning more than one node resolves to nothing usable, and a
+    guess here is a key silently asserting a machine no row recorded. Refusing
+    is the only safe answer, because the caller can name *host* explicitly or
+    leave the row under the unknown-host marker. An unavailable ``sacct`` or
+    ``scontrol`` refuses the same way, so a caller catching ``ValueError`` for
+    an unresolvable host never meets an ``OSError`` instead.
+    """
+    job_id = receipts_job_id(path)
+    if job_id is None:
+        raise ValueError(
+            f"{path} does not name a job id, so the host it was written on "
+            "cannot be resolved from its name"
+        )
+    try:
+        completed = subprocess.run(
+            ["sacct", "-j", job_id, "-X", "-n", "-P", "-o", "NodeList"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError as error:
+        raise ValueError(
+            f"could not resolve the host of {path}: sacct is unavailable"
+        ) from error
+    hostlists = [
+        line for line in completed.stdout.splitlines() if line.strip()
+    ]
+    if completed.returncode != 0 or len(hostlists) != 1:
+        raise ValueError(
+            f"job {job_id} ({path}) did not resolve to one node list: "
+            f"{', '.join(hostlists) or completed.stderr.strip() or 'no node reported'}"
+        )
+    try:
+        expanded = subprocess.run(
+            ["scontrol", "show", "hostnames", hostlists[0].strip()],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError as error:
+        raise ValueError(
+            f"could not resolve the host of {path}: scontrol is unavailable"
+        ) from error
+    nodes = [line.strip() for line in expanded.stdout.splitlines() if line.strip()]
+    if (
+        expanded.returncode != 0
+        or len(nodes) != 1
+        or nodes[0].lower() in _UNRESOLVED_NODE_NAMES
+        or _NODE_NAME.match(nodes[0]) is None
+    ):
+        raise ValueError(
+            f"job {job_id} ({path}) did not resolve to one node: "
+            f"{', '.join(nodes) or expanded.stderr.strip() or 'no node reported'}"
+        )
+    return nodes[0]
+
+
 def local_boot_id() -> str | None:
     """The boot identity of the machine this process is on, or ``None``.
 
@@ -392,14 +538,17 @@ def discover(directory: str | Path, pattern: str | None = None) -> list[Path]:
 class TelemetryIndex:
     """A local, rebuildable query layer over one or more record files.
 
-    *host* is the host rows that carry none are attributed to, because a record
-    whose rows do not name their machine was written where it is being read, and
-    *boot_id* is the boot those rows are attributed to, on the same reasoning:
-    the counters in a record read where it was written are the ones this machine
-    has accumulated since it booted. Every sample and source row records its
-    host, its boot identity where one could be established, and which of the two
-    keys it got, so two machines -- or two boots of one machine -- cannot take
-    each other's key.
+    *host* is the host rows that carry none are attributed to, and *boot_id*
+    the boot. Neither is inferred from the machine doing the reading: a record
+    whose rows name no machine is keyed under the unknown-host marker and read
+    with that caveat, because a receipts file on shared storage is routinely
+    written on the node that ran the serve and read somewhere else. A caller
+    that knows where the rows were written passes both, and
+    :func:`receipts_host` resolves the host from a receipts file's own job id
+    for the caller that does not. Every sample and source row records its host,
+    its boot identity where one could be established, and which of the keys it
+    got, so two machines -- or two boots of one machine -- cannot take each
+    other's key, and a row keyed on neither announces itself as such.
     """
 
     def __init__(
@@ -410,8 +559,8 @@ class TelemetryIndex:
         boot_id: str | None = None,
     ) -> None:
         self.path = Path(path)
-        self.host = host or os.uname().nodename
-        self.boot_id = local_boot_id() if boot_id is None else boot_id
+        self.host = resolve_host(host)
+        self.boot_id = UNKNOWN_BOOT_ID if boot_id is None else boot_id
         self._conn = sqlite3.connect(str(self.path))
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA foreign_keys = ON")
@@ -457,15 +606,18 @@ class TelemetryIndex:
                     "can read"
                 )
             scanned += 1
-            lines, tail, prefix_sha, host, source_boot = self._resume(path, stat)
+            lines, tail, prefix_sha, source_host, source_boot = self._resume(
+                path, stat
+            )
             added = 0
             carried: str | None = None
-            # The boot the file's consumed region was read on, if the previous
+            # The boot the file's consumed region was keyed by, if the previous
             # pass established one: a row that names no boot of its own belongs
             # to the boot that was writing this file, not to this reader's.
             carried_boot: str | None = source_boot
-            file_host = host
-            file_boot, file_kind = resolve_boot_id(source_boot or self.boot_id)
+            file_host = resolve_host(source_host)
+            file_boot, file_scope = resolve_boot_id(source_boot or self.boot_id)
+            file_kind = key_scope(file_host, file_scope)
             for offset, raw in lines:
                 read += len(raw)
                 parsed = self._parse(raw, path, offset)
@@ -481,10 +633,11 @@ class TelemetryIndex:
                     # Resolved per row, unlike the host: a reboot inside one file
                     # leaves the hostname alone and changes only this.
                     carried_boot = own_boot
-                file_host = carried or host
-                file_boot, file_kind = resolve_boot_id(
+                file_host = resolve_host(carried or source_host)
+                file_boot, file_scope = resolve_boot_id(
                     carried_boot if carried_boot is not None else self.boot_id
                 )
+                file_kind = key_scope(file_host, file_scope)
                 if self._insert(
                     path,
                     stat.st_ino,
@@ -579,8 +732,9 @@ class TelemetryIndex:
         carry exactly that host, so attributing the drop to any other would
         leave them behind or take another machine's. The boot returned is the
         one that region was keyed by, which is where a row naming no boot of its
-        own is attributed; ``None`` means the file is new here, so this reading
-        process's own boot applies.
+        own is attributed; ``None`` means the file is new here, so this index's
+        own *boot_id* applies -- the caller's, or the unknown-boot marker when
+        none was given.
         """
         row = self._resumed_row(path, stat.st_ino)
         host = self.host if row is None else row["host"]
@@ -965,12 +1119,18 @@ __all__ = [
     "CUMULATIVE_MEASUREMENTS",
     "HOST_SCOPE",
     "UNKNOWN_BOOT_ID",
+    "UNKNOWN_HOST",
+    "UNKNOWN_HOST_SCOPE",
     "IngestReport",
     "TelemetryIndex",
     "discover",
+    "key_scope",
     "local_boot_id",
     "measure_row",
+    "receipts_host",
+    "receipts_job_id",
     "resolve_boot_id",
+    "resolve_host",
     "row_boot_id",
     "row_host",
 ]
