@@ -287,10 +287,10 @@
     §2 and it is a ratio, not an absolute: what must fall is throttled thread-time as a
     share of available capacity, sampled over a comparable working period.</p>
 
-    <h3 id="s7-site-request">The site request is written — the step is not closed</h3>
-    <p>The deliverable of the second step is authored and validated:
-    <a href="/imas-ambix/site-request-user-lingering.html">Site request — user lingering is
-    not holding on 98dci4-srv-1006</a> is the send-ready text, carrying the journal extract
+    <h3 id="s7-site-request">The site request is retired unsent — the cause was on this side</h3>
+    <p>The deliverable of the second step was authored and validated:
+    <a href="/imas-ambix/site-request-user-lingering.html">Site request — user lingering on
+    98dci4-srv-1006 (retired unsent)</a> is the send-ready text, carrying the journal extract
     that shows the teardown. It asks the site for two things — a logind journal read around
     02:31:11 on 2026-09-20, and this account's addition to a group (<code>adm</code>,
     <code>systemd-journal</code> or <code>wheel</code>) that can read that journal — and it
@@ -299,11 +299,20 @@
     <code>app.slice</code> killed in each of them. It carries no request for a larger share
     of the login node's processor time, and no claim that memory or processor contention
     caused the teardown.</p>
-    <p>The step stays open: the request is written but not yet sent, so the done-when — the
-    site holds the extract and has either corrected the behaviour or confirmed it expected —
-    still waits on the site, and with it the question of whether the allocation is the only
-    remedy or merely the robust one. The two asks are recorded in the site-bound text itself
-    and quoted in the cumulative evidence record.</p>
+    <p>The request was never sent, so the second step does not wait on the site. The teardown
+    was produced by a reckon test fixture whose worker-process teardown signalled the whole
+    process group rather than only the workers it had started; the stop came from this
+    account's own tooling, not from the login node's user manager. The fixture was corrected
+    at 15:06:18 CEST on 2026-09-20, and since 15:34:42 that afternoon
+    <code>user@39486.service</code> has read <code>Linger=yes</code>,
+    <code>ActiveState=active</code> and fourteen held sessions — two days and five hours with
+    no further teardown recorded, against two occurrences inside five hours earlier in the
+    record. Both asks in the site-bound text are therefore withdrawn: the journal read would
+    have explained a cause this account supplied itself, and the group membership would have
+    bought access to a journal that no longer needs reading. The premise of the step is void,
+    and with it the question of whether the allocation is the only remedy or merely the robust
+    one. The two asks remain recorded in the site-bound text and in the cumulative evidence
+    record as the requests that were considered and not sent.</p>
 
     <p><strong>Step five landed — the dispatch-placement decision, 2026-09-21.</strong>
     <strong>No change required</strong> to the reckon crew dispatch contract: a worker is created as
@@ -315,6 +324,32 @@
     what an allocation forces an operator run to still show are in
     <a href="/imas-ambix/evidence/archive/slurm-hosted-agent-fleet-landed#dispatch-placement">the
     cumulative evidence record</a>.</p>
+
+    <p><strong>The site request is retired unsent — the second step's premise is void,
+    2026-09-22.</strong> The teardown the request was written to explain came from this
+    account's own reckon test fixture, whose worker-process teardown signalled the whole
+    process group rather than only the workers it had started; the correction landed at
+    15:06:18 CEST on 2026-09-20. Since 15:34:42 that afternoon <code>user@39486.service</code>
+    has read <code>Linger=yes</code>, <code>ActiveState=active</code> and fourteen held
+    sessions — two days and five hours with no further teardown recorded, against the two
+    occurrences inside five hours that prompted the request. Neither ask was sent, so nothing
+    is outstanding with the two sites, and whether the allocation is the only remedy or merely
+    the robust one no longer turns on a lingering defect. The outcome is recorded in the two
+    documents themselves: the
+    <a href="/imas-ambix/site-request-user-lingering.html">site request</a> now opens with a
+    retirement note, and the
+    <a href="/imas-ambix/login-session-scope-teardown">session-scope teardown record</a> now
+    opens with the resolution. The measurement, the correction and the timeline are in
+    <a href="/imas-ambix/evidence/archive/slurm-hosted-agent-fleet-landed#lingering-retire">the
+    cumulative evidence record</a>.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/slurm-hosted-agent-fleet/lingering-retire-timeline.svg"
+           alt="Timeline from 2026-09-18 to 2026-09-22 showing five recorded teardowns or fleet losses, the fixture correction at 15:06:18 on 2026-09-20, and an unbroken active interval for the user manager from 15:34:42 on 2026-09-20">
+      <figcaption>The five recorded teardowns and fleet losses, the fixture correction, and
+      the interval since it in which no user-manager teardown has been recorded and
+      <code>user@39486.service</code> has held fourteen sessions without a break.</figcaption>
+    </figure>
 
     <h2 id="s8">§8 — The cheaper alternative that must be priced first</h2>
     <p>Before building any of §7, the site could be asked to raise

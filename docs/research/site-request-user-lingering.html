@@ -6,27 +6,79 @@
   <meta name="docs-project"  content="imas-ambix">
   <meta name="reckon-type"   content="doc">
   <meta name="plan-slug"     content="site-request-user-lingering">
-  <meta name="plan-title"    content="Site request — user lingering is not holding on 98dci4-srv-1006">
-  <meta name="plan-summary"  content="Send-ready request asking the site why user lingering is not holding on the login node, carrying the journal extract that shows the teardown">
+  <meta name="plan-title"    content="Site request — user lingering on 98dci4-srv-1006 (retired unsent)">
+  <meta name="plan-summary"  content="Retired unsent: the session teardown this request asked about was produced by a reckon test fixture whose process teardown matched every process in the slice, and the site never received it">
   <meta name="plan-tags"     content="agent-serving">
   <meta name="plan-informs"  content="slurm-hosted-agent-fleet">
-  <title>Site request — user lingering is not holding on 98dci4-srv-1006 | imas-ambix</title>
+  <title>Site request — user lingering on 98dci4-srv-1006 (retired unsent) | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 </head>
 <body>
   <main class="plan-doc">
     <header>
-      <p class="eyebrow">Site request</p>
-      <h1>Site request — user lingering is not holding on 98dci4-srv-1006</h1>
-      <p class="lead">Account <code>mcintos</code> (UID 39486) has lingering enabled and
-      persisted on disk, and its user manager is still stopped and restarted several times a
-      day on login node <code>98dci4-srv-1006</code> — each stop tearing down every process
-      that account has running there. The journal extract below is everything we can supply
-      without privileged access; §1 is the text to send.</p>
+      <p class="eyebrow">Site request — retired unsent</p>
+      <h1>Site request — user lingering on 98dci4-srv-1006 (retired unsent)</h1>
+      <p class="lead">This request was written on 2026-09-21 to ask the site why the login
+      node's user manager was being stopped, and it was never sent. The stops were produced
+      by this account's own tooling — a reckon test fixture whose process teardown matched
+      every process in the slice rather than only the workers it was written to stop — so
+      there was never a site defect for the site to investigate. The retirement note below
+      records the cause and the evidence; the body is kept as the text that would have been
+      sent.</p>
     </header>
 
+    <section id="retirement">
+      <h2>Retirement note — never sent, cause found on our side</h2>
+      <p><strong>Never sent.</strong> Nothing in §1 reached the site, and neither ask in it
+      is outstanding: no logind journal read was requested, and no group membership was
+      asked for. The account is in none of <code>adm</code>, <code>systemd-journal</code> or
+      <code>wheel</code> today, exactly as §4 records.</p>
+      <p><strong>The cause was a reckon test fixture, not a lingering defect.</strong> A
+      session-scoped test fixture, written to stop finished workers, passed a process id
+      taken from a <code>/proc</code> scan or a run record straight into
+      <code>os.killpg</code>. Such a pid can report a process group it does not lead, and a
+      reported group of <code>1</code> makes <code>killpg</code> a signal to every process
+      the caller may signal — across every control group and every login session on the
+      host, which is why a stop written for one worker took the whole session slice with it,
+      the user manager included. The fixture's own measurement recorded three instrumented
+      processes in three unrelated control groups and three unrelated process groups
+      signalled within eighty microseconds of each other from one pytest process, with
+      <code>si_code</code> reporting a deliberate kill; no signal to a single group can do
+      that. Corrected in reckon commit <code>586a1ac6</code> on 2026-09-20 15:06:18 CEST
+      (<em>a worker signal reaches the worker, never the whole account</em>):
+      <code>signal_worker</code> now reserves the group signal for a process that leads its
+      own group, which is true of anything started detached on purpose, and signals anything
+      else alone. The investigation this request was built on is
+      <a href="/imas-ambix/login-session-scope-teardown.html">the session-scope teardown
+      record</a>, whose outcome section carries the same finding.</p>
+      <p><strong>The evidence that it is over.</strong> Measured on the login node
+      2026-09-22 20:30 CEST: <code>loginctl show-user mcintos -p Linger</code> returns
+      <code>Linger=yes</code>, and <code>systemctl show user@39486.service</code> reports
+      <code>ActiveState=active</code> continuously since
+      <strong>2026-09-20 15:34:42 CEST</strong> — an unbroken interval of about two days and
+      five hours, with <strong>14 sessions held</strong> for the account at the reading,
+      against a record in which the same teardown recurred twice inside five hours and five
+      times inside three days. <code>/var/lib/systemd/linger/mcintos</code> is still present,
+      root-owned, written 2026-08-08 17:07.</p>
+      <figure>
+        <img src="/imas-ambix/figures/slurm-hosted-agent-fleet/lingering-retire-timeline.svg"
+             alt="Timeline from 2026-09-18 to 2026-09-22 showing five recorded teardowns or fleet losses, the fixture correction at 15:06:18 on 2026-09-20, and an unbroken active interval for user@39486.service from 15:34:42 that day to the reading two days later">
+        <figcaption>Figure — the recorded occurrences, the fixture correction, and the
+        unbroken interval that followed. The quiet interval begins at the last user-manager
+        restart, 28 minutes after the correction landed.</figcaption>
+      </figure>
+      <p><strong>What this document is now.</strong> The text below is the request as
+      written, kept as the record of the evidence it assembled and of the exclusions in §2
+      and §4 — those measurements stood, and what they established was that the failure was
+      one of lifetime rather than of allocation. The fleet-hosting plan's move onto a
+      scheduler allocation is unaffected by this retirement and rests on the throttling
+      evidence, not on this defect.</p>
+    </section>
+
     <h2 id="s1">§1 — The request</h2>
+    <p>The text below was written on 2026-09-21 as the send-ready request. It was not sent
+    (see the retirement note above).</p>
     <p>Two asks, both answerable by whoever can read the system journal on
     <code>98dci4-srv-1006</code>.</p>
     <ol>
@@ -184,15 +236,23 @@ user@39486.service  ActiveEnterTimestamp = Sun 2026-09-20 02:31:12 CEST</pre>
       logind idle action, no system timer anywhere near the event — the signal lands 0.78 s
       after the final logout, not on a schedule. No <code>pam_exec</code> hook on session
       close and no cleanup script that signals user processes.</li>
-      <li><strong>What remains open is who issued the stop.</strong> Four of the account's
+      <li><strong>What remained open when this was written was who issued the stop.</strong>
+      Four of the account's
       scopes currently read <code>SubState=abandoned</code> and two of them hold multiplexer
       servers that have run for days, so an abandoned scope is plainly survivable and the
       difference between the scopes that died and the ones that did not is not visible from
       user space. The system journal names the caller; on this host it is readable only by
-      <code>adm</code>, <code>systemd-journal</code> or <code>wheel</code>.</li>
+      <code>adm</code>, <code>systemd-journal</code> or <code>wheel</code>. <strong>That
+      question has since been answered without the journal</strong> — the caller was this
+      account's own test fixture, which is the retirement note above; the exclusion work
+      in this section is what left the account's own tooling as the remaining candidate.</li>
     </ul>
 
     <h2 id="s5">§5 — What an answer changes on our side</h2>
+    <p>The answer arrived from this side, not from the site (retirement note above), so
+    neither branch below arose: the manager is not being stopped, and the login node's
+    failure was never one of lifetime. The branches are kept as written because they are what
+    the request would have decided.</p>
     <p>Either outcome is useful. If the behaviour is corrected, a long-lived agent process
     can stay on the login node, and moving the work onto compute becomes the robust choice
     rather than the only one. If the site confirms the stop is expected, we treat the login
