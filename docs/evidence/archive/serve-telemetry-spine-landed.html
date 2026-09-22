@@ -2746,6 +2746,83 @@ status.</p>
     section-omission test now names both unread sections, and the no-probe test now checks
     <code>serve_config</code> is absent beside the other three.</p>
 
+    <h2 id="sglang-vocabulary">The SGLang family's own cache and speculative spellings</h2>
+
+    <p>The reader carried the vLLM spellings for the prefix-cache and speculative series and no
+    others, so a scrape published by SGLang left those columns unresolved — on the record the
+    lane had already written, 79,265 rows with no prefix-cache hit rate and no speculative
+    counter between them. The two families differ in <em>shape</em> here, not only in spelling,
+    and the change handles both differences as differences rather than as a rename.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/serve-telemetry-spine/sglang-vocabulary-columns.svg"
+           alt="Two published vocabularies, one per family, resolving onto a shared middle band of canonical columns; rows where a family publishes nothing are drawn dashed and empty."
+           style="max-width:100%">
+      <figcaption>Per column, which family resolves it and from which series. A dashed cell is a
+      family that genuinely publishes nothing for that column, left absent rather than zero.</figcaption>
+    </figure>
+
+    <p><strong>The rate is stated by one family and derived elsewhere.</strong> SGLang publishes
+    <code>cache_hit_rate</code> as a single gauge, so it fills its own canonical column
+    (<code>prefix_cache_hit_rate</code>); vLLM publishes no rate series at all and the
+    derivation it already had — hits over queries — stays one layer up in the record, because
+    assembling a second copy of that derivation inside the reader is the drift this module
+    exists to end. SGLang's query denominator stays absent: it publishes no query counter, its
+    denominator being a sum of prefill modes rather than a series. Its hits column does resolve,
+    from <code>cached_tokens_total</code> summed over the family's <code>cache_source</code>
+    labels.</p>
+
+    <p><strong>The speculative names are not paired one to one.</strong> SGLang publishes
+    acceptance gauges — <code>spec_accept_rate</code>, <code>spec_accept_length</code>,
+    <code>spec_num_draft_tokens</code> — where vLLM publishes cumulative
+    <code>spec_decode_num_draft_tokens_total</code> and
+    <code>spec_decode_num_accepted_tokens_total</code> counters. The gauges therefore carry
+    their own canonical columns (<code>accept_rate</code>, <code>accept_length</code>,
+    <code>active_draft_tokens</code>) and the cumulative counters keep theirs, rather than
+    either side being mapped onto the other. The active draft-token setting is a distinct
+    quantity from vLLM's similarly named cumulative count and is carried separately for that
+    reason. Each column's meaning per family is stated in the code beside its mapping, and the
+    series semantics were read from the live exposition's own <code># HELP</code> text rather
+    than inferred from the names.</p>
+
+    <p><strong>Measured on the live lane, through the finished reader</strong>
+    (<code>http://98dci4-gpu-0003:18810/metrics</code>, job <code>1273253</code>): family
+    <code>sglang</code>, model <code>deepseek-v4.1-flash</code>, hit rate
+    <strong>0.997633</strong>, hits <strong>5,775,464,448</strong>, query column
+    <strong>absent</strong>, the three cache tiers populated (device 5,758,174,208; host
+    18,404,352; storage 0), and <code>spec_decode {'accept_rate': 0.6454, 'accept_length':
+    4.2270, 'active_draft_tokens': 6.0}</code> — both fence columns carrying real magnitudes
+    rather than the zeros the fixture holds. On the same scrape SGLang's two cache
+    decompositions differ by 1,114,112 of 5.78 billion, because the tier split sums
+    <code>prefill_effective_tokens_total</code> by mode while the hits column sums
+    <code>cached_tokens_total</code> by source; both are read as themselves and neither
+    corrects the other.</p>
+
+    <p><strong>The negative control.</strong> The load-bearing claim is that the SGLang rate
+    column resolves from that family's own published rate, so that mapping is the one mutated —
+    <code>GAUGE_SERIES["prefix_cache_hit_rate"][FAMILY_SGLANG]</code> renamed
+    <code>("cache_hit_rate",)</code> to <code>("cache_rate_renamed",)</code>. Four of 23 tests
+    redden, the named one among them:
+    <code>test_the_recorded_scrape_resolves_the_cache_and_speculative_columns</code> with
+    <code>KeyError: 'prefix_cache_hit_rate'</code>. The module was restored byte-identically
+    (sha256 <code>3f5816f78e150d34…</code>) and the file re-run green. The log, its declared
+    mutation verbatim on line 1, is
+    <code>docs/figures/serve-telemetry-spine/controls/sglang-vocabulary-columns.log</code>.
+    Gates: <strong>23 passed</strong> in <code>tests/test_engine_metrics.py</code> against
+    <strong>19</strong> at base revision <code>c0b33486</code>, <strong>65 passed</strong> for
+    the four-file gate against <strong>61</strong>, and
+    <code>ruff check imas_ambix tests</code> exit 0.</p>
+
+    <p><strong>Two seams left to other nodes, stated as findings.</strong> The recorded fixture
+    is an early-life scrape whose four relevant series all read <code>0.0</code>, so the
+    assertions it drives are presence assertions, paired with a synthetic non-zero exposure of
+    the same shapes so a key cannot pass while carrying no magnitude; refreshing that fixture
+    is the out-of-scope write the fixture node already recorded. And the flat
+    <code>prefix_cache_hit_rate</code> and <code>spec_acceptance_rate</code> columns in
+    <code>serving_receipts.py</code> are still derived from the counters, so a directly
+    published rate needs that layer repointed at the new canonical column before it reaches a
+    row — a gap already recorded on the plan's followup list and not repaired here.</p>
+
 </main>
 </body>
 </html>

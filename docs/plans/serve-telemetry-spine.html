@@ -315,6 +315,114 @@
     <code>hicache_host_used_tokens=55,552</code>) and sits outside this node's write scope,
     so the refresh belongs to a node that carries both files.</p>
 
+    <h3 id="s2-sglang-vocabulary">The SGLang family's own spellings for the cache and speculative series</h3>
+
+    <p><strong>Landing note (node <code>sglang-vocabulary</code>).</strong> The reader knew the
+    vLLM spellings for the prefix-cache and speculative quantities and no others, so a scrape
+    published by SGLang left those columns unresolved: of 79,265 rows in
+    <code>receipts/deepseek-v4-1-flash-1273253.jsonl</code>, none carried a prefix-cache hit rate
+    and none carried a speculative counter. The live engine the record is drawn from publishes
+    <code>sglang:cache_hit_rate</code>, <code>sglang:cached_tokens_total</code>,
+    <code>sglang:uncached_prompt_tokens*</code>, <code>sglang:spec_accept_rate</code>,
+    <code>sglang:spec_accept_length</code>, <code>sglang:spec_num_draft_tokens</code>,
+    <code>sglang:spec_verify_calls_total</code> and <code>sglang:spec_num_steps</code>, and no
+    <code>prefix_cache</code> name at all. Two properties of that difference needed handling as
+    differences rather than as a rename.</p>
+
+    <p>First, <strong>the cache hit rate is a shape difference, not a spelling one.</strong>
+    SGLang states the rate itself, as one gauge, where the vLLM path derives a rate from a hits
+    counter — so the family that publishes the rate directly must not be made to fake the
+    counters it does not publish. SGLang's rate maps onto its own canonical column
+    (<code>prefix_cache_hit_rate</code>) and the derivation the vLLM path performs stays where
+    it is; nothing new is assembled inside the reader, because a second implementation of one
+    derivation is the condition this plan exists to repair. The query denominator stays
+    <em>unresolved</em> for SGLang: it publishes no query counter, its denominator being a sum
+    of prefill modes rather than a series. The hits counter does resolve, from
+    <code>cached_tokens_total</code>, which SGLang does publish.</p>
+
+    <p>Second, <strong>the speculative names do not correspond one to one, so they are not
+    mapped as if they did.</strong> SGLang publishes acceptance gauges — a rate, a list of
+    acceptance lengths, and the active draft-token setting — where vLLM publishes cumulative
+    accepted and draft token counters. The gauges therefore get their own canonical columns
+    (<code>accept_rate</code>, <code>accept_length</code>, <code>active_draft_tokens</code>), and
+    the code states what each column means for each family rather than pairing names across.
+    The active draft-token setting in particular is a distinct quantity from vLLM's similarly
+    named cumulative draft-token count, and the two are carried separately for exactly that
+    reason. Counter semantics were taken from the exposition's own <code># HELP</code> text on
+    the live endpoint, not inferred from the names.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/serve-telemetry-spine/sglang-vocabulary-columns.svg"
+           alt="Two published vocabularies, one per family, resolving onto a shared middle band of canonical columns; rows where a family publishes nothing are drawn dashed and empty, and the note distinguishes names that are merely spelled differently from names that mean different quantities."
+           style="max-width:100%">
+      <figcaption>Per-column, which family resolves it and from which series. A dashed
+      cell is a family that genuinely publishes nothing for that column, left absent rather
+      than filled with a zero.</figcaption>
+    </figure>
+
+    <p><strong>What resolves, per column, and what stays absent.</strong>
+    <code>prefix_cache_hit_rate</code> resolves for SGLang from <code>cache_hit_rate</code> and
+    for vLLM from neither series — the vLLM path derives it one layer up, from
+    <code>prefix_cache_hits_total</code> and <code>prefix_cache_queries_total</code>.
+    <code>prefix_cache_hits</code> resolves for SGLang from <code>cached_tokens_total</code>
+    (summed over its <code>cache_source</code> labels) and for vLLM from
+    <code>prefix_cache_hits_total</code>. <code>prefix_cache_queries</code> resolves for vLLM
+    only. On the speculative side vLLM resolves <code>draft_tokens_total</code> and
+    <code>accepted_tokens_total</code> and nothing else, while SGLang resolves
+    <code>accept_rate</code>, <code>accept_length</code> and <code>active_draft_tokens</code>
+    and neither cumulative counter. Every one of those absences is an absent key, not a null and
+    not a zero, on the rule §2 already states.</p>
+
+    <p><strong>Read through the finished reader against the live lane</strong>
+    (<code>http://98dci4-gpu-0003:18810/metrics</code>, job <code>1273253</code>): family
+    <code>sglang</code>, model <code>deepseek-v4.1-flash</code>,
+    <code>prefix_cache_hit_rate 0.9976303317535545</code>, <code>prefix_cache_hits
+    5775464448.0</code>, <code>prefix_cache_queries</code> absent, the cached-token tier split
+    populated (device 5,758,174,208; host 18,404,352; storage 0), <code>spec_decode
+    {'accept_rate': 0.6454, 'accept_length': 4.2270, 'active_draft_tokens': 6.0}</code>. Both
+    columns the fence names now carry real magnitudes rather than zeros, on the engine the
+    record is drawn from. One reading is worth stating beside the other: SGLang's two cache
+    decompositions disagree slightly — the tier split sums
+    <code>prefill_effective_tokens_total</code> by mode, the legacy hits column sums
+    <code>cached_tokens_total</code> by source — and on this scrape they differ by
+    1,114,112 of 5.78 billion. They are two genuinely different published counters, so both are
+    read as themselves and neither is used to correct the other.</p>
+
+    <p><strong>The negative control, and what it separates.</strong> The load-bearing claim is
+    that the SGLang rate column resolves from the family's own published rate, so that mapping
+    is the one given a mutation. Renaming SGLang's entry in <code>GAUGE_SERIES</code> for
+    <code>prefix_cache_hit_rate</code> from <code>("cache_hit_rate",)</code> to
+    <code>("cache_rate_renamed",)</code> reddens <strong>4 of 23</strong> tests in the file,
+    the named one among them:
+    <code>test_the_recorded_scrape_resolves_the_cache_and_speculative_columns</code> fails with
+    <code>KeyError: 'prefix_cache_hit_rate'</code>, beside
+    <code>test_a_resolved_gauge_carries_its_magnitude_not_merely_its_key</code>,
+    <code>test_the_recorded_scrape_sources_every_canonical_field</code>
+    (<code>unresolved ['prefix-cache hit rate (prefix_cache_hit_rate)']</code>) and
+    <code>test_both_families_report_every_quantity_they_publish</code>. The module was then
+    restored byte-identically (sha256 <code>3f5816f78e150d34…</code>) and the file re-run green
+    at 23 passed. The full log, its declared mutation verbatim on line 1, is
+    <code>docs/figures/serve-telemetry-spine/controls/sglang-vocabulary-columns.log</code>.
+    Gates: <code>pytest tests/test_engine_metrics.py</code> reports <strong>23 passed</strong>
+    against <strong>19</strong> at base revision <code>c0b33486</code>, the four-file gate
+    (<code>test_engine_metrics</code>, <code>test_agent_lane_sglang</code>,
+    <code>test_agent_lane_gzip</code>, <code>test_agent_serving_receipts</code>) reports
+    <strong>65 passed</strong> against <strong>61</strong> at base, and
+    <code>ruff check imas_ambix tests</code> exits 0. Both runs are on the login node and are
+    sub-second unit runs over fixtures they build or read, with no corpus read and no GPU.</p>
+
+    <p><strong>What this lands outside, and what it does not touch.</strong> The recorded
+    fixture is unchanged — it is the early-life scrape the previous node left, and its four
+    present series all read <code>0.0</code>, so the assertions it drives are presence
+    assertions, with a second synthetic exposure over non-zero values of the same shapes so
+    that a resolved key cannot pass while carrying no magnitude. Two seams stay open and belong
+    to other nodes: the fixture does not carry <code>cached_tokens_total</code> or the
+    speculative counters, so refreshing it is the same out-of-scope write the previous node
+    recorded; and the flat <code>prefix_cache_hit_rate</code> and <code>spec_acceptance_rate</code>
+    derivations in <code>serving_receipts.py</code> are computed from the counters, so a
+    directly published rate needs that layer repointed to the new canonical column before a
+    receipt row shows it. Neither is this plan node's change, and neither is repaired by it.</p>
+
     <h2 id="s3">§3 — Record the cards, the host and the node's job table</h2>
 
     <p>Add three local probes to the recorder's tick. All three are ordinary local calls at
