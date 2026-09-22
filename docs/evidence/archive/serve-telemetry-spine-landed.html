@@ -2366,7 +2366,7 @@ except ImportError:
 
     <figure>
       <img src="/imas-ambix/figures/serve-telemetry-spine/hostless-row-resolution.svg"
-           alt="Top: a file written on a GPU node and read on the login node, whose rows carry no host, was keyed under the login node's nodename, its boot and a key_kind of host+boot that reads exactly like a recorded pair. Bottom: the host a key carries now comes from the row's own host, or the caller's host, or the receipts file's job id resolved through sacct, and otherwise is the explicit unknown-host marker; a job that does not resolve is refused rather than guessed.">
+           alt="Top: a file written on a GPU node and read on the login node, whose rows carry no host, was keyed under the login node's nodename, its boot and a key_kind of host+boot that reads exactly like a recorded pair. Bottom: the host a key carries now comes from the row's own host, or the caller's host, or the receipts file's job id resolved through sacct and scontrol show hostnames, and otherwise is the explicit unknown-host marker; a job that does not resolve is refused rather than guessed.">
       <figcaption>A file written on one machine and read on another: the reader's identity removed, the file's own job id added.</figcaption>
     </figure>
 
@@ -2384,7 +2384,7 @@ except ImportError:
     <code>deepseek-v4-1-flash-1271709.jsonl</code> in the agents' receipts directory holds 514
     rows carrying no host. Ingested on the login node under the old code they were stored as
     <code>('98dci4-srv-1006.iter.org', '82c41dfa-a445-4fb2-8416-04b44c3d874c', 'host+boot')</code>.
-    <code>sacct -j 1271709 -X -n -o NodeList</code> reports <code>98dci4-gpu-0003</code>: the
+    <code>sacct -j 1271709 -X -n -P -o NodeList</code> reports <code>98dci4-gpu-0003</code>: the
     writer and the reader are different machines, and the key named the reader. This is not a
     fixture — it is the production directory, and the fallback had the direction of the fact
     backwards for every file in it.</p>
@@ -2417,11 +2417,17 @@ except ImportError:
         </tr>
         <tr>
           <td>The receipts host is resolved, or refused</td>
-          <td><code>receipts_host</code> runs exactly
-          <code>sacct -j 1271709 -X -n -o NodeList</code> and returns the single node it prints. It
-          raises rather than guessing when the name carries no job id, when <code>sacct</code> is
-          unavailable, when it exits nonzero, or when it prints anything other than exactly one
-          node — a host is recorded or refused, never inferred.</td>
+          <td><code>receipts_host</code> resolves the node in two reads — <code>sacct -j 1271709 -X
+          -n -P -o NodeList</code> for the job's node list, then <code>scontrol show hostnames</code>
+          to expand it — and returns the node only when the expansion yields exactly one line. Both
+          reads are load-bearing: <code>sacct</code> reports a multi-node allocation as one
+          compressed hostlist token (<code>98dci4-clu-[5073-5086]</code>, one whitespace-delimited
+          field naming fourteen machines), and at its default column width it truncates the same
+          token to <code>98dci4-clu-[50+</code>, so counting fields cannot separate one node from
+          many and a truncated token is not a hostname at all. It raises rather than guessing when
+          the name carries no job id, when <code>sacct</code> or <code>scontrol</code> is
+          unavailable, or when the expansion is not exactly one node — a host is recorded or
+          refused, never inferred.</td>
         </tr>
       </tbody>
     </table>

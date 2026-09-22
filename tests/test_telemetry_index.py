@@ -759,44 +759,78 @@ def test_a_receipts_name_yields_the_job_id_it_carries():
 
 
 def test_the_receipts_host_is_resolved_from_the_job_id(monkeypatch):
-    """The job's ``NodeList`` is the machine the recorder's rows came from."""
-    captured = {}
+    """The job's node list is read parsably and expanded to one node per line.
+
+    Two reads, because the scheduler compresses an allocation's nodes into a
+    single hostlist token: ``-P`` keeps that token from being cut short at a
+    column width, and ``scontrol show hostnames`` turns it into one line per
+    machine. A one-node job passes through the expansion unchanged.
+    """
+    calls = []
 
     def fake_run(argv, **kwargs):
-        captured["argv"] = argv
-        return SimpleNamespace(returncode=0, stdout="98dci4-gpu-0003\n")
+        calls.append(list(argv))
+        if argv[0] == "sacct":
+            return SimpleNamespace(
+                returncode=0, stdout="98dci4-gpu-0003\n", stderr=""
+            )
+        assert argv == ["scontrol", "show", "hostnames", "98dci4-gpu-0003"]
+        return SimpleNamespace(returncode=0, stdout="98dci4-gpu-0003\n", stderr="")
 
     monkeypatch.setattr(telemetry_index.subprocess, "run", fake_run)
     assert receipts_host("/shared/receipts/deepseek-v4-1-flash-1271709.jsonl") == (
         "98dci4-gpu-0003"
     )
-    assert captured["argv"] == [
-        "sacct",
-        "-j",
-        "1271709",
-        "-X",
-        "-n",
-        "-o",
-        "NodeList",
+    assert calls == [
+        ["sacct", "-j", "1271709", "-X", "-n", "-P", "-o", "NodeList"],
+        ["scontrol", "show", "hostnames", "98dci4-gpu-0003"],
     ]
 
 
 def test_a_job_that_does_not_resolve_is_refused_not_guessed(monkeypatch):
-    """A name with no job id, a purged job, and an ambiguous one all refuse.
+    """A name with no job id, a purged job, and a many-node job all refuse.
 
     A guess here is a key silently asserting a machine no row recorded, so
-    every unresolved shape raises rather than falling back to the reader.
+    every unresolved shape raises rather than falling back to the reader. The
+    many-node case is the one the scheduler's own output makes easy to miss: a
+    fourteen-node allocation is reported as a single compressed token, so
+    counting the fields of that report sees one host, and the same token at the
+    default column width reads ``98dci4-clu-[50+`` -- still one field, and not
+    a hostname at all. Counting the lines of the expanded list is what separates
+    one machine from many, and both shapes are refused here.
     """
     with pytest.raises(ValueError):
         receipts_host("serve.jsonl")
 
-    def output(text, returncode=0):
+    def scheduler(
+        sacct_stdout, hosts_stdout="", sacct_rc=0, hosts_rc=0, hosts_stderr=""
+    ):
         def run(argv, **kwargs):
-            return SimpleNamespace(returncode=returncode, stdout=text)
+            if argv[0] == "sacct":
+                return SimpleNamespace(
+                    returncode=sacct_rc, stdout=sacct_stdout, stderr=""
+                )
+            return SimpleNamespace(
+                returncode=hosts_rc, stdout=hosts_stdout, stderr=hosts_stderr
+            )
 
         return run
 
-    for fake in (output("\n"), output("node-a\nnode-b\n"), output("", 1)):
+    fourteen_nodes = "".join(f"98dci4-clu-{n}\n" for n in range(5073, 5087))
+
+    for fake in (
+        # Purged from sacct, or otherwise unreadable: nothing is reported.
+        scheduler("", sacct_rc=1),
+        # Fourteen nodes compressed into one token -- one field, many machines.
+        scheduler("98dci4-clu-[5073-5086]\n", fourteen_nodes),
+        # The same token truncated at the default column width: scontrol rejects
+        # it on stderr, exits 0, and prints no node at all.
+        scheduler(
+            "98dci4-clu-[50+\n",
+            "",
+            hosts_stderr="Invalid hostlist: 98dci4-clu-[50+\n",
+        ),
+    ):
         monkeypatch.setattr(telemetry_index.subprocess, "run", fake)
         with pytest.raises(ValueError):
             receipts_host("deepseek-v4-1-flash-1271709.jsonl")

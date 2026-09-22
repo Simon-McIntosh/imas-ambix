@@ -341,13 +341,23 @@ def receipts_job_id(path: str | Path) -> str | None:
 def receipts_host(path: str | Path) -> str:
     """The node a receipts file was written on, from the job id in its name.
 
-    The recorder runs inside the allocation, so the job's ``NodeList`` is the
-    machine its rows came from. The lookup reads the scheduler's own record and
-    is deliberately allowed to fail: a job still running, purged from ``sacct``,
-    or spanning more than one node resolves to nothing usable, and a guess here
-    is a key silently asserting a machine no row recorded. Refusing is the only
-    safe answer, because the caller can name *host* explicitly or leave the row
-    under the unknown-host marker.
+    The recorder runs inside the allocation, so the job's node list is the
+    machine its rows came from. Two reads are needed because the scheduler
+    reports an allocation's nodes as a single compressed hostlist token -- a
+    fourteen-node job is ``98dci4-clu-[5073-5086]``, one whitespace-delimited
+    field that names fourteen machines -- and because ``sacct`` truncates that
+    field at its default column width, so the same job also reads
+    ``98dci4-clu-[50+``. Counting fields therefore cannot separate one node from
+    many, and a truncated token is not a hostname at all. ``sacct`` is asked for
+    parsable output so the value is never cut short, and ``scontrol show
+    hostnames`` expands the list to one node per line, which is the count that
+    means what it says.
+
+    The lookup is deliberately allowed to fail: a job still running, purged from
+    ``sacct``, or spanning more than one node resolves to nothing usable, and a
+    guess here is a key silently asserting a machine no row recorded. Refusing
+    is the only safe answer, because the caller can name *host* explicitly or
+    leave the row under the unknown-host marker.
     """
     job_id = receipts_job_id(path)
     if job_id is None:
@@ -357,7 +367,7 @@ def receipts_host(path: str | Path) -> str:
         )
     try:
         completed = subprocess.run(
-            ["sacct", "-j", job_id, "-X", "-n", "-o", "NodeList"],
+            ["sacct", "-j", job_id, "-X", "-n", "-P", "-o", "NodeList"],
             capture_output=True,
             text=True,
             check=False,
@@ -366,11 +376,30 @@ def receipts_host(path: str | Path) -> str:
         raise ValueError(
             f"could not resolve the host of {path}: sacct is unavailable"
         ) from error
-    nodes = completed.stdout.split()
-    if completed.returncode != 0 or len(nodes) != 1:
+    hostlists = [
+        line for line in completed.stdout.splitlines() if line.strip()
+    ]
+    if completed.returncode != 0 or len(hostlists) != 1:
+        raise ValueError(
+            f"job {job_id} ({path}) did not resolve to one node list: "
+            f"{', '.join(hostlists) or completed.stderr.strip() or 'no node reported'}"
+        )
+    try:
+        expanded = subprocess.run(
+            ["scontrol", "show", "hostnames", hostlists[0].strip()],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError as error:
+        raise ValueError(
+            f"could not resolve the host of {path}: scontrol is unavailable"
+        ) from error
+    nodes = [line.strip() for line in expanded.stdout.splitlines() if line.strip()]
+    if expanded.returncode != 0 or len(nodes) != 1:
         raise ValueError(
             f"job {job_id} ({path}) did not resolve to one node: "
-            f"{completed.stdout.strip() or 'no node reported'}"
+            f"{', '.join(nodes) or expanded.stderr.strip() or 'no node reported'}"
         )
     return nodes[0]
 
