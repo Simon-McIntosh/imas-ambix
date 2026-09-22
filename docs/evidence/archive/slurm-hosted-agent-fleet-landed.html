@@ -1463,6 +1463,114 @@ burst_usec 0</code></pre>
     would be a picture of a table.</p>
   </section>
 
+<section id="lingering-retire">
+    <h2>The user lingering was never at fault — the teardown came from this account's own test fixture</h2>
+    <p>The site request written against the user-lingering defect was never sent. The stop it
+    was written to explain came from a reckon test fixture whose signalled scope was wider than
+    the work the fixture had started, so the login node's user manager and the linger
+    configuration it was blamed for were never involved.</p>
+
+    <h3>The mechanism</h3>
+    <p>The fixture's worker-process teardown signalled a <em>process group</em> identified by a
+    pid it did not always lead; a pid taken from a <code>/proc</code> scan or from a run record
+    can report a process group it does not lead, and the group a process nobody leads reports
+    is group 1. Signalling group 1 is <code>kill(-1, …)</code> — every process the caller may
+    signal, across every control group and session on the machine. Measured in the correction's
+    own test run, the call returned in ~80 µs having reached three process groups, only one of
+    them the fixture's. Nothing at the call site showed the reach: the argument was a plausible
+    pid, and a pid that belongs to group 1 reads exactly like a pid that leads its own group
+    until the group is asked for. The correction landed in the reckon repository at
+    <code>586a1ac6</code> (2026-09-20 15:06:18 CEST): the group signal is reserved for a process
+    that leads its own group, and
+    <code>tests/test_worker_signal_reach.py</code> pins the reach at five cases — a process that
+    does not lead its own group is signalled alone, the broadcast group is never signalled, the
+    caller's own group is never signalled, a detached leader still takes its children, and a
+    process that has vanished is not an error.</p>
+
+    <h3>The interval since the correction</h3>
+    <p>Read live on the login node <code>98dci4-srv-1006</code> at 20:30:43 CEST on
+    2026-09-22:</p>
+    <pre><code>$ systemctl show user@39486.service -p Linger -p ActiveState -p ActiveEnterTimestamp
+Linger=yes
+ActiveState=active
+ActiveEnterTimestamp=Sun 2026-09-20 15:34:42 CEST
+$ loginctl list-sessions | grep -c 39486
+14</code></pre>
+    <p>Fourteen sessions for this account out of nineteen host-wide, so the user manager is
+    holding a fleet and not idling. The linger file is present on disk, root-owned, written
+    2026-08-08 17:07 — it was never disabled and never needed repair. The user manager has now
+    been continuously active for two days and five hours, the longest quiet interval in the
+    record; the previous record held two teardowns inside five hours.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/slurm-hosted-agent-fleet/lingering-retire-timeline.svg"
+           alt="Timeline from 2026-09-18 to 2026-09-22 showing five recorded teardowns or fleet losses, the fixture correction at 15:06:18 on 2026-09-20, and an unbroken active interval for the user manager from 15:34:42 on 2026-09-20">
+      <figcaption>The five recorded occurrences, the fixture correction, and the interval since
+      it. Two of the five were read from the system journal, two reconstructed from file
+      modification times, and the last recorded live by the signal canary and topology
+      sampler.</figcaption>
+    </figure>
+
+    <h3>The documents, and the request</h3>
+    <p><a href="/imas-ambix/site-request-user-lingering.html">The site request</a> carries a
+    retirement note at its head and states that it was never sent; neither ask in it — a
+    logind journal read and this account's addition to a journal-reading group — was made, so
+    nothing is outstanding with the site.
+    <a href="/imas-ambix/login-session-scope-teardown">The session-scope teardown record</a>
+    opens with the resolution, and its mechanism sections stand unchanged: the connection is
+    the vector through which the signal reached the session scopes, and the exclusions it
+    records — manager fault, configuration, and the processor-contention theories — remain
+    excluded, now for a second and independent reason. Neither document still asserts that
+    lingering is not holding; the assertions were removed rather than contradicted in place,
+    and both carry the corrected title.</p>
+
+    <h3>What this record does not establish</h3>
+    <p>The correction precedes the last manager restart by twenty-eight minutes, so the quiet
+    interval is measured from that restart, not from the correction, and nothing here
+    establishes what happened in the twenty-eight-minute gap — the figure marks both times
+    separately for that reason. The occurrences at 19:56:22 and 22:36:23 on 2026-09-19 are
+    reconstructed from file modification times rather than read from the journal, and that
+    reconstruction is the earlier record's, not this node's. No live re-read of the fixture
+    was performed: the correction is evidenced by its commit and its test file, and the
+    runtime reach it removes is the same reach the fixture's own test run measured. The cause
+    is established for the teardowns recorded here; the earlier occurrences are consistent
+    with it, not proved by it.</p>
+
+    <h3>Gates</h3>
+    <table>
+      <thead><tr><th>Gate</th><th>Observed result</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Stale assertion removed</td>
+          <td><code>grep -ni 'lingering is not holding'</code> over both research documents:
+          no matches, exit 1</td>
+        </tr>
+        <tr>
+          <td>Document audit</td>
+          <td><code>reckon audit-doc</code> over both: <code>OK</code> for each, exit 0</td>
+        </tr>
+        <tr>
+          <td>Self-applied mutation</td>
+          <td>In a scratch copy, the retirement note's figure <code>src</code> loses its
+          project prefix: <code>FAIL (1 error, 0 warn, 0 info)</code>,
+          <code>[img-relative-src]</code>, exit 1</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>Both gate logs' first lines name the revision, the tree and the command; the logs are
+    <code>audit-doc-lingering.log</code> and <code>audit-doc-negative-control.log</code> under
+    the run directory
+    <code>~/.config/reckon/crew/runs/r-20260922T182916246197-fleet-lingering-retire/logs/</code>.</p>
+
+    <h3>An instrument limit found while gating this</h3>
+    <p><code>reckon audit-doc</code> validates the spelling class of an image path but not that
+    the file it names exists: a scratch copy whose figure <code>src</code> was misspelled by
+    one letter (<code>lingering-retire-timline.svg</code>, still project-absolute) reported
+    <code>OK</code> and exit 0. The figure's existence was therefore verified by a direct read
+    — 4385 bytes at the path both documents name — rather than by the audit, and the gap is
+    recorded as a follow-on against the audit tool rather than repaired here.</p>
+  </section>
+
 </main>
 </body>
 </html>

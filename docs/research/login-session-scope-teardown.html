@@ -6,16 +6,75 @@
   <meta name="docs-project" content="imas-ambix">
   <meta name="reckon-type"  content="doc">
   <meta name="plan-slug"    content="login-session-scope-teardown">
-  <meta name="plan-title"   content="Why the Agent Fleet Dies With the Connection That Started It">
-  <meta name="plan-summary" content="Instrumented: a login session scope is signalled cgroup-wide, killing every process born in it however detached">
+  <meta name="plan-title"   content="Why the Agent Fleet Dies With the Connection That Started It — resolved: a broadcast kill from our own test fixture">
+  <meta name="plan-summary" content="Instrumented: a login session scope is signalled cgroup-wide, killing every process born in it however detached. Resolved 2026-09-22: the sender was a reckon test fixture whose process teardown matched every process in the slice, and it has been corrected">
   <meta name="plan-tags"    content="agent-serving">
   <meta name="plan-informs" content="slurm-hosted-agent-fleet">
-  <title>Why the Agent Fleet Dies With the Connection That Started It | imas-ambix</title>
+  <title>Why the Agent Fleet Dies With the Connection That Started It — resolved: a broadcast kill from our own test fixture | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 </head>
 <body>
   <main class="plan-doc">
+
+    <h2 id="outcome">Outcome — the sender was this account's own process teardown</h2>
+    <p>The question §4c left open, <em>who issued the stop</em>, is answered, and the answer
+    is not the site: the teardown was produced by a reckon test fixture on this account.
+    Written to stop finished workers, the fixture passed a process id taken from a
+    <code>/proc</code> scan or a run record straight into <code>os.killpg</code>. That call
+    takes a process <strong>group</strong> id, and such a pid can report a group it does not
+    lead — a pid reparented to init, or one started without a session of its own, reports
+    group <code>1</code>, for which <code>killpg</code> is the whole-account broadcast
+    <code>kill(-1, ...)</code>. At the call site the argument still looks like one process,
+    so the reach is invisible where it is written, and the set it acts on is one its author
+    never saw.</p>
+    <p><strong>The over-reach was measured, not inferred.</strong> The fixture's own
+    instrumented run signalled three instrumented processes sitting in three unrelated
+    control groups and three unrelated process groups within eighty microseconds of each
+    other, from one pytest process, with <code>si_code</code> reporting a deliberate kill by
+    a process — a reach no single-group signal can produce. It is corrected in reckon commit
+    <code>586a1ac6</code> (2026-09-20 15:06:18 CEST, <em>a worker signal reaches the worker,
+    never the whole account</em>): <code>signal_worker</code> now reserves the group signal
+    for a process that leads its own group — the case the group signal exists for, and true
+    of anything started detached on purpose — and signals anything else alone, leaving its
+    children running. The session-teardown fixture and the orphan-watcher fixture both route
+    through it.</p>
+    <p><strong>The evidence that it is over.</strong> Measured on the login node
+    2026-09-22 20:30 CEST: <code>loginctl show-user mcintos -p Linger</code> returns
+    <code>Linger=yes</code>, and <code>systemctl show user@39486.service</code> reports the
+    manager <code>ActiveState=active</code> continuously since <strong>2026-09-20 15:34:42
+    CEST</strong> — about two days and five hours unbroken, with <strong>14 sessions
+    held</strong> for the account at the reading — against the record in §1, where the same
+    teardown arrived twice inside five hours and five times inside three days. Two readings
+    the earlier sections took are unchanged and still true: the linger file
+    <code>/var/lib/systemd/linger/mcintos</code> is present and root-owned, and the account
+    is in none of <code>adm</code>, <code>systemd-journal</code> or <code>wheel</code>.</p>
+    <figure>
+      <img src="/imas-ambix/figures/slurm-hosted-agent-fleet/lingering-retire-timeline.svg"
+           alt="Timeline from 2026-09-18 to 2026-09-22 showing five recorded teardowns or fleet losses, the fixture correction at 15:06:18 on 2026-09-20, and an unbroken active interval for user@39486.service from 15:34:42 that day to the reading two days later">
+      <figcaption>Figure — the recorded occurrences, the fixture correction, and the
+      unbroken interval that followed. The quiet interval begins at the last user-manager
+      restart, 28 minutes after the correction landed; what happened in that 28-minute gap is
+      not established here, and no teardown has been recorded in the interval since.</figcaption>
+    </figure>
+    <p><strong>What this changes, and what it does not.</strong> The mechanism in §4 and §5
+    stands and is unchanged: a login session scope is configured
+    <code>KillSignal=15</code>/<code>SendSIGHUP=yes</code> under
+    <code>KillMode=control-group</code>, so a stop aimed at a live scope takes every process
+    born in it, however detached — which is why the fleet was the blast radius. What the
+    outcome replaces is the trigger: the connection that started the scopes was the
+    <em>vector</em>, not the cause, and no login-session lifetime defect was ever
+    demonstrated. §3's exclusions, including the direct test showing that a client detaching
+    only abandons a scope, all stand; the one hypothesis they did not turn up was the
+    account's own tooling, which is the category a user-space investigation is least likely
+    to suspect.</p>
+    <p><strong>Two consequences follow.</strong> The site request this record's open question
+    produced is <a href="/imas-ambix/site-request-user-lingering.html">retired unsent</a>: it
+    would have asked the site to read a logind journal for damage originating in this
+    account's own tooling. And the remedy a login-session defect would have forced — the
+    scheduler allocation in the fleet-hosting plan — no longer rests on this defect at all;
+    that plan's move is justified by the throttling evidence, and this record is not
+    evidence for it.</p>
 
     <h2 id="s1">§1 — The symptom, and why it resisted diagnosis</h2>
     <p>Three times over two days the entire agent fleet on the login node
@@ -160,12 +219,14 @@ systemd[1]:      Starting User Manager for UID 39486...        &lt;- 1-2 seconds
     later, which is why its start timestamp always sits just after the event.</p>
     <p>It repeats often. The same teardown appears twice in a five-hour window on
     2026-09-18, at 00:57:08 and at 05:46:41.</p>
-    <p><strong>What remains unexplained is why it happens at all</strong>, because
-    lingering is enabled for this account and persisted on disk
-    (<code>/var/lib/systemd/linger/mcintos</code>, written 2026-08-08). Lingering exists
-    precisely to keep a user manager running when the user has no sessions, and it is not
-    holding. That is now a narrow, answerable question to put to the site with the journal
-    lines above as evidence, rather than the open-ended one it replaced.</p>
+    <p><strong>What remained unexplained at the time of writing was why it happened at
+    all</strong>, because
+    lingering was enabled for this account and persisted on disk
+    (<code>/var/lib/systemd/linger/mcintos</code>, written 2026-08-08), and lingering exists
+    precisely to keep a user manager running when the user has no sessions. That question is
+    answered in the outcome section above, and the answer is this account's own test fixture
+    rather than anything wrong with the manager: the linger configuration was never at
+    fault, and the journal read this paragraph went on to propose was never requested.</p>
     <p>Earlier drafts of this record reasoned from user-space observation alone. Four of
     this account's scopes currently read
     <code>SubState=abandoned</code>, which is what <code>KillUserProcesses=no</code>
@@ -173,9 +234,12 @@ systemd[1]:      Starting User Manager for UID 39486...        &lt;- 1-2 seconds
     for two days. So an abandoned scope is plainly survivable, and the controlled test in
     §3 reproduced that abandonment with no signal at all. Something stopped the two scopes
     that died while leaving the two older abandoned ones alone, and the difference between
-    them is not visible from user space. The system journal would name the caller; it is
-    readable only by root on this host, so closing that last gap needs either elevated
-    access or a question to the site.</p>
+    them is not visible from user space. It was expected that the system journal would name
+    the caller — readable only by root on this host — so closing that last gap seemed to
+    need either elevated access or a question to the site. <strong>The gap closed without
+    either</strong>: the caller was a broadcast signal from this account's own test fixture,
+    which the fixture's own instrumentation then caught and the correction removed — see the
+    outcome section above.</p>
     <p>That gap does not change the remedy. Whatever issues the stop, it addresses a
     control group, so what decides a process's fate is which control group it was born
     in — and that is entirely within our control.</p>
@@ -265,13 +329,22 @@ systemd[1]:      Starting User Manager for UID 39486...        &lt;- 1-2 seconds
     only by <code>adm</code>, <code>systemd-journal</code> or <code>wheel</code>, verified
     rather than assumed. Either adding the account to one of those groups, or asking the
     site to read the logind journal for 02:31:11 on 2026-09-20, would answer today what
-    the probe answers at the next failure.</p>
+    the probe answers at the next failure. <strong>That route was not taken</strong>: the
+    question was answered from this side instead, and the request was retired unsent (see
+    the outcome section and
+    <a href="/imas-ambix/site-request-user-lingering.html">the retirement note</a>).</p>
     <h3 id="s6b">What is in place, and what it does not cover</h3>
-    <p>The teardown fires when the account's session count reaches zero. Every session
+    <p>The teardown was read, when this subsection was written, as firing whenever the
+    account's session count reached zero — an inference from the recorded occurrences, which
+    the outcome section replaces: those teardowns came from this account's own fixture, and
+    the count reaching zero is not by itself established to stop the manager. What follows
+    is kept as the record of a prop that was built on that reading, not as a
+    recommendation.</p>
+    <p>Every session
     normally originates from one workstation, so they end together whenever it sleeps or
     loses the network, and the count reaches zero every time. A session anchored somewhere
-    that never sleeps removes that precondition without needing the linger defect fixed
-    first.</p>
+    that never sleeps removes that precondition without waiting on the trigger to be
+    identified first.</p>
     <p>A one-CPU scheduler job on an idle partition holds an SSH session to the login node
     and reconnects on a ten-second loop if it drops. It runs inside the job's control
     group, owned by the node daemon, so the teardown it prevents cannot reach the thing
@@ -279,15 +352,17 @@ systemd[1]:      Starting User Manager for UID 39486...        &lt;- 1-2 seconds
     <code>loginctl</code> shows an active session whose remote host is a compute node
     rather than the workstation.</p>
     <p>Three limits, stated because a prop that is believed to be a cure is worse than no
-    prop. It does not repair lingering, so the defect remains and the site request stands.
-    It fails silently if the job ends — a cancellation is not requeued, though a node
+    prop. There was nothing wrong with lingering to repair, and the site request it kept
+    alive was retired unsent. It fails silently if the job ends — a cancellation is not
+    requeued, though a node
     failure is — so the job's presence is now something worth checking whenever sessions
     die again. And it defends the user slice rather than leaving it, which is what the
     allocation in the fleet-hosting plan does instead; that remains the durable answer.</p>
     <p>A tunnel from the workstation is not a substitute. Those connections are
     independent of the terminal multiplexer's shared master and do hold their own sessions,
     so they narrow the window during a terminal-only dropout — but they originate from the
-    same machine, so they die with it, which is exactly when the count reaches zero.</p>
+    same machine, so they die with it, which is the case the prop above was written
+    against.</p>
 
     <h3 id="s6d">Why it surfaced when it did — resolved</h3>
     <p>The teardown stops <strong>live</strong> session scopes and leaves
