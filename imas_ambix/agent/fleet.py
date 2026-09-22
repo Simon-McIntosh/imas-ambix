@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from imas_ambix.agent import slurm
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Iterable, Sequence
 
     from imas_ambix.agent.profile import SiteConfig
 
@@ -93,6 +93,19 @@ def find_fleet_allocation(
         if job.get("comment", "").strip() == FLEET_COMMENT:
             return job
     return None
+
+
+def placement_argv(job: dict[str, str], command: Sequence[str]) -> list[str]:
+    """The scheduler invocation that runs ``command`` inside a held allocation.
+
+    The command becomes an overlapping step of the allocation rather than an
+    allocation of its own, so it lands on the allocation's node and shares its
+    control group. The job id comes from the row the allocation was found by,
+    so no identifier for it is written into any configuration: a resubmit, a
+    cancel-and-rehold or a move to another node changes the row and the
+    placement follows it.
+    """
+    return ["srun", "--overlap", f"--jobid={job.get('jobid', '').strip()}", *command]
 
 
 def remaining_seconds(time_left: str) -> int | None:

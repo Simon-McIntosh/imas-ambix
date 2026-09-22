@@ -315,6 +315,43 @@ def fleet_hold(submit: bool) -> None:
     console.print(f"Submitted fleet allocation job {job_id}.")
 
 
+@fleet_group.command(
+    name="place",
+    context_settings={"ignore_unknown_options": True, "allow_extra_args": True},
+)
+@click.argument("command", nargs=-1, required=True, type=click.UNPROCESSED)
+def fleet_place(command: tuple[str, ...]) -> None:
+    """Run a command as a scheduler step inside the held fleet allocation.
+
+    The wrapped command is carried through unchanged, so a placement moves a
+    worker between hosts without changing which lane serves it. The allocation
+    is resolved from the scheduler by the comment token the hold generator
+    emits, so the job identifier is never written into configuration and a
+    resubmit, a cancel-and-rehold or a move to another node is picked up at
+    launch. Holding no allocation is a refusal rather than a fallback to the
+    login node, because a worker launched here is meant to be placed and one
+    that silently is not runs under the ceiling the placement exists to escape.
+    """
+    from imas_ambix.agent.fleet import find_fleet_allocation, placement_argv
+
+    site = SiteConfig.from_env()
+    allocation = find_fleet_allocation(
+        _running_jobs(site, account=site.fleet_account)
+    )
+    if allocation is None:
+        raise click.ClickException(
+            "No fleet allocation is held, so there is nowhere to place "
+            f"{' '.join(command)!r}; the login node is not the fleet's host. "
+            "Hold one with `imas-ambix agent fleet hold --submit`."
+        )
+
+    result = subprocess.run(
+        placement_argv(allocation, command), check=False
+    )
+    if result.returncode != 0:
+        raise SystemExit(result.returncode)
+
+
 @fleet_group.command(name="status")
 def fleet_status() -> None:
     """Report the held fleet allocation, its node and its remaining lifetime.
