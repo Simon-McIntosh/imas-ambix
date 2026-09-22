@@ -2572,8 +2572,12 @@ the measurement separating "a non-answer is recorded" from "every non-answer is 
 way".</p>
 
 <p><strong>Two records read stale against this change, and both are disclosed rather than quietly
-left, because rewriting §3's own paragraphs is outside this node's write paths and editing the
-plan's <code>plan-version</code> and <code>plan-modified</code> meta lines is out of scope.</strong>
+left, because the section prose is the spec this node implements and its owner is who decides
+whether the spec changes — not because the plan file is outside this node's write paths, which it
+is not: the fence lists <code>docs/plans/serve-telemetry-spine.html</code> and this commit writes
+to it. The one thing that genuinely could not be touched is the plan's
+<code>plan-version</code> and <code>plan-modified</code> meta lines, which are the plan system's
+state and were left alone.</strong>
 §3's prose names the wire as <code>squeue -w $(hostname)</code>, which is the defect this change
 removes, and §3's done-when states that "a probe that fails or is unavailable omits its section and
 the tick still completes" — which the job table now deliberately does not do. The directive for this
@@ -2582,6 +2586,38 @@ the directive, the module docstring and the <code>run_capture</code> contract we
 and the section text is left for whoever closes the driving followup. The dispatch brief also priced
 the base suite at 34 tests where the base revision runs 35, so "more tests than at base" is met
 against the measured figure, not the stated one.</p>
+
+<h3 id="job-table-contract-drift">The recorder's section contract now has an exception, and the recorder owns that text</h3>
+
+<p><strong>A third record drifts against this change, and it is named rather than fixed because the
+module is outside this node's fence.</strong> <code>imas_ambix/agent/serving_receipts.py</code>
+states, in its module docstring, that "a probe that failed, is absent, or did not run this tick
+contributes no key at all, so a reader never has to tell a measured zero from a section nothing
+measured" — and repeats the same rule on its section list, that a section whose probe did not run
+"is <em>omitted</em> from the serialized payload rather than written as <code>null</code>, so a
+present key always means a measurement and an absent one never reads as a zero". Both sentences are
+now false of one section: a due job read always contributes a key, and on a tick where
+<code>squeue</code> did not answer that key is a marker rather than a table.</p>
+
+<p><strong>That is a contract break rather than a documentation lag, and it is the producer emitting
+what the consumer's own text denies.</strong> The enforcement point is <code>to_json</code>, which
+drops a section only when it is <code>None</code>; since <code>read_jobs</code> now always answers a
+mapping, the jobs key survives serialization on a failed read by construction. A reader of
+<code>serving_receipts.py</code> who takes "a present key always means a measurement" at face value
+would read the marker as a table reading. The repair is a text change in that module — the two
+sentences above, amended to carry the exception, naming the marker field and the three shapes — and
+it belongs to whoever next holds that file, not to this node across a fence.</p>
+
+<p><strong>Why the marker rather than omission, stated as the argument rather than an
+accommodation.</strong> Omitting the section on failure is exactly the behaviour this change removes,
+and it is what made the defect invisible: an omitted jobs key is indistinguishable from a tick where
+the read was not due, which is the ordinary state of most rows on the job table's slower cadence, and
+also from a node that held no jobs. The section's own purpose is to show what else was resident on the
+node; a marker saying "the scheduler refused this query" is a reading about the node, while silence is
+the absence of one. This follows the shape the spine already adopted for a refused boot identity,
+where the row is still stored and announces which degraded case it holds instead of disappearing.
+Omitting would restore the fault being repaired, so the marker stands and the contract text is what
+moves.</p>
 
 <p><strong>Not this node's to close.</strong> Verifying the merged head belongs to the separately
 dispatched test node, and a node does not resolve its own driving followup or set its own terminal

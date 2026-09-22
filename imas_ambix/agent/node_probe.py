@@ -32,6 +32,35 @@ stored, following the shape a refused boot identity already uses in this spine:
 never a refusal to record, and the marker says which degraded case the reading
 is.
 
+**The jobs section's contract, stated in full, because it is the one section a
+consumer cannot read by the rule above.** The key's *presence* means the read
+was due on this tick and :func:`read_jobs` answered; its *absence* means the
+read was not due, which is the cadence and nothing else. Because a due read
+always answers a section, a present ``jobs`` key carries exactly one of three
+shapes:
+
+* the scheduler answered -- ``{"hostname": str, "count": int, "jobs": [...]}``,
+  where ``hostname`` is the recorded identity, the node's fully qualified name,
+  and ``count`` equals the length of ``jobs``. This is the only shape carrying
+  a table, and an empty table is a legitimate value of it: ``{"count": 0,
+  "jobs": []}`` is a node that held no jobs.
+* the command ran and refused -- ``{"hostname": str, "unread":
+  "command-failed"}``. A non-zero exit, or a run that outlived *timeout_s*.
+  Retrying can change this.
+* the node carries no such program -- ``{"hostname": str, "unread":
+  "command-absent"}``. Retrying cannot change this, which is the whole reason
+  the two are separated rather than collapsed into one marker.
+
+Neither non-answering shape carries ``count`` or ``jobs``, and that is
+load-bearing rather than incidental: it is what stops a non-answer being read
+as a table that answered with zero, which is the reading this section was
+added to make impossible. Stated as a rule for any consumer: **a ``jobs`` key
+is present exactly when the read was due, and a *table* is present exactly
+when the read succeeded** -- so read ``count``/``jobs`` for what was resident,
+and ``unread`` for why the table is not there. The recorder's own section
+contract predates this and still states the omit-when-unmeasured rule without
+the exception; that text lives with the recorder and needs amending there.
+
 **Cards are labelled by the number the node knows them by.** SLURM restricts
 each process to its allocated devices through the device cgroup, so
 ``nvidia-smi`` inside it numbers the visible cards from zero while the
