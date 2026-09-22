@@ -358,6 +358,68 @@
     section and the tick still completes; the recorder's added cost is under one percent of
     one core, measured on the node; and the whole-tree lint gate exits 0.</p>
 
+    <h3 id="s3-serve-config">The row states the settings its numbers were measured under</h3>
+
+    <p><strong>Landing note (node <code>serve-provenance</code>).</strong> A row said which
+    profile, which job and how many cards; it did not say the settings that decide what its own
+    figures <em>mean</em>. An occupancy percentage or a pool total is a different measurement
+    under a different context window, memory fraction or tensor-parallel width, and all three
+    moved inside one week on this deployment (memory fraction 0.92 → 0.85, pool 2,557,835 →
+    2,200,283 tokens). A <code>kv_cache_usage_perc</code> of 47 percent recorded either side of
+    that move describes different absolute traffic, and nothing on either row said which.</p>
+
+    <p>A fifth sparse section, <code>serve_config</code>, now rides on every row, carrying one
+    fixed vocabulary rather than whatever an engine build happens to expose:
+    <code>context_length</code>, <code>max_total_tokens</code>, <code>mem_fraction_static</code>,
+    <code>max_running_requests</code>, <code>hicache_ratio</code>,
+    <code>speculative_algorithm</code> and <code>tp_size</code>. The row schema version moves to
+    <code>3</code> for the added section.</p>
+
+    <p><strong>The engine is asked, because the launcher states a request.</strong> The recorder
+    already held the engine's base URL, and SGLang publishes its resolved server arguments over
+    HTTP. Checked before wiring anything to it, on the live four-card serve (job
+    <code>1273253</code>, port 18810): <code>GET /server_info</code> returns all seven settings.
+    A value the engine reports is the one in force; a value the launcher passes is the one
+    requested, and the two can differ when a value is rescaled on the way in or replaced by an
+    engine default. So the recorder asks the engine first and falls back to a caller's
+    <code>--serve-setting KEY=VALUE</code> arguments only for what the engine did not report.
+    The engine's other ~495 arguments are not copied onto the row — the vocabulary is fixed, so
+    an engine upgrade adding arguments cannot change the record's shape.</p>
+
+    <p><strong>On the live lane all seven came from the engine.</strong> The recorder was run from
+    the login node against the running serve (job <code>1273253</code>,
+    <code>RUNNING</code> on <code>98dci4-gpu-0003</code>) for three seconds, with the container
+    identity supplied as launcher arguments read from the job record; the four rows it wrote
+    carried
+    <code>schema_version 3</code> and a byte-identical <code>serve_config</code> naming
+    <code>context_length 512000</code>, <code>max_total_tokens 4000000</code>,
+    <code>mem_fraction_static 0.85</code>, <code>max_running_requests 36</code>,
+    <code>hicache_ratio 2.0</code>, <code>speculative_algorithm "DSPARK"</code> and
+    <code>tp_size 4</code>. None came from elsewhere. The engine was asked exactly once across
+    the run — the settings are fixed for a serve's life, so the resolution is made on the first
+    tick and carried afterwards, and the engine is retried only while it has not answered at all.
+    A family that publishes no arguments therefore settles as no configuration rather than being
+    re-asked every five seconds of a long serve.</p>
+
+    <p><strong>A setting nobody reported is absent, not null</strong>, on the rule the other
+    sections already follow. A serve whose engine does not publish its arguments carries no
+    section at all, and a null-valued setting would have made that indistinguishable from an
+    engine that states a setting and reports it as unset. The section itself is omitted when
+    neither source supplied anything, and a reader can distinguish a row written before this
+    change from a family that does not publish its arguments by the schema version.</p>
+
+    <p><strong>The precedence rule carries the mutation.</strong> Removing the two lines that
+    apply the engine's settings to the merge reddens
+    <code>test_record_receipts_prefers_the_engine_over_the_caller_settings</code> with
+    <code>assert 999 == 512000</code> — the caller's requested context window standing in for
+    the reported one. The unmutated tree is green: <strong>38 passed</strong> against the 27 at
+    base revision <code>782cc5f2</code>, and <code>uv run --no-sync ruff check imas_ambix
+    tests</code> exits 0. Eleven tests are added over the reader, the recorder and the CLI, and
+    two existing assertions were extended rather than relaxed. The figure and the
+    negative-control log are archived with the evidence:
+    <code>docs/evidence/archive/serve-telemetry-spine-landed.html</code>,
+    <code>docs/figures/serve-telemetry-spine/serve-config-resolution.svg</code>.</p>
+
     <h2 id="s4">§4 — Tiered rotation and compaction</h2>
 
     <p>There is no rotation today: 44 files and 110 MB have accumulated, one per job,

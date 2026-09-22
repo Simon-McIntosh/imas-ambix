@@ -2623,6 +2623,129 @@ moves.</p>
 dispatched test node, and a node does not resolve its own driving followup or set its own terminal
 status.</p>
 
+    <h2 id="serve-config">§3 — the row states the serve settings its numbers were measured under</h2>
+
+    <p>A row already said which profile, which job and how many cards. It did not say the
+    settings that decide what its own figures <em>mean</em>. An occupancy percentage, a pool
+    total or a decode rate is a different measurement under a different context window, memory
+    fraction or tensor-parallel width — and all three moved within one week on this deployment
+    (memory fraction 0.92 to 0.85, the pool 2,557,835 to 2,200,283 tokens). A
+    <code>kv_cache_usage_perc</code> of 47 percent recorded before that move and one recorded
+    after describe different absolute traffic, and nothing on either row said which.</p>
+
+    <p>Every row now carries a <code>serve_config</code> section, sparse like the others. It
+    holds one fixed vocabulary of seven settings rather than whatever an engine build happened
+    to expose: <code>context_length</code>, <code>max_total_tokens</code>,
+    <code>mem_fraction_static</code>, <code>max_running_requests</code>,
+    <code>hicache_ratio</code>, <code>speculative_algorithm</code> and <code>tp_size</code>.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/serve-telemetry-spine/serve-config-resolution.svg"
+           alt="The engine's own /server_info report and a caller's --serve-setting arguments merge, engine winning, onto every row's serve_config section; when neither source reads anything the section is omitted rather than null."
+           style="max-width:100%">
+      <figcaption>Where the section comes from. The engine is asked first because it reports what
+      is in force; a caller fills only the gap it left, and a section nobody filled is absent
+      rather than empty.</figcaption>
+    </figure>
+
+    <h3 id="serve-config-engine-first">The engine is asked, because the launcher states a request</h3>
+
+    <p>The recorder already held the engine's base URL, and SGLang publishes its resolved
+    server arguments over HTTP. Checked before wiring anything to it: on the live four-card
+    serve (<code>deepseek-v4-1-flash</code>, job <code>1273253</code>, port 18810),
+    <code>GET /server_info</code> returns a 502-key object that carries <strong>all seven
+    settings</strong> — <code>context_length 512000</code>,
+    <code>max_total_tokens 4000000</code>, <code>mem_fraction_static 0.85</code>,
+    <code>max_running_requests 36</code>, <code>hicache_ratio 2.0</code>,
+    <code>speculative_algorithm "DSPARK"</code>, <code>tp_size 4</code>. A value the engine
+    reports is the one in force; a value the launcher passes is the one requested, and the two
+    can differ when a flag is rescaled on the way in or silently replaced by an engine default.
+    The recorder therefore asks the engine and falls back to a caller's <code>--serve-setting</code>
+    arguments only for what the engine did not report. The engine's other 495 arguments are not
+    copied onto the row: the vocabulary is fixed, so an engine upgrade adding arguments cannot
+    change the record's shape.</p>
+
+    <h3 id="serve-config-live-row">A row recorded against the live engine</h3>
+
+    <p>Recorded against the running lane, not a fixture: the recorder was run from the login
+    node against <code>http://98dci4-gpu-0003:18810</code> for three seconds with the node probe
+    disabled (<code>--no-node-probe --no-compaction</code>), writing to a scratch path. Job
+    <code>1273253</code> was <code>RUNNING</code> on <code>98dci4-gpu-0003</code> throughout, and
+    the container identity on the row (job, profile, served name, card count) was supplied as
+    launcher arguments <em>from the job record</em> — a real sidecar runs on the serve's own
+    node and reads those from its environment. Two consequences of that vantage are stated
+    rather than hidden: the seven settings below came over HTTP from the live engine and are the
+    engine's own report, while the row's <code>hostname</code> is the reader's host
+    (<code>98dci4-srv-1006</code>) and its <code>host</code> section is absent, because the node
+    probe was off and host facts are not the engine's to report. The four rows it wrote:</p>
+
+    <table>
+      <caption>The serve settings as recorded on the live lane, 2026-09-22.</caption>
+      <thead><tr><th>Setting</th><th>Value on the row</th><th>Source</th></tr></thead>
+      <tbody>
+        <tr><td><code>context_length</code></td><td>512000</td><td>engine</td></tr>
+        <tr><td><code>max_total_tokens</code></td><td>4000000</td><td>engine</td></tr>
+        <tr><td><code>mem_fraction_static</code></td><td>0.85</td><td>engine</td></tr>
+        <tr><td><code>max_running_requests</code></td><td>36</td><td>engine</td></tr>
+        <tr><td><code>hicache_ratio</code></td><td>2.0</td><td>engine</td></tr>
+        <tr><td><code>speculative_algorithm</code></td><td><code>"DSPARK"</code></td><td>engine</td></tr>
+        <tr><td><code>tp_size</code></td><td>4</td><td>engine</td></tr>
+      </tbody>
+    </table>
+
+    <p>All seven came from the engine; none had to come from elsewhere, so no
+    <code>--serve-setting</code> was passed for that run. Every row carried
+    <code>schema_version 3</code>, and the section was byte-identical on all four rows. The
+    capture is preserved at
+    <code>docs/figures/serve-telemetry-spine/controls/serve-config-live-row.jsonl</code> so the
+    claim can be re-read from the rows rather than taken from this paragraph. The
+    engine was asked exactly once across the run: the settings are fixed for a serve's life, so
+    the resolution is made on the first tick and carried afterwards. The engine is retried only
+    while it has not answered at all — the recorder starts beside the engine and tolerates it not
+    being up yet — and once the engine answers, a route it does not expose settles as no
+    configuration rather than being re-asked every five seconds of a long serve.</p>
+
+    <h3 id="serve-config-omission">A setting nobody reported is absent, not null</h3>
+
+    <p>On the same rule the card, host and job sections follow: a setting the engine did not
+    report is left out of <code>serve_config</code> rather than written as a null. A serve whose
+    engine does not publish its arguments — a vLLM lane, whose exposition carries no such route
+    — carries no section at all, and a null-valued setting would have made that
+    indistinguishable from an engine that states a setting and reports it as unset. The section
+    itself is omitted when neither the engine nor a caller supplied anything, so a reader can
+    still distinguish a row written before this change from a vLLM row written after it by the
+    <code>schema_version</code>, which moves to <code>3</code> for the added section.</p>
+
+    <h3 id="serve-config-negative-control">The negative control, and what it separates</h3>
+
+    <p>The precedence rule — engine over caller — is the load-bearing claim of the section, so
+    it is the one given a mutation. Deleting the two lines that apply the engine's settings to
+    the merge:</p>
+
+    <pre><code>if engine_config:
+    merged.update(engine_config)</code></pre>
+
+    <p>reddens <code>test_record_receipts_prefers_the_engine_over_the_caller_settings</code> with
+    <code>assert 999 == 512000</code> — the caller's requested context window standing in for the
+    reported one. The full log, its declared mutation verbatim on line 1, is
+    <code>docs/figures/serve-telemetry-spine/controls/serve-config-engine-precedence.log</code>.
+    The unmutated tree is green: <strong>38 passed</strong> against the 27 at base revision
+    <code>782cc5f2</code>, and <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0.
+    Both runs are on the login node: the suite is a unit run of under a second over fixtures it
+    builds itself, with no corpus read and no GPU.</p>
+
+    <h3 id="serve-config-commits">Commits</h3>
+
+    <p><code>feat(telemetry): record the serve settings a row's numbers were measured under</code>
+    — <code>imas_ambix/agent/serving_receipts.py</code>,
+    <code>tests/test_agent_serving_receipts.py</code>. Eleven tests are added: seven over the
+    reader (the vocabulary filter, the omission of an unreported setting, the absent route, the
+    non-JSON body), three over the recorder (the once-per-serve read, the caller fallback, the
+    engine-over-caller precedence) and the CLI pair (parsed settings, and the refusal of an
+    unknown key). Two existing assertions were extended rather than relaxed: the
+    section-omission test now names both unread sections, and the no-probe test now checks
+    <code>serve_config</code> is absent beside the other three.</p>
+
 </main>
 </body>
 </html>

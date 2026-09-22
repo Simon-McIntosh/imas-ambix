@@ -1,0 +1,42 @@
+DECLARED MUTATION: removed the lines "if engine_config:" / "merged.update(engine_config)" from _merge_serve_config, so the engine no longer overrides the caller
+COMMAND: uv run --no-sync pytest -q tests/test_agent_serving_receipts.py -k prefers_the_engine_over_the_caller
+RESULT:
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______ test_record_receipts_prefers_the_engine_over_the_caller_settings _______
+
+tmp_path = PosixPath('/run/user/39486/pytest-of-mcintos/pytest-4502/test_record_receipts_prefers_t0')
+
+    def test_record_receipts_prefers_the_engine_over_the_caller_settings(
+        tmp_path: Path,
+    ) -> None:
+        """A reported value is the one in force; a requested one is not."""
+        receipts_path = tmp_path / "receipts.jsonl"
+        clock = iter([0.0, 5.0, 10.0])
+        wall_clock = iter([FIRST_SAMPLE_AT, SECOND_SAMPLE_AT])
+    
+        with patch(
+            "urllib.request.urlopen",
+            _stub_urlopen(
+                [SAMPLE_T0, SAMPLE_T1], [json.dumps(LIVE_SERVER_INFO).encode()]
+            ),
+        ):
+            sr.record_receipts(
+                "http://98dci4-gpu-0003:18810",
+                receipts_path,
+                interval_s=5.0,
+                duration_s=10.0,
+                serve_config={"context_length": 999, "hicache_ratio": 3.0},
+                sleep=lambda _s: None,
+                monotonic=lambda: next(clock),
+                now=lambda: next(wall_clock),
+            )
+    
+        (row,) = _read_rows(receipts_path)[:1]
+>       assert row["serve_config"]["context_length"] == 512000
+E       assert 999 == 512000
+
+tests/test_agent_serving_receipts.py:1391: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_agent_serving_receipts.py::test_record_receipts_prefers_the_engine_over_the_caller_settings
+1 failed, 37 deselected in 1.82s
