@@ -35,8 +35,11 @@ _ANNOTATION_KEYS = frozenset({"family", "model_id"})
 # ``_CANONICAL_FIELD_SOURCES`` below -- an expectation derived from those tables
 # moves with them, so emptying a family's series mapping takes the delivered key
 # away in the same step that takes the expected one, and the omission leaves no
-# failure behind. An SGLang reading carries neither the prefix-cache counters nor
-# the speculative-decode terms, since that family publishes no series for them.
+# failure behind. The two families reach some of the same columns in different
+# shapes and neither vocabulary is mapped onto the other's meaning, so an SGLang
+# reading carries the published prefix-cache rate and the acceptance gauges,
+# where a vLLM reading carries the queries and hits counters and the speculative
+# counters.
 _SECTION_KEYS: dict[str, frozenset[str]] = {
     engine_metrics.FAMILY_SGLANG: _ANNOTATION_KEYS
     | frozenset(
@@ -46,9 +49,11 @@ _SECTION_KEYS: dict[str, frozenset[str]] = {
             "kv_pool_occupancy",
             "prompt_tokens",
             "generation_tokens",
+            "prefix_cache_hit_rate",
             "cached_prompt_tokens",
             "uncached_prompt_tokens",
             "histograms",
+            "spec_decode",
         }
     ),
     engine_metrics.FAMILY_VLLM: _ANNOTATION_KEYS
@@ -109,6 +114,30 @@ _CANONICAL_FIELD_SOURCES: tuple[tuple[str, tuple[str, ...], str, str], ...] = (
         ("uncached_prompt_tokens",),
         "prefill_effective_tokens_total",
         'mode="input"',
+    ),
+    (
+        "prefix-cache hit rate",
+        ("prefix_cache_hit_rate",),
+        "cache_hit_rate",
+        "",
+    ),
+    (
+        "speculative acceptance rate",
+        ("spec_decode", "accept_rate"),
+        "spec_accept_rate",
+        "",
+    ),
+    (
+        "speculative acceptance length",
+        ("spec_decode", "accept_length"),
+        "spec_accept_length",
+        "",
+    ),
+    (
+        "active draft-token setting",
+        ("spec_decode", "active_draft_tokens"),
+        "spec_num_draft_tokens",
+        "",
     ),
     (
         "time to first token",
@@ -511,19 +540,120 @@ def test_both_families_report_every_quantity_they_publish() -> None:
 
 
 def test_unpublished_quantities_are_absent_rather_than_null_or_zero() -> None:
-    """SGLang publishes no prefix-cache counter and no draft counter.
+    """A quantity a family does not publish is absent, never null and never zero.
 
-    The recorded rows carried a null for every one of these, which a reader
-    cannot distinguish from a measured zero -- the whole defect being repaired.
+    SGLang publishes no cumulative draft or accepted token count and no query
+    counter, so those columns are absent from its reading -- the null the
+    recorded rows carried for them is what a reader cannot tell from a measured
+    zero. The columns it does publish are present and carry their measured
+    value, so this is a statement about the two vocabularies rather than about
+    an empty subsection.
     """
     section = _sglang_section()
 
-    for absent in ("prefix_cache_queries", "prefix_cache_hits"):
+    for absent in (
+        "prefix_cache_queries",
+        "prefix_cache_hits",
+        "draft_tokens_total",
+        "accepted_tokens_total",
+    ):
         assert absent not in section, absent
-    # SGLang publishes no speculative-decode counters at all, so the whole
-    # subsection is gone rather than a triple of nulls.
-    assert "spec_decode" not in section
+        assert absent not in section.get("spec_decode", {}), absent
     assert all(value is not None for value in section.values())
+    assert all(
+        value is not None for value in section["spec_decode"].values()
+    )
+
+
+def test_the_recorded_scrape_resolves_the_cache_and_speculative_columns() -> None:
+    """The recorded SGLang scrape fills the cache and speculative columns.
+
+    The two families report these quantities in different shapes -- a published
+    rate and a pair of acceptance gauges on one side, cumulative counters on the
+    other -- so this asserts that an SGLang scrape fills the columns SGLang can
+    fill, and that it is the file's own bytes that fill them. The recorded serve
+    was idle, so the values are genuine zeros: presence is what is asserted
+    because a time-varying gauge on a quiet engine has no other value to offer.
+    """
+    text = _SGLANG_FIXTURE.read_text(encoding="utf-8")
+    section = _section(text)
+
+    resolved = {
+        "prefix_cache_hit_rate": section["prefix_cache_hit_rate"],
+        "accept_rate": section["spec_decode"]["accept_rate"],
+        "accept_length": section["spec_decode"]["accept_length"],
+        "active_draft_tokens": section["spec_decode"]["active_draft_tokens"],
+    }
+    assert all(value is not None for value in resolved.values()), resolved
+
+    unsourced = [
+        name
+        for name in (
+            "cache_hit_rate",
+            "spec_accept_rate",
+            "spec_accept_length",
+            "spec_num_draft_tokens",
+        )
+        if not _has_sample_line(text, name, "")
+    ]
+    assert not unsourced, unsourced
+
+
+def test_a_resolved_gauge_carries_its_magnitude_not_merely_its_key() -> None:
+    """The reader carries the gauge's value, checked against a non-zero scrape.
+
+    A uniform zero column satisfies a presence assertion while measuring
+    nothing, so the same series are put to a non-zero exposure of the same
+    shapes; a reader that reported the key without the value would pass the
+    fixture test above and fail here.
+    """
+    text = "\n".join(
+        (
+            "sglang:cache_hit_rate 0.42",
+            "sglang:spec_accept_rate 0.81",
+            "sglang:spec_accept_length 3.25",
+            "sglang:spec_num_draft_tokens 5.0",
+        )
+    )
+    section = _section(text)
+
+    assert section["prefix_cache_hit_rate"] == 0.42
+    assert section["spec_decode"] == {
+        "accept_rate": 0.81,
+        "accept_length": 3.25,
+        "active_draft_tokens": 5.0,
+    }
+
+
+def test_the_two_speculative_vocabularies_are_separate_columns() -> None:
+    """Neither family's speculative spelling is read as the other's meaning.
+
+    SGLang's ``spec_num_draft_tokens`` is the active configuration value, while
+    vLLM's similarly-named ``spec_decode_num_draft_tokens_total`` is a cumulative
+    counter of tokens drafted. They are similar names for different quantities,
+    so each must land in its own column and neither family may carry the other's
+    column at all.
+    """
+    sglang = _section("sglang:spec_num_draft_tokens 5.0")
+    assert sglang["spec_decode"] == {"active_draft_tokens": 5.0}
+
+    vllm = _section(_vllm_metrics())
+    assert "active_draft_tokens" not in vllm["spec_decode"]
+    for publication in ("accept_rate", "accept_length"):
+        assert publication not in vllm["spec_decode"], publication
+    for publication in ("draft_tokens_total", "accepted_tokens_total"):
+        assert publication not in sglang["spec_decode"], publication
+
+
+def test_a_vllm_scrape_resolves_the_acceptance_counters_it_does_publish() -> None:
+    """vLLM's speculative columns resolve from its own counters, not a gauge."""
+    section = _section(_vllm_metrics())
+
+    assert section["spec_decode"]["draft_tokens_total"] == 500.0
+    assert section["spec_decode"]["accepted_tokens_total"] == 400.0
+    # vLLM publishes no rate gauge, so the rate column SGLang fills directly is
+    # absent here rather than derived a second time inside this reader.
+    assert "prefix_cache_hit_rate" not in section
 
 
 def test_a_quantity_published_as_zero_is_kept() -> None:

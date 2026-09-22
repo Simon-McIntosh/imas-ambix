@@ -69,6 +69,17 @@ GAUGE_SERIES: dict[str, dict[str, tuple[str, ...]]] = {
         FAMILY_SGLANG: ("full_token_usage", "token_usage"),
         FAMILY_VLLM: ("kv_cache_usage_perc", "gpu_cache_usage_perc"),
     },
+    # The prefix-cache hit rate. The two families report it in different shapes
+    # rather than under different spellings, and the column records which: SGLang
+    # publishes the rate itself, as one gauge. vLLM publishes no rate gauge, only
+    # the cumulative hits and queries counters in ``COUNTER_SERIES``, from which
+    # the record layer derives the ratio. Nothing is invented here for vLLM,
+    # because a rate assembled from one family's counters would be a second
+    # implementation of a derivation that already exists one layer up.
+    "prefix_cache_hit_rate": {
+        FAMILY_SGLANG: ("cache_hit_rate",),
+        FAMILY_VLLM: (),
+    },
 }
 
 COUNTER_SERIES: dict[str, dict[str, tuple[str, ...]]] = {
@@ -82,14 +93,17 @@ COUNTER_SERIES: dict[str, dict[str, tuple[str, ...]]] = {
     },
     # The prefix-cache counters are the cumulative decomposition the legacy
     # row's hit-rate fields read. vLLM publishes them under both a plain and a
-    # ``gpu_``-prefixed spelling; SGLang reports no query counter at all, so
-    # this quantity is absent from an SGLang reading rather than zero.
+    # ``gpu_``-prefixed spelling. SGLang publishes the cached-token counter
+    # (labelled by the cache tier that answered) but no queries counter at all:
+    # its denominator is a sum of prefill modes rather than a series, so this
+    # quantity is absent from an SGLang reading rather than zero, and the rate
+    # it does publish is read from ``prefix_cache_hit_rate`` above.
     "prefix_cache_queries": {
         FAMILY_SGLANG: (),
         FAMILY_VLLM: ("prefix_cache_queries_total", "gpu_prefix_cache_queries_total"),
     },
     "prefix_cache_hits": {
-        FAMILY_SGLANG: (),
+        FAMILY_SGLANG: ("cached_tokens_total",),
         FAMILY_VLLM: ("prefix_cache_hits_total", "gpu_prefix_cache_hits_total"),
     },
 }
@@ -113,6 +127,38 @@ SPEC_DECODE_SERIES: dict[str, dict[str, tuple[str, ...]]] = {
     "accepted_tokens_total": {
         FAMILY_SGLANG: (),
         FAMILY_VLLM: ("spec_decode_num_accepted_tokens_total",),
+    },
+}
+
+#: Speculative-decode quantities reported as an instantaneous gauge rather than
+#: as the cumulative pair above. The two families' vocabularies do not
+#: correspond one to one, so each column states what it measures for each
+#: family instead of mapping one family's spelling onto the other's meaning:
+#:
+#: * ``accept_rate`` -- ``accepted drafts / proposed drafts`` in batch. SGLang
+#:   publishes it as a gauge. vLLM publishes no gauge and no rate; a rate is
+#:   derivable from the two counters above, and it is not derived here.
+#: * ``accept_length`` -- mean acceptance length per forward (accepted drafts
+#:   plus the bonus token). SGLang publishes it as a gauge. vLLM publishes no
+#:   gauge and nothing from which it is recoverable.
+#: * ``active_draft_tokens`` -- the currently active
+#:   ``speculative_num_draft_tokens``: a configuration value, not a count of
+#:   tokens drafted. vLLM's similarly-named ``spec_decode_num_draft_tokens_total``
+#:   is the cumulative counter carried by ``draft_tokens_total`` above; the two
+#:   are different quantities under similar names, which is why they are
+#:   separate columns rather than one.
+SPEC_GAUGE_SERIES: dict[str, dict[str, tuple[str, ...]]] = {
+    "accept_rate": {
+        FAMILY_SGLANG: ("spec_accept_rate",),
+        FAMILY_VLLM: (),
+    },
+    "accept_length": {
+        FAMILY_SGLANG: ("spec_accept_length",),
+        FAMILY_VLLM: (),
+    },
+    "active_draft_tokens": {
+        FAMILY_SGLANG: ("spec_num_draft_tokens",),
+        FAMILY_VLLM: (),
     },
 }
 
@@ -548,11 +594,19 @@ def read_metrics(text: str) -> EngineMetrics:
         if positions:
             per_position = [positions[pos] for pos in sorted(positions)]
 
-    spec_decode = {
-        "draft_tokens_total": draft,
-        "accepted_tokens_total": accepted,
-        "num_accepted_per_pos": per_position,
-    }
+    spec_gauges: dict[str, float] = {}
+    for name, table in SPEC_GAUGE_SERIES.items():
+        value = series_first(eligible, family, table[family])
+        if value is not None:
+            spec_gauges[name] = value
+
+    spec_decode: dict[str, Any] = dict(spec_gauges)
+    if draft is not None:
+        spec_decode["draft_tokens_total"] = draft
+    if accepted is not None:
+        spec_decode["accepted_tokens_total"] = accepted
+    if per_position is not None:
+        spec_decode["num_accepted_per_pos"] = per_position
 
     return EngineMetrics(
         family=family,
