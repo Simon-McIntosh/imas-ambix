@@ -35,10 +35,30 @@ FLIGHT_CONFIG = (
     / "flight.yaml"
 )
 
-# A bare run of five or more digits is the shape a scheduler job identifier
-# takes. The declaration must never carry one; it must carry a query with a
-# literal "{job}" for dispatch to substitute the resolved job into.
-_JOB_IDENTIFIER_SHAPE = re.compile(r"^[0-9]{5,}$")
+# A run of five or more digits not adjacent to further digits is the shape a
+# scheduler job identifier takes, wherever it appears. The declaration must
+# never carry one; it must carry a query with a literal "{job}" for dispatch to
+# substitute the resolved job into.
+#
+# The run is matched inside a string as well as across the whole of one, so an
+# identifier embedded in a query argument ("--jobid=1276262") is caught and not
+# only a bare scalar. It is also why an unquoted YAML integer must be checked
+# separately: safe_load hands an unquoted 1276262 back as an int, so a check
+# that only looks at str values passes the very thing this test forbids.
+_JOB_IDENTIFIER_RUN = re.compile(r"(?<![0-9])[0-9]{5,}(?![0-9])")
+# For an integer the whole decimal form must be the run: a job identifier is
+# never negative and never carries a sign, so "-1276262" is not one.
+_JOB_IDENTIFIER_INTEGER = re.compile(r"[0-9]{5,}")
+
+
+def _is_job_identifier(value: Any) -> bool:
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, int):
+        return _JOB_IDENTIFIER_INTEGER.fullmatch(str(value)) is not None
+    if isinstance(value, str):
+        return _JOB_IDENTIFIER_RUN.search(value) is not None
+    return False
 
 
 def _load_flight_config() -> dict[str, Any]:
@@ -89,11 +109,11 @@ def test_placement_queries_carry_the_job_substitution_point() -> None:
 
 
 def test_no_job_identifier_is_written_into_the_declaration() -> None:
-    scalars = list(_iter_scalars(_load_flight_config()))
-    offenders = []
-    for path, value in scalars:
-        if isinstance(value, str) and _JOB_IDENTIFIER_SHAPE.match(value):
-            offenders.append(f"{path} = {value!r}")
+    offenders = [
+        f"{path} = {value!r}"
+        for path, value in _iter_scalars(_load_flight_config())
+        if _is_job_identifier(value)
+    ]
     assert not offenders, (
         "a scheduler job identifier must never be written into the project flight "
         "layer -- dispatch resolves the job from the published reservation, so a "
