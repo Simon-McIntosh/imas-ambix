@@ -252,8 +252,11 @@
     <code>_CLAUDE_CODE_ASSUME_FIRST_PARTY_BASE_URL=1</code> and must abort at about 20 s.
     It is the positive control that proves the watchdog can fire.</p>
 
-    <p><strong>Deployment, authorised by the lead on 2026-09-23 after a coordinated
-    lull.</strong> The router runs as SLURM job 1276263 on
+    <p><strong>Deployment, authorised by the lead on 2026-09-23 inside a short messaged
+    pause window.</strong> A router restart needs no lull. Dispatching sessions get a
+    pause-dispatch signal just before the restart and a resume once the new router
+    verifies. Streams cut in flight are retried by their clients. The router runs as
+    SLURM job 1276263 on
     <code>98dci4-gpu-0003</code>, port 18802. The engine, job 1276246, is not touched.
     The deploy runs in this order:</p>
     <ol>
