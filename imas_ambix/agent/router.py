@@ -72,7 +72,7 @@ class _Admission:
 
 
 class _GenerationGate:
-    """Admit generation relays in arrival order up to a live file-backed width."""
+    """Admit post-catalog generation relays in FIFO order up to a live width."""
 
     def __init__(
         self,
@@ -84,6 +84,7 @@ class _GenerationGate:
         self.config_path = config_path
         self._defaults = _GateSettings(default_width, default_wait_seconds)
         self._cached_settings = self._defaults
+        self._last_logged_settings: _GateSettings | None = None
         self._next_config_refresh_at = 0.0
         self._condition = asyncio.Condition()
         self._waiters: deque[object] = deque()
@@ -141,12 +142,14 @@ class _GenerationGate:
                     self._defaults.wait_seconds,
                 )
         self._cached_settings = settings
-        logger.info(
-            "generation gate config path=%s width=%d wait_seconds=%s",
-            self.config_path,
-            settings.width,
-            settings.wait_seconds,
-        )
+        if settings != self._last_logged_settings:
+            logger.info(
+                "generation gate config path=%s width=%d wait_seconds=%s",
+                self.config_path,
+                settings.width,
+                settings.wait_seconds,
+            )
+            self._last_logged_settings = settings
         return settings
 
     async def acquire(self, receive: Receive) -> _Admission:
@@ -378,7 +381,11 @@ def _by_model_id(owners: Sequence[_Owner]) -> dict[str, list[_Owner]]:
 
 
 class RouterApp:
-    """Present a union catalog and relay native requests to their owning engine."""
+    """Resolve catalog owners, then FIFO-gate generation relays.
+
+    Catalog listing and token counting bypass decode admission. The router exposes
+    no health route.
+    """
 
     _GENERATION_PATHS = frozenset({"/v1/messages", "/v1/chat/completions"})
     _ROUTED_PATHS = frozenset(

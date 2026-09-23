@@ -416,14 +416,16 @@ accepts it **only** as `Authorization: Bearer` — never `x-api-key`.
 
 **The router globally bounds generation at the measured throughput knee.** One
 FIFO covers every consumer together, with no host, user-agent or per-consumer
-identity. `router-gate.json` beside `lane.json` carries `width` and
+identity. FIFO order begins after the request body has named a model and catalog
+resolution has selected its upstream; it is not arrival order at the router.
+`router-gate.json` beside `lane.json` carries `width` and
 `wait_seconds`; the running router refreshes it at most once per second, so an
 operator can retune the width without a restart. The absent-file defaults are
 22 in flight and a 300-second wait, width 0 disables admission, and an expired
 wait returns Anthropic HTTP 529 with a fixed five-second `Retry-After`. Catalog,
-health and `count_tokens` requests bypass the gate because they consume no decode
-width. The lane document publishes the router's width, in-flight count and FIFO
-depth beside the engine's own counters.
+and `count_tokens` requests bypass the gate because they consume no decode width;
+the router exposes no health route. The lane document publishes the router's
+width, in-flight count and FIFO depth beside the engine's own counters.
 
 **The engine remains the scheduler inside the admitted batch.** vLLM and SGLang
 still own continuous batching, KV accounting, their internal waiting queues and
