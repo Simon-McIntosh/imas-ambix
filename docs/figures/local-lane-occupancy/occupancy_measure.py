@@ -37,6 +37,7 @@ BIN_WIDTH = 0.05
 MIN_INTERVALS = 20
 MIN_THROUGHPUT_FRACTION = 0.90
 MIN_PREFIX_HIT_RATE = 0.97
+COLLAPSE_RATE_TOK_S = 200.0
 BOOTSTRAP_RESAMPLES = 2_000
 BOOTSTRAP_SEED = 20260923
 BOOTSTRAP_LEVEL = 0.95
@@ -229,6 +230,7 @@ def summarise_bins(
         low, high = bootstrap_median_ci(rates, index)
         upper = round(lower + BIN_WIDTH, 2)
         label = f"{lower:.2f}-{upper:.2f}"
+        collapsed = [rate for rate in rates if rate < COLLAPSE_RATE_TOK_S]
         summary[label] = {
             "occupancy_lower": lower,
             "occupancy_upper": upper,
@@ -236,6 +238,9 @@ def summarise_bins(
             "median_aggregate_generation_tok_s": median(rates),
             "ci95_low": low,
             "ci95_high": high,
+            "p10_aggregate_generation_tok_s": float(np.quantile(rates, 0.10)),
+            "collapsed_intervals_below_200_tok_s": len(collapsed),
+            "collapsed_interval_fraction": len(collapsed) / len(rates),
             "median_running_width": median(widths),
             "prefix_cache_observations": len(hits),
             "median_prefix_cache_hit_rate": median(hits) if hits else None,
