@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-23T20:28:38",
+  "updated": "2026-09-23T20:34:09",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -85620,6 +85620,257 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260923T173526865177-second-review-of-flight-layer-declares-placement",
+        "plan": "slurm-hosted-agent-fleet",
+        "section": "\u00a77",
+        "node": "second-review-of-flight-layer-declares-placement",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 511,
+                "cached_input_tokens": 344156,
+                "input_tokens": 344669,
+                "output_tokens": 875,
+                "reasoning_output_tokens": 209,
+                "total_tokens": 345544,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "f880c335-ee59-40ba-bb02-c0e33c804ea2",
+            "session_id": "s24-ship-20260923"
+          },
+          "done_when": "the review for r-20260923T161249048985-flight-layer-declares-placement stores a parsed record scoring all 5 dimensions in the range 0..20 against head 28f0ab31; its durability dimension re-tries the five edits the previous review named and reports each outcome, then names at least one further edit to docs/state/imas-ambix/flight.yaml that would defeat placement while all tests stay green, or states after at least three further attempts, each listed with its test outcome, that none was found",
+          "estimated_hours": null,
+          "goal": "attach an independent re-review to run r-20260923T161249048985-flight-layer-declares-placement at its repaired head 28f0ab31",
+          "id": "second-review-of-flight-layer-declares-placement",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-23T17:35:32Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": 8,
+            "binding_observed": "unknown",
+            "detail": "",
+            "headroom": 8,
+            "mean_context": 101538,
+            "observed_at": "2026-09-23T17:35:24Z",
+            "state": "fresh",
+            "suggested_shelf_life_seconds": 45
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T173526865177-second-review-of-flight-layer-declares-placement/manifest.md",
+          "negative_control": "",
+          "plan": "slurm-hosted-agent-fleet",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "review",
+          "section": "\u00a77",
+          "spec_level": "exact",
+          "time_budget": "25m",
+          "token_budget": null,
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260923T161249048985-flight-layer-declares-placement.json"
+          ]
+        },
+        "role": "review",
+        "spec_level": "exact",
+        "member": "s24-review-flight-test",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "xhigh",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "read-only",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-23T17:36:34Z",
+        "completed_at": "2026-09-23T18:08:36.916Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 1889,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 1922,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "1a5de07ae4dad07d8f576da13d2f971f8f093285",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": 0,
+        "gate": "passed",
+        "gate_check": {
+          "command": "reckon.crew.review.parse_review on the emitted review text, write and read-back of the stored record",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T173526865177-second-review-of-flight-layer-declares-placement/review-record-as-stored.json",
+          "log_digest": "sha256:143c879244bfd094a494d77b2e7e07a3a8c93825cd56e79b67af54653ccbcfef"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T173526865177-second-review-of-flight-layer-declares-placement/manifest.md",
+        "scope_changed": false,
+        "session_id": "f1d0bff9-d526-49d2-b035-e5deefe9e5a2",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 4960529,
+            "input_tokens_cumulative": 4960529,
+            "output_tokens": 54820,
+            "output_tokens_cumulative": 54820,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-23T18:08:36.916Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "15m",
+          "requested": true,
+          "waived_runs": []
+        },
+        "review": null,
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 4960529,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 1918.706,
+          "generated_tokens": 54820,
+          "generation_seconds": 1891.5,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 32.0,
+          "machine_seconds": 27.206,
+          "peak_input_tokens": 153662,
+          "tokens_per_second": 28.98,
+          "wall_tokens_per_second": 28.57
+        },
+        "follow_on_paths": [
+          "flight_placement.log"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": false,
+          "matched_measure": null,
+          "override": false,
+          "role": "review",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": "review node: its deliverable is the stored review record outside the repository",
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/s24-ship-20260923/second-review-of-flight-layer-declares-placement",
+          "session_id": "f1d0bff9-d526-49d2-b035-e5deefe9e5a2",
+          "session_source": "pointer",
+          "retained_at": "2026-09-23T18:08:36.916Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "promoted_revision": "1a5de07ae4dad07d8f576da13d2f971f8f093285",
+        "plan_impl_at_dispatch": 1.0,
+        "impl_move": {
+          "plan": "slurm-hosted-agent-fleet",
+          "at_dispatch": 1.0,
+          "at_complete": null,
+          "verdict": "exempt",
+          "reason": "role-not-enforced:review"
+        },
+        "negative_control": {
+          "verdict": "exempt",
+          "reason": "node-writes-no-test-path"
+        },
+        "lane_advisory": {
+          "backend": "clive",
+          "burn_multiple": null,
+          "cheaper_lane": {
+            "detail": "",
+            "lane": null,
+            "state": "not_evaluated"
+          },
+          "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+          "horizon_ends_at": "2026-09-23T18:00:32.306441+00:00",
+          "horizon_seconds": 1500,
+          "metered": false,
+          "observed_at": null,
+          "precedes_horizon": null,
+          "projected_exhaustion_at": null,
+          "resets_at": null,
+          "seconds_until_reset": null,
+          "state": "quiet",
+          "utilisation_pct": null
+        },
+        "lane_declaration": {
+          "backend": null,
+          "headroom": null,
+          "metered": false,
+          "observed_at": null,
+          "read_at": "2026-09-23T17:35:32Z",
+          "resolved_backend": "clive",
+          "utilisation_pct": null
+        },
+        "lane_reading": {
+          "age_seconds": 8,
+          "binding_observed": "unknown",
+          "detail": "",
+          "headroom": 8,
+          "mean_context": 101538,
+          "observed_at": "2026-09-23T17:35:24Z",
+          "state": "fresh",
+          "suggested_shelf_life_seconds": 45
+        },
+        "tool_steps": 65.0,
+        "orientation_input_tokens": null,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -85708,6 +85959,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 1065
+    "_version": 1066
   }
 }
