@@ -579,9 +579,8 @@
       <li><code>max_queued_requests = 64</code>. It refuses a caller that bypasses the
       router instead of absorbing it without limit. With the gate at or below the engine
       cap, routed traffic never reaches this bound.</li>
-      <li><code>hicache_ratio</code> 2 → 3, only if the serve's measured host memory shows
-      the extra ~39 GB fits the 600G allocation with margin. The host tier ran 99.9%
-      full, and a larger one keeps more evicted prefixes.</li>
+      <li><code>hicache_ratio</code> was considered and rejected; it stays at 2. See the
+      decision below.</li>
       <li>SGLang's prefill delayer, only if reading its source shows it brakes prefill
       storms without starving decode, and names settings to use.</li>
       <li>The router is restarted in the same window, and the gate file is set to
@@ -594,6 +593,19 @@
     width of 16. So a test drives <code>_publish_lane</code> itself against a stub engine
     metrics endpoint and asserts the effective width that results, and deleting the call
     must fail it.</p>
+    <p><strong>Decided from node relaunch-optional-levers, with the lead: the relaunch
+    carries prefix ordering only.</strong> It changes <code>schedule_policy</code> to
+    <code>lpm</code> and sets <code>max_queued_requests = 64</code>, and it restarts the
+    router at auto width. <code>hicache_ratio</code> stays at 2. The ratio-3 memory fit
+    is real: about 517 GiB projected against 600 GiB. But the profile records that
+    ratio 8 produced 100,308 backups against 56 load-backs, so the host tier is written
+    and almost never read, and the lead reports that an earlier larger tier changed
+    little. A bigger tier would therefore buy memory cost and no hit rate. The prefill
+    delayer is deferred. It never delays a running request's decode, but it only
+    re-phases the start of prefill at a TTFT cost, is unvalidated at
+    <code>dp_size=1</code>, and would leave the result unattributable beside lpm. It
+    follows in a later relaunch, with node relaunch-optional-levers' settings (watermark
+    0.85, queue ratio 0.15, max delay 2000 ms), only if collapses persist after lpm.</p>
     <p>Not in this relaunch: DP attention, which needs session-affine dispatch and its
     own validation, and the loopback bind, which needs the router's upstream address
     confirmed first.</p>
