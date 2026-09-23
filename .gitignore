@@ -74,3 +74,16 @@ outputs/
 # reckon writes per-resource lock files here; they are machine-local run state,
 # not content, and a committed lock is a stale claim on another checkout.
 docs/.reckon/locks/
+
+# Fleet and experiment scratch written beside the source tree. Nothing here is
+# input to a build or a test: these are run logs, snapshot directories and
+# per-experiment scratch that a session left where it worked. They are ignored
+# rather than removed because they are another session's evidence, and walking
+# them costs every `git status` in this checkout -- measured 2026-09-23 at 2,116
+# untracked entries, 4.3s against 2.9s with the walk excluded, on every call
+# including the ones inside a promotion.
+_spine_label_fleet_logs/
+_prefix_artifacts_snapshot/
+_matrix/
+scratchpad_*/
+_*.log
