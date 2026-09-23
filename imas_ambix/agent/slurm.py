@@ -497,7 +497,7 @@ def generate_serve_script(
     # launched so the very first samples (including the startup window) are
     # captured; a failed scrape is skipped by the recorder rather than
     # raised, so it tolerates the engine not answering /metrics yet.
-    receipts_dir = Path(site.base_dir) / "agents" / "receipts"
+    receipts_dir = site.receipts_dir
     receipts_launch = ""
     if receipts_enabled:
         receipts_launch = "\n".join(

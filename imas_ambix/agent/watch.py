@@ -43,10 +43,21 @@ from imas_ambix.agent.telemetry_index import TelemetryIndex, discover
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+
 #: Where the on-node recorder appends its rows. Matches
 #: ``imas_ambix.agent.cli``'s receipts subcommand, so the two agree without a
 #: shared constant that only one of them reads.
-DEFAULT_RECORD_DIR = Path.home() / ".local" / "share" / "ambix" / "receipts"
+def default_record_dir() -> Path:
+    """The directory the recorder writes to, read from the same config.
+
+    A function rather than a constant because the site base is taken from
+    the environment, and a constant computed at import freezes whatever
+    was set then -- the same staleness this resolution exists to remove.
+    """
+    from imas_ambix.agent.profile import SiteConfig
+
+    return SiteConfig.from_env().receipts_dir
+
 
 #: The index is disposable by construction, so it lives under the user's cache
 #: rather than beside the record it is derived from.
@@ -695,7 +706,7 @@ def watch_text(
     here probes the serve, and nothing here writes a ledger. *prices* is passed
     in for a caller that already holds a table; ``None`` reads the local cache.
     """
-    directory = Path(record_dir or DEFAULT_RECORD_DIR)
+    directory = Path(record_dir or default_record_dir())
     target = Path(index_path or DEFAULT_INDEX_PATH)
     target.parent.mkdir(parents=True, exist_ok=True)
     if prices is None:
@@ -738,7 +749,7 @@ def watch_document(
     prices: Sequence[dict] | None = None,
 ) -> dict:
     """Consume the record, then return the panels' figures as plain data."""
-    directory = Path(record_dir or DEFAULT_RECORD_DIR)
+    directory = Path(record_dir or default_record_dir())
     target = Path(index_path or DEFAULT_INDEX_PATH)
     target.parent.mkdir(parents=True, exist_ok=True)
     if prices is None:
@@ -779,7 +790,7 @@ def _parse_timestamp(value: Any) -> float | None:
 __all__ = [
     "DEFAULT_INDEX_PATH",
     "DEFAULT_PRICE_PATH",
-    "DEFAULT_RECORD_DIR",
+    "default_record_dir",
     "LEDGER_PERIODS",
     "Period",
     "bar",

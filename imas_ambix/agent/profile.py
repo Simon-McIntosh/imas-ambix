@@ -623,6 +623,18 @@ class SiteConfig(BaseModel):
         return Path(self.base_dir) / "agents" / self._weights_slug(profile) / ".cache"
 
     @property
+    def receipts_dir(self) -> Path:
+        """Where every serve's recorder appends, and where a reader looks.
+
+        The writer is launched with this path and a reader discovers the
+        record through it, so the two resolve the same directory by
+        construction rather than by two constants agreeing. A reader holding
+        its own spelling finds nothing and reports an empty record, which is
+        indistinguishable from a lane that served nothing.
+        """
+        return Path(self.base_dir) / "agents" / "receipts"
+
+    @property
     def api_key_file(self) -> Path:
         """Shared API key file for model serving authentication."""
         return Path(self.base_dir) / "agents" / ".env"

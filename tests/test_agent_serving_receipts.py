@@ -1499,3 +1499,26 @@ def test_serve_setting_flag_refuses_an_unknown_key(tmp_path: Path) -> None:
                 "max_model_len=512000",
             ]
         )
+
+
+def test_the_reader_resolves_the_directory_the_serve_script_writes_to(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Writer and reader must name one directory, or the record is invisible.
+
+    The reader's resolved path is asserted against the script the recorder is
+    actually launched by, rather than against a second derivation of the same
+    rule: two constants can agree in a test and still be two constants, which
+    is how a reader came to look where nothing writes.
+    """
+    profile = load_profile("deepseek-v4-flash").for_gpus(4)
+    site = SiteConfig(base_dir=str(tmp_path))
+    script = generate_serve_script(profile, site, port=18801)
+
+    monkeypatch.setenv("AMBIX_AGENT_BASE_DIR", str(tmp_path))
+    from imas_ambix.agent.watch import default_record_dir
+
+    resolved = default_record_dir()
+
+    assert str(resolved) in script, "the reader looks where nothing writes"
+    assert resolved == site.receipts_dir
