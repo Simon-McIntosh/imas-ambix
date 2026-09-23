@@ -199,7 +199,8 @@
         <tr><td>Retry count</td><td>10 by default. <code>CLAUDE_CODE_MAX_RETRIES</code> sets it, clamped at 15. The 300-retry watchdog applies only in remote mode.</td></tr>
         <tr><td><code>Retry-After</code></td><td>Followed exactly, in place of the client's own back-off, with no upper clamp. <code>retry-after-ms</code> is preferred when present.</td></tr>
         <tr><td>Back-off without the header</td><td>0.5, 1, 2, 4, then 8 s per retry, with 0.75–1.0 jitter.</td></tr>
-        <tr><td>Request timeout</td><td>600 s (<code>API_TIMEOUT_MS</code>). The stream first-byte default is not established; node <code>client-first-byte-window</code> owns it.</td></tr>
+        <tr><td>Request timeout</td><td>600 s (<code>API_TIMEOUT_MS</code>). Node <code>client-first-byte-window</code> read the binary: the dedicated first-byte watchdog is armed only for routes Claude Code treats as first-party (<code>api.anthropic.com</code>, or <code>_CLAUDE_CODE_ASSUME_FIRST_PARTY_BASE_URL</code> set). clive sets a custom <code>ANTHROPIC_BASE_URL</code>, so a request the router holds before headers is bounded by the 600 s request timeout. A first-party route would be bounded at 180 s, and one first-byte retry would follow.</td></tr>
+        <tr><td>Stream idle</td><td>300 s after headers (<code>CLAUDE_STREAM_IDLE_TIMEOUT_MS</code>, raised to at least 300 s). An SSE <code>ping</code> re-arms it, but only for the first 30 consecutive pings. An idle timeout before the first event gets one streaming retry.</td></tr>
         <tr><td>529 message</td><td>“Repeated 529 Overloaded errors”, composed by the client once its retries are exhausted.</td></tr>
         <tr><td>Router relay</td><td>Forwards the engine's status and headers verbatim. It sends nothing before the engine's headers arrive and has no total deadline of its own (<code>ClientTimeout(total=None)</code>).</td></tr>
       </tbody>
