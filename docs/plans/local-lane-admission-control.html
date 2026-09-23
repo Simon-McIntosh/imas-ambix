@@ -180,9 +180,12 @@
     in flight. It is authorised separately and is not part of the node.</p>
     <aside class="callout">
       <p><strong>Implementation record — 2026-09-23.</strong> Commits
-      <code>4bb11e89</code> and <code>da60421b</code> added the global FIFO generation
-      gate and six behavioral tests. The full router surface passed 43 tests in 6.02 s;
-      the declared mutation removed the acquire and reproduced 5 simultaneous upstream
+      <code>4bb11e89</code>, <code>da60421b</code> and <code>7ecfec3b</code> added and
+      hardened the global FIFO generation gate with eight behavioral tests. The full
+      router surface passed 45 tests; the runtime file is read at most once per second
+      gate-wide, the missing-file wait is 300 seconds, and HTTP 529 carries a fixed
+      five-second <code>Retry-After</code>. The declared mutation removed the acquire
+      and reproduced 5 simultaneous upstream
       requests against width 2. Runtime width edits, overload responses, waiter and
       streamer departures, decode-free bypass, and nonzero lane counters are all observed.
       <a href="/imas-ambix/evidence/archive/local-lane-admission-control-landed.html#router-global-gate">Full evidence and flow figure</a>.

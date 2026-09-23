@@ -25,12 +25,15 @@
 
   <section id="router-global-gate">
     <h2>Global router generation gate</h2>
-    <p>Commits <code>4bb11e89</code> and <code>da60421b</code> added a single FIFO
-    admission point shared by both generation paths. The runtime file
+    <p>Commits <code>4bb11e89</code>, <code>da60421b</code> and
+    <code>7ecfec3b</code> added and hardened a single FIFO admission point shared by
+    both generation paths. The runtime file
     <code>router-gate.json</code>, beside <code>lane.json</code>, carries
     <code>width</code> and <code>wait_seconds</code>; it is re-read when replaced or
-    edited. Missing or invalid configuration uses the launch defaults of 22 in flight
-    and 900 seconds, while width 0 disables admission. Catalog and
+    edited. One gate-wide monotonic deadline limits file metadata and content reads to
+    once per second regardless of waiter count. Missing or invalid configuration uses
+    the launch defaults of 22 in flight and 300 seconds, while width 0 disables
+    admission. Catalog and
     <code>/v1/messages/count_tokens</code> traffic does not consume a generation slot.</p>
 
     <figure>
@@ -50,8 +53,11 @@
         upstream concurrency never exceeded 2 and admission order remained
         <code>0, 1, 2, 3, 4</code>.</td></tr>
         <tr><td>Bounded wait</td><td>A request behind a full width-1 gate received HTTP
-        529 with Anthropic <code>overloaded_error</code> and
-        <code>Retry-After</code>.</td></tr>
+        529 with Anthropic <code>overloaded_error</code> and a fixed five-second
+        <code>Retry-After</code>, independent of the wait bound.</td></tr>
+        <tr><td>Configuration cadence</td><td>Thirty same-window settings reads caused
+        one gate-file <code>stat()</code>, not thirty; the next read after the shared
+        one-second deadline observed a width edit and raised the total to two.</td></tr>
         <tr><td>Disconnects</td><td>A departed waiter never reached the upstream, and a
         departed streaming caller released its acquired slot for the next request.</td></tr>
         <tr><td>Runtime edit</td><td>Changing width from 1 to 2 admitted the next FIFO
@@ -61,7 +67,7 @@
         <tr><td>Lane publication</td><td>A positive-control snapshot retained engine
         <code>running=9</code> and <code>waiting=2</code> beside router
         <code>in_flight=1</code> and <code>waiting=1</code>.</td></tr>
-        <tr><td>Focused router gate</td><td><code>43 passed in 6.02s</code> across
+        <tr><td>Focused router gate</td><td><code>45 passed</code> across
         <code>tests/test_agent_router_gate.py</code> and every
         <code>tests/test_agent_router*.py</code> file.</td></tr>
         <tr><td>Declared mutation</td><td>Removing the acquire from the generation relay
