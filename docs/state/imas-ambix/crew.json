@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-23T13:41:24",
+  "updated": "2026-09-23T13:47:48",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -76191,6 +76191,296 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260923T083311059216-review-of-knee-remeasure",
+        "plan": "local-lane-admission-control",
+        "section": "\u00a73",
+        "node": "review-of-knee-remeasure",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 470,
+                "cached_input_tokens": 436505,
+                "input_tokens": 436979,
+                "output_tokens": 335,
+                "reasoning_output_tokens": 140,
+                "total_tokens": 437314,
+                "uncached_input_tokens": 4
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "74b53aa2-1d4b-451f-8ce7-33c072085f83",
+            "session_id": "llac-20260923"
+          },
+          "done_when": "the review for r-20260923T062351884099-knee-remeasure stores a parsed record scoring all 5 dimensions in the range 0..20",
+          "estimated_hours": null,
+          "goal": "attach an independent review to run r-20260923T062351884099-knee-remeasure",
+          "id": "review-of-knee-remeasure",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-23T08:33:13Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": 21,
+            "binding_observed": "unknown",
+            "detail": "",
+            "headroom": 0,
+            "mean_context": 116364,
+            "observed_at": "2026-09-23T08:32:52Z",
+            "state": "fresh",
+            "suggested_shelf_life_seconds": 45
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T083311059216-review-of-knee-remeasure/manifest.md",
+          "negative_control": "",
+          "plan": "local-lane-admission-control",
+          "requested_backend": null,
+          "requires_decisions": [],
+          "role": "review",
+          "section": "\u00a73",
+          "spec_level": "exact",
+          "time_budget": "60m",
+          "token_budget": null,
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260923T062351884099-knee-remeasure.json"
+          ]
+        },
+        "role": "review",
+        "spec_level": "exact",
+        "member": "session-d90b188b6863f5649170",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "read-only"
+        },
+        "dispatched_at": "2026-09-23T08:33:54Z",
+        "completed_at": "2026-09-23T09:58:45Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 5091,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 5091,
+        "stalled": false,
+        "time_budget": "60m",
+        "base_sha": "2a2065df7a663a954824dcbdedf5a069d2cc6ae3",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "review record parse",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T083311059216-review-of-knee-remeasure/gate.log",
+          "log_digest": "sha256:b61c3c5c824b0f247ce4627d45d443fd009638af6c270a65087b8842bab628c8"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T083311059216-review-of-knee-remeasure/manifest.md",
+        "scope_changed": false,
+        "session_id": null,
+        "budget": {
+          "cost_usd": null,
+          "detail": "no events yet on the new lane",
+          "headroom": "unknown",
+          "rate_limit_period_minutes": null,
+          "rate_limit_type": null,
+          "refusal": false,
+          "resets_at": null,
+          "surpassed_threshold": null,
+          "threshold_status": null,
+          "tokens": null,
+          "utilisation_pct": null
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-23T09:58:45Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "missing_rollout"
+          }
+        },
+        "lineage": {
+          "attempt": 2,
+          "kind": "lane-change",
+          "lanes": [
+            {
+              "changed_at": "2026-09-23T09:42:26Z",
+              "detail": "starting fresh because the session cannot follow the move from harness 'claude' to 'codex'",
+              "from_backend": "clive",
+              "from_harness": "claude",
+              "reason": "local lane stalls long read-only runs under load (stream quiet >50 min); moving to codex",
+              "session": "fresh",
+              "session_id": "e3e8268d-3ade-4cb9-8bf4-208e4e3d5498",
+              "session_source": "stream",
+              "to_backend": "codex",
+              "to_harness": "codex"
+            }
+          ],
+          "root_run_id": "r-20260923T083311059216-review-of-knee-remeasure"
+        },
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "15m",
+          "requested": true,
+          "waived_runs": [
+            {
+              "budget_overrun": false,
+              "budget_overrun_seconds": 0,
+              "budget_seconds": 1500,
+              "classification": "scoring",
+              "commits_beyond_base": 0,
+              "detail": "the worker manifest reports completion, but no independent review is attached; an independent review must be produced before promotion",
+              "effective_phase": "complete",
+              "elapsed_seconds": 920,
+              "external_wait": null,
+              "interruption": null,
+              "lifting_condition": null,
+              "liveness_proven": true,
+              "log_age_seconds": 1544,
+              "log_fresh": false,
+              "manifest_commits": [
+                "68d07062f006b2024cc3684e13a6b310a5f444bc"
+              ],
+              "manifest_derived": false,
+              "manifest_digest": "e6c9748bf774bc02a74f5e5f7a67cadb420222a08981f3f15df1c45a38b49ac0",
+              "manifest_error": null,
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T075201250934-gate-integrated-failure/manifest.md",
+              "manifest_present": true,
+              "manifest_reported_status": "complete",
+              "manifest_status": "complete",
+              "marker": null,
+              "needs_help_complete": null,
+              "next_action": "reckon crew dispatch --project imas-ambix --plan local-lane-admission-control --section '\u00a77' --role review --spec-level exact --node review-of-gate-integrated-failure --goal 'attach an independent review to run r-20260923T075201250934-gate-integrated-failure' --done-when 'the review for r-20260923T075201250934-gate-integrated-failure stores a parsed record scoring all 5 dimensions in the range 0..20' --write-path /home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260923T075201250934-gate-integrated-failure.json --time-budget 25m --session llac-20260923 --allow-unreconciled-runs --backend codex",
+              "node": "gate-integrated-failure",
+              "phase": "complete",
+              "plan": "local-lane-admission-control",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "recovery": "review",
+              "recovery_classification": "scoring",
+              "resets_at": null,
+              "review_error": null,
+              "review_present": false,
+              "review_status": null,
+              "run_id": "r-20260923T075201250934-gate-integrated-failure",
+              "session": "llac-20260923",
+              "terminal_age_seconds": 1623,
+              "terminal_at": "2026-09-23T08:06:29Z",
+              "wait_age_seconds": null,
+              "wait_condition_state": null,
+              "wait_key_defect": null,
+              "wait_observed": null,
+              "wait_overdue": null,
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/llac-20260923/gate-integrated-failure"
+            }
+          ]
+        },
+        "review": null,
+        "follow_on_paths": [
+          "instrument/receipt",
+          "revision/tree/command/exit"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": false,
+          "matched_measure": null,
+          "override": false,
+          "role": "review",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "lane-change",
+        "attempt": 2,
+        "duration_measurement": {
+          "status": "underivable",
+          "reason": "model_span_unavailable_at_promotion"
+        },
+        "scope_acceptances": null,
+        "no_commit": "review role; record outside the repository",
+        "commit_resolution": null,
+        "worktree_retention": null,
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "promoted_revision": "2a2065df7a663a954824dcbdedf5a069d2cc6ae3",
+        "plan_impl_at_dispatch": 0.3,
+        "impl_move": {
+          "plan": "local-lane-admission-control",
+          "at_dispatch": 0.3,
+          "at_complete": null,
+          "verdict": "exempt",
+          "reason": "role-not-enforced:review"
+        },
+        "negative_control": {
+          "verdict": "exempt",
+          "reason": "node-writes-no-test-path"
+        },
+        "lane_advisory": {
+          "backend": "clive",
+          "burn_multiple": null,
+          "cheaper_lane": {
+            "detail": "",
+            "lane": null,
+            "state": "not_evaluated"
+          },
+          "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+          "horizon_ends_at": "2026-09-23T09:33:13.760978+00:00",
+          "horizon_seconds": 3600,
+          "metered": false,
+          "observed_at": null,
+          "precedes_horizon": null,
+          "projected_exhaustion_at": null,
+          "resets_at": null,
+          "seconds_until_reset": null,
+          "state": "quiet",
+          "utilisation_pct": null
+        },
+        "lane_declaration": {
+          "backend": null,
+          "headroom": null,
+          "metered": false,
+          "observed_at": null,
+          "read_at": "2026-09-23T08:33:13Z",
+          "resolved_backend": "clive",
+          "utilisation_pct": null
+        },
+        "lane_reading": {
+          "age_seconds": 21,
+          "binding_observed": "unknown",
+          "detail": "",
+          "headroom": 0,
+          "mean_context": 116364,
+          "observed_at": "2026-09-23T08:32:52Z",
+          "state": "fresh",
+          "suggested_shelf_life_seconds": 45
+        },
+        "tool_steps": 27.0,
+        "orientation_input_tokens": null,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -76279,6 +76569,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 1003
+    "_version": 1004
   }
 }
