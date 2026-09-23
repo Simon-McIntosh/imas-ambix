@@ -225,6 +225,31 @@
     tokens, raising the cliff from about 40 to about 162 resident contexts at a 99k
     context. It is admissible only with session-affine dispatch. That relaunch
     carries the engine backstops and the loopback bind (§9) in one drain.</p>
+    <p><strong>Width follows context: an automatic width mode in the gate.</strong> The
+    router already publishes the lane document and holds each capacity reading, so the
+    width writer lives in the gate itself, not in a separate process. The gate file gains
+    <code>"width": "auto"</code>, with optional <code>occupancy_target</code>
+    (default 0.90, the measured §6 boundary), <code>width_floor</code> (default 16) and
+    <code>width_cap</code> (default 36, the engine's running cap). In auto mode the gate
+    takes floor(pool tokens × target ÷ mean context), where mean context is a slow
+    estimate: an exponential moving average with a time constant of at least ten
+    minutes, fed only by fresh, measured readings. It clamps the result to
+    [floor, cap]. If there is no reading, or the lane shape changes at zero running, the
+    gate holds its last width, or the floor before any reading, and never reads a
+    missing key as zero. An integer width keeps working exactly as it does now. The
+    snapshot published in <code>lane.json</code> gains the effective width and the
+    estimate behind it.</p>
+
+    <p><strong>Explain the collapse tail.</strong> The median holds through occupancy
+    0.90, but a minority of intervals collapses: 14 of 397 at occupancy 0.80 or above fell
+    below 200 tok/s on job 1276246. Those episodes, not the median, are what the lead saw.
+    Compare each collapsed interval in both decode logs against intervals at matched
+    occupancy and width that held throughput. For each, report the concurrent prefill
+    load (new tokens and prefill batch lines in the window), the prefix hit rate,
+    HiCache load and backup activity, retraction or eviction lines, and the running
+    width. Name the feature, if any, that separates the two groups. The measurement runs
+    on <code>all_debug</code> and only reads the lane.</p>
+
     <p><strong>Two submitter defects the deploy exposed.</strong>
     <code>generate_router_script</code> and <code>generate_lane_refresher_script</code>
     in <code>imas_ambix/agent/slurm.py</code> hardcode <code>time_limit="0"</code>, which
