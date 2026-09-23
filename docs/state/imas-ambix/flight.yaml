@@ -19,22 +19,40 @@
 
 version: 1
 
-# PLACEMENT WITHDRAWN 2026-09-23. Declaring it here published a reservation
-# record, and that record is HOST-GLOBAL: reckon's roster cap then counted every
-# project's in-flight workers against one ceiling of 25. Measured minutes after
-# the fleet came back from an outage, 45 runs across imas-efit, nova, reckon and
-# imas-codex were occupying it and every further dispatch on this workstation was
-# refused. The placement is correct for one project and the reservation it needs
-# is shared by all of them, which is the conflict to resolve before re-declaring.
+# THE WRAPPER IS A BRIDGE, NOT THE DESTINATION. Reckon's own design resolves the
+# allocation from a reservation record published into shared crew state, which is
+# the better mechanism: one record, read by every session, with the identifier
+# held in one place. It is not used here because that record is HOST-GLOBAL while
+# this declaration is per project, so publishing one gives every repository's
+# workers a single roster ceiling of 25. Measured 2026-09-23: 45 runs across four
+# repositories occupied it within minutes and dispatch was refused workstation
+# wide, while exactly one step was running inside the allocation it protects.
 #
-# Re-declaring requires BOTH lines together, in this order: publish the
-# reservation record first, then declare the placement. A declaration without a
-# published record prefixes a bare `srun`, which mints one allocation per worker.
+# So the wrapper resolves the allocation itself and publishes no record, which is
+# what keeps the effect inside this repository. It retires the moment reckon's
+# roster cap is scoped to the project that armed it, or its reservation record is,
+# or the limit becomes configurable. At that point this block becomes:
 #
-#     placement:
-#       scheduler: srun
-#       options: []
-#       state_query:  [squeue, -h, -j, "{job}", -o, "%T"]
-#       reason_query: [squeue, -h, -j, "{job}", -o, "%R"]
+#     scheduler: srun
+#     state_query:  [squeue, -h, -j, "{job}", -o, "%T"]
+#     reason_query: [squeue, -h, -j, "{job}", -o, "%R"]
+#
+# published reservation first, declaration second — a declaration without a record
+# prefixes a bare `srun`, which mints one allocation per worker.
 
-backends: {}
+backends:
+  clive:
+    placement:
+      # A shim on PATH rather than a path in this file, because the interpreter
+      # it execs belongs to one checkout on one machine and this file is
+      # committed. The shim hands the worker's argv to `agent fleet place`,
+      # which resolves the allocation by the comment token the hold generator
+      # emits — so no job identifier appears here, and a resubmit is picked up
+      # at launch rather than remembered. Verified 2026-09-23 across a real
+      # resubmit under a new identifier, with no change to this file; the two
+      # identifiers are recorded in the plan rather than here, so that a search
+      # of this file for a job number stays a check with no false positives.
+      scheduler: imas-ambix-place
+      options: []
+      state_query: [squeue, -h, -j, "{job}", -o, "%T"]
+      reason_query: [squeue, -h, -j, "{job}", -o, "%r"]
