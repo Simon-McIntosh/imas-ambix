@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-23">
 <meta name="plan-impl" content="0.69">
-<meta name="plan-version" content="29">
+<meta name="plan-version" content="30">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;}">
 <meta name="plan-artifacts" content="docs/evidence/archive/local-lane-admission-control-landed.html">
 <meta name="plan-commits" content="4bb11e8917c6dc9662d6214da6ec7eb595713984,da60421b4267fc7fc6fafb2a7e5dbb242da1cfba,569b91efd9e1e2e0e00c6d86cd589810391752c5,7ecfec3ba6ed3d68d68e03a104bd33e70ba75037,decc190bc301c74e02f2491bc6a557a163f9c744">
@@ -679,6 +679,9 @@
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20260923T111630071168-occupancy-throughput-cliff" data-who="reckon-ship" data-when="2026-09-23T11:53:26.251Z">
     <div class="r-comment-body"><p>median aggregate and hit rate hold through KV 0.85-0.90 on both jobs (417/408 tok/s, hit 0.994); rule names 0.90 = engine cap 36 at 100k context; collapse is a minority tail (14/397 intervals); gate raised to width 30</p></div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-20260923-occupancy-review-corrections" data-who="reckon-ship" data-when="2026-09-23T13:25:00Z">
+    <div class="r-comment-body">occupancy-throughput-cliff promoted; independent review 85/100. Corrections to the record: (1) the collapse exemplar cited as 08:30:10 at occupancy 0.84 is the 08:30:36 decode line at occupancy 0.90, width 36, 151.5 tok/s; the 08:30:10 line is an HTTP /metrics request. (2) 'collapsed intervals are a small fraction of every bin' holds only for bins at or above 0.80; the 0.00-0.05 bins read 95.0% (five-day) and 85.5% (live) below 200 tok/s because small running widths fall under that threshold, so the 200 tok/s criterion is meaningful only at high occupancy. The headline stands: median aggregate and prefix hit rate hold through KV 0.85-0.90 on both jobs. collapse-tail-compare restricts itself to occupancy 0.80 and above, so it is unaffected. Also recorded: the scheduler investigation attempted curl to the engine's /model_info (failed at DNS, nothing reached the engine), contrary to the read-only fence; its manifest disclosed it.</div>
 </div>
 </section>
 </main>
