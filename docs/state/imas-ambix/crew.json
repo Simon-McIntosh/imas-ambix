@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-23T18:10:09",
+  "updated": "2026-09-23T18:10:41",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -2507,10 +2507,15 @@
         "id": "s24-review-placement-arm",
         "harness": "clive",
         "role": "review",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
-        "created": "2026-09-23"
+        "session_id": "aaf8df08-6dc2-4bbb-8327-33fd942d682b",
+        "session_model": "deepseek-v4.1-flash",
+        "sessions": {
+          "{\"alias\":\"dsv4.1-flash\",\"backend\":\"clive\",\"effort\":\"xhigh\",\"launch\":\"cli\",\"local\":true,\"model\":\"deepseek-v4.1-flash\",\"sandbox\":\"read-only\",\"usable_input_window\":480000}": "aaf8df08-6dc2-4bbb-8327-33fd942d682b"
+        },
+        "created": "2026-09-23",
+        "session_owners": {
+          "{\"alias\":\"dsv4.1-flash\",\"backend\":\"clive\",\"effort\":\"xhigh\",\"launch\":\"cli\",\"local\":true,\"model\":\"deepseek-v4.1-flash\",\"sandbox\":\"read-only\",\"usable_input_window\":480000}": "s24-ship-20260923"
+        }
       },
       {
         "created": "2026-09-01",
@@ -83978,6 +83983,230 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260923T150343072399-review-of-placement-rearmed-on-project-record",
+        "plan": "slurm-hosted-agent-fleet",
+        "section": "\u00a77",
+        "node": "review-of-placement-rearmed-on-project-record",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1307,
+                "cached_input_tokens": 279244,
+                "input_tokens": 280553,
+                "output_tokens": 1278,
+                "reasoning_output_tokens": 543,
+                "total_tokens": 281831,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "f880c335-ee59-40ba-bb02-c0e33c804ea2",
+            "session_id": "s24-ship-20260923"
+          },
+          "done_when": "the review for r-20260923T141528274123-placement-rearmed-on-project-record stores a parsed record scoring all 5 dimensions in the range 0..20; its evidence dimension states (a) whether the reason_query spelling %r in flight.yaml is what reckon's run-liveness path expects for a placed worker step, citing the reckon source line that consumes it, and (b) whether the --jobid=1276262 argv in gate3 was produced by reckon's own launch_plan and apply_backend_placement path rather than composed by the worker's probe script",
+          "estimated_hours": null,
+          "goal": "attach an independent review to run r-20260923T141528274123-placement-rearmed-on-project-record",
+          "id": "review-of-placement-rearmed-on-project-record",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-23T15:03:45Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": 22,
+            "binding_observed": "unknown",
+            "detail": "",
+            "headroom": 1,
+            "mean_context": 105263,
+            "observed_at": "2026-09-23T15:03:23Z",
+            "state": "fresh",
+            "suggested_shelf_life_seconds": 45
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T150343072399-review-of-placement-rearmed-on-project-record/manifest.md",
+          "negative_control": "",
+          "plan": "slurm-hosted-agent-fleet",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "review",
+          "section": "\u00a77",
+          "spec_level": "exact",
+          "time_budget": "30m",
+          "token_budget": null,
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260923T141528274123-placement-rearmed-on-project-record.json"
+          ]
+        },
+        "role": "review",
+        "spec_level": "exact",
+        "member": "s24-review-placement-arm",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "xhigh",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "read-only",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-23T15:04:33Z",
+        "completed_at": "2026-09-23T16:10:29.423Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 3920,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 3956,
+        "stalled": true,
+        "time_budget": "30m",
+        "base_sha": "31df847c6c890daa0d9093b87a4a7b0dc761cdca",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": 0,
+        "gate": "passed",
+        "gate_check": {
+          "command": "reckon.crew.review.parse_review on the emitted review text plus an independent launch_plan and apply_backend_placement resolution at 9c6409ba",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T150343072399-review-of-placement-rearmed-on-project-record/review-resolution.log",
+          "log_digest": "sha256:26307f888fcf93ae93f6db160121f3df3a69c235566e68bf54c1483e3383de47"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T150343072399-review-of-placement-rearmed-on-project-record/manifest.md",
+        "scope_changed": false,
+        "session_id": "aaf8df08-6dc2-4bbb-8327-33fd942d682b",
+        "budget": {
+          "cost_usd": null,
+          "detail": "no rate-limit event in the stream yet",
+          "headroom": "unknown",
+          "rate_limit_period_minutes": null,
+          "rate_limit_type": null,
+          "refusal": false,
+          "resets_at": null,
+          "surpassed_threshold": null,
+          "threshold_status": null,
+          "tokens": null,
+          "utilisation_pct": null
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-23T16:10:29.423Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "15m",
+          "requested": true,
+          "waived_runs": []
+        },
+        "review": null,
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": false,
+          "matched_measure": null,
+          "override": false,
+          "role": "review",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": {
+          "status": "underivable",
+          "reason": "model_span_unavailable_at_promotion"
+        },
+        "scope_acceptances": null,
+        "no_commit": "review node: its deliverable is the stored review record outside the repository",
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/s24-ship-20260923/review-of-placement-rearmed-on-project-record",
+          "session_id": "aaf8df08-6dc2-4bbb-8327-33fd942d682b",
+          "session_source": "pointer",
+          "retained_at": "2026-09-23T16:10:29.423Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "promoted_revision": "31df847c6c890daa0d9093b87a4a7b0dc761cdca",
+        "plan_impl_at_dispatch": 1.0,
+        "impl_move": {
+          "plan": "slurm-hosted-agent-fleet",
+          "at_dispatch": 1.0,
+          "at_complete": null,
+          "verdict": "exempt",
+          "reason": "role-not-enforced:review"
+        },
+        "negative_control": {
+          "verdict": "exempt",
+          "reason": "node-writes-no-test-path"
+        },
+        "lane_advisory": {
+          "backend": "clive",
+          "burn_multiple": null,
+          "cheaper_lane": {
+            "detail": "",
+            "lane": null,
+            "state": "not_evaluated"
+          },
+          "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+          "horizon_ends_at": "2026-09-23T15:33:45.356406+00:00",
+          "horizon_seconds": 1800,
+          "metered": false,
+          "observed_at": null,
+          "precedes_horizon": null,
+          "projected_exhaustion_at": null,
+          "resets_at": null,
+          "seconds_until_reset": null,
+          "state": "quiet",
+          "utilisation_pct": null
+        },
+        "lane_declaration": {
+          "backend": null,
+          "headroom": null,
+          "metered": false,
+          "observed_at": null,
+          "read_at": "2026-09-23T15:03:45Z",
+          "resolved_backend": "clive",
+          "utilisation_pct": null
+        },
+        "lane_reading": {
+          "age_seconds": 22,
+          "binding_observed": "unknown",
+          "detail": "",
+          "headroom": 1,
+          "mean_context": 105263,
+          "observed_at": "2026-09-23T15:03:23Z",
+          "state": "fresh",
+          "suggested_shelf_life_seconds": 45
+        },
+        "tool_steps": 68.0,
+        "orientation_input_tokens": null,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -84066,6 +84295,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 1043
+    "_version": 1045
   }
 }
