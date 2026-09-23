@@ -2171,7 +2171,10 @@ $ loginctl list-sessions | grep -c 39486
     <h2>A committed guard holds the placement declaration</h2>
 
     <p><strong>Deliverable.</strong> Commit <code>6dbfe4aa</code> adds
-    <code>tests/agent/test_flight_placement.py</code>, which loads
+    <code>tests/agent/test_flight_placement.py</code> and commit
+    <code>2cea28f9</code> repairs its identifier check after a review found the
+    first version could be defeated by the very input it guarded against. The test
+    loads
     <code>docs/state/imas-ambix/flight.yaml</code> with <code>yaml.safe_load</code>
     and asserts three properties the declaration must keep:</p>
     <ul>
@@ -2180,9 +2183,11 @@ $ loginctl list-sessions | grep -c 39486
       <li><code>state_query</code> and <code>reason_query</code> are lists, each
       carrying the literal <code>{job}</code> so dispatch can substitute the
       resolved job into it;</li>
-      <li>no scalar anywhere in the document matches
-      <code>a bare run of five or more digits</code>, the shape a scheduler job
-      identifier takes.</li>
+      <li>no scalar anywhere in the document carries the shape of a scheduler job
+      identifier — a run of five or more digits, outside any other digit: tested
+      both as a whole scalar and as a run embedded inside a string, and tested
+      for the integer that <code>yaml.safe_load</code> produces from an unquoted
+      value as well as for a string.</li>
     </ul>
 
     <p><strong>What the guard cannot do, stated so it is not read as more.</strong>
@@ -2243,6 +2248,71 @@ $ loginctl list-sessions | grep -c 39486
     carry this control. The file was restored byte-identical —
     <code>sha256 26ca0c56c81d0b9b1ad42bed23c00822bd56658a1a646fe989b065e9c96f7f45</code>
     before and after, unchanged from <code>HEAD</code>.</p>
+
+    <p><strong>The first version of the identifier check was defeatable by the
+    input it exists to catch.</strong> It tested
+    <code>isinstance(value, str)</code> and matched the whole string, but
+    <code>yaml.safe_load</code> hands an <em>unquoted</em>
+    <code>1276262</code> back as an <code>int</code>, not a <code>str</code> — so
+    <code>job: 1276262</code> written under the placement block passed the check
+    that forbids it, and so did an identifier embedded in an argument such as
+    <code>1276262</code> inside <code>--jobid=1276262</code>. The repaired
+    predicate tests the scalar forms <code>safe_load</code> actually produces:
+    a run of five or more digits bounded by non-digits searched inside a string,
+    and the same shape matched across an integer's whole decimal form, with
+    <code>bool</code> excluded (a boolean is an <code>int</code> in Python and
+    must never read as an equivalent) and a signed integer not admitted, since a
+    job identifier carries no sign. The predicate was read directly on a set of
+    both shapes: <code>'1276262'</code>, <code>'--jobid=1276262'</code>,
+    <code>'abc12345def'</code> and <code>1276262</code> read true;
+    <code>'1234'</code>, <code>1234</code>, <code>-1276262</code>,
+    <code>True</code> and <code>1</code> read false.</p>
+
+    <table>
+      <caption>The second negative control — the mutation the repaired check
+      exists for — at revision <code>06926c4b</code> in the node's own worktree</caption>
+      <thead>
+        <tr><th>step</th><th>command</th><th>result</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td><code>pytest tests/agent/test_flight_placement.py</code></td>
+          <td><strong>4 passed</strong></td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td>add <code>job: 1276262</code> (unquoted) under
+          <code>backends.clive.placement</code>, then the same pytest</td>
+          <td><strong>1 failed, 3 passed</strong> —
+          <code>test_no_job_identifier_is_written_into_the_declaration</code>
+          fails</td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td>restore from the saved original, then compare</td>
+          <td><code>sha256 26ca0c56…</code> identical before and after;
+          <code>git diff</code> against <code>HEAD</code> empty</td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td>the same pytest again on the restored file</td>
+          <td><strong>4 passed</strong></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p><strong>Both controls fired.</strong> The second red log's first line
+    repeats its declared mutation verbatim: <em>add 'job: 1276262' (unquoted)
+    under backends.clive.placement; test_flight_placement.py must then
+    fail</em>, and the failing test is the identifier check itself. The first
+    control was re-run against the repaired test rather than left as a receipt
+    from the pre-repair revision, and still reads
+    <strong>2 failed, 2 passed</strong>. That the two controls are separate logs
+    is not a presentation choice: promotion matches the mutation the node
+    declares against the log the manifest names, so the field names the log whose
+    first line carries the declared string and the second control is recorded
+    here and beside it.</p>
 
     <p><strong>Whole-tree lint is green.</strong>
     <code>uv run --no-sync ruff check imas_ambix tests</code> prints
