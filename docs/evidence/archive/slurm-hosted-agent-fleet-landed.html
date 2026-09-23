@@ -2165,6 +2165,98 @@ $ loginctl list-sessions | grep -c 39486
     shape rather than the one this project locked. A separately dispatched test
     node owns the merged result.</p>
   </section>
+
+  <section id="flight-declaration-holds">
+
+    <h2>A committed guard holds the placement declaration</h2>
+
+    <p><strong>Deliverable.</strong> Commit <code>6dbfe4aa</code> adds
+    <code>tests/agent/test_flight_placement.py</code>, which loads
+    <code>docs/state/imas-ambix/flight.yaml</code> with <code>yaml.safe_load</code>
+    and asserts three properties the declaration must keep:</p>
+    <ul>
+      <li><code>backends.clive.placement.scheduler</code> is the literal
+      <code>srun</code>;</li>
+      <li><code>state_query</code> and <code>reason_query</code> are lists, each
+      carrying the literal <code>{job}</code> so dispatch can substitute the
+      resolved job into it;</li>
+      <li>no scalar anywhere in the document matches
+      <code>a bare run of five or more digits</code>, the shape a scheduler job
+      identifier takes.</li>
+    </ul>
+
+    <p><strong>What the guard cannot do, stated so it is not read as more.</strong>
+    It does not verify that a worker is placed. Placement is decided by the
+    project-keyed reservation record and by dispatch's
+    <code>apply_backend_placement</code>, neither of which this test touches. What
+    it catches is the declaration losing the property that makes placement
+    resolvable — the scheduler, the queries, or the absence of a baked-in
+    identifier — which is otherwise silent, since nothing else fails when the block
+    is removed and the launch quietly lands back on the login node.</p>
+
+    <p><strong>The declaration is read; it is not written.</strong>
+    <code>flight.yaml</code> is read only. The document-level scalar walk
+    deliberately includes mapping keys as well as values: a job identifier written
+    as a key is as absent from the resolver as one written as a value, and checking
+    one conveniently-dotted level would miss it.</p>
+
+    <table>
+      <caption>The negative control, in order, at revision
+      <code>dbc8b56e</code> in the node's own worktree</caption>
+      <thead>
+        <tr><th>step</th><th>command</th><th>result</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td><code>pytest tests/agent/test_flight_placement.py</code></td>
+          <td><strong>4 passed</strong></td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td>delete <code>backends.clive.placement</code> from
+          <code>flight.yaml</code>, then the same pytest</td>
+          <td><strong>2 failed, 2 passed</strong> — the scheduler and
+          <code>{job}</code> assertions fire</td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td>restore from the saved original, then compare</td>
+          <td><code>sha256</code> identical before and after; <code>git diff</code>
+          against <code>HEAD</code> empty</td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td>the same pytest again on the restored file</td>
+          <td><strong>4 passed</strong></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p><strong>The negative control fires.</strong> The declared mutation produced
+    the red log whose first line repeats the declared string verbatim:
+    <em>delete the backends.clive.placement block from
+    docs/state/imas-ambix/flight.yaml; test_flight_placement.py must then
+    fail</em>. The identifier assertion passes under this mutation, and that is
+    correct rather than a miss: with the whole block removed there is no job
+    identifier left to find, and it is the scheduler and query assertions that
+    carry this control. The file was restored byte-identical —
+    <code>sha256 26ca0c56c81d0b9b1ad42bed23c00822bd56658a1a646fe989b065e9c96f7f45</code>
+    before and after, unchanged from <code>HEAD</code>.</p>
+
+    <p><strong>Whole-tree lint is green.</strong>
+    <code>uv run --no-sync ruff check imas_ambix tests</code> prints
+    <code>All checks passed!</code> and exits <strong>0</strong>. Log:
+    <code>ruff.log</code>.</p>
+
+    <p><strong>Scope.</strong> This measures only this node's own change, in its own
+    worktree, at the revision it committed. It does not verify the merged result;
+    a separately dispatched test node owns that. The gate ran on a compute node
+    (<code>98dci4-clu-2002.iter.org</code>, cgroup
+    <code>slurmstepd.scope/job_1276262/step_8</code>) rather than the login node.
+    Logs: <code>flight_placement.log</code>,
+    <code>flight_placement_negative_control.log</code>.</p>
+  </section>
 </main>
 </body>
 </html>
