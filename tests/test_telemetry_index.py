@@ -516,6 +516,85 @@ def test_running_totals_are_differenced_and_intervals_are_summed(tmp_path):
         )
 
 
+def test_a_window_spanning_two_serves_totals_the_sum_of_its_runs(tmp_path):
+    """A cumulative total is summed run by run, not read off two endpoints.
+
+    A serve restart resets the counter, so the first reading of the window and
+    the last belong to different runs. Differencing those two endpoints yields a
+    figure no counter ever advanced -- negative here, and positive when the
+    newer serve happens to be the further ahead -- and either reads exactly like
+    a measured total. The window is partitioned at the restart instead, each run
+    is differenced between its own endpoints, and the differences are summed.
+    """
+    early = tmp_path / "serve-a.jsonl"
+    later = tmp_path / "serve-b.jsonl"
+    _write(
+        early,
+        [
+            _row(0, engine=_engine_tokens(1000.0)),
+            _row(5, engine=_engine_tokens(1100.0)),
+        ],
+    )
+    _write(
+        later,
+        [
+            _row(10, job_id="1273254", engine=_engine_tokens(50.0)),
+            _row(15, job_id="1273254", engine=_engine_tokens(150.0)),
+        ],
+    )
+
+    with TelemetryIndex(tmp_path / "index.db") as index:
+        index.ingest([early, later])
+
+        # Two endpoints straddling the restart difference negative; that is the
+        # reading the partition exists to replace.
+        assert index.counter_span("engine.generation_tokens", _at(0), _at(20)) < 0
+
+        partition = index.partitioned_total(
+            "engine.generation_tokens", _at(0), _at(20)
+        )
+        assert partition.runs == 2
+        # 1100-1000 from the first serve, 150-50 from the second.
+        assert partition.total == pytest.approx(200.0)
+
+
+def test_the_coverage_beside_a_total_is_the_union_of_its_runs(tmp_path):
+    """Coverage is what the contributing runs account for, not the window.
+
+    The two figures describe the same thing by construction, so a window far
+    longer than the record that fills it must report the runs' own span. Laying the
+    two serves end to end over a short stretch of a long window is the shape
+    that would otherwise print the window's nominal length beside a much smaller
+    total.
+    """
+    early = tmp_path / "serve-c.jsonl"
+    later = tmp_path / "serve-d.jsonl"
+    _write(
+        early,
+        [
+            _row(0, engine=_engine_tokens(1000.0)),
+            _row(5, engine=_engine_tokens(1100.0)),
+        ],
+    )
+    _write(
+        later,
+        [
+            _row(10, job_id="1273255", engine=_engine_tokens(50.0)),
+            _row(15, job_id="1273255", engine=_engine_tokens(150.0)),
+        ],
+    )
+
+    with TelemetryIndex(tmp_path / "index.db") as index:
+        index.ingest([early, later])
+        partition = index.partitioned_total(
+            "engine.generation_tokens", _at(0), _at(100)
+        )
+        # Each run spans 5 s of the 100 s window, and the union is their sum
+        # because the runs are disjoint.
+        assert partition.coverage == pytest.approx(10.0)
+        assert partition.coverage != _at(100) - _at(0)
+
+
 def test_default_discovery_reaches_a_rolled_file(tmp_path):
     """The default pattern follows the naming a roll produces."""
     records = tmp_path / "serve.jsonl"

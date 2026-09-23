@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="serving-record-warehouse-landed">
+  <meta name="plan-title" content="Serving Record Warehouse — Landed Record">
+  <meta name="plan-summary" content="Execution record for the aggregation rule: a window partitioned into contiguous counter runs, differenced within each, summed, with the union of those runs reported beside the total.">
+  <meta name="plan-evidence-for" content="serving-record-warehouse">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <title>Serving Record Warehouse — Landed Record | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s3">§3 — The aggregation rule the reporter got wrong</h2>
+
+    <p><strong>What landed.</strong> <code>TelemetryIndex.partitioned_total(name,
+    start, end)</code> returns a <code>PartitionedTotal</code> carrying the total, the
+    number of contributing runs, and the coverage behind it. The total is the sum of the
+    per-run differences; the coverage is the union of the contributing runs' spans clipped
+    to the window. <code>watch._span</code> and <code>watch.period_row</code> both read
+    through it, so no period figure the watcher prints is now a single outermost
+    difference taken across a serve restart.</p>
+
+    <figure>
+      <svg viewBox="0 0 540 200" role="img" aria-label="A cumulative counter across two serves inside one window; the window is partitioned at the restart, each run is differenced, and the covered union is shorter than the window." style="max-width:100%;height:auto">
+        <rect x="60" y="20" width="460" height="150" fill="none" stroke="#888" stroke-width="1"/>
+        <line x1="60" y1="170" x2="520" y2="170" stroke="#888" stroke-width="1"/>
+        <line x1="60" y1="20" x2="60" y2="170" stroke="#888" stroke-width="1"/>
+        <text x="60" y="188" font-size="11" text-anchor="middle">window start</text>
+        <text x="520" y="188" font-size="11" text-anchor="middle">window end</text>
+        <polyline points="60,140 150,120 240,100" fill="none" stroke="#1f77b4" stroke-width="2.5"/>
+        <polyline points="240,160 330,120 420,80 500,60" fill="none" stroke="#d62728" stroke-width="2.5"/>
+        <line x1="240" y1="20" x2="240" y2="170" stroke="#555" stroke-width="1" stroke-dasharray="4 3"/>
+        <text x="248" y="34" font-size="11" fill="#555">serve restart</text>
+        <rect x="60" y="196" width="180" height="4" fill="#1f77b4"/>
+        <rect x="240" y="196" width="260" height="4" fill="#d62728"/>
+        <text x="270" y="212" font-size="11" text-anchor="middle">covered = run 1 span + run 2 span, not the window's nominal length</text>
+      </svg>
+      <figcaption>One window spanning two serves. Differencing the outermost pair takes
+      the restarted run's first reading from the old run's last — a negative figure no
+      counter advanced. Partitioning at the restart and differencing inside each run sums
+      what the two serves together carried, and the covered union is shorter than the
+      window, which is how the row announces that it is partial.</figcaption>
+    </figure>
+
+    <h3 id="rule">What a run boundary is</h3>
+    <p>A run ends at a serve restart, a reboot, a run moving to another host, or any gap
+    the record cannot bridge. The boundary used is the reading's identity — the receipt's
+    <code>job_id</code> beside the sample's <code>boot_id</code> — plus a split on any
+    reading that does not advance: a restart whose source key did not change is still a
+    restart, and differencing across it is still the defect. The file inode is
+    deliberately <em>not</em> part of the identity, because a serve that rolls its receipts
+    file has not restarted and scanning the record would fragment one run into several.</p>
+
+    <h3 id="coverage">What the coverage figure is</h3>
+    <p>The coverage is the union of the contributing runs' own spans, clipped to the
+    window, in seconds. It is never the window's nominal length. Where the record covers
+    part of a window, the row reports the part it can stand behind; where no run of the
+    window had two endpoints to difference, the total is <code>None</code> — absent, which
+    is not the same answer as the <code>0.0</code> of runs observed and not advancing.</p>
+
+    <h3 id="gates">Gates</h3>
+    <table>
+      <thead><tr><th>Gate</th><th>Result</th><th>Log</th></tr></thead>
+      <tbody>
+        <tr><td>index and watcher suites</td><td>55 passed, exit 0</td><td><code>gate-index-and-watch.log</code></td></tr>
+        <tr><td>partition semantics, named tests</td><td>3 passed, exit 0</td><td><code>gate-partition-semantics.log</code></td></tr>
+        <tr><td>serving-interpreter parse guard</td><td>1 passed, exit 0</td><td><code>gate-serving-python.log</code></td></tr>
+        <tr><td>whole-tree lint</td><td><code>All checks passed!</code>, exit 0</td><td><code>gate-ruff.log</code></td></tr>
+      </tbody>
+    </table>
+
+    <p>The two assertions §3 asks for are named and pass. A window spanning two serves
+    totals the sum of its per-run differences — asserted to <code>4000.0</code> where the
+    two outermost endpoints difference negative — and the coverage reported beside a total
+    equals the union of the contributing runs rather than the window's nominal length.</p>
+
+    <h3 id="control">Negative control</h3>
+    <p>The declared mutation — <em>make the window total difference only the outermost pair
+    of readings, ignoring run boundaries</em> — reddens the coverage assertion, which is
+    the behaviour the section exists to prevent. Log: <code>negative-control.log</code>;
+    its first line is the mutation stated verbatim.</p>
+
+    <h3 id="scope">What this node did not do</h3>
+    <p>The total and its coverage are reachable from the store and from the watcher's
+    period rows. Nothing here changes the ingest cadence, the compaction tiers, or the
+    reader the plan's later sections own. The plan prose in §3's parent document is
+    left as it stands; the meta <code>plan-version</code> and <code>plan-modified</code>
+    pair was not touched.</p>
+
+  </main>
+</body>
+</html>

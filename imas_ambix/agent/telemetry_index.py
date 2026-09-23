@@ -249,6 +249,24 @@ class IngestReport:
         return dataclasses.asdict(self)
 
 
+@dataclasses.dataclass(frozen=True)
+class PartitionedTotal:
+    """A cumulative counter totalled run by run, with the coverage behind it.
+
+    ``total`` is the sum of the per-run differences, or ``None`` when no run
+    of the window had two endpoints to difference -- which is not the same
+    answer as ``0.0``, the total of runs that were observed and did not
+    advance. ``coverage`` is the union of the contributing runs' own spans,
+    clipped to the window and measured in seconds, so a window the record only
+    partly covers reports that rather than the window's nominal length.
+    """
+
+    name: str
+    total: float | None
+    coverage: float
+    runs: int
+
+
 def _section_text(row: Mapping[str, Any], name: str) -> str | None:
     """*name* from the row's own ``host`` section, or ``None``.
 
@@ -530,6 +548,68 @@ def discover(directory: str | Path, pattern: str | None = None) -> list[Path]:
         for entry in entries
         if entry.is_file() and _ROLL_SUFFIX.search(entry.name)
     )
+
+
+def _counter_runs(
+    rows: Iterable[Any],
+) -> list[list[tuple[float, float]]]:
+    """Partition counter readings into contiguous runs, in time order.
+
+    Each reading is ``(ts_epoch, host, boot_id, job_id, value)``. A run is one
+    serving process on one host over one boot, and it ends where the key moves
+    or where the counter falls -- the latter being a restart the key did not
+    announce. Readings within a run are therefore non-decreasing, so a run
+    differences to a non-negative figure and a window's total is the sum of its
+    runs rather than the difference of its two outermost readings.
+    """
+    runs: list[list[tuple[float, float]]] = []
+    key: tuple[Any, Any, Any] | None = None
+    previous: float | None = None
+    for row in rows:
+        current = (row["host"], row["boot_id"], row["job_id"])
+        value = float(row["value"])
+        if key != current or (previous is not None and value < previous):
+            runs.append([])
+            key = current
+        runs[-1].append((float(row["ts"]), value))
+        previous = value
+    return runs
+
+
+def _run_opening(
+    run: list[tuple[float, float]], start: float, end: float
+) -> tuple[float, float] | None:
+    """A run's endpoint at or before the window, or its first inside it.
+
+    The opening reading is the last at or before ``start`` so a difference
+    counts the traffic served from that reading onward, and a window whose own
+    first sample already carries the counter needs no earlier row.
+    """
+    opening: tuple[float, float] | None = None
+    for entry in run:
+        if entry[0] <= start:
+            opening = entry
+        else:
+            break
+    if opening is not None:
+        return opening
+    for entry in run:
+        if start <= entry[0] < end:
+            return entry
+    return None
+
+
+def _run_closing(
+    run: list[tuple[float, float]], end: float
+) -> tuple[float, float] | None:
+    """A run's latest reading strictly before the window's end."""
+    closing: tuple[float, float] | None = None
+    for entry in run:
+        if entry[0] < end:
+            closing = entry
+        else:
+            break
+    return closing
 
 
 class TelemetryIndex:
@@ -980,6 +1060,51 @@ class TelemetryIndex:
         if opening[:2] != closing[:2]:
             return None
         return closing[2] - opening[2]
+
+    def partitioned_total(
+        self, name: str, start: float, end: float
+    ) -> PartitionedTotal:
+        """Total a cumulative counter over ``[start, end)``, run by run.
+
+        A cumulative counter restarts at zero when its serve restarts, its host
+        reboots, or the recording moves to another machine, so a window spanning
+        such a boundary cannot be totalled from two endpoints: the later reading
+        belongs to the new run, and differencing the pair yields a number no
+        counter ever advanced. The window is therefore partitioned into
+        contiguous runs -- one serving process, on one host, over one boot --
+        each run is differenced between its own endpoints inside the window, and
+        the differences are summed. A run ends where the recording source moves
+        (host, boot or job changes), or where the counter falls, which is a
+        restart visible even when the source key does not move.
+
+        The ``coverage`` returned beside the total is the union of the
+        contributing runs' spans, clipped to the window, because a window the
+        record only partly covers must report a partial figure that announces
+        itself rather than print the window's nominal length beside it.
+        """
+        rows = self._conn.execute(
+            "SELECT s.ts_epoch AS ts, s.host AS host, s.boot_id AS boot_id, "
+            "       s.job_id AS job_id, m.value AS value "
+            "FROM measurement m JOIN sample s ON s.id = m.sample_id "
+            "WHERE m.name = ? AND s.ts_epoch IS NOT NULL AND s.ts_epoch < ? "
+            "ORDER BY s.ts_epoch, s.offset, s.host, s.boot_id",
+            (name, end),
+        ).fetchall()
+
+        total: float | None = None
+        coverage = 0.0
+        contributing = 0
+        for run in _counter_runs(rows):
+            opening = _run_opening(run, start, end)
+            if opening is None:
+                continue
+            closing = _run_closing(run, end)
+            if closing is None or closing[0] < start:
+                continue
+            total = (0.0 if total is None else total) + (closing[1] - opening[1])
+            coverage += min(closing[0], end) - max(opening[0], start)
+            contributing += 1
+        return PartitionedTotal(name, total, coverage, contributing)
 
     def _last_at_or_before(
         self, name: str, bound: float, *, strict: bool = False

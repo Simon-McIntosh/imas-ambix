@@ -344,11 +344,12 @@ def ledger_cost(total: dict, price: dict) -> float | None:
     two differ by a factor of fifty, so pricing all input at the prompt rate
     overstates the figure by an order of magnitude.
 
-    A total the record did not carry is not a zero. When a counter reset inside
-    the period the traffic cannot be integrated at all, and when a series was
-    never recorded its share of the bill is unknown; in either case a price
-    derived from the remaining terms publishes a measurement that was never
-    taken, so the cost is declined and the row dashes.
+    A total the record did not carry is not a zero. When a series was never
+    recorded its share of the bill is unknown, and a price derived from the
+    remaining terms publishes a measurement that was never taken, so the cost
+    is declined and the row dashes. A serve that restarted inside the period
+    does not make the traffic unintegrable: the window is totalled run by run,
+    so each run contributes what it carried and the reset costs nothing.
     """
     tokens_in = total.get("in")
     cached_in = total.get("cached")
@@ -370,15 +371,12 @@ def ledger_cost(total: dict, price: dict) -> float | None:
 def _span(index: TelemetryIndex, name: str, start: float, end: float) -> float | None:
     """Advance of a counter across the window, or ``None`` when unusable.
 
-    A negative advance means the counter reset between the bounds — the serve
-    restarted inside the period. Two endpoints cannot recover the traffic on
-    either side of that reset, so the figure is declined rather than clamped,
-    which would report the restarted serve as having carried nothing.
+    The window is totalled run by run, so a serve that restarted inside the
+    period contributes what each of its runs carried rather than declining the
+    whole period: the counter reset at the process boundary, not at the
+    window's, and the record carries the readings on both sides of it.
     """
-    advance = index.counter_span(name, start, end)
-    if advance is None or advance < 0:
-        return None
-    return advance
+    return index.partitioned_total(name, start, end).total
 
 
 def _cached_span(index: TelemetryIndex, start: float, end: float) -> float | None:
@@ -475,15 +473,17 @@ def period_row(
 
     A period the record never reached is left out rather than printed as a row
     of dashes, which would claim a period was observed when it was not. A
-    period the record did reach keeps its row even when a counter reset inside
-    it made the tokens unintegrable: the dashes then say the period happened
-    and could not be measured, which is a different statement from silence.
+    period the record did reach keeps its row even when a serve restarted
+    inside it left part of the window unmeasured: the dashes then say the
+    period happened and could not be measured, which is a different statement
+    from silence.
     """
     stamps = _timestamps(index, start, end)
     if len(stamps) < 2:
         return None
 
-    tokens_in = _span(index, PROMPT_TOKENS, start, end)
+    in_partition = index.partitioned_total(PROMPT_TOKENS, start, end)
+    tokens_in = in_partition.total
     tokens_out = _span(index, GENERATION_TOKENS, start, end)
     cached = _cached_span(index, start, end)
 
@@ -496,7 +496,7 @@ def period_row(
                 price_at(price, now),
             )
 
-    covered = min(period, stamps[-1] - stamps[0])
+    covered = min(period, in_partition.coverage)
     return Period(
         label=label,
         period=period,

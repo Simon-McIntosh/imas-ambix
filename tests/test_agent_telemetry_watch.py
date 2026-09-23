@@ -303,20 +303,39 @@ def test_cost_bills_cached_input_at_the_cache_tier(tmp_path: Path) -> None:
     assert cost < 1000 * 1e-6
 
 
-def test_counter_reset_declines_rather_than_going_negative(tmp_path: Path) -> None:
-    """A serve restarted inside the period cannot be integrated from two
-    endpoints, so the row declines instead of reporting a negative."""
+def test_a_serve_restart_totals_run_by_run_not_across_the_reset(
+    tmp_path: Path,
+) -> None:
+    """A window spanning two serves sums its runs, not its two endpoints.
+
+    Two endpoints straddling the reset difference the new run's reading from the
+    old run's, which is a negative figure no counter ever advanced. The window
+    is instead partitioned at the restart, each run is differenced inside the
+    window, and the sum is what the two serves together carried. The coverage
+    reported beside the total is the span the contributing runs account for,
+    which is far shorter than the window and is how the row announces that it
+    is partial.
+    """
     now = _dt.datetime.now(_dt.UTC).timestamp()
-    rows = [
-        _row(now - 1800, prompt_tokens=5000, generation_tokens=500),
-        _row(now - 1200, prompt_tokens=9000, generation_tokens=900),
-        _row(now - 100, prompt_tokens=10, generation_tokens=1),
-    ]
-    index = _index(tmp_path, rows)
-    period = watch.ledger(index, now=now, periods=((3600.0, "1 hour"),))[0]
-    assert period.tokens_in is None
-    # The raw span really is negative; the refusal is what turns it into None.
+    first = _row(now - 1800, prompt_tokens=5000, generation_tokens=500)
+    second = _row(now - 1200, prompt_tokens=9000, generation_tokens=900)
+    restarted = _row(now - 100, prompt_tokens=10, generation_tokens=1)
+    restarted["job_id"] = "9999"  # the restarted serve records under a new job
+    index = _index(tmp_path, [first, second, restarted])
+
+    partition = index.partitioned_total("engine.prompt_tokens", now - HOUR, now)
+    # 9000 - 5000 from the first run, 10 - 10 from the restarted second run.
+    assert partition.total == 4000.0
+    assert partition.runs == 2
+    # The two outermost readings really do difference negative; partitioning is
+    # what turns that into the traffic the two serves actually carried.
     assert index.counter_span("engine.prompt_tokens", now - HOUR, now) < 0
+
+    period = watch.ledger(index, now=now, periods=((3600.0, "1 hour"),))[0]
+    assert period.tokens_in == 4000.0
+    # Coverage is the union of the contributing runs (600 s), never the 3600 s
+    # the window nominally spans.
+    assert period.covered == pytest.approx(600.0)
     index.close()
 
 
@@ -334,11 +353,11 @@ def test_cost_is_declined_when_the_token_totals_are_absent(tmp_path: Path) -> No
     assert watch.ledger_cost({"in": 1000.0, "cached": None, "out": 5.0}, price) is None
 
     now = _dt.datetime.now(_dt.UTC).timestamp()
-    rows = [
-        _row(now - 1800, prompt_tokens=5000, generation_tokens=500),
-        _row(now - 1200, prompt_tokens=9000, generation_tokens=900),
-        _row(now - 100, prompt_tokens=10, generation_tokens=1),
-    ]
+    rows = []
+    for offset in (1800, 1200, 100):
+        row = _row(now - offset, prompt_tokens=0, generation_tokens=500)
+        del row["engine"]["prompt_tokens"]  # the scrape never carried the series
+        rows.append(row)
     index = _index(tmp_path, rows)
     prices = [
         {
