@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="serving-record-warehouse-landed">
+  <meta name="plan-title" content="Serving Record Warehouse — Landed Record">
+  <meta name="plan-summary" content="Execution record for the aggregation rule: a window partitioned into contiguous counter runs, differenced within each, summed, with the union of those runs reported beside the total.">
+  <meta name="plan-evidence-for" content="serving-record-warehouse">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <title>Serving Record Warehouse — Landed Record | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s3">§3 — The aggregation rule the reporter got wrong</h2>
+
+    <p><strong>What landed.</strong> <code>TelemetryIndex.partitioned_total(name,
+    start, end)</code> returns a <code>PartitionedTotal</code> carrying the total, the
+    number of contributing runs, and the coverage behind it. The total is the sum of the
+    per-run differences; the coverage is the union of the contributing runs' spans clipped
+    to the window. <code>watch._span</code> and <code>watch.period_row</code> both read
+    through it, so no period figure the watcher prints is now a single outermost
+    difference taken across a serve restart.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/serving-record-warehouse/partitioned-total-coverage.png" alt="A cumulative counter with two readings inside one serve and one in a restarted serve; the window is partitioned at the restart, the two runs are differenced separately, and the covered union is shorter than the window.">
+      <figcaption>One window spanning two serves, drawn from the readings the tests assert
+      against. Run 1 rises 5000 to 9000 inside the window and contributes 4000; the
+      restarted run contributes 0, so the total is 4000 and the covered union is 600 s of
+      the window's 3600 s. Differencing the two outermost readings instead takes 10 from
+      5000 and reports -4990, a figure no counter advanced — which is the defect the
+      section exists to prevent.</figcaption>
+    </figure>
+
+    <h3 id="rule">What a run boundary is</h3>
+    <p>A run ends at a serve restart, a reboot, a run moving to another host, or any gap
+    the record cannot bridge. The boundary used is the reading's identity — the receipt's
+    <code>job_id</code> beside the sample's <code>boot_id</code> — plus a split on any
+    reading that does not advance: a restart whose source key did not change is still a
+    restart, and differencing across it is still the defect. The file inode is
+    deliberately <em>not</em> part of the identity, because a serve that rolls its receipts
+    file has not restarted and scanning the record would fragment one run into several.</p>
+
+    <h3 id="coverage">What the coverage figure is</h3>
+    <p>The coverage is the union of the contributing runs' own spans, clipped to the
+    window, in seconds. It is never the window's nominal length. Where the record covers
+    part of a window, the row reports the part it can stand behind; where no run of the
+    window had two endpoints to difference, the total is <code>None</code> — absent, which
+    is not the same answer as the <code>0.0</code> of runs observed and not advancing.</p>
+
+    <h3 id="gates">Gates</h3>
+    <table>
+      <thead><tr><th>Gate</th><th>Result</th><th>Log</th></tr></thead>
+      <tbody>
+        <tr><td>index and watcher suites</td><td>55 passed, exit 0</td><td><code>gate-index-and-watch.log</code></td></tr>
+        <tr><td>partition semantics, named tests</td><td>3 passed, exit 0</td><td><code>gate-partition-semantics.log</code></td></tr>
+        <tr><td>serving-interpreter parse guard</td><td>1 passed, exit 0</td><td><code>gate-serving-python.log</code></td></tr>
+        <tr><td>whole-tree lint</td><td><code>All checks passed!</code>, exit 0</td><td><code>gate-ruff.log</code></td></tr>
+      </tbody>
+    </table>
+
+    <p>The two assertions §3 asks for are named and pass. A window spanning two serves
+    totals the sum of its per-run differences — asserted to <code>4000.0</code> where the
+    two outermost endpoints difference negative — and the coverage reported beside a total
+    equals the union of the contributing runs rather than the window's nominal length.</p>
+
+    <h3 id="control">Negative control</h3>
+    <p>The declared mutation — <em>make the window total difference only the outermost pair
+    of readings, ignoring run boundaries</em> — reddens the coverage assertion, which is
+    the behaviour the section exists to prevent. Log: <code>negative-control.log</code>;
+    its first line is the mutation stated verbatim.</p>
+
+    <h3 id="repair">Repair after review</h3>
+    <p>An independent review of the landed revision confirmed two defects, both fixed
+    here. <strong>The coverage was accumulated as a sum.</strong> Each run's clipped span
+    was added with <code>+=</code> while the docstring promises the union of those spans,
+    so two recorders whose runs overlap in time would double-count the overlap and inflate
+    the denominator every throughput and utilisation figure divides by. The spans are now
+    collected and reported through <code>_union_length</code>, which merges overlapping and
+    touching intervals alike. <strong>A run with one reading in the window was differenced
+    against itself.</strong> Its opening and closing are the same row, so the subtraction was
+    <code>x - x</code> and the total moved from <code>None</code> to <code>0.0</code> — the
+    answer a run observed and not advancing earns, which is not the same claim as no run had
+    two endpoints to difference. A run now contributes only when it holds two distinct
+    readings, so such a window reports <code>None</code>.</p>
+
+    <p><strong>The union fix is a robustness fix, and the evidence should not overstate
+    it.</strong> The contributing runs are contiguous slices of one time-ordered scan, so
+    their clipped spans can touch but never overlap, and the sum and the union are
+    numerically equal for everything the writer produces today. No fixture can build the
+    overlap through the store; the test asserts the union arithmetic directly and asserts
+    the caller routes coverage through it, which is the regression the arithmetic alone
+    cannot see. Each new test reddens without its own fix, verified by reverting each fix in
+    place; log names are given below.</p>
+
+    <table>
+      <thead><tr><th>Check</th><th>Result</th><th>Log</th></tr></thead>
+      <tbody>
+        <tr><td>index and watcher suites, repaired</td><td>57 passed, exit 0</td><td><code>gate-index-and-watch.log</code></td></tr>
+        <tr><td>serving-interpreter parse guard</td><td>1 passed, exit 0</td><td><code>gate-serving-python.log</code></td></tr>
+        <tr><td>whole-tree lint</td><td><code>All checks passed!</code>, exit 0</td><td><code>gate-ruff.log</code></td></tr>
+        <tr><td>union call site reverted</td><td>union test failed, one-reading test passed</td><td><code>negative-control-union-sum.log</code></td></tr>
+        <tr><td>two-distinct-readings guard dropped</td><td>one-reading test failed, union test passed</td><td><code>negative-control-single-reading.log</code></td></tr>
+        <tr><td>declared mutation, runs not partitioned</td><td>4 failed, 53 passed</td><td><code>negative-control.log</code></td></tr>
+      </tbody>
+    </table>
+
+    <h3 id="scope">What this node did not do</h3>
+    <p>The total and its coverage are reachable from the store and from the watcher's
+    period rows. Nothing here changes the ingest cadence, the compaction tiers, or the
+    reader the plan's later sections own. The plan prose in §3's parent document is
+    left as it stands; the meta <code>plan-version</code> and <code>plan-modified</code>
+    pair was not touched.</p>
+
+  </main>
+</body>
+</html>

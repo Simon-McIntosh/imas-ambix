@@ -516,6 +516,168 @@ def test_running_totals_are_differenced_and_intervals_are_summed(tmp_path):
         )
 
 
+def test_a_window_spanning_two_serves_totals_the_sum_of_its_runs(tmp_path):
+    """A cumulative total is summed run by run, not read off two endpoints.
+
+    A serve restart resets the counter, so the first reading of the window and
+    the last belong to different runs. Differencing those two endpoints yields a
+    figure no counter ever advanced -- negative here, and positive when the
+    newer serve happens to be the further ahead -- and either reads exactly like
+    a measured total. The window is partitioned at the restart instead, each run
+    is differenced between its own endpoints, and the differences are summed.
+    """
+    early = tmp_path / "serve-a.jsonl"
+    later = tmp_path / "serve-b.jsonl"
+    _write(
+        early,
+        [
+            _row(0, engine=_engine_tokens(1000.0)),
+            _row(5, engine=_engine_tokens(1100.0)),
+        ],
+    )
+    _write(
+        later,
+        [
+            _row(10, job_id="1273254", engine=_engine_tokens(50.0)),
+            _row(15, job_id="1273254", engine=_engine_tokens(150.0)),
+        ],
+    )
+
+    with TelemetryIndex(tmp_path / "index.db") as index:
+        index.ingest([early, later])
+
+        # Two endpoints straddling the restart difference negative; that is the
+        # reading the partition exists to replace.
+        assert index.counter_span("engine.generation_tokens", _at(0), _at(20)) < 0
+
+        partition = index.partitioned_total(
+            "engine.generation_tokens", _at(0), _at(20)
+        )
+        assert partition.runs == 2
+        # 1100-1000 from the first serve, 150-50 from the second.
+        assert partition.total == pytest.approx(200.0)
+
+
+def test_the_coverage_beside_a_total_is_the_union_of_its_runs(tmp_path):
+    """Coverage is what the contributing runs account for, not the window.
+
+    The two figures describe the same thing by construction, so a window far
+    longer than the record that fills it must report the runs' own span. Laying the
+    two serves end to end over a short stretch of a long window is the shape
+    that would otherwise print the window's nominal length beside a much smaller
+    total.
+    """
+    early = tmp_path / "serve-c.jsonl"
+    later = tmp_path / "serve-d.jsonl"
+    _write(
+        early,
+        [
+            _row(0, engine=_engine_tokens(1000.0)),
+            _row(5, engine=_engine_tokens(1100.0)),
+        ],
+    )
+    _write(
+        later,
+        [
+            _row(10, job_id="1273255", engine=_engine_tokens(50.0)),
+            _row(15, job_id="1273255", engine=_engine_tokens(150.0)),
+        ],
+    )
+
+    with TelemetryIndex(tmp_path / "index.db") as index:
+        index.ingest([early, later])
+        partition = index.partitioned_total(
+            "engine.generation_tokens", _at(0), _at(100)
+        )
+        # Each run spans 5 s of the 100 s window, and the union is their sum
+        # because the runs are disjoint.
+        assert partition.coverage == pytest.approx(10.0)
+        assert partition.coverage != _at(100) - _at(0)
+
+
+def test_the_coverage_counts_a_shared_stretch_of_time_once(tmp_path, monkeypatch):
+    """The covered figure is a union: an overlap is counted once, not twice.
+
+    Two recorders writing over one stretch of wall clock cover that stretch once
+    between them, and summing their spans instead would report 40 s over a
+    stretch of 30 s, reading every rate whose denominator this figure is low by
+    the overlap. Spans that merely touch cover one continuous stretch, since
+    nothing is uncovered across the join.
+
+    The arithmetic is asserted directly because the overlap it rules out cannot be
+    built through the store: a run is a contiguous slice of a time-ordered scan,
+    so its clipped span can touch a neighbour's but never cross it. The caller is
+    therefore asserted separately -- a total whose coverage came from summing the
+    spans rather than from the union would leave the spy unentered, which is the
+    regression the arithmetic alone cannot see.
+    """
+    assert telemetry_index._union_length([(0.0, 20.0), (10.0, 30.0)]) == pytest.approx(
+        30.0
+    )
+    assert telemetry_index._union_length([(0.0, 20.0), (20.0, 40.0)]) == pytest.approx(
+        40.0
+    )
+    assert telemetry_index._union_length([]) == 0.0
+
+    seen: list[list[tuple[float, float]]] = []
+    union = telemetry_index._union_length
+
+    def spy(spans):
+        seen.append(list(spans))
+        return union(spans)
+
+    monkeypatch.setattr(telemetry_index, "_union_length", spy)
+
+    early = tmp_path / "serve-e.jsonl"
+    later = tmp_path / "serve-f.jsonl"
+    _write(
+        early,
+        [
+            _row(0, engine=_engine_tokens(1000.0)),
+            _row(60, engine=_engine_tokens(1300.0)),
+        ],
+    )
+    _write(
+        later,
+        [
+            _row(120, job_id="1273299", engine=_engine_tokens(5.0)),
+            _row(180, job_id="1273299", engine=_engine_tokens(25.0)),
+        ],
+    )
+
+    with TelemetryIndex(tmp_path / "index.db") as index:
+        index.ingest([early, later])
+        index.partitioned_total("engine.generation_tokens", _at(-100), _at(600))
+
+    assert seen, "coverage must be the union of the runs' spans"
+    assert len(seen[0]) == 2
+    assert [span[0] for span in seen[0]] == pytest.approx([_at(0), _at(120)])
+    assert [span[1] for span in seen[0]] == pytest.approx([_at(60), _at(180)])
+
+
+def test_a_lone_reading_in_the_window_is_effective_only_as_one_endpoint(tmp_path):
+    """One reading cannot be differenced, so the total is absent and not zero.
+
+    A reading inside the window with no earlier one to difference it against is
+    one endpoint rather than two, so no run of the window advanced by a
+    measurable amount and the total is ``None``. Reporting ``0.0`` there would
+    be a claim the record does not support -- the figure a run observed and not
+    advancing earns -- and a caller reading it as "no data" would understate the
+    period instead of declaring it unknown.
+    """
+    source = tmp_path / "serve.jsonl"
+    _write(source, [_row(10, engine=_engine_tokens(1000.0))])
+
+    with TelemetryIndex(tmp_path / "index.db") as index:
+        index.ingest([source])
+        partition = index.partitioned_total(
+            "engine.generation_tokens", _at(0), _at(100)
+        )
+        assert partition.total is None
+        assert partition.runs == 0
+        assert partition.coverage == 0.0
+
+
 def test_default_discovery_reaches_a_rolled_file(tmp_path):
     """The default pattern follows the naming a roll produces."""
     records = tmp_path / "serve.jsonl"
