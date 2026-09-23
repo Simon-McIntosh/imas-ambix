@@ -91,34 +91,16 @@ class BenchReport:
             ok = [r for r in results if r.ok]
             tps_vals = [r.decode_tps for r in ok if r.decode_tps > 0]
             ttft_vals = [
-                r.time_to_first_token_s
-                for r in ok
-                if r.time_to_first_token_s > 0
+                r.time_to_first_token_s for r in ok if r.time_to_first_token_s > 0
             ]
-            avg_tps = (
-                round(statistics.mean(tps_vals), 1)
-                if tps_vals
-                else 0
-            )
-            avg_ttft = (
-                round(statistics.mean(ttft_vals) * 1000, 1)
-                if ttft_vals
-                else 0
-            )
+            avg_tps = round(statistics.mean(tps_vals), 1) if tps_vals else 0
+            avg_ttft = round(statistics.mean(ttft_vals) * 1000, 1) if ttft_vals else 0
             out[cat] = {
                 "total": len(results),
-                "passed": sum(
-                    1 for r in results if r.status == "passed"
-                ),
-                "failed": sum(
-                    1 for r in results if r.status == "failed"
-                ),
-                "skipped": sum(
-                    1 for r in results if r.status == "skipped"
-                ),
-                "error": sum(
-                    1 for r in results if r.status == "error"
-                ),
+                "passed": sum(1 for r in results if r.status == "passed"),
+                "failed": sum(1 for r in results if r.status == "failed"),
+                "skipped": sum(1 for r in results if r.status == "skipped"),
+                "error": sum(1 for r in results if r.status == "error"),
                 "avg_decode_tps": avg_tps,
                 "avg_ttft_ms": avg_ttft,
             }
@@ -655,9 +637,7 @@ def _stream_chat(
         body.update(extra_body)
 
     payload = json.dumps(body).encode()
-    req = urllib.request.Request(
-        url, data=payload, headers=_auth_headers(api_key)
-    )
+    req = urllib.request.Request(url, data=payload, headers=_auth_headers(api_key))
 
     result = BenchResult(model=model)
     t0 = time.perf_counter()
@@ -757,9 +737,7 @@ def _chat(
         body.update(extra_body)
 
     payload = json.dumps(body).encode()
-    req = urllib.request.Request(
-        url, data=payload, headers=_auth_headers(api_key)
-    )
+    req = urllib.request.Request(url, data=payload, headers=_auth_headers(api_key))
 
     result = BenchResult(model=model)
     t0 = time.perf_counter()
@@ -1435,7 +1413,10 @@ def _run_concurrency(
                 def _worker(idx: int) -> BenchResult:
                     _barrier.wait()
                     r = _stream_chat(
-                        base_url, model, prompt, max_tokens=gen_tokens,
+                        base_url,
+                        model,
+                        prompt,
+                        max_tokens=gen_tokens,
                         api_key=api_key,
                     )
                     r.category = "concurrency"
@@ -1450,12 +1431,8 @@ def _run_concurrency(
 
             worker_fn = _make_worker(barrier, test_name, rep)
             wall_t0 = time.perf_counter()
-            with concurrent.futures.ThreadPoolExecutor(
-                max_workers=n_workers
-            ) as pool:
-                futures = [
-                    pool.submit(worker_fn, i) for i in range(n_workers)
-                ]
+            with concurrent.futures.ThreadPoolExecutor(max_workers=n_workers) as pool:
+                futures = [pool.submit(worker_fn, i) for i in range(n_workers)]
                 worker_results = [f.result() for f in futures]
             wall_time = time.perf_counter() - wall_t0
 
@@ -1577,9 +1554,7 @@ def run_bench_preset(
 ) -> BenchReport:
     """Run a legacy benchmark preset (deprecated, use *run_benchmark*)."""
     cfg = BENCH_PRESETS[preset]
-    report = BenchReport(
-        model=model, timestamp=_dt.datetime.now(_dt.UTC).isoformat()
-    )
+    report = BenchReport(model=model, timestamp=_dt.datetime.now(_dt.UTC).isoformat())
     for rep in range(repeat):
         r = _stream_chat(
             base_url=base_url,
@@ -1599,7 +1574,8 @@ def run_bench_preset(
 def run_tool_call_bench(base_url: str, model: str) -> BenchResult:
     """Legacy tool-call test (deprecated, use *run_benchmark* with category='tools')."""
     r, _data = _chat(
-        base_url, model,
+        base_url,
+        model,
         BENCH_PRESETS["tool_use"]["messages"],  # type: ignore[arg-type]
         tools=BENCH_PRESETS["tool_use"]["tools"],  # type: ignore[arg-type]
         max_tokens=256,

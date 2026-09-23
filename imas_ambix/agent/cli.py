@@ -335,9 +335,7 @@ def fleet_place(command: tuple[str, ...]) -> None:
     from imas_ambix.agent.fleet import find_fleet_allocation, placement_argv
 
     site = SiteConfig.from_env()
-    allocation = find_fleet_allocation(
-        _running_jobs(site, account=site.fleet_account)
-    )
+    allocation = find_fleet_allocation(_running_jobs(site, account=site.fleet_account))
     if allocation is None:
         raise click.ClickException(
             "No fleet allocation is held, so there is nowhere to place "
@@ -345,9 +343,7 @@ def fleet_place(command: tuple[str, ...]) -> None:
             "Hold one with `imas-ambix agent fleet hold --submit`."
         )
 
-    result = subprocess.run(
-        placement_argv(allocation, command), check=False
-    )
+    result = subprocess.run(placement_argv(allocation, command), check=False)
     if result.returncode != 0:
         raise SystemExit(result.returncode)
 

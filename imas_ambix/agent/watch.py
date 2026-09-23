@@ -640,9 +640,7 @@ def render_ledger_rows(rows: Sequence[Period], prices: bool) -> list[str]:
     """The ledger, one line per period, in one column grid."""
     lines = [
         "[bold]ledger[/]  "
-        + (
-            "[dim]period · covered · in · cached · out · cards · cost[/]"
-        )
+        + ("[dim]period · covered · in · cached · out · cards · cost[/]")
     ]
     if not rows:
         lines.append("[dim]no record yet[/]")

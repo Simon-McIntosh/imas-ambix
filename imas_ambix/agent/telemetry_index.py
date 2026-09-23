@@ -396,9 +396,7 @@ def receipts_host(path: str | Path) -> str:
         raise ValueError(
             f"could not resolve the host of {path}: sacct is unavailable"
         ) from error
-    hostlists = [
-        line for line in completed.stdout.splitlines() if line.strip()
-    ]
+    hostlists = [line for line in completed.stdout.splitlines() if line.strip()]
     if completed.returncode != 0 or len(hostlists) != 1:
         raise ValueError(
             f"job {job_id} ({path}) did not resolve to one node list: "
@@ -605,9 +603,7 @@ class TelemetryIndex:
                     "can read"
                 )
             scanned += 1
-            lines, tail, prefix_sha, source_host, source_boot = self._resume(
-                path, stat
-            )
+            lines, tail, prefix_sha, source_host, source_boot = self._resume(path, stat)
             added = 0
             carried: str | None = None
             # The boot the file's consumed region was keyed by, if the previous
@@ -802,18 +798,14 @@ class TelemetryIndex:
             return True
         return _digest_of(path, offset) != prefix_sha
 
-    def _parse(
-        self, raw: bytes, path: Path, offset: int
-    ) -> Mapping[str, Any] | None:
+    def _parse(self, raw: bytes, path: Path, offset: int) -> Mapping[str, Any] | None:
         text = raw.decode("utf-8", errors="replace").strip()
         if not text:
             return None
         try:
             parsed = json.loads(text)
         except json.JSONDecodeError as error:
-            raise ValueError(
-                f"invalid record JSON at {path}:{offset}"
-            ) from error
+            raise ValueError(f"invalid record JSON at {path}:{offset}") from error
         if not isinstance(parsed, Mapping):
             raise ValueError(f"record at {path}:{offset} is not an object")
         return parsed
@@ -901,9 +893,7 @@ class TelemetryIndex:
             ).fetchone()[0]
         )
 
-    def sum_measurements(
-        self, name: str, start: float, end: float
-    ) -> float | None:
+    def sum_measurements(self, name: str, start: float, end: float) -> float | None:
         """Total of an interval quantity over ``[start, end)``.
 
         ``None`` when no sample in the window carried *name* -- which is not
@@ -919,9 +909,7 @@ class TelemetryIndex:
         ).fetchone()
         return None if row["n"] == 0 else float(row["total"])
 
-    def time_weighted_mean(
-        self, name: str, start: float, end: float
-    ) -> float | None:
+    def time_weighted_mean(self, name: str, start: float, end: float) -> float | None:
         """Mean of a gauge over ``[start, end)``, weighted by time held.
 
         Each sample stands for the interval running to the next sample of its

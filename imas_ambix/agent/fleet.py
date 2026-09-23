@@ -165,8 +165,7 @@ def node_is_draining(state: str | None) -> bool:
     if not state:
         return False
     return any(
-        token.startswith(_DRAINING_STATE_PREFIX)
-        for token in state.upper().split("+")
+        token.startswith(_DRAINING_STATE_PREFIX) for token in state.upper().split("+")
     )
 
 

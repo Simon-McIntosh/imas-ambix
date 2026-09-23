@@ -407,9 +407,7 @@ def compact_rows(
     if not rows:
         return []
     fallback_host = host or os.uname().nodename
-    fallback_boot, _ = resolve_boot_id(
-        local_boot_id() if boot_id is None else boot_id
-    )
+    fallback_boot, _ = resolve_boot_id(local_boot_id() if boot_id is None else boot_id)
     strides: dict[tuple[str, str], list[dict[str, Any]]] = {}
     for row in rows:
         recorded = row_host(row) or fallback_host
@@ -418,9 +416,7 @@ def compact_rows(
     compacted: list[dict[str, Any]] = []
     for (recorded, boot), stride in strides.items():
         compacted.extend(
-            _compact_stride(
-                stride, tier, recorded, boot, TIER_WINDOW_SECONDS[tier]
-            )
+            _compact_stride(stride, tier, recorded, boot, TIER_WINDOW_SECONDS[tier])
         )
     return compacted
 
@@ -531,9 +527,7 @@ def compact_file(
     completed one -- on a network filesystem a silent short write is exactly the
     failure that would otherwise be indistinguishable from success.
     """
-    rows = compact_rows(
-        read_rows(source), tier=tier, host=host, boot_id=boot_id
-    )
+    rows = compact_rows(read_rows(source), tier=tier, host=host, boot_id=boot_id)
     write_rows(destination, rows)
     readback = read_rows(destination)
     if readback != rows:
