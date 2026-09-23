@@ -2070,6 +2070,101 @@ $ loginctl list-sessions | grep -c 39486
     the revision this node committed. The merged result is verified by a separately
     dispatched test node, and nothing here is claimed of the merged state.</p>
   </section>
+
+  <section id="placement-project-record">
+
+    <h2>Placement re-armed on the project's own reservation record</h2>
+
+    <p><strong>Deliverable.</strong> Commit <code>58ea2f84</code> declares
+    <code>backends.clive.placement</code> in
+    <code>docs/state/imas-ambix/flight.yaml</code> — <code>scheduler: srun</code>
+    with <code>state_query</code> and <code>reason_query</code> and nothing else —
+    and rewrites the comment block from the withdrawal note to a statement that
+    placement is armed on the project-scoped record. A clive dispatch now wraps
+    the launch in <code>srun --overlap --jobid=&lt;resolved&gt;</code>, so the
+    worker runs as a step inside the allocation this project already holds
+    rather than as a child of the coordinator on the login slice.</p>
+
+    <p><strong>Why the record is the project's, not the host's.</strong> The
+    reservation record is keyed by project
+    (<code>placement/imas-ambix/reservation.json</code>) and only that project's
+    workers are counted against its roster. The earlier host-global record was
+    read by every project at once, so one published record put a ceiling on every
+    repository's concurrency; that reading is what the withdrawal note recorded,
+    and the declaration is re-armed now that reckon commit <code>2b0be9f8</code>
+    keys the record and the count by project. The running reckon was shown to
+    carry that repair before the declaration was written: the venv's
+    <code>reckon.crew.placement</code> resolves under
+    <code>/home/ITER/mcintos/Code/reckon/reckon/</code> and reserves per project.</p>
+
+    <p><strong>Gate 1 — the record is read, not written.</strong>
+    <code>reckon.crew.placement.__file__</code> resolves to
+    <code>/home/ITER/mcintos/Code/reckon/reckon/crew/placement.py</code>;
+    <code>reservation_path('imas-ambix')</code> ends in
+    <code>placement/imas-ambix/reservation.json</code>;
+    <code>read_reservation('imas-ambix')</code> returns job_id
+    <code>1276262</code>, partition <code>rigel</code>, step scheduler
+    <code>srun</code>, and <code>reservation_alive</code> reads <code>True</code>.
+    The record was read only; it was not written, cleared or re-published. Log:
+    <code>gate1-placement-record.log</code>.</p>
+
+    <p><strong>Gate 2 — the declaration resolves.</strong>
+    <code>flight.resolve('imas-ambix', checkout_path=&lt;worktree&gt;)</code>
+    returns the placement with all three leaves attributed to the
+    <code>project</code> layer. <code>grep -E '[0-9]{5,}'</code> over the file
+    returns no match, so no job identifier is present in it.</p>
+
+    <p><strong>Gate 3 — a dry-run probe resolves and the launch argv is
+    placed.</strong> <code>reckon crew dispatch --dry-run --local</code> for a
+    throwaway probe node in this project exits <strong>0</strong> with
+    <code>ok: true</code> and backend <code>clive</code>. The dry-run payload
+    carries no launch argv — by design it resolves and judges without building
+    one — so the argv was read from the same resolution the spawn uses:
+    <code>launch_plan</code> from the resolved clive backend followed by
+    <code>apply_backend_placement</code>. It reads
+    <code>/usr/bin/srun --overlap --jobid=1276262 clive -p --output-format
+    stream-json …</code>, with the harness argv unchanged behind it. Log:
+    <code>gate3-dryrun-argv.log</code>; resolution: <code>placement_argv_probe.py</code>.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/slurm-hosted-agent-fleet/placement-project-record.svg"
+           alt="The project flight layer declares the placement; reckon reads the job
+                from the project-keyed reservation record; the placed launch becomes an
+                srun overlapping step inside the held allocation. The negative control
+                panel shows the same resolution yielding no job id once the block is removed.">
+      <figcaption>Declaration → project-keyed record → placed launch, with the
+      negative control beside it.</figcaption>
+    </figure>
+
+    <p><strong>Gate 4 — the negative control fires.</strong> The declared
+    mutation removes the <code>backends.clive.placement</code> block and the same
+    probe then reports <code>placement_declared: null</code> with a launch argv
+    equal to the harness argv — no <code>--overlap</code>, no
+    <code>--jobid</code>. The block was restored and the file's sha256 is
+    identical before and after
+    (<code>c2a13835be8f586417a896b3b59d6209919bafce2d86daf2062bfa8bac11f4958</code>). Log:
+    <code>negative-control.log</code>.</p>
+
+    <p><strong>Gate 5 — no new allocation.</strong>
+    <code>squeue -u mcintos</code> before and after the work shows job
+    <code>1276262 ambix-fleet RUNNING</code> on <code>98dci4-clu-2002</code> and no
+    job added by this node: the work is a declaration plus read-only probes, and
+    no step or allocation was submitted. Logs:
+    <code>gate5-squeue-before.log</code>, <code>gate5-squeue-after.log</code>.</p>
+
+    <p><strong>Gate 6 — the tree is clean.</strong>
+    <code>uv run --no-sync ruff check imas_ambix tests</code> prints
+    <code>All checks passed!</code> and exits <strong>0</strong>. Log:
+    <code>gate6-ruff.log</code>.</p>
+
+    <p><strong>Scope.</strong> This measures only this node's own change, in its
+    own worktree, at the revision this node committed. It does not verify the
+    merged result, and it does not run
+    <code>reckon crew placement --ensure</code> — the reservation is already held
+    and the ensure path would submit a second allocation of reckon's default
+    shape rather than the one this project locked. A separately dispatched test
+    node owns the merged result.</p>
+  </section>
 </main>
 </body>
 </html>

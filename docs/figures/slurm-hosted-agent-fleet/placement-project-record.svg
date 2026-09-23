@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 400" role="img"
+     aria-labelledby="ppr-t" font-family="system-ui, sans-serif">
+  <title id="ppr-t">How a re-armed placement reaches the project's held allocation</title>
+  <defs>
+    <marker id="ppr-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7"
+            markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#666"></path>
+    </marker>
+  </defs>
+
+  <!-- 1. the declaration -->
+  <rect x="16" y="16" width="212" height="150" rx="8" fill="#eef3fb" stroke="#b9c8de"></rect>
+  <text x="34" y="42" font-size="13" font-weight="600" fill="#1d3557">Project flight layer</text>
+  <text x="34" y="62" font-size="11" fill="#333">docs/state/imas-ambix/flight.yaml</text>
+  <line x1="34" y1="72" x2="210" y2="72" stroke="#c8ccd2"></line>
+  <text x="34" y="92" font-size="11" fill="#333">backends.clive.placement:</text>
+  <text x="46" y="108" font-size="11" fill="#1b5e20">scheduler: srun</text>
+  <text x="46" y="124" font-size="11" fill="#333">state_query: [squeue … %T]</text>
+  <text x="46" y="140" font-size="11" fill="#333">reason_query: [squeue … %r]</text>
+  <text x="34" y="158" font-size="11" fill="#a11">no job identifier in this file</text>
+
+  <!-- 2. the record -->
+  <rect x="274" y="16" width="212" height="150" rx="8" fill="#f6f7f9" stroke="#c8ccd2"></rect>
+  <text x="292" y="42" font-size="13" font-weight="600" fill="#222">Reservation record</text>
+  <text x="292" y="62" font-size="11" fill="#333">reckon.crew.placement</text>
+  <text x="292" y="82" font-size="11" fill="#333">placement/imas-ambix/</text>
+  <text x="304" y="97" font-size="11" fill="#333">reservation.json</text>
+  <line x1="292" y1="108" x2="468" y2="108" stroke="#c8ccd2"></line>
+  <text x="292" y="128" font-size="11" fill="#1b5e20">job_id resolved from the record</text>
+  <text x="292" y="144" font-size="11" fill="#555">keyed by project, roster per project</text>
+  <text x="292" y="160" font-size="11" fill="#555">held by this project only</text>
+
+  <!-- 3. the launch -->
+  <rect x="532" y="16" width="212" height="150" rx="8" fill="#f6f7f9" stroke="#c8ccd2"></rect>
+  <text x="550" y="42" font-size="13" font-weight="600" fill="#222">Placed launch</text>
+  <text x="550" y="62" font-size="11" fill="#333">apply_backend_placement</text>
+  <text x="550" y="82" font-size="11" fill="#1b5e20">srun --overlap \</text>
+  <text x="562" y="97" font-size="11" fill="#1b5e20">--jobid=&lt;resolved&gt;</text>
+  <text x="550" y="113" font-size="11" fill="#333">clive …</text>
+  <line x1="550" y1="126" x2="726" y2="126" stroke="#c8ccd2"></line>
+  <text x="550" y="146" font-size="11" fill="#555">a step inside the allocation,</text>
+  <text x="550" y="161" font-size="11" fill="#555">not a second allocation</text>
+
+  <g fill="none" stroke="#666" stroke-width="1.5" marker-end="url(#ppr-arrow)">
+    <line x1="228" y1="90" x2="270" y2="90"></line>
+    <line x1="486" y1="90" x2="528" y2="90"></line>
+  </g>
+
+  <!-- allocation band -->
+  <rect x="16" y="196" width="728" height="72" rx="8" fill="#eef7ee" stroke="#b6d3b6"></rect>
+  <text x="34" y="222" font-size="13" font-weight="600" fill="#1b5e20">Held allocation 1276262</text>
+  <text x="34" y="244" font-size="11" fill="#333">rigel · 28 cores · unbounded · 98dci4-clu-2002 · comment ambix-fleet</text>
+  <text x="34" y="260" font-size="11" fill="#555">held once for the project and shared by every session in it; the step lands in its group</text>
+
+  <!-- negative control panel -->
+  <rect x="16" y="288" width="728" height="96" rx="8" fill="#fdf3f3" stroke="#e0bcbc"></rect>
+  <text x="34" y="312" font-size="13" font-weight="600" fill="#a11">Negative control — the declaration is what does the work</text>
+  <text x="34" y="334" font-size="11" fill="#333">with the placement block removed, the same resolution yields</text>
+  <text x="34" y="352" font-size="11" fill="#a11">[ clive -p --output-format stream-json … ]  — no --overlap, no --jobid</text>
+  <text x="34" y="372" font-size="11" fill="#555">so the step lands as a child of the coordinator rather than in the allocation</text>
+</svg>

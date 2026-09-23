@@ -4,55 +4,48 @@
 # routing property of the clive backend stays whatever the host layer declares.
 #
 # The clive lane routes to the endpoint served on the GPU node, so a worker is
-# free to run anywhere that endpoint is reachable. What the placement changes
-# is which host the worker runs on: the login node caps a user slice at a
-# fraction of four cores, and a held whole-node allocation has no such ceiling.
+# free to run anywhere that endpoint is reachable. What the lane's placement
+# changes is which host the worker runs on: the login node caps a user slice at
+# a fraction of four cores, and a held whole-node allocation has no such
+# ceiling.
 #
-# The wrapper resolves the held allocation from the scheduler by the comment
-# token the hold generator emits, so the job identifier is deliberately absent
-# here. A literal identifier goes stale on a resubmit, a cancel-and-rehold or a
-# move to another node, and it does so silently: the launch would land back on
-# the login node while every record still claimed it was placed. Naming the
-# resolver instead means the placement follows the allocation.
+# PLACEMENT IS ARMED HERE, ON THE PROJECT'S OWN RESERVATION RECORD.
+#
+# Placing a worker on a host is dispatch's job, and reckon owns all of it:
+# reckon/crew/placement.py holds the reservation, publishes it, and builds the
+# overlapping step, and dispatch's apply_backend_placement resolves the job and
+# prefixes the launch. This file only declares that the placement exists and
+# says how to ask the scheduler about it; it carries no resolver, no shim and
+# no identifier.
+#
+# Why the identifier is absent: dispatch resolves the job from the project's
+# own published record, so a literal identifier would go stale on a resubmit, a
+# cancel-and-rehold or a move to another node — silently, with the launch
+# landing back on the login node while every record still claimed it was
+# placed. Naming the resolver instead means the placement follows the
+# allocation, and one record is shared by every session in the project.
+#
+# Why the record is the project's: the reservation it names is published under
+# the project key, and only that project's workers are counted against its
+# roster. An earlier host-global record was read by every project at once, so a
+# single published record put a ceiling on every repository's concurrency; that
+# reading was withdrawn rather than kept in step, and this declaration re-arms
+# placement on the project-scoped record now that reckon keys it that way and
+# counts only the arming project's workers against the roster.
+#
+# What this repository keeps is what it genuinely owns: holding the allocation
+# and reporting it, through `imas-ambix agent fleet hold` and `fleet status`.
+# The allocation's partition, size and comment token are ambix's business, and
+# the reservation's own options carry them. Which host a dispatched worker runs
+# on is not.
 #
 # yaml-language-server: $schema=http://127.0.0.1:8765/_shared/flight.schema.json
 
 version: 1
 
-# NO PLACEMENT IS DECLARED HERE, AND THE MECHANISM DOES NOT BELONG HERE.
-#
-# Placing a worker on a host is dispatch's job, and reckon already owns all of
-# it: reckon/crew/placement.py holds the reservation, publishes it, and builds
-# the overlapping step, and dispatch's apply_backend_placement resolves the job
-# and prefixes the launch. A wrapper in this repository reimplemented job
-# resolution and step prefixing privately, which is a second implementation of
-# reckon's own mechanism that would have to stay in step with it, and which
-# every other project wanting placement would have had to copy.
-#
-# It was built here only to route around a scoping defect in reckon rather than
-# repair it: the reservation record is host-global (`crew_home()` carries no
-# project component) while a placement declaration is per project, so publishing
-# one record capped every repository's workers against a single roster ceiling.
-# Measured 2026-09-23: forty-five runs across four repositories occupied it
-# within minutes and dispatch was refused workstation wide, while exactly one
-# step was running inside the allocation the ceiling exists to protect.
-#
-# The repair is in reckon: scope the reservation record and the roster count to
-# the project that armed them. When that lands this file declares
-#
-#     backends:
-#       clive:
-#         placement:
-#           scheduler: srun
-#           state_query:  [squeue, -h, -j, "{job}", -o, "%T"]
-#           reason_query: [squeue, -h, -j, "{job}", -o, "%r"]
-#
-# and nothing else — reckon resolves the job from its own record, so no shim,
-# no second resolver and no identifier in this file.
-#
-# What this repository keeps is what it genuinely owns: holding the allocation
-# and reporting it, through `imas-ambix agent fleet hold` and `fleet status`.
-# The allocation's partition, size and comment token are ambix's business. Which
-# host a dispatched worker runs on is not.
-
-backends: {}
+backends:
+  clive:
+    placement:
+      scheduler: srun
+      state_query:  [squeue, -h, -j, "{job}", -o, "%T"]
+      reason_query: [squeue, -h, -j, "{job}", -o, "%r"]
