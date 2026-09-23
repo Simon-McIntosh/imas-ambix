@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-23">
 <meta name="plan-impl" content="0.69">
-<meta name="plan-version" content="28">
+<meta name="plan-version" content="29">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;}">
 <meta name="plan-artifacts" content="docs/evidence/archive/local-lane-admission-control-landed.html">
 <meta name="plan-commits" content="4bb11e8917c6dc9662d6214da6ec7eb595713984,da60421b4267fc7fc6fafb2a7e5dbb242da1cfba,569b91efd9e1e2e0e00c6d86cd589810391752c5,7ecfec3ba6ed3d68d68e03a104bd33e70ba75037,decc190bc301c74e02f2491bc6a557a163f9c744">
@@ -676,6 +676,9 @@
 </div>
 <div class="r-comment" data-section="s6" data-id="c-20260923-occupancy-and-width" data-who="reckon-ship" data-when="2026-09-23T12:05:00Z">
     <div class="r-comment-body">occupancy-throughput-cliff landed (merge 082f5f28): median aggregate and prefix hit rate hold through KV 0.85-0.90 on both jobs (1273253: 417.3 tok/s, CI 402.5-438.9, hit 0.9938, n=40; 1276246: 407.9, CI 397.7-420.1, hit 0.9942, n=126); no bin above 0.90 reaches 20 intervals, so the rule names 0.90, which at a 100k context is the engine cap of 36. The expected cliff near 0.8 is NOT reproduced: the collapse is a minority tail (14 of 397 intervals at occupancy 0.80 or above fall below 200 tok/s on 1276246). With the lead's choice, the gate width is raised live from 20 to 30 at 11:57Z (router-gate.json); lane.json confirms width 30 with 18 in flight and 0 waiting. router-script-finite-time merged ccab6c1b: router and lane-refresher scripts submit with a 7-day limit, the engine serve script stays unlimited, pinned by test. Open: explain the tail episodes, since they, not the median, carry the collapse.</div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-run-r-20260923T111630071168-occupancy-throughput-cliff" data-who="reckon-ship" data-when="2026-09-23T11:53:26.251Z">
+    <div class="r-comment-body"><p>median aggregate and hit rate hold through KV 0.85-0.90 on both jobs (417/408 tok/s, hit 0.994); rule names 0.90 = engine cap 36 at 100k context; collapse is a minority tail (14/397 intervals); gate raised to width 30</p></div>
 </div>
 </section>
 </main>
