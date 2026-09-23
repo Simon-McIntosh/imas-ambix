@@ -118,6 +118,16 @@
     across serves, and it is stated here once because it was rediscovered as a
     defect three separate times.</p>
 
+    <figure>
+      <img src="/imas-ambix/figures/serving-record-warehouse/partitioned-total-coverage.png"
+           alt="A cumulative counter with two readings inside one serve and one in a restarted serve; the window is partitioned at the restart, the two runs are differenced separately, and the covered union is shorter than the window.">
+      <figcaption>The rule as landed, drawn from the readings the tests assert against.
+      Run 1 rises 5000 to 9000 inside the window and contributes 4000; the restarted run
+      contributes 0, so the total is 4000 over a 600 s union rather than the window's
+      3600 s. Differencing the two outermost readings instead reports −4990 — the figure
+      this section exists to forbid.</figcaption>
+    </figure>
+
     <h2 id="s4">§4 — Per-model and per-caller, and the honest limit on "user"</h2>
 
     <p>The serve recorder answers <em>per model</em> already: every row carries
