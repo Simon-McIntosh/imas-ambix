@@ -56,6 +56,12 @@
     is describing. Past the knee, each additional stream buys no tokens and slows every
     other one. Nothing in the path queues work instead. Nothing tells a consumer outside
     crew dispatch that the lane is full, so a busy lane looks the same as a slow model.</p>
+    <p><strong>Superseded by §3 and §6.</strong> The ~22 knee above was not reproduced.
+    The engine's decode throughput is flat or rising to its cap of 36 on both serve logs.
+    Median aggregate throughput and the prefix hit rate hold through KV occupancy 0.90.
+    The collapse is a minority tail of intervals, not a width knee. This paragraph records
+    what was believed when the plan opened; the design in §6 rests on the later
+    measurement.</p>
 
     <figure>
       <svg viewBox="0 0 760 170" role="img" aria-label="Request path from consumers through router to engine queue and running batch" style="max-width:100%;font-family:system-ui;font-size:13px">
@@ -77,7 +83,7 @@
           <text x="412" y="100">queue (FIFO?)</text>
           <text x="612" y="72">running batch</text>
           <text x="612" y="92">cap 36 today</text>
-          <text x="612" y="112" fill="#8a1c1c">knee ≈ 22</text>
+          <text x="612" y="112" fill="#8a1c1c">holds to KV 0.90</text>
         </g>
       </svg>
       <figcaption>The request path. Today the only bound is the engine's running cap of 36, which sits
@@ -90,7 +96,7 @@
     <p>This plan holds to one principle. Admit <strong>requests</strong>, not agents,
     up to the width that maximises aggregate tok/s, and let every other request wait in
     a queue that is cheap, fair and visible. An agent is mostly between requests,
-    executing tools. A running cap of 22 therefore serves many more than 22 agents,
+    executing tools. A running cap of a given width therefore serves many more agents than that,
     provided queued requests hold no KV and are admitted in a sensible order.</p>
     <table>
       <thead><tr><th>Layer</th><th>Lever</th><th>Reaches non-crew users?</th><th>Open question</th></tr></thead>
