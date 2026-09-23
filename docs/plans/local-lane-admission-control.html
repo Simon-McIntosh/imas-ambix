@@ -179,6 +179,19 @@
     both releasing their slots. A fourth observes that editing the file changes
     <em>W</em> on a running app. Deployment is a router restart, which drops the streams
     in flight. It is authorised separately and is not part of the node.</p>
+    <aside class="callout">
+      <p><strong>Implementation record — 2026-09-23.</strong> Commits
+      <code>4bb11e89</code>, <code>da60421b</code> and <code>7ecfec3b</code> added and
+      hardened the global FIFO generation gate with eight behavioral tests. The full
+      router surface passed 45 tests; the runtime file is read at most once per second
+      gate-wide, the missing-file wait is 300 seconds, and HTTP 529 carries a fixed
+      five-second <code>Retry-After</code>. The declared mutation removed the acquire
+      and reproduced 5 simultaneous upstream
+      requests against width 2. Runtime width edits, overload responses, waiter and
+      streamer departures, decode-free bypass, and nonzero lane counters are all observed.
+      <a href="/imas-ambix/evidence/archive/local-lane-admission-control-landed.html#router-global-gate">Full evidence and flow figure</a>.
+      No live router was restarted; deployment remains separately authorised.</p>
+    </aside>
 
     <p>The width is not a fixed knee. Five days of decode samples binned by width
     (79,435 intervals, read by the slurm-hosted-agent-fleet session) show aggregate decode
