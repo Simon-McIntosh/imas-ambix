@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-23T15:01:02",
+  "updated": "2026-09-23T15:02:14",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -79680,6 +79680,365 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260923T120856579837-review-of-engine-scheduler-levers",
+        "plan": "local-lane-admission-control",
+        "section": "\u00a74",
+        "node": "review-of-engine-scheduler-levers",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 703,
+                "cached_input_tokens": 641987,
+                "input_tokens": 642694,
+                "output_tokens": 156,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 642850,
+                "uncached_input_tokens": 4
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "74b53aa2-1d4b-451f-8ce7-33c072085f83",
+            "session_id": "llac-20260923"
+          },
+          "done_when": "the review for r-20260923T061919862986-engine-scheduler-levers stores a parsed record scoring all 5 dimensions in the range 0..20",
+          "estimated_hours": null,
+          "goal": "attach an independent review to run r-20260923T061919862986-engine-scheduler-levers",
+          "id": "review-of-engine-scheduler-levers",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-23T12:08:58Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": 13,
+            "binding_observed": "unknown",
+            "detail": "",
+            "headroom": 7,
+            "mean_context": 96000,
+            "observed_at": "2026-09-23T12:08:45Z",
+            "state": "fresh",
+            "suggested_shelf_life_seconds": 45
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T120856579837-review-of-engine-scheduler-levers/manifest.md",
+          "negative_control": "",
+          "plan": "local-lane-admission-control",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "review",
+          "section": "\u00a74",
+          "spec_level": "exact",
+          "time_budget": "45m",
+          "token_budget": null,
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260923T061919862986-engine-scheduler-levers.json"
+          ]
+        },
+        "role": "review",
+        "spec_level": "exact",
+        "member": "llac-client",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "xhigh",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "read-only",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-23T12:09:31Z",
+        "completed_at": "2026-09-23T12:37:05.271Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 1636,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 1654,
+        "stalled": false,
+        "time_budget": "45m",
+        "base_sha": "2950faf41c689d015509a15efc49d15d86cf6644",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "review record parse",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T120856579837-review-of-engine-scheduler-levers/gate.log",
+          "log_digest": "sha256:c6def63021655f69407174eb1c80ad36f7c56f3e5ce72cb84e8487610f2101b7"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T120856579837-review-of-engine-scheduler-levers/manifest.md",
+        "scope_changed": false,
+        "session_id": "dded71de-fef4-4591-ad19-a155d98aa1df",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 4456231,
+            "input_tokens_cumulative": 4456231,
+            "output_tokens": 50091,
+            "output_tokens_cumulative": 50091,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-23T12:37:05.271Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "15m",
+          "requested": true,
+          "waived_runs": [
+            {
+              "budget_overrun": false,
+              "budget_overrun_seconds": 0,
+              "budget_seconds": 2400,
+              "classification": "scoring",
+              "commits_beyond_base": 0,
+              "detail": "the worker manifest reports completion, but no independent review is attached; an independent review must be produced before promotion",
+              "effective_phase": "working",
+              "elapsed_seconds": 1161,
+              "external_wait": null,
+              "interruption": null,
+              "lifting_condition": null,
+              "liveness_proven": true,
+              "log_age_seconds": 7671,
+              "log_fresh": false,
+              "manifest_commits": [
+                "none \u2014 the assigned report store is not a Git repository",
+                "so there is no repository change to commit; the repository worktree remains clean at 14eeddc7b87f5084f605b8da5c2f05871d8c742b."
+              ],
+              "manifest_derived": false,
+              "manifest_digest": "2a2aa3fdd32b7ba4773b4e24aa133a2d73872096b1e6e8046b3460aa33c33bfb",
+              "manifest_error": null,
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T061919862986-engine-scheduler-levers/manifest.md",
+              "manifest_present": true,
+              "manifest_reported_status": "complete",
+              "manifest_status": "complete",
+              "marker": null,
+              "needs_help_complete": null,
+              "next_action": "reckon crew dispatch --project imas-ambix --plan local-lane-admission-control --section '\u00a74' --role review --spec-level exact --node review-of-engine-scheduler-levers --goal 'attach an independent review to run r-20260923T061919862986-engine-scheduler-levers' --done-when 'the review for r-20260923T061919862986-engine-scheduler-levers stores a parsed record scoring all 5 dimensions in the range 0..20' --write-path /home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260923T061919862986-engine-scheduler-levers.json --time-budget 40m --session llac-20260923 --allow-unreconciled-runs --backend codex",
+              "node": "engine-scheduler-levers",
+              "phase": "working",
+              "plan": "local-lane-admission-control",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "recovery": "review",
+              "recovery_classification": "scoring",
+              "resets_at": null,
+              "review_error": null,
+              "review_present": false,
+              "review_status": null,
+              "run_id": "r-20260923T061919862986-engine-scheduler-levers",
+              "session": "llac-20260923",
+              "terminal_age_seconds": 7732,
+              "terminal_at": "2026-09-23T10:00:19Z",
+              "wait_age_seconds": null,
+              "wait_condition_state": null,
+              "wait_key_defect": null,
+              "wait_observed": null,
+              "wait_overdue": null,
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/llac-20260923/engine-scheduler-levers"
+            },
+            {
+              "budget_overrun": false,
+              "budget_overrun_seconds": 0,
+              "budget_seconds": 2700,
+              "classification": "scoring",
+              "commits_beyond_base": 0,
+              "detail": "the worker manifest reports completion, but no independent review is attached; an independent review must be produced before promotion",
+              "effective_phase": "working",
+              "elapsed_seconds": 1574,
+              "external_wait": null,
+              "interruption": null,
+              "lifting_condition": null,
+              "liveness_proven": true,
+              "log_age_seconds": 946,
+              "log_fresh": false,
+              "manifest_commits": [
+                "5fb5f9be",
+                "b9d27528",
+                "2af0e18b"
+              ],
+              "manifest_derived": false,
+              "manifest_digest": "d192021cd7190dd9a8723dac7f047eb63e2bdcf8cd369007461ee0f8cb33800f",
+              "manifest_error": null,
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T111630071168-occupancy-throughput-cliff/manifest.md",
+              "manifest_present": true,
+              "manifest_reported_status": "complete",
+              "manifest_status": "complete",
+              "marker": null,
+              "needs_help_complete": null,
+              "next_action": "reckon crew dispatch --project imas-ambix --plan local-lane-admission-control --section '\u00a76' --role review --spec-level exact --node review-of-occupancy-throughput-cliff --goal 'attach an independent review to run r-20260923T111630071168-occupancy-throughput-cliff' --done-when 'the review for r-20260923T111630071168-occupancy-throughput-cliff stores a parsed record scoring all 5 dimensions in the range 0..20' --write-path /home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260923T111630071168-occupancy-throughput-cliff.json --time-budget 45m --session llac-20260923 --allow-unreconciled-runs --backend clive",
+              "node": "occupancy-throughput-cliff",
+              "phase": "working",
+              "plan": "local-lane-admission-control",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "recovery": "review",
+              "recovery_classification": "scoring",
+              "resets_at": null,
+              "review_error": null,
+              "review_present": false,
+              "review_status": null,
+              "run_id": "r-20260923T111630071168-occupancy-throughput-cliff",
+              "session": "llac-20260923",
+              "terminal_age_seconds": 1046,
+              "terminal_at": "2026-09-23T11:51:46Z",
+              "wait_age_seconds": null,
+              "wait_condition_state": null,
+              "wait_key_defect": null,
+              "wait_observed": null,
+              "wait_overdue": null,
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/llac-20260923/occupancy-throughput-cliff"
+            }
+          ]
+        },
+        "review": null,
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 4456231,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 1648.133,
+          "generated_tokens": 50091,
+          "generation_seconds": 1620.373,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 33.0,
+          "machine_seconds": 27.76,
+          "peak_input_tokens": 158531,
+          "tokens_per_second": 30.91,
+          "wall_tokens_per_second": 30.39
+        },
+        "follow_on_paths": [
+          "imas_ambix/agent/profiles/deepseek-v4-1-flash.toml"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": false,
+          "matched_measure": null,
+          "override": false,
+          "role": "review",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": "review role; record outside the repository",
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/llac-20260923/review-of-engine-scheduler-levers",
+          "session_id": "dded71de-fef4-4591-ad19-a155d98aa1df",
+          "session_source": "stream",
+          "retained_at": "2026-09-23T12:37:05.271Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "promoted_revision": "2950faf41c689d015509a15efc49d15d86cf6644",
+        "plan_impl_at_dispatch": 0.69,
+        "impl_move": {
+          "plan": "local-lane-admission-control",
+          "at_dispatch": 0.69,
+          "at_complete": null,
+          "verdict": "exempt",
+          "reason": "role-not-enforced:review"
+        },
+        "negative_control": {
+          "verdict": "exempt",
+          "reason": "node-writes-no-test-path"
+        },
+        "lane_advisory": {
+          "backend": "clive",
+          "burn_multiple": null,
+          "cheaper_lane": {
+            "detail": "",
+            "lane": null,
+            "state": "not_evaluated"
+          },
+          "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+          "horizon_ends_at": "2026-09-23T12:53:58.752638+00:00",
+          "horizon_seconds": 2700,
+          "metered": false,
+          "observed_at": null,
+          "precedes_horizon": null,
+          "projected_exhaustion_at": null,
+          "resets_at": null,
+          "seconds_until_reset": null,
+          "state": "quiet",
+          "utilisation_pct": null
+        },
+        "lane_declaration": {
+          "backend": null,
+          "headroom": null,
+          "metered": false,
+          "observed_at": null,
+          "read_at": "2026-09-23T12:08:58Z",
+          "resolved_backend": "clive",
+          "utilisation_pct": null
+        },
+        "lane_reading": {
+          "age_seconds": 13,
+          "binding_observed": "unknown",
+          "detail": "",
+          "headroom": 7,
+          "mean_context": 96000,
+          "observed_at": "2026-09-23T12:08:45Z",
+          "state": "fresh",
+          "suggested_shelf_life_seconds": 45
+        },
+        "tool_steps": 48.0,
+        "orientation_input_tokens": null,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -79768,6 +80127,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 1015
+    "_version": 1016
   }
 }
