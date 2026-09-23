@@ -151,13 +151,15 @@ src = [".", "tests"]
 # once in imas_ambix/agent/router.py on 2026-09-16, reintroduced by a format run
 # on a line that had been repaired that morning.
 #
-# Modules the serving interpreter imports therefore pin the lower version, so
-# the formatter never emits syntax that interpreter cannot parse.
+# The whole package pins the lower version, by pattern rather than by name.
+# An enumerated list has to be extended whenever a module is added, and it was
+# not: measured 2026-09-23, a format pass over the package produced eight
+# unparenthesised except expressions across six modules that the list did not
+# name, two of them loaded by a vLLM serve as middleware. A pattern cannot
+# drift behind the package it covers.
 # tests/test_serving_interpreter_parse.py is the backstop and must stay green.
 [tool.ruff.per-file-target-version]
-"imas_ambix/agent/router.py" = "py312"
-"imas_ambix/agent/serving_receipts.py" = "py312"
-"imas_ambix/agent/lane.py" = "py312"
+"imas_ambix/agent/*.py" = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "N", "B", "A", "SIM", "TCH"]
