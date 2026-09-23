@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="local-lane-admission-control">
+  <meta name="plan-title" content="Local Lane Admission Control — hold the running batch at the throughput knee and queue everyone else">
+  <meta name="plan-summary" content="Bound the DSv4.1 lane at its measured aggregate-throughput peak so consumers outside reckon crew dispatch queue fairly instead of degrading every stream">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort-hours" content="6.0">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="orchestrator">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-milestone" content="OPS">
+  <meta name="plan-sprint" content="S24">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-tags" content="agent-serving,gpu-deployment">
+  <meta name="plan-standalone" content="Consumes the landed evidence of shipped serving plans and no live plan waits on it; the fix is a change to the running lane&#x27;s admission point.">
+  <title>Local Lane Admission Control | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-09-23">
+<meta name="plan-impl" content="0.0">
+<meta name="plan-version" content="1">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;}">
+</head>
+<body>
+  <main class="plan-doc">
+    <h2 id="s1">§1 — What the lane is doing now</h2>
+    <p>The DeepSeek-V4.1-Flash lane on <code>98dci4-gpu-0003</code> (four H200s, 512k context)
+    was observed at 08:08 local on 2026-09-23 running <strong>29 concurrent requests with zero
+    queued</strong>, 217 tok/s aggregate output and 19.6 tok/s per stream, with a 133k median
+    prompt, TTFT 1.7 s, KV pool at 78% and prefix-cache hit near 100%. The lane document
+    published four minutes later read 31 running, 0 waiting, 79% KV occupancy and a
+    host-tier cache at 97.5%. The engine was not refusing or queueing anything. It simply let every arrival
+    into the running batch.</p>
+    <p>That is how the lane is configured. The engine profile
+    (<code>imas_ambix/agent/profiles/deepseek-v4-1-flash.toml</code>) sets
+    <code>max_running_requests = 36</code>, chosen to sit below the 4M-token pool's fill
+    point at roughly 38–40 concurrent. The router's per-consumer admission filter was
+    removed on 2026-09-14 (<code>76a6a235</code>) for good reason. It keyed consumers
+    on host plus user-agent, so every harness on one login node shared a single six-slot
+    bucket, and it refused 37.4% of an afternoon's requests while the engine sat idle.
+    Since then the only bound anywhere in the path is the engine's 36. Reckon crew dispatch
+    reads a published lane ceiling as advice, and nobody outside crew dispatch reads it at all.</p>
+    <p>The profile justifies 36 with a claim that aggregate decode is <em>flat</em> from
+    width 17 to 32. A later measurement of the same lane contradicts it: aggregate output
+    peaks near <strong>22 concurrent at about 500 tok/s and falls to about 340 past it</strong>,
+    while waiting stays at zero and the hit rate stays high. That is the failure the lead
+    is describing. Past the knee, each additional stream buys no tokens and slows every
+    other one. Nothing in the path queues work instead. Nothing tells a consumer outside
+    crew dispatch that the lane is full, so a busy lane looks the same as a slow model.</p>
+
+    <figure>
+      <svg viewBox="0 0 760 170" role="img" aria-label="Request path from consumers through router to engine queue and running batch" style="max-width:100%;font-family:system-ui;font-size:13px">
+        <g fill="none" stroke="#333" stroke-width="1">
+          <rect x="10" y="30" width="150" height="110"/>
+          <rect x="220" y="60" width="120" height="50"/>
+          <rect x="400" y="60" width="140" height="50"/>
+          <rect x="600" y="45" width="150" height="80"/>
+          <path d="M160 85 H220 M340 85 H400 M540 85 H600"/>
+        </g>
+        <g fill="#111">
+          <text x="20" y="52">consumers</text>
+          <text x="20" y="75">reckon crew workers</text>
+          <text x="20" y="95">interactive clive</text>
+          <text x="20" y="115">other users, scripts</text>
+          <text x="232" y="82">router</text>
+          <text x="232" y="100">pass-through</text>
+          <text x="412" y="82">engine waiting</text>
+          <text x="412" y="100">queue (FIFO?)</text>
+          <text x="612" y="72">running batch</text>
+          <text x="612" y="92">cap 36 today</text>
+          <text x="612" y="112" fill="#8a1c1c">knee ≈ 22</text>
+        </g>
+      </svg>
+      <figcaption>The request path. Today the only bound is the engine's running cap of 36, which sits
+      above the measured throughput knee, so the waiting queue never fills and every
+      arrival joins the batch. The fix moves the binding point to the knee. Where that
+      point should live is the question §3–§5 answer.</figcaption>
+    </figure>
+
+    <h2 id="s2">§2 — The levers, by layer</h2>
+    <p>This plan holds to one principle. Admit <strong>requests</strong>, not agents,
+    up to the width that maximises aggregate tok/s, and let every other request wait in
+    a queue that is cheap, fair and visible. An agent is mostly between requests,
+    executing tools. A running cap of 22 therefore serves many more than 22 agents,
+    provided queued requests hold no KV and are admitted in a sensible order.</p>
+    <table>
+      <thead><tr><th>Layer</th><th>Lever</th><th>Reaches non-crew users?</th><th>Open question</th></tr></thead>
+      <tbody>
+        <tr><td>Engine (SGLang)</td><td><code>max_running_requests</code> at the knee; the engine's own waiting queue; schedule policy; request priority; any bound on queued requests</td><td>Yes — every request passes through it</td><td>Is the waiting queue KV-free and prefix-aware? What does a bounded queue return? Can the cap change without a relaunch?</td></tr>
+        <tr><td>Router</td><td>A global in-flight bound with a fair or priority queue, and a <code>429</code>/<code>529</code> carrying <code>Retry-After</code> past a queue bound</td><td>Yes — the single origin</td><td>Is anything left for it once the engine binds? The removed filter's failure was identity and per-consumer caps, not global admission.</td></tr>
+        <tr><td>Client</td><td>Claude Code / clive retry, back-off and timeout behaviour on <code>429</code>, <code>503</code>, <code>529</code> and a long time-to-first-token</td><td>Only as it behaves</td><td>Will a queued streaming request time out? Is an overload message shown to the user, or silently retried?</td></tr>
+        <tr><td>Reckon dispatch</td><td>Hold dispatch on the lane document's headroom</td><td>No</td><td>A worker-count ceiling is the wrong unit once requests are bounded at the engine; it stays advisory.</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="s3">§3 — Re-measure the knee on the lane as it runs</h2>
+    <p>The profile's flat-throughput claim and the ~22 knee cannot both hold, and the
+    cap in the fix follows whichever one does. From the current serve job's engine decode
+    log, bin aggregate generation throughput by running-request count. For each width
+    report the median and a 95% interval, with the number of intervals behind it. Name
+    the width of peak aggregate throughput. Give the ratio of throughput at the observed
+    operating width (29–31) to throughput at the peak. Say where the two earlier claims
+    disagree, and explain why: different job, pool size, prompt mix, or instrument.
+    Put a figure of throughput against width in <code>docs/figures/local-lane-admission</code>.
+    The log read runs on <code>all_debug</code>, not the login node.</p>
+
+    <h2 id="s4">§4 — What the engine's scheduler can do</h2>
+    <p>Read the SGLang source installed in the serve environment. For that exact version,
+    enumerate the scheduler's admission levers: <code>max_running_requests</code>, whether
+    queued requests hold KV or a prefix-cache lock, the schedule policies and whether a
+    prefix-aware one applies to waiting requests, request priority and whether it can
+    reach the engine through the Anthropic <code>/v1/messages</code> path, any bound on
+    queue depth or queue time and the status code it answers with, whether a queued
+    streaming request sends response headers before admission, and whether the running
+    cap can be changed on a live engine or only at launch. Each finding cites the source
+    file and line.</p>
+
+    <h2 id="s5">§5 — How consumers behave when the lane pushes back</h2>
+    <p>For the Claude Code build that clive launches and the build crew workers run,
+    establish from its shipped code or its official documentation what it does on
+    <code>429</code>, <code>503</code> and <code>529</code>: how many retries, whether it honours
+    <code>Retry-After</code>, the back-off schedule, and what the user sees. Establish the request
+    timeout a queued streaming request must beat, and the setting that overrides it.
+    Do the same for the router's relay, when the engine answers with an error or holds
+    a request before sending headers.</p>
+
+    <h2 id="s6">§6 — The fix</h2>
+    <p>This section is written after §3–§5 land, from their evidence. The leading candidate
+    is to move the binding point to the engine: set <code>max_running_requests</code> at the
+    measured peak width, select a prefix-aware schedule policy, and keep the router
+    pass-through. The router gains a global bound only if the engine's queue proves unfair,
+    blind to KV, or invisible to consumers. Any relaunch drains the lane to a genuine,
+    sustained zero first. The running serve is never hard-stopped.</p>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="binding-point" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Where does the running-width bound live?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="engine">engine cap at the knee, router pass-through</button>
+      <button class="r-opt" data-value="router-global">router global bound with a fair queue</button>
+      <button class="r-opt" data-value="both">engine cap plus router queue-depth signal</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+<div class="r-dec" data-key="queue-order" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">In what order are queued requests admitted?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="fifo">first come, first served</button>
+      <button class="r-opt" data-value="prefix-aware">prefix-aware (longest cached prefix first)</button>
+      <button class="r-opt" data-value="interactive-priority">interactive consumers ahead of batch workers</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+</section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-llac-01" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-create" data-written-at="2026-09-23" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Investigate the three layers, then design the fix</h4>
+    <div class="r-fu-body"><p>§3–§5 are independent investigation nodes on the local lane; §6 is authored from their evidence.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship local-lane-admission-control</pre>
+    </article>
+</section>
+  </main>
+</body>
+</html>
