@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-23">
-<meta name="plan-version" content="12">
+<meta name="plan-version" content="15">
 </head>
 <body>
   <main class="plan-doc">
@@ -328,14 +328,18 @@
     moving endpoint can, so our measured rate is the wrong input to the
     counterfactual.</p>
 
-    <p><strong>What is displayed.</strong> One figure, the best-effort estimate,
-    is the headline in every surface: tokens priced at the provider's published
-    rates for the served model, with input split by an <em>estimated third-party
-    cache hit rate</em> rather than by our own. The two bounds are printed beside
-    it, clearly secondary: our measured hit rate gives the minimum, and zero
-    third-party cache gives the maximum. A surface that headlines either bound is
-    a defect of this section. The output states the assumed hit rate and where it
-    came from, so a reader can see that the headline rests on an assumption.</p>
+    <p><strong>What is displayed: the estimate, and only the estimate.</strong>
+    Every surface prints exactly one cost figure, the best-effort estimate: tokens
+    priced at the provider's published rates for the served model, with input
+    split by an <em>estimated third-party cache hit rate</em> rather than by our
+    own. No minimum and no maximum is printed beside it. The full-cache figure
+    (our measured hit rate) and the no-cache figure are not shown in any surface,
+    because neither answers the question and a band invites the reader to pick an
+    endpoint. The coordinator comment on the counterfactual describes a band
+    reported beside the estimate. That band is superseded by this paragraph at the
+    lead's direction. The output names the assumed hit rate and its source in a
+    short label beside the figure, so a reader can see what the number rests
+    on.</p>
 
     <p><strong>Where the estimated rate comes from, in order of preference.</strong></p>
     <ol>
@@ -364,18 +368,19 @@
       <thead><tr><th>Node</th><th>Runs after</th><th>Effort</th></tr></thead>
       <tbody>
         <tr><td>Ground the third-party hit-rate estimate, with its source recorded</td><td>&mdash;</td><td>1.5 h</td></tr>
-        <tr><td>Headline the realistic cost in the watch command, bounds beside it</td><td>estimate recorded</td><td>2.0 h</td></tr>
+        <tr><td>Print only the estimated third-party cost in the watch command</td><td>estimate recorded</td><td>2.0 h</td></tr>
         <tr><td>Re-derive the estimate from request-receipt gaps</td><td>relay restart</td><td>1.5 h</td></tr>
       </tbody>
     </table>
 
-    <p><strong>Done when:</strong> the watch command's cost column for a fixture
-    period prints a headline strictly between the two bounds and equal to the
-    tokens priced at the recorded estimated rate. A test pins all three figures
-    by literal. The declared negative control is to price input by our own
-    measured cached count instead of the estimate, and that control reddens the
-    headline test. The output names the assumed rate and its source. No surface
-    headlines a bound.</p>
+    <p><strong>Done when:</strong> for a fixture period, the watch command's cost
+    column prints exactly one figure, equal to that period's tokens priced at
+    the recorded estimated third-party hit rate. A test pins that figure by
+    literal. A second test asserts the output contains neither the
+    own-cache figure nor the no-cache figure. The declared negative control is to
+    price input by our own measured cached count instead of the estimate, and
+    that control reddens the pinned-figure test. The output names the assumed
+    rate and its source.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
