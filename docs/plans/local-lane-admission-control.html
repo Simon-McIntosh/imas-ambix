@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-23">
 <meta name="plan-impl" content="0.3">
-<meta name="plan-version" content="11">
+<meta name="plan-version" content="12">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;}">
 <meta name="plan-artifacts" content="docs/evidence/archive/local-lane-admission-control-landed.html">
 <meta name="plan-commits" content="4bb11e8917c6dc9662d6214da6ec7eb595713984,da60421b4267fc7fc6fafb2a7e5dbb242da1cfba,569b91efd9e1e2e0e00c6d86cd589810391752c5,7ecfec3ba6ed3d68d68e03a104bd33e70ba75037,decc190bc301c74e02f2491bc6a557a163f9c744">
@@ -406,6 +406,9 @@
 </div>
 <div class="r-comment" data-section="s7" data-id="c-20260923-gate-landing" data-who="reckon-ship" data-when="2026-09-23T07:55:00Z">
     <div class="r-comment-body">gate 'router gate tests' passed at the worker base (45 passed, declared mutation fails 5 vs 2); independent review 90/100 with two record-accuracy findings (FIFO begins after catalog resolution; no health route exists) plus a coordinator finding (config logged at INFO on every 1 s refresh), all three owed by the deploy node; merged 49c50dcf, promoted 00e07573. verify-gate at the integrated head reports FAILED (exit 1) although no file the gate command covers differs from the worker head; node gate-integrated-failure is capturing the failure. Not deployed: the router restart is authorised separately and is held until the integrated gate is green. Node 2 of 10 landed; section open.</div>
+</div>
+<div class="r-comment" data-section="s7" data-id="c-run-r-20260923T082128184588-client-first-byte-window" data-who="reckon-ship" data-when="2026-09-23T08:42:23Z">
+    <div class="r-comment-body"><p>clive route: first-byte watchdog not armed (custom ANTHROPIC_BASE_URL), pre-header bound is API_TIMEOUT_MS 600 s, so the 300 s gate wait is safe; first-party routes use 180 s; stream idle 300 s, reset by the first 30 consecutive pings</p></div>
 </div>
 <div class="r-comment" data-section="s5" data-id="c-run-r-20260923T062113460838-client-overload-behaviour" data-who="reckon-ship" data-when="2026-09-23T08:10:29.569Z">
     <div class="r-comment-body"><p>Claude Code 2.1.280 retries 408/409/429/5xx 10x, honours Retry-After exactly with no cap, request timeout 600 s (API_TIMEOUT_MS); first-byte stream timeout default unestablished; router relays engine status and headers verbatim and holds without deadline</p></div>
