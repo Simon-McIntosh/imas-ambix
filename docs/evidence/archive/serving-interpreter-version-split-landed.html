@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="serving-interpreter-version-split-landed">
+  <meta name="plan-title" content="Serving Interpreter Split — Closed Without Implementation">
+  <meta name="plan-summary" content="The kernel boundary this plan was written to create already exists in the tree, so its locked decision is satisfied and its remaining premise is an upstream wheel-availability question the repository does not control.">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-recorded-at" content="2026-09-23">
+  <meta name="plan-evidence-for" content="serving-interpreter-version-split">
+  <meta name="plan-verdict" content="closed-unimplemented">
+  <meta name="plan-source-quality" content="direct reads of both engine environment definitions and the repository project file, plus a green run of the two serving-grammar guard tests">
+  <title>Serving Interpreter Split — Closed Without Implementation | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <h1>Serving interpreter split — closed without implementation</h1>
+
+    <p>Closure record for
+    <a href="/imas-ambix/plans/serving-interpreter-version-split">the serving interpreter split</a>,
+    which is retired without being built. The work it describes was already done under a different
+    plan, and what remained of its premise turns out to belong to an upstream wheel matrix rather
+    than to this repository.</p>
+
+    <h2 id="the-locked-decision-is-already-satisfied">The locked decision is already satisfied</h2>
+
+    <p>The plan carried one locked decision, <code>kernel-environment-boundary</code>, chosen
+    <code>separate-environments</code> and carried forward from an earlier plan. Its stated ground
+    was that <q>the kernel needs to be reachable by the engine, not co-resident with it, and
+    co-residency is the only thing imposing the interpreter floor</q>.</p>
+
+    <p>That separation exists in the tree. <code>imas_ambix/agent/envs/ktransformers/</code> is its
+    own environment and is the only one declaring the kernel:</p>
+
+    <blockquote>
+      <p><code># The KTransformers CPU-offload kernel. This is the sole reason this<br>
+      # environment exists: it is what pins the interpreter to cp312.<br>
+      "kt-kernel",</code></p>
+    </blockquote>
+
+    <p><code>imas_ambix/agent/envs/sglang/</code> does not depend on it, and records why in its own
+    header: <q>KTransformers CPU-offloading is served from its own environment, which is what keeps
+    this one free of the kernel's cp312 wheel pin.</q> So the co-residency the decision named as the
+    sole cause of the floor is gone, and the engine that actually serves the production lane is no
+    longer behind it for that reason.</p>
+
+    <h2 id="what-remains-is-not-what-the-plan-described">What remains is not what the plan described</h2>
+
+    <p>All three serving environments still declare <code>requires-python = "&gt;=3.12,&lt;3.13"</code>
+    while the repository declares <code>&gt;=3.14</code> and the formatter targets
+    <code>py314</code>. That residue is real, but its cause is no longer the kernel. Raising the
+    floor in the two kernel-free environments depends on whether the engine stack publishes
+    cp314 wheels — SGLang, torch, flashinfer and sgl-kernel — which is an upstream matrix this
+    repository neither owns nor can schedule. A plan whose closing condition is another project's
+    release cadence is not an executable plan, and holding a sprint open against it reports work
+    that no worker here can take.</p>
+
+    <h2 id="the-recurring-breakage-is-already-guarded">The recurring breakage is already guarded</h2>
+
+    <p>The plan's urgency came from the serve having broken four times on repository syntax the
+    older interpreter cannot parse, an unparenthesized exception tuple each time. That class is now
+    caught before it can reach a serve, by two tests in
+    <code>tests/test_agent_serve_registry.py</code>:</p>
+
+    <blockquote>
+      <p><code>test_agent_package_modules_parse_with_serving_python</code><br>
+      <code>test_serving_python_guard_rejects_unparenthesized_exception_tuple</code></p>
+    </blockquote>
+
+    <p>Run at closure, both pass — <q>2 passed, 7 deselected in 1.73s</q>. The second is the control
+    that matters: it asserts the guard <em>rejects</em> the offending grammar, so a guard that had
+    silently stopped checking would fail rather than pass quietly. The exposure that justified the
+    plan is therefore covered by a cheaper mechanism that runs on every gate, rather than by a
+    rebuild that costs a coordinated lane stop.</p>
+
+    <h2 id="what-would-reopen-this">What would reopen this</h2>
+
+    <p>Three facts would each make this worth rebuilding, and none holds today. If the engine stack
+    publishes cp314 wheels, raising the two kernel-free environments becomes a small change with a
+    real benefit and no upstream blocker. If a repository module imported by a serve needs syntax
+    the guard cannot express as a parse check, the guard stops being sufficient. If a profile
+    reintroduces the kernel into an engine environment, the co-residency returns and with it the
+    original cause. The first is the one to watch, and it is observable without any work here.</p>
+
+    <h2 id="what-was-not-established">What was not established</h2>
+
+    <p>This record does not claim the interpreter floor is harmless, and it does not claim the two
+    kernel-free environments could move today. Neither was tested: no attempt was made to resolve
+    the engine stack against a 3.14 interpreter, so the wheel-availability question is stated as
+    the open one rather than answered. The narrower claim is the one the evidence supports — that
+    the boundary this plan was written to create already exists, and that the failure it was
+    written to prevent is caught by a passing guard.</p>
+  </main>
+</body>
+</html>

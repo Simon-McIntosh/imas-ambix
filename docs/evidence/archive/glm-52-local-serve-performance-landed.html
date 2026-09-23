@@ -315,6 +315,33 @@
     <code>98dci4-gpu-0003</code>. Numeric report projections use the shared benchmark-report
     interpreter; the tuple-keyed per-run test map is projected into the flat cells above rather
     than serialized as a comparison object.</p>
+
+    <h2 id="closed-the-lane-chose-a-different-engine">Closed — the lane chose a different engine</h2>
+
+    <p>The plan is retired without its last section, on the lead's call, and the reason is that the
+    question it existed to answer has been settled by deployment rather than by measurement.
+    DeepSeek-V4.1-Flash is the serving lane, it outperforms GLM-5.2 for this workload, and it is
+    what every consumer reaches through the router. Benchmarking GLM-5.2 further would produce a
+    better-characterised description of an engine nothing routes to.</p>
+
+    <p>What the plan still had open was one followup: record throughput for the INT4 serve and
+    re-baseline DeepSeek on the same stack, because the stored DeepSeek figures predate the current
+    engine and framework pin. That re-baseline is genuinely stale and is genuinely not worth doing
+    against GLM — but note it was never only about GLM. If a future comparison needs a DeepSeek
+    number from the current stack, none of the figures above supply it, and the tables here must not
+    be read as if they did.</p>
+
+    <p>The measurements already recorded keep their value and are the reason this record survives
+    the plan. Three of them are properties of the hardware and the engine rather than of GLM-5.2,
+    so they remain load-bearing for whatever serves next: tensor-parallel width must divide the
+    model's 64 attention heads, which admits 2, 4 and 8 cards and excludes 6; adding cards costs
+    single-stream decode while buying KV capacity, measured from 740k to 3.37M tokens; and
+    disabling speculative drafting on eight cards raised single-stream throughput 52 percent while
+    collapsing aggregate sixteenfold, from one flag, which is why drafting is a workload decision
+    rather than a default. The two method corrections are also worth carrying: a 256-token
+    generation is short enough that scheduler warm-up dominates and can invert the concurrency
+    ordering, and a single launch does not establish a context ceiling, because three launches of
+    one identical four-card configuration returned KV pools of 6.4, 3.14 and 6.33 GiB.</p>
   </main>
 </body>
 </html>
