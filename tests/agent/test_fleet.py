@@ -5,15 +5,19 @@ from __future__ import annotations
 import re
 import subprocess
 
+import pytest
 from click.testing import CliRunner
 
 from imas_ambix.agent import cli as cli_mod
 from imas_ambix.agent import slurm as slurm_mod
 from imas_ambix.agent.fleet import (
+    FLEET_COMMENT,
     REMAINING_WARNING_SECONDS,
+    find_fleet_allocation,
     generate_fleet_hold_script,
     node_is_draining,
     parse_node_state,
+    placement_argv,
     remaining_seconds,
 )
 from imas_ambix.agent.profile import SiteConfig
@@ -144,9 +148,16 @@ def _squeue(
     return commands
 
 
-def _fleet_row(time_left: str) -> str:
+# Two held allocations as the scheduler reports them on two different days.
+# Everything except the identifier is identical, so an answer assembled from a
+# remembered identifier is indistinguishable from a resolved one on a single
+# row and only the pair of them separates the two.
+HELD_IDENTIFIERS = ("1275000", "1289017")
+
+
+def _fleet_row(time_left: str, jobid: str = "1275000") -> str:
     return (
-        f"1275000|ambix-fleet|RUNNING|1:05:00|rigel-03|"
+        f"{jobid}|ambix-fleet|RUNNING|1:05:00|rigel-03|"
         f"billing=28,cpu=28,mem=120G,node=1|ambix-fleet|{time_left}"
     )
 
@@ -415,20 +426,44 @@ def _place_runner(rows: str, monkeypatch, *, step_returncode: int = 0):
     return commands
 
 
-def test_fleet_place_runs_the_command_as_a_step_in_the_allocation(monkeypatch) -> None:
+@pytest.mark.parametrize("jobid", HELD_IDENTIFIERS)
+def test_placement_argv_uses_the_identifier_of_the_row_it_matched(jobid) -> None:
+    """The invocation is built from the matched row, not from a memory of one.
+
+    The rows carry different identifiers, and the identifier in the emitted
+    invocation changes with the row that was handed in, so no identifier
+    written into the source satisfies both cases.
+    """
+    serving = {"jobid": "1275001", "name": "deepseek-v4-flash", "comment": "null"}
+    held = {"jobid": jobid, "name": "ambix-fleet", "comment": FLEET_COMMENT}
+
+    matched = find_fleet_allocation([serving, held])
+
+    assert matched is held
+    assert placement_argv(matched, ("hostname",)) == [
+        "srun",
+        "--overlap",
+        f"--jobid={jobid}",
+        "hostname",
+    ]
+
+
+@pytest.mark.parametrize("jobid", HELD_IDENTIFIERS)
+def test_fleet_place_names_the_allocation_it_found(jobid, monkeypatch) -> None:
     """The wrapped command is carried through unchanged behind the step.
 
-    The job id is the one the allocation was found by, so the placement follows
-    a resubmit rather than a remembered identifier.
+    The job id in the step is the one from the row the allocation was found by,
+    so the placement follows a resubmit or a cancel-and-rebind as well as it
+    follows the allocation it was first written against.
     """
-    commands = _place_runner(f"{_fleet_row('UNLIMITED')}\n", monkeypatch)
+    commands = _place_runner(f"{_fleet_row('UNLIMITED', jobid=jobid)}\n", monkeypatch)
     result = CliRunner().invoke(
         main, ["agent", "fleet", "place", "--", "hostname"]
     )
 
     assert result.exit_code == 0, result.output
     step = next(command for command in commands if command[0] == "srun")
-    assert step == ["srun", "--overlap", "--jobid=1275000", "hostname"]
+    assert step == ["srun", "--overlap", f"--jobid={jobid}", "hostname"]
 
 
 def test_fleet_place_queries_the_account_the_allocation_is_charged_to(
