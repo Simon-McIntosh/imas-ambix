@@ -243,6 +243,20 @@
     </ol>
     <p>The router restart that deploys the gate is authorised separately. Nothing in this
     hardening restarts or reconfigures the running router.</p>
+    <p><strong>The wait bound has to beat the client's first-byte window, not only its
+    request timeout.</strong> Claude Code 2.1.280, the build clive and crew workers both
+    run, retries 408, 409, 429 and every 5xx ten times by default. It follows
+    <code>Retry-After</code> exactly, uncapped, in place of its own back-off. Its request
+    timeout is 600 s (<code>API_TIMEOUT_MS</code>). While the gate holds a streaming
+    request, the router sends no headers, so the stream's first-byte window
+    (<code>CLAUDE_STREAM_FIRST_BYTE_TIMEOUT_MS</code>) may be the bound that actually
+    applies. Its default is not yet established. If it is shorter than the gate's wait,
+    a queued request dies client-side as a timeout and is not retried. Two designs follow
+    from that answer. If the window is long, the wait bound goes below it. If it is
+    short, the gate opens the stream as soon as it accepts a request. It then emits the
+    Anthropic <code>ping</code> event while the request waits, and ends with an SSE
+    <code>overloaded_error</code> event if the wait expires. That trades the 529 status
+    for a stream that stays alive in the queue.</p>
 
     <p><strong>The source of <em>W</em> needs a floor and a slow estimator.</strong>
     The lane's <code>concurrent_requests</code> swung 16, 17, 20, 6, 20, 18 and 19 across
