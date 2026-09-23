@@ -61,6 +61,16 @@ and ``unread`` for why the table is not there. The recorder's own section
 contract predates this and still states the omit-when-unmeasured rule without
 the exception; that text lives with the recorder and needs amending there.
 
+**Each card also states the model it is.** The name comes from the same query as
+the quantities and is recorded as the string ``nvidia-smi`` reports, because a
+reader comparing a reading against the profile a serve declared needs to know
+which accelerator produced a reading, and the node's own arithmetic cannot say.
+The name is not a quantity and does not go through the numeric parse: a name is
+a string, and routing it through the rule that drops anything unreadable as a
+number would drop every card's name. It follows the section's omit-when-unmeasured
+rule instead: a card whose name column carries a bracketed non-value omits the
+key rather than recording a null, the same way a card whose power cap does.
+
 **Cards are labelled by the number the node knows them by.** SLURM restricts
 each process to its allocated devices through the device cgroup, so
 ``nvidia-smi`` inside it numbers the visible cards from zero while the
@@ -115,8 +125,17 @@ CARD_FIELDS: tuple[tuple[str, str], ...] = (
 #: quantity; it is queried first so the mapping below can pair by position.
 CARD_INDEX_FIELD = "index"
 
+#: The ``nvidia-smi`` field carrying the card's model name, and the key it is
+#: recorded under. Held apart from :data:`CARD_FIELDS` rather than added to it,
+#: because every entry there is read by :func:`_card_value` as a number and a
+#: name is not one: a name routed through that parse is refused as unreadable,
+#: so the key is never recorded and a reader looking for the model finds
+#: nothing. It is queried after the index and read as a string of its own.
+CARD_NAME_FIELD = "name"
+
 CARD_QUERY_FIELDS: tuple[str, ...] = (
     CARD_INDEX_FIELD,
+    CARD_NAME_FIELD,
     *(field_ for _name, field_ in CARD_FIELDS),
 )
 
@@ -124,6 +143,12 @@ CARD_QUERY_FIELDS: tuple[str, ...] = (
 #: spellings arrive inside brackets; anything unparseable as a float is treated
 #: the same way, since an unreadable field is not a reading.
 _UNAVAILABLE = frozenset({"N/A", "NA", "not supported", "unknown", "[n/a]"})
+
+#: The same vocabulary lowercased and unbracketed, so it can be matched in
+#: either spelling. :func:`_card_value` reaches the refusal above through the
+#: failed float conversion, but nothing follows a name, so the comparison has to
+#: carry it on its own.
+_UNAVAILABLE_TEXT = frozenset(entry.lower().strip("[]") for entry in _UNAVAILABLE)
 
 
 class RunFn(Protocol):
@@ -301,6 +326,22 @@ def _card_value(token: str) -> float | None:
         return None
 
 
+def _card_name(token: str) -> str | None:
+    """One ``nvidia-smi`` name column as the string it printed, or ``None``.
+
+    A name is not a quantity, so it is kept verbatim rather than run through
+    :func:`_card_value`, which would refuse every model name as unparseable and
+    leave the key absent on every card. The bracketed non-value
+    ``nvidia-smi`` prints for a field a card does not expose is refused here as
+    everywhere else, so a card carrying no name omits the key rather than
+    recording a null.
+    """
+    text = token.strip()
+    if not text or text.lower().strip("[]") in _UNAVAILABLE_TEXT:
+        return None
+    return text
+
+
 def mapped_indices(
     count: int, physical_indices: Sequence[int] | None
 ) -> list[int] | None:
@@ -330,6 +371,10 @@ def parse_cards(
 
     Fields a card does not expose are omitted from that card rather than
     recorded as null, so a present key is a measurement.
+
+    The model name is read from its own column as a string and travels with the
+    card it names, under :data:`CARD_NAME_FIELD`; see the module docstring for
+    why it is kept apart from the numeric fields.
     """
     cards: list[dict[str, Any]] = []
     for line in text.splitlines():
@@ -341,10 +386,13 @@ def parse_cards(
         except ValueError:
             continue
         card: dict[str, Any] = {"read_index": read_index}
-        for (name, _field), token in zip(CARD_FIELDS, row[1:], strict=False):
+        name = _card_name(row[1])
+        if name is not None:
+            card[CARD_NAME_FIELD] = name
+        for (key, _field), token in zip(CARD_FIELDS, row[2:], strict=False):
             value = _card_value(token)
             if value is not None:
-                card[name] = value
+                card[key] = value
         cards.append(card)
     indices = mapped_indices(len(cards), physical_indices)
     for position, card in enumerate(cards):
