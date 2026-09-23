@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-23T13:16:57",
+  "updated": "2026-09-23T13:41:24",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -75919,6 +75919,278 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260923T062351884099-knee-remeasure",
+        "plan": "local-lane-admission-control",
+        "section": "\u00a73",
+        "node": "knee-remeasure",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 499,
+                "cached_input_tokens": 196620,
+                "input_tokens": 197121,
+                "output_tokens": 808,
+                "reasoning_output_tokens": 113,
+                "total_tokens": 197929,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "74b53aa2-1d4b-451f-8ce7-33c072085f83",
+            "session_id": "llac-20260923"
+          },
+          "done_when": "docs/figures/local-lane-admission/knee.json lists, for each serve job named in \u00a73 and every running-request width with at least 20 decode-log intervals, the median aggregate generation tok/s, its 95% bootstrap interval and the interval count; the manifest names the peak-throughput width, the ratio of median throughput at widths 29-31 to the peak, and which of the two conflicting \u00a71 claims the data supports; docs/figures/local-lane-admission/knee.png plots median and interval against width per job; the same parser run on a synthetic log with a planted peak at width 12 reports width 12; the log parse ran under srun on all_debug and its log path is in the manifest",
+          "estimated_hours": null,
+          "goal": "Measure DSv4.1 aggregate generation throughput against running-request width from the engine decode logs",
+          "id": "knee-remeasure",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-23T06:23:55Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no 'binding_observed'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T062351884099-knee-remeasure/manifest.md",
+          "negative_control": "",
+          "plan": "local-lane-admission-control",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a73",
+          "spec_level": "guided",
+          "time_budget": "60m",
+          "token_budget": null,
+          "write_paths": [
+            "docs/figures/local-lane-admission",
+            "docs/evidence/archive/local-lane-admission-control-landed.html",
+            "docs/figures/local-lane-admission-control",
+            "docs/plans/local-lane-admission-control.html"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "llac-knee",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "high",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "worktree-full",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-23T06:24:28Z",
+        "completed_at": "2026-09-23T08:32:56.446Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 7689,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 7708,
+        "stalled": true,
+        "time_budget": "60m",
+        "base_sha": "4ae97e315202b821e41ee70a01a528c318d84362",
+        "commits": [
+          "b8a0ec926edd8fad088ed9e598ca2b77ef52014d",
+          "edcfd999ec35be4bdd5aadd1863de46d3821ead0"
+        ],
+        "changed_lines": {
+          "added": 2329,
+          "removed": 1,
+          "files": 8
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "srun all_debug knee_measure.py over both serve logs with planted-peak control",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T062351884099-knee-remeasure/knee_srun.log",
+          "log_digest": "sha256:a5fbfa6bc5354aa8a279bc44b1672b8d7e2d7341a6cc4edc5fe37e814168a569"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T062351884099-knee-remeasure/manifest.md",
+        "scope_changed": true,
+        "session_id": "ca9dbd85-b201-4a20-bf4b-aa0a1f08f3f3",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 16609779,
+            "input_tokens_cumulative": 16609779,
+            "output_tokens": 80236,
+            "output_tokens_cumulative": 80236,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-23T08:32:56.446Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": {
+          "status": "parsed",
+          "scores": {
+            "durability": 16,
+            "evidence": 15,
+            "fit": 18,
+            "goal_fidelity": 16,
+            "scope_discipline": 18
+          },
+          "absent": [
+            "A source receipt for the plan's later claim that aggregate output reached about 500 tok/s near width 22 and fell to about 340 past it.",
+            "The required revision, tree, command and exit sentinel in the manifest-named knee_srun.log receipt."
+          ],
+          "total": 83
+        },
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 16767043,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 7704.576,
+          "generated_tokens": 87291,
+          "generation_seconds": 7497.848,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 32.5,
+          "machine_seconds": 206.728,
+          "peak_input_tokens": 155964,
+          "tokens_per_second": 11.64,
+          "wall_tokens_per_second": 11.33
+        },
+        "follow_on_paths": [
+          "3.82",
+          "3.65",
+          "tok/s"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/llac-20260923/knee-remeasure",
+          "session_id": "ca9dbd85-b201-4a20-bf4b-aa0a1f08f3f3",
+          "session_source": "pointer",
+          "retained_at": "2026-09-23T08:32:56.446Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "promoted_revision": "edcfd999ec35be4bdd5aadd1863de46d3821ead0",
+        "plan_impl_at_dispatch": 0.0,
+        "impl_move": {
+          "plan": "local-lane-admission-control",
+          "at_dispatch": 0.0,
+          "at_complete": 0.62,
+          "verdict": "moved"
+        },
+        "negative_control": {
+          "verdict": "exempt",
+          "reason": "node-writes-no-test-path"
+        },
+        "lane_advisory": {
+          "backend": "clive",
+          "burn_multiple": null,
+          "cheaper_lane": {
+            "detail": "",
+            "lane": null,
+            "state": "not_evaluated"
+          },
+          "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+          "horizon_ends_at": "2026-09-23T07:23:55.476394+00:00",
+          "horizon_seconds": 3600,
+          "metered": false,
+          "observed_at": null,
+          "precedes_horizon": null,
+          "projected_exhaustion_at": null,
+          "resets_at": null,
+          "seconds_until_reset": null,
+          "state": "quiet",
+          "utilisation_pct": null
+        },
+        "lane_declaration": {
+          "backend": null,
+          "headroom": null,
+          "metered": false,
+          "observed_at": null,
+          "read_at": "2026-09-23T06:23:55Z",
+          "resolved_backend": "clive",
+          "utilisation_pct": null
+        },
+        "lane_reading": {
+          "age_seconds": null,
+          "binding_observed": "unknown",
+          "detail": "lane document carries no 'binding_observed'",
+          "headroom": "unknown",
+          "mean_context": "unknown",
+          "observed_at": null,
+          "state": "unknown",
+          "suggested_shelf_life_seconds": null
+        },
+        "tool_steps": 139.0,
+        "orientation_input_tokens": 1700259.0,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -76007,6 +76279,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 1002
+    "_version": 1003
   }
 }

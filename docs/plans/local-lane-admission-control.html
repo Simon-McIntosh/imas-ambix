@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-23">
 <meta name="plan-impl" content="0.62">
-<meta name="plan-version" content="20">
+<meta name="plan-version" content="22">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;}">
 <meta name="plan-artifacts" content="docs/evidence/archive/local-lane-admission-control-landed.html">
 <meta name="plan-commits" content="4bb11e8917c6dc9662d6214da6ec7eb595713984,da60421b4267fc7fc6fafb2a7e5dbb242da1cfba,569b91efd9e1e2e0e00c6d86cd589810391752c5,7ecfec3ba6ed3d68d68e03a104bd33e70ba75037,decc190bc301c74e02f2491bc6a557a163f9c744">
@@ -235,6 +235,25 @@
     "pinned" to an old revision imported the main checkout, because the job's working
     directory precedes <code>PYTHONPATH</code>. A rollback must assert the imported
     module's <code>__file__</code> rather than trust the path it set.</p>
+
+    <aside class="callout">
+      <p><strong>Implementation record — 2026-09-23.</strong> Commit
+      <code>24ae0fbc</code> gave the router and lane-refresher generated scripts one
+      shared finite limit. Both <code>generate_router_script</code> and
+      <code>generate_lane_refresher_script</code> in
+      <code>imas_ambix/agent/slurm.py</code> now read
+      <code>_SUPPORTING_SERVICE_TIME_LIMIT = "7-00:00:00"</code>, replacing the
+      <code>time_limit="0"</code> that SLURM reads as unlimited. The engine serve script
+      is unchanged and still emits <code>#SBATCH --time=0</code>, because everything
+      waits on the engine. Three tests pin both boundaries: the router and lane-refresher
+      assertions carry <code>--time=7-00:00:00</code>, and the third asserts the engine
+      serve script still carries <code>--time=0</code>. The declared mutation restored
+      <code>time_limit="0"</code> and the router assertion failed as required. The router
+      service suite passed 47 tests and whole-tree Ruff exited 0. Nothing was submitted
+      to SLURM.
+      <a href="/imas-ambix/evidence/archive/local-lane-admission-control-landed.html#supporting-service-time-limit">Full evidence</a>.
+      Deployment of the bounded scripts is the operator's, as with §7.</p>
+    </aside>
 
     <h2 id="s7">§7 — Immediate relief: one global in-flight gate at the router</h2>
 <p>A second reading at 08:30 local showed 33 running and 1 queued, with aggregate
@@ -569,6 +588,9 @@
 </div>
 <div class="r-comment" data-section="s3" data-id="c-20260923-knee-landing" data-who="reckon-ship" data-when="2026-09-23T11:20:00Z">
     <div class="r-comment-body">knee-remeasure landed (merge 7bd803e4): per-step engine decode throughput is flat or rising to the cap of 36 on both jobs (five-day job 1273253: 436.7 tok/s at 36, 379.1 at 29-31; live 1276246: 426.7 at 35); planted-peak control recovers widths 12 and 25. The ~22 knee is not a decode property; the binding variable is KV occupancy. Evidence: /imas-ambix/evidence/archive/local-lane-admission-control-landed#s3</div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-run-r-20260923T062351884099-knee-remeasure" data-who="reckon-ship" data-when="2026-09-23T08:32:56.446Z">
+    <div class="r-comment-body"><p>engine decode throughput flat or rising to cap 36 on both jobs; no width knee; planted-peak control recovers 12 and 25</p></div>
 </div>
 <div class="r-comment" data-section="s4" data-id="c-20260923-scheduler-landing" data-who="reckon-ship" data-when="2026-09-23T11:20:00Z">
     <div class="r-comment-body">engine-scheduler-levers answered 7 of 7 against SGLang da64c5cbb in the serve container: waiting requests hold no KV and no prefix-cache lock; lpm and dfs-weight reorder the waiting queue by cached prefix (lpm falls back to fcfs above 128 waiting); priority cannot reach the engine through /v1/messages; max_queued_requests and SGLANG_REQ_WAITING_TIMEOUT both refuse with 503, surfacing as an SSE error event on streams; the Anthropic path sends 200 headers before admission; max_running_requests changes only at relaunch. Report: ~/.config/reckon/crew/reports/imas-ambix/llac-20260923/engine-scheduler-levers.md</div>
