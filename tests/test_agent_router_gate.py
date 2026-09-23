@@ -1,0 +1,433 @@
+from __future__ import annotations
+
+import asyncio
+import json
+from collections.abc import Awaitable, Callable, Sequence
+from contextlib import asynccontextmanager
+from pathlib import Path
+from typing import Any
+
+from aiohttp import web
+
+from imas_ambix.agent.router import RouterApp, Upstream
+
+AsgiMessage = dict[str, Any]
+
+
+class Resolver:
+    def __init__(self, upstreams: Sequence[Upstream]) -> None:
+        self.upstreams = upstreams
+
+    async def resolve(self) -> Sequence[Upstream]:
+        return self.upstreams
+
+
+def _card() -> dict[str, Any]:
+    return {
+        "id": "streamer",
+        "object": "model",
+        "created": 123,
+        "owned_by": "engine",
+        "max_model_len": 4096,
+    }
+
+
+def _write_gate(path: Path, *, width: int, wait_seconds: float = 1.0) -> None:
+    path.write_text(
+        json.dumps({"width": width, "wait_seconds": wait_seconds}),
+        encoding="utf-8",
+    )
+
+
+@asynccontextmanager
+async def _server(app: web.Application):
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "127.0.0.1", 0)
+    await site.start()
+    sockets = site._server.sockets
+    try:
+        yield f"http://127.0.0.1:{sockets[0].getsockname()[1]}"
+    finally:
+        await runner.cleanup()
+
+
+@asynccontextmanager
+async def _router(upstream: str, gate_file: Path):
+    app = RouterApp(
+        Resolver([Upstream(upstream)]),
+        lane_document=gate_file.with_name("lane.json"),
+    )
+    try:
+        yield app
+    finally:
+        if app._session is not None:
+            await app._session.close()
+
+
+def _start_call(
+    app: RouterApp,
+    method: str,
+    path: str,
+    body: bytes = b"",
+    *,
+    on_send: Callable[[AsgiMessage, asyncio.Queue[AsgiMessage]], Awaitable[None]]
+    | None = None,
+) -> tuple[asyncio.Task[None], asyncio.Queue[AsgiMessage], list[AsgiMessage]]:
+    incoming: asyncio.Queue[AsgiMessage] = asyncio.Queue()
+    incoming.put_nowait({"type": "http.request", "body": body})
+    sent: list[AsgiMessage] = []
+
+    async def receive() -> AsgiMessage:
+        return await incoming.get()
+
+    async def send(message: AsgiMessage) -> None:
+        sent.append(message)
+        if on_send is not None:
+            await on_send(message, incoming)
+
+    task = asyncio.create_task(
+        app(
+            {
+                "type": "http",
+                "method": method,
+                "path": path,
+                "raw_path": path.encode(),
+                "query_string": b"",
+                "headers": [(b"content-type", b"application/json")],
+            },
+            receive,
+            send,
+        )
+    )
+    return task, incoming, sent
+
+
+async def _call(
+    app: RouterApp, method: str, path: str, body: bytes = b""
+) -> list[AsgiMessage]:
+    task, _, sent = _start_call(app, method, path, body)
+    await task
+    return sent
+
+
+def _status(messages: Sequence[AsgiMessage]) -> int:
+    return next(
+        message["status"]
+        for message in messages
+        if message["type"] == "http.response.start"
+    )
+
+
+def _body(messages: Sequence[AsgiMessage]) -> bytes:
+    return b"".join(
+        message.get("body", b"")
+        for message in messages
+        if message["type"] == "http.response.body"
+    )
+
+
+def _headers(messages: Sequence[AsgiMessage]) -> dict[bytes, bytes]:
+    start = next(
+        message for message in messages if message["type"] == "http.response.start"
+    )
+    return {name.lower(): value for name, value in start["headers"]}
+
+
+class GenerationProbe:
+    def __init__(self) -> None:
+        self.active = 0
+        self.maximum = 0
+        self.started: list[str] = []
+        self.changed = asyncio.Condition()
+        self.release = asyncio.Event()
+
+    async def handler(self, request: web.Request) -> web.Response:
+        payload = await request.json()
+        label = str(payload.get("label", "request"))
+        async with self.changed:
+            self.active += 1
+            self.maximum = max(self.maximum, self.active)
+            self.started.append(label)
+            self.changed.notify_all()
+        try:
+            await self.release.wait()
+            return web.json_response({"label": label})
+        finally:
+            async with self.changed:
+                self.active -= 1
+                self.changed.notify_all()
+
+    async def wait_for_active(self, count: int) -> None:
+        async with self.changed:
+            await asyncio.wait_for(
+                self.changed.wait_for(lambda: self.active >= count), timeout=1
+            )
+
+
+def _probe_app(probe: GenerationProbe) -> web.Application:
+    app = web.Application()
+
+    async def catalog(_: web.Request) -> web.Response:
+        return web.json_response({"object": "list", "data": [_card()]})
+
+    async def count_tokens(_: web.Request) -> web.Response:
+        return web.json_response({"input_tokens": 7})
+
+    app.router.add_get("/v1/models", catalog)
+    app.router.add_post("/v1/messages/count_tokens", count_tokens)
+    app.router.add_post("/v1/messages", probe.handler)
+    app.router.add_post("/v1/chat/completions", probe.handler)
+    return app
+
+
+def test_global_gate_is_fifo_and_bounds_generation_without_refusal(tmp_path) -> None:
+    async def exercise() -> None:
+        gate_file = tmp_path / "router-gate.json"
+        _write_gate(gate_file, width=2)
+        probe = GenerationProbe()
+        async with (
+            _server(_probe_app(probe)) as upstream,
+            _router(upstream, gate_file) as app,
+        ):
+            calls: list[tuple[asyncio.Task[None], list[AsgiMessage]]] = []
+            for index in range(5):
+                task, _, sent = _start_call(
+                    app,
+                    "POST",
+                    "/v1/messages",
+                    json.dumps({"model": "streamer", "label": str(index)}).encode(),
+                )
+                calls.append((task, sent))
+                await asyncio.sleep(0.01)
+
+            await probe.wait_for_active(2)
+            await asyncio.sleep(0.05)
+            maximum = probe.maximum
+            probe.release.set()
+            await asyncio.gather(*(task for task, _ in calls))
+
+        assert maximum == 2
+        assert probe.started == [str(index) for index in range(5)]
+        assert [_status(sent) for _, sent in calls] == [200] * 5
+
+    asyncio.run(exercise())
+
+
+def test_wait_bound_returns_anthropic_overload_with_retry_after(tmp_path) -> None:
+    async def exercise() -> None:
+        gate_file = tmp_path / "router-gate.json"
+        _write_gate(gate_file, width=1, wait_seconds=0.05)
+        probe = GenerationProbe()
+        async with (
+            _server(_probe_app(probe)) as upstream,
+            _router(upstream, gate_file) as app,
+        ):
+            first, _, _ = _start_call(
+                app,
+                "POST",
+                "/v1/messages",
+                b'{"model":"streamer","label":"first"}',
+            )
+            await probe.wait_for_active(1)
+            refused = await asyncio.wait_for(
+                _call(
+                    app,
+                    "POST",
+                    "/v1/messages",
+                    b'{"model":"streamer","label":"second"}',
+                ),
+                timeout=0.5,
+            )
+            assert _status(refused) == 529
+            assert _headers(refused)[b"retry-after"]
+            assert json.loads(_body(refused)) == {
+                "type": "error",
+                "error": {
+                    "type": "overloaded_error",
+                    "message": "router generation queue wait limit exceeded",
+                },
+            }
+            probe.release.set()
+            await first
+
+    asyncio.run(exercise())
+
+
+def test_disconnected_waiter_and_streamer_release_capacity(tmp_path) -> None:
+    async def exercise_waiter() -> None:
+        gate_file = tmp_path / "waiter-gate.json"
+        _write_gate(gate_file, width=1)
+        probe = GenerationProbe()
+        async with (
+            _server(_probe_app(probe)) as upstream,
+            _router(upstream, gate_file) as app,
+        ):
+            first, _, _ = _start_call(
+                app,
+                "POST",
+                "/v1/messages",
+                b'{"model":"streamer","label":"first"}',
+            )
+            await probe.wait_for_active(1)
+            waiter, incoming, waiter_sent = _start_call(
+                app,
+                "POST",
+                "/v1/messages",
+                b'{"model":"streamer","label":"departed"}',
+            )
+            await asyncio.sleep(0.05)
+            follower, _, follower_sent = _start_call(
+                app,
+                "POST",
+                "/v1/messages",
+                b'{"model":"streamer","label":"follower"}',
+            )
+            incoming.put_nowait({"type": "http.disconnect"})
+            await asyncio.wait_for(waiter, timeout=0.5)
+            assert waiter_sent == []
+            probe.release.set()
+            await asyncio.wait_for(asyncio.gather(first, follower), timeout=1)
+            assert _status(follower_sent) == 200
+            assert "departed" not in probe.started
+
+    async def exercise_streamer() -> None:
+        gate_file = tmp_path / "streamer-gate.json"
+        _write_gate(gate_file, width=1)
+        stream_open = asyncio.Event()
+        keep_streaming = asyncio.Event()
+
+        async def catalog(_: web.Request) -> web.Response:
+            return web.json_response({"object": "list", "data": [_card()]})
+
+        async def generate(request: web.Request) -> web.StreamResponse:
+            payload = await request.json()
+            if payload.get("label") != "stream":
+                return web.json_response({"label": payload.get("label")})
+            response = web.StreamResponse(headers={"content-type": "text/event-stream"})
+            await response.prepare(request)
+            await response.write(b"data: first\n\n")
+            stream_open.set()
+            try:
+                await keep_streaming.wait()
+                await response.write(b"data: late\n\n")
+                await response.write_eof()
+            except ConnectionError, RuntimeError:
+                pass
+            return response
+
+        engine = web.Application()
+        engine.router.add_get("/v1/models", catalog)
+        engine.router.add_post("/v1/messages", generate)
+
+        disconnected = False
+
+        async def leave_after_first(
+            message: AsgiMessage, incoming: asyncio.Queue[AsgiMessage]
+        ) -> None:
+            nonlocal disconnected
+            if (
+                message["type"] == "http.response.body"
+                and message.get("body")
+                and not disconnected
+            ):
+                disconnected = True
+                incoming.put_nowait({"type": "http.disconnect"})
+
+        async with (
+            _server(engine) as upstream,
+            _router(upstream, gate_file) as app,
+        ):
+            streamer, _, _ = _start_call(
+                app,
+                "POST",
+                "/v1/messages",
+                b'{"model":"streamer","label":"stream"}',
+                on_send=leave_after_first,
+            )
+            await asyncio.wait_for(stream_open.wait(), timeout=1)
+            await asyncio.wait_for(streamer, timeout=1)
+            following = await asyncio.wait_for(
+                _call(
+                    app,
+                    "POST",
+                    "/v1/messages",
+                    b'{"model":"streamer","label":"following"}',
+                ),
+                timeout=1,
+            )
+            assert _status(following) == 200
+            keep_streaming.set()
+
+    asyncio.run(exercise_waiter())
+    asyncio.run(exercise_streamer())
+
+
+def test_gate_file_edit_changes_width_without_restarting_app(tmp_path) -> None:
+    async def exercise() -> None:
+        gate_file = tmp_path / "router-gate.json"
+        _write_gate(gate_file, width=1)
+        probe = GenerationProbe()
+        async with (
+            _server(_probe_app(probe)) as upstream,
+            _router(upstream, gate_file) as app,
+        ):
+            first, _, _ = _start_call(
+                app,
+                "POST",
+                "/v1/messages",
+                b'{"model":"streamer","label":"first"}',
+            )
+            await probe.wait_for_active(1)
+            second, _, _ = _start_call(
+                app,
+                "POST",
+                "/v1/messages",
+                b'{"model":"streamer","label":"second"}',
+            )
+            await asyncio.sleep(0.05)
+            assert probe.maximum == 1
+            _write_gate(gate_file, width=2)
+            await probe.wait_for_active(2)
+            assert probe.maximum == 2
+            probe.release.set()
+            await asyncio.gather(first, second)
+
+    asyncio.run(exercise())
+
+
+def test_catalog_and_count_tokens_bypass_a_full_generation_gate(tmp_path) -> None:
+    async def exercise() -> None:
+        gate_file = tmp_path / "router-gate.json"
+        _write_gate(gate_file, width=1)
+        probe = GenerationProbe()
+        async with (
+            _server(_probe_app(probe)) as upstream,
+            _router(upstream, gate_file) as app,
+        ):
+            blocker, _, _ = _start_call(
+                app,
+                "POST",
+                "/v1/messages",
+                b'{"model":"streamer","label":"blocker"}',
+            )
+            await probe.wait_for_active(1)
+            catalog, tokens = await asyncio.wait_for(
+                asyncio.gather(
+                    _call(app, "GET", "/v1/models"),
+                    _call(
+                        app,
+                        "POST",
+                        "/v1/messages/count_tokens",
+                        b'{"model":"streamer"}',
+                    ),
+                ),
+                timeout=0.5,
+            )
+            assert _status(catalog) == 200
+            assert _status(tokens) == 200
+            assert json.loads(_body(tokens)) == {"input_tokens": 7}
+            probe.release.set()
+            await blocker
+
+    asyncio.run(exercise())
