@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-23T12:08:37",
+  "updated": "2026-09-23T12:11:47",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -74070,6 +74070,281 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260923T052157652054-card-model-name-recorded",
+        "plan": "serve-telemetry-spine",
+        "section": "\u00a76",
+        "node": "card-model-name-recorded",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 392,
+                "cached_input_tokens": 451633,
+                "input_tokens": 452027,
+                "output_tokens": 613,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 452640,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "98f13dbe-0703-4abd-a5e4-65bfdb2eeee2",
+            "session_id": "ship-cards-20260923"
+          },
+          "done_when": "A recorded card carries its model name as a string read from the probe output; nvidia-smi is queried for it; the existing numeric fields and their units are unchanged; a card that does not expose a name omits the key rather than recording null, matching the section contract already stated in the module docstring; uv run --no-sync pytest -p no:cacheprovider tests/test_node_probe.py passes; uv run --no-sync pytest tests/test_agent_serve_registry.py -k agent_package_modules_parse_with_serving_python passes; uv run --no-sync ruff check imas_ambix tests exits 0.",
+          "estimated_hours": null,
+          "goal": "Record each card's model name in the cards[] section of a serving receipt row, so a reader can tell which accelerator produced a reading.",
+          "id": "card-model-name-recorded",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-23T05:21:59Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no 'binding_observed'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T052157652054-card-model-name-recorded/manifest.md",
+          "negative_control": "Add \"name\" to CARD_FIELDS as ('name', 'name') without giving the parse a string path: the value still goes through _card_value, which returns None for a non-numeric token, so the key stays absent and any test asserting the model name must fail.",
+          "plan": "serve-telemetry-spine",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a76",
+          "spec_level": "exact",
+          "time_budget": "25m",
+          "token_budget": null,
+          "write_paths": [
+            "imas_ambix/agent/node_probe.py",
+            "tests/test_node_probe.py",
+            "docs/evidence/archive/serve-telemetry-spine-landed.html",
+            "docs/figures/serve-telemetry-spine",
+            "docs/plans/serve-telemetry-spine.html"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "fleet-sample-host",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "high",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "worktree-full",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-23T05:22:14Z",
+        "completed_at": "2026-09-23T07:09:21.445Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 6412,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 6427,
+        "stalled": true,
+        "time_budget": "25m",
+        "base_sha": "02777874c077d3aa902e2226b8306fe119b20139",
+        "commits": [
+          "6d7617a7be418aced1e5416d2ee2a3a1c648ccc3",
+          "959b1e3843fad21df1b59830e681666de7397130"
+        ],
+        "changed_lines": {
+          "added": 177,
+          "removed": 10,
+          "files": 4
+        },
+        "tests_added": 3,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest -p no:cacheprovider tests/test_node_probe.py",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T052157652054-card-model-name-recorded/coordinator-gate.log",
+          "log_digest": "98cbb66be13536c399f9785b8227b49d77799ee934027f418387352acea14a55"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T052157652054-card-model-name-recorded/manifest.md",
+        "scope_changed": false,
+        "session_id": "86f60d8e-7a70-469d-970f-fb607113e99c",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 15235288,
+            "input_tokens_cumulative": 15235288,
+            "output_tokens": 66361,
+            "output_tokens_cumulative": 66361,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-23T07:09:21.445Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": {
+          "status": "parsed",
+          "scores": {
+            "durability": 18,
+            "evidence": 19,
+            "fit": 19,
+            "goal_fidelity": 19,
+            "scope_discipline": 20
+          },
+          "absent": [],
+          "total": 95
+        },
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 15403279,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 6421.057,
+          "generated_tokens": 73476,
+          "generation_seconds": 6376.621,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 34.7,
+          "machine_seconds": 44.436,
+          "peak_input_tokens": 166691,
+          "tokens_per_second": 11.52,
+          "wall_tokens_per_second": 11.44
+        },
+        "follow_on_paths": [
+          "serving_receipts.py"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest -p",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ship-cards-20260923/card-model-name-recorded",
+          "session_id": "86f60d8e-7a70-469d-970f-fb607113e99c",
+          "session_source": "pointer",
+          "retained_at": "2026-09-23T07:09:21.445Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "promoted_revision": "959b1e3843fad21df1b59830e681666de7397130",
+        "job_id": "1276262",
+        "plan_impl_at_dispatch": 1.0,
+        "impl_move": {
+          "plan": "serve-telemetry-spine",
+          "at_dispatch": 1.0,
+          "at_complete": 1.0,
+          "verdict": "waived",
+          "reason": "The owning plan shipped at full implementation before this work existed; the node repairs a defect its own closing followup recorded, so the landing adds to a finished plan's tail rather than advancing a fraction with nowhere left to move."
+        },
+        "negative_control": {
+          "verdict": "matched",
+          "test_paths": [
+            "tests/test_node_probe.py"
+          ],
+          "declaration": "Add \"name\" to CARD_FIELDS as ('name', 'name') without giving the parse a string path: the value still goes through _card_value, which returns None for a non-numeric token, so the key stays absent and any test asserting the model name must fail.",
+          "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T052157652054-card-model-name-recorded/negative-control.log",
+          "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T052157652054-card-model-name-recorded/negative-control.log"
+        },
+        "lane_advisory": {
+          "backend": "clive",
+          "burn_multiple": null,
+          "cheaper_lane": {
+            "detail": "",
+            "lane": null,
+            "state": "not_evaluated"
+          },
+          "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+          "horizon_ends_at": "2026-09-23T05:46:59.881278+00:00",
+          "horizon_seconds": 1500,
+          "metered": false,
+          "observed_at": null,
+          "precedes_horizon": null,
+          "projected_exhaustion_at": null,
+          "resets_at": null,
+          "seconds_until_reset": null,
+          "state": "quiet",
+          "utilisation_pct": null
+        },
+        "lane_declaration": {
+          "backend": null,
+          "headroom": null,
+          "metered": false,
+          "observed_at": null,
+          "read_at": "2026-09-23T05:21:59Z",
+          "resolved_backend": "clive",
+          "utilisation_pct": null
+        },
+        "lane_reading": {
+          "age_seconds": null,
+          "binding_observed": "unknown",
+          "detail": "lane document carries no 'binding_observed'",
+          "headroom": "unknown",
+          "mean_context": "unknown",
+          "observed_at": null,
+          "state": "unknown",
+          "suggested_shelf_life_seconds": null
+        },
+        "tool_steps": 137.0,
+        "orientation_input_tokens": 1184319.0,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -74158,6 +74433,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 991
+    "_version": 992
   }
 }
