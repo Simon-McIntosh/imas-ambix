@@ -240,6 +240,15 @@
       static fraction and activation workspace at the current settings, and the pool
       gained by each reduction that does not change the context cap.</li>
     </ul>
+    <p><strong>DP attention has a condition the projection does not show.</strong> Under
+    DP attention each rank keeps its own radix cache. The launch uses
+    <code>load_balance_method=round_robin</code>, which would scatter one agent's
+    successive turns across four separate caches. That turns a 99% prefix hit rate into
+    roughly a quarter of it, and costs far more than the 4× pool gains. The DP-attention
+    experiment is admissible only with a dispatch policy that keeps a conversation on
+    the rank holding its prefix. That is either an engine load-balance method that is
+    prefix- or session-affine, or cache-aware routing at the router. Which of these
+    this SGLang build supports is part of the experiment's design.</p>
     <p>For each lever, project pool tokens and the context-derived concurrency at a
     98,750-token mean context, and say what the change costs. The relaunch that applies
     the chosen levers drains the lane to a sustained zero first, and it is authorised
