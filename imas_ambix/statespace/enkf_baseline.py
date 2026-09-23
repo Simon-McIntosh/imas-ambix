@@ -750,13 +750,21 @@ def run_shot(inp: ShotInputs, obs: MagneticsObs, cfg: EnKFConfig) -> ShotResult:
             / np.sqrt(pred_stack.size)
         )
 
+    # A member whose forward solve failed carries j_total = 0, so its predicted
+    # magnetics are a FINITE zero-current signal rather than a NaN. Finiteness
+    # is therefore not a test of success here: a fabricated zero passes it, and
+    # averaging one in reports a measurement of no current that nothing
+    # measured. Membership has to be carried explicitly.
+    ok_mask = np.array([tr.ok for tr in trajs], dtype=bool)
     Yf = (  # noqa: N806
         np.array([_predicted_amb(tr) for tr in trajs])
         if assim_idx.size
         else np.zeros((M, 0))
     )
     innov_forecast = (
-        _whitened_misfit(np.nanmean(Yf, axis=0)) if assim_idx.size else float("nan")
+        _whitened_misfit(np.nanmean(Yf[ok_mask], axis=0))
+        if assim_idx.size and ok_mask.any()
+        else float("nan")
     )
 
     # --- ANALYSIS: one EKI update of theta against amb, then re-run ---
@@ -764,7 +772,7 @@ def run_shot(inp: ShotInputs, obs: MagneticsObs, cfg: EnKFConfig) -> ShotResult:
     innov_analysis = innov_forecast
     if cfg.assimilate and assim_idx.size and n_ok >= max(4, M // 4):
         Theta = np.array([_theta_vec(th) for th in thetas])  # (M, p)  # noqa: N806
-        valid = np.isfinite(Yf).all(axis=1)
+        valid = ok_mask & np.isfinite(Yf).all(axis=1)
         if valid.sum() >= 4:
             Tv = Theta[valid]  # noqa: N806
             Yv = Yf[valid]  # noqa: N806
@@ -790,11 +798,22 @@ def run_shot(inp: ShotInputs, obs: MagneticsObs, cfg: EnKFConfig) -> ShotResult:
             Kgain = Kt.T  # (p, n_obs)  # noqa: N806
             pert = rng.normal(0.0, 1.0, size=(M, yw.size))  # perturbed obs (whitened)
             innov = (yw[None, :] + pert) - (Yf / wv[None, :])  # (M, n_obs)
+            # A member whose forward failed observed nothing, so it carries no
+            # innovation and is re-run at its current theta. Leaving its row in
+            # would move it by the difference between the data and a zero
+            # current the solver never produced, which is a large spurious
+            # step in whichever direction the shot happens to lie.
+            innov[~ok_mask] = 0.0
             Theta_upd = Theta + cfg.eki_step * (innov @ Kgain.T)  # (M, p)  # noqa: N806
             thetas_upd = [_theta_from_vec(Theta_upd[m]) for m in range(M)]
             analysis_trajs = [run_torax_member(inp, cfg, th) for th in thetas_upd]
             Ya2 = np.array([_predicted_amb(tr) for tr in analysis_trajs])  # noqa: N806
-            innov_analysis = _whitened_misfit(np.nanmean(Ya2, axis=0))
+            ok_analysis = np.array([tr.ok for tr in analysis_trajs], dtype=bool)
+            innov_analysis = (
+                _whitened_misfit(np.nanmean(Ya2[ok_analysis], axis=0))
+                if ok_analysis.any()
+                else float("nan")
+            )
 
     # --- READOUT (shared): pitch_samples (K, C, M) for both arms ---
     def _pitch_samples(traj_list):
