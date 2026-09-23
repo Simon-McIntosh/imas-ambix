@@ -236,6 +236,39 @@
     directory precedes <code>PYTHONPATH</code>. A rollback must assert the imported
     module's <code>__file__</code> rather than trust the path it set.</p>
 
+    <h3 id="s6-occupancy">Landed — the occupancy cliff, measured (2026-09-23)</h3>
+
+    <p><strong>The occupancy rule names 0.90, which is the cap — and the tail explains
+    why.</strong> Binning both decode logs (five-day job 1273253, live job 1276246) into
+    occupancy bins of width 0.05 and keeping the bins with at least 20 intervals, the
+    highest bin holding both a median aggregate generation within 10% of the best bin and a
+    median prefix-cache hit rate at or above 0.97 is <strong>0.85–0.90 on both jobs</strong>
+    — a target that, at a 100,000-token mean context from the 4,000,000-token pool, implies a
+    width of <strong>36</strong>, the engine cap. The rule does not find a boundary; it runs
+    out of populated bins. This is not a licence to set the gate at 36.</p>
+
+    <p><strong>The collapse is real and it is a minority tail.</strong> §7's 98&nbsp;tok/s
+    reading at KV 88% is present in the live log — 2026-09-23 08:30:10 at occupancy 0.84,
+    36 running, 151&nbsp;tok/s; 08:32:22 at occupancy 0.88, 34 running, 103&nbsp;tok/s — but
+    collapsed intervals are a small fraction of every bin (live job 2.7–4.0%, five-day job
+    0%), so no median moves. The bin that contains the collapse also keeps a 0.994 median hit
+    rate, so the hit-rate condition does not catch it either. No bin above 0.90 reaches 20
+    intervals (6 and 7 intervals respectively), so the instrument cannot see past 0.90 even
+    though the cliff sits near 0.88.</p>
+
+    <p><strong>Consequence for the width target.</strong> Taken literally the rule returns the
+    cap; taken with the tail beside it, the measured collapse argues for a target below 0.90
+    and nearer this section's expected 0.8 — about 30 at a 100k context. The two readings
+    differ because the medians are the wrong statistic for a transient: the gate is meant to
+    keep the lane inside a regime it can hold, and the median rule is blind to the regime
+    leaving. Selecting between them is an adjudication this node does not make; the number
+    the rule returns is 0.90 and the number the collapse argues for is below 0.90.</p>
+
+    <p>Full evidence, the per-bin table, the figure and the planted-cliff control:
+    <a href="/imas-ambix/evidence/archive/local-lane-admission-control-landed.html#occupancy-throughput">the evidence record</a>.
+    Reducer: <code>docs/figures/local-lane-occupancy/occupancy_measure.py</code>; measurement
+    <code>occupancy.json</code>; figure <code>occupancy.png</code>.</p>
+
     <h2 id="s7">§7 — Immediate relief: one global in-flight gate at the router</h2>
 <p>A second reading at 08:30 local showed 33 running and 1 queued, with aggregate
     output down to <strong>98 tok/s</strong> (from 217), 14.5 tok/s per stream, prefill

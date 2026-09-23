@@ -10,7 +10,7 @@
   <meta name="plan-summary"      content="Cumulative execution record for local-lane-admission-control: capacity levers, scheduler levers, client behaviour, the router gate and the bypass trace">
   <meta name="plan-tags"         content="agent-serving,gpu-deployment">
   <meta name="plan-evidence-for" content="local-lane-admission-control">
-  <meta name="plan-verifies"     content="local-lane-admission-control#s3,local-lane-admission-control#s5,local-lane-admission-control#s7,local-lane-admission-control#s8">
+  <meta name="plan-verifies"     content="local-lane-admission-control#s3,local-lane-admission-control#s5,local-lane-admission-control#s6,local-lane-admission-control#s7,local-lane-admission-control#s8">
   <meta name="plan-owner"        content="Simon McIntosh">
   <title>Local Lane Admission Control — Landed Evidence | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
@@ -287,7 +287,87 @@
     and the two synthetic logs beside it. The parse ran under <code>srun</code> on
     <code>all_debug</code>.</p>
 
-  
+  </section>
+
+  <section id="occupancy-throughput">
+    <h2>Aggregate throughput and prefix retention against KV occupancy (2026-09-23)
+    <a class="anchor" href="#occupancy-throughput">#</a></h2>
+
+    <p><strong>The rule returns occupancy 0.90, and that is the engine cap, not a
+    boundary the data found.</strong> Binning both decode logs into occupancy bins of width
+    0.05 and keeping every bin with at least 20 decode intervals, the highest bin whose
+    median aggregate generation stays within 10% of the best bin and whose median
+    prefix-cache hit rate stays at or above 0.97 is <strong>0.85–0.90 on both jobs</strong>.
+    At a 100,000-token mean context from a 4,000,000-token pool that target implies a gate
+    width of <strong>36</strong> — the engine's running cap, i.e. no bound at all. The
+    measurement therefore does <em>not</em> reproduce §6's expected target near 0.8, and the
+    reason it does not is the finding worth carrying.</p>
+
+    <p><strong>The collapse is real but it is a minority tail, so no median moves.</strong>
+    §7 recorded 33 running, KV at 88% and 98&nbsp;tok/s. Those intervals are present in the
+    live job's log — for example 2026-09-23 08:30:10 at occupancy 0.84 and 36 running
+    (151&nbsp;tok/s), 08:32:22 at occupancy 0.88 and 34 running (103&nbsp;tok/s) — but on
+    every occupancy bin the collapsed intervals are a small fraction (live job: 2.7% of the
+    p10 rate band, 4.0% in 0.85–0.90; five-day job: 0%). A bin median over 40–126 intervals
+    is set by the healthy majority, so the median rule walks straight past the cliff. The
+    p10 rate and the collapsed-interval fraction are reported per bin beside the median for
+    exactly this reason; both are in the measurement document.</p>
+
+    <p><strong>The rule and the plan disagree because the bin medians are the wrong
+    statistic for a transient.</strong> §6 selects the highest occupancy that holds the hit
+    rate, and both hit rates and medians do hold above the collapse — the live job's 0.85–0.90
+    bin keeps a 0.994 median hit rate. The logged pool occupancy is also thin where the cliff
+    would be: no bin above 0.90 reaches 20 intervals (6 intervals on the five-day job, 7 on
+    the live job), so the rule cannot see past 0.90 even though the cliff sits near 0.88.
+    Taken at face value the rule hands back the cap; taken with the tail beside it, the
+    collapse argues for a target below 0.90 and closer to §6's 0.8. That adjudication is the
+    coordinator's, not this node's.</p>
+
+    <table class="metrics">
+      <caption>Per-bin medians for the bins at or above occupancy 0.70. Every bin with at
+      least 20 decode intervals appears in the measurement document; the tail fields are
+      reproduced here for the bins near the cliff.</caption>
+      <thead><tr><th>job</th><th>occupancy bin</th><th>intervals</th><th>median tok/s</th>
+      <th>95% CI</th><th>p10</th><th>collapsed</th><th>median hit</th><th>median width</th></tr></thead>
+      <tbody>
+        <tr><td>1273253</td><td>0.70–0.75</td><td>262</td><td>389.9</td><td>380.1–394.4</td><td>238.8</td><td>6.9%</td><td>0.994</td><td>30</td></tr>
+        <tr><td>1273253</td><td>0.75–0.80</td><td>152</td><td>384.4</td><td>373.5–389.7</td><td>243.1</td><td>3.3%</td><td>0.995</td><td>33</td></tr>
+        <tr><td>1273253</td><td>0.80–0.85</td><td>112</td><td>423.9</td><td>409.3–433.2</td><td>273.6</td><td>1.8%</td><td>0.994</td><td>34</td></tr>
+        <tr><td>1273253</td><td><strong>0.85–0.90</strong></td><td>40</td><td>417.3</td><td>402.5–438.9</td><td>377.1</td><td>0.0%</td><td>0.994</td><td>34</td></tr>
+        <tr><td>1276246</td><td>0.70–0.75</td><td>103</td><td>363.5</td><td>347.0–382.1</td><td>223.1</td><td>4.9%</td><td>0.995</td><td>28</td></tr>
+        <tr><td>1276246</td><td>0.75–0.80</td><td>134</td><td>384.5</td><td>371.4–393.1</td><td>251.3</td><td>3.0%</td><td>0.994</td><td>30</td></tr>
+        <tr><td>1276246</td><td>0.80–0.85</td><td>264</td><td>404.7</td><td>389.8–412.3</td><td>280.7</td><td>2.7%</td><td>0.995</td><td>33</td></tr>
+        <tr><td>1276246</td><td><strong>0.85–0.90</strong></td><td>126</td><td>407.9</td><td>397.7–420.1</td><td>268.2</td><td>4.0%</td><td>0.994</td><td>34</td></tr>
+      </tbody>
+    </table>
+
+    <figure>
+      <img src="/imas-ambix/figures/local-lane-occupancy/occupancy.png" alt="Aggregate decode generation throughput with 95% bootstrap intervals, and median prefix-cache hit rate, against KV full-token pool occupancy, one column per job, with the 90%-of-best and 0.97 hit-rate thresholds marked.">
+      <figcaption>Median aggregate generation (top) and median prefix-cache hit rate
+      (bottom) against KV occupancy, one column per job. The medians rise monotonically and
+      stay well above the 0.97 hit-rate floor into the top populated bin; the transient
+      collapse that §7 recorded lives in the tail of the p10 and collapsed-fraction fields
+      rather than in these medians.</figcaption>
+    </figure>
+
+    <h3 id="occupancy-control">The rule is checked against a planted cliff</h3>
+
+    <p>The same reduction, run on a synthetic log whose first degraded bin begins at
+    occupancy 0.80 (rate 340 tok/s and a 0.90 hit rate from that boundary up, 500 tok/s and
+    0.99 below), reports <strong>0.80</strong>. A reduction that named the top of its input
+    regardless would fail this; the control runs on every invocation and the process exits
+    non-zero on a mismatch.</p>
+
+    <h3 id="occupancy-reproduce">Artifacts and how to reproduce</h3>
+
+    <p>Driver: <code>docs/figures/local-lane-occupancy/occupancy_measure.py</code>.
+    Measurement document: <code>docs/figures/local-lane-occupancy/occupancy.json</code>,
+    which anchors each reading to its exact log bytes by size and SHA-256 — the five-day
+    job 1273253 at 78,355,841 bytes, SHA-256 <code>f6c970d8…</code>, and the live job
+    1276246 at 7,959,109 bytes, SHA-256 <code>06ae5aa8…</code> as read at 2026-09-23 13:38Z.
+    Control: <code>occupancy_control.json</code> and <code>synthetic_cliff.log</code> beside
+    it. The parse ran under <code>srun</code> on <code>all_debug</code>. Both logs parsed
+    with zero malformed decode lines and zero malformed prefill lines.</p>
   </section>
 </main>
 </body>
