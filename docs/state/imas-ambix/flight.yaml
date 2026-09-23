@@ -52,7 +52,12 @@ backends:
       # resubmit under a new identifier, with no change to this file; the two
       # identifiers are recorded in the plan rather than here, so that a search
       # of this file for a job number stays a check with no false positives.
-      scheduler: imas-ambix-place
+      # Named for what it does rather than for the field it fills, and NOT
+      # `ambix-fleet`: that token is the allocation's own identity — the SLURM
+      # job name and the comment the resolver matches on — so reusing it would
+      # give one name two referents, the place and the act of placing, in logs
+      # and scripts where telling them apart is the whole point.
+      scheduler: ambix-on-fleet
       options: []
       state_query: [squeue, -h, -j, "{job}", -o, "%T"]
       reason_query: [squeue, -h, -j, "{job}", -o, "%r"]
