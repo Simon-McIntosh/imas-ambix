@@ -10,7 +10,7 @@
   <meta name="plan-summary"      content="Cumulative execution record for local-lane-admission-control: capacity levers, scheduler levers, client behaviour, the router gate and the bypass trace">
   <meta name="plan-tags"         content="agent-serving,gpu-deployment">
   <meta name="plan-evidence-for" content="local-lane-admission-control">
-  <meta name="plan-verifies"     content="local-lane-admission-control#s5,local-lane-admission-control#s7,local-lane-admission-control#s8">
+  <meta name="plan-verifies"     content="local-lane-admission-control#s3,local-lane-admission-control#s5,local-lane-admission-control#s7,local-lane-admission-control#s8">
   <meta name="plan-owner"        content="Simon McIntosh">
   <title>Local Lane Admission Control — Landed Evidence | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
@@ -209,6 +209,85 @@
     payloads on this lane. Every row above was taken from a passage that carries its
     own citation. Report:
     <code>~/.config/reckon/crew/reports/imas-ambix/llac-20260923/client-overload-behaviour.md</code>.</p>
+  </section>
+
+  <section id="s3">
+    <h2 id="knee-on-the-decode-log">The throughput knee, measured on the engine decode log</h2>
+
+    <p><strong>The instrument is the engine's own per-step log, not a window aggregate.</strong>
+    The scheduler emits one decode step per line carrying the running request count, the
+    speculative accept length, and that step's aggregate generation rate. The reader groups
+    those intervals by exact running width and takes the file's per-width median, with a
+    percentile bootstrap interval, so a width bin is a width and not an average over a window
+    in which the width moved.</p>
+
+    <p>Two serve logs were read on a compute node, never on the login node. The five-day job
+    (1273253) yielded 79,436 decode intervals with 0 unreadable, spanning 2026-09-17 22:01:09
+    to its cancellation at 2026-09-23 06:12:04; 36 widths cleared the 20-interval threshold.
+    Its live replacement (1276246) is a snapshot taken while it grows.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/local-lane-admission/knee.png"
+           alt="Median aggregate decode throughput with 95% bootstrap intervals against running-request width for the five-day serve and its live replacement; the operating band and the maximum-median width are marked."
+           style="max-width:100%">
+      <figcaption>Per-width medians (line) with 95% bootstrap intervals (whiskers) against
+      running width. The curve rises to about width sixteen, is flat through thirty-two, and
+      takes its maximum at the engine's own cap of thirty-six.</figcaption>
+    </figure>
+
+    <p><strong>The aggregate rate rises steeply to about width sixteen and is then flat from
+    width 17 to 32.</strong> Over that plateau the per-width medians sit between 365.8 and
+    389.9 tok/s. The observed operating band, widths 29 to 31 pooled, reads 379.1 tok/s
+    against a plateau median of 378.5 — a ratio of 1.0. The two counts are the same point.</p>
+
+    <h3 id="peak-is-the-cap">The maximum-median width is the engine's cap, and it is confounded</h3>
+
+    <p>The largest per-width median anywhere in 1 to 32 is 389.9 tok/s at width 22, a mild
+    local high inside a 380 to 390 band; widths 23 to 32 then sit at 366 to 384, not at 340.
+    The overall maximum is 436.7 tok/s at width 36 (24 intervals, 95% interval 418.5 to
+    448.9) — the engine's running cap, so no wider bin exists. The ratio of the operating
+    band to that peak is <strong>0.868</strong>. On the live replacement job the peak sits
+    at width 35 and the same ratio is 0.868.</p>
+
+    <p><strong>That peak is reported as measured, not as a knee.</strong> Every interval at
+    width 29 and above was logged in one mid-run window, 2026-09-18 11:xx to 2026-09-21 21:xx,
+    and the width-36 bin carries a higher speculative accept length (3.82) than the operating
+    band (3.65). Its throughput advantage therefore tracks the acceptance of that window
+    rather than width alone. No width above 36 was ever logged, so no knee below the cap
+    appears in this instrument, and the engine log does not contradict the profile's reason
+    for setting the cap at 36.</p>
+
+    <h3 id="claim-adjudication">Which earlier claim the data supports, and why they disagree</h3>
+
+    <p><strong>The data supports the profile's flat claim, not the ~22 knee.</strong> The flat
+    profile claim covers widths 17 to 32, and the measurement reproduces it there (band to
+    plateau ratio 1.0). The later claim that aggregate output peaks near 22 concurrent at
+    about 500 tok/s and falls to about 340 past it is not reproduced: the maximum median in
+    1 to 32 is at width 22 but only 389.9 tok/s, and nothing on this lane reaches 500 tok/s at
+    any width. The two disagree because they measure different objects. The ~22 knee is a
+    window mean: its ordinate is a window-averaged aggregate rate and its abscissa a mean
+    concurrency (one such window reads 23.05 with a peak of 34), so one bin mixes many
+    instantaneous widths and the knee it finds is where per-client rate collapses, not where
+    the engine's aggregate rate stops rising. The decode-log instrument pairs a per-step rate
+    with the exact instantaneous width; it separates widths cleanly and finds a flat band with
+    no interior peak.</p>
+
+    <h3 id="control">The pipeline is checked against a planted peak</h3>
+
+    <p>The same reduction, run on a synthetic log with a generation peak planted at width 12
+    and again at width 25, reports back width 12 and width 25. A pipeline that reported a
+    peak regardless of its input would fail this; it is asserted on every run and the run
+    exits non-zero on a mismatch.</p>
+
+    <h3 id="reproduce">Artifacts and how to reproduce</h3>
+
+    <p>Driver: <code>docs/figures/local-lane-admission/knee_measure.py</code>. Measurement
+    document: <code>docs/figures/local-lane-admission/knee.json</code>, which anchors each
+    reading to the exact log bytes by size and SHA-256. Control: <code>control.json</code>
+    and the two synthetic logs beside it. The parse ran under <code>srun</code> on
+    <code>all_debug</code>.</p>
+
+  
   </section>
 </main>
 </body>
