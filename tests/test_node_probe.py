@@ -35,13 +35,15 @@ Coverage
     for a scheduler that refused the query and for a node with no ``squeue`` at
     all, so an unread table cannot be read as an empty one. The marker a failed
     read carries is pinned separately from the one an absent program carries.
+12. A card's model name is read from the query as a string and recorded with the
+    card, so a reader can tell which accelerator produced a reading; a card that
+    reports no name omits the key rather than recording a null.
 
 The fixtures are recorded bodies.  ``_PROC_STAT``, ``_PROC_MEMINFO`` and
 ``_SQUEUE`` were captured on this workstation, the job table from the serving
 node ``98dci4-gpu-0003`` (three resident jobs: the serve, its router, and a
 third job).  ``_CARDS_TWO`` carries the field set and value shapes of a
-recorded ``nvidia-smi --query-gpu`` capture, widened to the two-card allocation
-the index mapping needs to be visible.
+recorded ``nvidia-smi`` body, widened to the two cards and the name column.
 """
 
 from __future__ import annotations
@@ -53,13 +55,28 @@ import pytest
 from imas_ambix.agent import node_probe
 
 _CARDS_TWO = (
-    "0, 0, 41, 12.62, 72.00, 210, 405, 726, 23034\n"
-    "1, 96, 63, 431.55, 700.00, 1980, 2619, 138452, 143771\n"
+    "0, NVIDIA H200 NVL, 0, 41, 12.62, 72.00, 210, 405, 726, 23034\n"
+    "1, NVIDIA H200 NVL, 96, 63, 431.55, 700.00, 1980, 2619, 138452, 143771\n"
 )
 
 #: The same shape where a card exposes neither a power cap nor a memory clock
 #: -- ``nvidia-smi`` prints both as bracketed non-values.
-_CARDS_PARTIAL = "0, 96, 63, 431.55, [N/A], 1980, [Not Supported], 138452, 143771\n"
+_CARDS_PARTIAL = (
+    "0, NVIDIA H200 NVL, 96, 63, 431.55, [N/A], 1980, [Not Supported], 138452, "
+    "143771\n"
+)
+
+#: The same shape carrying a different model in the name column, so a card's
+#: name is shown to be read from the body rather than assumed from a constant.
+_CARDS_OTHER_MODEL = (
+    "0, NVIDIA H100 80GB HBM3, 0, 41, 12.62, 72.00, 210, 405, 726, 23034\n"
+)
+
+#: The same shape whose name column is a bracketed non-value, as a card with no
+#: name to report prints.
+_CARDS_NAMELESS = (
+    "0, [N/A], 0, 41, 12.62, 72.00, 210, 405, 726, 23034\n"
+)
 
 _PROC_STAT = (
     "cpu  421386254 154911551 255295798 17248277704 32872591 14077891 11015351 0 0 0\n"
@@ -129,11 +146,12 @@ def _host_runner(stat: str | None, meminfo: str | None):
 #: asserts nothing about which quantities are read: drop a field, or reorder
 #: them, and the probe silently stops reading one the section names while the
 #: test stays green. The fields below are the section's list -- the read index
-#: first, then one per quantity -- and they are checkable by eye against it. The
-#: single place this literal is tied back to the module is
+#: first, then the name, then one per quantity -- and they are checkable by eye
+#: against it. The single place this literal is tied back to the module is
 #: :func:`test_the_literal_queries_are_the_ones_the_module_composes`.
 _CARD_QUERY_FIELDS_LITERAL = (
     "index",
+    "name",
     "utilization.gpu",
     "temperature.gpu",
     "power.draw",
@@ -146,7 +164,7 @@ _CARD_QUERY_FIELDS_LITERAL = (
 _CARD_ARGV = (
     "nvidia-smi",
     "--query-gpu="
-    "index,utilization.gpu,temperature.gpu,power.draw,power.limit,"
+    "index,name,utilization.gpu,temperature.gpu,power.draw,power.limit,"
     "clocks.sm,clocks.mem,memory.used,memory.total",
     "--format=csv,noheader,nounits",
 )
@@ -221,6 +239,7 @@ def test_a_recorded_card_body_yields_every_field_the_section_names():
         {
             "index": 0,
             "read_index": 0,
+            "name": "NVIDIA H200 NVL",
             "utilisation_percent": 0.0,
             "temperature_c": 41.0,
             "power_draw_w": 12.62,
@@ -233,6 +252,7 @@ def test_a_recorded_card_body_yields_every_field_the_section_names():
         {
             "index": 1,
             "read_index": 1,
+            "name": "NVIDIA H200 NVL",
             "utilisation_percent": 96.0,
             "temperature_c": 63.0,
             "power_draw_w": 431.55,
@@ -243,6 +263,37 @@ def test_a_recorded_card_body_yields_every_field_the_section_names():
             "memory_total_mib": 143771.0,
         },
     ]
+
+
+def test_a_recorded_card_carries_the_model_name_it_reports():
+    """A card's model is a string, read from the query and kept with the card.
+
+    It does not go through the numeric parse: a name routed through a float
+    read is refused as unreadable and the key vanishes, so a card's name can
+    only be asserted where the name has a string path of its own.
+    """
+    section = node_probe.read_cards(_node_runner(), env={})
+
+    assert [card["name"] for card in section["cards"]] == ["NVIDIA H200 NVL"] * 2
+    assert all(isinstance(card["name"], str) for card in section["cards"])
+
+
+def test_the_model_name_is_read_from_the_body_rather_than_assumed():
+    """A body naming another model yields that model from the body it came in."""
+    section = node_probe.read_cards(_runner({"nvidia-smi": _CARDS_OTHER_MODEL}), env={})
+
+    assert section["cards"][0]["name"] == "NVIDIA H100 80GB HBM3"
+    assert section["cards"][0]["index"] == 0
+
+
+def test_a_card_that_reports_no_name_omits_the_key():
+    """A bracketed non-value omits the name, as it does for a card with no cap."""
+    section = node_probe.read_cards(_runner({"nvidia-smi": _CARDS_NAMELESS}), env={})
+    card = section["cards"][0]
+
+    assert "name" not in card
+    assert card["temperature_c"] == 41.0
+    assert card["memory_total_mib"] == 23034.0
 
 
 def test_card_indices_come_from_the_batch_allocation_not_the_read_order():

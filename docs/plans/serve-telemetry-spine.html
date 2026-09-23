@@ -528,6 +528,36 @@
     <code>docs/evidence/archive/serve-telemetry-spine-landed.html</code>,
     <code>docs/figures/serve-telemetry-spine/serve-config-resolution.svg</code>.</p>
 
+<h3 id="s3-card-model-name">A card's model is read as a string, not through the numeric parse</h3>
+
+    <p><strong>Landing note (node <code>card-model-name-recorded</code>).</strong> The cards
+    section carried only numeric quantities, each read through the float parse, so a card's
+    model had no path to a reader. Reproduced before the repair against a recorded body whose
+    second column after the index is a model name: the composed query carried no
+    <code>name</code> and the parsed card carried no such key, so a field the section implied
+    was measured was not.</p>
+
+    <p>The name column is now queried beside the quantities and read as a string of its own,
+    under <code>CARD_NAME_FIELD</code>, held apart from <code>CARD_FIELDS</code> because every
+    entry there runs through the numeric parse and would refuse a model name as unreadable. A
+    card that exposes no name follows the section's omit-when-unmeasured rule and drops the key
+    rather than recording a null, the same way an unexposed power cap does. The numeric fields
+    and their units are unchanged.</p>
+
+    <p><strong>Done when.</strong> A recorded card carries its model name as a string read from
+    the probe output; a card that does not expose a name omits the key;
+    <code>uv run --no-sync pytest tests/test_node_probe.py</code> reports <strong>43
+    passed</strong>; <code>uv run --no-sync pytest tests/test_agent_serve_registry.py -k
+    agent_package_modules_parse_with_serving_python</code> passes;
+    <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0.</p>
+
+    <p>The mutation routes the name column through the numeric parse, which refuses a
+    non-numeric token, so the key is never written: both tests
+    asserting a recorded name fail with <code>KeyError: 'name'</code> while the unmutated file is
+    green. The reproduction, the mutation and the two runs are archived with the evidence anchor
+    <code>card-model-name-recorded</code> in
+    <code>docs/evidence/archive/serve-telemetry-spine-landed.html</code>.</p>
+
     <h2 id="s4">§4 — Tiered rotation and compaction</h2>
 
     <p>There is no rotation today: 44 files and 110 MB have accumulated, one per job,

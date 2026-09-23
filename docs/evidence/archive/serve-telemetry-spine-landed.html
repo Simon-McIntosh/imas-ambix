@@ -1187,6 +1187,44 @@ E             'imas_ambix/agent/bench.py'
     the class default pinning the job read's own bound — carries its literal on the same
     line, so it reddens against that literal rather than moving with the constant.</p>
 
+    <h3 id="card-model-name-recorded">A card's model name is read from the probe output as a string</h3>
+
+    <p><strong>The cards section carried only numeric quantities, each read through the float
+    parse, so a card's model had no path to a reader.</strong> Reproduced before the repair by
+    driving <code>node_probe.parse_cards</code> against a recorded body whose second column
+    after the index is a model name: the composed query reported
+    <code>name in query: False</code> and the parsed card carried no name key. That is the shape
+    the section contract exists to stop — a field that reads as measured and is not.</p>
+
+    <p>The name column is now queried beside the quantities and read by
+    <code>_card_name</code>, which keeps the string <code>nvidia-smi</code> printed and refuses
+    a bracketed non-value the same way the numeric parse does, so a card that reports no name
+    omits the key rather than recording a null. The numeric fields and their units are
+    unchanged. The refusal vocabulary is shared: <code>_UNAVAILABLE_TEXT</code> is
+    <code>_UNAVAILABLE</code> lowercased and unbracketed, because the numeric parse reaches the
+    same refusal through the failed float conversion and a name has no conversion to fail.</p>
+
+    <p><strong>Gates.</strong> <code>uv run --no-sync pytest tests/test_node_probe.py</code>
+    reports <strong>43 passed</strong>, up from 40 at the base revision;
+    <code>uv run --no-sync pytest tests/test_agent_serve_registry.py -k
+    agent_package_modules_parse_with_serving_python</code> passes, which is the guard that the
+    serve imports this module under the engine's Python; and <code>uv run --no-sync ruff check
+    imas_ambix tests</code> exits 0.</p>
+
+    <p><strong>The mutation routes the name column through the numeric parse</strong>
+    (<code>name = _card_value(row[1])</code>), which refuses every model name as unreadable, so
+    the key vanishes. Run against the fixed suite, the two tests asserting a recorded name fail
+    with <code>KeyError: 'name'</code> — <code>test_a_recorded_card_carries_the_model_name_it_reports</code>
+    and <code>test_the_model_name_is_read_from_the_body_rather_than_assumed</code>. The third,
+    <code>test_a_card_that_reports_no_name_omits_the_key</code>, stays green by construction,
+    because absence is the state it asserts and the mutation makes absence. Reverted, the file
+    is 43 passed. The log is <code>negative-control.log</code> in this run's directory.</p>
+
+    <p>Commit <code>6d7617a7</code> carries the parse and its three tests. Changed paths:
+    <code>imas_ambix/agent/node_probe.py</code> and <code>tests/test_node_probe.py</code>.
+    Verifying the merged head belongs to a separately dispatched test node; this node does not
+    resolve its own driving followup.</p>
+
     <h2 id="node-readings-commits">Commits</h2>
         <tr><td><code>d9521c16</code></td><td>the benchmark reader resolves its serving quantities through the shared module</td></tr>
       </tbody>
