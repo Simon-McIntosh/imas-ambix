@@ -24,9 +24,9 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-23">
-<meta name="plan-impl" content="0.3">
-<meta name="plan-version" content="19">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;}">
+<meta name="plan-impl" content="0.62">
+<meta name="plan-version" content="20">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;}">
 <meta name="plan-artifacts" content="docs/evidence/archive/local-lane-admission-control-landed.html">
 <meta name="plan-commits" content="4bb11e8917c6dc9662d6214da6ec7eb595713984,da60421b4267fc7fc6fafb2a7e5dbb242da1cfba,569b91efd9e1e2e0e00c6d86cd589810391752c5,7ecfec3ba6ed3d68d68e03a104bd33e70ba75037,decc190bc301c74e02f2491bc6a557a163f9c744">
 </head>
@@ -187,12 +187,54 @@
     a request before sending headers.</p>
 
     <h2 id="s6">§6 — The fix</h2>
-    <p>This section is written after §3–§5 land, from their evidence. The leading candidate
-    is to move the binding point to the engine: set <code>max_running_requests</code> at the
-    measured peak width, select a prefix-aware schedule policy, and keep the router
-    pass-through. The router gains a global bound only if the engine's queue proves unfair,
-    blind to KV, or invisible to consumers. Any relaunch drains the lane to a genuine,
-    sustained zero first. The running serve is never hard-stopped.</p>
+    <p><strong>What binds is KV occupancy, not a width knee.</strong> The engine's own
+    decode throughput is flat or rising all the way to its cap of 36 on both serve jobs
+    (§3: 379 tok/s at 29–31 against 437 at 36). The collapse tracks occupancy instead.
+    At 32 running, with KV at 0.83 and a 99% prefix hit rate, the lane ran above
+    500 tok/s. At 33 running, with KV at 0.88 and a 94% hit rate, it fell to 98 tok/s.
+    Running requests pinned the pool, other agents' prefixes spilled to a full host tier,
+    and they came back as recomputed prefill. So the bound targets the largest width
+    that keeps occupancy below that cliff. It is not a fixed concurrency number, and it
+    is not the lane document's 0.5 occupancy target, which halves the ceiling on a guess.</p>
+    <p><strong>The design, in three layers, each measured.</strong></p>
+    <ol>
+      <li><strong>Router gate, live now (§7).</strong> One global FIFO bound, with no
+      identity and a live-editable width. Waiters hold no KV. Past the wait it answers
+      529 with <code>Retry-After: 5</code>. It is deployed at width 20, and its width is
+      raised toward the occupancy cliff as the width writer below lands.</li>
+      <li><strong>Width writer.</strong> A small process sets <code>width</code> in
+      <code>router-gate.json</code> from pool tokens × an occupancy target ÷ a slowly
+      moving context estimate. It clamps between a floor of 16 and the engine cap, and
+      treats a missing lane field as a state rather than as no-news. The target is
+      measured, not assumed: bin aggregate output by KV occupancy and prefix hit rate
+      from the decode log, and take the highest occupancy that holds the hit rate. That
+      target is expected near 0.8, which gives about 30 at a 100k context.</li>
+      <li><strong>Engine backstops at the next relaunch.</strong> The engine's waiting
+      queue holds no KV and no prefix-cache lock (§4), so it is a safe second queue.
+      Set <code>schedule_policy=lpm</code> so waiting requests are admitted
+      longest-cached-prefix first. It falls back to fcfs above 128 waiting. Also bound
+      <code>max_queued_requests</code>; its 503 surfaces as an SSE error event on the
+      streaming path, and it binds a caller who bypasses the router. Keep
+      <code>max_running_requests</code> at 36 as the hard ceiling, because the gate
+      carries the live width. Priority cannot reach the engine through
+      <code>/v1/messages</code> (§4), so any interactive-first ordering would have to
+      live at the router.</li>
+    </ol>
+    <p><strong>The durable gain is capacity (§8).</strong> The layers above ration a 4M
+    pool that is replicated on every rank. DP attention shards it for a projected 16M
+    tokens, raising the cliff from about 40 to about 162 resident contexts at a 99k
+    context. It is admissible only with session-affine dispatch. That relaunch
+    carries the engine backstops and the loopback bind (§9) in one drain.</p>
+    <p><strong>Two submitter defects the deploy exposed.</strong>
+    <code>generate_router_script</code> and <code>generate_lane_refresher_script</code>
+    in <code>imas_ambix/agent/slurm.py</code> hardcode <code>time_limit="0"</code>, which
+    SLURM reads as UNLIMITED. An unlimited job cannot backfill past a higher-priority
+    pending job, and one such job, requesting 1500G, stranded the router for 12 minutes.
+    Those two scripts need a finite limit. The engine and interactive allocations stay
+    unlimited, because everything else waits on them. Separately, a router fallback
+    "pinned" to an old revision imported the main checkout, because the job's working
+    directory precedes <code>PYTHONPATH</code>. A rollback must assert the imported
+    module's <code>__file__</code> rather than trust the path it set.</p>
 
     <h2 id="s7">§7 — Immediate relief: one global in-flight gate at the router</h2>
 <p>A second reading at 08:30 local showed 33 running and 1 queued, with aggregate
@@ -445,14 +487,14 @@
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
-<div class="r-dec" data-key="binding-point" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="binding-point" data-choice="both" data-by="reckon-ship (lead-approved deploy)" data-when="2026-09-23T11:15:12+00:00">
     <p class="r-dec-q">Where does the running-width bound live?</p>
     <p class="r-dec-opts">
       <button class="r-opt" data-value="engine">engine cap at the knee, router pass-through</button>
       <button class="r-opt" data-value="router-global">router global bound with a fair queue</button>
-      <button class="r-opt" data-value="both">engine cap plus router queue-depth signal</button>
+      <button class="r-opt chosen" data-value="both">engine cap plus router queue-depth signal</button>
       </p>
-    <p class="r-dec-rat"></p>
+    <p class="r-dec-rat">The router gate carries the live, runtime-editable width and binds every caller through the single origin; the engine keeps max_running_requests=36 as the hard ceiling and gains lpm ordering and a bounded max_queued_requests at the next relaunch. The engine&#x27;s own cap cannot move without a relaunch (§4), which is why the live bound sits at the router.</p>
     </div>
 <div class="r-dec" data-key="queue-order" data-choice="" data-by="" data-when="">
     <p class="r-dec-q">In what order are queued requests admitted?</p>
@@ -507,6 +549,9 @@
 <div class="r-comment" data-section="s7" data-id="c-run-r-20260923T080758254537-review-of-gate-integrated-failure" data-who="reckon-ship" data-when="2026-09-23T09:57:13Z">
     <div class="r-comment-body"><p>review of gate-integrated-failure</p></div>
 </div>
+<div class="r-comment" data-section="s7" data-id="c-20260923-deploy-landing" data-who="reckon-ship" data-when="2026-09-23T11:20:00Z">
+    <div class="r-comment-body">router gate DEPLOYED and verified on router job 1276590 (98dci4-gpu-0003:18802): /v1/models 200, a real /v1/messages completion 200, lane.json router_generation_gate enabled width 20 wait 300; at 11:10Z 12 in flight, 0 waiting; engine 1276246 untouched. Outage 12:00-12:12 local: replacement 1276585 was stranded behind pending job 1276514 (cpu=4, mem=1500G) because slurm.py submits routers with time_limit 0 (UNLIMITED) and an unlimited job cannot backfill; nova-08 cancelled 1276514 by id. The fallback job 1276590 imported the main checkout rather than 5ca04952 (cwd precedes PYTHONPATH), so it runs the gate. Pre-header bound observed by stub: custom-base request survived a 60 s header hold with no first-byte watchdog; first-party control fired at 21 s and retried to success.</div>
+</div>
 <div class="r-comment" data-section="s5" data-id="c-run-r-20260923T062113460838-client-overload-behaviour" data-who="reckon-ship" data-when="2026-09-23T08:10:29.569Z">
     <div class="r-comment-body"><p>Claude Code 2.1.280 retries 408/409/429/5xx 10x, honours Retry-After exactly with no cap, request timeout 600 s (API_TIMEOUT_MS); first-byte stream timeout default unestablished; router relays engine status and headers verbatim and holds without deadline</p></div>
 </div>
@@ -518,6 +563,15 @@
 </div>
 <div class="r-comment" data-section="s9" data-id="c-run-r-20260923T092758863417-review-of-engine-bypass-trace" data-who="reckon-ship" data-when="2026-09-23T09:57:23Z">
     <div class="r-comment-body"><p>review of engine-bypass-trace</p></div>
+</div>
+<div class="r-comment" data-section="s9" data-id="c-20260923-bypass-landing" data-who="reckon-ship" data-when="2026-09-23T11:20:00Z">
+    <div class="r-comment-body">engine-bypass-trace landed: engine binds 0.0.0.0:18810; the deployed clive launcher is legacy mode with the router origin compiled in and never dials the engine; document-mode clive falls back to the engine port when routing_origins is empty or unreachable (measured with doctored fixtures against a live control); the agent lane reader dials endpoints[0] directly, so a loopback bind needs that reader on the GPU node; the single writer is registry.write_endpoint_document.</div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-20260923-knee-landing" data-who="reckon-ship" data-when="2026-09-23T11:20:00Z">
+    <div class="r-comment-body">knee-remeasure landed (merge 7bd803e4): per-step engine decode throughput is flat or rising to the cap of 36 on both jobs (five-day job 1273253: 436.7 tok/s at 36, 379.1 at 29-31; live 1276246: 426.7 at 35); planted-peak control recovers widths 12 and 25. The ~22 knee is not a decode property; the binding variable is KV occupancy. Evidence: /imas-ambix/evidence/archive/local-lane-admission-control-landed#s3</div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-20260923-scheduler-landing" data-who="reckon-ship" data-when="2026-09-23T11:20:00Z">
+    <div class="r-comment-body">engine-scheduler-levers answered 7 of 7 against SGLang da64c5cbb in the serve container: waiting requests hold no KV and no prefix-cache lock; lpm and dfs-weight reorder the waiting queue by cached prefix (lpm falls back to fcfs above 128 waiting); priority cannot reach the engine through /v1/messages; max_queued_requests and SGLANG_REQ_WAITING_TIMEOUT both refuse with 503, surfacing as an SSE error event on streams; the Anthropic path sends 200 headers before admission; max_running_requests changes only at relaunch. Report: ~/.config/reckon/crew/reports/imas-ambix/llac-20260923/engine-scheduler-levers.md</div>
 </div>
 </section>
 </main>
