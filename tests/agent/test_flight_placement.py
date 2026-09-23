@@ -126,6 +126,42 @@ def test_placement_queries_carry_the_job_substitution_point() -> None:
         )
 
 
+def test_placement_declares_nothing_but_the_scheduler_and_its_two_queries() -> None:
+    # The set of keys is asserted, not merely the presence of the three known
+    # ones. Reckon reads the placed job's identity and probes it from this
+    # block, so a key added here — a job_id_probe, a job_id, anything — changes
+    # how reckon resolves or probes the placed job. That must be a deliberate
+    # change to the placement contract, made as one, rather than a key that
+    # arrives beside the declaration.
+    placement = _load_flight_config()["backends"]["clive"]["placement"]
+    assert set(placement) == {"scheduler", "state_query", "reason_query"}, (
+        "backends.clive.placement must declare the scheduler and its two queries "
+        "and nothing else: any added key changes how reckon resolves or probes "
+        "the placed job, so it must be a deliberate change to the placement "
+        "contract; got "
+        f"{sorted(placement)}"
+    )
+
+
+def test_no_job_identifier_appears_anywhere_in_the_declaration_text() -> None:
+    # Read as text as well as parsed, because the plan's own instrument is a
+    # grep over this file: an identifier left in a comment is invisible to a
+    # walk over the parsed document and visible to the reader who follows the
+    # plan, so a comment carrying the allocation id is checked here.
+    #
+    # The run is five or more digits, and the floor is deliberate: a scheduler
+    # job identifier on this machine is seven digits, while four would flag a
+    # four-digit year or the port in the schema URL on line 42.
+    raw = FLIGHT_CONFIG.read_text(encoding="utf-8")
+    offenders = _JOB_IDENTIFIER_RUN.findall(raw)
+    assert not offenders, (
+        "no scheduler job identifier may appear anywhere in the project flight "
+        "layer, comments included: dispatch resolves the job from the published "
+        "reservation and a literal goes stale on a resubmit or a cancel and "
+        f"re-hold; found {offenders!r}"
+    )
+
+
 def test_no_job_identifier_is_written_into_the_declaration() -> None:
     offenders = [
         f"{path} = {value!r}"
