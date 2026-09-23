@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-23T19:24:56",
+  "updated": "2026-09-23T19:25:40",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -2539,10 +2539,15 @@
         "id": "s24-review-window-start",
         "harness": "clive",
         "role": "review",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
-        "created": "2026-09-23"
+        "session_id": "b691485d-796a-461f-8b57-f49ccb741214",
+        "session_model": "deepseek-v4.1-flash",
+        "sessions": {
+          "{\"alias\":\"dsv4.1-flash\",\"backend\":\"clive\",\"effort\":\"xhigh\",\"launch\":\"cli\",\"local\":true,\"model\":\"deepseek-v4.1-flash\",\"sandbox\":\"read-only\",\"usable_input_window\":480000}": "b691485d-796a-461f-8b57-f49ccb741214"
+        },
+        "created": "2026-09-23",
+        "session_owners": {
+          "{\"alias\":\"dsv4.1-flash\",\"backend\":\"clive\",\"effort\":\"xhigh\",\"launch\":\"cli\",\"local\":true,\"model\":\"deepseek-v4.1-flash\",\"sandbox\":\"read-only\",\"usable_input_window\":480000}": "s24-ship-20260923"
+        }
       },
       {
         "created": "2026-09-01",
@@ -85123,6 +85128,230 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260923T165113587201-review-of-login-slice-window-start-sample",
+        "plan": "slurm-hosted-agent-fleet",
+        "section": "\u00a77",
+        "node": "review-of-login-slice-window-start-sample",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 455,
+                "cached_input_tokens": 321227,
+                "input_tokens": 321684,
+                "output_tokens": 978,
+                "reasoning_output_tokens": 293,
+                "total_tokens": 322662,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "f880c335-ee59-40ba-bb02-c0e33c804ea2",
+            "session_id": "s24-ship-20260923"
+          },
+          "done_when": "the review for r-20260923T161541160192-login-slice-window-start-sample stores a parsed record scoring all 5 dimensions in the range 0..20; its evidence dimension states whether the committed JSON's counters are internally consistent (throttled_share equals throttled_usec over permitted_usec, and permitted_usec equals nr_periods times the 400000 quota) and whether the file alone, without the manifest, carries enough to compute an interval share against a later reading on the same boot",
+          "estimated_hours": null,
+          "goal": "attach an independent review to run r-20260923T161541160192-login-slice-window-start-sample",
+          "id": "review-of-login-slice-window-start-sample",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-23T16:51:15Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": 1,
+            "binding_observed": "unknown",
+            "detail": "",
+            "headroom": 0,
+            "mean_context": 100952,
+            "observed_at": "2026-09-23T16:51:14Z",
+            "state": "fresh",
+            "suggested_shelf_life_seconds": 45
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T165113587201-review-of-login-slice-window-start-sample/manifest.md",
+          "negative_control": "",
+          "plan": "slurm-hosted-agent-fleet",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "review",
+          "section": "\u00a77",
+          "spec_level": "exact",
+          "time_budget": "20m",
+          "token_budget": null,
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260923T161541160192-login-slice-window-start-sample.json"
+          ]
+        },
+        "role": "review",
+        "spec_level": "exact",
+        "member": "s24-review-window-start",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "xhigh",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "read-only",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-23T16:51:34Z",
+        "completed_at": "2026-09-23T17:25:21.710Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 2000,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 2027,
+        "stalled": false,
+        "time_budget": "20m",
+        "base_sha": "8bc07b7939cf7f8a8d18e9b4982411eec916274a",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": 0,
+        "gate": "passed",
+        "gate_check": {
+          "command": "reckon.crew.review.parse_review on the emitted review text, write and read-back of the stored record",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T165113587201-review-of-login-slice-window-start-sample/gate.log",
+          "log_digest": "sha256:33a2eb64bc1d8bc35fb922fc279e09d292dd6e6f5699c8df0d90769be1659b49"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T165113587201-review-of-login-slice-window-start-sample/manifest.md",
+        "scope_changed": false,
+        "session_id": "b691485d-796a-461f-8b57-f49ccb741214",
+        "budget": {
+          "cost_usd": null,
+          "detail": "no rate-limit event in the stream yet",
+          "headroom": "unknown",
+          "rate_limit_period_minutes": null,
+          "rate_limit_type": null,
+          "refusal": false,
+          "resets_at": null,
+          "surpassed_threshold": null,
+          "threshold_status": null,
+          "tokens": null,
+          "utilisation_pct": null
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-23T17:25:21.710Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "15m",
+          "requested": true,
+          "waived_runs": []
+        },
+        "review": null,
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": false,
+          "matched_measure": null,
+          "override": false,
+          "role": "review",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": {
+          "status": "underivable",
+          "reason": "model_span_unavailable_at_promotion"
+        },
+        "scope_acceptances": null,
+        "no_commit": "review node: its deliverable is the stored review record outside the repository",
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/s24-ship-20260923/review-of-login-slice-window-start-sample",
+          "session_id": "b691485d-796a-461f-8b57-f49ccb741214",
+          "session_source": "pointer",
+          "retained_at": "2026-09-23T17:25:21.710Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "promoted_revision": "8bc07b7939cf7f8a8d18e9b4982411eec916274a",
+        "plan_impl_at_dispatch": 1.0,
+        "impl_move": {
+          "plan": "slurm-hosted-agent-fleet",
+          "at_dispatch": 1.0,
+          "at_complete": null,
+          "verdict": "exempt",
+          "reason": "role-not-enforced:review"
+        },
+        "negative_control": {
+          "verdict": "exempt",
+          "reason": "node-writes-no-test-path"
+        },
+        "lane_advisory": {
+          "backend": "clive",
+          "burn_multiple": null,
+          "cheaper_lane": {
+            "detail": "",
+            "lane": null,
+            "state": "not_evaluated"
+          },
+          "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+          "horizon_ends_at": "2026-09-23T17:11:15.306287+00:00",
+          "horizon_seconds": 1200,
+          "metered": false,
+          "observed_at": null,
+          "precedes_horizon": null,
+          "projected_exhaustion_at": null,
+          "resets_at": null,
+          "seconds_until_reset": null,
+          "state": "quiet",
+          "utilisation_pct": null
+        },
+        "lane_declaration": {
+          "backend": null,
+          "headroom": null,
+          "metered": false,
+          "observed_at": null,
+          "read_at": "2026-09-23T16:51:15Z",
+          "resolved_backend": "clive",
+          "utilisation_pct": null
+        },
+        "lane_reading": {
+          "age_seconds": 1,
+          "binding_observed": "unknown",
+          "detail": "",
+          "headroom": 0,
+          "mean_context": 100952,
+          "observed_at": "2026-09-23T16:51:14Z",
+          "state": "fresh",
+          "suggested_shelf_life_seconds": 45
+        },
+        "tool_steps": 45.0,
+        "orientation_input_tokens": null,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -85211,6 +85440,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 1057
+    "_version": 1059
   }
 }

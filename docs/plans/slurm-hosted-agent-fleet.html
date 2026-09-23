@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-23">
-<meta name="plan-version" content="52">
+<meta name="plan-version" content="53">
 <meta name="plan-impl" content="1.0">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="e523036b842dbd9c6dbc205bfd0753335e82c342,e0a990fb4486ac0e75ff217a1fecb432ae5b0962,a8a4c82b2186a4abd43c32b9ccdbe8189cb06bbe,0805cb74255001f2bbd8ad9446e10da6119c45ad,3a59eccf14c735fe9a9fd289a3528f425d788628,cff4e0d5c976b8d2d9e71edfc6913eb9700e1aed,3452b5799770701d9e8d596773f5dd40365a127f,435e896560cb7974743a75077fa4ed038a49bd81,5e3e0adc97e4299520d2779eaba2568837b9009f,04febe688b92501981ee03200bc8bd52ada451cc,ddadc8d4766491e59be40726f977c45fd8643cba,bc82504e581e04ff5e173a6bee2a60335ef13a2a,13acbd2029b31eae9e4f2a417b0e5ac5c062e178,8fa8f0eec7e4685d4f47341e776dfbf24aa2e70f,5507cd9f3b18e9ac55218a897d0c3fc27b999718,0fa4a8f521a678ff4024343966913d1b6b557413,e661a52a189c084a136aff1d0d0344cf89251d52">
@@ -634,6 +634,9 @@ This is the window's start point and not a result: the share is a running total 
 </div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20260923T161541160192-login-slice-window-start-sample" data-who="reckon-ship" data-when="2026-09-23T16:50:38.098Z">
     <div class="r-comment-body"><p>login slice sample committed at 16:23:01Z on 98dci4-srv-1006 boot 82c41dfa, cumulative throttled share 0.3690 against baseline 0.3366; counters internally exact; review 93/100, one finding on a pre-amend sha, corrected</p></div>
+</div>
+<div class="r-comment" data-section="s7" data-id="c-run-r-20260923T165113587201-review-of-login-slice-window-start-sample" data-who="reckon-ship" data-when="2026-09-23T17:25:21.710Z">
+    <div class="r-comment-body"><p>independent review stored, 93 of 100 (goal 19, evidence 19, scope 20, durability 17, fit 18); re-derived both counter identities exactly and computed two interval shares from the committed reading on the same boot; one finding on a pre-amend sha, corrected at de3ce257</p></div>
 </div>
 <div class="r-comment" data-section="s6" data-id="c-20260921-reckon-already-has-placement" data-who="reckon-ship" data-when="2026-09-21T07:27:00Z">
     <div class="r-comment-body">This section's boundary needs revisiting. It says a dispatch change would be a dependency to raise in reckon. Measured on 2026-09-21: reckon has already built that path — a persistent salloc --no-shell reservation, workers placed into it as srun --overlap --jobid steps, published reservation state and a reckon crew placement --ensure operator command — and it is unarmed, with zero placement keys in the live flight config and no reservation record on disk. So nothing needs raising; what is open is whether the fleet's interactive allocation and reckon's worker reservation are one allocation or two, and reckon's defaults (partition all, 32 cores, 128 GB) differ from this plan's locked rigel, 28 cores, 120G.</div>
