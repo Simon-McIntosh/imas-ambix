@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-23T09:51:47",
+  "updated": "2026-09-23T09:53:57",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -71413,6 +71413,249 @@
             "message": "the gate passed at the worker's base but reports failed on the integrated revision 00e07573531b: the merge changes what this node's gate proves, so a base-green run alone is not enough to push. Re-run the node's gate on the merged tree, land the code the merged tree requires, or record explicitly why this finding is accepted"
           }
         }
+      },
+      {
+        "run_id": "r-20260923T073526872561-review-of-router-global-gate",
+        "plan": "local-lane-admission-control",
+        "section": "\u00a77",
+        "node": "review-of-router-global-gate",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1000,
+                "cached_input_tokens": 372972,
+                "input_tokens": 373974,
+                "output_tokens": 535,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 374509,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "74b53aa2-1d4b-451f-8ce7-33c072085f83",
+            "session_id": "llac-20260923"
+          },
+          "done_when": "the review for r-20260923T062821975138-router-global-gate stores a parsed record scoring all 5 dimensions in the range 0..20",
+          "estimated_hours": null,
+          "goal": "attach an independent review to run r-20260923T062821975138-router-global-gate",
+          "id": "review-of-router-global-gate",
+          "lane_declaration": {
+            "backend": "codex",
+            "headroom": "known",
+            "metered": true,
+            "observed_at": "2026-09-23T07:35:28Z",
+            "read_at": "2026-09-23T07:35:29Z",
+            "resolved_backend": "codex",
+            "utilisation_pct": 79.0
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "backend declares no lane document",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T073526872561-review-of-router-global-gate/manifest.md",
+          "negative_control": "",
+          "plan": "local-lane-admission-control",
+          "requested_backend": "codex",
+          "requires_decisions": [],
+          "role": "review",
+          "section": "\u00a77",
+          "spec_level": "exact",
+          "time_budget": "45m",
+          "token_budget": null,
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260923T062821975138-router-global-gate.json"
+          ]
+        },
+        "role": "review",
+        "spec_level": "exact",
+        "member": "llac-gate-review",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "read-only"
+        },
+        "dispatched_at": "2026-09-23T07:35:53Z",
+        "completed_at": "2026-09-23T07:51:41Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 948,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 948,
+        "stalled": false,
+        "time_budget": "45m",
+        "base_sha": "4b9667f70885844993e25c985f73b160c30f3149",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "review record parse",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T073526872561-review-of-router-global-gate/gate.log",
+          "log_digest": "sha256:71493e29d522fad36f3dbaee709dd242f890c621f1bf44ff8ed40833280b8ce2"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T073526872561-review-of-router-global-gate/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a0cd31-47c9-7030-8a89-5781ee58a334",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 5255168,
+            "cached_input_tokens_cumulative": 5255168,
+            "input_tokens": 5418865,
+            "input_tokens_cumulative": 5418865,
+            "output_tokens": 20375,
+            "output_tokens_cumulative": 20375,
+            "reasoning_output_tokens": 7909,
+            "reasoning_output_tokens_cumulative": 7909
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lane_receipt": {
+          "quota_state": "measured",
+          "observed_at": "2026-09-23T07:51:41Z",
+          "effective_context_window": 380000,
+          "quota_windows": [
+            {
+              "window_minutes": 10080,
+              "used_percent": 79.0,
+              "resets_at": 1790575133,
+              "observed_at": "2026-09-23T07:51:41Z"
+            }
+          ],
+          "notional_cost_usd": 22.083,
+          "rate_basis": {
+            "model_identifier": "gpt-5.6-sol",
+            "input_per_million": 4.0,
+            "output_per_million": 20.0,
+            "as_of": "2026-09-09"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": null,
+        "throughput": {
+          "cumulative_cached_input_tokens": 5255168,
+          "cumulative_input_tokens": 10674033,
+          "detail": "turn tokens recorded, but no span was supplied to rate them",
+          "generated_tokens": 28284
+        },
+        "follow_on_paths": [
+          "AGENTS.md"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": false,
+          "matched_measure": null,
+          "override": false,
+          "role": "review",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": {
+          "status": "underivable",
+          "reason": "model_span_unavailable_at_promotion"
+        },
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/llac-20260923/review-of-router-global-gate",
+          "session_id": "01a0cd31-47c9-7030-8a89-5781ee58a334",
+          "session_source": "stream",
+          "retained_at": "2026-09-23T07:51:41Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "promoted_revision": "4b9667f70885844993e25c985f73b160c30f3149",
+        "plan_impl_at_dispatch": 0.1,
+        "impl_move": {
+          "plan": "local-lane-admission-control",
+          "at_dispatch": 0.1,
+          "at_complete": null,
+          "verdict": "exempt",
+          "reason": "role-not-enforced:review"
+        },
+        "negative_control": {
+          "verdict": "exempt",
+          "reason": "node-writes-no-test-path"
+        },
+        "lane_advisory": {
+          "backend": "codex",
+          "burn_multiple": 2.675267083249345,
+          "cheaper_lane": {
+            "detail": "",
+            "lane": null,
+            "state": "not_evaluated"
+          },
+          "detail": "'codex' is projected to exhaust at 2026-09-25T03:50:40Z, which is after this node's 2700s horizon ending 2026-09-23T08:20:29.503152+00:00",
+          "horizon_ends_at": "2026-09-23T08:20:29.503152+00:00",
+          "horizon_seconds": 2700,
+          "metered": true,
+          "observed_at": "2026-09-23T07:35:28Z",
+          "precedes_horizon": false,
+          "projected_exhaustion_at": "2026-09-25T03:50:40Z",
+          "resets_at": "2026-09-28T05:58:53Z",
+          "seconds_until_reset": 426204,
+          "state": "quiet",
+          "utilisation_pct": 79.0
+        },
+        "lane_declaration": {
+          "backend": "codex",
+          "headroom": "known",
+          "metered": true,
+          "observed_at": "2026-09-23T07:35:28Z",
+          "read_at": "2026-09-23T07:35:29Z",
+          "resolved_backend": "codex",
+          "utilisation_pct": 79.0
+        },
+        "lane_reading": {
+          "age_seconds": null,
+          "binding_observed": "unknown",
+          "detail": "backend declares no lane document",
+          "headroom": "unknown",
+          "mean_context": "unknown",
+          "observed_at": null,
+          "state": "unknown",
+          "suggested_shelf_life_seconds": null
+        },
+        "tool_steps": 48.0,
+        "orientation_input_tokens": null,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -71501,6 +71744,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 973
+    "_version": 974
   }
 }
