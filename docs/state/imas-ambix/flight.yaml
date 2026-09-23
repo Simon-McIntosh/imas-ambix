@@ -19,21 +19,22 @@
 
 version: 1
 
-backends:
-  clive:
-    placement:
-      # The step client itself, resolved on PATH as /usr/bin/srun. Reckon
-      # reads the held allocation from the reservation every session shares
-      # and prefixes `--overlap --jobid=<held>` ahead of these options, so the
-      # identifier is resolved per launch and is absent from this file for the
-      # same reason it was absent before: it goes stale on a resubmit, and it
-      # does so silently, returning workers to the login node while every
-      # record still reports them placed.
-      scheduler: srun
-      options: []
-      # The same wrapper's status surface identifies the allocation selected by
-      # its comment token. Reckon reads the numeric token from this output and
-      # substitutes it into both scheduler queries below.
-      job_id_probe: ["imas-ambix", "agent", "fleet", "status"]
-      state_query: ["squeue", "-h", "-j", "{job}", "-o", "%T"]
-      reason_query: ["squeue", "-h", "-j", "{job}", "-o", "%r"]
+# PLACEMENT WITHDRAWN 2026-09-23. Declaring it here published a reservation
+# record, and that record is HOST-GLOBAL: reckon's roster cap then counted every
+# project's in-flight workers against one ceiling of 25. Measured minutes after
+# the fleet came back from an outage, 45 runs across imas-efit, nova, reckon and
+# imas-codex were occupying it and every further dispatch on this workstation was
+# refused. The placement is correct for one project and the reservation it needs
+# is shared by all of them, which is the conflict to resolve before re-declaring.
+#
+# Re-declaring requires BOTH lines together, in this order: publish the
+# reservation record first, then declare the placement. A declaration without a
+# published record prefixes a bare `srun`, which mints one allocation per worker.
+#
+#     placement:
+#       scheduler: srun
+#       options: []
+#       state_query:  [squeue, -h, -j, "{job}", -o, "%T"]
+#       reason_query: [squeue, -h, -j, "{job}", -o, "%R"]
+
+backends: {}
