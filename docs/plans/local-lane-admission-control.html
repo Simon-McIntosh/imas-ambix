@@ -25,8 +25,8 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-23">
 <meta name="plan-impl" content="0.0">
-<meta name="plan-version" content="3">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;}">
+<meta name="plan-version" content="4">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;}">
 </head>
 <body>
   <main class="plan-doc">
@@ -190,6 +190,32 @@
     come back as recomputed prefill. So <em>W</em> tracks the lane document's own
     context-derived <code>concurrent_requests</code>, not a constant. Flat decode across
     widths 10–35 means lowering <em>W</em> costs almost no decode throughput.</p>
+
+    <p><strong>The source of <em>W</em> needs a floor and a slow estimator.</strong>
+    The lane's <code>concurrent_requests</code> swung 16, 17, 20, 6, 20, 18 and 19 across
+    one night. The 6 came at 01:00 with the fleet drained, when a few long-context runs
+    moved a short-window median. A gate that followed that figure directly would throttle
+    the fleet for reasons no operator would recognise. The process that writes the gate
+    file therefore derives <em>W</em> from pool tokens over a slow-moving context
+    estimate, clamps it between a floor and the engine's own cap, and never reads
+    <code>sizing_verdict</code> or <code>headroom_is_upper_bound</code>. Both are measured
+    to vary between reads.</p>
+
+    <h2 id="s9">§9 — Make the gate unbypassable</h2>
+    <p>The endpoints document publishes the engine itself, at
+    <code>98dci4-gpu-0003.iter.org:18810</code>, as <code>endpoints[0]</code>, and the router
+    at port 18802 only as <code>routing_origins[0]</code>. The engine port answers directly.
+    A caller that takes the obvious field goes straight past the gate into the KV pool.
+    So a gate at the router binds only callers who read the document correctly. The lead's
+    requirement is that it bind external callers too.</p>
+    <p>First, trace every consumer of the endpoints document in this repository and in
+    the clive launcher: which field each one dials, and whether any falls back to
+    <code>endpoints[0]</code> when <code>routing_origins</code> is empty or unreachable. The
+    document was republished empty during the 06:12Z outage, so the fallback case is real.
+    Each answer cites file and line. The fix follows from the trace. The engine binds to
+    loopback at the next relaunch, so only the router, on the same node, can reach it,
+    and the document publishes the router as the only origin to dial. The engine port
+    stays recorded for diagnosis under a field no consumer dials.</p>
 
     <h2 id="s8">§8 — The root fix: more KV capacity per card</h2>
     <p>The gate protects throughput at today's capacity. Raising capacity is what lets
