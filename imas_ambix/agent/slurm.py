@@ -26,6 +26,7 @@ _DRAIN_SIDECAR = (
 # on the vLLM catalog block, because routing now reads topology from the
 # registration rather than from whatever the engine can echo back.
 _ACCELERATOR_FAMILY = "H200"
+_SUPPORTING_SERVICE_TIME_LIMIT = "7-00:00:00"
 
 _MODEL_DIR_TOKEN = "__AMBIX_MODEL_DIR__"
 _PORT_TOKEN = "__AMBIX_PORT__"
@@ -918,7 +919,7 @@ def generate_lane_refresher_script(
         gpus=0,
         cpus=1,
         memory=memory,
-        time_limit="0",
+        time_limit=_SUPPORTING_SERVICE_TIME_LIMIT,
         output_name="ambix-lane-%j.log",
     )
     headers.append("#SBATCH --comment=ambix-lane")
@@ -983,7 +984,7 @@ def generate_router_script(
         gpus=0,
         cpus=cpus,
         memory=memory,
-        time_limit="0",
+        time_limit=_SUPPORTING_SERVICE_TIME_LIMIT,
         output_name="ambix-router-%j.log",
     )
     headers.append(f"#SBATCH --comment=ambix-router;port={port}")
