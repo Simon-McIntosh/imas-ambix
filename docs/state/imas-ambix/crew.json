@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-23T12:07:49",
+  "updated": "2026-09-23T12:08:37",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -73814,6 +73814,262 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260923T063724251715-engine-bypass-trace",
+        "plan": "local-lane-admission-control",
+        "section": "\u00a79",
+        "node": "engine-bypass-trace",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 578,
+                "cached_input_tokens": 253649,
+                "input_tokens": 254229,
+                "output_tokens": 759,
+                "reasoning_output_tokens": 73,
+                "total_tokens": 254988,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "74b53aa2-1d4b-451f-8ce7-33c072085f83",
+            "session_id": "llac-20260923"
+          },
+          "done_when": "the report at /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/llac-20260923/engine-bypass-trace.md lists every reader of endpoints.json under imas_ambix/, the generated launcher /work/projects/imas_gpu/agents/clive and ~/Code/reckon/reckon/, each with file:line, the field it dials (endpoints[] or routing_origins[]), and whether it falls back to endpoints[] when routing_origins is empty or unreachable; names the writer of endpoints.json with file:line; and states the engine's current bind address from the running serve's launch line",
+          "estimated_hours": null,
+          "goal": "Trace which endpoints-document field every consumer dials",
+          "id": "engine-bypass-trace",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-23T06:37:26Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no 'binding_observed'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T063724251715-engine-bypass-trace/manifest.md",
+          "negative_control": "",
+          "plan": "local-lane-admission-control",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "investigate",
+          "section": "\u00a79",
+          "spec_level": "exact",
+          "time_budget": "40m",
+          "token_budget": null,
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/llac-20260923/engine-bypass-trace.md"
+          ]
+        },
+        "role": "investigate",
+        "spec_level": "exact",
+        "member": "llac-bypass",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "xhigh",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "read-only",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-23T06:37:58Z",
+        "completed_at": "2026-09-23T08:56:14.981Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 8243,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 8296,
+        "stalled": true,
+        "time_budget": "40m",
+        "base_sha": "8d6f8dcae68f08237a946dad5a479202c30d2b39",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "report lists every endpoints.json reader with field, fallback, writer and engine bind, fallback measured with fixtures",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T063724251715-engine-bypass-trace/gate.log",
+          "log_digest": "sha256:f2c1e3c24ce83c47cde75722f46f60aac67b6930d5627107a8eeea1c1c9986a2"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T063724251715-engine-bypass-trace/manifest.md",
+        "scope_changed": false,
+        "session_id": "991fe87a-e4e1-4d0e-9f4d-e576507fb89b",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 10226456,
+            "input_tokens_cumulative": 10226456,
+            "output_tokens": 76158,
+            "output_tokens_cumulative": 76158,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-23T08:56:14.981Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": {
+          "status": "parsed",
+          "scores": {
+            "durability": 14,
+            "evidence": 15,
+            "fit": 16,
+            "goal_fidelity": 18,
+            "scope_discipline": 20
+          },
+          "absent": [],
+          "total": 83
+        },
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 10394505,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 8292.415,
+          "generated_tokens": 95359,
+          "generation_seconds": 8222.53,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 34.7,
+          "machine_seconds": 69.885,
+          "peak_input_tokens": 166749,
+          "tokens_per_second": 11.6,
+          "wall_tokens_per_second": 11.5
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": false,
+          "matched_measure": null,
+          "override": false,
+          "role": "investigate",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": "read-only investigation; report outside the repository",
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/llac-20260923/engine-bypass-trace",
+          "session_id": "991fe87a-e4e1-4d0e-9f4d-e576507fb89b",
+          "session_source": "pointer",
+          "retained_at": "2026-09-23T08:56:14.981Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "promoted_revision": "8d6f8dcae68f08237a946dad5a479202c30d2b39",
+        "plan_impl_at_dispatch": 0.0,
+        "impl_move": {
+          "plan": "local-lane-admission-control",
+          "at_dispatch": 0.0,
+          "at_complete": null,
+          "verdict": "exempt",
+          "reason": "role-not-enforced:investigate"
+        },
+        "negative_control": {
+          "verdict": "exempt",
+          "reason": "node-writes-no-test-path"
+        },
+        "lane_advisory": {
+          "backend": "clive",
+          "burn_multiple": null,
+          "cheaper_lane": {
+            "detail": "",
+            "lane": null,
+            "state": "not_evaluated"
+          },
+          "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+          "horizon_ends_at": "2026-09-23T07:17:26.365970+00:00",
+          "horizon_seconds": 2400,
+          "metered": false,
+          "observed_at": null,
+          "precedes_horizon": null,
+          "projected_exhaustion_at": null,
+          "resets_at": null,
+          "seconds_until_reset": null,
+          "state": "quiet",
+          "utilisation_pct": null
+        },
+        "lane_declaration": {
+          "backend": null,
+          "headroom": null,
+          "metered": false,
+          "observed_at": null,
+          "read_at": "2026-09-23T06:37:26Z",
+          "resolved_backend": "clive",
+          "utilisation_pct": null
+        },
+        "lane_reading": {
+          "age_seconds": null,
+          "binding_observed": "unknown",
+          "detail": "lane document carries no 'binding_observed'",
+          "headroom": "unknown",
+          "mean_context": "unknown",
+          "observed_at": null,
+          "state": "unknown",
+          "suggested_shelf_life_seconds": null
+        },
+        "tool_steps": 97.0,
+        "orientation_input_tokens": 3795004.0,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -73902,6 +74158,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 990
+    "_version": 991
   }
 }
