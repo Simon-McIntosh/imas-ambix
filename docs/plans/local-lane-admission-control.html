@@ -243,6 +243,15 @@
     </ol>
     <p>The router restart that deploys the gate is authorised separately. Nothing in this
     hardening restarts or reconfigures the running router.</p>
+    <p><strong>The pre-header bound is observed before deploy, not only read.</strong>
+    A local stub server answers <code>/v1/messages</code> only after withholding
+    response headers for 60 s, and it takes no traffic from the lane. Drive it with the
+    same Claude Code binary and <code>CLAUDE_STREAM_FIRST_BYTE_TIMEOUT_MS=20000</code>
+    in two arms. Arm A uses a custom <code>ANTHROPIC_BASE_URL</code>, as clive does, and
+    must receive the answer after 60 s. Arm B adds
+    <code>_CLAUDE_CODE_ASSUME_FIRST_PARTY_BASE_URL=1</code> and must abort at about 20 s.
+    It is the positive control that proves the watchdog can fire.</p>
+
     <p><strong>Deployment, authorised by the lead on 2026-09-23 after a coordinated
     lull.</strong> The router runs as SLURM job 1276263 on
     <code>98dci4-gpu-0003</code>, port 18802. The engine, job 1276246, is not touched.
