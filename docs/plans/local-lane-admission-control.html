@@ -99,6 +99,11 @@
         <tr><td>Reckon dispatch</td><td>Hold dispatch on the lane document's headroom</td><td>No</td><td>A worker-count ceiling is the wrong unit once requests are bounded at the engine; it stays advisory.</td></tr>
       </tbody>
     </table>
+    <p><strong>Every investigation node in §3–§5 only reads from the live lane.</strong>
+    It never cancels, restarts or reconfigures a SLURM job, the router or the engine,
+    and it sends no synthetic load to the endpoint. Reading logs, metrics, the lane
+    document and installed source is the whole of its access. The lane is shared
+    by every consumer this plan is trying to protect.</p>
 
     <h2 id="s3">§3 — Re-measure the knee on the lane as it runs</h2>
     <p>The profile's flat-throughput claim and the ~22 knee cannot both hold, and the
