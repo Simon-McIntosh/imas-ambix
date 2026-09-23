@@ -606,9 +606,6 @@ Measured live against the allocation held since the third step: <code>fleet stat
 <div class="r-comment" data-section="s7" data-id="c-run-r-20260923T111717965249-placed-worker-names-its-host" data-who="reckon-ship" data-when="2026-09-23T11:49:31.965Z">
     <div class="r-comment-body"><p>a dispatched worker read its own hostname as 98dci4-clu-2002 from cgroup job_1276262/step_3 with cpu.max 'max', matching fleet status and not the login node 98dci4-srv-1006; review 88/100, one record finding: the report quotes elapsed and session-scope values from a superseded capture run</p></div>
 </div>
-<div class="r-comment" data-section="s7" data-id="c-run-r-20260923T131330747954-review-of-placed-worker-names-its-host" data-who="reckon-ship" data-when="2026-09-23T13:50:45.166Z">
-    <div class="r-comment-body"><p>independent review stored, 88 of 100 (goal 19, evidence 18, scope 19, durability 14, fit 18); confirmed from the worker&#x27;s own stream that the hostname came from the worker process; one finding on superseded quoted values</p></div>
-</div>
 <div class="r-comment" data-section="s6" data-id="c-20260921-reckon-already-has-placement" data-who="reckon-ship" data-when="2026-09-21T07:27:00Z">
     <div class="r-comment-body">This section's boundary needs revisiting. It says a dispatch change would be a dependency to raise in reckon. Measured on 2026-09-21: reckon has already built that path — a persistent salloc --no-shell reservation, workers placed into it as srun --overlap --jobid steps, published reservation state and a reckon crew placement --ensure operator command — and it is unarmed, with zero placement keys in the live flight config and no reservation record on disk. So nothing needs raising; what is open is whether the fleet's interactive allocation and reckon's worker reservation are one allocation or two, and reckon's defaults (partition all, 32 cores, 128 GB) differ from this plan's locked rigel, 28 cores, 120G.</div>
 </div>
