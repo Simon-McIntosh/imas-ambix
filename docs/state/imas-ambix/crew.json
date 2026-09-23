@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-23T09:49:54",
+  "updated": "2026-09-23T09:50:43",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -71382,6 +71382,27 @@
         "orientation_input_tokens": null,
         "store_write": {
           "status": "written"
+        },
+        "integrated_gate_check": {
+          "base_verdict": "passed",
+          "integrated_verdict": "failed",
+          "integrated_revision": "00e07573531ba223f8970d7af0b468e17c0311d6",
+          "checkout_revision": "00e07573531ba223f8970d7af0b468e17c0311d6",
+          "checkout_on_integrated_revision": true,
+          "gate_command": "uv run --no-sync pytest tests/test_agent_router_gate.py tests/test_agent_router*.py",
+          "gate_command_source": "stored",
+          "ran": true,
+          "exit_status": 1,
+          "timed_out": false,
+          "reason": null,
+          "finding": {
+            "base_verdict": "passed",
+            "integrated_verdict": "failed",
+            "integrated_revision": "00e07573531ba223f8970d7af0b468e17c0311d6",
+            "exit_status": 1,
+            "reason": null,
+            "message": "the gate passed at the worker's base but reports failed on the integrated revision 00e07573531b: the merge changes what this node's gate proves, so a base-green run alone is not enough to push. Re-run the node's gate on the merged tree, land the code the merged tree requires, or record explicitly why this finding is accepted"
+          }
         }
       }
     ],
@@ -71471,6 +71492,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 971
+    "_version": 972
   }
 }
