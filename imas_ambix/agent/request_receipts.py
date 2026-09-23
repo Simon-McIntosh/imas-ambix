@@ -82,9 +82,11 @@ class RequestReceipt:
     timestamp: str
     model: str
     upstream: str
+    dialect: str
     prompt_tokens: int | None
     cached_prompt_tokens: int | None
     completion_tokens: int | None
+    reasoning_tokens: int | None
     time_to_first_token_s: float | None
     duration_s: float
     caller_hint: str
@@ -94,6 +96,135 @@ class RequestReceipt:
 
     def to_json(self) -> str:
         return json.dumps(asdict(self), sort_keys=False)
+
+
+# The dialect a response was read in, when no event identified one. A row
+# carrying it is a row whose null counts are unexplained, which is the state
+# worth seeing: every dialect below names the counts it can fill.
+DIALECT_UNKNOWN = "unknown"
+
+
+@dataclass(frozen=True, slots=True)
+class ResponseDialect:
+    """One response vocabulary the relay can read accounting out of.
+
+    Engines answer the same request in different shapes, and a reader that
+    knows one of them records nothing from the others while still writing a
+    well-formed row -- so the vocabulary is declared as data here rather than
+    spelled into the parse, and a new shape is an entry in ``DIALECTS`` rather
+    than a change to the reader.
+
+    ``usage_containers`` names the record keys a usage object may be nested
+    under, because a streamed first event may carry its counts inside the
+    message it opens rather than beside it. The empty string means the record
+    itself.
+
+    The token fields are ordered candidates: the first key present in a usage
+    object wins, so a spelling an engine renames can be accepted alongside the
+    one it replaced without a second dialect.
+    """
+
+    name: str
+    usage_containers: tuple[str, ...]
+    prompt_tokens: tuple[str, ...]
+    completion_tokens: tuple[str, ...]
+    reasoning_tokens: tuple[str, ...]
+    cached_tokens: tuple[str, ...]
+    cached_containers: tuple[str, ...]
+    event_key: str
+    delta_events: tuple[str, ...]
+    delta_list: str
+    delta_key: str
+    delta_fields: tuple[str, ...]
+
+    def usage_objects(self, record: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+        """Return every usage object this dialect can reach in one record."""
+        found: list[Mapping[str, Any]] = []
+        for container in self.usage_containers:
+            holder: Any = record
+            if container:
+                holder = record.get(container)
+            if not isinstance(holder, Mapping):
+                continue
+            usage = holder.get("usage")
+            if isinstance(usage, Mapping):
+                found.append(usage)
+        return found
+
+    def speaks(self, usage: Mapping[str, Any]) -> bool:
+        """Say whether a usage object is spelled in this dialect."""
+        for names in (self.prompt_tokens, self.completion_tokens):
+            for name in names:
+                if name in usage:
+                    return True
+        return False
+
+    def carries_first_token(self, record: Mapping[str, Any]) -> bool:
+        """Say whether this record is the arrival of a first content token."""
+        deltas: list[Any] = []
+        if self.delta_list:
+            listed = record.get(self.delta_list)
+            if isinstance(listed, list) and listed:
+                first = listed[0]
+                if isinstance(first, Mapping):
+                    deltas.append(first.get(self.delta_key))
+        elif self.event_key:
+            if str(record.get(self.event_key) or "") not in self.delta_events:
+                return False
+            deltas.append(record.get(self.delta_key))
+        for delta in deltas:
+            if not isinstance(delta, Mapping):
+                continue
+            for field in self.delta_fields:
+                if delta.get(field):
+                    return True
+        return False
+
+
+# Measured against the deployed serve on 2026-09-23 rather than transcribed
+# from a specification: the OpenAI shape reports a null ``prompt_tokens_details``
+# and a flat ``reasoning_tokens``, and the Anthropic shape nests the opening
+# counts inside the message it starts and emits no cache figures at all.
+DIALECTS: tuple[ResponseDialect, ...] = (
+    ResponseDialect(
+        name="openai",
+        usage_containers=("",),
+        prompt_tokens=("prompt_tokens",),
+        completion_tokens=("completion_tokens",),
+        reasoning_tokens=("reasoning_tokens",),
+        cached_tokens=("cached_tokens",),
+        cached_containers=("prompt_tokens_details",),
+        event_key="",
+        delta_events=(),
+        delta_list="choices",
+        delta_key="delta",
+        delta_fields=("content", "reasoning_content", "reasoning"),
+    ),
+    ResponseDialect(
+        name="anthropic",
+        usage_containers=("", "message"),
+        prompt_tokens=("input_tokens",),
+        completion_tokens=("output_tokens",),
+        reasoning_tokens=("reasoning_output_tokens",),
+        cached_tokens=("cache_read_input_tokens", "cache_creation_input_tokens"),
+        cached_containers=(),
+        event_key="type",
+        delta_events=("content_block_delta",),
+        delta_list="",
+        delta_key="delta",
+        delta_fields=("text", "thinking"),
+    ),
+)
+
+
+def _first_present(usage: Mapping[str, Any], names: tuple[str, ...]) -> int | None:
+    """Return the first of *names* the usage object states as a count."""
+    for name in names:
+        if name in usage:
+            value = _as_int(usage.get(name))
+            if value is not None:
+                return value
+    return None
 
 
 class StreamAccounting:
@@ -118,6 +249,8 @@ class StreamAccounting:
         self.prompt_tokens: int | None = None
         self.cached_prompt_tokens: int | None = None
         self.completion_tokens: int | None = None
+        self.reasoning_tokens: int | None = None
+        self.dialect: str = DIALECT_UNKNOWN
 
     @property
     def time_to_first_token_s(self) -> float | None:
@@ -157,7 +290,10 @@ class StreamAccounting:
             return
         try:
             record = json.loads(bytes(self._head))
-        except (UnicodeDecodeError, json.JSONDecodeError):
+        # The parentheses are load-bearing and the directive keeps them: this
+        # module is imported by the serving interpreter, which predates
+        # unparenthesised except expressions, and the formatter removes them.
+        except (UnicodeDecodeError, json.JSONDecodeError):  # fmt: skip
             return
         if isinstance(record, Mapping):
             self._apply(record)
@@ -171,7 +307,10 @@ class StreamAccounting:
             return
         try:
             record = json.loads(payload)
-        except (UnicodeDecodeError, json.JSONDecodeError):
+        # The parentheses are load-bearing and the directive keeps them: this
+        # module is imported by the serving interpreter, which predates
+        # unparenthesised except expressions, and the formatter removes them.
+        except (UnicodeDecodeError, json.JSONDecodeError):  # fmt: skip
             return
         if not isinstance(record, Mapping):
             return
@@ -179,40 +318,43 @@ class StreamAccounting:
         self._apply(record)
 
     def _apply(self, record: Mapping[str, Any]) -> None:
-        """Read one event's usage and first-token arrival.
+        """Read one event's usage and first-token arrival, in any dialect.
 
-        Field names and the first-token definition follow
-        ``bench._stream_chat`` so a figure from the relay and a figure from the
-        benchmark mean the same thing and can be compared.
+        Every declared dialect is offered the record, because one response may
+        be read by only one of them and the relay is not told in advance which.
+        A dialect that recognises the spelling of a usage object claims the
+        stream, so the row states which vocabulary its counts came from and a
+        row with no counts is distinguishable from a row nobody could read.
+
+        The counts are last-write-wins within a stream: a streamed response
+        opens with the prompt it was given and closes with the completion it
+        produced, so the closing figure is the authoritative one.
         """
-        usage = record.get("usage")
-        if isinstance(usage, Mapping):
-            prompt = _as_int(usage.get("prompt_tokens"))
-            if prompt is not None:
-                self.prompt_tokens = prompt
-            completion = _as_int(usage.get("completion_tokens"))
-            if completion is not None:
-                self.completion_tokens = completion
-            cached = _cached_tokens(usage)
-            if cached is not None:
-                self.cached_prompt_tokens = cached
+        for dialect in DIALECTS:
+            for usage in dialect.usage_objects(record):
+                if not dialect.speaks(usage):
+                    continue
+                self.dialect = dialect.name
+                prompt = _first_present(usage, dialect.prompt_tokens)
+                if prompt is not None:
+                    self.prompt_tokens = prompt
+                completion = _first_present(usage, dialect.completion_tokens)
+                if completion is not None:
+                    self.completion_tokens = completion
+                reasoning = _first_present(usage, dialect.reasoning_tokens)
+                if reasoning is not None:
+                    self.reasoning_tokens = reasoning
+                cached = _cached_tokens(usage, dialect)
+                if cached is not None:
+                    self.cached_prompt_tokens = cached
         if self._first_token_at is not None:
             return
-        choices = record.get("choices")
-        if not isinstance(choices, list) or not choices:
-            return
-        first = choices[0]
-        if not isinstance(first, Mapping):
-            return
-        delta = first.get("delta")
-        if not isinstance(delta, Mapping):
-            return
-        if (
-            delta.get("content")
-            or delta.get("reasoning_content")
-            or delta.get("reasoning")
-        ):
-            self._first_token_at = self._clock()
+        for dialect in DIALECTS:
+            if dialect.carries_first_token(record):
+                if self.dialect == DIALECT_UNKNOWN:
+                    self.dialect = dialect.name
+                self._first_token_at = self._clock()
+                return
 
 
 def _as_int(value: Any) -> int | None:
@@ -222,19 +364,21 @@ def _as_int(value: Any) -> int | None:
     return int(value)
 
 
-def _cached_tokens(usage: Mapping[str, Any]) -> int | None:
-    """Read the cached prompt tokens, which no other parser in this repository does.
+def _cached_tokens(usage: Mapping[str, Any], dialect: ResponseDialect) -> int | None:
+    """Read the cached prompt tokens the way *dialect* reports them.
 
-    The nested ``prompt_tokens_details`` object is how the OpenAI-compatible
-    engines report it; a top-level ``cached_tokens`` is accepted too because a
-    serve that reports the count directly should not read as zero cache use.
+    A nested object is tried before a flat key because an engine that carries
+    both states the detail in the nested one. A dialect declaring no cache
+    spelling returns nothing rather than zero, which keeps "this engine does
+    not report cache use" distinct from "this engine reported none".
     """
-    details = usage.get("prompt_tokens_details")
-    if isinstance(details, Mapping):
-        nested = _as_int(details.get("cached_tokens"))
-        if nested is not None:
-            return nested
-    return _as_int(usage.get("cached_tokens"))
+    for container in dialect.cached_containers:
+        details = usage.get(container)
+        if isinstance(details, Mapping):
+            nested = _first_present(details, dialect.cached_tokens)
+            if nested is not None:
+                return nested
+    return _first_present(usage, dialect.cached_tokens)
 
 
 def _isoformat(moment: datetime) -> str:
@@ -319,9 +463,11 @@ class RequestReceiptSink:
             timestamp=_isoformat(timestamp if timestamp is not None else self._now()),
             model=model,
             upstream=upstream,
+            dialect=accounting.dialect,
             prompt_tokens=accounting.prompt_tokens,
             cached_prompt_tokens=accounting.cached_prompt_tokens,
             completion_tokens=accounting.completion_tokens,
+            reasoning_tokens=accounting.reasoning_tokens,
             time_to_first_token_s=_round_or_none(accounting.time_to_first_token_s),
             duration_s=round(duration_s, 6),
             caller_hint=caller_hint,

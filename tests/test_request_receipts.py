@@ -21,6 +21,7 @@ import aiohttp
 import pytest
 from aiohttp import web
 
+import imas_ambix.agent.request_receipts as request_receipts
 from imas_ambix.agent.request_receipts import (
     SELF_ANSWERED_UPSTREAM,
     STATUS_ABORTED,
@@ -867,3 +868,153 @@ def test_a_self_answered_request_whose_caller_had_gone_is_recorded_as_aborted(
         assert rows[0]["model"] == ""
 
     asyncio.run(exercise())
+
+
+# Captured verbatim from the deployed serve on 2026-09-23 by streaming a real
+# request through the relay, rather than transcribed from a specification. The
+# defect these cover was invisible to every earlier test in this file because
+# each one was written in the vocabulary the reader already knew.
+_NATIVE_STREAM = (
+    '{"type":"message_start","message":{"id":"msg_afeaa41c","type":"message",'
+    '"role":"assistant","content":[],"model":"deepseek-v4.1-flash",'
+    '"usage":{"input_tokens":7,"output_tokens":0}}}',
+    '{"type":"content_block_start","index":0,'
+    '"content_block":{"type":"text","text":""}}',
+    '{"type":"content_block_delta","index":0,'
+    '"delta":{"type":"text_delta","text":"one"}}',
+    '{"type":"content_block_delta","index":0,'
+    '"delta":{"type":"text_delta","text":", two, three."}}',
+    '{"type":"content_block_stop","index":0}',
+    '{"type":"message_delta","delta":{"stop_reason":"end_turn"},'
+    '"usage":{"output_tokens":7}}',
+)
+
+
+def _feed_events(lines: tuple[str, ...]) -> request_receipts.StreamAccounting:
+    """Drive one accounting over server-sent events, as the relay would."""
+    ticks = iter(range(1, 500))
+    accounting = request_receipts.StreamAccounting(clock=lambda: float(next(ticks)))
+    for line in lines:
+        accounting.feed(f"data: {line}\n".encode())
+    accounting.finish()
+    return accounting
+
+
+def test_counts_are_read_from_a_stream_in_the_engines_own_vocabulary() -> None:
+    """The measured shape the deployed serve answers agent traffic with.
+
+    Its opening counts sit inside the message it starts rather than beside it,
+    and it spells them differently from the shape this reader was written for.
+    """
+    accounting = _feed_events(_NATIVE_STREAM)
+
+    assert accounting.dialect == "anthropic"
+    assert accounting.prompt_tokens == 7
+    assert accounting.completion_tokens == 7
+    assert accounting.time_to_first_token_s is not None
+
+
+def test_a_closing_count_supersedes_the_count_the_stream_opened_with() -> None:
+    """The opening event states nothing produced yet; it must not be the answer."""
+    accounting = _feed_events(_NATIVE_STREAM)
+
+    assert accounting.completion_tokens == 7, "opened at 0 and must close at 7"
+
+
+def test_the_first_token_is_the_first_content_delta_not_the_stream_opening() -> None:
+    """Time to first token measures content arriving, not the response starting."""
+    opening_only = _feed_events(_NATIVE_STREAM[:2])
+    with_content = _feed_events(_NATIVE_STREAM[:3])
+
+    assert opening_only.time_to_first_token_s is None
+    assert with_content.time_to_first_token_s is not None
+
+
+def test_a_single_body_in_the_engines_own_vocabulary_is_read() -> None:
+    """The non-streaming answer carries the same counts under the same names."""
+    accounting = request_receipts.StreamAccounting()
+    accounting.feed(
+        json.dumps(
+            {
+                "id": "msg_c61f15c3",
+                "type": "message",
+                "model": "deepseek-v4.1-flash",
+                "content": [{"type": "text", "text": "serving"}],
+                "usage": {"input_tokens": 11, "output_tokens": 3},
+            }
+        ).encode()
+    )
+    accounting.finish()
+
+    assert accounting.dialect == "anthropic"
+    assert accounting.prompt_tokens == 11
+    assert accounting.completion_tokens == 3
+
+
+def test_the_other_vocabulary_still_reads_and_names_itself() -> None:
+    """The shape this reader was originally written for must keep working."""
+    accounting = _feed_events(
+        (
+            json.dumps({"choices": [{"delta": {"content": "he"}}]}),
+            json.dumps(
+                {
+                    "choices": [],
+                    "usage": {
+                        "prompt_tokens": 1234,
+                        "completion_tokens": 56,
+                        "reasoning_tokens": 12,
+                        "prompt_tokens_details": {"cached_tokens": 1200},
+                    },
+                }
+            ),
+        )
+    )
+
+    assert accounting.dialect == "openai"
+    assert accounting.prompt_tokens == 1234
+    assert accounting.completion_tokens == 56
+    assert accounting.reasoning_tokens == 12
+    assert accounting.cached_prompt_tokens == 1200
+
+
+def test_an_unreadable_vocabulary_says_so_rather_than_reading_as_empty() -> None:
+    """A row nobody could read must be distinguishable from one with no counts."""
+    accounting = _feed_events(
+        (json.dumps({"tokens_consumed": {"in": 40, "out": 9}}),),
+    )
+
+    assert accounting.dialect == request_receipts.DIALECT_UNKNOWN
+    assert accounting.prompt_tokens is None
+    assert accounting.completion_tokens is None
+
+
+def test_an_engine_reporting_no_cache_figures_records_none_not_zero() -> None:
+    """The deployed serve states no cache use in this vocabulary at all."""
+    accounting = _feed_events(_NATIVE_STREAM)
+
+    assert accounting.cached_prompt_tokens is None
+
+
+def test_a_new_shape_is_added_as_a_dialect_entry_not_as_parsing_code() -> None:
+    """The registry is the extension point: declare names, gain a vocabulary."""
+    invented = request_receipts.ResponseDialect(
+        name="invented",
+        usage_containers=("", "envelope"),
+        prompt_tokens=("tokens_in",),
+        completion_tokens=("tokens_out",),
+        reasoning_tokens=(),
+        cached_tokens=("tokens_reused",),
+        cached_containers=(),
+        event_key="kind",
+        delta_events=("chunk",),
+        delta_list="",
+        delta_key="piece",
+        delta_fields=("body",),
+    )
+    record = {"envelope": {"usage": {"tokens_in": 3, "tokens_out": 4}}}
+
+    usages = invented.usage_objects(record)
+
+    assert [dict(u) for u in usages] == [{"tokens_in": 3, "tokens_out": 4}]
+    assert invented.speaks(usages[0])
+    assert invented.carries_first_token({"kind": "chunk", "piece": {"body": "hi"}})
