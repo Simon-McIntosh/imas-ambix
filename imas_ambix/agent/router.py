@@ -1,5 +1,4 @@
-"""ASGI pass-through routing for native model-serving protocols, with per-model
-output ceilings so a request can never overflow the owning engine's window."""
+"""ASGI routing for native model-serving protocols and bounded generation."""
 
 from __future__ import annotations
 
@@ -7,10 +6,13 @@ import asyncio
 import hashlib
 import json
 import logging
+import math
 import os
 import sys
 import time
+from collections import deque
 from collections.abc import Awaitable, Callable, Mapping, Sequence
+from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Protocol
@@ -48,6 +50,176 @@ logger = logging.getLogger(__name__)
 # a rate the operator did not choose reads as complete and is not.
 RECEIPT_MAX_ROWS_PER_S_ENV = "AMBIX_ROUTER_RECEIPT_MAX_ROWS_PER_S"
 RECEIPT_WINDOW_S_ENV = "AMBIX_ROUTER_RECEIPT_WINDOW_S"
+
+GATE_FILENAME = "router-gate.json"
+DEFAULT_GENERATION_WIDTH = 22
+DEFAULT_GENERATION_WAIT_SECONDS = 900.0
+_GATE_CONFIG_POLL_SECONDS = 0.02
+_UNREAD_CONFIG = object()
+
+
+@dataclass(frozen=True, slots=True)
+class _GateSettings:
+    width: int
+    wait_seconds: float
+
+
+@dataclass(frozen=True, slots=True)
+class _Admission:
+    outcome: str
+    disconnect_task: asyncio.Task[None] | None = None
+    retry_after_seconds: int = 1
+
+
+class _GenerationGate:
+    """Admit generation relays in arrival order up to a live file-backed width."""
+
+    def __init__(
+        self,
+        config_path: Path | None,
+        *,
+        default_width: int = DEFAULT_GENERATION_WIDTH,
+        default_wait_seconds: float = DEFAULT_GENERATION_WAIT_SECONDS,
+    ) -> None:
+        self.config_path = config_path
+        self._defaults = _GateSettings(default_width, default_wait_seconds)
+        self._cached_settings = self._defaults
+        self._config_signature: tuple[int, int, int] | None | object = _UNREAD_CONFIG
+        self._condition = asyncio.Condition()
+        self._waiters: deque[object] = deque()
+        self._in_flight = 0
+
+    @property
+    def in_flight(self) -> int:
+        return self._in_flight
+
+    @property
+    def waiting(self) -> int:
+        return len(self._waiters)
+
+    def settings(self) -> _GateSettings:
+        """Read changed configuration and otherwise return the cached settings."""
+        if self.config_path is None:
+            return self._defaults
+        try:
+            stat = self.config_path.stat()
+        except OSError:
+            signature = None
+        else:
+            signature = (stat.st_ino, stat.st_mtime_ns, stat.st_size)
+        if signature == self._config_signature:
+            return self._cached_settings
+
+        settings = self._defaults
+        if signature is not None:
+            try:
+                payload = json.loads(self.config_path.read_text(encoding="utf-8"))
+                if not isinstance(payload, Mapping):
+                    raise ValueError("the root must be an object")
+                width = payload.get("width", self._defaults.width)
+                wait_seconds = payload.get("wait_seconds", self._defaults.wait_seconds)
+                if type(width) is not int or width < 0:
+                    raise ValueError("width must be a non-negative integer")
+                if (
+                    isinstance(wait_seconds, bool)
+                    or not isinstance(wait_seconds, int | float)
+                    or not math.isfinite(wait_seconds)
+                    or wait_seconds <= 0
+                ):
+                    raise ValueError("wait_seconds must be a finite positive number")
+                settings = _GateSettings(width, float(wait_seconds))
+            except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
+                logger.warning(
+                    "generation gate config ignored path=%s error=%s: %s; "
+                    "using defaults width=%d wait_seconds=%s",
+                    self.config_path,
+                    type(error).__name__,
+                    error,
+                    self._defaults.width,
+                    self._defaults.wait_seconds,
+                )
+        self._config_signature = signature
+        self._cached_settings = settings
+        logger.info(
+            "generation gate config path=%s width=%d wait_seconds=%s",
+            self.config_path,
+            settings.width,
+            settings.wait_seconds,
+        )
+        return settings
+
+    async def acquire(self, receive: Receive) -> _Admission:
+        """Wait in FIFO order, or report timeout/departure without a relay."""
+        initial = self.settings()
+        if initial.width == 0:
+            return _Admission("bypass")
+
+        token = object()
+        deadline = asyncio.get_running_loop().time() + initial.wait_seconds
+        disconnect_task = asyncio.create_task(RouterApp._wait_for_disconnect(receive))
+        carry_disconnect = False
+        async with self._condition:
+            self._waiters.append(token)
+            self._condition.notify_all()
+        try:
+            while True:
+                async with self._condition:
+                    if disconnect_task.done():
+                        return _Admission("disconnected")
+                    settings = self.settings()
+                    if settings.width == 0:
+                        return _Admission("bypass")
+                    if (
+                        self._waiters
+                        and self._waiters[0] is token
+                        and self._in_flight < settings.width
+                    ):
+                        self._waiters.popleft()
+                        self._in_flight += 1
+                        self._condition.notify_all()
+                        carry_disconnect = True
+                        return _Admission("acquired", disconnect_task=disconnect_task)
+
+                    remaining = deadline - asyncio.get_running_loop().time()
+                    if remaining <= 0:
+                        return _Admission(
+                            "timed-out",
+                            retry_after_seconds=max(1, math.ceil(initial.wait_seconds)),
+                        )
+                    with suppress(TimeoutError):
+                        await asyncio.wait_for(
+                            self._condition.wait(),
+                            timeout=min(_GATE_CONFIG_POLL_SECONDS, remaining),
+                        )
+        finally:
+            async with self._condition:
+                with suppress(ValueError):
+                    self._waiters.remove(token)
+                self._condition.notify_all()
+            if not carry_disconnect:
+                disconnect_task.cancel()
+                await asyncio.gather(disconnect_task, return_exceptions=True)
+
+    async def release(self) -> None:
+        """Return one acquired slot and wake the FIFO head."""
+        async with self._condition:
+            if self._in_flight <= 0:
+                raise RuntimeError("generation gate released without an acquired slot")
+            self._in_flight -= 1
+            self._condition.notify_all()
+
+    def snapshot(self) -> dict[str, object]:
+        settings = self.settings()
+        return {
+            "enabled": settings.width > 0,
+            "width": settings.width,
+            "wait_seconds": settings.wait_seconds,
+            "in_flight": self.in_flight,
+            "waiting": self.waiting,
+            "config_path": (
+                str(self.config_path) if self.config_path is not None else None
+            ),
+        }
 
 
 def _receipt_setting(name: str, explicit: float | None, default: float) -> float:
@@ -207,6 +379,7 @@ def _by_model_id(owners: Sequence[_Owner]) -> dict[str, list[_Owner]]:
 class RouterApp:
     """Present a union catalog and relay native requests to their owning engine."""
 
+    _GENERATION_PATHS = frozenset({"/v1/messages", "/v1/chat/completions"})
     _ROUTED_PATHS = frozenset(
         {
             "/v1/messages",
@@ -226,6 +399,7 @@ class RouterApp:
         request_receipts_path: Path | None = None,
         receipt_max_rows_per_s: float | None = None,
         receipt_window_s: float | None = None,
+        gate_file: Path | None = None,
     ) -> None:
         self._resolver = resolver
         # Per-request attribution lands beside the lane document the launching
@@ -261,19 +435,23 @@ class RouterApp:
         self._lane_document = lane_document
         self._lane_interval = lane_interval
         self._lane_task: asyncio.Task[None] | None = None
+        self._generation_gate = _GenerationGate(
+            gate_file
+            if gate_file is not None
+            else lane_document.with_name(GATE_FILENAME)
+            if lane_document is not None
+            else None
+        )
         # Opt-in, because it logs one line per routed request. Hashes only.
         self._prefix_diagnostic = (
             os.environ.get("AMBIX_ROUTER_PREFIX_PROBE", "").strip() == "1"
         )
         self._timeout = timeout or aiohttp.ClientTimeout(total=None, connect=10)
         self._session: aiohttp.ClientSession | None = None
-        # The engine schedules its own work -- continuous batching, a waiting
-        # queue and preemption under KV pressure -- so the relay must not be a
-        # second, blinder scheduler in front of it. This ceiling exists only to
-        # keep the process from exhausting file descriptors, and sits far above
-        # the engine's own running-sequence ceiling so the engine is always the
-        # binding constraint. aiohttp's unset default is 100, which would
-        # silently cap concurrency below that.
+        # This connector ceiling protects file descriptors and deliberately
+        # stays far above the generation gate. Decode admission and transport
+        # capacity are separate limits; aiohttp's unset default of 100 would
+        # otherwise become an invisible second queue.
         self._connection_limit = connection_limit
 
     async def __call__(
@@ -382,16 +560,42 @@ class RouterApp:
         self._log_prefix_divergence(payload, scope)
         payload, body = self._repair_system_roles(payload, body)
         relay_body = self._clamp_output_tokens(payload, body, card)
-        await self._relay(
-            scope,
-            receive,
-            send,
-            relay_body,
-            upstream,
-            model_id=model_id,
-            caller_hint=self._caller_hint(scope),
-            started_at=datetime.now(UTC),
+        admission = (
+            await self._generation_gate.acquire(receive)
+            if path in self._GENERATION_PATHS
+            else _Admission("bypass")
         )
+        if admission.outcome == "disconnected":
+            self._record_self_answer(
+                scope, model_id, began, http_status=None, caller_gone=True
+            )
+            return
+        if admission.outcome == "timed-out":
+            await self._overloaded_error(
+                scope,
+                receive,
+                send,
+                model_id=model_id,
+                began=began,
+                retry_after_seconds=admission.retry_after_seconds,
+            )
+            return
+
+        try:
+            await self._relay(
+                scope,
+                receive,
+                send,
+                relay_body,
+                upstream,
+                model_id=model_id,
+                caller_hint=self._caller_hint(scope),
+                started_at=datetime.now(UTC),
+                disconnect_task=admission.disconnect_task,
+            )
+        finally:
+            if admission.outcome == "acquired":
+                await self._generation_gate.release()
 
     async def _lifespan(self, receive: Receive, send: Send) -> None:
         while True:
@@ -509,6 +713,7 @@ class RouterApp:
                     error,
                 )
                 write_unavailable_document(str(error), self._lane_document)
+                self._publish_gate_snapshot()
                 # Both histories are dropped, not just the last sample. A window
                 # spanning an outage would average across a gap of unknown
                 # length and publish it as a continuous measurement.
@@ -525,8 +730,32 @@ class RouterApp:
                     refresh_interval=self._lane_interval,
                     window=LaneWindow(readings=tuple(readings)),
                 )
+                self._publish_gate_snapshot()
                 previous = capacity
             await asyncio.sleep(self._lane_interval)
+
+    def _publish_gate_snapshot(self) -> None:
+        """Add router admission counts to the latest atomic lane reading."""
+        if self._lane_document is None:
+            return
+        try:
+            document = json.loads(self._lane_document.read_text(encoding="utf-8"))
+            if not isinstance(document, dict):
+                raise ValueError("lane document root is not an object")
+            document["router_generation_gate"] = self._generation_gate.snapshot()
+            scratch = self._lane_document.with_suffix(".gate.tmp")
+            scratch.write_text(
+                json.dumps(document, indent=2, sort_keys=True), encoding="utf-8"
+            )
+            scratch.replace(self._lane_document)
+            self._lane_document.chmod(0o644)
+        except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
+            logger.warning(
+                "generation gate lane snapshot dropped path=%s error=%s: %s",
+                self._lane_document,
+                type(error).__name__,
+                error,
+            )
 
     async def _client(self) -> aiohttp.ClientSession:
         if self._session is None or self._session.closed:
@@ -652,6 +881,7 @@ class RouterApp:
         model_id: str,
         caller_hint: str,
         started_at: datetime,
+        disconnect_task: asyncio.Task[None] | None = None,
     ) -> None:
         session = await self._client()
         # content-length and transfer-encoding describe the body the CLIENT
@@ -690,6 +920,9 @@ class RouterApp:
         # success. The outcome is only rewritten by the two paths that can tell
         # better: a 2xx relay, and a caller that left mid-relay.
         status = STATUS_FAILED
+        disconnected = disconnect_task or asyncio.create_task(
+            self._wait_for_disconnect(receive)
+        )
         try:
             async with session.request(
                 scope["method"], target, data=body, headers=request_headers
@@ -709,38 +942,33 @@ class RouterApp:
                         "headers": list(response.raw_headers),
                     }
                 )
-                disconnected = asyncio.create_task(self._wait_for_disconnect(receive))
-                try:
-                    while True:
-                        next_chunk = asyncio.create_task(response.content.readany())
-                        done, _ = await asyncio.wait(
-                            {next_chunk, disconnected},
-                            return_when=asyncio.FIRST_COMPLETED,
-                        )
-                        if disconnected in done:
-                            status = STATUS_ABORTED
-                            next_chunk.cancel()
-                            await asyncio.gather(next_chunk, return_exceptions=True)
-                            response.close()
-                            return
-                        chunk = next_chunk.result()
-                        if not chunk:
-                            break
-                        accounting.feed(chunk)
-                        await send(
-                            {
-                                "type": "http.response.body",
-                                "body": chunk,
-                                "more_body": True,
-                            }
-                        )
-                    accounting.finish()
-                    if answered_ok:
-                        status = STATUS_COMPLETED
-                    await send({"type": "http.response.body", "body": b""})
-                finally:
-                    disconnected.cancel()
-                    await asyncio.gather(disconnected, return_exceptions=True)
+                while True:
+                    next_chunk = asyncio.create_task(response.content.readany())
+                    done, _ = await asyncio.wait(
+                        {next_chunk, disconnected},
+                        return_when=asyncio.FIRST_COMPLETED,
+                    )
+                    if disconnected in done:
+                        status = STATUS_ABORTED
+                        next_chunk.cancel()
+                        await asyncio.gather(next_chunk, return_exceptions=True)
+                        response.close()
+                        return
+                    chunk = next_chunk.result()
+                    if not chunk:
+                        break
+                    accounting.feed(chunk)
+                    await send(
+                        {
+                            "type": "http.response.body",
+                            "body": chunk,
+                            "more_body": True,
+                        }
+                    )
+                accounting.finish()
+                if answered_ok:
+                    status = STATUS_COMPLETED
+                await send({"type": "http.response.body", "body": b""})
         except asyncio.CancelledError:
             # The router is shutting down under an in-flight request; the
             # caller's answer is incomplete, which is exactly what the row
@@ -748,6 +976,8 @@ class RouterApp:
             status = STATUS_ABORTED
             raise
         finally:
+            disconnected.cancel()
+            await asyncio.gather(disconnected, return_exceptions=True)
             self._record_receipt(
                 accounting=accounting,
                 status=status,
@@ -1078,11 +1308,48 @@ class RouterApp:
             scope, model_id, began, http_status=status, caller_gone=caller_gone
         )
 
+    async def _overloaded_error(
+        self,
+        scope: Mapping[str, Any],
+        receive: Receive,
+        send: Send,
+        *,
+        model_id: str,
+        began: float,
+        retry_after_seconds: int,
+    ) -> None:
+        """Return the native overload shape after a generation wait expires."""
+        body = json.dumps(
+            {
+                "type": "error",
+                "error": {
+                    "type": "overloaded_error",
+                    "message": "router generation queue wait limit exceeded",
+                },
+            },
+            separators=(",", ":"),
+        ).encode()
+        caller_gone = await self._response(
+            receive,
+            send,
+            529,
+            [
+                (b"content-type", b"application/json"),
+                (b"content-length", str(len(body)).encode()),
+                (b"retry-after", str(retry_after_seconds).encode()),
+            ],
+            body,
+        )
+        self._record_self_answer(
+            scope, model_id, began, http_status=529, caller_gone=caller_gone
+        )
+
 
 def create_router_app(
     resolver: UpstreamResolver,
     *,
     lane_document: Path | None = None,
+    gate_file: Path | None = None,
     request_receipts_path: Path | None = None,
     receipt_max_rows_per_s: float | None = None,
     receipt_window_s: float | None = None,
@@ -1091,6 +1358,7 @@ def create_router_app(
     return RouterApp(
         resolver,
         lane_document=lane_document,
+        gate_file=gate_file,
         request_receipts_path=request_receipts_path,
         receipt_max_rows_per_s=receipt_max_rows_per_s,
         receipt_window_s=receipt_window_s,
@@ -1103,6 +1371,7 @@ def serve_router(
     host: str = "0.0.0.0",
     port: int,
     lane_document: Path | None = None,
+    gate_file: Path | None = None,
     request_receipts_path: Path | None = None,
     receipt_max_rows_per_s: float | None = None,
     receipt_window_s: float | None = None,
@@ -1128,6 +1397,7 @@ def serve_router(
         create_router_app(
             resolver,
             lane_document=lane_document,
+            gate_file=gate_file,
             request_receipts_path=request_receipts_path,
             receipt_max_rows_per_s=receipt_max_rows_per_s,
             receipt_window_s=receipt_window_s,

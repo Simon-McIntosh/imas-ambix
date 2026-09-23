@@ -57,6 +57,7 @@ async def _router(upstream: str, gate_file: Path):
     app = RouterApp(
         Resolver([Upstream(upstream)]),
         lane_document=gate_file.with_name("lane.json"),
+        gate_file=gate_file,
     )
     try:
         yield app
@@ -284,10 +285,14 @@ def test_disconnected_waiter_and_streamer_release_capacity(tmp_path) -> None:
                 b'{"model":"streamer","label":"follower"}',
             )
             incoming.put_nowait({"type": "http.disconnect"})
-            await asyncio.wait_for(waiter, timeout=0.5)
-            assert waiter_sent == []
-            probe.release.set()
-            await asyncio.wait_for(asyncio.gather(first, follower), timeout=1)
+            try:
+                await asyncio.wait_for(waiter, timeout=0.5)
+                assert waiter_sent == []
+            finally:
+                probe.release.set()
+            await asyncio.wait_for(
+                asyncio.gather(first, follower, return_exceptions=True), timeout=1
+            )
             assert _status(follower_sent) == 200
             assert "departed" not in probe.started
 
@@ -429,5 +434,55 @@ def test_catalog_and_count_tokens_bypass_a_full_generation_gate(tmp_path) -> Non
             assert json.loads(_body(tokens)) == {"input_tokens": 7}
             probe.release.set()
             await blocker
+
+    asyncio.run(exercise())
+
+
+def test_lane_document_publishes_nonzero_gate_counts(tmp_path) -> None:
+    async def exercise() -> None:
+        gate_file = tmp_path / "router-gate.json"
+        lane_document = tmp_path / "lane.json"
+        _write_gate(gate_file, width=1)
+        lane_document.write_text(
+            json.dumps({"running": 9, "waiting": 2}), encoding="utf-8"
+        )
+        app = RouterApp(Resolver([]), lane_document=lane_document, gate_file=gate_file)
+        first_incoming: asyncio.Queue[AsgiMessage] = asyncio.Queue()
+        second_incoming: asyncio.Queue[AsgiMessage] = asyncio.Queue()
+
+        async def receive_first() -> AsgiMessage:
+            return await first_incoming.get()
+
+        async def receive_second() -> AsgiMessage:
+            return await second_incoming.get()
+
+        first = await app._generation_gate.acquire(receive_first)
+        second = asyncio.create_task(app._generation_gate.acquire(receive_second))
+        for _ in range(20):
+            if app._generation_gate.waiting == 1:
+                break
+            await asyncio.sleep(0.01)
+        assert app._generation_gate.waiting == 1
+
+        app._publish_gate_snapshot()
+        published = json.loads(lane_document.read_text(encoding="utf-8"))
+        assert published["running"] == 9
+        assert published["waiting"] == 2
+        assert published["router_generation_gate"] == {
+            "config_path": str(gate_file),
+            "enabled": True,
+            "in_flight": 1,
+            "wait_seconds": 1.0,
+            "waiting": 1,
+            "width": 1,
+        }
+
+        second_incoming.put_nowait({"type": "http.disconnect"})
+        departed = await second
+        assert departed.outcome == "disconnected"
+        if first.disconnect_task is not None:
+            first.disconnect_task.cancel()
+            await asyncio.gather(first.disconnect_task, return_exceptions=True)
+        await app._generation_gate.release()
 
     asyncio.run(exercise())
