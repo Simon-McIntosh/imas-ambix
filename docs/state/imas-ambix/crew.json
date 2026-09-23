@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-23T18:53:34",
+  "updated": "2026-09-23T19:24:56",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -2603,10 +2603,15 @@
         "id": "s24-window-start",
         "harness": "clive",
         "role": "implement",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
-        "created": "2026-09-23"
+        "session_id": "2deb356f-97c2-4b85-878c-0b230f91a763",
+        "session_model": "deepseek-v4.1-flash",
+        "sessions": {
+          "{\"alias\":\"dsv4.1-flash\",\"backend\":\"clive\",\"effort\":\"high\",\"launch\":\"cli\",\"local\":true,\"model\":\"deepseek-v4.1-flash\",\"sandbox\":\"worktree-full\",\"usable_input_window\":480000}": "2deb356f-97c2-4b85-878c-0b230f91a763"
+        },
+        "created": "2026-09-23",
+        "session_owners": {
+          "{\"alias\":\"dsv4.1-flash\",\"backend\":\"clive\",\"effort\":\"high\",\"launch\":\"cli\",\"local\":true,\"model\":\"deepseek-v4.1-flash\",\"sandbox\":\"worktree-full\",\"usable_input_window\":480000}": "s24-ship-20260923"
+        }
       },
       {
         "created": "2026-08-17",
@@ -84848,6 +84853,276 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260923T161541160192-login-slice-window-start-sample",
+        "plan": "slurm-hosted-agent-fleet",
+        "section": "\u00a77",
+        "node": "login-slice-window-start-sample",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1231,
+                "cached_input_tokens": 307313,
+                "input_tokens": 308546,
+                "output_tokens": 1417,
+                "reasoning_output_tokens": 415,
+                "total_tokens": 309963,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "f880c335-ee59-40ba-bb02-c0e33c804ea2",
+            "session_id": "s24-ship-20260923"
+          },
+          "done_when": "(1) docs/evidence/data/slurm-hosted-agent-fleet/login-slice-window-start.json holds the verbatim JSON printed by: ssh 98dci4-srv-1006 'cd /home/ITER/mcintos/Code/imas-ambix && .venv/bin/python -m imas_ambix.agent.throttling sample --directory /sys/fs/cgroup/user.slice/user-39486.slice'; this worker runs on a compute node, so the sample MUST be taken over ssh on the login node; (2) the committed JSON's host.hostname starts with 98dci4-srv-1006, its cpu_max reads '400000 100000', and nr_periods, nr_throttled and throttled_usec are integers rather than null; (3) the JSON is extended by nothing and edited by nothing: python -c json.load of the file succeeds and a second field-by-field comparison against a re-read of the ssh output within the same minute shows the same host.boot_id; (4) the cumulative throttled share printed in that sample is quoted in the manifest's evidence_inputs beside the baseline 0.3366 with no interpretation of the difference, because a cumulative figure since boot cannot attribute a change to the window.",
+          "estimated_hours": null,
+          "goal": "commit the login slice throttling sample that opens step seven's attrition window",
+          "id": "login-slice-window-start-sample",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-23T16:15:42Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": 4,
+            "binding_observed": "unknown",
+            "detail": "",
+            "headroom": 0,
+            "mean_context": 90909,
+            "observed_at": "2026-09-23T16:15:38Z",
+            "state": "fresh",
+            "suggested_shelf_life_seconds": 45
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T161541160192-login-slice-window-start-sample/manifest.md",
+          "negative_control": "",
+          "plan": "slurm-hosted-agent-fleet",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a77",
+          "spec_level": "exact",
+          "time_budget": "20m",
+          "token_budget": null,
+          "write_paths": [
+            "docs/evidence/data/slurm-hosted-agent-fleet/login-slice-window-start.json",
+            "docs/evidence/archive/slurm-hosted-agent-fleet-landed.html",
+            "docs/figures/slurm-hosted-agent-fleet",
+            "docs/plans/slurm-hosted-agent-fleet.html"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "s24-window-start",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "high",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "worktree-full",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-23T16:16:03Z",
+        "completed_at": "2026-09-23T16:50:38.098Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 2058,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 2075,
+        "stalled": false,
+        "time_budget": "20m",
+        "base_sha": "a7b7a7def916043e96b0e61c770e6940e4d04590",
+        "commits": [
+          "1ba6d75f11f4b730dd4c9164a8affb3e1676eb32",
+          "86e8ab343d829a8bf035a219b46cadc4ae6cb082"
+        ],
+        "changed_lines": {
+          "added": 137,
+          "removed": 0,
+          "files": 4
+        },
+        "tests_added": 0,
+        "gate": "passed",
+        "gate_check": {
+          "command": "python3 gate over the committed window-start JSON: host, ceiling and integer period counters",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T161541160192-login-slice-window-start-sample/gate-window-start.log",
+          "log_digest": "sha256:6ff5d0be6d4b6c0558daef0326e63e1aed9ef70e6928f4daf6fac644e566da6e"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T161541160192-login-slice-window-start-sample/manifest.md",
+        "scope_changed": false,
+        "session_id": "2deb356f-97c2-4b85-878c-0b230f91a763",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 4633597,
+            "input_tokens_cumulative": 4633597,
+            "output_tokens": 33232,
+            "output_tokens_cumulative": 33232,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-23T16:50:38.098Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "15m",
+          "requested": true,
+          "waived_runs": []
+        },
+        "review": {
+          "status": "parsed",
+          "scores": {
+            "goal_fidelity": 19,
+            "evidence": 19,
+            "scope_discipline": 20,
+            "durability": 17,
+            "fit": 18
+          },
+          "absent": [],
+          "total": 93
+        },
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 4633597,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 2070.843,
+          "generated_tokens": 33232,
+          "generation_seconds": 2055.154,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 26.0,
+          "machine_seconds": 15.689,
+          "peak_input_tokens": 124710,
+          "tokens_per_second": 16.17,
+          "wall_tokens_per_second": 16.05
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/s24-ship-20260923/login-slice-window-start-sample",
+          "session_id": "2deb356f-97c2-4b85-878c-0b230f91a763",
+          "session_source": "pointer",
+          "retained_at": "2026-09-23T16:50:38.098Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "promoted_revision": "86e8ab343d829a8bf035a219b46cadc4ae6cb082",
+        "plan_impl_at_dispatch": 1.0,
+        "impl_move": {
+          "plan": "slurm-hosted-agent-fleet",
+          "at_dispatch": 1.0,
+          "at_complete": 1.0,
+          "verdict": "waived",
+          "reason": "opens step seven's window; the plan's impl already reads 1.0 and the deciding comparison is not yet taken"
+        },
+        "negative_control": {
+          "verdict": "exempt",
+          "reason": "node-writes-no-test-path"
+        },
+        "lane_advisory": {
+          "backend": "clive",
+          "burn_multiple": null,
+          "cheaper_lane": {
+            "detail": "",
+            "lane": null,
+            "state": "not_evaluated"
+          },
+          "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+          "horizon_ends_at": "2026-09-23T16:35:42.130373+00:00",
+          "horizon_seconds": 1200,
+          "metered": false,
+          "observed_at": null,
+          "precedes_horizon": null,
+          "projected_exhaustion_at": null,
+          "resets_at": null,
+          "seconds_until_reset": null,
+          "state": "quiet",
+          "utilisation_pct": null
+        },
+        "lane_declaration": {
+          "backend": null,
+          "headroom": null,
+          "metered": false,
+          "observed_at": null,
+          "read_at": "2026-09-23T16:15:42Z",
+          "resolved_backend": "clive",
+          "utilisation_pct": null
+        },
+        "lane_reading": {
+          "age_seconds": 4,
+          "binding_observed": "unknown",
+          "detail": "",
+          "headroom": 0,
+          "mean_context": 90909,
+          "observed_at": "2026-09-23T16:15:38Z",
+          "state": "fresh",
+          "suggested_shelf_life_seconds": 45
+        },
+        "tool_steps": 47.0,
+        "orientation_input_tokens": 2034599.0,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -84936,6 +85211,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 1055
+    "_version": 1057
   }
 }
