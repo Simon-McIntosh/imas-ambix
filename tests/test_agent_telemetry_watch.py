@@ -324,9 +324,11 @@ def test_a_serve_restart_totals_run_by_run_not_across_the_reset(
     index = _index(tmp_path, [first, second, restarted])
 
     partition = index.partitioned_total("engine.prompt_tokens", now - HOUR, now)
-    # 9000 - 5000 from the first run, 10 - 10 from the restarted second run.
+    # 9000 - 5000 from the first serve, whose two readings both fall in the
+    # window. The restarted serve holds a single reading -- one endpoint and not
+    # two -- so it admits no difference rather than a difference of zero.
     assert partition.total == 4000.0
-    assert partition.runs == 2
+    assert partition.runs == 1
     # The two outermost readings really do difference negative; partitioning is
     # what turns that into the traffic the two serves actually carried.
     assert index.counter_span("engine.prompt_tokens", now - HOUR, now) < 0

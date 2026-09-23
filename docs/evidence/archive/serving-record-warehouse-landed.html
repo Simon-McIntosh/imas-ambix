@@ -75,6 +75,41 @@
     the behaviour the section exists to prevent. Log: <code>negative-control.log</code>;
     its first line is the mutation stated verbatim.</p>
 
+    <h3 id="repair">Repair after review</h3>
+    <p>An independent review of the landed revision confirmed two defects, both fixed
+    here. <strong>The coverage was accumulated as a sum.</strong> Each run's clipped span
+    was added with <code>+=</code> while the docstring promises the union of those spans,
+    so two recorders whose runs overlap in time would double-count the overlap and inflate
+    the denominator every throughput and utilisation figure divides by. The spans are now
+    collected and reported through <code>_union_length</code>, which merges overlapping and
+    touching intervals alike. <strong>A run with one reading in the window was differenced
+    against itself.</strong> Its opening and closing are the same row, so the subtraction was
+    <code>x - x</code> and the total moved from <code>None</code> to <code>0.0</code> — the
+    answer a run observed and not advancing earns, which is not the same claim as no run had
+    two endpoints to difference. A run now contributes only when it holds two distinct
+    readings, so such a window reports <code>None</code>.</p>
+
+    <p><strong>The union fix is a robustness fix, and the evidence should not overstate
+    it.</strong> The contributing runs are contiguous slices of one time-ordered scan, so
+    their clipped spans can touch but never overlap, and the sum and the union are
+    numerically equal for everything the writer produces today. No fixture can build the
+    overlap through the store; the test asserts the union arithmetic directly and asserts
+    the caller routes coverage through it, which is the regression the arithmetic alone
+    cannot see. Each new test reddens without its own fix, verified by reverting each fix in
+    place; log names are given below.</p>
+
+    <table>
+      <thead><tr><th>Check</th><th>Result</th><th>Log</th></tr></thead>
+      <tbody>
+        <tr><td>index and watcher suites, repaired</td><td>57 passed, exit 0</td><td><code>gate-index-and-watch.log</code></td></tr>
+        <tr><td>serving-interpreter parse guard</td><td>1 passed, exit 0</td><td><code>gate-serving-python.log</code></td></tr>
+        <tr><td>whole-tree lint</td><td><code>All checks passed!</code>, exit 0</td><td><code>gate-ruff.log</code></td></tr>
+        <tr><td>union call site reverted</td><td>union test failed, one-reading test passed</td><td><code>negative-control-union-sum.log</code></td></tr>
+        <tr><td>two-distinct-readings guard dropped</td><td>one-reading test failed, union test passed</td><td><code>negative-control-single-reading.log</code></td></tr>
+        <tr><td>declared mutation, runs not partitioned</td><td>4 failed, 53 passed</td><td><code>negative-control.log</code></td></tr>
+      </tbody>
+    </table>
+
     <h3 id="scope">What this node did not do</h3>
     <p>The total and its coverage are reachable from the store and from the watcher's
     period rows. Nothing here changes the ingest cadence, the compaction tiers, or the

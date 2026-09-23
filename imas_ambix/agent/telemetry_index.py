@@ -612,6 +612,24 @@ def _run_closing(
     return closing
 
 
+def _union_length(spans: Iterable[tuple[float, float]]) -> float:
+    """The number of seconds a set of spans covers between them.
+
+    Two spans over one stretch of wall clock cover that stretch once between
+    them, so the covered figure is their union and not their sum: adding them
+    would count the overlap twice and inflate every rate whose denominator it
+    is. Spans that merely touch are one stretch, since nothing is uncovered
+    across the join.
+    """
+    merged: list[list[float]] = []
+    for begin, finish in sorted(spans):
+        if merged and begin <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], finish)
+        else:
+            merged.append([begin, finish])
+    return sum(finish - begin for begin, finish in merged)
+
+
 class TelemetryIndex:
     """A local, rebuildable query layer over one or more record files.
 
@@ -1092,7 +1110,7 @@ class TelemetryIndex:
         ).fetchall()
 
         total: float | None = None
-        coverage = 0.0
+        spans: list[tuple[float, float]] = []
         contributing = 0
         for run in _counter_runs(rows):
             opening = _run_opening(run, start, end)
@@ -1101,10 +1119,16 @@ class TelemetryIndex:
             closing = _run_closing(run, end)
             if closing is None or closing[0] < start:
                 continue
+            # One reading differenced against itself has no second endpoint, so
+            # the run contributes nothing rather than a zero: an absent figure
+            # and a measured zero are different answers and the caller reports
+            # them differently.
+            if closing is opening:
+                continue
             total = (0.0 if total is None else total) + (closing[1] - opening[1])
-            coverage += min(closing[0], end) - max(opening[0], start)
+            spans.append((max(opening[0], start), min(closing[0], end)))
             contributing += 1
-        return PartitionedTotal(name, total, coverage, contributing)
+        return PartitionedTotal(name, total, _union_length(spans), contributing)
 
     def _last_at_or_before(
         self, name: str, bound: float, *, strict: bool = False
