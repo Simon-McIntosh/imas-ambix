@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-23">
-<meta name="plan-version" content="31">
+<meta name="plan-version" content="32">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;}">
 </head>
 <body>
@@ -568,6 +568,9 @@
 </div>
 <div class="r-comment" data-section="s3" data-id="c-run-r-20260923T103633178474-review-of-partitioned-totals-and-honest-coverage" data-who="reckon-ship" data-when="2026-09-23T10:54:17.279Z">
     <div class="r-comment-body"><p>Scored the partitioned-total work 94 and named two defects, both since confirmed and repaired: coverage summed the runs' spans where its contract promises their union, and a run whose only in-window sample serves as both endpoints was differenced against itself, reporting a measured zero where the contract promises none. This verdict describes the head before commit d9606298 and does not cover the repair, which carries its own review.</p></div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-run-r-20260923T114249768935-review-of-the-partition-repair" data-who="reckon-ship" data-when="2026-09-23T12:29:52.049Z">
+    <div class="r-comment-body"><p>Reviewed the repaired head of the partitioned-total work at 96 with no findings, confirming both defects of the earlier 94 review closed and no third introduced: coverage is the union of contributing runs rather than their sum, and a run whose only in-window sample would serve as both endpoints contributes nothing rather than a measured zero.</p></div>
 </div>
 <div class="r-comment" data-section="s8" data-id="c-run-r-20260923T133304048736-readback-of-serving-record-warehouse-s8" data-who="reckon-ship" data-when="2026-09-23T15:15:15.468Z">
     <div class="r-comment-body"><p>read-back of section 8: 17 of 38 sentences with two readings; the ones that change what gets built were closed in 6bdb0061</p></div>
