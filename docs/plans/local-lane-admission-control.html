@@ -193,6 +193,20 @@
       No live router was restarted; deployment remains separately authorised.</p>
     </aside>
 
+    <aside class="callout">
+      <p><strong>Integrated gate attribution — 2026-09-23.</strong> The stored
+      router command was repeated five times at <code>116f662b</code>: one run failed
+      <code>test_sse_bytes_are_identical_and_disconnect_closes_upstream</code> on a
+      one-second <code>TimeoutError</code>, and four runs passed all 45 tests. The
+      failure is intermittent, reproducing in one of five runs, while every
+      gate-specific test passed five of five. The router source and all collected
+      router test files are byte-identical to the green <code>decc190b</code>
+      comparison base, so no integration-range commit introduced it. Historical
+      commit <code>a1ebcaf1</code> introduced the timing-dependent upstream-close
+      assertion. <a href="/imas-ambix/evidence/archive/local-lane-admission-control-landed.html#router-gate-integrated-repetition">Five-run evidence and attribution</a>.
+      Repairing the older test is outside this read-only test node.</p>
+    </aside>
+
     <p>The width is not a fixed knee. Five days of decode samples binned by width
     (79,435 intervals, read by the slurm-hosted-agent-fleet session) show aggregate decode
     flat at 346–408 tok/s from width 10 to 35 at that traffic's contexts. The live
