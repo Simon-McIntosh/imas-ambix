@@ -202,6 +202,17 @@
     <code>sizing_verdict</code> or <code>headroom_is_upper_bound</code>. Both are measured
     to vary between reads.</p>
 
+    <p><strong>No client has ever been able to read the lane's ceiling.</strong> Twelve
+    dispatch pointers across four repositories recorded the lane as unknown. At those
+    same moments the document read 32 running against a ceiling of 20. The publisher
+    (<code>imas_ambix/agent/lane.py</code>) deliberately writes
+    <code>binding_observed: null</code> on an SGLang lane, because the engine exposes no
+    cumulative preemption counter. The reckon reader treats that null as a missing field,
+    and throws away the headroom, running count and context it has just parsed. So the
+    ceiling was never ignored; it was never received. The reader fix belongs to reckon.
+    Whatever writes the gate file parses the lane document itself and never goes through
+    that reader.</p>
+
     <h2 id="s9">§9 — Make the gate unbypassable</h2>
     <p>The endpoints document publishes the engine itself, at
     <code>98dci4-gpu-0003.iter.org:18810</code>, as <code>endpoints[0]</code>, and the router
