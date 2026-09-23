@@ -46,16 +46,24 @@ FLIGHT_CONFIG = (
 # separately: safe_load hands an unquoted 1276262 back as an int, so a check
 # that only looks at str values passes the very thing this test forbids.
 _JOB_IDENTIFIER_RUN = re.compile(r"(?<![0-9])[0-9]{5,}(?![0-9])")
-# For an integer the whole decimal form must be the run: a job identifier is
-# never negative and never carries a sign, so "-1276262" is not one.
+# For a numeric scalar the whole decimal form must be the run: a job identifier
+# is never negative and never carries a sign, so "-1276262" is not one.
 _JOB_IDENTIFIER_INTEGER = re.compile(r"[0-9]{5,}")
 
 
 def _is_job_identifier(value: Any) -> bool:
+    # bool first: a boolean is an int in Python, and True must never read as an
+    # equivalent of 1.
     if isinstance(value, bool):
         return False
     if isinstance(value, int):
         return _JOB_IDENTIFIER_INTEGER.fullmatch(str(value)) is not None
+    # A float reaches here for the same reason an int does: a scheduler
+    # identifier written without a decimal point is not the only spelling
+    # yaml.safe_load can produce, and "1276262.0" is the same job as
+    # "1276262". A non-integral float is not an identifier at all.
+    if isinstance(value, float) and value.is_integer():
+        return _JOB_IDENTIFIER_INTEGER.fullmatch(str(int(value))) is not None
     if isinstance(value, str):
         return _JOB_IDENTIFIER_RUN.search(value) is not None
     return False
@@ -97,14 +105,24 @@ def test_clive_placement_declares_the_scheduler() -> None:
 
 def test_placement_queries_carry_the_job_substitution_point() -> None:
     placement = _load_flight_config()["backends"]["clive"]["placement"]
-    for name in ("state_query", "reason_query"):
-        argv = placement[name]
-        assert isinstance(argv, list), (
-            f"{name} must be an argv list, not {type(argv).__name__}"
-        )
-        assert any(part == "{job}" for part in argv), (
-            f"{name} must carry the literal '{{job}}' so dispatch can substitute the "
-            f"resolved job into it; got {argv!r}"
+    # The argv is asserted whole, not just for the presence of "{job}". The
+    # output field is what a consumer reads the answer out of: the state query
+    # must ask for the state and the reason query for the reason, and a change
+    # to either field silently changes what is read. Swapping the state query's
+    # %T for %j, %t or %R, or the reason query's %r for %N, leaves the job
+    # substitution point intact while making a liveness reading that consumes
+    # these answers read a running job as dead. Any change here is therefore a
+    # deliberate change to what the fleet observes, and must be made as one.
+    expected = {
+        "state_query": ["squeue", "-h", "-j", "{job}", "-o", "%T"],
+        "reason_query": ["squeue", "-h", "-j", "{job}", "-o", "%r"],
+    }
+    for name, argv in expected.items():
+        assert placement[name] == argv, (
+            f"{name} must be exactly {argv!r}: the output field is what reckon's "
+            f"liveness and kill-class reading consumes, so a different field "
+            f"changes what the fleet observes rather than merely how it is "
+            f"spelled; got {placement[name]!r}"
         )
 
 
