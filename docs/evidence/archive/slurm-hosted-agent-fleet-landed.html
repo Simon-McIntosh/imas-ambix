@@ -1634,6 +1634,73 @@ burst_usec 0</code></pre>
     not cancelled or resubmitted.</p>
   </section>
 
+  <section id="placement-test-holds-the-resolution">
+    <h2>The placement test can now tell a resolved identifier from a remembered one</h2>
+    <p>Commit <code>5af85e3f</code> changes only
+    <code>tests/agent/test_fleet.py</code>. The placement of a wrapped command had been
+    asserted once, against one held-allocation row, and that single assertion is satisfied
+    by a step whose identifier was written into the source as readily as by one read out of
+    the row that matched. Two assertions now carry the claim, over two rows whose
+    identifiers differ and which are otherwise identical: a remembered identifier satisfies
+    exactly one of them, so only reading the identifier out of the row that matched
+    satisfies both. The rows are built by the row helper, parametrised through it, and a
+    direct case asserts that the matched row is the one the queue listing resolved to
+    before the identifier is taken from it.</p>
+
+    <h3 id="placement-identifier-receipts">Receipts</h3>
+    <table>
+      <thead><tr><th>Measure</th><th>Observed result</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Focused module at the landed revision</td>
+          <td><code>pytest tests/agent/test_fleet.py</code> exited <strong>0</strong> with
+          <strong>27 passed</strong>. The same log prints the exercised module's path as
+          <code>…/placement-tests-hold-the-resolution/imas_ambix/agent/fleet.py</code>, so the
+          worktree's own source was under test rather than the shared editable pointer's
+          target.</td>
+        </tr>
+        <tr>
+          <td>Whole-tree lint</td>
+          <td><code>ruff check imas_ambix tests</code> exited <strong>0</strong>.</td>
+        </tr>
+        <tr>
+          <td>Declared negative control, applied to <code>placement_argv</code></td>
+          <td>The identifier expression was replaced by the literal
+          <code>1275000</code>, the identifier carried by the first fixture row, so a
+          remembered identifier was emitted regardless of the row handed in. The module then
+          ran <strong>2 failed, 25 passed</strong>: both failures are the second row's cases,
+          at <code>--jobid=1275000 != --jobid=1289017</code>, while the first row's cases
+          still pass — the shape the control predicted.</td>
+        </tr>
+        <tr>
+          <td>Source restored</td>
+          <td><code>sha256</code> of <code>imas_ambix/agent/fleet.py</code> is
+          <code>2cffb295…</code> before the mutation and after the restore, and the file is
+          absent from <code>git status</code>; the focused module re-ran to
+          <strong>27 passed, exit 0</strong>.</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>No figure accompanies this section: the claim is a two-case matrix over one row
+    field, and a table carries it without loss — an image of a table would be strictly
+    worse. The ordered receipt is
+    <code>~/.config/reckon/crew/runs/r-20260923T062047051418-placement-tests-hold-the-resolution/logs/pytest.log</code>
+    (green run, module path, green re-run after the restore) with the control's own diff and
+    failing output in <code>logs/negative-control.log</code> and the lint result in
+    <code>logs/ruff.log</code>. The control's first line repeats the declared text
+    verbatim.</p>
+
+    <h3>What this record does not establish</h3>
+    <p>The mutation shows the two assertions discriminate the two identifiers on this row
+    shape, and nothing more: the identifier field is the only field the mutated expression
+    touched, so no claim is made that every other field of the row reaches the step
+    unchanged. The ledger of rows, the account the listing is queried under and the step
+    exit status are asserted by other cases in the module, and the merged-head result
+    belongs to the separately dispatched verification node. The module's public surface is
+    exercised through the CLI as well as directly because the direct case alone would leave
+    the command path unmeasured.</p>
+  </section>
+
 <section id="throttling-share-over-the-span">
     <h2>The throttled share over the span between two samples, beside the cumulative one</h2>
     <p>Commit <code>f8921dec</code>, confined to <code>imas_ambix/agent/throttling.py</code>
