@@ -2165,6 +2165,78 @@ $ loginctl list-sessions | grep -c 39486
     shape rather than the one this project locked. A separately dispatched test
     node owns the merged result.</p>
   </section>
+
+  <section id="window-start-sample">
+    <h2>The login slice reading that opens the attrition window</h2>
+
+    <p>The seventh step compares the login slice's throttled share before and
+    after new work drains onto the held allocation. That comparison needs a
+    start reading taken on the same machine and the same boot as the later one
+    it will be set against, and this node commits it. The committed artifact is
+    the sampler's own stdout, taken over ssh on the login node, extended and
+    edited by nothing:
+    <a href="/imas-ambix/evidence/data/slurm-hosted-agent-fleet/login-slice-window-start.json">login-slice-window-start.json</a>.</p>
+
+    <p>The command is the sampler run from the main checkout's environment, at
+    the account slice's control group:</p>
+    <pre><code>ssh 98dci4-srv-1006 'cd /home/ITER/mcintos/Code/imas-ambix &amp;&amp; \
+  .venv/bin/python -m imas_ambix.agent.throttling sample \
+  --directory /sys/fs/cgroup/user.slice/user-39486.slice'</code></pre>
+
+    <h3>What the payload states</h3>
+    <table>
+      <tr><th>field</th><th>value</th></tr>
+      <tr><td><code>host.hostname</code></td><td><code>98dci4-srv-1006.iter.org</code></td></tr>
+      <tr><td><code>host.boot_id</code></td><td><code>82c41dfa-a445-4fb2-8416-04b44c3d874c</code></td></tr>
+      <tr><td><code>host.uptime_seconds</code></td><td><code>3996823.94</code></td></tr>
+      <tr><td><code>cpu_max</code></td><td><code>400000 100000</code></td></tr>
+      <tr><td><code>cumulative.usage_usec</code></td><td><code>5528634391316</code></td></tr>
+      <tr><td><code>cumulative.nr_periods</code></td><td><code>39261764</code></td></tr>
+      <tr><td><code>cumulative.nr_throttled</code></td><td><code>5151678</code></td></tr>
+      <tr><td><code>cumulative.throttled_usec</code></td><td><code>5795334085321</code></td></tr>
+      <tr><td><code>cumulative.permitted_usec</code></td><td><code>15704705600000</code></td></tr>
+      <tr><td><code>cumulative.throttled_share</code></td><td><code>0.3690189573067196</code></td></tr>
+    </table>
+
+    <p>The three period counters are integers, not <code>null</code>, and
+    <code>cpu_max</code> reads the quota and period — the state a quotaed group
+    states, as against the compute node's user slice, which states no ceiling
+    file and no accounted period. Both the host and the boot are named, which
+    is what lets this reading be compared against the later one at all: the
+    counter directory resolves on every machine in the cluster with different
+    contents, and the counters are cumulative since boot, so a reboot restarts
+    them and a fall would read as an improvement unless the two readings are
+    attributable to different boots. <code>json.load</code> of the committed
+    file succeeds, and a re-read of the same command within the same minute —
+    at <code>2026-09-23T16:23:02Z</code>, one second after the committed
+    reading was taken at <code>2026-09-23T16:23:01Z</code> — states the same
+    <code>host.boot_id</code> and the same <code>hostname</code>.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/slurm-hosted-agent-fleet/window-start-cumulative-reading.svg"
+           alt="Six cumulative throttled-share readings of the login slice in the
+                order taken: 0.3366 marked as the two earlier readings and the
+                baseline, 0.3483 as the most recent prior reading, and 0.3690 as
+                the window-start sample committed by this node.">
+      <figcaption>The committed window-start sample beside the readings already
+      recorded, in the order taken.</figcaption>
+    </figure>
+
+    <h3>What this reading cannot say</h3>
+    <p>The share is a running total since boot and describes every day the
+    slice has been up, so this sample cannot attribute any part of its value to
+    the attrition window that begins with it. It is the window's start point
+    and not a change and not a result. The comparison the seventh step makes —
+    of a later reading against the recorded baseline of <em>0.3366</em> — is
+    the later reading's to record, and a reading taken after a reboot would not
+    be comparable to this one at all without the boot identity above.</p>
+
+    <p><strong>Scope.</strong> This node measures its own change: one sample
+    taken on the login node and committed verbatim. It does not measure whether
+    attrition has happened, and it does not take the end reading. The merged
+    result and the attrition comparison belong to separately dispatched
+    nodes.</p>
+  </section>
 </main>
 </body>
 </html>
