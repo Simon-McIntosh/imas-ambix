@@ -243,6 +243,31 @@
     </ol>
     <p>The router restart that deploys the gate is authorised separately. Nothing in this
     hardening restarts or reconfigures the running router.</p>
+    <p><strong>Deployment, authorised by the lead on 2026-09-23 after a coordinated
+    lull.</strong> The router runs as SLURM job 1276263 on
+    <code>98dci4-gpu-0003</code>, port 18802. The engine, job 1276246, is not touched.
+    The deploy runs in this order:</p>
+    <ol>
+      <li>Write <code>~/public/imas-ambix/router-gate.json</code> as
+      <code>{"width": 20, "wait_seconds": 300}</code>.</li>
+      <li>Produce the replacement router script with
+      <code>imas-ambix agent router --dry-run</code>. Confirm it binds port 18802 and
+      imports the merged gate. The imported <code>router.py</code> must carry
+      <code>_GenerationGate</code>.</li>
+      <li>List the account's jobs and print them. Cancel exactly job 1276263 by id,
+      only while it is named <code>ambix-router</code>. Never cancel by user, name,
+      state or partition, and never discard <code>scancel</code> output.</li>
+      <li>Submit the replacement with <code>imas-ambix agent router --submit</code> and
+      record the new job id.</li>
+      <li>Verify on the live endpoint. <code>GET /v1/models</code> answers 200, one
+      short <code>/v1/messages</code> request completes with 200, and within 60 s
+      <code>lane.json</code> carries <code>router_generation_gate</code> with width 20 and
+      wait 300.</li>
+    </ol>
+    <p>If the replacement fails to serve within five minutes, resubmit the router from
+    the pre-gate revision <code>5ca04952</code> and report. Every consumer depends on
+    this origin, so it is not left down while the gate is diagnosed.</p>
+
     <p><strong>The wait bound has to beat the client's first-byte window, not only its
     request timeout.</strong> Claude Code 2.1.280, the build clive and crew workers both
     run, retries 408, 409, 429 and every 5xx ten times by default. It follows
