@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-23T08:50:16",
+  "updated": "2026-09-23T09:00:08",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -1372,10 +1372,15 @@
         "id": "llac-kvcap",
         "harness": "codex",
         "role": "investigate",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
-        "created": "2026-09-23"
+        "session_id": "01a0ccf8-06dc-79d0-af1c-f4f39485de19",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "{\"alias\":\"sol5.6\",\"backend\":\"codex\",\"effort\":\"high\",\"launch\":\"cli\",\"model\":\"gpt-5.6-sol\",\"sandbox\":\"read-only\"}": "01a0ccf8-06dc-79d0-af1c-f4f39485de19"
+        },
+        "created": "2026-09-23",
+        "session_owners": {
+          "{\"alias\":\"sol5.6\",\"backend\":\"codex\",\"effort\":\"high\",\"launch\":\"cli\",\"model\":\"gpt-5.6-sol\",\"sandbox\":\"read-only\"}": "llac-20260923"
+        }
       },
       {
         "created": "2026-08-13",
@@ -70844,6 +70849,247 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260923T063235271112-kv-capacity-levers",
+        "plan": "local-lane-admission-control",
+        "section": "\u00a78",
+        "node": "kv-capacity-levers",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 666,
+                "cached_input_tokens": 238844,
+                "input_tokens": 239512,
+                "output_tokens": 704,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 240216,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "74b53aa2-1d4b-451f-8ce7-33c072085f83",
+            "session_id": "llac-20260923"
+          },
+          "done_when": "the report at /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/llac-20260923/kv-capacity-levers.md answers each of the four \u00a78 levers (replication and DP attention, KV dtype, host and storage tier, device workspace) for the installed SGLang version and the running serve's launch line, citing the launch line, profile line or source file:line for every answer; gives for each lever the projected pool tokens and context-derived concurrency at a 98,750-token mean context with the arithmetic shown; states each lever's cost; and ends with the levers ranked by projected concurrency gain",
+          "estimated_hours": null,
+          "goal": "Rank the DSv4.1 serve's KV-capacity levers by projected pool tokens",
+          "id": "kv-capacity-levers",
+          "lane_declaration": {
+            "backend": "codex",
+            "headroom": "known",
+            "metered": true,
+            "observed_at": "2026-09-23T06:32:38Z",
+            "read_at": "2026-09-23T06:32:40Z",
+            "resolved_backend": "codex",
+            "utilisation_pct": 76.0
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "backend declares no lane document",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T063235271112-kv-capacity-levers/manifest.md",
+          "negative_control": "",
+          "plan": "local-lane-admission-control",
+          "requested_backend": "codex",
+          "requires_decisions": [],
+          "role": "investigate",
+          "section": "\u00a78",
+          "spec_level": "guided",
+          "time_budget": "45m",
+          "token_budget": null,
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/llac-20260923/kv-capacity-levers.md"
+          ]
+        },
+        "role": "investigate",
+        "spec_level": "guided",
+        "member": "llac-kvcap",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "read-only"
+        },
+        "dispatched_at": "2026-09-23T06:33:20Z",
+        "completed_at": "2026-09-23T06:58:55Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1535,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1535,
+        "stalled": false,
+        "time_budget": "45m",
+        "base_sha": "910fc7eb9b0f2b27c6403c32fa07f1136a8a3929",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": 0,
+        "gate": "passed",
+        "gate_check": {
+          "command": "report-content-and-arithmetic-gate",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T063235271112-kv-capacity-levers/report-gate.log",
+          "log_digest": "sha256:640f2ddfaac99b65ec889e01dcce2f65aec04cec8a84cb2c4953990b86810883"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T063235271112-kv-capacity-levers/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a0ccf8-06dc-79d0-af1c-f4f39485de19",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 17638272,
+            "cached_input_tokens_cumulative": 17638272,
+            "input_tokens": 17948539,
+            "input_tokens_cumulative": 17948539,
+            "output_tokens": 36906,
+            "output_tokens_cumulative": 36906,
+            "reasoning_output_tokens": 16071,
+            "reasoning_output_tokens_cumulative": 16071
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lane_receipt": {
+          "quota_state": "measured",
+          "observed_at": "2026-09-23T06:58:55Z",
+          "effective_context_window": 380000,
+          "quota_windows": [
+            {
+              "window_minutes": 10080,
+              "used_percent": 77.0,
+              "resets_at": 1790575134,
+              "observed_at": "2026-09-23T06:58:55Z"
+            }
+          ],
+          "notional_cost_usd": 105.2322,
+          "rate_basis": {
+            "model_identifier": "gpt-5.6-sol",
+            "input_per_million": 4.0,
+            "output_per_million": 20.0,
+            "as_of": "2026-09-09"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": null,
+        "throughput": {
+          "cumulative_cached_input_tokens": 17638272,
+          "cumulative_input_tokens": 17948539,
+          "detail": "model span bounded from the client rollout's tool spans; input cumulative summed across resets",
+          "generated_tokens": 52977,
+          "generation_seconds": 1403.485,
+          "machine_seconds": 128.015,
+          "tokens_per_second": 37.75
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": false,
+          "matched_measure": null,
+          "override": false,
+          "role": "investigate",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/llac-20260923/kv-capacity-levers",
+          "session_id": "01a0ccf8-06dc-79d0-af1c-f4f39485de19",
+          "session_source": "pointer",
+          "retained_at": "2026-09-23T06:58:55Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "promoted_revision": "910fc7eb9b0f2b27c6403c32fa07f1136a8a3929",
+        "plan_impl_at_dispatch": 0.0,
+        "impl_move": {
+          "plan": "local-lane-admission-control",
+          "at_dispatch": 0.0,
+          "at_complete": null,
+          "verdict": "exempt",
+          "reason": "role-not-enforced:investigate"
+        },
+        "negative_control": {
+          "verdict": "exempt",
+          "reason": "node-writes-no-test-path"
+        },
+        "lane_advisory": {
+          "backend": "codex",
+          "burn_multiple": 2.6291891891891894,
+          "cheaper_lane": {
+            "detail": "",
+            "lane": null,
+            "state": "not_evaluated"
+          },
+          "detail": "'codex' is projected to exhaust at 2026-09-25T03:58:17Z, which is after this node's 2700s horizon ending 2026-09-23T07:17:40.071666+00:00",
+          "horizon_ends_at": "2026-09-23T07:17:40.071666+00:00",
+          "horizon_seconds": 2700,
+          "metered": true,
+          "observed_at": "2026-09-23T06:32:38Z",
+          "precedes_horizon": false,
+          "projected_exhaustion_at": "2026-09-25T03:58:17Z",
+          "resets_at": "2026-09-28T05:58:54Z",
+          "seconds_until_reset": 429975,
+          "state": "quiet",
+          "utilisation_pct": 76.0
+        },
+        "lane_declaration": {
+          "backend": "codex",
+          "headroom": "known",
+          "metered": true,
+          "observed_at": "2026-09-23T06:32:38Z",
+          "read_at": "2026-09-23T06:32:40Z",
+          "resolved_backend": "codex",
+          "utilisation_pct": 76.0
+        },
+        "lane_reading": {
+          "age_seconds": null,
+          "binding_observed": "unknown",
+          "detail": "backend declares no lane document",
+          "headroom": "unknown",
+          "mean_context": "unknown",
+          "observed_at": null,
+          "state": "unknown",
+          "suggested_shelf_life_seconds": null
+        },
+        "tool_steps": 97.0,
+        "orientation_input_tokens": null,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -70918,6 +71164,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 963
+    "_version": 965
   }
 }
