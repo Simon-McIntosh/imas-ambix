@@ -10,7 +10,7 @@
   <meta name="plan-summary"      content="Cumulative execution record for local-lane-admission-control: capacity levers, scheduler levers, client behaviour, the router gate and the bypass trace">
   <meta name="plan-tags"         content="agent-serving,gpu-deployment">
   <meta name="plan-evidence-for" content="local-lane-admission-control">
-  <meta name="plan-verifies"     content="local-lane-admission-control#s7,local-lane-admission-control#s8">
+  <meta name="plan-verifies"     content="local-lane-admission-control#s5,local-lane-admission-control#s7,local-lane-admission-control#s8">
   <meta name="plan-owner"        content="Simon McIntosh">
   <title>Local Lane Admission Control — Landed Evidence | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
@@ -147,6 +147,29 @@
     Its independent review was dispatched automatically and died at start-up with
     exit 143 before reading anything, so the coordinator's direct log check above is
     the only cross-check.</p>
+  </section>
+
+  <section id="s5">
+    <h2>§5 — How Claude Code responds when the lane pushes back (2026-09-23)</h2>
+    <p>Node <code>client-overload-behaviour</code> was a read-only investigation of the
+    Claude Code 2.1.280 binary, which clive and crew workers both run, and of the router
+    relay. Its report cites byte offsets and router lines throughout.</p>
+    <table>
+      <thead><tr><th>Behaviour</th><th>Finding</th></tr></thead>
+      <tbody>
+        <tr><td>Retried statuses</td><td>408, 409, 429 and every 5xx. An <code>x-should-retry</code> header overrides the status either way.</td></tr>
+        <tr><td>Retry count</td><td>10 by default. <code>CLAUDE_CODE_MAX_RETRIES</code> sets it, clamped at 15. The 300-retry watchdog applies only in remote mode.</td></tr>
+        <tr><td><code>Retry-After</code></td><td>Followed exactly, in place of the client's own back-off, with no upper clamp. <code>retry-after-ms</code> is preferred when present.</td></tr>
+        <tr><td>Back-off without the header</td><td>0.5, 1, 2, 4, then 8 s per retry, with 0.75–1.0 jitter.</td></tr>
+        <tr><td>Request timeout</td><td>600 s (<code>API_TIMEOUT_MS</code>). The stream first-byte default is not established; node <code>client-first-byte-window</code> owns it.</td></tr>
+        <tr><td>529 message</td><td>“Repeated 529 Overloaded errors”, composed by the client once its retries are exhausted.</td></tr>
+        <tr><td>Router relay</td><td>Forwards the engine's status and headers verbatim. It sends nothing before the engine's headers arrive and has no total deadline of its own (<code>ClientTimeout(total=None)</code>).</td></tr>
+      </tbody>
+    </table>
+    <p>Parts of the report's text are garbled, which is the known corruption of long
+    payloads on this lane. Every row above was taken from a passage that carries its
+    own citation. Report:
+    <code>~/.config/reckon/crew/reports/imas-ambix/llac-20260923/client-overload-behaviour.md</code>.</p>
   </section>
 </main>
 </body>
