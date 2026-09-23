@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-23T11:47:39",
+  "updated": "2026-09-23T11:55:22",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -72947,6 +72947,262 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260923T075201250934-gate-integrated-failure",
+        "plan": "local-lane-admission-control",
+        "section": "\u00a77",
+        "node": "gate-integrated-failure",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1015,
+                "cached_input_tokens": 387326,
+                "input_tokens": 388343,
+                "output_tokens": 668,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 389011,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "74b53aa2-1d4b-451f-8ce7-33c072085f83",
+            "session_id": "llac-20260923"
+          },
+          "done_when": "the report at /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/llac-20260923/gate-integrated-failure.md records five separate runs of 'uv run --no-sync pytest tests/test_agent_router_gate.py tests/test_agent_router*.py' at HEAD in this worktree, each with its exit status and the names of every failing test, quotes the assertion text and traceback of each distinct failure from the captured logs, and states whether each failure reproduces in all five runs or only some; every run's full log is saved beside the report",
+          "estimated_hours": null,
+          "goal": "Identify the router gate test failure on the integrated head",
+          "id": "gate-integrated-failure",
+          "lane_declaration": {
+            "backend": "codex",
+            "headroom": "known",
+            "metered": true,
+            "observed_at": "2026-09-23T07:52:02Z",
+            "read_at": "2026-09-23T07:52:04Z",
+            "resolved_backend": "codex",
+            "utilisation_pct": 79.0
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "backend declares no lane document",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T075201250934-gate-integrated-failure/manifest.md",
+          "negative_control": "",
+          "plan": "local-lane-admission-control",
+          "requested_backend": "codex",
+          "requires_decisions": [],
+          "role": "test",
+          "section": "\u00a77",
+          "spec_level": "exact",
+          "time_budget": "25m",
+          "token_budget": null,
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/llac-20260923/gate-integrated-failure.md",
+            "docs/evidence/archive/local-lane-admission-control-landed.html",
+            "docs/figures/local-lane-admission-control",
+            "docs/plans/local-lane-admission-control.html"
+          ]
+        },
+        "role": "test",
+        "spec_level": "exact",
+        "member": "llac-gate-test",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-23T07:52:28Z",
+        "completed_at": "2026-09-23T08:07:48Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 920,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 920,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "116f662b577f9a70ce2ef3976e21108b9bc22939",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/test_agent_router_gate.py tests/test_agent_router*.py (x5 at integrated head)",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T075201250934-gate-integrated-failure/gate.log",
+          "log_digest": "sha256:5ca2131025430a21c7895eaf4f62e8441e3f0878c2115b3e7dabf623d261a693"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T075201250934-gate-integrated-failure/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a0cd40-7746-7510-bcc2-44574c091156",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 3492224,
+            "cached_input_tokens_cumulative": 3492224,
+            "input_tokens": 3687392,
+            "input_tokens_cumulative": 3687392,
+            "output_tokens": 22437,
+            "output_tokens_cumulative": 22437,
+            "reasoning_output_tokens": 5905,
+            "reasoning_output_tokens_cumulative": 5905
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lane_receipt": {
+          "quota_state": "measured",
+          "observed_at": "2026-09-23T08:07:48Z",
+          "effective_context_window": 380000,
+          "quota_windows": [
+            {
+              "window_minutes": 10080,
+              "used_percent": 80.0,
+              "resets_at": 1790575134,
+              "observed_at": "2026-09-23T08:07:48Z"
+            }
+          ],
+          "notional_cost_usd": 15.1983,
+          "rate_basis": {
+            "model_identifier": "gpt-5.6-sol",
+            "input_per_million": 4.0,
+            "output_per_million": 20.0,
+            "as_of": "2026-09-09"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": {
+          "status": "parsed",
+          "scores": {
+            "durability": 18,
+            "evidence": 20,
+            "fit": 20,
+            "goal_fidelity": 20,
+            "scope_discipline": 15
+          },
+          "absent": [],
+          "total": 93
+        },
+        "throughput": {
+          "cumulative_cached_input_tokens": 3492224,
+          "cumulative_input_tokens": 3687392,
+          "detail": "model span bounded from the client rollout's tool spans; input cumulative summed across resets",
+          "generated_tokens": 28342,
+          "generation_seconds": 801.842,
+          "machine_seconds": 116.876,
+          "tokens_per_second": 35.35
+        },
+        "follow_on_paths": [
+          "tests/test_agent_router.py::test_sse_bytes_are_identical_and_disconnect_closes_upstream"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent_router_gate.py",
+          "override": false,
+          "role": "test",
+          "status": "compatible"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": "the verifier's only commit, 68d07062, is its landing record in the plan and evidence file; the coordinator merged it into main at 71229d7e, so it is not registered as a test-role source commit",
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/llac-20260923/gate-integrated-failure",
+          "session_id": "01a0cd40-7746-7510-bcc2-44574c091156",
+          "session_source": "pointer",
+          "retained_at": "2026-09-23T08:07:48Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "promoted_revision": "68d07062f006b2024cc3684e13a6b310a5f444bc",
+        "plan_impl_at_dispatch": 0.1,
+        "impl_move": {
+          "plan": "local-lane-admission-control",
+          "at_dispatch": 0.1,
+          "at_complete": 0.3,
+          "verdict": "moved"
+        },
+        "negative_control": {
+          "verdict": "exempt",
+          "reason": "node-writes-no-test-path"
+        },
+        "lane_advisory": {
+          "backend": "codex",
+          "burn_multiple": 2.6604599365220785,
+          "cheaper_lane": {
+            "detail": "",
+            "lane": null,
+            "state": "not_evaluated"
+          },
+          "detail": "'codex' is projected to exhaust at 2026-09-25T04:15:47Z, which is after this node's 1500s horizon ending 2026-09-23T08:17:04.348576+00:00",
+          "horizon_ends_at": "2026-09-23T08:17:04.348576+00:00",
+          "horizon_seconds": 1500,
+          "metered": true,
+          "observed_at": "2026-09-23T07:52:02Z",
+          "precedes_horizon": false,
+          "projected_exhaustion_at": "2026-09-25T04:15:47Z",
+          "resets_at": "2026-09-28T05:58:53Z",
+          "seconds_until_reset": 425210,
+          "state": "quiet",
+          "utilisation_pct": 79.0
+        },
+        "lane_declaration": {
+          "backend": "codex",
+          "headroom": "known",
+          "metered": true,
+          "observed_at": "2026-09-23T07:52:02Z",
+          "read_at": "2026-09-23T07:52:04Z",
+          "resolved_backend": "codex",
+          "utilisation_pct": 79.0
+        },
+        "lane_reading": {
+          "age_seconds": null,
+          "binding_observed": "unknown",
+          "detail": "backend declares no lane document",
+          "headroom": "unknown",
+          "mean_context": "unknown",
+          "observed_at": null,
+          "state": "unknown",
+          "suggested_shelf_life_seconds": null
+        },
+        "tool_steps": 84.0,
+        "orientation_input_tokens": null,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -73035,6 +73291,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 987
+    "_version": 988
   }
 }
