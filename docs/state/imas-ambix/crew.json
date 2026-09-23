@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-23T08:37:08",
+  "updated": "2026-09-23T08:48:27",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -70068,6 +70068,477 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260922T195432401622-placement-answers-the-scheduler",
+        "plan": "slurm-hosted-agent-fleet",
+        "section": "\u00a77",
+        "node": "placement-answers-the-scheduler",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1150,
+                "cached_input_tokens": 331542,
+                "input_tokens": 332694,
+                "output_tokens": 1311,
+                "reasoning_output_tokens": 832,
+                "total_tokens": 334005,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "230b9fc6-569c-40eb-97d2-19af05ea3982",
+            "session_id": "slurm-fleet-placement"
+          },
+          "done_when": "docs/state/imas-ambix/flight.yaml declares state_query and reason_query beside the existing backends.clive.placement wrapper, each spelling the job as the {job} token, plus any job_id_probe the wrapper needs to report which job a launch became; a dry-run local dispatch against this project and plan exits nonzero naming state_query and reason_query before the change and exits zero after it, with both invocations and both exit statuses captured in one log; each declared query is run once against the live held allocation with its job id substituted, and its exit status and output are recorded; grep -E '[0-9]{5,}' over the file returns no match",
+          "estimated_hours": null,
+          "goal": "Reckon can ask the scheduler about a job the placement wrapper started, so a placed run's liveness is read from the scheduler rather than from a process id on the dispatching host",
+          "id": "placement-answers-the-scheduler",
+          "lane_declaration": {
+            "backend": "codex",
+            "headroom": "known",
+            "metered": true,
+            "observed_at": "2026-09-22T19:54:38Z",
+            "read_at": "2026-09-22T19:54:41Z",
+            "resolved_backend": "codex",
+            "utilisation_pct": 65.0
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "backend declares no lane document",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260922T195432401622-placement-answers-the-scheduler/manifest.md",
+          "negative_control": "",
+          "plan": "slurm-hosted-agent-fleet",
+          "requested_backend": "codex",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a77",
+          "spec_level": "exact",
+          "time_budget": "25m",
+          "token_budget": null,
+          "write_paths": [
+            "docs/state/imas-ambix/flight.yaml",
+            "docs/evidence/archive/slurm-hosted-agent-fleet-landed.html",
+            "docs/figures/slurm-hosted-agent-fleet",
+            "docs/plans/slurm-hosted-agent-fleet.html"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "fleet-placement-queries",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-22T19:55:33Z",
+        "completed_at": "2026-09-22T20:13:05Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1052,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1052,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "3949d3810bd0087ffad22be1cae1dceafa8733cb",
+        "commits": [
+          "9559fbd4e8b03d75dafbba6febfa216188d3076a",
+          "9fa10b1e7b7a7fafc98c840c9fa649adddb3d3c1"
+        ],
+        "changed_lines": {
+          "added": 126,
+          "removed": 1,
+          "files": 4
+        },
+        "tests_added": 0,
+        "gate": "passed",
+        "gate_check": {
+          "command": "dry-run local dispatch before and after the change; each declared query run once against the live allocation; grep -E '[0-9]{5,}' over the flight layer",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260922T195432401622-placement-answers-the-scheduler/placement-scheduler-queries.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260922T195432401622-placement-answers-the-scheduler/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a0cab0-20d3-7871-beba-a80ccb646d76",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 8685952,
+            "cached_input_tokens_cumulative": 8685952,
+            "input_tokens": 8850724,
+            "input_tokens_cumulative": 8850724,
+            "output_tokens": 24975,
+            "output_tokens_cumulative": 24975,
+            "reasoning_output_tokens": 8157,
+            "reasoning_output_tokens_cumulative": 8157
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lane_receipt": {
+          "quota_state": "measured",
+          "observed_at": "2026-09-22T20:13:05Z",
+          "effective_context_window": 380000,
+          "quota_windows": [
+            {
+              "window_minutes": 10080,
+              "used_percent": 65.0,
+              "resets_at": 1790575134,
+              "observed_at": "2026-09-22T20:13:05Z"
+            }
+          ],
+          "notional_cost_usd": 35.9024,
+          "rate_basis": {
+            "model_identifier": "gpt-5.6-sol",
+            "input_per_million": 4.0,
+            "output_per_million": 20.0,
+            "as_of": "2026-09-09"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "15m",
+          "requested": true,
+          "waived_runs": [
+            {
+              "budget_overrun": false,
+              "budget_overrun_seconds": 0,
+              "budget_seconds": 1800,
+              "classification": "promotable",
+              "commits_beyond_base": 0,
+              "detail": "the worker manifest reports completion and an independent parsed review is attached; the run is ready for promotion",
+              "elapsed_seconds": 1583,
+              "external_wait": null,
+              "lifting_condition": null,
+              "liveness_proven": true,
+              "log_age_seconds": 3549,
+              "log_fresh": false,
+              "manifest_commits": [
+                "f425580a5e1c30747be3b6e071138dfe2904e2a1"
+              ],
+              "manifest_derived": false,
+              "manifest_digest": "838da4ee272ffd1a3307fdffeb7672e7fcb48f743d7ca739e6fa1d215f83db65",
+              "manifest_error": null,
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260922T182916246197-fleet-lingering-retire/manifest.md",
+              "manifest_present": true,
+              "manifest_reported_status": "complete",
+              "manifest_status": "complete",
+              "marker": null,
+              "needs_help_complete": null,
+              "next_action": "reckon crew complete --run r-20260922T182916246197-fleet-lingering-retire --gate <verdict> --commit f425580a5e1c30747be3b6e071138dfe2904e2a1",
+              "node": "fleet-lingering-retire",
+              "phase": "starting",
+              "plan": "slurm-hosted-agent-fleet",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "recovery": "promote",
+              "recovery_classification": "promotable",
+              "resets_at": null,
+              "review_error": null,
+              "review_present": true,
+              "review_status": "parsed",
+              "run_id": "r-20260922T182916246197-fleet-lingering-retire",
+              "session": "slurm-fleet-placement",
+              "terminal_age_seconds": 3722,
+              "terminal_at": "2026-09-22T18:53:01Z",
+              "wait_age_seconds": null,
+              "wait_condition_state": null,
+              "wait_key_defect": null,
+              "wait_observed": null,
+              "wait_overdue": null,
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/slurm-fleet-placement/fleet-lingering-retire"
+            },
+            {
+              "budget_overrun": false,
+              "budget_overrun_seconds": 0,
+              "budget_seconds": 2100,
+              "classification": "promotable",
+              "commits_beyond_base": 0,
+              "detail": "the worker manifest reports completion; the run is the review it dispatched with, so the review it wrote is its deliverable and no review of this run is required",
+              "elapsed_seconds": 1370,
+              "external_wait": null,
+              "lifting_condition": null,
+              "liveness_proven": true,
+              "log_age_seconds": 2725,
+              "log_fresh": false,
+              "manifest_commits": [
+                "none in this node's worktree \u2014 the deliverable is a crew-store record",
+                "not repo content",
+                "and `git -C <worktree> status --porcelain` is empty at HEAD 08446467. Reviewed revision: base 7d6702d96f6d72a83537036c844f4272159f1846",
+                "head e661a52a189c084a136aff1d0d0344cf89251d52",
+                "two commits 0fa4a8f5 feat(agent) and e661a52a docs(fleet)."
+              ],
+              "manifest_derived": false,
+              "manifest_digest": "bbce7f242bcc11658c33fdd10867b25795b4d907bcf94438f0bd3090baebbccd",
+              "manifest_error": null,
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260922T184637553809-review-of-placement-by-token/manifest.md",
+              "manifest_present": true,
+              "manifest_reported_status": "complete",
+              "manifest_status": "complete",
+              "marker": null,
+              "needs_help_complete": null,
+              "next_action": "promote the completed review run once its verdict is read; the run is not itself reviewed",
+              "node": "review-of-placement-by-token",
+              "phase": "starting",
+              "plan": "slurm-hosted-agent-fleet",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "recovery": "promote",
+              "recovery_classification": "promotable",
+              "resets_at": null,
+              "review_error": null,
+              "review_present": false,
+              "review_status": null,
+              "run_id": "r-20260922T184637553809-review-of-placement-by-token",
+              "session": "slurm-fleet-placement",
+              "terminal_age_seconds": 2762,
+              "terminal_at": "2026-09-22T19:09:02Z",
+              "wait_age_seconds": null,
+              "wait_condition_state": null,
+              "wait_key_defect": null,
+              "wait_observed": null,
+              "wait_overdue": null,
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/slurm-fleet-placement/review-of-placement-by-token"
+            },
+            {
+              "budget_overrun": false,
+              "budget_overrun_seconds": 0,
+              "budget_seconds": 2100,
+              "classification": "promotable",
+              "commits_beyond_base": 0,
+              "detail": "the worker manifest reports completion; the run is the review it dispatched with, so the review it wrote is its deliverable and no review of this run is required",
+              "elapsed_seconds": 1369,
+              "external_wait": null,
+              "lifting_condition": null,
+              "liveness_proven": true,
+              "log_age_seconds": 2693,
+              "log_fresh": false,
+              "manifest_commits": [
+                "none - report-only node; its deliverable is the review record outside the repository and no file in the reviewed tree or this worktree was modified"
+              ],
+              "manifest_derived": false,
+              "manifest_digest": "53fb10ac0df95fad6c782519aa9741a1b860d965e9f40b4b85e91aa9924a90d0",
+              "manifest_error": null,
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260922T184704164005-review-of-throttle-delta/manifest.md",
+              "manifest_present": true,
+              "manifest_reported_status": "complete",
+              "manifest_status": "complete",
+              "marker": null,
+              "needs_help_complete": null,
+              "next_action": "promote the completed review run once its verdict is read; the run is not itself reviewed",
+              "node": "review-of-throttle-delta",
+              "phase": "starting",
+              "plan": "slurm-hosted-agent-fleet",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "recovery": "promote",
+              "recovery_classification": "promotable",
+              "resets_at": null,
+              "review_error": null,
+              "review_present": false,
+              "review_status": null,
+              "run_id": "r-20260922T184704164005-review-of-throttle-delta",
+              "session": "slurm-fleet-placement",
+              "terminal_age_seconds": 2728,
+              "terminal_at": "2026-09-22T19:09:36Z",
+              "wait_age_seconds": null,
+              "wait_condition_state": null,
+              "wait_key_defect": null,
+              "wait_observed": null,
+              "wait_overdue": null,
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/slurm-fleet-placement/review-of-throttle-delta"
+            },
+            {
+              "budget_overrun": false,
+              "budget_overrun_seconds": 0,
+              "budget_seconds": 2100,
+              "classification": "promotable",
+              "commits_beyond_base": 0,
+              "detail": "the worker manifest reports completion; the run is the review it dispatched with, so the review it wrote is its deliverable and no review of this run is required",
+              "elapsed_seconds": 1778,
+              "external_wait": null,
+              "lifting_condition": null,
+              "liveness_proven": true,
+              "log_age_seconds": 1705,
+              "log_fresh": false,
+              "manifest_commits": [
+                "none -- this node is a review: its deliverable is the review record named in orientation_write_paths",
+                "not a tree change. The reviewed tree is untouched at f425580a and this worktree carries no git change."
+              ],
+              "manifest_derived": false,
+              "manifest_digest": "f903fea8dc13f4f71e360f36bd43f4f135a681010401adc4b72c225e6cb3fda4",
+              "manifest_error": null,
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260922T185649258017-review-of-lingering-retire/manifest.md",
+              "manifest_present": true,
+              "manifest_reported_status": "complete",
+              "manifest_status": "complete",
+              "marker": null,
+              "needs_help_complete": null,
+              "next_action": "promote the completed review run once its verdict is read; the run is not itself reviewed",
+              "node": "review-of-lingering-retire",
+              "phase": "starting",
+              "plan": "slurm-hosted-agent-fleet",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "recovery": "promote",
+              "recovery_classification": "promotable",
+              "resets_at": null,
+              "review_error": null,
+              "review_present": false,
+              "review_status": null,
+              "run_id": "r-20260922T185649258017-review-of-lingering-retire",
+              "session": "slurm-fleet-placement",
+              "terminal_age_seconds": 1809,
+              "terminal_at": "2026-09-22T19:24:56Z",
+              "wait_age_seconds": null,
+              "wait_condition_state": null,
+              "wait_key_defect": null,
+              "wait_observed": null,
+              "wait_overdue": null,
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/slurm-fleet-placement/review-of-lingering-retire"
+            }
+          ]
+        },
+        "review": {
+          "status": "parsed",
+          "scores": {
+            "durability": 17,
+            "evidence": 19,
+            "fit": 18,
+            "goal_fidelity": 19,
+            "scope_discipline": 20
+          },
+          "absent": [],
+          "total": 93
+        },
+        "throughput": {
+          "cumulative_cached_input_tokens": 8685952,
+          "cumulative_input_tokens": 17536676,
+          "detail": "turn tokens recorded, but no span was supplied to rate them",
+          "generated_tokens": 33132
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": {
+          "status": "underivable",
+          "reason": "model_span_unavailable_at_promotion"
+        },
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/slurm-fleet-placement/placement-answers-the-scheduler",
+          "session_id": "01a0cab0-20d3-7871-beba-a80ccb646d76",
+          "session_source": "stream",
+          "retained_at": "2026-09-22T20:13:05Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "promoted_revision": "9fa10b1e7b7a7fafc98c840c9fa649adddb3d3c1",
+        "plan_impl_at_dispatch": 0.94,
+        "impl_move": {
+          "plan": "slurm-hosted-agent-fleet",
+          "at_dispatch": 0.94,
+          "at_complete": 0.97,
+          "verdict": "moved"
+        },
+        "negative_control": {
+          "verdict": "exempt",
+          "reason": "node-writes-no-test-path"
+        },
+        "lane_advisory": {
+          "backend": "codex",
+          "burn_multiple": 2.8790508623530706,
+          "cheaper_lane": {
+            "detail": "",
+            "lane": null,
+            "state": "not_evaluated"
+          },
+          "detail": "'codex' is projected to exhaust at 2026-09-24T17:05:20Z, which is after this node's 1500s horizon ending 2026-09-22T20:19:41.749563+00:00",
+          "horizon_ends_at": "2026-09-22T20:19:41.749563+00:00",
+          "horizon_seconds": 1500,
+          "metered": true,
+          "observed_at": "2026-09-22T19:54:38Z",
+          "precedes_horizon": false,
+          "projected_exhaustion_at": "2026-09-24T17:05:20Z",
+          "resets_at": "2026-09-28T05:58:54Z",
+          "seconds_until_reset": 468255,
+          "state": "quiet",
+          "utilisation_pct": 65.0
+        },
+        "lane_declaration": {
+          "backend": "codex",
+          "headroom": "known",
+          "metered": true,
+          "observed_at": "2026-09-22T19:54:38Z",
+          "read_at": "2026-09-22T19:54:41Z",
+          "resolved_backend": "codex",
+          "utilisation_pct": 65.0
+        },
+        "lane_reading": {
+          "age_seconds": null,
+          "binding_observed": "unknown",
+          "detail": "backend declares no lane document",
+          "headroom": "unknown",
+          "mean_context": "unknown",
+          "observed_at": null,
+          "state": "unknown",
+          "suggested_shelf_life_seconds": null
+        },
+        "tool_steps": 72.0,
+        "orientation_input_tokens": null,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -70142,6 +70613,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 961
+    "_version": 962
   }
 }
