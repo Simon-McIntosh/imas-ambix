@@ -3,7 +3,8 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import Awaitable, Callable, Sequence
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
+from pathlib import Path
 from typing import Any
 
 from aiohttp import web
@@ -62,8 +63,8 @@ async def _server(app: web.Application):
 
 
 @asynccontextmanager
-async def _router(upstreams: Sequence[Upstream]):
-    app = RouterApp(Resolver(upstreams))
+async def _router(upstreams: Sequence[Upstream], *, gate_file: Path | None = None):
+    app = RouterApp(Resolver(upstreams), gate_file=gate_file)
     try:
         yield app
     finally:
@@ -300,7 +301,9 @@ def test_requested_output_is_capped_to_a_quarter_of_the_model_window() -> None:
     asyncio.run(exercise())
 
 
-def test_sse_bytes_are_identical_and_disconnect_closes_upstream() -> None:
+def test_sse_bytes_are_identical_and_disconnect_closes_upstream(
+    tmp_path, monkeypatch
+) -> None:
     async def exercise() -> None:
         first_event = (
             b"event: content_block_start\n"
@@ -310,23 +313,39 @@ def test_sse_bytes_are_identical_and_disconnect_closes_upstream() -> None:
             b"event: content_block_delta\n"
             b'data: {"type":"tool_use","id":"toolu_exact"}\n\n'
         )
-        upstream_closed = asyncio.Event()
+        upstream_response_closed = asyncio.Event()
+        stream_calls = 0
+        original_close = router.aiohttp.ClientResponse.close
+
+        def observe_router_close(response) -> None:
+            if response.request_info.url.path == "/v1/messages":
+                upstream_response_closed.set()
+            original_close(response)
+
+        monkeypatch.setattr(
+            router.aiohttp.ClientResponse, "close", observe_router_close
+        )
 
         async def catalog(_: web.Request) -> web.Response:
             return web.json_response(
                 {"object": "list", "data": [_card("streamer", context=4096, count=2)]}
             )
 
-        async def stream(_: web.Request) -> web.StreamResponse:
+        async def stream(request: web.Request) -> web.StreamResponse:
+            nonlocal stream_calls
+            stream_calls += 1
             response = web.StreamResponse(headers={"content-type": "text/event-stream"})
-            await response.prepare(_)
-            try:
-                await response.write(first_event)
+            await response.prepare(request)
+            await response.write(first_event)
+            if stream_calls == 1:
                 await asyncio.sleep(0.02)
                 await response.write(second_event)
                 await response.write_eof()
-            except ConnectionError, RuntimeError:
-                upstream_closed.set()
+            else:
+                with suppress(TimeoutError):
+                    await asyncio.wait_for(
+                        upstream_response_closed.wait(), timeout=0.25
+                    )
             return response
 
         engine = web.Application()
@@ -338,6 +357,7 @@ def test_sse_bytes_are_identical_and_disconnect_closes_upstream() -> None:
                 response = await _invoke(app, "POST", "/v1/messages", request)
                 assert _status(response) == 200
                 assert _body(response) == first_event + second_event
+            upstream_response_closed.clear()
 
             disconnected = False
 
@@ -353,7 +373,11 @@ def test_sse_bytes_are_identical_and_disconnect_closes_upstream() -> None:
                     disconnected = True
                     await incoming.put({"type": "http.disconnect"})
 
-            async with _router([Upstream(engine_url)]) as app:
+            gate_file = tmp_path / "router-gate.json"
+            gate_file.write_text(
+                json.dumps({"width": 1, "wait_seconds": 1.0}), encoding="utf-8"
+            )
+            async with _router([Upstream(engine_url)], gate_file=gate_file) as app:
                 await _invoke(
                     app,
                     "POST",
@@ -361,6 +385,8 @@ def test_sse_bytes_are_identical_and_disconnect_closes_upstream() -> None:
                     request,
                     on_send=disconnect_after_first,
                 )
-                await asyncio.wait_for(upstream_closed.wait(), timeout=1)
+                assert upstream_response_closed.is_set()
+                assert app._generation_gate.in_flight == 0
+                assert app._generation_gate.waiting == 0
 
     asyncio.run(exercise())

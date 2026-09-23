@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from collections.abc import Awaitable, Callable, Sequence
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -259,7 +260,7 @@ def test_wait_bound_returns_anthropic_overload_with_retry_after(tmp_path) -> Non
 
 
 def test_gate_configuration_is_checked_once_per_second_gate_wide(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, caplog
 ) -> None:
     gate_file = tmp_path / "router-gate.json"
     _write_gate(gate_file, width=1)
@@ -277,17 +278,34 @@ def test_gate_configuration_is_checked_once_per_second_gate_wide(
     monkeypatch.setattr(Path, "stat", count_stat)
     app = RouterApp(Resolver([]), gate_file=gate_file)
 
-    assert [app._generation_gate.settings().width for _ in range(30)] == [1] * 30
-    assert stat_calls == 1
+    with caplog.at_level(logging.INFO, logger=router_mod.__name__):
+        assert [app._generation_gate.settings().width for _ in range(30)] == [1] * 30
+        clock[0] = 101.001
+        assert app._generation_gate.settings().width == 1
+        clock[0] = 102.002
+        assert app._generation_gate.settings().width == 1
 
-    _write_gate(gate_file, width=2)
-    clock[0] += 0.999
-    assert app._generation_gate.settings().width == 1
-    assert stat_calls == 1
+        config_messages = [
+            record.getMessage()
+            for record in caplog.records
+            if record.getMessage().startswith("generation gate config path=")
+        ]
+        assert len(config_messages) == 1
+        assert stat_calls == 3
 
-    clock[0] = 101.001
-    assert app._generation_gate.settings().width == 2
-    assert stat_calls == 2
+        _write_gate(gate_file, width=2)
+        clock[0] = 103.003
+        assert app._generation_gate.settings().width == 2
+
+    config_messages = [
+        record.getMessage()
+        for record in caplog.records
+        if record.getMessage().startswith("generation gate config path=")
+    ]
+    assert len(config_messages) == 2
+    assert "width=1" in config_messages[0]
+    assert "width=2" in config_messages[1]
+    assert stat_calls == 4
 
 
 def test_missing_gate_file_uses_five_minute_wait_default(tmp_path) -> None:

@@ -27,7 +27,8 @@
     <h2>Global router generation gate</h2>
     <p>Commits <code>4bb11e89</code>, <code>da60421b</code> and
     <code>7ecfec3b</code> added and hardened a single FIFO admission point shared by
-    both generation paths. The runtime file
+    both generation paths. Generation requests enter that FIFO only after catalog
+    resolution selects an upstream. The runtime file
     <code>router-gate.json</code>, beside <code>lane.json</code>, carries
     <code>width</code> and <code>wait_seconds</code>; it is re-read when replaced or
     edited. One gate-wide monotonic deadline limits file metadata and content reads to
@@ -38,7 +39,7 @@
 
     <figure>
       <img src="/imas-ambix/figures/local-lane-admission-control/router-generation-gate.svg"
-           alt="Generation requests pass through one FIFO into at most W relay slots, while catalog, health and token-count requests bypass it; timeouts return 529 and disconnects release queue or relay capacity.">
+           alt="Generation requests resolve their catalog owner before passing through one FIFO into at most W relay slots; catalog listing and token-count requests bypass it, and the router has no health route. Timeouts return 529 and disconnects release queue or relay capacity.">
       <figcaption>The queue holds no engine KV. Capacity returns in a
       <code>finally</code> after an upstream response completes, the caller disconnects,
       or the relay is cancelled.</figcaption>
@@ -82,6 +83,43 @@
     deployment was performed. Applying the code to the live service remains the
     separately authorised action because a router restart drops streams already in
     flight.</p>
+  </section>
+
+  <section id="router-gate-hardening">
+    <h2>Router gate hardening</h2>
+    <p>Commit <code>8f9e90f1</code> replaced the disconnect test's indirect dependency
+    on a later stub write raising an exception with observations of the router's own
+    upstream <code>ClientResponse.close()</code> and the gate returning to
+    <code>in_flight=0</code> and <code>waiting=0</code>. It also logs the effective gate
+    configuration only when the width or wait bound changes, and corrects the router
+    docstrings, operator guidance and flow figure: FIFO order begins after catalog
+    resolution, catalog listing and token counting bypass decode admission, and the
+    router exposes no health route.</p>
+    <table>
+      <thead><tr><th>Measure</th><th>Observed result</th></tr></thead>
+      <tbody>
+        <tr><td>Historical repetition</td><td>The former exception-only test had
+        <strong>0 failures in 20 independent runs</strong> at pre-gate revision
+        <code>5ca04952</code> and <strong>0 failures in 20</strong> at worktree base
+        <code>cba9e38f</code>. The previously recorded one-in-five timeout did not recur,
+        so no new router close behavior was implemented.</td></tr>
+        <tr><td>Direct disconnect proof</td><td>The rewritten test passed
+        <strong>20 of 20</strong> independent runs at <code>8f9e90f1</code>, observing
+        both the router's explicit upstream close and release of its width-1 slot.</td></tr>
+        <tr><td>Declared mutation</td><td>Removing the explicit upstream response close
+        made the rewritten test fail on
+        <code>assert upstream_response_closed.is_set()</code>, with exit 1. The gate-slot
+        assertion therefore cannot mask a relay that stops closing its upstream.</td></tr>
+        <tr><td>Configuration log cadence</td><td>The INFO record was emitted once across
+        three unchanged one-second refreshes and a second time after width changed from
+        1 to 2.</td></tr>
+        <tr><td>Focused and lint gates</td><td>All <strong>45</strong> collected
+        <code>tests/test_agent_router*.py</code> tests passed; whole-tree
+        <code>ruff check imas_ambix tests</code> exited 0.</td></tr>
+      </tbody>
+    </table>
+    <p><strong>Operational boundary.</strong> No router or engine process was restarted
+    or reconfigured. Deployment remains separately authorised.</p>
   </section>
 
   <section id="router-gate-integrated-repetition">
