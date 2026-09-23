@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-23T09:34:26",
+  "updated": "2026-09-23T09:49:54",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -71104,6 +71104,285 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260923T062821975138-router-global-gate",
+        "plan": "local-lane-admission-control",
+        "section": "\u00a77",
+        "node": "router-global-gate",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 2617,
+                "cached_input_tokens": 224478,
+                "input_tokens": 227097,
+                "output_tokens": 848,
+                "reasoning_output_tokens": 56,
+                "total_tokens": 227945,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "74b53aa2-1d4b-451f-8ce7-33c072085f83",
+            "session_id": "llac-20260923"
+          },
+          "done_when": "uv run --no-sync pytest tests/test_agent_router_gate.py tests/test_agent_router*.py passes, where tests/test_agent_router_gate.py observes each of the four \u00a77 behaviours against a stub upstream: at most W upstream generation requests in flight while more than W concurrent streams complete with none refused; HTTP 529 overloaded_error with Retry-After after the wait bound; a disconnected waiter and a disconnected streamer each releasing its slot; and an edit to the gate file changing W on a running app; plus catalog and count_tokens requests passing a full gate; the declared negative control is applied, tests/test_agent_router_gate.py is observed to fail, and that log is recorded in the manifest; uv run --no-sync ruff check imas_ambix tests exits 0",
+          "estimated_hours": null,
+          "goal": "Bound the router's upstream generation requests with one global FIFO in-flight gate as \u00a77 specifies",
+          "id": "router-global-gate",
+          "lane_declaration": {
+            "backend": "codex",
+            "headroom": "known",
+            "metered": true,
+            "observed_at": "2026-09-23T06:28:24Z",
+            "read_at": "2026-09-23T06:28:26Z",
+            "resolved_backend": "codex",
+            "utilisation_pct": 75.0
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "backend declares no lane document",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T062821975138-router-global-gate/manifest.md",
+          "negative_control": "remove the gate acquire from the relay path so upstream requests are unbounded; the width test in tests/test_agent_router_gate.py must fail",
+          "plan": "local-lane-admission-control",
+          "requested_backend": "codex",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a77",
+          "spec_level": "guided",
+          "time_budget": "45m",
+          "token_budget": null,
+          "write_paths": [
+            "imas_ambix/agent/router.py",
+            "tests/test_agent_router_gate.py",
+            "docs/evidence/archive/local-lane-admission-control-landed.html",
+            "docs/figures/local-lane-admission-control",
+            "docs/plans/local-lane-admission-control.html"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "llac-gate",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-23T06:28:52Z",
+        "completed_at": "2026-09-23T07:29:08Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 3616,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 3616,
+        "stalled": false,
+        "time_budget": "45m",
+        "base_sha": "5ca0495273d2b9e529080180ee61da561be6753b",
+        "commits": [
+          "4bb11e8917c6dc9662d6214da6ec7eb595713984",
+          "da60421b4267fc7fc6fafb2a7e5dbb242da1cfba",
+          "569b91efd9e1e2e0e00c6d86cd589810391752c5",
+          "7ecfec3ba6ed3d68d68e03a104bd33e70ba75037",
+          "decc190bc301c74e02f2491bc6a557a163f9c744"
+        ],
+        "changed_lines": {
+          "added": 1052,
+          "removed": 87,
+          "files": 7
+        },
+        "tests_added": 12,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/test_agent_router_gate.py tests/test_agent_router*.py",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T062821975138-router-global-gate/correction-router-gate.log",
+          "log_digest": "sha256:df960ab48d8c6018acddcbd55c1f7630744cc9fefbff98967473784fcfc9b791"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T062821975138-router-global-gate/manifest.md",
+        "scope_changed": true,
+        "session_id": "01a0ccf3-ef88-7ee3-bbe8-2a76e3564cba",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 33705088,
+            "cached_input_tokens_cumulative": 33705088,
+            "input_tokens": 34079646,
+            "input_tokens_cumulative": 34079646,
+            "output_tokens": 80938,
+            "output_tokens_cumulative": 80938,
+            "reasoning_output_tokens": 25773,
+            "reasoning_output_tokens_cumulative": 25773
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lane_receipt": {
+          "quota_state": "measured",
+          "observed_at": "2026-09-23T07:29:08Z",
+          "effective_context_window": 380000,
+          "quota_windows": [
+            {
+              "window_minutes": 10080,
+              "used_percent": 78.0,
+              "resets_at": 1790575133,
+              "observed_at": "2026-09-23T07:29:08Z"
+            }
+          ],
+          "notional_cost_usd": 151.4622,
+          "rate_basis": {
+            "model_identifier": "gpt-5.6-sol",
+            "input_per_million": 4.0,
+            "output_per_million": 20.0,
+            "as_of": "2026-09-09"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": {
+          "status": "parsed",
+          "scores": {
+            "durability": 17,
+            "evidence": 18,
+            "fit": 18,
+            "goal_fidelity": 17,
+            "scope_discipline": 20
+          },
+          "absent": [],
+          "total": 90
+        },
+        "throughput": {
+          "cumulative_cached_input_tokens": 33705088,
+          "cumulative_input_tokens": 34079646,
+          "detail": "model span bounded from the client rollout's tool spans; input cumulative summed across resets",
+          "generated_tokens": 106711,
+          "generation_seconds": 3193.907,
+          "machine_seconds": 418.998,
+          "tokens_per_second": 33.41
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent_router_gate.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        },
+        "attempt_kind": "resume",
+        "attempt": 2,
+        "duration_measurement": null,
+        "scope_acceptances": [
+          {
+            "path": "imas_ambix/agent/AGENTS.md",
+            "reason": "coordinator-authorised in resume advice to retire the stale unbounded-router guidance"
+          },
+          {
+            "path": "tests/test_agent_router_service.py",
+            "reason": "coordinator-authorised in resume advice to retire stale unbounded-router docstrings"
+          }
+        ],
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/llac-20260923/router-global-gate",
+          "session_id": "01a0ccf3-ef88-7ee3-bbe8-2a76e3564cba",
+          "session_source": "pointer",
+          "retained_at": "2026-09-23T07:29:08Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "promoted_revision": "decc190bc301c74e02f2491bc6a557a163f9c744",
+        "plan_impl_at_dispatch": 0.0,
+        "impl_move": {
+          "plan": "local-lane-admission-control",
+          "at_dispatch": 0.0,
+          "at_complete": 0.1,
+          "verdict": "moved"
+        },
+        "negative_control": {
+          "verdict": "matched",
+          "test_paths": [
+            "tests/test_agent_router_gate.py"
+          ],
+          "declaration": "remove the gate acquire from the relay path so upstream requests are unbounded; the width test in tests/test_agent_router_gate.py must fail",
+          "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T062821975138-router-global-gate/correction-negative-control.log",
+          "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T062821975138-router-global-gate/correction-negative-control.log"
+        },
+        "lane_advisory": {
+          "backend": "codex",
+          "burn_multiple": 2.598354833535733,
+          "cheaper_lane": {
+            "detail": "",
+            "lane": null,
+            "state": "not_evaluated"
+          },
+          "detail": "'codex' is projected to exhaust at 2026-09-25T04:28:01Z, which is after this node's 2700s horizon ending 2026-09-23T07:13:26.266909+00:00",
+          "horizon_ends_at": "2026-09-23T07:13:26.266909+00:00",
+          "horizon_seconds": 2700,
+          "metered": true,
+          "observed_at": "2026-09-23T06:28:24Z",
+          "precedes_horizon": false,
+          "projected_exhaustion_at": "2026-09-25T04:28:01Z",
+          "resets_at": "2026-09-28T05:58:53Z",
+          "seconds_until_reset": 430228,
+          "state": "quiet",
+          "utilisation_pct": 75.0
+        },
+        "lane_declaration": {
+          "backend": "codex",
+          "headroom": "known",
+          "metered": true,
+          "observed_at": "2026-09-23T06:28:24Z",
+          "read_at": "2026-09-23T06:28:26Z",
+          "resolved_backend": "codex",
+          "utilisation_pct": 75.0
+        },
+        "lane_reading": {
+          "age_seconds": null,
+          "binding_observed": "unknown",
+          "detail": "backend declares no lane document",
+          "headroom": "unknown",
+          "mean_context": "unknown",
+          "observed_at": null,
+          "state": "unknown",
+          "suggested_shelf_life_seconds": null
+        },
+        "tool_steps": 132.0,
+        "orientation_input_tokens": null,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -71192,6 +71471,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 970
+    "_version": 971
   }
 }
