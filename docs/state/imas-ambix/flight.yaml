@@ -22,11 +22,15 @@ version: 1
 backends:
   clive:
     placement:
-      scheduler: imas-ambix
-      # The `--` is what keeps the wrapped command's own flags out of the
-      # wrapper's argument parsing, so the resolved launch is carried through
-      # unchanged.
-      options: ["agent", "fleet", "place", "--"]
+      # The step client itself, resolved on PATH as /usr/bin/srun. Reckon
+      # reads the held allocation from the reservation every session shares
+      # and prefixes `--overlap --jobid=<held>` ahead of these options, so the
+      # identifier is resolved per launch and is absent from this file for the
+      # same reason it was absent before: it goes stale on a resubmit, and it
+      # does so silently, returning workers to the login node while every
+      # record still reports them placed.
+      scheduler: srun
+      options: []
       # The same wrapper's status surface identifies the allocation selected by
       # its comment token. Reckon reads the numeric token from this output and
       # substitutes it into both scheduler queries below.
