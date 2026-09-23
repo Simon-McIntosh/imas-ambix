@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-23T14:55:48",
+  "updated": "2026-09-23T14:57:53",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -79104,6 +79104,249 @@
           "status": "failed",
           "error": "IntegrityError: UNIQUE constraint failed: runs.run_id"
         }
+      },
+      {
+        "run_id": "r-20260923T061919862986-engine-scheduler-levers",
+        "plan": "local-lane-admission-control",
+        "section": "\u00a74",
+        "node": "engine-scheduler-levers",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1024,
+                "cached_input_tokens": 189614,
+                "input_tokens": 190640,
+                "output_tokens": 899,
+                "reasoning_output_tokens": 161,
+                "total_tokens": 191539,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "74b53aa2-1d4b-451f-8ce7-33c072085f83",
+            "session_id": "llac-20260923"
+          },
+          "done_when": "the report at /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/llac-20260923/engine-scheduler-levers.md names the SGLang version installed in the DSv4.1 serve environment and answers each of the seven \u00a74 questions with a value or yes/no, citing file:line in that installed source for every answer, and marks any question the source cannot settle as unsettled with the files searched",
+          "estimated_hours": null,
+          "goal": "Establish which admission levers the installed SGLang scheduler offers the DSv4.1 serve",
+          "id": "engine-scheduler-levers",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-23T06:19:20Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no 'binding_observed'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T061919862986-engine-scheduler-levers/manifest.md",
+          "negative_control": "",
+          "plan": "local-lane-admission-control",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "investigate",
+          "section": "\u00a74",
+          "spec_level": "guided",
+          "time_budget": "40m",
+          "token_budget": null,
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/llac-20260923/engine-scheduler-levers.md"
+          ]
+        },
+        "role": "investigate",
+        "spec_level": "guided",
+        "member": "llac-engine",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "read-only"
+        },
+        "dispatched_at": "2026-09-23T06:19:37Z",
+        "completed_at": "2026-09-23T10:01:19Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": null,
+        "worker_seconds_source": "stalled",
+        "wall_seconds": 13302,
+        "stalled": true,
+        "time_budget": "40m",
+        "base_sha": "14eeddc7b87f5084f605b8da5c2f05871d8c742b",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "report answers the seven \u00a74 questions with file:line citations in the installed SGLang source",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T061919862986-engine-scheduler-levers/gate.log",
+          "log_digest": "sha256:1e6742d46ea524eb8a0611fe3c282b3fabafa3ffb1a6792103c1d659d567cab7"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T061919862986-engine-scheduler-levers/manifest.md",
+        "scope_changed": false,
+        "session_id": null,
+        "budget": {
+          "cost_usd": null,
+          "detail": "no rate-limit event in the stream yet",
+          "headroom": "unknown",
+          "rate_limit_period_minutes": null,
+          "rate_limit_type": null,
+          "refusal": false,
+          "resets_at": null,
+          "surpassed_threshold": null,
+          "threshold_status": null,
+          "tokens": null,
+          "utilisation_pct": null
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-23T10:01:19Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "missing_rollout"
+          }
+        },
+        "lineage": {
+          "attempt": 2,
+          "kind": "lane-change",
+          "lanes": [
+            {
+              "changed_at": "2026-09-23T09:41:58Z",
+              "detail": "starting fresh because the session cannot follow the move from harness 'claude' to 'codex'",
+              "from_backend": "clive",
+              "from_harness": "claude",
+              "reason": "local lane stalls long read-only runs under load (stream quiet >50 min); moving to codex",
+              "session": "fresh",
+              "session_id": "a1788440-fb2a-452e-8a59-f60e7d4dfe07",
+              "session_source": "pointer",
+              "to_backend": "codex",
+              "to_harness": "codex"
+            }
+          ],
+          "root_run_id": "r-20260923T061919862986-engine-scheduler-levers"
+        },
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": {
+          "status": "parsed",
+          "scores": {
+            "durability": 17,
+            "evidence": 18,
+            "fit": 19,
+            "goal_fidelity": 18,
+            "scope_discipline": 19
+          },
+          "absent": [
+            "A statement in the report itself that a live readback was attempted and failed; it survives only in the manifest's follow_ons."
+          ],
+          "total": 91
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": false,
+          "matched_measure": null,
+          "override": false,
+          "role": "investigate",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "lane-change",
+        "attempt": 2,
+        "duration_measurement": {
+          "status": "underivable",
+          "reason": "model_span_unavailable_at_promotion"
+        },
+        "scope_acceptances": null,
+        "no_commit": "read-only investigation; report outside the repository",
+        "commit_resolution": null,
+        "worktree_retention": null,
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "promoted_revision": "14eeddc7b87f5084f605b8da5c2f05871d8c742b",
+        "plan_impl_at_dispatch": 0.0,
+        "impl_move": {
+          "plan": "local-lane-admission-control",
+          "at_dispatch": 0.0,
+          "at_complete": null,
+          "verdict": "exempt",
+          "reason": "role-not-enforced:investigate"
+        },
+        "negative_control": {
+          "verdict": "exempt",
+          "reason": "node-writes-no-test-path"
+        },
+        "lane_advisory": {
+          "backend": "clive",
+          "burn_multiple": null,
+          "cheaper_lane": {
+            "detail": "",
+            "lane": null,
+            "state": "not_evaluated"
+          },
+          "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+          "horizon_ends_at": "2026-09-23T06:59:20.649909+00:00",
+          "horizon_seconds": 2400,
+          "metered": false,
+          "observed_at": null,
+          "precedes_horizon": null,
+          "projected_exhaustion_at": null,
+          "resets_at": null,
+          "seconds_until_reset": null,
+          "state": "quiet",
+          "utilisation_pct": null
+        },
+        "lane_declaration": {
+          "backend": null,
+          "headroom": null,
+          "metered": false,
+          "observed_at": null,
+          "read_at": "2026-09-23T06:19:20Z",
+          "resolved_backend": "clive",
+          "utilisation_pct": null
+        },
+        "lane_reading": {
+          "age_seconds": null,
+          "binding_observed": "unknown",
+          "detail": "lane document carries no 'binding_observed'",
+          "headroom": "unknown",
+          "mean_context": "unknown",
+          "observed_at": null,
+          "state": "unknown",
+          "suggested_shelf_life_seconds": null
+        },
+        "tool_steps": 122.0,
+        "orientation_input_tokens": 8220241.0,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -79192,6 +79435,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 1013
+    "_version": 1014
   }
 }
