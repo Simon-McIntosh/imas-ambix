@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-23">
-<meta name="plan-version" content="17">
+<meta name="plan-version" content="22">
 </head>
 <body>
   <main class="plan-doc">
@@ -315,53 +315,70 @@
     each price a period through <code>ledger_cost</code>. That function bills our
     own cached input at the provider's cache-read rate and only the remainder at
     the prompt rate. Our cache hit rate runs 0.95, peaking at 0.9985, so the
-    printed figure is effectively the lower bound: it assumes the provider would
-    also have given us our own cache.</p>
+    figure printed today sits at the low end of what a provider would really
+    charge: it assumes the provider would also have given us our own cache.</p>
 
     <p><strong>Why our hit rate cannot transfer.</strong> We run one large,
     persistent radix cache. It holds long agent prefixes indefinitely and is shared
     by the whole fleet. A hosted endpoint serving the same model routes each
     request across replicas and providers, expires cached prefixes after minutes,
     and shares nothing between our sessions. A provider would bill most of what
-    we serve from cache as fresh input, and the two input tiers differ by
-    roughly fifty times. We will always achieve a much higher hit rate than a
-    moving endpoint can, so our measured rate is the wrong input to the
-    counterfactual.</p>
+    we serve from cache as fresh input, and the provider's prompt rate is
+    roughly fifty times its cache-read rate. On agent traffic like ours, our hit
+    rate will run far above anything a moving endpoint can reach, so our measured
+    rate is the wrong input to the counterfactual.</p>
 
     <p><strong>What is displayed: the estimate, and only the estimate.</strong>
-    Every surface prints exactly one cost figure, the best-effort estimate: tokens
-    priced at the provider's published rates for the served model, with input
-    split by an <em>estimated third-party cache hit rate</em> rather than by our
-    own. No minimum and no maximum is printed beside it. The full-cache figure
-    (our measured hit rate) and the no-cache figure are not shown in any surface,
-    because neither answers the question and a band invites the reader to pick an
-    endpoint. The coordinator comment on the counterfactual describes a band
-    reported beside the estimate. That band is superseded by this paragraph at the
-    lead's direction. The output names the assumed hit rate and its source in a
-    short label beside the figure, so a reader can see what the number rests
-    on.</p>
+    Every surface that prints a cost prints exactly one cost figure, the
+    best-effort estimate. It is computed from the price row that
+    <code>match_price</code> already resolves for the served model from the
+    cached provider price table, at the rate in force for the period
+    (<code>price_at</code>). With <em>h</em> the estimated third-party cache hit
+    rate, it is:</p>
+    <p><code>h &times; input tokens &times; cache-read rate + (1 &minus; h)
+    &times; input tokens &times; prompt rate + output tokens &times; completion
+    rate</code></p>
+    <p>Our own cached token count does not enter the formula. No minimum and no
+    maximum is printed beside the estimate. The own-cache figure (what
+    <code>ledger_cost</code> computes today) and the no-cache figure are not
+    computed for display and not printed anywhere. Neither answers the question,
+    and a band invites the reader to pick an endpoint. The coordinator comment
+    on the counterfactual describes a band reported beside the estimate; that
+    band is superseded by this paragraph at the lead's direction. Beside the
+    figure, a short label gives <em>h</em> as a percentage, which of the three
+    sources below it came from, and that source's citation: the measuring
+    endpoint and date, the receipt window, or the provider page and date.</p>
 
     <p><strong>Where the estimated rate comes from, in order of preference.</strong></p>
     <ol>
       <li><em>Measured on a third-party endpoint.</em> A response from a hosted
       provider reports the cached share of its prompt tokens in its usage block.
-      Traffic of the same agent workload sent through the opt-in hosted lane,
-      or a short deliberate replay of recorded agent turns, gives a hit rate
-      that a real moving endpoint actually achieved on our prefixes. It is the
-      grounded figure, and it wins whenever one exists.</li>
+      The measurement comes from agent turns that clive's OpenRouter opt-in lane
+      sent to the same model, or from a deliberate re-send of at least fifty
+      recorded agent turns through that lane. <em>h</em> is the cached prompt
+      tokens summed over those responses divided by the prompt tokens summed
+      over them. It is the grounded figure, and it wins whenever one
+      exists.</li>
       <li><em>Derived from our own request timing.</em> Once request receipts
-      exist (after the relay restart in &sect;7), replay each caller's
-      inter-request gaps against a provider's published cache lifetime. A prefix
-      re-sent inside the lifetime counts as a hit; everything else counts as
-      fresh input.</li>
-      <li><em>A published provider figure</em>, cited with its source and date in
-      the price cache, used only until one of the two above exists.</li>
+      exist (after the relay restart in &sect;7), compute it from the receipts
+      without sending anything. For each caller, a request counts as a hit when
+      the same caller's previous request arrived within the provider's published
+      cache lifetime. The lifetime is timed from that previous request, so a
+      prefix that keeps being re-sent stays cached; a gap of exactly the
+      lifetime counts as a miss. <em>h</em> is the hit requests' prompt tokens
+      over all prompt tokens.</li>
+      <li><em>A published provider figure</em>, with its provider page and
+      date, used only until one of the two above exists.</li>
     </ol>
-    <p>The estimate is recorded with its source and observation time in one place
-    that both surfaces read. It is never a constant repeated inside two tools.
-    This is the shared cost model that the gpu-watch consolidation followup moves
-    that tool onto, so gpu-watch inherits the realistic figure by construction
-    rather than by a second implementation.</p>
+    <p>The estimate is recorded as one small JSON record of its own: <em>h</em>,
+    the source kind, the citation and the observation time. It is kept beside
+    the provider price table but never inside it, because that table is
+    re-fetched and overwritten on its refresh interval. The watch command reads
+    the record through one function in <code>imas_ambix/agent/watch.py</code>,
+    and it is never a constant repeated inside two tools. Moving gpu-watch onto
+    that function is the work of the separate gpu-watch consolidation followup,
+    not of this section, so gpu-watch inherits the figure there rather than by a
+    second implementation.</p>
 
     <table>
       <caption>Nodes for this section.</caption>
@@ -373,14 +390,19 @@
       </tbody>
     </table>
 
-    <p><strong>Done when:</strong> for a fixture period, the watch command's cost
-    column prints exactly one figure, equal to that period's tokens priced at
-    the recorded estimated third-party hit rate. A test pins that figure by
-    literal. A second test asserts the output contains neither the
-    own-cache figure nor the no-cache figure. The declared negative control is to
-    price input by our own measured cached count instead of the estimate, and
-    that control reddens the pinned-figure test. The output names the assumed
-    rate and its source.</p>
+    <p><strong>Done when</strong> (the printing node; the test lives in this
+    repository's suite): for a fixture period with non-zero input, cached and
+    output tokens, a fixture price row and a fixture estimate record,
+    <code>imas-ambix agent watch</code> prints exactly one cost figure per period
+    row, equal to the formula above. A test pins that figure by literal. A second
+    test computes the own-cache figure (<code>ledger_cost</code> on the same
+    period) and the no-cache figure (<em>h</em> = 0), and asserts neither value,
+    formatted as the column formats it, appears anywhere in the output. The
+    declared negative control is to replace <em>h &times;</em> input tokens with
+    the period's own recorded cached token count, which is what
+    <code>ledger_cost</code> does, and that control must redden the pinned-figure
+    test. A third test asserts the label beside the figure carries <em>h</em>,
+    the source kind and the citation from the fixture record.</p>
 
     <h2 id="s8">§8 — Compaction must integrate, not drop</h2>
 
@@ -510,7 +532,7 @@
     </article>
 <article class="r-fu" data-id="f-srw-005" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="elevated" data-written-by="reckon-edit" data-written-at="2026-09-23" data-recommends-skill="/reckon-ship serving-record-warehouse §8" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Make compaction integrate before anything retires a raw file</h4>
-    <div class="r-fu-body"><p>Start at <strong>&sect;8</strong>. It is scoped as four steps and a fifth that only the first four permit, and the order is not a preference: the fifth deletes data the first four are what preserve.</p><p><strong>The measured defect, reproducible in a few lines.</strong> Compact two serves that restart inside one minute of one boot &mdash; job 1001 advancing to 1,500,000 and job 1002 restarting at 0 and reaching 20,000 &mdash; and the single row that comes out carries job 1002 and 20,000. The first serve's closing value, and every token behind it, is gone. Use that as the node's negative control: it must redden once compaction is correct, and it is the exact shape a retention policy would silently destroy.</p><p><strong>The root is that a run is defined twice.</strong> <code>partitioned_total</code> ends a run at a change of host, boot or job or at a counter that fails to advance; <code>compact_rows</code> groups by host and boot alone. Share one predicate rather than repairing the symptom, or the two will drift again.</p><p><strong>Do not implement retention in this node.</strong> The done-when is the equality: for any window, the partitioned total over compacted rows equals the total over the raw rows they replace &mdash; across a restart, across a null-rich stretch, and through the tier chain, so raw to minute to hour agrees with raw straight to hour. Retention is a separate node gated on that test existing and passing, because the deletion cannot be undone and the equality is the only thing that licenses it.</p><p>Two things not to carry forward as assumptions. The minute and hour tiers are <strong>wrong today</strong>, so any figure already drawn from them under-reports across restarts. And the index ingests raw and compacted files into one sample table with no query distinguishing them &mdash; <code>key_kind</code> names host and boot resolution, not tier &mdash; so a window covered by both is answered from both; decide deliberately whether that is in this node's scope or its own.</p><p>A node touching <code>imas_ambix/agent/</code> must put the serving-interpreter guard in its done-when &mdash; <code>pytest tests/test_agent_serve_registry.py -k agent_package_modules_parse_with_serving_python</code>.</p></div>
+    <div class="r-fu-body"><p>Start at <strong>§8</strong>. It is scoped as four steps and a fifth that only the first four permit, and the order is not a preference: the fifth deletes data the first four are what preserve.</p><p><strong>The measured defect, reproducible in a few lines.</strong> Compact two serves that restart inside one minute of one boot — job 1001 advancing to 1,500,000 and job 1002 restarting at 0 and reaching 20,000 — and the single row that comes out carries job 1002 and 20,000. The first serve's closing value, and every token behind it, is gone. Use that as the node's negative control: it must redden once compaction is correct, and it is the exact shape a retention policy would silently destroy.</p><p><strong>The root is that a run is defined twice.</strong> <code>partitioned_total</code> ends a run at a change of host, boot or job or at a counter that fails to advance; <code>compact_rows</code> groups by host and boot alone. Share one predicate rather than repairing the symptom, or the two will drift again.</p><p><strong>Do not implement retention in this node.</strong> The done-when is the equality: for any window, the partitioned total over compacted rows equals the total over the raw rows they replace — across a restart, across a null-rich stretch, and through the tier chain, so raw to minute to hour agrees with raw straight to hour. Retention is a separate node gated on that test existing and passing, because the deletion cannot be undone and the equality is the only thing that licenses it.</p><p>Two things not to carry forward as assumptions. The minute and hour tiers are <strong>wrong today</strong>, so any figure already drawn from them under-reports across restarts. And the index ingests raw and compacted files into one sample table with no query distinguishing them — <code>key_kind</code> names host and boot resolution, not tier — so a window covered by both is answered from both; decide deliberately whether that is in this node's scope or its own.</p><p>A node touching <code>imas_ambix/agent/</code> must put the serving-interpreter guard in its done-when — <code>pytest tests/test_agent_serve_registry.py -k agent_package_modules_parse_with_serving_python</code>.</p></div>
     <pre class="r-fu-prompt">/reckon-ship serving-record-warehouse §8</pre>
     </article>
 </section>
