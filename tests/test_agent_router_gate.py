@@ -41,6 +41,28 @@ def _write_gate(path: Path, *, width: int, wait_seconds: float = 1.0) -> None:
     )
 
 
+def _write_auto_gate(
+    path: Path,
+    *,
+    occupancy_target: float = 0.90,
+    width_floor: int = 16,
+    width_cap: int = 36,
+    wait_seconds: float = 1.0,
+) -> None:
+    path.write_text(
+        json.dumps(
+            {
+                "width": "auto",
+                "occupancy_target": occupancy_target,
+                "width_floor": width_floor,
+                "width_cap": width_cap,
+                "wait_seconds": wait_seconds,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 @asynccontextmanager
 async def _server(app: web.Application):
     runner = web.AppRunner(app)
@@ -532,6 +554,8 @@ def test_lane_document_publishes_nonzero_gate_counts(tmp_path) -> None:
         assert published["waiting"] == 2
         assert published["router_generation_gate"] == {
             "config_path": str(gate_file),
+            "context_estimate": None,
+            "effective_width": 1,
             "enabled": True,
             "in_flight": 1,
             "wait_seconds": 1.0,
@@ -546,5 +570,89 @@ def test_lane_document_publishes_nonzero_gate_counts(tmp_path) -> None:
             first.disconnect_task.cancel()
             await asyncio.gather(first.disconnect_task, return_exceptions=True)
         await app._generation_gate.release()
+
+    asyncio.run(exercise())
+
+
+def test_auto_width_follows_pool_and_context_within_its_clamp(tmp_path) -> None:
+    gate_file = tmp_path / "router-gate.json"
+    _write_auto_gate(gate_file)
+
+    # At a 4,000,000-token pool and a 0.90 target, floor(pool * target / ctx)
+    # hits the cap for a small context and the floor for a large one.
+    cases = [(500_000, 16), (200_000, 18), (20_000, 36)]
+    for context, expected in cases:
+        gate = router_mod._GenerationGate(gate_file)
+        gate.observe_lane(4_000_000, context, now=0.0)
+        assert gate.settings().width == expected, (context, expected)
+
+
+def test_auto_width_estimate_is_slow_enough_to_absorb_an_outlier(tmp_path) -> None:
+    assert router_mod.DEFAULT_AUTO_CONTEXT_TIME_CONSTANT_SECONDS >= 600.0
+    gate_file = tmp_path / "router-gate.json"
+    _write_auto_gate(gate_file)
+    gate = router_mod._GenerationGate(gate_file)
+
+    gate.observe_lane(4_000_000, 100_000, now=0.0)
+    assert gate._context_estimate == 100_000.0
+    # One reading twice the level, one lane interval later, must move the
+    # estimate by less than a tenth rather than to the reading itself.
+    gate.observe_lane(4_000_000, 200_000, now=30.0)
+    assert 100_000.0 < gate._context_estimate < 110_000.0
+
+
+def test_auto_width_holds_last_width_without_a_reading(tmp_path, monkeypatch) -> None:
+    gate_file = tmp_path / "router-gate.json"
+    _write_auto_gate(gate_file)
+    clock = [1000.0]
+    monkeypatch.setattr(router_mod.time, "monotonic", lambda: clock[0])
+    gate = router_mod._GenerationGate(gate_file)
+
+    # Before any reading the floor stands, and a missing key is never read as
+    # zero: the gate would otherwise admit nothing at all.
+    assert gate.settings().width == 16
+
+    gate.observe_lane(4_000_000, 200_000, now=clock[0])
+    clock[0] += 2.0
+    assert gate.settings().width == 18
+
+    # An idle lane reports no context and a reading without a pool size reports
+    # no shape; both are held across rather than folded in.
+    gate.observe_lane(4_000_000, None, now=clock[0])
+    clock[0] += 2.0
+    assert gate.settings().width == 18
+    gate.observe_lane(None, 50_000, now=clock[0])
+    clock[0] += 2.0
+    assert gate.settings().width == 18
+
+
+def test_integer_width_ignores_lane_readings(tmp_path) -> None:
+    gate_file = tmp_path / "router-gate.json"
+    _write_gate(gate_file, width=2)
+    gate = router_mod._GenerationGate(gate_file)
+
+    # A context that would size the auto mode to the floor leaves a fixed
+    # integer width exactly as it was configured.
+    gate.observe_lane(4_000_000, 500_000, now=0.0)
+    assert gate.settings().width == 2
+
+
+def test_auto_width_publishes_effective_width_and_estimate(tmp_path) -> None:
+    async def exercise() -> None:
+        gate_file = tmp_path / "router-gate.json"
+        lane_document = tmp_path / "lane.json"
+        _write_auto_gate(gate_file)
+        lane_document.write_text(
+            json.dumps({"running": 9, "waiting": 2}), encoding="utf-8"
+        )
+        app = RouterApp(Resolver([]), lane_document=lane_document, gate_file=gate_file)
+        app._generation_gate.observe_lane(4_000_000, 200_000, now=0.0)
+
+        app._publish_gate_snapshot()
+        published = json.loads(lane_document.read_text(encoding="utf-8"))
+        gate_snapshot = published["router_generation_gate"]
+        assert gate_snapshot["width"] == 18
+        assert gate_snapshot["effective_width"] == 18
+        assert gate_snapshot["context_estimate"] == 200_000.0
 
     asyncio.run(exercise())

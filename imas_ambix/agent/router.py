@@ -13,7 +13,7 @@ import time
 from collections import deque
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from contextlib import suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Protocol
 
@@ -57,11 +57,34 @@ DEFAULT_GENERATION_WAIT_SECONDS = 300.0
 GENERATION_RETRY_AFTER_SECONDS = 5
 _GATE_CONFIG_REFRESH_SECONDS = 1.0
 
+# The automatic width mode sizes the gate to the pool the engine actually holds
+# rather than to a number an operator picks once and forgets. The width is
+# floor(pool tokens x target / context), so it moves with the workload: a lane
+# whose sessions hold small contexts admits more of them, and one carrying large
+# contexts admits fewer. The floor is the width below which the lane would stop
+# serving the sessions already waiting on it; the cap is the engine's own
+# running ceiling, which the gate must never advertise past because the engine
+# cannot admit more than it regardless.
+GATE_AUTO_WIDTH = "auto"
+DEFAULT_AUTO_OCCUPANCY_TARGET = 0.90
+DEFAULT_AUTO_WIDTH_FLOOR = 16
+DEFAULT_AUTO_WIDTH_CAP = 36
+# The context estimate is deliberately slow: one reading that happens to catch
+# an unusual working set must not swing the admitted width. A time constant of
+# ten minutes at the thirty-second lane cadence weights each new sample at under
+# five percent, so a single outlier moves the estimate by well under a tenth of
+# its value while a genuine shift still arrives within a few minutes.
+DEFAULT_AUTO_CONTEXT_TIME_CONSTANT_SECONDS = 600.0
+
 
 @dataclass(frozen=True, slots=True)
 class _GateSettings:
     width: int
     wait_seconds: float
+    auto: bool = False
+    occupancy_target: float = DEFAULT_AUTO_OCCUPANCY_TARGET
+    width_floor: int = DEFAULT_AUTO_WIDTH_FLOOR
+    width_cap: int = DEFAULT_AUTO_WIDTH_CAP
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,6 +112,15 @@ class _GenerationGate:
         self._condition = asyncio.Condition()
         self._waiters: deque[object] = deque()
         self._in_flight = 0
+        # Automatic width state, fed only by fresh measured readings. The
+        # estimate starts undefined so the first reading seeds it whole rather
+        # than being averaged against a guess, and the last computed width is
+        # retained so a lane that goes quiet holds the width it last justified
+        # instead of dropping to nothing.
+        self._context_estimate: float | None = None
+        self._context_stamp = 0.0
+        self._pool_tokens: int | None = None
+        self._effective_width: int | None = None
 
     @property
     def in_flight(self) -> int:
@@ -119,18 +151,7 @@ class _GenerationGate:
                 payload = json.loads(self.config_path.read_text(encoding="utf-8"))
                 if not isinstance(payload, Mapping):
                     raise ValueError("the root must be an object")
-                width = payload.get("width", self._defaults.width)
-                wait_seconds = payload.get("wait_seconds", self._defaults.wait_seconds)
-                if type(width) is not int or width < 0:
-                    raise ValueError("width must be a non-negative integer")
-                if (
-                    isinstance(wait_seconds, bool)
-                    or not isinstance(wait_seconds, int | float)
-                    or not math.isfinite(wait_seconds)
-                    or wait_seconds <= 0
-                ):
-                    raise ValueError("wait_seconds must be a finite positive number")
-                settings = _GateSettings(width, float(wait_seconds))
+                settings = self._settings_from_payload(payload)
             except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
                 logger.warning(
                     "generation gate config ignored path=%s error=%s: %s; "
@@ -151,6 +172,103 @@ class _GenerationGate:
             )
             self._last_logged_settings = settings
         return settings
+
+    def _settings_from_payload(self, payload: Mapping[str, Any]) -> _GateSettings:
+        """Resolve one gate file into settings, including the automatic width.
+
+        ``width`` accepts the literal ``"auto"`` in place of an integer. Every
+        other key is optional and a malformed one is an error rather than a
+        quiet fallback, so a typo in ``occupancy_target`` cannot leave the gate
+        sizing against a number nobody chose.
+        """
+        wait_seconds = payload.get("wait_seconds", self._defaults.wait_seconds)
+        if (
+            isinstance(wait_seconds, bool)
+            or not isinstance(wait_seconds, int | float)
+            or not math.isfinite(wait_seconds)
+            or wait_seconds <= 0
+        ):
+            raise ValueError("wait_seconds must be a finite positive number")
+        target = payload.get("occupancy_target", DEFAULT_AUTO_OCCUPANCY_TARGET)
+        raw_width = payload.get("width", self._defaults.width)
+        if raw_width == GATE_AUTO_WIDTH:
+            floor = payload.get("width_floor", DEFAULT_AUTO_WIDTH_FLOOR)
+            cap = payload.get("width_cap", DEFAULT_AUTO_WIDTH_CAP)
+            if type(floor) is not int or floor < 0:
+                raise ValueError("width_floor must be a non-negative integer")
+            if type(cap) is not int or cap < 0:
+                raise ValueError("width_cap must be a non-negative integer")
+            if floor > cap:
+                raise ValueError("width_floor must not exceed width_cap")
+            if (
+                isinstance(target, bool)
+                or not isinstance(target, int | float)
+                or not math.isfinite(target)
+                or target <= 0
+            ):
+                raise ValueError("occupancy_target must be a finite positive number")
+            settings = _GateSettings(
+                width=0,
+                wait_seconds=float(wait_seconds),
+                auto=True,
+                occupancy_target=float(target),
+                width_floor=floor,
+                width_cap=cap,
+            )
+            return replace(settings, width=self._auto_width(settings))
+        if type(raw_width) is not int or raw_width < 0:
+            raise ValueError('width must be a non-negative integer or "auto"')
+        return _GateSettings(raw_width, float(wait_seconds))
+
+    def _auto_width(self, settings: _GateSettings) -> int:
+        """The automatic width: pool arithmetic, clamped, or the held value.
+
+        A missing reading is a state to hold across, never a zero to compute
+        from: with no estimate the last width stands, and before any reading the
+        floor does. The cap is the engine's own running ceiling, so the gate must
+        never publish past it however large the pool arithmetic comes out.
+        """
+        if self._context_estimate is not None and self._pool_tokens:
+            raw = math.floor(
+                self._pool_tokens * settings.occupancy_target / self._context_estimate
+            )
+            width = max(settings.width_floor, min(raw, settings.width_cap))
+            self._effective_width = width
+            return width
+        if self._effective_width is not None:
+            return self._effective_width
+        return settings.width_floor
+
+    def observe_lane(
+        self,
+        pool_tokens: int | None,
+        mean_context: int | None,
+        *,
+        now: float | None = None,
+    ) -> None:
+        """Fold one fresh lane reading into the automatic width estimate.
+
+        Only a reading with traffic in it says anything about how large the
+        traffic is: an idle lane reports no context, and a reading without a pool
+        size reports no shape, so both are held across rather than fed in as a
+        small or zero value. The estimate is a time-weighted average so a single
+        unusual reading moves it by a fraction of the reading's own distance.
+        """
+        if pool_tokens is None or pool_tokens <= 0:
+            return
+        if mean_context is None or mean_context <= 0:
+            return
+        stamp = time.monotonic() if now is None else now
+        if self._context_estimate is None:
+            self._context_estimate = float(mean_context)
+        else:
+            elapsed = max(0.0, stamp - self._context_stamp)
+            alpha = 1.0 - math.exp(
+                -elapsed / DEFAULT_AUTO_CONTEXT_TIME_CONSTANT_SECONDS
+            )
+            self._context_estimate += alpha * (mean_context - self._context_estimate)
+        self._context_stamp = stamp
+        self._pool_tokens = pool_tokens
 
     async def acquire(self, receive: Receive) -> _Admission:
         """Wait in FIFO order, or report timeout/departure without a relay."""
@@ -217,6 +335,8 @@ class _GenerationGate:
         return {
             "enabled": settings.width > 0,
             "width": settings.width,
+            "effective_width": settings.width,
+            "context_estimate": self._context_estimate,
             "wait_seconds": settings.wait_seconds,
             "in_flight": self.in_flight,
             "waiting": self.waiting,
@@ -731,6 +851,14 @@ class RouterApp:
                 raise
             else:
                 readings.append(capacity)
+                # The automatic width mode sizes the gate from the pool the
+                # engine reports and the working context its sessions carry, so
+                # the fresh reading is folded in here while it is known to be a
+                # measurement rather than re-read from the published document
+                # the gate itself is writing.
+                self._generation_gate.observe_lane(
+                    capacity.pool_tokens, capacity.mean_context
+                )
                 write_lane_document(
                     capacity,
                     self._lane_document,
