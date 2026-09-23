@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-23">
 <meta name="plan-impl" content="0.0">
-<meta name="plan-version" content="1">
+<meta name="plan-version" content="2">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;}">
 </head>
 <body>
@@ -120,6 +120,49 @@
     disagree, and explain why: different job, pool size, prompt mix, or instrument.
     Put a figure of throughput against width in <code>docs/figures/local-lane-admission</code>.
     The log read runs on <code>all_debug</code>, not the login node.</p>
+
+    <h3 id="s3-landed">Landed — see <a href="/imas-ambix/evidence/archive/local-lane-admission-control-landed.html">the evidence record</a></h3>
+
+    <p><strong>The profile's flat claim holds on its stated range; the ~22 knee is not present.</strong>
+    On the five-day job (1273253) the reader took 79,436 decode intervals with 0 unreadable,
+    spanning 2026-09-17 22:01:09 to its cancellation at 2026-09-23 06:12:04, and 36 widths
+    cleared the 20-interval threshold. Aggregate generation rises steeply to about width
+    sixteen and is then flat from width 17 to 32: the per-width medians over
+    17–32 sit between 365.8 and 389.9&nbsp;tok/s, and the median at the observed operating
+    band — widths 29–31, 317 intervals pooled — is 379.1&nbsp;tok/s against a plateau
+    median of 378.5, a ratio of 1.0.</p>
+
+    <p><strong>The maximum-median width is the cap, not an interior knee.</strong> The
+    largest per-width median anywhere in 1–32 is 389.9&nbsp;tok/s at width 22, a mild local
+    high inside a 380–390 band; widths 23–32 then sit at 366–384, not at 340. The overall
+    maximum is 436.7&nbsp;tok/s at width 36 (24 intervals, 95% interval 418.5–448.9) —
+    the engine's running cap, so no wider bin exists. The ratio of the operating band to
+    that peak is <strong>0.868</strong> (and 0.866 on the live replacement job 1276246,
+    whose peak sits at width 35, n=77). That peak is reported as measured, not as a knee:
+    every interval at width 29 and above was logged in one mid-run window (2026-09-18
+    11:xx to 2026-09-21 21:xx), and the width-36 bin carries a higher speculative accept
+    length (3.82) than the operating band (3.65), so its advantage tracks that window's
+    acceptance rather than width alone. No width above 36 was ever logged, so no knee
+    below the cap appears — which is the profile's justification for 36, and the engine log
+    does not contradict it.</p>
+
+    <p><strong>The two claims disagree because they measure different objects.</strong>
+    The ~22 knee is a window mean: its ordinate is an aggregate output rate averaged over a
+    whole window and its abscissa a <em>mean</em> concurrency (one such window reads
+    "23.05, peak 34"), so a single bin mixes many instantaneous widths and its "knee" is
+    where per-client rate collapses, not where the engine's aggregate rate stops rising.
+    The decode-log instrument pairs a per-step rate with the exact instantaneous width; it
+    separates widths cleanly and finds a flat 17–32 band with no interior peak. Claim B's
+    level (~500&nbsp;tok/s) is not reproduced by any width on this lane.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/local-lane-admission/knee.png" alt="Median aggregate decode throughput with 95% bootstrap intervals against running-request width, for the five-day serve and its live replacement; the operating band and the maximum-median width are marked.">
+      <figcaption>Per-width medians (line) with 95% bootstrap intervals (whiskers) against
+      running width. The curve rises to about width 16, is flat through 32, and takes its
+      maximum at the cap of 36 — a bin from one mid-run window with a higher accept length.
+      The one job is the five-day serve up to the cancellation; the other is the live
+      replacement, a snapshot.</figcaption>
+    </figure>
 
     <h2 id="s4">§4 — What the engine's scheduler can do</h2>
     <p>Read the SGLang source installed in the serve environment. For that exact version,
