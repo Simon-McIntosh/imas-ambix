@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-23">
-<meta name="plan-version" content="23">
+<meta name="plan-version" content="29">
 </head>
 <body>
   <main class="plan-doc">
@@ -306,7 +306,7 @@
     supersede, and a record that changes shape mid-stream is precisely what
     &sect;1 measures the cost of.</p>
 
-    <h2 id="s8">&sect;8 — The cost figure a reader sees is the realistic third-party price</h2>
+    <h2 id="s9">&sect;9 — The cost figure a reader sees is the realistic third-party price</h2>
 
     <p><strong>What the cost column is for.</strong> It answers one question:
     what would this traffic have cost if a third-party provider had served the
@@ -332,8 +332,9 @@
     Every surface that prints a cost prints exactly one cost figure, the
     best-effort estimate. It is computed from the price row that
     <code>match_price</code> already resolves for the served model from the
-    cached provider price table, at the rate in force for the period
-    (<code>price_at</code>). With <em>h</em> the estimated third-party cache hit
+    cached provider price table. Each interval of the period is priced at the
+    rate in force at that interval (<code>price_at</code>), as the watch command
+    already prices a period today. With <em>h</em> the estimated third-party cache hit
     rate, it is:</p>
     <p><code>h &times; input tokens &times; cache-read rate + (1 &minus; h)
     &times; input tokens &times; prompt rate + output tokens &times; completion
@@ -341,7 +342,8 @@
     <p>Our own cached token count does not enter the formula. No minimum and no
     maximum is printed beside the estimate. The own-cache figure (what
     <code>ledger_cost</code> computes today) and the no-cache figure are not
-    computed for display and not printed anywhere. Neither answers the question,
+    computed anywhere in the production path and not printed anywhere; only the
+    tests compute them. Neither answers the question,
     and a band invites the reader to pick an endpoint. The coordinator comment
     on the counterfactual describes a band reported beside the estimate; that
     band is superseded by this paragraph at the lead's direction. Beside the
@@ -354,21 +356,24 @@
       <li><em>Measured on a third-party endpoint.</em> A response from a hosted
       provider reports the cached share of its prompt tokens in its usage block.
       The measurement comes from agent turns that clive's OpenRouter opt-in lane
-      sent to the same model, or from a deliberate re-send of at least fifty
-      recorded agent turns through that lane. <em>h</em> is the cached prompt
-      tokens summed over those responses divided by the prompt tokens summed
-      over them. It is the grounded figure, and it wins whenever one
-      exists.</li>
+      sent to the same model, or from a deliberate re-send of recorded agent
+      turns through that lane; either way the measurement covers at least fifty
+      responses. <em>h</em> is the cached prompt tokens summed over those
+      responses divided by the prompt tokens summed over them. It is the
+      grounded figure, and once one has been obtained and recorded it wins.</li>
       <li><em>Derived from our own request timing.</em> Once request receipts
       exist (after the relay restart in &sect;7), compute it from the receipts
       without sending anything. For each caller, a request counts as a hit when
-      the same caller's previous request arrived within the provider's published
+      the same caller's previous request to the same model arrived within the provider's published
       cache lifetime. The lifetime is timed from that previous request, so a
       prefix that keeps being re-sent stays cached; a gap of exactly the
       lifetime counts as a miss. <em>h</em> is the hit requests' prompt tokens
       over all prompt tokens.</li>
       <li><em>A published provider figure</em>, with its provider page and
-      date, used only until one of the two above exists.</li>
+      date, used only until one of the two above has been obtained and
+      recorded. The first node obtains a measurement whenever clive's
+      OpenRouter opt-in lane can serve the model. It records a published
+      figure only when the lane cannot, and says why in the record.</li>
     </ol>
     <p>The estimate is recorded as one small JSON record of its own: <em>h</em>,
     the source kind, the citation and the observation time. It is kept beside
@@ -398,11 +403,13 @@
     test computes the own-cache figure (<code>ledger_cost</code> on the same
     period) and the no-cache figure (<em>h</em> = 0), and asserts neither value,
     formatted as the column formats it, appears anywhere in the output. The
-    declared negative control is to replace <em>h &times;</em> input tokens with
-    the period's own recorded cached token count, which is what
-    <code>ledger_cost</code> does, and that control must redden the pinned-figure
-    test. A third test asserts the label beside the figure carries <em>h</em>,
-    the source kind and the citation from the fixture record.</p>
+    declared negative control is to split input by the period's own recorded
+    cached token count instead of by <em>h</em>: the cached count at the
+    cache-read rate and the remaining input at the prompt rate, which makes the
+    figure equal to <code>ledger_cost</code>'s. That control must redden the
+    pinned-figure test. A third test asserts that the label beside the figure
+    carries <em>h</em> formatted as a percentage, the source kind and the
+    citation from the fixture record.</p>
 
     <h2 id="s8">§8 — Compaction must integrate, not drop</h2>
 
