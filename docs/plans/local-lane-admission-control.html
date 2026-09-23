@@ -220,6 +220,30 @@
     context-derived <code>concurrent_requests</code>, not a constant. Flat decode across
     widths 10–35 means lowering <em>W</em> costs almost no decode throughput.</p>
 
+    <p><strong>Hardening owed before the gate is deployed.</strong> Three items, each with
+    its own measure:</p>
+    <ol>
+      <li><strong>Disconnect release is proved, not assumed.</strong> In 1 of 5 runs,
+      the pass-through test <code>test_sse_bytes_are_identical_and_disconnect_closes_upstream</code>
+      timed out on the integrated head. The test only notices the upstream closing when
+      the stub's own write fails, so it races that write. The gate commit changed the
+      disconnect watcher's lifecycle. A leaked upstream stream holds KV in production,
+      so "pre-existing flake" must be measured rather than inferred from blame. Run the
+      test 20 times at the pre-gate revision <code>5ca04952</code> and 20 times at the
+      head, and report both failure counts. Then rewrite the test so it observes the
+      router's own upstream close and slot release directly, and show 20 of 20 passes at
+      the head.</li>
+      <li><strong>The record says what the gate does.</strong> Two corrections. FIFO order
+      begins after catalog resolution, not at arrival. The router serves no health route,
+      so no health request bypasses the gate. The router docstrings,
+      <code>imas_ambix/agent/AGENTS.md</code> and the gate figure must say both.</li>
+      <li><strong>Config is logged only when it changes.</strong> Today the INFO line fires
+      on every one-second refresh, about 86,000 lines a day. Log only when the width or
+      wait bound differs from the cached value.</li>
+    </ol>
+    <p>The router restart that deploys the gate is authorised separately. Nothing in this
+    hardening restarts or reconfigures the running router.</p>
+
     <p><strong>The source of <em>W</em> needs a floor and a slow estimator.</strong>
     The lane's <code>concurrent_requests</code> swung 16, 17, 20, 6, 20, 18 and 19 across
     one night. The 6 came at 01:00 with the fleet drained, when a few long-context runs
