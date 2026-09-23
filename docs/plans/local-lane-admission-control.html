@@ -25,8 +25,8 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-23">
 <meta name="plan-impl" content="0.0">
-<meta name="plan-version" content="2">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;}">
+<meta name="plan-version" content="3">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;}">
 </head>
 <body>
   <main class="plan-doc">
@@ -178,6 +178,45 @@
     both releasing their slots. A fourth observes that editing the file changes
     <em>W</em> on a running app. Deployment is a router restart, which drops the streams
     in flight. It is authorised separately and is not part of the node.</p>
+
+    <p>The width is not a fixed knee. Five days of decode samples binned by width
+    (79,435 intervals, read by the slurm-hosted-agent-fleet session) show aggregate decode
+    flat at 346–408 tok/s from width 10 to 35 at that traffic's contexts. The live
+    collapse happens at the same widths only because today's contexts are about 99k
+    tokens. The binding variable is <strong>KV occupancy, width times context</strong>:
+    4M pool tokens over a 98,750-token mean context is 40 requests at full occupancy,
+    and at 35 running the pool is 85% pinned by running requests. That leaves too little
+    room for idle agents' prefixes, which spill into a host tier that is 99.86% full and
+    come back as recomputed prefill. So <em>W</em> tracks the lane document's own
+    context-derived <code>concurrent_requests</code>, not a constant. Flat decode across
+    widths 10–35 means lowering <em>W</em> costs almost no decode throughput.</p>
+
+    <h2 id="s8">§8 — The root fix: more KV capacity per card</h2>
+    <p>The gate protects throughput at today's capacity. Raising capacity is what lets
+    concurrency rise while aggregate throughput holds or grows, and it is the fix to take
+    wherever the numbers support it. Each lever below needs a serve relaunch, so they are
+    ranked before any drain is asked for. For the installed SGLang version and the DSv4.1
+    profile as launched, establish four things, citing the launch line, the profile or
+    the source for each:</p>
+    <ul>
+      <li><strong>Replication.</strong> Whether the KV cache is replicated across the four
+      tensor-parallel ranks, what pool size each rank holds, and whether data-parallel
+      attention is supported for this model in this version, with the pool size it would
+      yield.</li>
+      <li><strong>Dtype.</strong> The KV cache dtype in use, and whether a narrower one is
+      supported for this model's attention without an accuracy caveat recorded by the
+      vendor.</li>
+      <li><strong>Host tier.</strong> The size of the host tier, the setting that fixes it,
+      the host memory the serve's allocation holds against what the node has free, and
+      whether a storage tier below host memory is available in this version.</li>
+      <li><strong>Device workspace.</strong> The device memory taken by CUDA graphs, the
+      static fraction and activation workspace at the current settings, and the pool
+      gained by each reduction that does not change the context cap.</li>
+    </ul>
+    <p>For each lever, project pool tokens and the context-derived concurrency at a
+    98,750-token mean context, and say what the change costs. The relaunch that applies
+    the chosen levers drains the lane to a sustained zero first, and it is authorised
+    separately.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
