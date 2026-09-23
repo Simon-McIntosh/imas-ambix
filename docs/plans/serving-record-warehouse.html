@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-23">
-<meta name="plan-version" content="15">
+<meta name="plan-version" content="17">
 </head>
 <body>
   <main class="plan-doc">
@@ -382,6 +382,87 @@
     that control reddens the pinned-figure test. The output names the assumed
     rate and its source.</p>
 
+    <h2 id="s8">§8 — Compaction must integrate, not drop</h2>
+
+    <p><strong>Retiring raw is only safe once a coarser row carries what the raw
+    rows carried in aggregate. It does not.</strong> Measured 2026-09-23 by
+    compacting two serves that restart inside one minute of one boot:</p>
+
+    <table>
+      <caption>One minute, one boot, a restart between two serves.</caption>
+      <thead><tr><th>raw rows in</th><th>compacted row out</th></tr></thead>
+      <tbody>
+        <tr><td>job 1001, counter 1,000,000 then 1,500,000</td><td rowspan="2">one row: job 1002, counter 20,000</td></tr>
+        <tr><td>job 1002, counter 0 then 20,000</td></tr>
+      </tbody>
+    </table>
+
+    <p>The first serve's closing value is gone, and with it every token it
+    served in that window. That is <em>not</em> a loss of time resolution, which
+    is the only loss retention is meant to cost. It is a lost integral, and a
+    retention policy built on the belief that tiers keep the integrals would
+    delete the sole record of that traffic.</p>
+
+    <h3>The cause is that a run is defined twice</h3>
+
+    <p>The reader ends a run at a change of host, boot or job, <em>or at any
+    counter that fails to advance</em>. The writer groups only by host and boot.
+    Two definitions of one object, one in the compactor and one in the query,
+    free to drift &mdash; and the drift is what discards the endpoint: a window
+    holding two serves keeps the later job as its identity and the later value
+    as its counter.</p>
+
+    <p><strong>One predicate, shared by both.</strong> That is the repair at the
+    root; everything below follows from it and none of it is sound without it.</p>
+
+    <h3>What a compacted row has to carry</h3>
+
+    <p><strong>A row must never span a run boundary.</strong> Key the stride by
+    job as well as host and boot, and split it wherever a counter fails to
+    advance. Then identity is constant by construction, counters are monotonic
+    within the row, and a window containing a restart yields two rows rather
+    than one &mdash; which is correct, because it was two things.</p>
+
+    <p><strong>A counter carries its opening as well as its closing.</strong>
+    Today only the closing survives, so a row's own contribution cannot be read
+    without its neighbours. With both, the advance is exact and local, and
+    differencing across windows still works.</p>
+
+    <p><strong>An observed count belongs to each leaf, not to the row.</strong>
+    The row already carries <code>observed.samples</code> and
+    <code>observed.seconds</code>, which is the honest denominator for the row.
+    But a gauge null in nine of twelve samples has a mean resting on three, and
+    the row cannot currently say so &mdash; the same absent-versus-zero
+    distinction, one level down.</p>
+
+    <p><strong>Where a peak is the quantity, a mean is not sufficient.</strong>
+    An hour at 40% mean occupancy is consistent with a flat 40% and with a spike
+    to 100%, and only one of those is a capacity problem. Carry the extremes for
+    the leaves whose peaks are read that way.</p>
+
+    <h3>The equality that licenses deletion</h3>
+
+    <p>For any window, the partitioned total over the compacted rows equals the
+    total over the raw rows they replace. Asserted across a restart, across a
+    null-rich stretch, and through the tier chain, so that compacting raw to
+    minute to hour agrees with compacting raw straight to hour. <strong>Until
+    that equality is a test, deleting raw destroys measurements the tiers do not
+    preserve</strong>, and the deletion cannot be undone.</p>
+
+    <p>The order is therefore: share the predicate, split the strides, carry the
+    openings and the per-leaf counts, assert the equality, and only then retire
+    anything. The first four are worth doing whether or not retention follows,
+    because the minute and hour tiers are <strong>wrong today</strong>: every
+    week or month window answered from them under-reports across every restart,
+    which is the honesty this plan exists to establish.</p>
+
+    <p>One adjacent finding, because it has the same shape and will confuse this
+    work if left unstated: the index ingests raw and compacted files into one
+    sample table and no query distinguishes them. Its <code>key_kind</code>
+    column names how a host and boot were resolved, not which tier a row came
+    from. A reader asking for a window that both a raw file and its minute
+    compaction cover is answered from both.</p>
+
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
 <div class="r-dec" data-key="caller-identity" data-choice="declared-header" data-by="Simon McIntosh" data-when="2026-09-22T18:58:10+00:00">
@@ -426,6 +507,11 @@
     <h4 class="r-fu-title">A card name is split positionally, so a quoted comma would shift every numeric column</h4>
     <div class="r-fu-body"><p>Raised by the independent review of the card-name repair, which scored it 95 and still found this. The card row is parsed by splitting on commas by position, with no quote handling, and the model name is the first free-text value in it. A product name that carries an internal comma and is quoted by the probe therefore desynchronises the row: the name truncates and every numeric column shifts by one, so <code>temperature_c</code> reads 0.0 and <code>power_draw_w</code> reads 41.0 <strong>as measurements</strong>, with nothing raising.</p><p><strong>Measured unreachable today, which is exactly why it is worth closing.</strong> The cards in service report <code>NVIDIA H200 NVL</code>, and no name on this node carries a comma. So the guarantee rests on what our hardware happens to be called rather than on the parse, and it expires silently the day a differently-named card appears — with every numeric field wrong and no signal. That is the same shape as a guard underwritten by the corpus instead of by the code.</p><p>Close it by construction: parse the row with something that understands quoting, or read the name in a query of its own so no free-text value shares a positional split with the numbers. Either removes the class rather than the instance.</p><p>The control to declare is the defect itself — drive a row whose name carries a quoted comma and require the numeric fields to be refused or correct, never silently shifted.</p><p>A node touching <code>imas_ambix/agent/</code> must put the serving-interpreter guard in its done-when — <code>pytest tests/test_agent_serve_registry.py -k agent_package_modules_parse_with_serving_python</code>.</p></div>
     <pre class="r-fu-prompt">/reckon-ship serving-record-warehouse</pre>
+    </article>
+<article class="r-fu" data-id="f-srw-005" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="elevated" data-written-by="reckon-edit" data-written-at="2026-09-23" data-recommends-skill="/reckon-ship serving-record-warehouse §8" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Make compaction integrate before anything retires a raw file</h4>
+    <div class="r-fu-body"><p>Start at <strong>&sect;8</strong>. It is scoped as four steps and a fifth that only the first four permit, and the order is not a preference: the fifth deletes data the first four are what preserve.</p><p><strong>The measured defect, reproducible in a few lines.</strong> Compact two serves that restart inside one minute of one boot &mdash; job 1001 advancing to 1,500,000 and job 1002 restarting at 0 and reaching 20,000 &mdash; and the single row that comes out carries job 1002 and 20,000. The first serve's closing value, and every token behind it, is gone. Use that as the node's negative control: it must redden once compaction is correct, and it is the exact shape a retention policy would silently destroy.</p><p><strong>The root is that a run is defined twice.</strong> <code>partitioned_total</code> ends a run at a change of host, boot or job or at a counter that fails to advance; <code>compact_rows</code> groups by host and boot alone. Share one predicate rather than repairing the symptom, or the two will drift again.</p><p><strong>Do not implement retention in this node.</strong> The done-when is the equality: for any window, the partitioned total over compacted rows equals the total over the raw rows they replace &mdash; across a restart, across a null-rich stretch, and through the tier chain, so raw to minute to hour agrees with raw straight to hour. Retention is a separate node gated on that test existing and passing, because the deletion cannot be undone and the equality is the only thing that licenses it.</p><p>Two things not to carry forward as assumptions. The minute and hour tiers are <strong>wrong today</strong>, so any figure already drawn from them under-reports across restarts. And the index ingests raw and compacted files into one sample table with no query distinguishing them &mdash; <code>key_kind</code> names host and boot resolution, not tier &mdash; so a window covered by both is answered from both; decide deliberately whether that is in this node's scope or its own.</p><p>A node touching <code>imas_ambix/agent/</code> must put the serving-interpreter guard in its done-when &mdash; <code>pytest tests/test_agent_serve_registry.py -k agent_package_modules_parse_with_serving_python</code>.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship serving-record-warehouse §8</pre>
     </article>
 </section>
 
