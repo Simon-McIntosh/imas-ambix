@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-23T18:10:41",
+  "updated": "2026-09-23T18:10:53",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -83982,6 +83982,27 @@
         "orientation_input_tokens": 3353520.0,
         "store_write": {
           "status": "written"
+        },
+        "integrated_gate_check": {
+          "base_verdict": "passed",
+          "integrated_verdict": "failed",
+          "integrated_revision": "74ae008071f10184925ae41b3c0c00f64542c8a2",
+          "checkout_revision": "74ae008071f10184925ae41b3c0c00f64542c8a2",
+          "checkout_on_integrated_revision": true,
+          "gate_command": "reckon crew dispatch --dry-run --local probe; launch_plan + apply_backend_placement argv",
+          "gate_command_source": "stored",
+          "ran": true,
+          "exit_status": 127,
+          "timed_out": false,
+          "reason": null,
+          "finding": {
+            "base_verdict": "passed",
+            "integrated_verdict": "failed",
+            "integrated_revision": "74ae008071f10184925ae41b3c0c00f64542c8a2",
+            "exit_status": 127,
+            "reason": null,
+            "message": "the gate passed at the worker's base but reports failed on the integrated revision 74ae008071f1: the merge changes what this node's gate proves, so a base-green run alone is not enough to push. Re-run the node's gate on the merged tree, land the code the merged tree requires, or record explicitly why this finding is accepted"
+          }
         }
       },
       {
@@ -84295,6 +84316,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 1045
+    "_version": 1046
   }
 }
