@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-23">
 <meta name="plan-impl" content="0.77">
-<meta name="plan-version" content="32">
+<meta name="plan-version" content="33">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;}">
 <meta name="plan-artifacts" content="docs/evidence/archive/local-lane-admission-control-landed.html">
 <meta name="plan-commits" content="4bb11e8917c6dc9662d6214da6ec7eb595713984,da60421b4267fc7fc6fafb2a7e5dbb242da1cfba,569b91efd9e1e2e0e00c6d86cd589810391752c5,7ecfec3ba6ed3d68d68e03a104bd33e70ba75037,decc190bc301c74e02f2491bc6a557a163f9c744">
@@ -721,6 +721,9 @@
 </div>
 <div class="r-comment" data-section="s6" data-id="c-20260923-tail-cause" data-who="reckon-ship" data-when="2026-09-23T14:05:00Z">
     <div class="r-comment-body">collapse-tail-compare measured the tail's cause (outputs in its worktree, being committed): at occupancy 0.80 and above, collapsed intervals are separated from matched healthy ones by the prefix hit rate in their window. On live job 1276246, 14 collapsed against 234 healthy, Cliff's delta -0.749, permutation p = 5e-5. On five-day job 1273253, 2 against 64, delta -0.825, p = 0.04. A synthetic control with a planted feature was recovered. Neither log carries HiCache load or backup lines, or retraction lines. So the collapse is cold prompts, recomputed prefill displacing decode, not occupancy as such. That moves the remaining fix to the engine: lpm, so cached-prefix requests go first; more KV via DP attention, so fewer prefixes are evicted; and, to evaluate at the relaunch, SGLang's enable_prefill_delayer as a direct brake on prefill storms. gate-auto-width merged c451c6c5 (auto width = floor(pool x 0.90 / a 600 s EMA of context), clamped [16, 36]); activating it needs a router restart, because the running router predates it and would reject 'auto' and fall back to width 22.</div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-run-r-20260923T135345960231-review-of-router-script-finite-time" data-who="reckon-ship" data-when="2026-09-23T14:52:08.045Z">
+    <div class="r-comment-body"><p>review of router-script-finite-time</p></div>
 </div>
 </section>
 </main>
