@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-23T18:26:12",
+  "updated": "2026-09-23T18:26:52",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -2683,6 +2683,15 @@
         "id": "spine-restamp",
         "role": "implement",
         "session_id": "01a00c09-ae62-74d1-9eb7-4469fa342f44"
+      },
+      {
+        "id": "srw-audit",
+        "harness": "clive",
+        "role": "investigate",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-09-23"
       },
       {
         "created": "2026-08-17",
@@ -84476,6 +84485,360 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260923T114249768935-review-of-the-partition-repair",
+        "plan": "serving-record-warehouse",
+        "section": "\u00a73",
+        "node": "review-of-the-partition-repair",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1156,
+                "cached_input_tokens": 719740,
+                "input_tokens": 720898,
+                "output_tokens": 524,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 721422,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "98f13dbe-0703-4abd-a5e4-65bfdb2eeee2",
+            "session_id": "ship-cards-20260923"
+          },
+          "done_when": "the review for the repaired head stores a parsed record scoring all 5 dimensions in the range 0..20, and states whether commit d9606298 closes both findings of the earlier review \u2014 coverage summing instead of unioning, and a lone in-window reading differenced against itself \u2014 without introducing a third",
+          "estimated_hours": null,
+          "goal": "attach an independent review to the repaired head of run r-20260923T093113870760-partitioned-totals-and-honest-coverage, commit d9606298",
+          "id": "review-of-the-partition-repair",
+          "lane_declaration": {
+            "backend": "clive",
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-23T11:42:52Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": 11,
+            "binding_observed": "unknown",
+            "detail": "",
+            "headroom": 7,
+            "mean_context": 104615,
+            "observed_at": "2026-09-23T11:42:41Z",
+            "state": "fresh",
+            "suggested_shelf_life_seconds": 45
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T114249768935-review-of-the-partition-repair/manifest.md",
+          "negative_control": "",
+          "plan": "serving-record-warehouse",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "review",
+          "section": "\u00a73",
+          "spec_level": "exact",
+          "time_budget": "25m",
+          "token_budget": null,
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260923T093113870760-partitioned-totals-and-honest-coverage-repaired.json"
+          ]
+        },
+        "role": "review",
+        "spec_level": "exact",
+        "member": "fleet-review-drain",
+        "backend": "clive",
+        "local": false,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "xhigh",
+          "launch": "cli",
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "read-only",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-23T11:43:42Z",
+        "completed_at": "2026-09-23T12:29:52.049Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 2755,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 2770,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "aca4df935f79ae14175402ca46b3b676428fc405",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "reckon crew check-manifest --run r-20260923T114249768935-review-of-the-partition-repair",
+          "exit_status": 1,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T114249768935-review-of-the-partition-repair/coordinator-check-manifest.log",
+          "log_digest": "04e7dbaa3fce494dce08c5119f57df4607bed6e39540c52e9779b67f134b62f1"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T114249768935-review-of-the-partition-repair/manifest.md",
+        "scope_changed": false,
+        "session_id": "36a5e337-5ba4-4df0-8429-082284939032",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 5780222,
+            "input_tokens_cumulative": 5780222,
+            "output_tokens": 56804,
+            "output_tokens_cumulative": 56804,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-23T12:29:52.049Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "15m",
+          "requested": true,
+          "waived_runs": [
+            {
+              "budget_overrun": true,
+              "budget_overrun_seconds": 2095,
+              "budget_seconds": 1500,
+              "classification": "promotable",
+              "commits_beyond_base": 0,
+              "detail": "the worker manifest reports completion; the run is the review it dispatched with, so the review it wrote is its deliverable and no review of this run is required",
+              "effective_phase": "starting",
+              "elapsed_seconds": 3595,
+              "external_wait": null,
+              "interruption": null,
+              "lifting_condition": null,
+              "liveness_proven": true,
+              "log_age_seconds": 7561,
+              "log_fresh": false,
+              "manifest_commits": [
+                "none (review role writes no repository commit)"
+              ],
+              "manifest_derived": false,
+              "manifest_digest": "b37330d2cb03cebdb4f8f679812146543a431b7630a4b397de98c2a00b08c2d7",
+              "manifest_error": null,
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T083640663096-card-model-name-review/manifest.md",
+              "manifest_present": true,
+              "manifest_reported_status": "complete",
+              "manifest_status": "complete",
+              "marker": null,
+              "needs_help_complete": null,
+              "next_action": "promote the completed review run once its verdict is read; the run is not itself reviewed",
+              "node": "card-model-name-review",
+              "phase": "starting",
+              "plan": "serve-telemetry-spine",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "recovery": "promote",
+              "recovery_classification": "promotable",
+              "resets_at": null,
+              "review_error": null,
+              "review_present": false,
+              "review_status": null,
+              "run_id": "r-20260923T083640663096-card-model-name-review",
+              "session": "ship-cards-20260923",
+              "terminal_age_seconds": 7618,
+              "terminal_at": "2026-09-23T09:36:17Z",
+              "wait_age_seconds": null,
+              "wait_condition_state": null,
+              "wait_key_defect": null,
+              "wait_observed": null,
+              "wait_overdue": null,
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ship-cards-20260923/card-model-name-review"
+            },
+            {
+              "budget_overrun": false,
+              "budget_overrun_seconds": 0,
+              "budget_seconds": 2700,
+              "classification": "promotable",
+              "commits_beyond_base": 0,
+              "detail": "the worker manifest reports completion; the run is the review it dispatched with, so the review it wrote is its deliverable and no review of this run is required",
+              "effective_phase": "starting",
+              "elapsed_seconds": 988,
+              "external_wait": null,
+              "interruption": null,
+              "lifting_condition": null,
+              "liveness_proven": true,
+              "log_age_seconds": 2820,
+              "log_fresh": false,
+              "manifest_commits": [
+                "none - the deliverable is the stored review record outside any git tree; this node's worktree is unmodified and clean"
+              ],
+              "manifest_derived": false,
+              "manifest_digest": "b51596e668bebe6f8bfbe3b9b6cde024481fb350045c0572f7d7198134d6d5c6",
+              "manifest_error": null,
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T103633178474-review-of-partitioned-totals-and-honest-coverage/manifest.md",
+              "manifest_present": true,
+              "manifest_reported_status": "complete",
+              "manifest_status": "complete",
+              "marker": null,
+              "needs_help_complete": null,
+              "next_action": "promote the completed review run once its verdict is read; the run is not itself reviewed",
+              "node": "review-of-partitioned-totals-and-honest-coverage",
+              "phase": "starting",
+              "plan": "serving-record-warehouse",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "recovery": "promote",
+              "recovery_classification": "promotable",
+              "resets_at": null,
+              "review_error": null,
+              "review_present": false,
+              "review_status": null,
+              "run_id": "r-20260923T103633178474-review-of-partitioned-totals-and-honest-coverage",
+              "session": "ship-cards-20260923",
+              "terminal_age_seconds": 2940,
+              "terminal_at": "2026-09-23T10:54:17Z",
+              "wait_age_seconds": null,
+              "wait_condition_state": null,
+              "wait_key_defect": null,
+              "wait_observed": null,
+              "wait_overdue": null,
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ship-cards-20260923/review-of-partitioned-totals-and-honest-coverage"
+            }
+          ]
+        },
+        "review": null,
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 5780222,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 2763.803,
+          "generated_tokens": 56804,
+          "generation_seconds": 2629.057,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 34.2,
+          "machine_seconds": 134.746,
+          "peak_input_tokens": 164218,
+          "tokens_per_second": 21.61,
+          "wall_tokens_per_second": 20.55
+        },
+        "follow_on_paths": [
+          "docs/record"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": false,
+          "matched_measure": null,
+          "override": false,
+          "role": "review",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": "review node: writes only its review record, outside the repository",
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ship-cards-20260923/review-of-the-partition-repair",
+          "session_id": "36a5e337-5ba4-4df0-8429-082284939032",
+          "session_source": "stream",
+          "retained_at": "2026-09-23T12:29:52.049Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "promoted_revision": "aca4df935f79ae14175402ca46b3b676428fc405",
+        "impl_move": {
+          "plan": "serving-record-warehouse",
+          "at_dispatch": null,
+          "at_complete": null,
+          "verdict": "exempt",
+          "reason": "role-not-enforced:review"
+        },
+        "negative_control": {
+          "verdict": "exempt",
+          "reason": "node-writes-no-test-path"
+        },
+        "lane_advisory": {
+          "backend": "clive",
+          "burn_multiple": null,
+          "cheaper_lane": {
+            "detail": "",
+            "lane": null,
+            "state": "not_evaluated"
+          },
+          "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+          "horizon_ends_at": "2026-09-23T12:07:52.648713+00:00",
+          "horizon_seconds": 1500,
+          "metered": false,
+          "observed_at": null,
+          "precedes_horizon": null,
+          "projected_exhaustion_at": null,
+          "resets_at": null,
+          "seconds_until_reset": null,
+          "state": "quiet",
+          "utilisation_pct": null
+        },
+        "lane_declaration": {
+          "backend": "clive",
+          "headroom": null,
+          "metered": false,
+          "observed_at": null,
+          "read_at": "2026-09-23T11:42:52Z",
+          "resolved_backend": "clive",
+          "utilisation_pct": null
+        },
+        "lane_reading": {
+          "age_seconds": 11,
+          "binding_observed": "unknown",
+          "detail": "",
+          "headroom": 7,
+          "mean_context": 104615,
+          "observed_at": "2026-09-23T11:42:41Z",
+          "state": "fresh",
+          "suggested_shelf_life_seconds": 45
+        },
+        "tool_steps": 63.0,
+        "orientation_input_tokens": null,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -84564,6 +84927,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 1050
+    "_version": 1052
   }
 }
