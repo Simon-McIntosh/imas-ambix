@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="circular-assertion-guard-landed">
+  <meta name="plan-title" content="Circular Assertion Guard — Measured Evidence">
+  <meta name="plan-summary" content="Execution record for the circular-assertion audit: its inventory over the tree today, the allowlist schema, the silent shapes it must not report, and the declared negative control.">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-recorded-at" content="2026-09-23">
+  <meta name="plan-evidence-for" content="circular-assertion-guard">
+  <meta name="plan-verifies" content="circular-assertion-guard#s2">
+  <meta name="plan-verdict" content="guard lands: 135 unallowlisted findings across 54 test files; 12 tests pass; declared negative control reddens the written-out-literal silence test">
+  <meta name="plan-source-quality" content="worker-committed script, allowlist and tests; audit log and pytest log from the committed revision at worktree head">
+  <title>Circular Assertion Guard — Measured Evidence | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+  <h1>Circular Assertion Guard — Measured Evidence</h1>
+  <p>Cumulative execution record for
+  <a href="/imas-ambix/plans/circular-assertion-guard">Circular Assertion Guard</a>.
+  One anchor per landed node.</p>
+
+  <h2 id="s2-guard">§2 — The guard: inventory, allowlist and silent shapes</h2>
+  <p><strong>A test that compares a produced value against the very constant the
+  code under test reads cannot fail on that constant's value, and the guard that
+  finds those comparisons now runs from the repository root.</strong> Commit
+  <code>0574f371</code> adds <code>scripts/circular_assertion_audit.py</code>, its
+  TOML allowlist <code>scripts/circular_assertion_audit.toml</code>, and
+  <code>tests/test_circular_assertion_audit.py</code>.</p>
+
+  <p>The scan walks every module under <code>tests/</code>, parses each with
+  <code>ast</code>, resolves which local names it imports from
+  <code>imas_ambix</code> and which it binds to a literal, and reports an
+  <code>assert</code> whose all-<code>==</code> chain has no anchor: no operand is
+  a literal, no operand names a literal-bound binding or a reference pinned
+  against a literal elsewhere in the file, and at least one side is a bare name
+  reference into the package under test. A call or a subscript is not a
+  reference for this purpose — the defect compares a produced value against an
+  imported constant, and a call is the thing under test rather than the
+  constant.</p>
+
+  <figure>
+    <img src="/imas-ambix/figures/circular-assertion-guard/audit-decision-flow.png"
+         alt="Decision flow for one equality chain: a literal, a literal-bound or pinned operand, a non-package side, or a matching allowlist entry each make the chain silent; otherwise the chain is printed and the audit exits 1."
+         style="max-width:100%;height:auto;">
+    <figcaption>One equality chain, from parse to verdict. Every <em>yes</em>
+    branch leaves the chain unreported; only the spine reaching
+    <em>no allowlist entry</em> produces a finding.</figcaption>
+  </figure>
+
+  <h3>Inventory over the tree at the recorded revision</h3>
+  <p>The audit run from the worktree root reports <strong>135 unallowlisted
+  findings across 54 files</strong> — <code>TOTAL 135</code>, exit 1 — with the
+  allowlist empty of entries, which is why every finding is printed. Per-file
+  counts, heaviest first:</p>
+
+  <table>
+    <caption>Unallowlisted findings per file, top ten of 54</caption>
+    <thead><tr><th>Test file</th><th>Findings</th></tr></thead>
+    <tbody>
+      <tr><td>tests/test_geometry_export.py</td><td>14</td></tr>
+      <tr><td>tests/data/test_provenance.py</td><td>10</td></tr>
+      <tr><td>tests/gs/test_artifact_resolution.py</td><td>9</td></tr>
+      <tr><td>tests/spine_bench/test_machine_artifact_arm.py</td><td>8</td></tr>
+      <tr><td>tests/spine_bench/test_shotset_labelling.py</td><td>7</td></tr>
+      <tr><td>tests/spine_bench/test_parity.py</td><td>7</td></tr>
+      <tr><td>tests/test_telemetry_index.py</td><td>6</td></tr>
+      <tr><td>tests/challenge/test_thomson_ids.py</td><td>5</td></tr>
+      <tr><td>tests/data/test_l2_input_build.py</td><td>4</td></tr>
+      <tr><td>tests/test_tokenizer.py</td><td>3</td></tr>
+    </tbody>
+  </table>
+
+  <p>Two notes on the number. The plan's §1 table records 135 sites in 51 files
+  from the ad-hoc scan that produced it, and this guard's own inventory is 135
+  in 54 — the file counts differ because the tree moved under the scan and
+  because the two scans classify a handful of edge cases differently, so the
+  guard's output is the inventory §3 and §4 partition, not the section text's
+  figure. The scan is not required to reproduce a lost script's figure: the
+  reuse map confirms that no script for the original scan survives anywhere in
+  the tree, and the plan itself instructs re-running the scan before
+  partitioning.</p>
+
+  <h3>The three silent shapes and the allowlist</h3>
+  <p>Each shape below is exercised by a named test that hands the scan a
+  <code>tmp_path</code> tree as its root, so the guard's silence is measured
+  rather than asserted:</p>
+  <ul>
+    <li><strong>written-out literal</strong> — <code>assert _CARD_QUERY_FIELDS_LITERAL == LaneCapacity.CARD_QUERY_FIELDS</code> is silent when the left name is a literal tuple bound in the test module.</li>
+    <li><strong>pinned once</strong> — <code>assert rows[0]["upstream"] == SELF_ANSWERED_UPSTREAM</code> is silent when the same file elsewhere asserts <code>SELF_ANSWERED_UPSTREAM == "(router)"</code>.</li>
+    <li><strong>literal in the chain</strong> — <code>assert LaneCapacity.OCCUPANCY_TARGET == 0.9</code> is silent, the comparison having pinned the value.</li>
+  </ul>
+  <p>The remaining shape, <em>wiring</em>, is reported and recorded per site.
+  A test plants <code>assert derived["occupancy_target"] ==
+  LaneCapacity.OCCUPANCY_TARGET</code>, observes it reported with symbol
+  <code>LaneCapacity.OCCUPANCY_TARGET</code>, then observes it silent once an
+  entry matching that file and symbol exists. The TOML allowlist carries
+  <code>[[entry]]</code> tables of <code>file</code>, <code>symbol</code>,
+  <code>shape</code> and <code>reason</code>; <code>shape</code> is one of
+  <code>wiring</code>, <code>pinned-once</code> or
+  <code>written-out-literal</code>. An entry with an empty or missing reason,
+  or with a shape outside that vocabulary, makes the audit refuse with exit 2
+  and a message naming the entry — the reason is the thing a later reader
+  checks, so its absence is a failure of the guard rather than an exemption
+  from it.</p>
+
+  <h3>Gates</h3>
+  <table>
+    <caption>Measures taken at commit <code>0574f371</code> in the node's worktree</caption>
+    <thead><tr><th>Measure</th><th>Command</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>Audit over the real tree</td>
+          <td><code>uv run --no-sync python -m scripts.circular_assertion_audit</code></td>
+          <td><code>TOTAL 135</code> across 54 files, exit 1</td></tr>
+      <tr><td>Guard tests</td>
+          <td><code>uv run --no-sync pytest -q tests/test_circular_assertion_audit.py</code></td>
+          <td>12 passed, exit 0</td></tr>
+      <tr><td>Whole-tree lint</td>
+          <td><code>uv run --no-sync ruff check imas_ambix tests</code></td>
+          <td>All checks passed, exit 0</td></tr>
+      <tr><td>New-file lint</td>
+          <td><code>uv run --no-sync ruff check scripts/circular_assertion_audit.py tests/test_circular_assertion_audit.py</code></td>
+          <td>All checks passed, exit 0</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Negative control</h3>
+  <p>The declared mutation is <em>make the guard treat every Name as unanchored
+  by skipping the lookup of names bound to a literal inside the test module</em>,
+  applied to <code>_is_anchored</code> as
+  <code>return node.id in anchored</code> → <code>return False</code>. With it
+  applied, <code>test_written_out_literal_is_silent</code> fails — the guard
+  reports the written-out-literal shape it must stay silent on — and the log's
+  first line repeats the declared string verbatim. Reverted immediately, the
+  tests are green again at the recorded revision. Logs live in the node's run
+  directory:</p>
+  <ul>
+    <li><code>logs/audit-real-tree.log</code> — the real-tree inventory</li>
+    <li><code>logs/pytest-audit.log</code> — the guard's twelve tests</li>
+    <li><code>logs/ruff.log</code> — both lint gates</li>
+    <li><code>logs/negative-control.log</code> — the red log</li>
+  </ul>
+
+  <h3>Not owed here</h3>
+  <p>No allowlist entry for a real site is part of this node, and CI wiring is
+  excluded by §2. The guard is not yet blocking, and §2's §4 decision on whether
+  it becomes one stays open. Verifying the merged result belongs to a separately
+  dispatched test node.</p>
+</main>
+</body>
+</html>
