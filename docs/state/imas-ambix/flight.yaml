@@ -19,45 +19,40 @@
 
 version: 1
 
-# THE WRAPPER IS A BRIDGE, NOT THE DESTINATION. Reckon's own design resolves the
-# allocation from a reservation record published into shared crew state, which is
-# the better mechanism: one record, read by every session, with the identifier
-# held in one place. It is not used here because that record is HOST-GLOBAL while
-# this declaration is per project, so publishing one gives every repository's
-# workers a single roster ceiling of 25. Measured 2026-09-23: 45 runs across four
-# repositories occupied it within minutes and dispatch was refused workstation
-# wide, while exactly one step was running inside the allocation it protects.
+# NO PLACEMENT IS DECLARED HERE, AND THE MECHANISM DOES NOT BELONG HERE.
 #
-# So the wrapper resolves the allocation itself and publishes no record, which is
-# what keeps the effect inside this repository. It retires the moment reckon's
-# roster cap is scoped to the project that armed it, or its reservation record is,
-# or the limit becomes configurable. At that point this block becomes:
+# Placing a worker on a host is dispatch's job, and reckon already owns all of
+# it: reckon/crew/placement.py holds the reservation, publishes it, and builds
+# the overlapping step, and dispatch's apply_backend_placement resolves the job
+# and prefixes the launch. A wrapper in this repository reimplemented job
+# resolution and step prefixing privately, which is a second implementation of
+# reckon's own mechanism that would have to stay in step with it, and which
+# every other project wanting placement would have had to copy.
 #
-#     scheduler: srun
-#     state_query:  [squeue, -h, -j, "{job}", -o, "%T"]
-#     reason_query: [squeue, -h, -j, "{job}", -o, "%R"]
+# It was built here only to route around a scoping defect in reckon rather than
+# repair it: the reservation record is host-global (`crew_home()` carries no
+# project component) while a placement declaration is per project, so publishing
+# one record capped every repository's workers against a single roster ceiling.
+# Measured 2026-09-23: forty-five runs across four repositories occupied it
+# within minutes and dispatch was refused workstation wide, while exactly one
+# step was running inside the allocation the ceiling exists to protect.
 #
-# published reservation first, declaration second — a declaration without a record
-# prefixes a bare `srun`, which mints one allocation per worker.
+# The repair is in reckon: scope the reservation record and the roster count to
+# the project that armed them. When that lands this file declares
+#
+#     backends:
+#       clive:
+#         placement:
+#           scheduler: srun
+#           state_query:  [squeue, -h, -j, "{job}", -o, "%T"]
+#           reason_query: [squeue, -h, -j, "{job}", -o, "%r"]
+#
+# and nothing else — reckon resolves the job from its own record, so no shim,
+# no second resolver and no identifier in this file.
+#
+# What this repository keeps is what it genuinely owns: holding the allocation
+# and reporting it, through `imas-ambix agent fleet hold` and `fleet status`.
+# The allocation's partition, size and comment token are ambix's business. Which
+# host a dispatched worker runs on is not.
 
-backends:
-  clive:
-    placement:
-      # A shim on PATH rather than a path in this file, because the interpreter
-      # it execs belongs to one checkout on one machine and this file is
-      # committed. The shim hands the worker's argv to `agent fleet place`,
-      # which resolves the allocation by the comment token the hold generator
-      # emits — so no job identifier appears here, and a resubmit is picked up
-      # at launch rather than remembered. Verified 2026-09-23 across a real
-      # resubmit under a new identifier, with no change to this file; the two
-      # identifiers are recorded in the plan rather than here, so that a search
-      # of this file for a job number stays a check with no false positives.
-      # Named for what it does rather than for the field it fills, and NOT
-      # `ambix-fleet`: that token is the allocation's own identity — the SLURM
-      # job name and the comment the resolver matches on — so reusing it would
-      # give one name two referents, the place and the act of placing, in logs
-      # and scripts where telling them apart is the whole point.
-      scheduler: ambix-on-fleet
-      options: []
-      state_query: [squeue, -h, -j, "{job}", -o, "%T"]
-      reason_query: [squeue, -h, -j, "{job}", -o, "%r"]
+backends: {}
