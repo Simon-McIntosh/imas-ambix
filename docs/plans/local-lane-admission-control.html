@@ -25,8 +25,8 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-23">
 <meta name="plan-impl" content="0.77">
-<meta name="plan-version" content="31">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;}">
+<meta name="plan-version" content="32">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;}">
 <meta name="plan-artifacts" content="docs/evidence/archive/local-lane-admission-control-landed.html">
 <meta name="plan-commits" content="4bb11e8917c6dc9662d6214da6ec7eb595713984,da60421b4267fc7fc6fafb2a7e5dbb242da1cfba,569b91efd9e1e2e0e00c6d86cd589810391752c5,7ecfec3ba6ed3d68d68e03a104bd33e70ba75037,decc190bc301c74e02f2491bc6a557a163f9c744">
 </head>
@@ -567,6 +567,42 @@
     98,750-token mean context, and say what the change costs. The relaunch that applies
     the chosen levers drains the lane to a sustained zero first, and it is authorised
     separately.</p>
+
+    <h2 id="s10">§10 — Relaunch with the prefix fix, after a drain</h2>
+    <p>The collapse tail is prefix-cache misses (§6), so the next engine relaunch carries
+    the prefix-side levers. The lead authorised it on 2026-09-23, with a drain and not a
+    hard restart.</p>
+    <p><strong>What the relaunch carries.</strong></p>
+    <ul>
+      <li><code>schedule_policy = "lpm"</code>. Waiting requests with the longest cached
+      prefix are admitted first. It falls back to fcfs above 128 waiting.</li>
+      <li><code>max_queued_requests = 64</code>. It refuses a caller that bypasses the
+      router instead of absorbing it without limit. With the gate at or below the engine
+      cap, routed traffic never reaches this bound.</li>
+      <li><code>hicache_ratio</code> 2 → 3, only if the serve's measured host memory shows
+      the extra ~39 GB fits the 600G allocation with margin. The host tier ran 99.9%
+      full, and a larger one keeps more evicted prefixes.</li>
+      <li>SGLang's prefill delayer, only if reading its source shows it brakes prefill
+      storms without starving decode, and names settings to use.</li>
+      <li>The router is restarted in the same window, and the gate file is set to
+      <code>"width": "auto"</code>.</li>
+    </ul>
+    <p>Not in this relaunch: DP attention, which needs session-affine dispatch and its
+    own validation, and the loopback bind, which needs the router's upstream address
+    confirmed first.</p>
+    <p><strong>Code first.</strong> The engine profile cannot express
+    <code>schedule_policy</code> or <code>max_queued_requests</code> today. The profile
+    and the serve-script generator gain both, plus the prefill delayer's fields if they
+    are adopted, with tests on the generated launch line.</p>
+    <p><strong>The drain.</strong> Every dispatching session is signalled to stop
+    submitting local-lane work and to pause its dispatches. Running work is left to
+    finish; nothing is cancelled. The engine is relaunched only once
+    <code>lane.json</code> reads zero running and zero waiting across several
+    consecutive samples at least a minute apart. The relaunch takes on the order of 25
+    minutes, since weight loading dominates. It is verified by
+    <code>/v1/models</code>, one real completion, the new launch arguments in the
+    engine's <code>server_args</code> line, and the gate's auto width appearing in
+    <code>lane.json</code>. Only then is RESUME signalled.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
