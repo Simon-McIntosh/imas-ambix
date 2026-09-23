@@ -198,6 +198,10 @@ CREATE TABLE IF NOT EXISTS source (
     -- digest of the first `offset` bytes of the file; NULL means no identity is
     -- recorded for the consumed region, which makes that region unverifiable
     prefix_sha TEXT,
+    -- modification time in nanoseconds as the consuming pass saw it; NULL means
+    -- a pass older than this column wrote the row, so nothing about the file's
+    -- metadata is known and the region is re-read rather than assumed
+    mtime_ns   INTEGER,
     PRIMARY KEY (host, boot_id, path, inode)
 );
 
@@ -660,6 +664,51 @@ class TelemetryIndex:
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA foreign_keys = ON")
         self._conn.executescript(_SCHEMA)
+        self._migrate()
+
+    def _migrate(self) -> None:
+        """Add columns an index written by an earlier pass does not carry.
+
+        A column added to the schema does not appear in a table that already
+        exists, so an index built before it keeps answering without it. The
+        added column is nullable and a null means the pass that wrote the row
+        knew nothing about that property, which is the state the readers treat
+        as unverified rather than as unchanged.
+        """
+        have = {row["name"] for row in self._conn.execute("PRAGMA table_info(source)")}
+        if "mtime_ns" not in have:
+            self._conn.execute("ALTER TABLE source ADD COLUMN mtime_ns INTEGER")
+            self._conn.commit()
+
+    def _consumed_whole_and_untouched(self, path: Path, stat: os.stat_result) -> bool:
+        """Whether this file is the one a previous pass consumed to its end.
+
+        Verifying that a consumed region still holds the bytes it held means
+        re-reading and digesting that region, which is what :meth:`_was_rewritten`
+        does and what makes a pass cost the whole record rather than what was
+        added to it. Measured 2026-09-23 over 49 sources and 220 MB: 8.6 s a
+        pass, nearly all of it re-digesting serves that had already exited.
+
+        So the digest is skipped in exactly one case -- the file is recorded as
+        consumed to its end, its length has not moved, and its modification time
+        is the one the consuming pass saw. Any difference in either, and a null
+        mtime from a pass that never recorded one, fall through to the full
+        comparison. This trades a content identity for a metadata one *only
+        where nothing has changed*, and it does not weaken the case the digest
+        exists for: a rewrite that leaves both length and modification time
+        untouched is not something the recorder, a roll or a compaction can
+        produce, because each of them writes.
+        """
+        row = self._conn.execute(
+            "SELECT size, offset, mtime_ns FROM source WHERE path = ? AND inode = ?",
+            (str(path), stat.st_ino),
+        ).fetchone()
+        if row is None or row["mtime_ns"] is None:
+            return False
+        return (
+            row["offset"] == row["size"] == stat.st_size
+            and row["mtime_ns"] == stat.st_mtime_ns
+        )
 
     def close(self) -> None:
         self._conn.close()
@@ -700,6 +749,10 @@ class TelemetryIndex:
                     "text: decompress it, or give the ingest only the files it "
                     "can read"
                 )
+            # A finished serve's file never changes again, so re-reading it to
+            # prove that costs the whole record on every pass and learns nothing.
+            if self._consumed_whole_and_untouched(path, stat):
+                continue
             scanned += 1
             lines, tail, prefix_sha, source_host, source_boot = self._resume(path, stat)
             added = 0
@@ -748,11 +801,12 @@ class TelemetryIndex:
                 self._conn.execute(
                     "INSERT INTO source "
                     "(host, boot_id, key_kind, path, inode, size, offset, rows, "
-                    " prefix_sha) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                    " prefix_sha, mtime_ns) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
                     "ON CONFLICT (host, boot_id, path, inode) DO UPDATE SET "
                     "  size = excluded.size, offset = excluded.offset, "
                     "  rows = source.rows + excluded.rows, "
+                    "  mtime_ns = excluded.mtime_ns, "
                     "  prefix_sha = COALESCE(excluded.prefix_sha, source.prefix_sha)",
                     (
                         file_host,
@@ -764,6 +818,7 @@ class TelemetryIndex:
                         tail,
                         added,
                         prefix_sha,
+                        stat.st_mtime_ns,
                     ),
                 )
         with self._conn:

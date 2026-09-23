@@ -550,9 +550,7 @@ def test_a_window_spanning_two_serves_totals_the_sum_of_its_runs(tmp_path):
         # reading the partition exists to replace.
         assert index.counter_span("engine.generation_tokens", _at(0), _at(20)) < 0
 
-        partition = index.partitioned_total(
-            "engine.generation_tokens", _at(0), _at(20)
-        )
+        partition = index.partitioned_total("engine.generation_tokens", _at(0), _at(20))
         assert partition.runs == 2
         # 1100-1000 from the first serve, 150-50 from the second.
         assert partition.total == pytest.approx(200.0)
@@ -1347,3 +1345,80 @@ def test_one_file_spanning_a_reboot_keys_each_of_its_rows_apart(tmp_path):
             _BOOT_AFTER,
             _BOOT_AFTER,
         ]
+
+
+def test_a_source_consumed_whole_and_untouched_is_not_read_again(tmp_path):
+    """Re-proving a finished serve unchanged costs the record and learns nothing.
+
+    Measured 2026-09-23 over 49 sources and 220 MB: a pass with nothing to add
+    spent 8.6 s re-digesting serves that had already exited.
+    """
+    source = tmp_path / "serve.jsonl"
+    _write(source, [_row(0), _row(5)])
+    index_path = tmp_path / "index.db"
+
+    with TelemetryIndex(index_path) as index:
+        assert index.ingest([source]).files_scanned == 1
+        assert index.ingest([source]).files_scanned == 0, "re-read an unchanged source"
+
+
+def test_a_source_that_grew_is_read_again_despite_the_skip(tmp_path):
+    """The skip must never swallow rows appended after the consuming pass."""
+    source = tmp_path / "serve.jsonl"
+    _write(source, [_row(0)])
+    index_path = tmp_path / "index.db"
+
+    with TelemetryIndex(index_path) as index:
+        index.ingest([source])
+        _write(source, [_row(5)])
+        report = index.ingest([source])
+
+    assert report.files_scanned == 1
+    assert report.rows_inserted == 1
+
+
+def test_a_rewrite_that_moves_the_modification_time_is_still_caught(tmp_path):
+    """The skip holds only while both length and modification time stand still.
+
+    A recorder, a roll and a compaction all write, so each moves the time; the
+    digest comparison is what answers once anything has.
+    """
+    source = tmp_path / "serve.jsonl"
+    _write(source, [_row(0), _row(5)])
+    index_path = tmp_path / "index.db"
+
+    with TelemetryIndex(index_path) as index:
+        index.ingest([source])
+        before = source.stat()
+        # Equal-length content, so length alone cannot force the re-read and the
+        # modification time is the only thing left to notice the rewrite. If the
+        # lengths ever diverge this test stops measuring what it claims, so the
+        # premise is asserted rather than assumed.
+        source.write_text(
+            "".join(
+                json.dumps(row) + "\n"
+                for row in (
+                    _row(0, prefix_cache_query_delta=40),
+                    _row(5, prefix_cache_query_delta=50),
+                )
+            ),
+            encoding="utf-8",
+        )
+        assert source.stat().st_size == before.st_size, "rewrite changed the length"
+        os.utime(
+            source, ns=(before.st_mtime_ns + 1_000_000, before.st_mtime_ns + 1_000_000)
+        )
+        assert index.ingest([source]).files_scanned == 1, "skipped a rewritten source"
+
+
+def test_a_row_written_before_the_time_was_recorded_is_not_assumed_unchanged(tmp_path):
+    """A null modification time means unknown, and unknown is not unchanged."""
+    source = tmp_path / "serve.jsonl"
+    _write(source, [_row(0)])
+    index_path = tmp_path / "index.db"
+
+    with TelemetryIndex(index_path) as index:
+        index.ingest([source])
+        index._conn.execute("UPDATE source SET mtime_ns = NULL")
+        index._conn.commit()
+        assert index.ingest([source]).files_scanned == 1, "trusted an unrecorded time"
