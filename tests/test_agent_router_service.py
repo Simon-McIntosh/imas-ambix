@@ -5,7 +5,7 @@ from __future__ import annotations
 from click.testing import CliRunner
 
 from imas_ambix.agent import slurm as slurm_mod
-from imas_ambix.agent.profile import SiteConfig
+from imas_ambix.agent.profile import SiteConfig, load_profile
 from imas_ambix.cli import main
 
 
@@ -26,7 +26,7 @@ def test_router_script_is_cpu_only_and_uses_file_backed_admission(tmp_path):
     assert "#SBATCH --cpus-per-task=3" in script
     assert "#SBATCH --mem=12G" in script
     assert "#SBATCH --comment=ambix-router;port=18802" in script
-    assert "#SBATCH --time=0" in script
+    assert "#SBATCH --time=7-00:00:00" in script
     assert str(site.python_path("vllm")) in script
     assert "from imas_ambix.cli import main; main()" in script
     assert "agent router" in script
@@ -34,6 +34,34 @@ def test_router_script_is_cpu_only_and_uses_file_backed_admission(tmp_path):
     # Admission comes from router-gate.json rather than launch-only flags.
     assert "--max-in-flight" not in script
     assert "--max-queued" not in script
+
+
+def test_lane_refresher_script_has_finite_time_limit(tmp_path):
+    site = SiteConfig(
+        base_dir=str(tmp_path),
+        engine_env_root=str(tmp_path / "engine-envs"),
+    )
+
+    script = slurm_mod.generate_lane_refresher_script(
+        site,
+        origin="http://127.0.0.1:18802",
+    )
+
+    assert "#SBATCH --time=7-00:00:00" in script
+
+
+def test_engine_serve_script_remains_unlimited(tmp_path):
+    site = SiteConfig(
+        base_dir=str(tmp_path),
+        engine_env_root=str(tmp_path / "engine-envs"),
+    )
+
+    script = slurm_mod.generate_serve_script(
+        load_profile("deepseek-v4-1-flash"),
+        site,
+    )
+
+    assert "#SBATCH --time=0" in script
 
 
 def test_router_dry_run_needs_no_admission_flags(monkeypatch):
