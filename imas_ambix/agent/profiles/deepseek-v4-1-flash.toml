@@ -166,6 +166,19 @@ chunked_prefill_size = 16384
 # max_running_requests binds, and CUDA graphs cost 5.74-5.84 GB per rank at a
 # ceiling of 64. Lowering it returns most of that to the workspace.
 max_running_requests = 36
+# The running bound above is the hard ceiling; the queue behind it is ordered
+# prefix-first so a turn whose prefix is already resident is admitted ahead of a
+# cold one. Under the default first-come-first-served order a single long prefill
+# holding the running bound blocks every short turn behind it, and on a
+# prefill-dominated agent lane nearly every blocked turn is one whose prefix the
+# engine already holds. lpm degrades to fcfs above 128 waiting, so it never
+# starves a cold caller under a deep queue.
+schedule_policy = "lpm"
+# Bounds the waiting queue so a caller that bypasses the router -- and therefore
+# never passes the gate -- is refused rather than absorbed without limit. Routed
+# traffic never reaches it: the gate's width sits at or below the running bound,
+# so an admitted request is running, not waiting.
+max_queued_requests = 64
 cuda_graph_max_bs_decode = 36
 # DSpark now has a measured loaded memory budget: with 23-27 requests running,
 # each card retained about 33 GB free against the workspace's ~12.9 GiB ask,

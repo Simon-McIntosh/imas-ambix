@@ -167,6 +167,19 @@ class EngineConfig(BaseModel):
     # rejecting them when its queue limit remains unset. ``None`` preserves the
     # engine default. SGLang-only.
     max_running_requests: int | None = None
+    # Order in which the engine drains its waiting queue (``--schedule-policy``).
+    # The engine default is first-come-first-served, under which one long prefill
+    # holding the running bound blocks a queue of short turns behind it. ``lpm``
+    # admits the waiting request with the longest cached prefix first, keeping a
+    # conversation on the prefix it already holds; it falls back to fcfs above
+    # 128 waiting. ``None`` keeps the engine default. SGLang-only.
+    schedule_policy: str | None = None
+    # Bound on the engine's waiting queue (``--max-queued-requests``). Unset, the
+    # engine absorbs arrivals without limit, so a caller that bypasses the router
+    # is limited only by how long it is willing to wait. A set bound refuses
+    # instead of absorbing, which bounds the queue even for traffic that never
+    # passes the router's gate. ``None`` keeps the engine default. SGLang-only.
+    max_queued_requests: int | None = None
     cuda_graph_max_bs: int | None = None
     # Separate decode-side CUDA-graph batch ceiling
     # (``--cuda-graph-max-bs-decode``). Architectures that split prefill and

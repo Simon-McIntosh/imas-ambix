@@ -156,6 +156,8 @@ def _build_sglang_args(profile: ModelProfile, site: SiteConfig) -> list[str]:
         _PORT_TOKEN,
     ]
     _append_option(args, "--max-running-requests", engine.max_running_requests)
+    _append_option(args, "--schedule-policy", engine.schedule_policy)
+    _append_option(args, "--max-queued-requests", engine.max_queued_requests)
 
     # Omitted entirely when the profile asks the engine to size the pool, so
     # SGLang computes it from the memory left after weights rather than from a
