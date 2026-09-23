@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-23T09:53:57",
+  "updated": "2026-09-23T10:24:43",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -1336,10 +1336,15 @@
         "id": "llac-client",
         "harness": "clive",
         "role": "investigate",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
-        "created": "2026-09-23"
+        "session_id": "ffb34648-e202-451d-81ee-bd5a7fdcc706",
+        "session_model": "deepseek-v4.1-flash",
+        "sessions": {
+          "{\"alias\":\"dsv4.1-flash\",\"backend\":\"clive\",\"effort\":\"xhigh\",\"launch\":\"cli\",\"local\":true,\"model\":\"deepseek-v4.1-flash\",\"sandbox\":\"read-only\",\"usable_input_window\":480000}": "ffb34648-e202-451d-81ee-bd5a7fdcc706"
+        },
+        "created": "2026-09-23",
+        "session_owners": {
+          "{\"alias\":\"dsv4.1-flash\",\"backend\":\"clive\",\"effort\":\"xhigh\",\"launch\":\"cli\",\"local\":true,\"model\":\"deepseek-v4.1-flash\",\"sandbox\":\"read-only\",\"usable_input_window\":480000}": "llac-20260923"
+        }
       },
       {
         "id": "llac-engine",
@@ -1377,10 +1382,15 @@
         "id": "llac-gate-test",
         "harness": "codex",
         "role": "test",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
-        "created": "2026-09-23"
+        "session_id": "01a0cd40-7746-7510-bcc2-44574c091156",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "{\"alias\":\"sol5.6\",\"backend\":\"codex\",\"effort\":\"high\",\"launch\":\"cli\",\"model\":\"gpt-5.6-sol\",\"sandbox\":\"worktree-full\"}": "01a0cd40-7746-7510-bcc2-44574c091156"
+        },
+        "created": "2026-09-23",
+        "session_owners": {
+          "{\"alias\":\"sol5.6\",\"backend\":\"codex\",\"effort\":\"high\",\"launch\":\"cli\",\"model\":\"gpt-5.6-sol\",\"sandbox\":\"worktree-full\"}": "llac-20260923"
+        }
       },
       {
         "id": "llac-knee",
@@ -71656,6 +71666,228 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260923T062113460838-client-overload-behaviour",
+        "plan": "local-lane-admission-control",
+        "section": "\u00a75",
+        "node": "client-overload-behaviour",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1344,
+                "cached_input_tokens": 190638,
+                "input_tokens": 191984,
+                "output_tokens": 695,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 192679,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "74b53aa2-1d4b-451f-8ce7-33c072085f83",
+            "session_id": "llac-20260923"
+          },
+          "done_when": "the report at /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/llac-20260923/client-overload-behaviour.md states, for the Claude Code build at /home/ITER/mcintos/.local/bin/claude and the build clive launches, the retry count, Retry-After handling, back-off schedule and user-visible message for each of HTTP 429, 503 and 529, plus the request timeout and its override variable, each with a citation to shipped code or official documentation; and states, citing imas_ambix/agent/router.py line numbers, what the router relays to the client when the engine answers an error and when the engine holds a request before sending headers",
+          "estimated_hours": null,
+          "goal": "Establish how Claude Code and the router respond when the lane refuses or holds a request",
+          "id": "client-overload-behaviour",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-23T06:21:14Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no 'binding_observed'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T062113460838-client-overload-behaviour/manifest.md",
+          "negative_control": "",
+          "plan": "local-lane-admission-control",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "investigate",
+          "section": "\u00a75",
+          "spec_level": "guided",
+          "time_budget": "40m",
+          "token_budget": null,
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/llac-20260923/client-overload-behaviour.md"
+          ]
+        },
+        "role": "investigate",
+        "spec_level": "guided",
+        "member": "llac-client",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "xhigh",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "read-only",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-23T06:21:40Z",
+        "completed_at": "2026-09-23T08:10:29.569Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 6471,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 6529,
+        "stalled": true,
+        "time_budget": "40m",
+        "base_sha": "14eeddc7b87f5084f605b8da5c2f05871d8c742b",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "report covers 429/503/529 retry, Retry-After, back-off, message, timeout and router relay with citations",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T062113460838-client-overload-behaviour/gate.log",
+          "log_digest": "sha256:b839e335904bfd4fd06be0de115a2e6c2eee298238338a4b66277161eb1e9688"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T062113460838-client-overload-behaviour/manifest.md",
+        "scope_changed": false,
+        "session_id": "ffb34648-e202-451d-81ee-bd5a7fdcc706",
+        "budget": {
+          "cost_usd": null,
+          "detail": "no rate-limit event in the stream yet",
+          "headroom": "unknown",
+          "rate_limit_period_minutes": null,
+          "rate_limit_type": null,
+          "refusal": false,
+          "resets_at": null,
+          "surpassed_threshold": null,
+          "threshold_status": null,
+          "tokens": null,
+          "utilisation_pct": null
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-23T08:10:29.569Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": null,
+        "follow_on_paths": [
+          "429/503/529"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": false,
+          "matched_measure": null,
+          "override": false,
+          "role": "investigate",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": {
+          "status": "underivable",
+          "reason": "model_span_unavailable_at_promotion"
+        },
+        "scope_acceptances": null,
+        "no_commit": "read-only investigation; the report lives outside the repository",
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/llac-20260923/client-overload-behaviour",
+          "session_id": "ffb34648-e202-451d-81ee-bd5a7fdcc706",
+          "session_source": "pointer",
+          "retained_at": "2026-09-23T08:10:29.569Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "promoted_revision": "14eeddc7b87f5084f605b8da5c2f05871d8c742b",
+        "plan_impl_at_dispatch": 0.0,
+        "impl_move": {
+          "plan": "local-lane-admission-control",
+          "at_dispatch": 0.0,
+          "at_complete": null,
+          "verdict": "exempt",
+          "reason": "role-not-enforced:investigate"
+        },
+        "negative_control": {
+          "verdict": "exempt",
+          "reason": "node-writes-no-test-path"
+        },
+        "lane_advisory": {
+          "backend": "clive",
+          "burn_multiple": null,
+          "cheaper_lane": {
+            "detail": "",
+            "lane": null,
+            "state": "not_evaluated"
+          },
+          "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+          "horizon_ends_at": "2026-09-23T07:01:14.870304+00:00",
+          "horizon_seconds": 2400,
+          "metered": false,
+          "observed_at": null,
+          "precedes_horizon": null,
+          "projected_exhaustion_at": null,
+          "resets_at": null,
+          "seconds_until_reset": null,
+          "state": "quiet",
+          "utilisation_pct": null
+        },
+        "lane_declaration": {
+          "backend": null,
+          "headroom": null,
+          "metered": false,
+          "observed_at": null,
+          "read_at": "2026-09-23T06:21:14Z",
+          "resolved_backend": "clive",
+          "utilisation_pct": null
+        },
+        "lane_reading": {
+          "age_seconds": null,
+          "binding_observed": "unknown",
+          "detail": "lane document carries no 'binding_observed'",
+          "headroom": "unknown",
+          "mean_context": "unknown",
+          "observed_at": null,
+          "state": "unknown",
+          "suggested_shelf_life_seconds": null
+        },
+        "tool_steps": 130.0,
+        "orientation_input_tokens": 8990339.0,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -71744,6 +71976,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 974
+    "_version": 977
   }
 }
