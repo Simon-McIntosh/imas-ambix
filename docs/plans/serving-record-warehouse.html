@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-23">
-<meta name="plan-version" content="32">
+<meta name="plan-version" content="33">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;}">
 </head>
 <body>
@@ -492,6 +492,75 @@
     column names how a host and boot were resolved, not which tier a row came
     from. A reader asking for a window that both a raw file and its minute
     compaction cover is answered from both.</p>
+
+    <h2 id="s10">&sect;10 — gpu-watch reads the recorder: one source for every serving figure</h2>
+
+    <p><strong>What is wrong.</strong> <code>gpu-watch</code> lives in the
+    dotfiles repository at <code>bin/gpu-watch</code>. It still computes every
+    serving figure itself. It keeps a private ledger at
+    <code>~/.cache/gpu-watch/serve-ledger.jsonl</code>, scrapes the serve over
+    HTTP, fetches its own OpenRouter price table, and carries its own copies of
+    <code>ledger_cost</code>, <code>match_price</code> and <code>price_at</code>.
+    <code>imas-ambix agent watch</code> derives the same quantities from the
+    recorder's receipts. So the two tools can print different tokens, different
+    cost and different utilisation for the same period, and a fix to one never
+    reaches the other. The &sect;9 cost estimate reaches only the repository
+    command until this section lands.</p>
+
+    <p><strong>What moves.</strong> Every serving-derived panel of gpu-watch
+    gets its figures from <code>imas-ambix agent watch --json</code> and only
+    renders them: the serve panel, the period ledger, and its cost column.
+    gpu-watch's private ledger file, its ledger writer, its price fetch and its
+    own <code>ledger_cost</code>, <code>match_price</code>,
+    <code>price_at</code> and <code>ledger_integrate</code> are deleted. After
+    this section, no serving figure is computed in the dotfiles repository.
+    Consuming the JSON document rather than importing the package keeps
+    gpu-watch a standalone script, and it makes the document the single
+    contract between the two.</p>
+
+    <p><strong>What does not move.</strong> gpu-watch is also an overview of
+    the whole accelerator node, and the recorder cannot replace that half. The
+    recorder sees only the cards inside its own serve's allocation; the other
+    reservation group's cards and jobs are invisible to it. These stay exactly
+    as they are:</p>
+    <ul>
+      <li>the per-card utilisation and memory bars over a rolling window</li>
+      <li>the node-wide job table from <code>squeue</code>, covering every user
+      and both reservation groups</li>
+      <li>host load</li>
+      <li>the one-second live mode</li>
+    </ul>
+
+    <p><strong>Where the two tools differ today.</strong> <code>agent
+    watch</code> is a one-shot render: the serve rail, the serve's card
+    readings from the receipts, and the period ledger with cost. It has no live
+    mode, no window argument, no view of the other group's cards, and no job
+    table. It covers the serving half of gpu-watch, not the node half. Its
+    <code>--record</code> help text also still names
+    <code>~/.local/share/ambix/receipts</code> as the default. That was the
+    stale default <code>48dea5e0</code> removed, so the help now contradicts
+    the behaviour.</p>
+
+    <table>
+      <caption>Nodes for this section.</caption>
+      <thead><tr><th>Node</th><th>Runs after</th><th>Effort</th></tr></thead>
+      <tbody>
+        <tr><td>Correct the <code>--record</code> help text to the resolved default</td><td>&mdash;</td><td>0.25 h</td></tr>
+        <tr><td>gpu-watch renders serving panels from <code>agent watch --json</code>; its private ledger and price code deleted</td><td>scheduled ingest (&sect;5); the &sect;9 printing node</td><td>2.5 h</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Done when</strong> (the gpu-watch node, written in the dotfiles
+    repository): a grep of <code>bin/gpu-watch</code> finds no definition of
+    <code>ledger_cost</code>, <code>match_price</code>, <code>price_at</code>
+    or <code>ledger_integrate</code>, and no reference to
+    <code>serve-ledger.jsonl</code> or the OpenRouter models URL. A one-shot
+    <code>gpu-watch</code> run is captured beside <code>imas-ambix agent watch
+    --json</code> taken in the same minute, and every period's tokens and cost
+    agree to the digit. The captured output still shows all eight card rows and
+    the node job table. The declared negative control is to restore the
+    private ledger read for the period table; the token comparison must then
+    disagree, and the log is recorded.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
