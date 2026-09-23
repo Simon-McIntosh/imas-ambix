@@ -587,6 +587,13 @@
       <li>The router is restarted in the same window, and the gate file is set to
       <code>"width": "auto"</code>.</li>
     </ul>
+    <p><strong>Auto width is proved through the path it runs on before it goes live.</strong>
+    The auto-width review (96/100) found that every test seeds the gate through
+    <code>observe_lane</code> directly. Deleting the call in <code>_publish_lane</code>
+    leaves the suite green, while in production auto mode silently falls to the floor
+    width of 16. So a test drives <code>_publish_lane</code> itself against a stub engine
+    metrics endpoint and asserts the effective width that results, and deleting the call
+    must fail it.</p>
     <p>Not in this relaunch: DP attention, which needs session-affine dispatch and its
     own validation, and the loopback bind, which needs the router's upstream address
     confirmed first.</p>
