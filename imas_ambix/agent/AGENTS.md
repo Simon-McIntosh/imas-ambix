@@ -412,21 +412,27 @@ dimension 1024 reduced to 256 on output, L2-normalised.
 enforced it is `AMBIX_AGENT_API_KEY` in the shared `agents/.env`, and the engine
 accepts it **only** as `Authorization: Bearer` — never `x-api-key`.
 
-## 3c. Concurrency on the local lane — the engine schedules, nothing in front of it does
+## 3c. Concurrency on the local lane — one global generation gate, then the engine scheduler
 
-**The router does not bound concurrency and must never be made to again.** It
-resolves the upstream, merges the catalog, clamps output tokens against the
-engine's window, and relays. It is a stable address in front of a rotating
-serve, not a scheduler.
+**The router globally bounds generation at the measured throughput knee.** One
+FIFO covers every consumer together, with no host, user-agent or per-consumer
+identity. `router-gate.json` beside `lane.json` carries `width` and
+`wait_seconds`; the running router refreshes it at most once per second, so an
+operator can retune the width without a restart. The absent-file defaults are
+22 in flight and a 300-second wait, width 0 disables admission, and an expired
+wait returns Anthropic HTTP 529 with a fixed five-second `Retry-After`. Catalog,
+health and `count_tokens` requests bypass the gate because they consume no decode
+width. The lane document publishes the router's width, in-flight count and FIFO
+depth beside the engine's own counters.
 
-**The engine is the scheduler, and it is the only correct one.** vLLM runs
-continuous batching with its own waiting queue, its own KV accounting and
-preemption under pressure; it is configured here at `max_num_seqs = 1024` with
-`max_num_batched_tokens = 32768`. It degrades by queueing, never by refusing, so
-a relay-side bound cannot protect it from anything — it can only refuse work the
-engine would have taken.
+**The engine remains the scheduler inside the admitted batch.** vLLM and SGLang
+still own continuous batching, KV accounting, their internal waiting queues and
+preemption under pressure. The router gate does not predict KV use or order work
+by prompt shape; it prevents arrivals beyond the measured aggregate-throughput
+peak from joining the running generation set and slowing every stream already
+there. The connector's separate file-descriptor ceiling remains 2048.
 
-**Why this is stated as a prohibition rather than a default.** A per-consumer
+**The retired per-consumer filter is not the global gate.** A per-consumer
 admission filter lived in the router until 2026-09-14 with a ceiling of two in
 flight and four queued, keyed on client host joined with user-agent. Every
 harness process on one login node therefore resolved to a single bucket, so a
@@ -436,17 +442,14 @@ burned 30 seconds before failing — while the engine sat at **0.0% KV occupancy
 with a 1024-sequence ceiling. Eight concurrent completions ran at **872 tok/s**
 direct against **110 tok/s** through the shared bucket.
 
-**The deployed ceiling was not the configured one, and nothing said so.** The
-filter had been deliberately set to sixteen in flight and forty-eight queued
-after an earlier fleet die-off, and the router measured here was running the
-code defaults of two and four. Eight concurrent requests from one consumer
-returned 6 x 200 and 2 x 429 in both repeats, which is exactly `2 + 4`. The
-mechanism: the launch command supplied the value, and the option's fallback was
-the dataclass default, so a relaunch that omitted the flag silently produced a
-router four times tighter than the one anyone had reasoned about. Two sessions'
-measurements of "the same" router were therefore both correct and described
-different systems -- 29,384 responses with zero refusals against 1,075 with
-37.4%.
+**The retired ceiling was not the configured one, and nothing said so.** The
+filter had been deliberately set to sixteen in flight and forty-eight queued,
+while the measured router was running code defaults of two and four. Eight
+concurrent requests from one consumer returned 6 x 200 and 2 x 429 in both
+repeats, exactly `2 + 4`. The launch command supplied the value, so omitting one
+flag silently produced a router four times tighter than the configuration under
+discussion. The current global gate instead reads one operator file at run time
+and publishes the value in force.
 
 **A limit that lives only in an invocation will eventually be launched without
 it.** There was no log line, no warning, and nothing in the published document
@@ -455,16 +458,18 @@ launch can raise, over a launch argument that a launch can forget; and where a
 bound matters, publish the value in force rather than leaving it inferable only
 from behaviour.
 
-**Its worst failure was not the throughput.** A worker that exhausted its
+**The retired filter's worst failure was not the throughput.** A worker that exhausted its
 context tried to compact, and the compaction request was refused by the queue —
 so a recoverable condition became a dead run, reported as `Prompt is too long —
 automatic compaction failed`. That message is true, is actionable, and points at
-node sizing rather than at the filter. A bound in front of the engine does not
-merely cost throughput; it corrupts the diagnosis of unrelated failures.
+node sizing rather than at the filter. The global gate avoids that identity
+collapse, waits up to five minutes rather than thirty seconds, and gives a
+timed-out client a short retry hint rather than holding it beyond the expected
+client request timeout.
 
-**The only bound now is a file-descriptor guard.** `RouterApp` sets an explicit
-`TCPConnector(limit=2048)`, far above the engine's own running-sequence ceiling
-so the engine is always the binding constraint.
+**Transport capacity is not decode admission.** `RouterApp` sets an explicit
+`TCPConnector(limit=2048)`, far above the global generation width, so file
+descriptors do not become a second invisible queue.
 
 **Deleting a limit does not remove it — it inherits the library's, which is
 lower and invisible.** `aiohttp.ClientSession` with no explicit connector

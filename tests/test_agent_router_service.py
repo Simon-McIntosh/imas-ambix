@@ -9,7 +9,7 @@ from imas_ambix.agent.profile import SiteConfig
 from imas_ambix.cli import main
 
 
-def test_router_script_is_cpu_only_discoverable_and_unlimited(tmp_path):
+def test_router_script_is_cpu_only_and_uses_file_backed_admission(tmp_path):
     site = SiteConfig(
         base_dir=str(tmp_path),
         engine_env_root=str(tmp_path / "engine-envs"),
@@ -31,13 +31,13 @@ def test_router_script_is_cpu_only_discoverable_and_unlimited(tmp_path):
     assert "from imas_ambix.cli import main; main()" in script
     assert "agent router" in script
     assert "--api-key" not in script
-    # The engine owns scheduling; the router must not carry a second bound.
+    # Admission comes from router-gate.json rather than launch-only flags.
     assert "--max-in-flight" not in script
     assert "--max-queued" not in script
 
 
-def test_router_dry_run_emits_no_request_bound(monkeypatch):
-    """The relay must never reimpose a ceiling the engine already schedules."""
+def test_router_dry_run_needs_no_admission_flags(monkeypatch):
+    """The operator file keeps admission independent of launch composition."""
 
     def refuse_submission(_script: str) -> str:
         raise AssertionError("dry-run must not submit")

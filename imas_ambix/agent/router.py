@@ -53,9 +53,9 @@ RECEIPT_WINDOW_S_ENV = "AMBIX_ROUTER_RECEIPT_WINDOW_S"
 
 GATE_FILENAME = "router-gate.json"
 DEFAULT_GENERATION_WIDTH = 22
-DEFAULT_GENERATION_WAIT_SECONDS = 900.0
-_GATE_CONFIG_POLL_SECONDS = 0.02
-_UNREAD_CONFIG = object()
+DEFAULT_GENERATION_WAIT_SECONDS = 300.0
+GENERATION_RETRY_AFTER_SECONDS = 5
+_GATE_CONFIG_REFRESH_SECONDS = 1.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,7 +84,7 @@ class _GenerationGate:
         self.config_path = config_path
         self._defaults = _GateSettings(default_width, default_wait_seconds)
         self._cached_settings = self._defaults
-        self._config_signature: tuple[int, int, int] | None | object = _UNREAD_CONFIG
+        self._next_config_refresh_at = 0.0
         self._condition = asyncio.Condition()
         self._waiters: deque[object] = deque()
         self._in_flight = 0
@@ -101,17 +101,19 @@ class _GenerationGate:
         """Read changed configuration and otherwise return the cached settings."""
         if self.config_path is None:
             return self._defaults
-        try:
-            stat = self.config_path.stat()
-        except OSError:
-            signature = None
-        else:
-            signature = (stat.st_ino, stat.st_mtime_ns, stat.st_size)
-        if signature == self._config_signature:
+        now = time.monotonic()
+        if now < self._next_config_refresh_at:
             return self._cached_settings
+        self._next_config_refresh_at = now + _GATE_CONFIG_REFRESH_SECONDS
+        try:
+            self.config_path.stat()
+        except OSError:
+            available = False
+        else:
+            available = True
 
         settings = self._defaults
-        if signature is not None:
+        if available:
             try:
                 payload = json.loads(self.config_path.read_text(encoding="utf-8"))
                 if not isinstance(payload, Mapping):
@@ -138,7 +140,6 @@ class _GenerationGate:
                     self._defaults.width,
                     self._defaults.wait_seconds,
                 )
-        self._config_signature = signature
         self._cached_settings = settings
         logger.info(
             "generation gate config path=%s width=%d wait_seconds=%s",
@@ -184,12 +185,12 @@ class _GenerationGate:
                     if remaining <= 0:
                         return _Admission(
                             "timed-out",
-                            retry_after_seconds=max(1, math.ceil(initial.wait_seconds)),
+                            retry_after_seconds=GENERATION_RETRY_AFTER_SECONDS,
                         )
                     with suppress(TimeoutError):
                         await asyncio.wait_for(
                             self._condition.wait(),
-                            timeout=min(_GATE_CONFIG_POLL_SECONDS, remaining),
+                            timeout=min(_GATE_CONFIG_REFRESH_SECONDS, remaining),
                         )
         finally:
             async with self._condition:

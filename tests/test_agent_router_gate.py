@@ -9,6 +9,7 @@ from typing import Any
 
 from aiohttp import web
 
+from imas_ambix.agent import router as router_mod
 from imas_ambix.agent.router import RouterApp, Upstream
 
 AsgiMessage = dict[str, Any]
@@ -159,10 +160,10 @@ class GenerationProbe:
                 self.active -= 1
                 self.changed.notify_all()
 
-    async def wait_for_active(self, count: int) -> None:
+    async def wait_for_active(self, count: int, *, timeout: float = 1.0) -> None:
         async with self.changed:
             await asyncio.wait_for(
-                self.changed.wait_for(lambda: self.active >= count), timeout=1
+                self.changed.wait_for(lambda: self.active >= count), timeout=timeout
             )
 
 
@@ -240,19 +241,62 @@ def test_wait_bound_returns_anthropic_overload_with_retry_after(tmp_path) -> Non
                 ),
                 timeout=0.5,
             )
-            assert _status(refused) == 529
-            assert _headers(refused)[b"retry-after"]
-            assert json.loads(_body(refused)) == {
-                "type": "error",
-                "error": {
-                    "type": "overloaded_error",
-                    "message": "router generation queue wait limit exceeded",
-                },
-            }
-            probe.release.set()
-            await first
+            try:
+                assert _status(refused) == 529
+                assert _headers(refused)[b"retry-after"] == b"5"
+                assert json.loads(_body(refused)) == {
+                    "type": "error",
+                    "error": {
+                        "type": "overloaded_error",
+                        "message": "router generation queue wait limit exceeded",
+                    },
+                }
+            finally:
+                probe.release.set()
+                await first
 
     asyncio.run(exercise())
+
+
+def test_gate_configuration_is_checked_once_per_second_gate_wide(
+    tmp_path, monkeypatch
+) -> None:
+    gate_file = tmp_path / "router-gate.json"
+    _write_gate(gate_file, width=1)
+    clock = [100.0]
+    stat_calls = 0
+    real_stat = Path.stat
+
+    def count_stat(path, *args, **kwargs):
+        nonlocal stat_calls
+        if path == gate_file:
+            stat_calls += 1
+        return real_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(router_mod.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(Path, "stat", count_stat)
+    app = RouterApp(Resolver([]), gate_file=gate_file)
+
+    assert [app._generation_gate.settings().width for _ in range(30)] == [1] * 30
+    assert stat_calls == 1
+
+    _write_gate(gate_file, width=2)
+    clock[0] += 0.999
+    assert app._generation_gate.settings().width == 1
+    assert stat_calls == 1
+
+    clock[0] = 101.001
+    assert app._generation_gate.settings().width == 2
+    assert stat_calls == 2
+
+
+def test_missing_gate_file_uses_five_minute_wait_default(tmp_path) -> None:
+    app = RouterApp(Resolver([]), gate_file=tmp_path / "missing-gate.json")
+
+    settings = app._generation_gate.settings()
+
+    assert settings.width == 22
+    assert settings.wait_seconds == 300.0
 
 
 def test_disconnected_waiter_and_streamer_release_capacity(tmp_path) -> None:
@@ -393,7 +437,7 @@ def test_gate_file_edit_changes_width_without_restarting_app(tmp_path) -> None:
             await asyncio.sleep(0.05)
             assert probe.maximum == 1
             _write_gate(gate_file, width=2)
-            await probe.wait_for_active(2)
+            await probe.wait_for_active(2, timeout=1.5)
             assert probe.maximum == 2
             probe.release.set()
             await asyncio.gather(first, second)
