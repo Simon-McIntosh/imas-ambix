@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 310" role="img" aria-labelledby="title desc">
+  <title id="title">Router generation admission flow</title>
+  <desc id="desc">Generation requests enter one FIFO queue and occupy at most W relay slots, while catalog and token-count requests bypass the queue. A timeout returns HTTP 529 and a disconnect leaves the queue or releases a slot.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#3f4b59"/>
+    </marker>
+    <style>
+      .box { fill: #f7f9fb; stroke: #3f4b59; stroke-width: 2; rx: 9; }
+      .active { fill: #e8f5ec; stroke: #287a45; stroke-width: 2; rx: 9; }
+      .bypass { fill: #eef5ff; stroke: #356aa0; stroke-width: 2; rx: 9; }
+      .refuse { fill: #fff0ee; stroke: #a43d35; stroke-width: 2; rx: 9; }
+      .flow { fill: none; stroke: #3f4b59; stroke-width: 2; marker-end: url(#arrow); }
+      .dash { fill: none; stroke: #356aa0; stroke-width: 2; stroke-dasharray: 7 5; marker-end: url(#arrow); }
+      text { font-family: system-ui, sans-serif; fill: #17202a; font-size: 15px; }
+      .label { font-size: 13px; fill: #4b5563; }
+      .strong { font-weight: 700; }
+    </style>
+  </defs>
+
+  <text x="26" y="34" class="strong">router arrivals</text>
+  <rect class="box" x="24" y="54" width="160" height="58"/>
+  <text x="45" y="79">generation request</text>
+  <text x="45" y="99" class="label">messages or chat</text>
+
+  <path class="flow" d="M184 83 H250"/>
+  <rect class="box" x="250" y="45" width="190" height="116"/>
+  <text x="276" y="73" class="strong">one global FIFO</text>
+  <text x="276" y="98">oldest waiter first</text>
+  <text x="276" y="123" class="label">disconnect removes waiter</text>
+  <text x="276" y="145" class="label">wait bound is file-backed</text>
+
+  <path class="flow" d="M440 83 H505"/>
+  <rect class="active" x="505" y="45" width="175" height="116"/>
+  <text x="534" y="73" class="strong">relay slots</text>
+  <text x="534" y="100">in flight ≤ W</text>
+  <text x="534" y="125" class="label">finally releases slot</text>
+  <text x="534" y="147" class="label">stream disconnect too</text>
+
+  <path class="flow" d="M680 83 H746"/>
+  <rect class="box" x="746" y="54" width="150" height="58"/>
+  <text x="774" y="80" class="strong">upstream</text>
+  <text x="766" y="100" class="label">generation engine</text>
+
+  <path class="flow" d="M345 161 V218 H505"/>
+  <rect class="refuse" x="505" y="193" width="175" height="62"/>
+  <text x="533" y="219" class="strong">wait expires</text>
+  <text x="531" y="241" class="label">529 + Retry-After</text>
+
+  <rect class="bypass" x="24" y="217" width="238" height="62"/>
+  <text x="48" y="243" class="strong">decode-free request</text>
+  <text x="48" y="265" class="label">catalog · health · count_tokens</text>
+  <path class="dash" d="M262 248 H746"/>
+
+  <text x="746" y="289" class="label">No engine KV is held while a generation request waits.</text>
+</svg>

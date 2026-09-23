@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="local-lane-admission-control-landed">
+  <meta name="plan-title" content="Local Lane Admission Control — Landed Evidence">
+  <meta name="plan-summary" content="Cumulative implementation and verification record for local serving-lane admission control.">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-recorded-at" content="2026-09-23">
+  <meta name="plan-evidence-for" content="local-lane-admission-control">
+  <meta name="plan-verifies" content="local-lane-admission-control#s7">
+  <title>Local Lane Admission Control — Landed Evidence | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+  <h1>Local Lane Admission Control — Landed Evidence</h1>
+  <p>Cumulative evidence for
+  <a href="/imas-ambix/local-lane-admission-control.html">the local lane admission-control plan</a>.
+  Each material result has one stable anchor.</p>
+
+  <section id="router-global-gate">
+    <h2>Global router generation gate</h2>
+    <p>Commits <code>4bb11e89</code> and <code>da60421b</code> added a single FIFO
+    admission point shared by both generation paths. The runtime file
+    <code>router-gate.json</code>, beside <code>lane.json</code>, carries
+    <code>width</code> and <code>wait_seconds</code>; it is re-read when replaced or
+    edited. Missing or invalid configuration uses the launch defaults of 22 in flight
+    and 900 seconds, while width 0 disables admission. Catalog and
+    <code>/v1/messages/count_tokens</code> traffic does not consume a generation slot.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/local-lane-admission-control/router-generation-gate.svg"
+           alt="Generation requests pass through one FIFO into at most W relay slots, while catalog, health and token-count requests bypass it; timeouts return 529 and disconnects release queue or relay capacity.">
+      <figcaption>The queue holds no engine KV. Capacity returns in a
+      <code>finally</code> after an upstream response completes, the caller disconnects,
+      or the relay is cancelled.</figcaption>
+    </figure>
+
+    <table>
+      <thead><tr><th>Measure</th><th>Observed result</th></tr></thead>
+      <tbody>
+        <tr><td>Defect reproduction</td><td>With width 2, the unguarded router let all
+        5 concurrent generations reach the stub upstream: <code>assert 5 == 2</code>.</td></tr>
+        <tr><td>Width and fairness</td><td>Five streams completed with no refusal;
+        upstream concurrency never exceeded 2 and admission order remained
+        <code>0, 1, 2, 3, 4</code>.</td></tr>
+        <tr><td>Bounded wait</td><td>A request behind a full width-1 gate received HTTP
+        529 with Anthropic <code>overloaded_error</code> and
+        <code>Retry-After</code>.</td></tr>
+        <tr><td>Disconnects</td><td>A departed waiter never reached the upstream, and a
+        departed streaming caller released its acquired slot for the next request.</td></tr>
+        <tr><td>Runtime edit</td><td>Changing width from 1 to 2 admitted the next FIFO
+        waiter on the same running application, without construction or restart.</td></tr>
+        <tr><td>Bypass</td><td>Catalog and token-count calls both returned 200 while a
+        width-1 generation slot was occupied.</td></tr>
+        <tr><td>Lane publication</td><td>A positive-control snapshot retained engine
+        <code>running=9</code> and <code>waiting=2</code> beside router
+        <code>in_flight=1</code> and <code>waiting=1</code>.</td></tr>
+        <tr><td>Focused router gate</td><td><code>43 passed in 6.02s</code> across
+        <code>tests/test_agent_router_gate.py</code> and every
+        <code>tests/test_agent_router*.py</code> file.</td></tr>
+        <tr><td>Declared mutation</td><td>Removing the acquire from the generation relay
+        path made the width test fail with <code>assert 5 == 2</code>; restoring the
+        committed source restored the marker and the green gate.</td></tr>
+        <tr><td>Repository lint</td><td><code>uv run --no-sync ruff check imas_ambix tests</code>
+        exited 0 with <code>All checks passed!</code>.</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Operational boundary.</strong> No router process was restarted and no
+    deployment was performed. Applying the code to the live service remains the
+    separately authorised action because a router restart drops streams already in
+    flight.</p>
+  </section>
+</main>
+</body>
+</html>
