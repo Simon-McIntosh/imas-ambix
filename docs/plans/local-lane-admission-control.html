@@ -25,8 +25,8 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-23">
 <meta name="plan-impl" content="0.0">
-<meta name="plan-version" content="1">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;}">
+<meta name="plan-version" content="2">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;}">
 </head>
 <body>
   <main class="plan-doc">
@@ -148,6 +148,36 @@
     pass-through. The router gains a global bound only if the engine's queue proves unfair,
     blind to KV, or invisible to consumers. Any relaunch drains the lane to a genuine,
     sustained zero first. The running serve is never hard-stopped.</p>
+
+    <h2 id="s7">§7 — Immediate relief: one global in-flight gate at the router</h2>
+<p>A second reading at 08:30 local showed 33 running and 1 queued, with aggregate
+    output down to <strong>98 tok/s</strong> (from 217), 14.5 tok/s per stream, prefill
+    at 1.95k tok/s, TTFT 3.0 s and the KV pool at 88%. The lane is past its throughput
+    knee and close to prefix eviction, and about thirty agent sessions across several
+    projects share it. None of them read a crew ceiling. Relaunching the engine with a
+    lower <code>max_running_requests</code> needs a drain first, so the fastest queue on
+    the serve side is the router, which is a separate job and restarts in seconds.</p>
+    <p>The gate is deliberately unlike the filter removed on 2026-09-14. It is
+    <strong>one global bound</strong>, with no consumer identity and no per-consumer slots.
+    Requests are admitted first come, first served, up to a width <em>W</em>. A request
+    that finds the gate full waits, and holds no engine KV while it waits. It is refused
+    only after a wait bound set well beyond an ordinary turn, and the refusal is an
+    Anthropic <code>overloaded_error</code> (HTTP 529) carrying <code>Retry-After</code>,
+    so a client backs off rather than hanging. A request's slot is released in a
+    <code>finally</code> when its stream ends or the client disconnects. Catalog, health
+    and <code>count_tokens</code> requests bypass the gate, because they cost the engine
+    no decode width. <em>W</em> and the wait bound are read at run time from a small
+    operator-editable file, so retuning <em>W</em> after §3 lands needs no restart; if
+    the file is absent the gate uses its launch defaults, and a width of 0 disables it.
+    The router publishes the gate's in-flight and waiting counts in the lane document
+    beside the engine's own.</p>
+    <p>Done when: a test drives more concurrent streams than <em>W</em> against a stub
+    upstream and observes at most <em>W</em> upstream requests in flight while none is
+    refused. A second test observes the 529 with <code>Retry-After</code> once the wait
+    bound elapses. A third observes a disconnected waiter and a disconnected streamer
+    both releasing their slots. A fourth observes that editing the file changes
+    <em>W</em> on a running app. Deployment is a router restart, which drops the streams
+    in flight. It is authorised separately and is not part of the node.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
