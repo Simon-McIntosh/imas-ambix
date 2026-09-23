@@ -1217,9 +1217,19 @@ read_sample(&lt;group with no cpu.max&gt;) -&gt;
         <tr><td><code>hostname</code></td><td>98dci4-srv-1006.iter.org</td><td>98dci4-clu-2002.iter.org</td></tr>
         <tr><td><code>boot_id</code></td><td>82c41dfa-a445-4fb2-8416-04b44c3d874c</td><td>cf8fb63b-1437-4d65-a9f5-f4e51e3ffaef</td></tr>
         <tr><td><code>cpu_max</code></td><td><code>400000 100000</code></td><td><code>absent</code></td></tr>
-        <tr><td><code>throttled_share</code></td><td>0.3396</td><td><code>unbounded</code></td></tr>
+        <tr><td><code>throttled_share</code></td><td>0.3396<br><em>the later reading that was mistaken for the baseline</em></td><td><code>unbounded</code></td></tr>
       </tbody>
     </table>
+    <p><strong>The login node's 0.3396 above is a measurement, and it is the figure under
+    correction for a different reason: it was carried forward as the baseline.</strong> It is
+    the reading taken at 2026-09-21T11:44:20Z and held in
+    <code>~/.config/reckon/crew/runs/r-20260921T102535452002-fleet-host-read-is-exercised/logs/coordinator-both-sides-live.log</code>
+    as <code>0.3395842668152112</code>, some hours after the baseline and a genuine cumulative
+    reading of the same slice — not a restatement of the baseline and not a wrong number. What
+    was wrong was its use: it was copied from this table into two later statements of the
+    baseline. The baseline the plan's first step recorded is <code>0.3366</code>, stated in the
+    baseline table above and re-derived from the counters beside it, and every sentence quoting
+    a move from it is computed against that figure rather than against this one.</p>
     <p>This is what the host block was added for. The operand is identical on both sides and
     resolves on every node in the cluster, so before the change these two readings would have
     differed only in their counters and nothing in either would have said they came from different
@@ -1451,8 +1461,10 @@ burst_usec 0</code></pre>
     them</em>. Logs, all under
     <code>~/.config/reckon/crew/runs/r-20260921T210109150827-fleet-accounting-is-not-the-ceiling/logs/</code>:
     <code>pytest-throttling.log</code>, <code>ruff-whole-tree.log</code> and
-    <code>negative-control-receipt.txt</code>. Every gate log's first line names the revision
-    it ran at, the tree and the command.</p>
+    <code>negative-control-receipt.txt</code>. The two suite logs carry a three-line header
+    naming the revision, the tree and the command in that order, the revision alone on the first
+    line; the negative-control receipt's first line repeats the declared mutation verbatim and
+    names no revision, tree or command.</p>
 
     <h3>What this record does not establish</h3>
     <p>The merged head is not verified here: this measures the node's own change in its own
@@ -1548,9 +1560,14 @@ burst_usec 0</code></pre>
   must then fail</em>. Logs, all under
   <code>~/.config/reckon/crew/runs/r-20260922T182717694207-fleet-placement-token/logs/</code>:
   <code>live-placement.log</code>, <code>flags-passthrough.log</code>,
-  <code>pytest-and-ruff.log</code> and <code>negative-control.log</code>. Every gate log's
-  first line names the revision it ran at, the tree and the command; the negative control's
-  first line repeats the declared mutation verbatim.</p>
+  <code>pytest-and-ruff.log</code> and <code>negative-control.log</code>. Of the two live logs,
+  <code>live-placement.log</code> names the revision on its first line, its command on the
+  second and the tree it ran from on the third; <code>flags-passthrough.log</code> names the
+  revision on its first line and its command on the third, and reads a configuration file
+  rather than a tree, so it names none. <code>pytest-and-ruff.log</code> names the revision and
+  the tree on its first line with its command beneath. The negative control's first line
+  repeats the declared mutation verbatim, with its revision and command on the two lines
+  after it.</p>
 
   <h3>What this record does not establish</h3>
   <p>The merged head is not verified here: this measures the node's own change in its own
@@ -1658,14 +1675,17 @@ burst_usec 0</code></pre>
     <p>Read on <code>98dci4-srv-1006</code>, control group
     <code>user.slice/user-39486.slice</code>, over a 60-second span. Both ratios are stated so
     their difference is visible, which is the whole point of the node: the cumulative figure has
-    moved 2.6&nbsp;percent since the baseline was recorded, while the span figure is a third
-    below it.</p>
+    moved <strong>3.5&nbsp;percent</strong> since the baseline was recorded — against the
+    baseline of <strong>0.3366</strong> that the first step recorded. The arithmetic, against
+    that figure rather than against any other:
+    <code>(0.3483 &minus; 0.3366) / 0.3366 = 0.0117 / 0.3366 = 0.0348</code>, a rise of
+    3.5&nbsp;percent; the span figure is a third below the cumulative one.</p>
     <table>
       <thead><tr><th>reading</th><th>value</th><th>what divides what</th></tr></thead>
       <tbody>
         <tr>
           <td>recorded baseline, cumulative since boot</td>
-          <td><strong>0.3396</strong></td>
+          <td><strong>0.3366</strong></td>
           <td>the baseline this plan carries</td>
         </tr>
         <tr>
@@ -1690,14 +1710,27 @@ burst_usec 0</code></pre>
     with the wall clock it was divided by.</p>
     <figure>
       <img src="/imas-ambix/figures/slurm-hosted-agent-fleet/interval-share-over-elapsed.svg"
-           alt="The recorded cumulative baseline 0.3396, the cumulative share at this reading 0.3483, and the share over the 60-second span 0.2323."
+           alt="The recorded cumulative baseline 0.3366, the cumulative share at this reading 0.3483, and the share over the 60-second span 0.2323."
            style="max-width:100%;height:auto">
       <figcaption>Throttled share of permitted CPU thread-time on the login slice. The two grey
       bars are the same quantity — stalled thread-time over permitted thread-time since boot —
-      and differ by 2.6 percent across the interval since the baseline was recorded. The blue
+      and differ by 3.5 percent across the interval since the baseline was recorded. The blue
       bar is the same counters differenced over the span alone. The gap between them is what the
       cumulative figure cannot show: it is the recent period, undiluted.</figcaption>
     </figure>
+    <figure>
+      <img src="/imas-ambix/figures/slurm-hosted-agent-fleet/baseline-misattribution.svg"
+           alt="Five cumulative throttle readings of the login slice in the order taken: 0.3366, the recorded baseline; 0.3373 and 0.3378; 0.3396, the reading carried forward as the baseline; and 0.3483, 3.5 percent above 0.3366."
+           style="max-width:100%;height:auto">
+      <figcaption>Where the mistaken baseline came from: five cumulative readings of the same
+      login slice, in the order taken. The first is the recorded baseline
+      <strong>0.3366</strong>. The second and third are a later reading of the same boot and its
+      independent reproduction, <strong>0.3373</strong> and <strong>0.3378</strong>. The fourth
+      is <strong>0.3396</strong>, read at 2026-09-21T11:44:20Z and carried forward as the
+      baseline. The fifth is the cumulative figure at the span measurement,
+      <strong>0.3483</strong>, 3.5 percent above 0.3366. The four earlier readings sit within
+      0.003 of one another, which is why the carried-forward figure read as a baseline; the
+      move step seven waits on is the fifth.</figcaption>
     <p>A single span remains a draw rather than a level — five adjacent 60-second windows at the
     baseline spanned 0.425 to 1.865 — so this one reading is evidence that the instrument
     produces a figure attributable to its interval, not evidence about the current level of
@@ -1771,8 +1804,13 @@ burst_usec 0</code></pre>
     assumed, and the check printed <strong>IDENTICAL</strong>. The other logs for this section
     are <code>logs/pytest-focused.log</code>, <code>logs/ruff.log</code>,
     <code>logs/live-interval-read.log</code> and
-    <code>logs/negative-control-restore.log</code>, under that same run directory. Each gate
-    log's first line names the revision it ran at, the tree and the command.</p>
+    <code>logs/negative-control-restore.log</code>, under that same run directory. What each carries on
+    its first line, checked against the log rather than assumed: the two suite logs name the
+    revision and the tree, with no command; <code>live-interval-read.log</code> opens with the
+    JSON payload it captured and carries no header; <code>negative-control-restore.log</code>
+    states what it restored — that the source is back at the unmutated revision and the same
+    test has been re-run — and names no revision, tree or command; and the receipt's first line
+    repeats the declared mutation verbatim.</p>
 
     <h3>What this record does not establish</h3>
     <p>No claim is made about the current level of throttling: one 60-second span is a draw, as
@@ -1811,12 +1849,22 @@ burst_usec 0</code></pre>
     <h3>The interval since the correction</h3>
     <p>Read live on the login node <code>98dci4-srv-1006</code> at 20:30:43 CEST on
     2026-09-22:</p>
-    <pre><code>$ systemctl show user@39486.service -p Linger -p ActiveState -p ActiveEnterTimestamp
+    <pre><code>$ loginctl show-user 39486 -p Linger
 Linger=yes
+$ systemctl show user@39486.service -p ActiveState -p ActiveEnterTimestamp
 ActiveState=active
 ActiveEnterTimestamp=Sun 2026-09-20 15:34:42 CEST
 $ loginctl list-sessions | grep -c 39486
 14</code></pre>
+    <p><strong>Instrument probe, added with the record repair.</strong> An earlier form of this
+    transcript ran the three properties as one command under <code>systemctl show</code>, which
+    cannot emit the <code>Linger</code> line: probed on 2026-09-22 at 21:00:53 CEST, that unit
+    carries <strong>0</strong> properties matching <code>Linger</code>, while
+    <code>loginctl show-user 39486 -p Linger</code> emits <code>Linger=yes</code> at exit 0 —
+    the property belongs to the user record, which logind owns, not to the manager unit, which
+    systemd owns. The commands above are the instruments that emit the values beside them; the
+    probe is kept at
+    <code>~/.config/reckon/crew/runs/r-20260922T185649258017-review-of-lingering-retire/logs-review/linger-property-probe.log</code>.</p>
     <p>Fourteen sessions for this account out of nineteen host-wide, so the user manager is
     holding a fleet and not idling. The linger file is present on disk, root-owned, written
     2026-08-08 17:07 — it was never disabled and never needed repair. The user manager has now
@@ -1878,8 +1926,10 @@ $ loginctl list-sessions | grep -c 39486
         </tr>
       </tbody>
     </table>
-    <p>Both gate logs' first lines name the revision, the tree and the command; the logs are
-    <code>audit-doc-lingering.log</code> and <code>audit-doc-negative-control.log</code> under
+    <p>Of the two logs, <code>audit-doc-lingering.log</code>'s first line names the revision, the
+    tree and the command, and <code>audit-doc-negative-control.log</code>'s first line repeats
+    the declared mutation verbatim, so the header claim holds of the first and not of the
+    second; the logs are under
     the run directory
     <code>~/.config/reckon/crew/runs/r-20260922T182916246197-fleet-lingering-retire/logs/</code>.</p>
 
@@ -1888,10 +1938,71 @@ $ loginctl list-sessions | grep -c 39486
     the file it names exists: a scratch copy whose figure <code>src</code> was misspelled by
     one letter (<code>lingering-retire-timline.svg</code>, still project-absolute) reported
     <code>OK</code> and exit 0. The figure's existence was therefore verified by a direct read
-    — 4385 bytes at the path both documents name — rather than by the audit, and the gap is
-    recorded as a follow-on against the audit tool rather than repaired here.</p>
+    — 4573 bytes at the path both documents name, re-derived at the commit that shipped it
+    rather than carried forward: <code>git cat-file -s
+    f425580a:docs/figures/slurm-hosted-agent-fleet/lingering-retire-timeline.svg</code> prints
+    <strong>4573</strong>, and <code>f425580a</code> is the only commit that has ever touched
+    the file, so the blob at the shipping commit and the file on disk are the same 4573 bytes
+    — rather than by the audit, and the gap is recorded as a follow-on against the audit tool
+    rather than repaired here. An earlier form of this sentence stated 4385 bytes; that was a
+    count copied forward from an instrument probe's earlier read instead of re-derived, and the
+    re-derivation above replaces it.</p>
   </section>
 
+  <section id="record-states-what-was-measured">
+    <h2>The record states what was measured — four statements repaired against their sources</h2>
+    <p>Every figure in this record that quotes a measured value was checked against the log,
+    counter or commit it comes from, and four statements that did not hold were repaired.
+    Where a number was wrong the sentence is recomputed and the arithmetic shown; where a
+    claim held of only some of the series it was made over, the sentence now says what each
+    item carries.</p>
+    <h3>The baseline, and the later reading that stood in its place</h3>
+    <p>The baseline the first step recorded is <strong>0.3366</strong>, carried in the
+    baseline table near the top of this record and re-derivable from the counters beside it.
+    <strong>0.3396</strong> is not an error of measurement: it is the login slice read at
+    2026-09-21T11:44:20Z and held in the both-sides run log as
+    <code>0.3395842668152112</code>. Its use was the error — copied forward, it stood as the
+    baseline in the span table and in the interval figure alt text. Both now read 0.3366; the
+    both-sides table keeps 0.3396 with a label naming it the later reading mistaken for the
+    baseline; and the sentences quoting a move are recomputed against 0.3366 with the
+    arithmetic shown: <code>(0.3483 &minus; 0.3366) / 0.3366 = 0.0117 / 0.3366 = 0.0348</code>,
+    a rise of 3.5 percent rather than the 2.6 written.</p>
+    <h3>Four sentences narrowed, one left as it stands</h3>
+    <p>Four sentences claimed that every gate log first line names the revision it ran at,
+    the tree and the command. Checked log by log, the claim holds of some logs and not of
+    others: suite logs carry a three-line header naming the revision, the tree and the
+    command in that order; one live log names the revision and the command but no tree,
+    reading a configuration file rather than a tree; the negative-control receipts repeat
+    the declared mutation verbatim and name no revision, tree or command. Each sentence now
+    says what the logs it lists carry on their first line; the sentence that is true of the
+    single log it names is unchanged, and the log check is recorded beside each.</p>
+    <h3>An instrument named for a property it cannot emit, and a size re-derived</h3>
+    <p>The retirement timeline transcript ran <code>Linger</code> under
+    <code>systemctl show</code>, which cannot print it: a probe found <strong>zero</strong>
+    properties matching <code>Linger</code> on <code>user@39486.service</code>, while
+    <code>loginctl show-user 39486 -p Linger</code> emits <code>Linger=yes</code> at exit 0.
+    The transcript now runs the instrument that emits each value, and the probe is cited
+    beneath it. Separately, the retirement timeline figure was quoted at 4385 bytes, a count
+    copied forward; re-derived with <code>git cat-file -s</code> at <code>f425580a</code> the
+    only commit that has touched the file, the size is <strong>4573</strong> bytes, and the
+    sentence states the re-derivation.</p>
+    <h3>The figure added</h3>
+    <p>The span section gained a figure plotting the five cumulative readings of the login
+    slice in the order taken — the recorded baseline 0.3366, two later readings of the same
+    boot, the reading 0.3396 that was carried forward as the baseline, and the cumulative
+    0.3483 of the span measurement 3.5 percent above the baseline — because the quietness of
+    the carried-forward error is a property of where that reading sits among its neighbours,
+    which a table states but does not show. File:
+    <code>docs/figures/slurm-hosted-agent-fleet/baseline-misattribution.svg</code>.</p>
+    <p><strong>Gates.</strong> <code>reckon audit-doc</code> over this record exits
+    <strong>0</strong>, with the run captured at
+    <code>~/.config/reckon/crew/runs/r-20260923T062155945615-records-describe-what-shipped/logs/audit-doc-evidence-record.log</code>,
+    and every remaining occurrence of 0.3396 in this record is labelled where it stands as the
+    later reading that was mistaken for the baseline.</p>
+    <p><strong>Scope.</strong> This measures only this node's own change, in its own worktree at
+    the revision this node committed. The merged result is verified by a separately
+    dispatched test node, and nothing here is claimed of the merged state.</p>
+  </section>
 </main>
 </body>
 </html>
