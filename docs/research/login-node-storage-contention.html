@@ -147,6 +147,80 @@
     <p><strong>Recovery, measured.</strong> After the owners stopped their processes,
     load fell from 143 to 31 and <code>stat</code> latency from 8.5 s to under 0.3 s by
     04:41Z. GPFS-blocked process-equivalents fell from 11.6 to 0.7.</p>
+
+    <h2 id="s7">§7 — What this filesystem is good at, and where it is weak</h2>
+    <p><strong>Layout, as read from the client.</strong> <code>/home</code>,
+    <code>/work</code>, <code>/scratch</code> and <code>/shared</code> are all the same
+    Spectrum Scale filesystem, <code>HPC_T2</code>, at release 5.2.2. It holds 1.5 PB, is
+    79% full, has 754 million inodes in use, and is sized for an estimated 2048 mounting
+    nodes. Metadata lives in its own <code>system</code> pool (28.8 TB, metadata only,
+    one replica). Data lives in a 201 TB <code>T0</code> tier and a 2.08 PB
+    <code>T2</code> tier, with a 4 MiB block size and 8 KiB subblocks. The login node is a
+    one-node client cluster that mounts <code>HPC_T2</code> remotely over two RDMA
+    InfiniBand ports. Its client cache is generous: a 16 GiB pagepool,
+    <code>maxFilesToCache</code> 3M and <code>maxStatCache</code> 4M. The client is not
+    under-provisioned.</p>
+    <table>
+      <thead><tr><th>Operation, 200 small files, healthy period 04:48Z</th><th>GPFS home</th><th>local XFS <code>/tmp</code></th><th>tmpfs <code>/run/user</code></th></tr></thead>
+      <tbody>
+        <tr><td>create, write and rename (median)</td><td>414 µs</td><td>48 µs</td><td>41 µs</td></tr>
+        <tr><td><code>stat</code> of a file this node just wrote (median)</td><td>253 µs</td><td>3 µs</td><td>3 µs</td></tr>
+        <tr><td><code>listdir</code> of 200 entries (median)</td><td>63 µs</td><td>25 µs</td><td>29 µs</td></tr>
+      </tbody>
+    </table>
+    <p>Even when healthy, a GPFS <code>stat</code> costs about 80 times a local one. At
+    03:48Z the same call took 8.5 s, about 30,000 times its healthy cost. The filesystem
+    is built for large parallel streams: RDMA transport, 4 MiB blocks and a fast data
+    tier. That suits checkpoints, training shards and corpus reads. Its weak point is
+    metadata that many clients touch at once. Every file or directory another node has
+    changed needs a token round trip to the owning cluster before it can be read again.
+    A reader polling a directory that a writer on another node keeps renaming into
+    therefore pays for revocations on every cycle. Reckon's live pointers, the lane
+    document the router rewrites every 30 s, and git trees that compute-node workers
+    commit into all have exactly this shape.</p>
+    <p><strong>Two scopes of contention, which the evidence cannot yet separate.</strong>
+    All users on a login node share that node's single GPFS daemon. When dozens of its
+    requests are blocked waiting for tokens or metadata, everyone else's requests queue
+    behind them, and that is the <code>D</code>-state <code>cxiWaitEventWait</code> seen
+    in §1. The same metadata servers also serve every node in the cluster, so an
+    unbounded crawl such as the 13 h <code>bfs</code> degrades home for everyone, not
+    only for this node. The event measured latency on one node only, so the share that
+    was node-local cannot be told apart from the share that was cluster-wide. Running
+    the same <code>stat</code> probe from a compute node at the same moment would
+    separate them, and the host dashboard should carry that probe.</p>
+    <p><strong>Is this an accepted limitation?</strong> Largely yes. Metadata contention
+    from small-file polling and tree crawls on a shared-home parallel filesystem is a
+    well-known property of the design, not a fault on this site. What is particular to
+    this site is that there is one filesystem and one metadata service for home, work
+    and scratch together, and no quality-of-service class is visible from the client.
+    One user's crawl of <code>/work</code> can therefore degrade every user's home
+    directory. The largest lever is on our side: an agent fleet polling cross-node state
+    on GPFS from a login node is the access pattern this filesystem handles worst.
+    During this collection, a <code>du</code> over reckon's own crew store
+    (<code>~/.config/reckon/crew</code>) ran for over two minutes in the healthy period
+    before it was stopped. The store is already large enough that walking it is a crawl.</p>
+    <p><strong>Upgrades, in order of yield.</strong></p>
+    <ol>
+      <li><strong>Ours: keep polled state off cross-node GPFS.</strong> Put the fleet's
+      writers and readers on one node, so tokens stay local and no revocations occur.
+      Publish live state through the reckon server or a socket, or keep it in node-local
+      tmpfs, instead of having each follower read a shared directory. Bound every tool
+      read with a deadline that fails fast with an explicit storage-slow result rather
+      than blocking; the MCP server stays the interface. Use <code>git status -uno</code>
+      or git's untracked cache in polling loops, and never run an unbounded
+      <code>find</code>, <code>bfs</code> or <code>du</code> over a GPFS tree.</li>
+      <li><strong>Ours: measure both scopes.</strong> The dashboard should run a
+      <code>stat</code> probe on the login node and on the interactive worker node
+      together, and read the local node's GPFS-blocked process share from
+      <code>/proc</code>.</li>
+      <li><strong>Site, to ask ITER IT:</strong> confirm that the <code>system</code>
+      metadata pool is on NVMe; consider <code>mmqos</code> classes that cap one node's
+      metadata operations, so that a single login node's crawl cannot starve the cluster;
+      and consider giving home its own filesystem, since filesets share one metadata
+      service and so do not isolate it. Node-local NVMe on the interactive node would
+      give agent worktrees and state a place that costs GPFS nothing, with commits still
+      pushed to GPFS for durability.</li>
+    </ol>
   </main>
 </body>
 </html>
