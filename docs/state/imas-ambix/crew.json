@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-25T01:20:05",
+  "updated": "2026-09-25T01:22:34",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -89612,6 +89612,258 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260924T222137833693-review-of-fleet-view-stall-cause",
+        "plan": "agent-sessions-live-on-the-fleet-node",
+        "section": "\u00a78",
+        "node": "review-of-fleet-view-stall-cause",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1157,
+                "cached_input_tokens": 433303,
+                "input_tokens": 434462,
+                "output_tokens": 149,
+                "reasoning_output_tokens": 18,
+                "total_tokens": 434611,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "74b53aa2-1d4b-451f-8ce7-33c072085f83",
+            "session_id": "ambix-fleet-view"
+          },
+          "done_when": "the review for r-20260924T204304002260-fleet-view-stall-cause stores a parsed record scoring all 5 dimensions in the range 0..20; the turn ends once that record is stored and the manifest reads complete",
+          "estimated_hours": null,
+          "goal": "attach an independent review to run r-20260924T204304002260-fleet-view-stall-cause",
+          "id": "review-of-fleet-view-stall-cause",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-24T22:21:38Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": 2,
+            "binding_observed": "unknown",
+            "detail": "",
+            "headroom": 8,
+            "mean_context": 75000,
+            "observed_at": "2026-09-24T22:21:36Z",
+            "state": "fresh",
+            "suggested_shelf_life_seconds": 45
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260924T222137833693-review-of-fleet-view-stall-cause/manifest.md",
+          "negative_control": "",
+          "plan": "agent-sessions-live-on-the-fleet-node",
+          "requested_backend": null,
+          "requires_decisions": [],
+          "role": "review",
+          "section": "\u00a78",
+          "spec_level": "exact",
+          "time_budget": "45m",
+          "token_budget": null,
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260924T204304002260-fleet-view-stall-cause.json",
+            "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260924T204304002260-fleet-view-stall-cause.at-6bfe2da29262f32af48c04e108631e6f6b525fdb.json"
+          ]
+        },
+        "role": "review",
+        "spec_level": "exact",
+        "member": "session-9e7b9b71c7cab7cf090d",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "xhigh",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "read-only",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-24T22:21:46Z",
+        "completed_at": "2026-09-24T23:17:59.693Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 3347,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 3373,
+        "stalled": false,
+        "time_budget": "45m",
+        "base_sha": "2c5d95645c6b33556c59cc6eaf75923a83948d70",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "stored review record parsed",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260924T222137833693-review-of-fleet-view-stall-cause/gate.log",
+          "log_digest": "sha256:0c329d8933c5be86fe8856fae1b57c7ef87428af7a05ea3ccf5b179ef35d4ce8"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260924T222137833693-review-of-fleet-view-stall-cause/manifest.md",
+        "scope_changed": false,
+        "session_id": "eda50ee1-2924-4dcb-993e-1ef379efd6bc",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 5609363,
+            "input_tokens_cumulative": 5609363,
+            "output_tokens": 57979,
+            "output_tokens_cumulative": 57979,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-24T23:17:59.693Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "15m",
+          "requested": true,
+          "waived_runs": []
+        },
+        "review": null,
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 5776349,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 3370.139,
+          "generated_tokens": 69585,
+          "generation_seconds": 3335.314,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 34.5,
+          "machine_seconds": 34.825,
+          "peak_input_tokens": 165686,
+          "tokens_per_second": 20.86,
+          "wall_tokens_per_second": 20.65
+        },
+        "follow_on_paths": [
+          "docs/research/fleet-view-rendering.html"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": false,
+          "matched_measure": null,
+          "override": false,
+          "role": "review",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-fleet-view/review-of-fleet-view-stall-cause",
+          "session_id": "eda50ee1-2924-4dcb-993e-1ef379efd6bc",
+          "session_source": "stream",
+          "retained_at": "2026-09-24T23:17:59.693Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "promoted_revision": "2c5d95645c6b33556c59cc6eaf75923a83948d70",
+        "plan_impl_at_dispatch": 0.4,
+        "impl_move": {
+          "plan": "agent-sessions-live-on-the-fleet-node",
+          "at_dispatch": 0.4,
+          "at_complete": null,
+          "verdict": "exempt",
+          "reason": "role-not-enforced:review"
+        },
+        "negative_control": {
+          "verdict": "exempt",
+          "reason": "node-writes-no-test-path"
+        },
+        "lane_advisory": {
+          "backend": "clive",
+          "burn_multiple": null,
+          "cheaper_lane": {
+            "detail": "",
+            "lane": null,
+            "state": "not_evaluated"
+          },
+          "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+          "horizon_ends_at": "2026-09-24T23:06:38.794365+00:00",
+          "horizon_seconds": 2700,
+          "metered": false,
+          "observed_at": null,
+          "precedes_horizon": null,
+          "projected_exhaustion_at": null,
+          "resets_at": null,
+          "seconds_until_reset": null,
+          "state": "quiet",
+          "utilisation_pct": null
+        },
+        "lane_declaration": {
+          "backend": null,
+          "headroom": null,
+          "metered": false,
+          "observed_at": null,
+          "read_at": "2026-09-24T22:21:38Z",
+          "resolved_backend": "clive",
+          "utilisation_pct": null
+        },
+        "lane_reading": {
+          "age_seconds": 2,
+          "binding_observed": "unknown",
+          "detail": "",
+          "headroom": 8,
+          "mean_context": 75000,
+          "observed_at": "2026-09-24T22:21:36Z",
+          "state": "fresh",
+          "suggested_shelf_life_seconds": 45
+        },
+        "tool_steps": 75.0,
+        "orientation_input_tokens": null,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -89714,6 +89966,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 1095
+    "_version": 1096
   }
 }
