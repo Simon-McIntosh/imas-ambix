@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-24T14:30:02",
+  "updated": "2026-09-24T14:41:56",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -2496,10 +2496,15 @@
         "id": "s24-flight-test",
         "harness": "clive",
         "role": "implement",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
-        "created": "2026-09-23"
+        "session_id": "f1ae2fc1-f1e1-48ad-820a-30ef63729134",
+        "session_model": "deepseek-v4.1-flash",
+        "sessions": {
+          "{\"alias\":\"dsv4.1-flash\",\"backend\":\"clive\",\"effort\":\"high\",\"launch\":\"cli\",\"local\":true,\"model\":\"deepseek-v4.1-flash\",\"sandbox\":\"worktree-full\",\"usable_input_window\":480000}": "f1ae2fc1-f1e1-48ad-820a-30ef63729134"
+        },
+        "created": "2026-09-23",
+        "session_owners": {
+          "{\"alias\":\"dsv4.1-flash\",\"backend\":\"clive\",\"effort\":\"high\",\"launch\":\"cli\",\"local\":true,\"model\":\"deepseek-v4.1-flash\",\"sandbox\":\"worktree-full\",\"usable_input_window\":480000}": "s24-ship-20260923"
+        }
       },
       {
         "created": "2026-09-01",
@@ -88477,6 +88482,287 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260923T161249048985-flight-layer-declares-placement",
+        "plan": "slurm-hosted-agent-fleet",
+        "section": "\u00a77",
+        "node": "flight-layer-declares-placement",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 376,
+                "cached_input_tokens": 297655,
+                "input_tokens": 298033,
+                "output_tokens": 1078,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 299111,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "f880c335-ee59-40ba-bb02-c0e33c804ea2",
+            "session_id": "s24-ship-20260923"
+          },
+          "done_when": "(1) tests/agent/test_flight_placement.py loads docs/state/imas-ambix/flight.yaml with yaml.safe_load and asserts backends.clive.placement.scheduler == 'srun', that state_query and reason_query are lists each containing the literal '{job}', and that no scalar anywhere in the file matches ^[0-9]{5,}$ (a job identifier must never be written there); (2) UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD uv run --no-sync pytest tests/agent/test_flight_placement.py -p no:cacheprovider passes, output captured to a log in the run directory; (3) the declared negative control is applied, the named test is observed to fail with the log's first line repeating the mutation verbatim, and the file is restored byte-identical by sha256; (4) uv run --no-sync ruff check imas_ambix tests exits 0; (5) the manifest's evidence_inputs records the output of hostname and cat /proc/self/cgroup run in this worker's own shell, verbatim.",
+          "estimated_hours": null,
+          "goal": "add a committed test that fails when the project flight layer stops declaring clive worker placement",
+          "id": "flight-layer-declares-placement",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-23T16:12:49Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": 12,
+            "binding_observed": "unknown",
+            "detail": "",
+            "headroom": 0,
+            "mean_context": 87619,
+            "observed_at": "2026-09-23T16:12:37Z",
+            "state": "fresh",
+            "suggested_shelf_life_seconds": 45
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T161249048985-flight-layer-declares-placement/manifest.md",
+          "negative_control": "delete the backends.clive.placement block from docs/state/imas-ambix/flight.yaml; test_flight_placement.py must then fail",
+          "plan": "slurm-hosted-agent-fleet",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a77",
+          "spec_level": "exact",
+          "time_budget": "25m",
+          "token_budget": null,
+          "write_paths": [
+            "tests/agent/test_flight_placement.py",
+            "docs/evidence/archive/slurm-hosted-agent-fleet-landed.html",
+            "docs/figures/slurm-hosted-agent-fleet",
+            "docs/plans/slurm-hosted-agent-fleet.html"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "s24-flight-test",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "high",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "worktree-full",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-23T16:13:05Z",
+        "completed_at": "2026-09-23T18:56:44.744Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 9806,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 9819,
+        "stalled": true,
+        "time_budget": "25m",
+        "base_sha": "dbc8b56e2aca325bfec5599fb43f0b36d69012b3",
+        "commits": [
+          "6dbfe4aa75635cbbc6bbf4a95477bcf71f7f6bd5",
+          "06926c4bbc49dae6f66ae995eb2f0bbecf5b11b0",
+          "2cea28f96949620f180e950f77119eaa6c8f8ae4",
+          "6565f98916c3a1edaeeebdc80fd951e77baa2b49",
+          "fb15bf361300c2f3b40bdc05c9bd70ea52ff8d92",
+          "28f0ab3160d4d32538f2bead014b85c8fa436f40",
+          "3fed805519b45cbe7b9f35244ffe5de59052b11b",
+          "af9c9bb4c402e94926c0e4d8c2082454d43ab92c"
+        ],
+        "changed_lines": {
+          "added": 484,
+          "removed": 0,
+          "files": 3
+        },
+        "tests_added": 6,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/agent/test_flight_placement.py -p no:cacheprovider -q",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T161249048985-flight-layer-declares-placement/flight_placement.log",
+          "log_digest": "sha256:9ddbbc8b1573ff2c6f06b55e60c4b5129306464e3eab075c38cdcd05966413f5"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "six-test guard on the project flight layer's clive placement: scheduler, exact query argv, no extra key, no job identifier in any form including comments; seven recorded mutations turn it red; three review rounds scored 77, 89 and 92, and the only surviving edit is a four-digit literal, accepted because job ids here are seven digits",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T161249048985-flight-layer-declares-placement/manifest.md",
+        "scope_changed": false,
+        "session_id": "f1ae2fc1-f1e1-48ad-820a-30ef63729134",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 5341017,
+            "input_tokens_cumulative": 5341017,
+            "output_tokens": 31678,
+            "output_tokens_cumulative": 31678,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-23T18:56:44.744Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "15m",
+          "requested": true,
+          "waived_runs": []
+        },
+        "review": {
+          "status": "parsed",
+          "scores": {
+            "durability": 18,
+            "evidence": 18,
+            "fit": 18,
+            "goal_fidelity": 19,
+            "scope_discipline": 19
+          },
+          "absent": [],
+          "total": 92
+        },
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 17506171,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 2663.989,
+          "generated_tokens": 94675,
+          "generation_seconds": 675.713,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 34.7,
+          "machine_seconds": 1988.276,
+          "peak_input_tokens": 166533,
+          "tokens_per_second": 140.11,
+          "wall_tokens_per_second": 35.54
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/agent/test_flight_placement.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        },
+        "attempt_kind": "resume",
+        "attempt": 4,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/s24-ship-20260923/flight-layer-declares-placement",
+          "session_id": "f1ae2fc1-f1e1-48ad-820a-30ef63729134",
+          "session_source": "pointer",
+          "retained_at": "2026-09-23T18:56:44.744Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "promoted_revision": "af9c9bb4c402e94926c0e4d8c2082454d43ab92c",
+        "plan_impl_at_dispatch": 1.0,
+        "impl_move": {
+          "plan": "slurm-hosted-agent-fleet",
+          "at_dispatch": 1.0,
+          "at_complete": 1.0,
+          "verdict": "waived",
+          "reason": "a durability guard for step seven's placement; the plan's impl already reads 1.0 and the end reading is carried by f-shaf-004"
+        },
+        "negative_control": {
+          "verdict": "matched",
+          "test_paths": [
+            "tests/agent/test_flight_placement.py"
+          ],
+          "declaration": "delete the backends.clive.placement block from docs/state/imas-ambix/flight.yaml; test_flight_placement.py must then fail",
+          "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T161249048985-flight-layer-declares-placement/flight_placement_negative_control.log",
+          "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T161249048985-flight-layer-declares-placement/flight_placement_negative_control.log"
+        },
+        "lane_advisory": {
+          "backend": "clive",
+          "burn_multiple": null,
+          "cheaper_lane": {
+            "detail": "",
+            "lane": null,
+            "state": "not_evaluated"
+          },
+          "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+          "horizon_ends_at": "2026-09-23T16:37:49.680263+00:00",
+          "horizon_seconds": 1500,
+          "metered": false,
+          "observed_at": null,
+          "precedes_horizon": null,
+          "projected_exhaustion_at": null,
+          "resets_at": null,
+          "seconds_until_reset": null,
+          "state": "quiet",
+          "utilisation_pct": null
+        },
+        "lane_declaration": {
+          "backend": null,
+          "headroom": null,
+          "metered": false,
+          "observed_at": null,
+          "read_at": "2026-09-23T16:12:49Z",
+          "resolved_backend": "clive",
+          "utilisation_pct": null
+        },
+        "lane_reading": {
+          "age_seconds": 12,
+          "binding_observed": "unknown",
+          "detail": "",
+          "headroom": 0,
+          "mean_context": 87619,
+          "observed_at": "2026-09-23T16:12:37Z",
+          "state": "fresh",
+          "suggested_shelf_life_seconds": 45
+        },
+        "tool_steps": 42.0,
+        "orientation_input_tokens": 649667.0,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -88565,6 +88851,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 1084
+    "_version": 1086
   }
 }
