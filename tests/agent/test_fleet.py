@@ -65,6 +65,14 @@ def test_fleet_hold_script_requests_unbounded_whole_node() -> None:
     assert not partition.endswith("_debug")
 
 
+def test_fleet_hold_script_runs_the_supervisor_in_the_batch_step() -> None:
+    script = generate_fleet_hold_script(SiteConfig())
+
+    supervisor = script.index('exec "$HOME/.local/bin/fleet-supervisor"')
+    assert supervisor < script.index("exec sleep infinity")
+    assert '[ -x "$HOME/.local/bin/fleet-supervisor" ]' in script
+
+
 def test_fleet_hold_script_requests_no_finite_wall_clock() -> None:
     directives = _directives(generate_fleet_hold_script(SiteConfig()))
     limits = [line for line in directives if line.startswith("#SBATCH --time=")]

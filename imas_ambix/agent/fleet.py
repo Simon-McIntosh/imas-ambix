@@ -68,6 +68,14 @@ def generate_fleet_hold_script(site: SiteConfig) -> str:
 
         export TMPDIR=/tmp
 
+        # The batch step is the one process tree on the node that outlives every
+        # login node: a step ends when its login-side client does. The fleet
+        # supervisor runs here when installed, so the zellij servers holding the
+        # agent sessions are started from it and survive a lost login node.
+        if [ -x "$HOME/.local/bin/fleet-supervisor" ]; then
+            exec "$HOME/.local/bin/fleet-supervisor"
+        fi
+
         echo "[$(date)] Holding $(hostname) for the interactive agent fleet"
         exec sleep infinity
         """
