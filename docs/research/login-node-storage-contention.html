@@ -221,6 +221,31 @@
       give agent worktrees and state a place that costs GPFS nothing, with commits still
       pushed to GPFS for durability.</li>
     </ol>
+
+    <h2 id="s8">&sect;8 &mdash; Where orchestrator sessions can live: probes of the fleet allocation</h2>
+    <p>Probed on 2026-09-24 between 05:30Z and 05:35Z. The fleet allocation <code>ambix-fleet</code>
+    (job 1276262) has run on <code>rigel</code> node <code>98dci4-clu-2002</code> for over a day
+    with an UNLIMITED limit. It holds 28 cores and 120 GB, against the 4-core user slice on the
+    login node. It is a batch job whose script runs <code>sleep infinity</code> in the batch step,
+    so it depends on no login-node process.</p>
+    <table>
+      <thead><tr><th>Question</th><th>Observed</th><th>Consequence</th></tr></thead>
+      <tbody>
+        <tr><td>Does <code>srun --overlap --pty</code> give a working terminal?</td><td>Yes: <code>/dev/pts/0</code>, and <code>TERM</code> passes through</td><td>An interactive Claude Code session can run in a step</td></tr>
+        <tr><td>Is Claude Code installed there?</td><td>Yes, 2.1.281, from home</td><td>No install step</td></tr>
+        <tr><td>Can the node reach the Claude API, GitHub and the local lane?</td><td>401 (reachable, needs a key), 200, 200; no proxy</td><td>Sessions, git push and local workers all work from the node</td></tr>
+        <tr><td>Can it submit jobs?</td><td><code>sbatch --test-only</code> succeeds</td><td>Engine and router relaunches can run from inside</td></tr>
+        <tr><td>Does <code>/run/user/39486</code> exist?</td><td><strong>No</strong>, and the step cannot create it; <code>XDG_RUNTIME_DIR</code> is inherited pointing at it</td><td>Claude Code's session sockets and scratchpads live there. A launcher must create a private node-local runtime directory (<code>/tmp</code> is local XFS, 230 GB free) and point <code>XDG_RUNTIME_DIR</code> at it</td></tr>
+        <tr><td>Does a process detached inside a step outlive the step?</td><td><strong>No</strong>: a <code>setsid nohup sleep</code> was gone once its step ended</td><td>A step reaps everything started under it, detached or not. A session run as its own step cannot leave an orphan behind</td></tr>
+        <tr><td>Where does <code>ssh</code> to the node land?</td><td><code>user.slice</code>, not the job's cgroup</td><td>Work started over ssh escapes the allocation's limits and its cleanup, so it is not a route to use</td></tr>
+        <tr><td>What survives without a login-side client?</td><td>Only the batch step (its <code>sleep infinity</code>, one day old)</td><td>A server meant to outlive every login node must be started from the batch script</td></tr>
+      </tbody>
+    </table>
+    <p>The per-step reaping is the finding that matters most for cleanup. If each orchestrator
+    session runs as its own step, then when the session ends SLURM removes every follower, shell and
+    search it started, whatever it detached. That is ownership enforced by the scheduler, not
+    remembered by the agent. Workers are launched as their own steps and are unaffected, which
+    matches the design that a worker outlives its dispatch.</p>
   </main>
 </body>
 </html>
