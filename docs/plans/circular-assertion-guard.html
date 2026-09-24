@@ -21,8 +21,8 @@
   <title>Circular Assertion Guard | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-09-23">
-<meta name="plan-version" content="5">
+<meta name="plan-modified" content="2026-09-24">
+<meta name="plan-version" content="6">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;}">
 </head>
 <body>
@@ -222,7 +222,10 @@
     <div class="r-comment-body"><p><strong>The same circularity exists in prose, and this guard will not see it.</strong> Recorded so a later reader knows the omission is deliberate rather than an oversight.</p><p>Measured on the telemetry-spine wave: a node's docstring asserted that a boot identity resolves per row rather than per file, and gave the reason. I approved the design <em>from that docstring</em>. No test held it — every boot test separated the two boots across two files, so the exact regression the commit message rejected would have left the suite green. The claim was in the prose, the evidence offered for it was the same prose, and an independent review is what caught it.</p><p>That is this defect's shape with the assertion moved outside the test file: <em>evidence that paraphrases the claim instead of being independent of it</em>. An AST pass over <code>assert</code> statements cannot reach it, and widening the guard to parse docstrings for claims would be a worse instrument than a reviewer. What it does justify is a review-brief line that is machine-checkable where the prose is not: <strong>state the test that holds each claimed property, or say plainly that none does</strong>.</p></div>
 </div>
 <div class="r-comment" data-section="s2" data-id="c-run-r-20260923T131758378540-cag-reuse-map" data-who="reckon-ship" data-when="2026-09-23T14:19:18.469Z">
-    <div class="r-comment-body"><p>reuse map: guard at scripts/circular_assertion_audit.py with TOML allowlist beside it, tests at tests/; import resolution and passed-root scan reusable, comparator walk is new; the plan&#x27;s 185/135 counts have no surviving script</p></div>
+    <div class="r-comment-body"><p>reuse map: guard at scripts/circular_assertion_audit.py with TOML allowlist beside it, tests at tests/; import resolution and passed-root scan reusable, comparator walk is new; the plan's 185/135 counts have no surviving script</p></div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-run-r-20260923T153416084949-review-of-circular-assertion-audit" data-who="reckon-ship" data-when="2026-09-23T17:11:57.984Z">
+    <div class="r-comment-body"><p>review of circular-assertion-audit at fda5e4bf: 90, four findings, three confirmed defects sent back to the worker for repair</p></div>
 </div>
 </section>
 </main>
