@@ -685,6 +685,18 @@
     <code>scancel</code>, <code>sbatch</code>, file write or registration change occurs. Each test
     fails when its guard is disabled. A subcommand without a dry run is listed as such in the
     record, with whether it confirms before acting.</p>
+    <p><strong>Landed (2026-09-24).</strong> Five subcommands accept <code>--dry-run</code> &mdash;
+    <code>download</code>, <code>serve</code>, <code>router --submit</code>, <code>restart</code>
+    and <code>setup</code> &mdash; and <code>tests/test_agent_dry_run.py</code> runs each against a
+    live-looking job, endpoint document and serve registration, failing if any <code>scancel</code>,
+    <code>sbatch</code> or file change is reached. The set is enumerated from the click group, so a
+    new <code>--dry-run</code> command fails the suite until it is covered. The nine destructive
+    commands without a dry run are listed with whether each confirms. The <code>restart</code>
+    ordering was already correct in this tree, so no code changed; the guard is the test. Declared
+    negative control: moving the restart dry-run branch below its cancel fails both restart tests
+    (<code>2 failed, 5 passed</code>), restored. Evidence:
+    <a href="/imas-ambix/evidence/archive/local-lane-admission-control-landed.html#dry-run-inert">the
+    dry-run-inert anchor</a>.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>

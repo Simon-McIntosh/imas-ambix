@@ -435,6 +435,61 @@
     (22 passed), with <code>ruff check imas_ambix tests</code> exiting 0. No engine or router
     job was touched, restarted or cancelled.</p>
   </section>
+
+  <section id="dry-run-inert">
+    <h2>A dry run changes nothing, on every command that offers one (2026-09-24)</h2>
+
+    <p>The restart defect was an ordering one: the cancel ran before the dry-run check, so an
+    operator reaching for the safe option killed the live engine instead. It is fixed in this tree
+    (the dry-run branch precedes the cancel at <code>imas_ambix/agent/cli.py:2325</code>), so the
+    remaining work was to prove the other four <code>--dry-run</code> commands are inert and to
+    pin the ordering that makes <code>restart</code> inert.</p>
+
+    <p>Five subcommands accept <code>--dry-run</code>: <code>download</code>,
+    <code>serve</code>, <code>router --submit</code>, <code>restart</code> and
+    <code>setup</code>. The set is enumerated from the click group rather than listed by hand, so
+    a newly added <code>--dry-run</code> command fails the suite until it is covered. The
+    destructive commands that do <em>not</em> offer a dry run — <code>shutdown</code>,
+    <code>key --rotate</code>, <code>clive --deploy</code>, <code>lane --publish</code>,
+    <code>lane --submit</code>, <code>fleet hold --submit</code>, <code>fleet place</code>,
+    <code>pause</code>, <code>resume</code> — are recorded in the node's report with whether each
+    confirms before acting; <code>shutdown</code> and a repeat <code>key --rotate</code> prompt,
+    the rest act directly.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/local-lane-admission-control/dry-run-guard-order.svg" alt="Two panels. As shipped, a restart dry run with a live job present takes the dry-run branch first, prints what it would cancel, returns, and never reaches the cancel branch. Mutated, the cancel branch runs first and scancel reaches the live job.">
+      <figcaption>The guard is an ordering, not a flag. Whichever branch is chosen first decides
+      whether a dry run is inert, which is why the negative control moves the dry-run branch below
+      the cancel rather than weakening its condition.</figcaption>
+    </figure>
+
+    <h3 id="dry-run-evidence">What the tests measure</h3>
+
+    <p><code>tests/test_agent_dry_run.py</code> runs each <code>--dry-run</code> command against a
+    live-looking site — a matching scheduler job for <code>restart</code>, a published endpoint
+    document, and a serve registration under <code>agents/serve-registry/</code> — and asserts two
+    things together. First, that no cancelling or submitting verb was reached: the scheduler is
+    replaced wholesale in both <code>imas_ambix.agent.cli</code> and
+    <code>imas_ambix.agent.slurm</code>, so a dry run that reaches <code>scancel</code>,
+    <code>sbatch</code>, <code>srun</code>, <code>scontrol</code> or <code>systemctl</code> through
+    any path aborts loudly rather than passing; <code>squeue</code> answers from a canned listing so
+    the dry run can still name what a real run would stop. Second, that every file under the site
+    root is byte-identical afterwards, so an endpoint-document republish or a registration change is
+    caught as a file delta. Seven tests pass: one per <code>--dry-run</code> subcommand, a second
+    <code>restart</code> test asserting the endpoint document stays byte-identical, and the
+    coverage-enumeration test.</p>
+
+    <p><strong>The declared negative control.</strong> Moving the <code>restart</code> command's
+    dry-run branch below its cancel leaves the module parseable and makes a dry run with a live job
+    reach <code>scancel</code>. Against that mutation
+    <code>test_restart_dry_run_names_the_live_job_and_cancels_nothing</code> and
+    <code>test_restart_dry_run_leaves_the_endpoint_document_byte_identical</code> both fail
+    (<code>2 failed, 5 passed</code>), with the recorder reporting
+    <code>a dry run issued a destructive command: ['scancel', '424242']</code>; the mutation was
+    restored. The focused gate is <code>tests/test_agent_dry_run.py</code> (7 passed) with
+    <code>ruff check imas_ambix tests</code> exiting 0. No real scheduler command was issued by any
+    test, and no engine or router job was touched.</p>
+  </section>
 </main>
 </body>
 </html>
