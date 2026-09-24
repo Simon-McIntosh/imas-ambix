@@ -488,6 +488,28 @@ def test_restart_forwards_serve_walltime_and_speculative_override(monkeypatch):
     assert "--speculative-config" not in result.output
 
 
+def test_restart_dry_run_cancels_nothing_when_a_serve_is_live(monkeypatch):
+    from types import SimpleNamespace
+
+    from imas_ambix.agent import cli as cli_mod
+
+    runner = _serve_cli(monkeypatch, None)
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, *args, **kwargs):
+        calls.append(list(cmd))
+        stdout = "4242|glm-5-2\n" if cmd[0] == "squeue" else ""
+        return SimpleNamespace(returncode=0, stdout=stdout, stderr="")
+
+    monkeypatch.setattr(cli_mod.subprocess, "run", fake_run)
+
+    result = runner.invoke(main, ["agent", "restart", "glm-5-2", "--dry-run"])
+
+    assert result.exit_code == 0
+    assert "would cancel 1 active job(s): 4242" in result.output
+    assert not [cmd for cmd in calls if cmd[0] == "scancel"]
+
+
 def test_generate_vllm_2x_serve_script():
     """2x serve script requests 2 GPUs and TP=2."""
     from imas_ambix.agent.slurm import generate_serve_script

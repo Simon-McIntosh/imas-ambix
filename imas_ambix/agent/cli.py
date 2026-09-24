@@ -2322,7 +2322,13 @@ def restart(
         if job_name.strip() == profile.slug:
             targets.append(job_id.strip())
 
-    if targets:
+    if targets and dry_run:
+        # A dry run reports what a real restart would stop and stops nothing: the
+        # job it names is typically a live serving lane other sessions depend on.
+        console.print(
+            f"Dry run: would cancel {len(targets)} active job(s): " + ", ".join(targets)
+        )
+    elif targets:
         console.print(f"Cancelling {len(targets)} active job(s): " + ", ".join(targets))
         cancel = subprocess.run(
             ["scancel"] + targets,
