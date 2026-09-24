@@ -2237,6 +2237,302 @@ $ loginctl list-sessions | grep -c 39486
     result and the attrition comparison belong to separately dispatched
     nodes.</p>
   </section>
+
+  <section id="flight-declaration-holds">
+
+    <h2>A committed guard holds the placement declaration</h2>
+
+    <p><strong>Deliverable.</strong> Commit <code>6dbfe4aa</code> adds
+    <code>tests/agent/test_flight_placement.py</code> and commit
+    <code>2cea28f9</code> repairs its identifier check after a review found the
+    first version could be defeated by the very input it guarded against. The test
+    loads
+    <code>docs/state/imas-ambix/flight.yaml</code> with <code>yaml.safe_load</code>
+    and asserts three properties the declaration must keep:</p>
+    <ul>
+      <li><code>backends.clive.placement.scheduler</code> is the literal
+      <code>srun</code>;</li>
+      <li><code>state_query</code> is exactly
+      <code>['squeue', '-h', '-j', '{job}', '-o', '%T']</code> and
+      <code>reason_query</code> exactly
+      <code>['squeue', '-h', '-j', '{job}', '-o', '%r']</code>; the vectors are
+      asserted whole rather than
+      only for the presence of <code>{job}</code>;</li>
+      <li>no scalar anywhere in the document carries the shape of a scheduler job
+      identifier — a run of five or more digits, outside any other digit: tested
+      both as a whole scalar and as a run embedded inside a string, and tested
+      for the integer and the integral float that <code>yaml.safe_load</code>
+      produces from an unquoted value as well as for a string.</li>
+    </ul>
+
+    <p><strong>What the guard cannot do, stated so it is not read as more.</strong>
+    It does not verify that a worker is placed. Placement is decided by the
+    project-keyed reservation record and by dispatch's
+    <code>apply_backend_placement</code>, neither of which this test touches. What
+    it catches is the declaration losing the property that makes placement
+    resolvable — the scheduler, the queries, or the absence of a baked-in
+    identifier — which is otherwise silent, since nothing else fails when the block
+    is removed and the launch quietly lands back on the login node.</p>
+
+    <p><strong>The declaration is read; it is not written.</strong>
+    <code>flight.yaml</code> is read only. The document-level scalar walk
+    deliberately includes mapping keys as well as values: a job identifier written
+    as a key is as absent from the resolver as one written as a value, and checking
+    one conveniently-dotted level would miss it.</p>
+
+    <table>
+      <caption>The negative control, in order, at revision
+      <code>dbc8b56e</code> in the node's own worktree</caption>
+      <thead>
+        <tr><th>step</th><th>command</th><th>result</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td><code>pytest tests/agent/test_flight_placement.py</code></td>
+          <td><strong>4 passed</strong></td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td>delete <code>backends.clive.placement</code> from
+          <code>flight.yaml</code>, then the same pytest</td>
+          <td><strong>2 failed, 2 passed</strong> — the scheduler and
+          <code>{job}</code> assertions fire</td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td>restore from the saved original, then compare</td>
+          <td><code>sha256</code> identical before and after; <code>git diff</code>
+          against <code>HEAD</code> empty</td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td>the same pytest again on the restored file</td>
+          <td><strong>4 passed</strong></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p><strong>The negative control fires.</strong> The declared mutation produced
+    the red log whose first line repeats the declared string verbatim:
+    <em>delete the backends.clive.placement block from
+    docs/state/imas-ambix/flight.yaml; test_flight_placement.py must then
+    fail</em>. The identifier assertion passes under this mutation, and that is
+    correct rather than a miss: with the whole block removed there is no job
+    identifier left to find, and it is the scheduler and query assertions that
+    carry this control. The file was restored byte-identical —
+    <code>sha256 26ca0c56c81d0b9b1ad42bed23c00822bd56658a1a646fe989b065e9c96f7f45</code>
+    before and after, unchanged from <code>HEAD</code>.</p>
+
+    <p><strong>The first version of the identifier check was defeatable by the
+    input it exists to catch.</strong> It tested
+    <code>isinstance(value, str)</code> and matched the whole string, but
+    <code>yaml.safe_load</code> hands an <em>unquoted</em>
+    <code>1276262</code> back as an <code>int</code>, not a <code>str</code> — so
+    <code>job: 1276262</code> written under the placement block passed the check
+    that forbids it, and so did an identifier embedded in an argument such as
+    <code>1276262</code> inside <code>--jobid=1276262</code>. The repaired
+    predicate tests the scalar forms <code>safe_load</code> actually produces:
+    a run of five or more digits bounded by non-digits searched inside a string,
+    and the same shape matched across an integer's whole decimal form, with
+    <code>bool</code> excluded (a boolean is an <code>int</code> in Python and
+    must never read as an equivalent) and a signed integer not admitted, since a
+    job identifier carries no sign. The predicate was read directly on a set of
+    both shapes: <code>'1276262'</code>, <code>'--jobid=1276262'</code>,
+    <code>'abc12345def'</code> and <code>1276262</code> read true;
+    <code>'1234'</code>, <code>1234</code>, <code>-1276262</code>,
+    <code>True</code> and <code>1</code> read false.</p>
+
+    <table>
+      <caption>The second negative control — the mutation the repaired check
+      exists for — at revision <code>06926c4b</code> in the node's own worktree</caption>
+      <thead>
+        <tr><th>step</th><th>command</th><th>result</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td><code>pytest tests/agent/test_flight_placement.py</code></td>
+          <td><strong>4 passed</strong></td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td>add <code>job: 1276262</code> (unquoted) under
+          <code>backends.clive.placement</code>, then the same pytest</td>
+          <td><strong>1 failed, 3 passed</strong> —
+          <code>test_no_job_identifier_is_written_into_the_declaration</code>
+          fails</td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td>restore from the saved original, then compare</td>
+          <td><code>sha256 26ca0c56…</code> identical before and after;
+          <code>git diff</code> against <code>HEAD</code> empty</td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td>the same pytest again on the restored file</td>
+          <td><strong>4 passed</strong></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p><strong>Both controls fired.</strong> The second red log's first line
+    repeats its declared mutation verbatim: <em>add 'job: 1276262' (unquoted)
+    under backends.clive.placement; test_flight_placement.py must then
+    fail</em>, and the failing test is the identifier check itself. The first
+    control was re-run against the repaired test rather than left as a receipt
+    from the pre-repair revision, and still reads
+    <strong>2 failed, 2 passed</strong>. That the two controls are separate logs
+    is not a presentation choice: promotion matches the mutation the node
+    declares against the log the manifest names, so the field names the log whose
+    first line carries the declared string and the second control is recorded
+    here and beside it.</p>
+
+    <p><strong>A further review found two more ways the guard could be satisfied
+    while the declaration was broken, and both are closed in commit
+    <code>fb15bf36</code>.</strong> The first is the query output field. The
+    checks only looked for the presence of <code>{job}</code> in each vector, so
+    changing <code>state_query</code>'s output field from <code>%T</code> to
+    <code>%j</code>, <code>%t</code> or <code>%R</code> — or
+    <code>reason_query</code>'s <code>%r</code> to <code>%N</code> — left every
+    test green while the answer read back was no longer a state or a reason.
+    That is not cosmetic: <code>placement_job_alive</code>
+    (<code>reckon/crew/runs.py</code>) casefolds the state query's answer against
+    the in-flight set <code>{running, pending, configuring, completing,
+    suspended}</code>, so <code>%j</code> returns the job id, <code>%t</code>
+    returns the short state code (<code>R</code> for running) and
+    <code>%R</code> returns the reason — none of which is in that set, so a
+    running job reads as dead. <code>%N</code> in the reason query returns the
+    node list where the kill-class reading expects the scheduler's own words for
+    a time or memory limit. Both vectors are now asserted exactly, so any change
+    to the output field is a deliberate change to what the fleet observes. The
+    second is the numeric spelling: <code>yaml.safe_load</code> parses
+    <code>1276262.0</code> as a <code>float</code>, which the integer branch did
+    not reach, so an integral float whose integer form is five or more digits is
+    now treated as an identifier — while a non-integral float, a negative
+    integer, a short run and a boolean remain not one.</p>
+
+    <table>
+      <caption>Three more controls, each a separate log, at revision
+      <code>2cea28f9</code> in the node's own worktree; <code>flight.yaml</code>
+      restored byte-identical (<code>sha256 26ca0c56…</code>) after every one</caption>
+      <thead>
+        <tr><th>mutation to <code>flight.yaml</code></th><th>result</th>
+        <th>failing test</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>state_query</code> output field <code>%T</code> →
+          <code>%j</code></td>
+          <td><strong>1 failed, 3 passed</strong></td>
+          <td><code>test_placement_queries_carry_the_job_substitution_point</code></td>
+        </tr>
+        <tr>
+          <td><code>reason_query</code> output field <code>%r</code> →
+          <code>%N</code></td>
+          <td><strong>1 failed, 3 passed</strong></td>
+          <td><code>test_placement_queries_carry_the_job_substitution_point</code></td>
+        </tr>
+        <tr>
+          <td>add <code>job: 1276262.0</code> (unquoted float) under
+          <code>backends.clive.placement</code></td>
+          <td><strong>1 failed, 3 passed</strong></td>
+          <td><code>test_no_job_identifier_is_written_into_the_declaration</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>Each of the three red logs carries its own mutation verbatim as its first
+    line, and the float control's assertion message names the offending scalar as
+    <code>/backends/clive/placement/job = 1276262.0</code> — read from the parsed
+    document, so the value genuinely arrived as a <code>float</code> rather than
+    as a string that happened to contain a decimal point. Logs:
+    <code>nc_state_T_to_j.log</code>, <code>nc_reason_r_to_N.log</code>,
+    <code>nc_add_float_job.log</code>.</p>
+
+    <p><strong>A third review found two more ways the guard could be satisfied
+    while the declaration was broken, and both are closed in this node's next
+    commit.</strong> The first is an added key. The checks named the three keys
+    the declaration must carry but never asserted that it carries nothing else,
+    so a <code>job_id_probe</code> — or a <code>job_id</code>, or any other key —
+    could be added beside them with every test still green. That is not an
+    untidiness: reckon resolves the placed job's identity and probes it from this
+    block, so a key added here redirects the probe to another job or changes how
+    the placed job is found, and does it silently while the declaration still
+    looks complete. The key set is now asserted exactly, so adding a key is a
+    deliberate change to the placement contract rather than a line that arrives
+    beside the declaration. The second is the comment. The identifier check walks
+    the <em>parsed</em> document, so an identifier left in a comment is invisible
+    to it — while the plan's own instrument for this declaration is a grep over
+    the file, which finds it. A raw-text check now reads the file and requires no
+    run of five or more digits bounded by non-digits. The floor is five
+    deliberately: a scheduler job identifier on this machine is seven digits,
+    while four would flag a four-digit year or the port in the schema URL on line
+    42 (<code>127.0.0.1:8765</code>), and a check that reddens on the schema line
+    is one nobody keeps.</p>
+
+    <table>
+      <caption>Two more controls, each a separate log, in this node's own
+      worktree; <code>flight.yaml</code> restored byte-identical
+      (<code>sha256 26ca0c56…</code>) after each, verified by comparing the
+      digest taken before the mutation against the one taken after the
+      restore</caption>
+      <thead>
+        <tr><th>mutation to <code>flight.yaml</code></th><th>result</th>
+        <th>failing test</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>add <code>job_id_probe: [squeue, -h, -o, "%i"]</code> under
+          <code>backends.clive.placement</code></td>
+          <td><strong>1 failed, 5 passed</strong></td>
+          <td><code>test_placement_declares_nothing_but_the_scheduler_and_its_two_queries</code></td>
+        </tr>
+        <tr>
+          <td>add a comment line <code># held allocation 1276262</code></td>
+          <td><strong>1 failed, 5 passed</strong></td>
+          <td><code>test_no_job_identifier_appears_anywhere_in_the_declaration_text</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>Both logs carry their mutation verbatim as the first line, and each fails
+    for the reason it was aimed at rather than incidentally: the probe control's
+    assertion reports the key it did not expect
+    (<code>got ['job_id_probe', 'reason_query', 'scheduler', 'state_query']</code>)
+    and the comment control's reports the run it found
+    (<code>found ['1276262']</code>). The comment control is applied by appending
+    a line to the file as text and not through a YAML round-trip, because a
+    serialising dump discards comments — the very thing the control has to place.
+    Logs: <code>nc_add_job_id_probe.log</code>,
+    <code>nc_add_comment_allocation.log</code>.</p>
+
+    <p><strong>Whole-tree lint is green.</strong>
+    <code>uv run --no-sync ruff check imas_ambix tests</code> prints
+    <code>All checks passed!</code> and exits <strong>0</strong>. Log:
+    <code>ruff.log</code>.</p>
+
+    <p><strong>Scope.</strong> This measures only this node's own change, in its own
+    worktree, at the revision it committed. It does not verify the merged result;
+    a separately dispatched test node owns that. The earlier gate runs were
+    dispatched to a compute node (<code>98dci4-clu-2002.iter.org</code>, cgroup
+    <code>slurmstepd.scope/job_1276262/step_8</code>); the two controls above ran
+    inside a debug allocation on <code>98dci4-clu-3141.iter.org</code>. This
+    round's green re-run executed on the login node
+    (<code>98dci4-srv-1006.iter.org</code>) under heavy peer load — average above
+    160 — where the file's imports alone took 15.4 s of a run that otherwise
+    completes in seconds, one earlier attempt stalling in
+    <code>cxiWaitEventWait</code> for ten minutes at one second of CPU. The gate
+    is six assertions over a YAML file and the reading was unaffected, but the
+    placement is noted rather than passed over, because the node's own rule is
+    that the login node carries only work finishing in seconds and this run did
+    not. That applies to a file measured while peers saturate the machine.
+    Logs: <code>flight_placement.log</code>,
+    <code>flight_placement_negative_control.log</code>,
+    <code>nc_add_job_id_probe.log</code>,
+    <code>nc_add_comment_allocation.log</code>.</p>
+  </section>
 </main>
 </body>
 </html>
