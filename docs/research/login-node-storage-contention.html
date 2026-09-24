@@ -100,7 +100,7 @@
       whether its owner is alive.</strong> In <code>reckon/cli.py</code>,
       <code>_check_consumer</code> returns at once unless
       <code>registration.held</code>, so only one follower per session can ever notice
-      that its session died. Every read-only follower polls until it is killed. A parent pid of 1 cannot identify these orphans: a worker is reparented to init whenever its dispatch exits, so live workers have ppid 1 too. This becomes the normal case once reckon's <code>a-dispatch-returns-without-its-worker</code> lands; that change is released but not yet merged. An orphan is a process whose owning session is dead, and a census must test that. Selecting by the crew session id in the argv finds one session's processes without touching anyone else's.</li>
+      that its session died. Every read-only follower polls until it is killed. A parent pid of 1 cannot identify these orphans: a worker is reparented to init whenever its dispatch exits, so live workers have ppid 1 too. This becomes the normal case once reckon's <code>a-dispatch-returns-without-its-worker</code> lands; that change is released but not yet merged. An orphan is a process whose owning session is dead, and a census must test that. Selecting by the crew session id in the argv finds one session's processes without touching anyone else's, provided the pattern cannot match the shell running it. A plain <code>grep -- '&lt;session-id&gt;'</code> lists its own <code>bash -c</code> wrapper and the grep itself, both at 00:00 elapsed, because the id is in their argv, as imas-ambix-f6 measured. Bracketing one character, as in <code>grep -- 's26-2026092[3]'</code>, closes that gap. The ppid rule and the plain grep fail the same way: a selector that cannot see itself includes something it should not, or misses something it should, and in both cases the list reads as authoritative.</li>
       <li><strong>A monitor's expiry kills its wrapper, not the follower inside
       it.</strong> The follower is reparented to init and keeps polling, so each re-arm
       adds one more. The ten nova orphans were 6:21, 5:17, 4:47, 3:42, 3:03, 2:29,
@@ -135,10 +135,10 @@
       <code>reckon crew resume</code> runs the worker on the login node even where
       dispatch places it on the interactive node.</li>
       <li><strong>An unbounded crawl had no timeout.</strong> The 13 h <code>bfs</code>
-      over <code>/work/projects/imas_gpu</code> was gone before its owner could be
-      identified. <code>bfs</code> is the finder Claude Code's own file-search tools
-      use, so the likeliest origin is a session tool call over that tree with no bound.
-      This is an inference, not a measurement.</li>
+      over <code>/work/projects/imas_gpu</code> belonged to imas-ambix-f6 by its own account. It
+      ran for 13 h 50 min and was reaped at 21:54:18 once GPFS released it. The session walked a whole project root with
+      Claude Code's file search when the file it wanted was at an absolute path the code already names.
+      Nothing in the tool call bounded the walk's depth or duration.</li>
       <li><strong>The instruments misreport.</strong> <code>imas-codex host</code> shows
       load average as CPU (§2). The H200 reporter <code>gpu-watch</code> (dotfiles)
       reads vLLM-named Prometheus metrics while the lane serves SGLang, and its
