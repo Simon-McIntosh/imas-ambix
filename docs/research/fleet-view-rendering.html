@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"  content="imas-ambix">
   <meta name="reckon-type"   content="research">
-  <meta name="plan-slug"     content="agent-sessions-live-on-the-fleet-node">
+  <meta name="plan-slug"     content="fleet-view-rendering">
+  <meta name="plan-informs"  content="agent-sessions-live-on-the-fleet-node">
   <meta name="plan-title"    content="Fleet view rendering under a synthetic long transcript — attach, resize and a second client">
   <meta name="plan-summary"  content="Throwaway zellij probe on the fleet node: a Claude Code byte-stream pane and a plain-shell control render in 153-175 ms on attach and 418-439 ms on resize, unchanged between scroll_buffer_size 10000 and 50000; the reported stalls were not reproduced, and two harness defects that made the first two runs measure nothing are recorded">
   <meta name="plan-tags"     content="agent-serving">
@@ -76,7 +77,11 @@
     fleet node). So it fires when a stall exists. A delta of zero in every
     probe run therefore means no stall above one second occurred, not that the instrument
     is blind. Read the instrument's own extraction:
-    <code>docs/figures/fleet-view-rendering/evidence-probe/log-*.timed</code>.</p>
+    <code>docs/figures/fleet-view-rendering/evidence-probe/log-*.timed</code>, and the
+    receipt <code>docs/figures/fleet-view-rendering/evidence-probe/stall-lines.txt</code>,
+    which lists all 33 lines with timestamps and shows the last of them at
+    <code>22:30:48.186</code> with the log continuing to <code>23:44:22.328</code> without
+    another.</p>
 
     <h2 id="s3">&sect;3 &mdash; The second client at a different size</h2>
     <p>A second client attaching at 80 columns while a first is attached at 100 columns
@@ -115,8 +120,9 @@
     exactly the shape of a plausible result. The working form is a positional name,
     <code>zellij attach --create-background NAME</code>, with the pane added afterwards by
     <code>zellij run</code>. Reproduction:
-    <code>docs/figures/fleet-view-rendering/evidence-probe/log-cc-10000.create</code>
-    (the <code>create</code> files carry the string), and the rendering counter-example is
+    <code>docs/figures/fleet-view-rendering/probe/create-cc-10000.out</code>, which carries
+    the string <code>There is no active session!</code> from that create under the failing
+    form, and the rendering counter-example is
     the same scenario under <code>run5.sh</code> in
     <code>docs/figures/fleet-view-rendering/probe/</code>.</p>
     <p><strong>A dumb pty must answer the terminal's queries.</strong> A zellij client
@@ -156,10 +162,10 @@
     and the constraint is not what the working hypothesis predicted. The 33 stall lines are
     all <code>Action NoOp did not complete within 1s timeout</code> &mdash; <em>a no-op
     taking a second</em>, which is only possible if the router is not running, so the time
-    is not the action's cost. They begin at 22:23:05, forty seconds after a second new tab
-    was created: the log shows <code>PtyInstruction::NewTab &hellip; tab 5</code> at
-    22:22:26 and <code>&hellip; tab 6</code> at 22:22:56, two tabs opened exactly 30&nbsp;s
-    apart, which is the shape of a client re-attach replacing its view. The stalls then
+    is not the action's cost. They begin at 22:23:05, <strong>8.85&nbsp;s after the second
+    new tab</strong> was created: the log shows <code>PtyInstruction::NewTab &hellip; tab 5</code> at
+    22:22:26.055 and <code>&hellip; tab 6</code> at 22:22:56.655, two tabs opened exactly
+    30&nbsp;s apart, which is the shape of a client re-attach replacing its view. The stalls then
     recur intermittently for seven minutes forty-three seconds and stop. On this evidence
     the thing to reproduce is <strong>a second client attaching into a session that already
     has tabs open</strong>, and the question to ask is what the route loop is blocked on

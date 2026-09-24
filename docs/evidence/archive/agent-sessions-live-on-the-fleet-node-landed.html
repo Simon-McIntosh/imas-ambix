@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="agent-sessions-live-on-the-fleet-node-landed">
+  <meta name="plan-title" content="Agent Sessions Live on the Fleet Node — Measured Evidence">
+  <meta name="plan-summary" content="Cumulative execution record for moving Claude/zellij sessions off the login node onto the fleet allocation: the throwaway render-cost probe, its four repaired note defects, and the stall-line receipt.">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-recorded-at" content="2026-09-25">
+  <meta name="plan-evidence-for" content="agent-sessions-live-on-the-fleet-node">
+  <title>Agent Sessions Live on the Fleet Node — Measured Evidence | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+  <h1>Agent Sessions Live on the Fleet Node — Measured Evidence</h1>
+  <p>Cumulative execution record for
+  <a href="/imas-ambix/plans/agent-sessions-live-on-the-fleet-node.html">Agent sessions live
+  on the fleet node</a>. One anchor per landed node; the research notes themselves are linked
+  rather than reproduced.</p>
+
+<section id="fleet-view-rendering-note-repair">
+  <h2>The fleet-view rendering note, four recorded defects repaired</h2>
+  <p><strong>Deliverable.</strong> The research note
+  <a href="/imas-ambix/research/fleet-view-rendering">Fleet view rendering under a synthetic
+  long transcript</a> was returned by review with four defects. All four are repaired in the
+  note's own file; the measurement it reports is unchanged.</p>
+  <ul>
+    <li><strong>Create-failure pointer named an empty file.</strong> The note pointed at
+    <code>docs/figures/fleet-view-rendering/evidence-probe/log-cc-10000.create</code>, which
+    is 0&nbsp;bytes. The file that actually carries the failing form's output is
+    <code>docs/figures/fleet-view-rendering/probe/create-cc-10000.out</code>, 28&nbsp;bytes,
+    containing <code>There is no active session!</code>. The note now names that file.</li>
+    <li><strong>The stall-line deltas were never committed as a receipt.</strong> The count
+    that made the zero-stall claim checkable lived only in the probe script's stdout. The
+    receipt <code>docs/figures/fleet-view-rendering/evidence-probe/stall-lines.txt</code> now
+    holds all 33 <code>did not complete within</code> lines from the fleet server log, read
+    over ssh from <code>/tmp/zellij-39486/zellij-log/zellij.log</code> on
+    <code>98dci4-clu-2058</code>. Last line <code>22:30:48.186</code>; the log's own final
+    write is <code>23:44:22.328</code>, a plugin unload with no stall line, so no stall line
+    exists after 22:30:48 for any later probe read. The note cites the receipt.</li>
+    <li><strong>The interval was wrong by a factor of four.</strong> The note said the first
+    stall came 40&nbsp;s after the second new tab; the log places tab 6 at
+    <code>22:22:56.655</code> and the first stall at <code>22:23:05.507</code>, an interval of
+    <strong>8.85&nbsp;s</strong>. The note now reads 8.85&nbsp;s.</li>
+    <li><strong>The note's slug collided with the plan's.</strong> It carried
+    <code>plan-slug agent-sessions-live-on-the-fleet-node</code>, the plan's own slug. It now
+    carries <code>plan-slug fleet-view-rendering</code> and
+    <code>plan-informs agent-sessions-live-on-the-fleet-node</code>.</li>
+  </ul>
+  <p><strong>Gate.</strong> <code>reckon audit-doc</code> exits 0 on the note; the pointer,
+  the receipt and the interval read as above. The gate measures only this node's change;
+  verifying the merged result belongs to a separately dispatched test node.</p>
+</section>
+
+</main>
+</body>
+</html>
