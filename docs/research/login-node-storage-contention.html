@@ -86,6 +86,67 @@
       ends; load average is never read as CPU. Both belong in
       <code>~/.agents/AGENTS.md</code>.</li>
     </ul>
+
+    <h2 id="s6">§6 — Root causes, with the evidence for each</h2>
+    <p>These were gathered while the load was being removed. Shares come from a 20 s
+    <code>/proc</code> sampler (<code>fsload.py</code>, in this session's scratchpad), which
+    records each process's fraction of time blocked on the GPFS client wait and
+    attributes it to its owning Claude session through the socket ids under
+    <code>/run/user/39486/cc-socks</code>. At 04:31Z the nova S19 session held 30.1% of
+    GPFS-blocked time, the per-project producers about 30%, this session 17.1%, orphaned
+    imas-efit followers 7.6% and reckon-e5 5.6%.</p>
+    <ol>
+      <li><strong>A follower that does not hold its session's registration never checks
+      whether its owner is alive.</strong> In <code>reckon/cli.py</code>,
+      <code>_check_consumer</code> returns at once unless
+      <code>registration.held</code>, so only one follower per session can ever notice
+      that its session died. Every read-only follower polls until it is killed.</li>
+      <li><strong>A monitor's expiry kills its wrapper, not the follower inside
+      it.</strong> The follower is reparented to init and keeps polling, so each re-arm
+      adds one more. The ten nova orphans were 6:21, 5:17, 4:47, 3:42, 3:03, 2:29,
+      2:19, 1:48, 1:16 and 0:45 hours old, one per 30–60 minute re-arm. imas-efit-49
+      reported the same mechanism for its three, and imas-ambix-b6 saw a follower
+      outlive its wrapper by about 14 minutes. Reckon's plan
+      <code>a-follower-outlives-its-monitor</code> assumes the host kills the
+      follower; tonight's evidence is that it does not.</li>
+      <li><strong>Reckon spawns followers internally.</strong> This session's orphan
+      (pid 2400006, 9 h) ran as <code>python -c "… main() crew follow …"</code>, not as
+      the command armed by hand, so a follower's parent can be a transient process whose
+      exit orphans it at once.</li>
+      <li><strong>Background scripts outlive the session that launched them.</strong> A
+      nova <code>wave7.sh</code> (pid 2588585, 7 h 28 min, parent init) kept issuing
+      <code>crew dispatch</code> calls after its session had stopped, so nova work
+      reappeared after its coordinator had stopped everything it could see.</li>
+      <li><strong>Per-project producers have no lifetime bound and can spin.</strong> The
+      imas-codex producer ran for 3 days at 21% CPU with no runs to watch, and the
+      reckon producer showed 37% CPU. The <code>sample</code> producer had lost its
+      registration (<code>crew unwatch</code> reported "no registered watcher"), so it
+      could only be stopped by pid.</li>
+      <li><strong>Polling loops run full-tree untracked walks.</strong>
+      <code>git status --untracked-files=all</code> appears in
+      <code>reckon/crew/dispatch.py:5524</code>, <code>reckon/crew/routing.py:355</code>
+      and <code>reckon/ledger.py:895</code>. <code>crew dispatch</code> and
+      <code>crew complete</code> processes that stay alive for hours repeat it every few
+      seconds.</li>
+      <li><strong>MCP reads have no bound.</strong> A single <code>read_plan</code> held
+      this session's reckon MCP server blocked on GPFS for over 30 minutes. imas-ambix-b6
+      measured 1806 s for one read before the harness aborted it.</li>
+      <li><strong>A resumed session skips placement.</strong> Per imas-ambix-78,
+      <code>reckon crew resume</code> runs the worker on the login node even where
+      dispatch places it on the interactive node.</li>
+      <li><strong>An unbounded crawl had no timeout.</strong> The 13 h <code>bfs</code>
+      over <code>/work/projects/imas_gpu</code> was gone before its owner could be
+      identified. <code>bfs</code> is the finder Claude Code's own file-search tools
+      use, so the likeliest origin is a session tool call over that tree with no bound.
+      This is an inference, not a measurement.</li>
+      <li><strong>The instruments misreport.</strong> <code>imas-codex host</code> shows
+      load average as CPU (§2). The H200 reporter <code>gpu-watch</code> (dotfiles)
+      reads vLLM-named Prometheus metrics while the lane serves SGLang, and its
+      "tok/s out" gauge was already recorded as a last-batch figure, not a rate.</li>
+    </ol>
+    <p><strong>Recovery, measured.</strong> After the owners stopped their processes,
+    load fell from 143 to 31 and <code>stat</code> latency from 8.5 s to under 0.3 s by
+    04:41Z. GPFS-blocked process-equivalents fell from 11.6 to 0.7.</p>
   </main>
 </body>
 </html>
