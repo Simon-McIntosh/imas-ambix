@@ -100,7 +100,7 @@
       whether its owner is alive.</strong> In <code>reckon/cli.py</code>,
       <code>_check_consumer</code> returns at once unless
       <code>registration.held</code>, so only one follower per session can ever notice
-      that its session died. Every read-only follower polls until it is killed. A parent pid of 1 cannot identify these orphans: reckon's dispatch deliberately exits right after launching its worker, so live workers have ppid 1 too. An orphan is a process whose owning session is dead, and a census must test that. Selecting by the crew session id in the argv finds one session's processes without touching anyone else's.</li>
+      that its session died. Every read-only follower polls until it is killed. A parent pid of 1 cannot identify these orphans: a worker is reparented to init whenever its dispatch exits, so live workers have ppid 1 too. This becomes the normal case once reckon's <code>a-dispatch-returns-without-its-worker</code> lands; that change is released but not yet merged. An orphan is a process whose owning session is dead, and a census must test that. Selecting by the crew session id in the argv finds one session's processes without touching anyone else's.</li>
       <li><strong>A monitor's expiry kills its wrapper, not the follower inside
       it.</strong> The follower is reparented to init and keeps polling, so each re-arm
       adds one more. The ten nova orphans were 6:21, 5:17, 4:47, 3:42, 3:03, 2:29,
@@ -127,7 +127,7 @@
       <code>reckon/crew/dispatch.py:5524</code>, <code>reckon/crew/routing.py:355</code>
       and <code>reckon/ledger.py:895</code>. <code>crew dispatch</code> and
       <code>crew complete</code> processes that stay alive for hours repeat it every few
-      seconds.</li>
+      seconds. Dispatch also snapshots the worktree after launch. Over more than 300 retained trees on the degraded storage, that held one reckon S20 dispatch for 3 h, as reported by reckon-c4.</li>
       <li><strong>MCP reads have no bound.</strong> A single <code>read_plan</code> held
       this session's reckon MCP server blocked on GPFS for over 30 minutes. imas-ambix-b6
       measured 1806 s for one read before the harness aborted it.</li>
