@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-24T14:53:33",
+  "updated": "2026-09-24T14:53:52",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -89036,6 +89036,288 @@
           "status": "failed",
           "error": "IntegrityError: UNIQUE constraint failed: runs.run_id"
         }
+      },
+      {
+        "run_id": "r-20260924T122903045953-third-review-of-flight-layer-declares-placement",
+        "plan": "slurm-hosted-agent-fleet",
+        "section": "\u00a77",
+        "node": "third-review-of-flight-layer-declares-placement",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 702,
+                "cached_input_tokens": 383123,
+                "input_tokens": 383827,
+                "output_tokens": 213,
+                "reasoning_output_tokens": 126,
+                "total_tokens": 384040,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "f880c335-ee59-40ba-bb02-c0e33c804ea2",
+            "session_id": "s24-ship-20260923"
+          },
+          "done_when": "the review for r-20260923T161249048985-flight-layer-declares-placement stores a parsed record scoring all 5 dimensions in the range 0..20 against head af9c9bb4; its durability dimension re-tries the job_id_probe key addition and the comment carrying 1276262 and reports each outcome, then states after at least three further attempted edits to docs/state/imas-ambix/flight.yaml, each listed with its pytest outcome, whether any edit defeats placement while all six tests stay green",
+          "estimated_hours": null,
+          "goal": "attach an independent re-review to run r-20260923T161249048985-flight-layer-declares-placement at its repaired head af9c9bb4",
+          "id": "third-review-of-flight-layer-declares-placement",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-24T12:29:04Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": 16,
+            "binding_observed": "unknown",
+            "detail": "lane document carries no numeric 'headroom' or 'mean_context'",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": "2026-09-24T12:28:48Z",
+            "state": "fresh",
+            "suggested_shelf_life_seconds": 45
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260924T122903045953-third-review-of-flight-layer-declares-placement/manifest.md",
+          "negative_control": "",
+          "plan": "slurm-hosted-agent-fleet",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "review",
+          "section": "\u00a77",
+          "spec_level": "exact",
+          "time_budget": "25m",
+          "token_budget": null,
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260923T161249048985-flight-layer-declares-placement.json"
+          ]
+        },
+        "role": "review",
+        "spec_level": "exact",
+        "member": "s24-review-flight-test",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "xhigh",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "read-only",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-24T12:29:19Z",
+        "completed_at": "2026-09-24T12:42:17.337Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 671,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 778,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "0fe6c76bb41421f7e73e3df649162b8a4c0a21c5",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": 0,
+        "gate": "passed",
+        "gate_check": {
+          "command": "reckon.crew.review.parse_review on the emitted review text, write and read-back of the stored record",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260924T122903045953-third-review-of-flight-layer-declares-placement/review-record-as-stored.json",
+          "log_digest": "sha256:e79d54df80b465d22995750aa82a9d69e492549be38d3828962091d762d5f762"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260924T122903045953-third-review-of-flight-layer-declares-placement/manifest.md",
+        "scope_changed": false,
+        "session_id": "9879505f-7332-4490-aae5-0a66201e8ce8",
+        "budget": {
+          "cost_usd": null,
+          "detail": "no rate-limit event in the stream yet",
+          "headroom": "unknown",
+          "rate_limit_period_minutes": null,
+          "rate_limit_type": null,
+          "refusal": false,
+          "resets_at": null,
+          "surpassed_threshold": null,
+          "threshold_status": null,
+          "tokens": null,
+          "utilisation_pct": null
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-24T12:42:17.337Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "15m",
+          "requested": true,
+          "waived_runs": [
+            {
+              "budget_overrun": true,
+              "budget_overrun_seconds": 1229,
+              "budget_seconds": 1500,
+              "classification": "scoring",
+              "commits_beyond_base": 0,
+              "detail": "the worker manifest reports completion, but no independent review is attached; an independent review must be produced before promotion",
+              "effective_phase": "working",
+              "elapsed_seconds": 2729,
+              "external_wait": null,
+              "interruption": null,
+              "lifting_condition": null,
+              "liveness_proven": true,
+              "log_age_seconds": 63145,
+              "log_fresh": false,
+              "manifest_commits": [
+                "6dbfe4aa 06926c4b 2cea28f9 6565f989 fb15bf36 28f0ab31 3fed8055 af9c9bb4"
+              ],
+              "manifest_derived": false,
+              "manifest_digest": "bac46f6fd31e78df2d06e2aa33897b38f56c38f2e8f04d7c67c551bdbc1c1657",
+              "manifest_error": null,
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T161249048985-flight-layer-declares-placement/manifest.md",
+              "manifest_present": true,
+              "manifest_reported_status": "complete",
+              "manifest_status": "complete",
+              "marker": null,
+              "needs_help_complete": null,
+              "next_action": "reckon crew dispatch --project imas-ambix --plan slurm-hosted-agent-fleet --section '\u00a77' --role review --spec-level exact --node review-of-flight-layer-declares-placement --goal 'attach an independent review to run r-20260923T161249048985-flight-layer-declares-placement' --done-when 'the review for r-20260923T161249048985-flight-layer-declares-placement stores a parsed record scoring all 5 dimensions in the range 0..20; the turn ends once that record is stored and the manifest reads complete' --write-path /home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260923T161249048985-flight-layer-declares-placement.json --write-path /home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260923T161249048985-flight-layer-declares-placement.at-af9c9bb4c402e94926c0e4d8c2082454d43ab92c.json --time-budget 25m --session s24-ship-20260923 --allow-unreconciled-runs --backend clive",
+              "node": "flight-layer-declares-placement",
+              "phase": "working",
+              "plan": "slurm-hosted-agent-fleet",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "recovery": "review",
+              "recovery_classification": "scoring",
+              "resets_at": null,
+              "review_error": null,
+              "review_present": false,
+              "review_status": null,
+              "run_id": "r-20260923T161249048985-flight-layer-declares-placement",
+              "session": "s24-ship-20260923",
+              "terminal_age_seconds": 63600,
+              "terminal_at": "2026-09-23T18:49:10Z",
+              "wait_age_seconds": null,
+              "wait_condition_state": null,
+              "wait_key_defect": null,
+              "wait_observed": null,
+              "wait_overdue": null,
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/s24-ship-20260923/flight-layer-declares-placement"
+            }
+          ]
+        },
+        "review": null,
+        "follow_on_paths": [
+          "flight_placement.log",
+          "nc_add_job_id_probe.log",
+          "nc_add_comment_allocation.log",
+          "/home/ITER/mcintos/.claude/projects/-home-ITER-mcintos-Code-imas-ambix/memory/MEMORY.md"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": false,
+          "matched_measure": "pytest outcome",
+          "override": true,
+          "role": "review",
+          "status": "overridden"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": {
+          "status": "underivable",
+          "reason": "model_span_unavailable_at_promotion"
+        },
+        "scope_acceptances": null,
+        "no_commit": "review node: its deliverable is the stored review record outside the repository",
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/s24-ship-20260923/third-review-of-flight-layer-declares-placement",
+          "session_id": "9879505f-7332-4490-aae5-0a66201e8ce8",
+          "session_source": "pointer",
+          "retained_at": "2026-09-24T12:42:17.337Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "promoted_revision": "0fe6c76bb41421f7e73e3df649162b8a4c0a21c5",
+        "plan_impl_at_dispatch": 1.0,
+        "impl_move": {
+          "plan": "slurm-hosted-agent-fleet",
+          "at_dispatch": 1.0,
+          "at_complete": null,
+          "verdict": "exempt",
+          "reason": "role-not-enforced:review"
+        },
+        "negative_control": {
+          "verdict": "exempt",
+          "reason": "node-writes-no-test-path"
+        },
+        "lane_advisory": {
+          "backend": "clive",
+          "burn_multiple": null,
+          "cheaper_lane": {
+            "detail": "",
+            "lane": null,
+            "state": "not_evaluated"
+          },
+          "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+          "horizon_ends_at": "2026-09-24T12:54:04.064286+00:00",
+          "horizon_seconds": 1500,
+          "metered": false,
+          "observed_at": null,
+          "precedes_horizon": null,
+          "projected_exhaustion_at": null,
+          "resets_at": null,
+          "seconds_until_reset": null,
+          "state": "quiet",
+          "utilisation_pct": null
+        },
+        "lane_declaration": {
+          "backend": null,
+          "headroom": null,
+          "metered": false,
+          "observed_at": null,
+          "read_at": "2026-09-24T12:29:04Z",
+          "resolved_backend": "clive",
+          "utilisation_pct": null
+        },
+        "lane_reading": {
+          "age_seconds": 16,
+          "binding_observed": "unknown",
+          "detail": "lane document carries no numeric 'headroom' or 'mean_context'",
+          "headroom": "unknown",
+          "mean_context": "unknown",
+          "observed_at": "2026-09-24T12:28:48Z",
+          "state": "fresh",
+          "suggested_shelf_life_seconds": 45
+        },
+        "tool_steps": 45.0,
+        "orientation_input_tokens": null,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -89124,6 +89406,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 1087
+    "_version": 1088
   }
 }
