@@ -11,7 +11,7 @@
   <meta name="plan-status" content="active">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort-hours" content="6.0">
-  <meta name="plan-impl" content="0.4">
+  <meta name="plan-impl" content="0.45">
   <meta name="plan-capability-version" content="1.0">
   <meta name="plan-capability-class" content="orchestrator">
   <meta name="plan-capability-reasoning" content="deep">
@@ -23,8 +23,8 @@
   <title>Agent sessions live on the fleet node | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-09-24">
-<meta name="plan-version" content="2">
+<meta name="plan-modified" content="2026-09-25">
+<meta name="plan-version" content="4">
 </head>
 <body>
   <main class="plan-doc">
@@ -261,6 +261,62 @@
     byte stream rather than run a live model session. Record one with <code>script</code> from a
     short <code>claude -p</code> run on the local lane, or replay a stream.jsonl rendering. Logs
     and the research note go on GPFS under the repository, not on node-local <code>/tmp</code>.</p>
+    <p><strong>First result, 2026-09-25: no stall at either scrollback size.</strong> The
+    <a href="/imas-ambix/research/fleet-view-rendering">fleet-view rendering note</a> measured a
+    throwaway session with a recorded Claude Code pane:</p>
+    <ul>
+      <li>attach took 153&nbsp;ms at 10,000 scrollback lines and 175&nbsp;ms at 50,000;</li>
+      <li>resize took 434&nbsp;ms and 418&nbsp;ms respectively;</li>
+      <li>the plain-shell control took 153&nbsp;ms to attach and 439&nbsp;ms to resize;</li>
+      <li>no run logged a one-second stall.</li>
+    </ul>
+    <p>The resize-storm hypothesis is refuted.</p>
+    <p>The independent review scored the note 73/100, with durability at 8. The coordinator's
+    check found a fourth defect. The repair node, run on the same task, fixes all four:</p>
+    <ul>
+      <li>the create-failure pointer names an empty file;</li>
+      <li>the per-run stall-line deltas were never committed as a receipt;</li>
+      <li>the first live stall came 8.85&nbsp;s after the second new tab, not 40&nbsp;s;</li>
+      <li>the note's <code>plan-slug</code> is the plan's own slug, not
+      <code>fleet-view-rendering</code>, and that makes the plan's slug ambiguous.</li>
+    </ul>
+    <p><strong>Repair done when:</strong></p>
+    <ul>
+      <li>the pointer names the file that carries the string;</li>
+      <li>a committed receipt holds each run's before and after stall-line counts;</li>
+      <li>the interval reads 8.85&nbsp;s;</li>
+      <li>the note carries <code>plan-slug</code> <code>fleet-view-rendering</code> with
+      <code>plan-informs</code> naming this plan;</li>
+      <li><code>reckon audit-doc</code> passes on the note.</li>
+    </ul>
+
+    <h2 id="s9">&sect;9 &mdash; What the probe could not see</h2>
+    <p>&sect;8's probe ruled out scrollback size. It left three questions open, and the live
+    symptoms point at all three:</p>
+    <ul>
+      <li><strong>A second viewer against several tabs.</strong> All 33 live stall lines are
+      <code>Action NoOp</code>. They followed two new tabs created at 22:22:26 and 22:22:56 on
+      2026-09-24. The probe attached a second client to a single-tab session only.</li>
+      <li><strong>The tab bar.</strong> The two-client capture,
+      <code>docs/figures/fleet-view-rendering/evidence-probe/first-client-diffsize.bin</code>,
+      has not been rendered to a screen. Whether the first viewer's tab-bar row drops or
+      duplicates is still unknown.</li>
+      <li><strong>Duplicated lines.</strong> The probe replayed recorded bytes into a shell pane.
+      No live Claude Code session ever negotiated its own width, so whether duplicated lines follow
+      a width mismatch was never tested.</li>
+    </ul>
+    <p><strong>Done when</strong> a new section of the fleet-view rendering note answers all three
+    from a throwaway session on the fleet node, under the same safety rules as &sect;8:</p>
+    <ul>
+      <li>the stall-line count and render timings for a second client attaching, at a different
+      size from the first, to a session with at least four tabs;</li>
+      <li>the first client's captured stream rendered through a terminal emulator library such as
+      <code>pyte</code>, with the tab-bar row quoted before and after the second attach;</li>
+      <li>a live <code>claude</code> pane, run on the local lane, resized between two widths, with
+      the rendered screen checked for repeated lines.</li>
+    </ul>
+    <p>The negative control is the same attach against a session with one tab, which must match
+    &sect;8's figures. Every run's stall-line count is committed as a receipt.</p>
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
@@ -280,6 +336,11 @@
     <pre class="r-fu-prompt">/reckon-build agent-sessions-live-on-the-fleet-node</pre>
     </article>
 </section>
-  </main>
+  <section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="s8" data-id="c-20260924T231624681881" data-who="" data-when="2026-09-25">
+    <div class="r-comment-body"><p>Node <code>fleet-view-stall-cause</code> (run r-20260924T204304002260) landed as 6bfe2da2, merged c9dd6eb8. Gate: audit-doc OK, and the measure was produced with a plain-shell control. Review 73/100 (durability 8): three findings plus a fourth, the note's slug collision. All four go to a repair run on the same node. §8 stays open until that lands. §9 carries the three questions the probe could not see. impl 0.40 → 0.45 for the landed §8 measurement.</p></div>
+</div>
+</section>
+</main>
 </body>
 </html>
