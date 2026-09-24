@@ -3158,6 +3158,120 @@ def lane(origin: str | None, publish: bool, refresh: int | None, submit: bool) -
         time.sleep(refresh)
 
 
+def _gate_document_path(site: SiteConfig) -> Path:
+    """The admission gate file the running router reads live."""
+    from imas_ambix.agent.router import GATE_FILENAME
+
+    return Path(site.endpoint_document).with_name(GATE_FILENAME)
+
+
+def _read_gate_document(path: Path) -> dict[str, object]:
+    """Read the gate file's keys, treating an absent file as an empty gate.
+
+    Every key the operator has not set is preserved on write, so writing the
+    pause does not drop a width or a wait bound a launch put there.
+    """
+    import json
+
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+    except (OSError, json.JSONDecodeError) as error:
+        raise click.ClickException(f"{path} could not be read: {error}") from error
+    if not isinstance(payload, dict):
+        raise click.ClickException(f"{path} does not hold a JSON object")
+    return payload
+
+
+def _write_gate_document(path: Path, payload: dict[str, object]) -> None:
+    """Replace the gate file atomically, as the running router does for lane.json."""
+    import json
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    scratch = path.with_suffix(".tmp")
+    scratch.write_text(
+        json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8"
+    )
+    scratch.replace(path)
+
+
+def _print_lane_counts(site: SiteConfig) -> None:
+    """Print the lane's running and waiting counts beside the router's own.
+
+    The counts are read from the published lane document rather than from a
+    live probe, so the command reports what every other reader sees. An
+    unreadable document is reported as unknown rather than raised: the pause
+    write matters more than the reading, and a lane that is refusing work is
+    exactly the moment its counters may be unavailable.
+    """
+    import json
+
+    document_path = Path(site.endpoint_document).with_name("lane.json")
+    running: object = "unknown"
+    waiting: object = "unknown"
+    in_flight: object = "unknown"
+    gate_waiting: object = "unknown"
+    try:
+        payload = json.loads(document_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        payload = None
+    if isinstance(payload, dict):
+        running = payload.get("running", "unknown")
+        waiting = payload.get("waiting", "unknown")
+        gate = payload.get("router_generation_gate")
+        if isinstance(gate, dict):
+            in_flight = gate.get("in_flight", "unknown")
+            gate_waiting = gate.get("waiting", "unknown")
+    console.print(
+        f"lane running={running} waiting={waiting} "
+        f"(router gate in_flight={in_flight} waiting={gate_waiting})",
+        markup=False,
+        highlight=False,
+    )
+
+
+@agent.command()
+@click.option(
+    "--reason",
+    required=True,
+    help="Why the lane is paused; published beside the pause in lane.json.",
+)
+def pause(reason: str) -> None:
+    """Stop the router admitting new generation while in-flight work finishes.
+
+    The pause is written to the gate file the running router reads live, so it
+    needs no restart and no message to any coordinator. Requests already in
+    flight run to completion; new ones wait in the gate's FIFO and, past the
+    configured wait, receive the usual overload response. The reason is
+    required because a pause has to be readable as a stated decision rather
+    than inferred from a lane that happens to look quiet.
+    """
+    site = SiteConfig.from_env()
+    path = _gate_document_path(site)
+    payload = _read_gate_document(path)
+    payload["paused"] = True
+    payload["reason"] = reason
+    _write_gate_document(path, payload)
+    console.print(
+        f"paused {site.endpoint_document.parent}", markup=False, highlight=False
+    )
+    _print_lane_counts(site)
+
+
+@agent.command()
+def resume() -> None:
+    """Clear the gate's pause and admit the requests it held, in arrival order."""
+    site = SiteConfig.from_env()
+    path = _gate_document_path(site)
+    payload = _read_gate_document(path)
+    payload["paused"] = False
+    payload.pop("reason", None)
+    _write_gate_document(path, payload)
+    console.print("resumed", markup=False, highlight=False)
+    _print_lane_counts(site)
+
+
 @agent.command()
 @click.argument("engine", type=click.Choice(ENGINE_TYPES))
 @click.option(

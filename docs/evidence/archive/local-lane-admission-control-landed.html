@@ -10,7 +10,7 @@
   <meta name="plan-summary"      content="Cumulative execution record for local-lane-admission-control: capacity levers, scheduler levers, client behaviour, the router gate and the bypass trace">
   <meta name="plan-tags"         content="agent-serving,gpu-deployment">
   <meta name="plan-evidence-for" content="local-lane-admission-control">
-  <meta name="plan-verifies"     content="local-lane-admission-control#s3,local-lane-admission-control#s5,local-lane-admission-control#s6,local-lane-admission-control#s7,local-lane-admission-control#s8">
+  <meta name="plan-verifies"     content="local-lane-admission-control#s3,local-lane-admission-control#s5,local-lane-admission-control#s6,local-lane-admission-control#s7,local-lane-admission-control#s8,local-lane-admission-control#s11">
   <meta name="plan-owner"        content="Simon McIntosh">
   <title>Local Lane Admission Control — Landed Evidence | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
@@ -368,6 +368,72 @@
     Control: <code>occupancy_control.json</code> and <code>synthetic_cliff.log</code> beside
     it. The parse ran under <code>srun</code> on <code>all_debug</code>. Both logs parsed
     with zero malformed decode lines and zero malformed prefill lines.</p>
+  </section>
+
+  <section id="router-pause">
+    <h2>A declared pause is enforced at the gate, and it drains rather than cuts
+    <a class="anchor" href="#router-pause">#</a></h2>
+
+    <p><strong>What is enforced.</strong> The gate file <code>router-gate.json</code>
+    beside <code>lane.json</code> gains <code>"paused": true</code> with a
+    <code>"reason"</code> string. While the flag is set the generation gate admits no new
+    generation, <em>whatever its width</em>: the pause outranks the <code>width == 0</code>
+    bypass and the FIFO head's admission test alike. Requests already admitted run to
+    completion, so the pause is a drain and not a cut. A request that arrives during the
+    pause joins the same FIFO as any other caller, and clearing the flag admits it in
+    arrival order. A request still waiting past <code>wait_seconds</code> receives the
+    existing HTTP 529 <code>overloaded_error</code> with the fixed five-second
+    <code>Retry-After</code> — the same reply a full gate gives, so a caller needs no new
+    handling to observe a pause.</p>
+
+    <p><strong>A pause is published, because a zero count does not name its cause.</strong>
+    A lane with nothing running and a lane that is refusing to run anything look identical
+    in the counters alone, so <code>lane.json</code> carries <code>paused</code> and the
+    reason under <code>router_generation_gate</code>. That is the field a dispatch-side
+    holder reads: the mechanism here stops the router admitting, and the <code>paused</code>
+    field is what lets a caller outside the router know not to try.</p>
+
+    <p><strong>The operator surface round-trips the file.</strong>
+    <code>imas-ambix agent pause --reason &lt;text&gt;</code> writes the flag and the reason
+    and prints the lane's running and waiting counts; <code>imas-ambix agent resume</code>
+    clears the flag and the reason and prints the same counts. Both preserve the width and
+    the wait bound a launch set, and both create the gate file when none exists rather than
+    failing. A gate file that does not hold a JSON object is reported and left untouched
+    rather than overwritten. The router reads the file live, as it already did for width, so
+    neither command needs a restart.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/local-lane-admission-control/pause-drains-not-cuts.svg" alt="Four requests against one gate over time: A is admitted before the pause and completes during it; B and C arrive during the pause and wait in FIFO order; D waits past its deadline and receives HTTP 529 with Retry-After; on resume B is admitted first and C second.">
+      <figcaption>A pause drains the gate rather than cutting it. The in-flight request
+      completes, arrivals wait in the existing FIFO, an over-waiting request takes the
+      existing 529, and clearing the flag admits the held requests in arrival order.</figcaption>
+    </figure>
+
+    <h3 id="pause-evidence">What the tests measure</h3>
+
+    <p>The paused-gate admission test declares a pause while one request of a width-2 gate is
+    in flight and minimum width 8. It asserts that the observed maximum concurrently running
+    is <strong>1</strong> — the in-flight request — while two further arrivals sit waiting,
+    that the in-flight request completes with 200 during the pause, and that clearing the
+    flag admits the two held requests and a third that arrived later in the order
+    <code>first, second, third</code>. A second test shows a paused gate returning 529 with
+    <code>Retry-After: 5</code> and an <code>overloaded_error</code> body to a request held
+    past its wait bound, with no generation started. A third shows a pause outranking a
+    disabled width (<code>width 0</code> and paused still refuses). A fourth asserts the lane
+    snapshot publishes the pause and its reason. The CLI tests cover pause and resume
+    round-tripping the file, preservation of width and wait bound, the counts each prints,
+    gate creation when absent, and a malformed gate being reported rather than overwritten.</p>
+
+    <p><strong>The declared negative control.</strong> Removing the single line
+    <code>and not settings.paused</code> from the FIFO admission test leaves the module
+    parseable and makes a paused gate admit new requests on the FIFO path. Against that
+    mutation the paused-gate admission test and the paused-gate timeout test both fail
+    (<code>2 failed, 15 passed</code>), and the mutation was restored. The removed line is
+    <code>and not settings.paused</code> at the FIFO head's admission test in
+    <code>_GenerationGate.acquire</code>. The focused gate is
+    <code>tests/test_agent_router_gate.py</code> and <code>tests/test_agent_pause_cli.py</code>
+    (22 passed), with <code>ruff check imas_ambix tests</code> exiting 0. No engine or router
+    job was touched, restarted or cancelled.</p>
   </section>
 </main>
 </body>
