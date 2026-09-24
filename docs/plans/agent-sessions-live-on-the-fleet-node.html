@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-24">
-<meta name="plan-version" content="1">
+<meta name="plan-version" content="2">
 </head>
 <body>
   <main class="plan-doc">
@@ -249,6 +249,18 @@
     between Claude Code and its pane. The deliverable is a research note naming the cause, with a
     measured before and after for the config or cx change it recommends. The negative control is the
     same probe on a plain shell pane, which must not stall.</p>
+    <p><strong>How the node reaches the fleet node.</strong> The fleet job id and node are in
+    <code>~/.local/state/fleet/record.json</code>. Run probes there with
+    <code>TMPDIR=/tmp srun --overlap --jobid=&lt;job_id&gt; --job-name=zj-probe &hellip;</code>, or
+    with <code>ssh &lt;node&gt;</code>, which works while the job is held. Use a private
+    <code>ZELLIJ_SOCKET_DIR</code> under <code>/tmp</code> on the node. Never use
+    <code>/tmp/39486-fleet</code>, and never attach, resize or kill the <code>reckon-fleet</code>,
+    <code>ambix-fleet</code> or <code>fleet-demo</code> sessions. Every probe session is started
+    and killed by name, and <code>zellij delete-session</code> removes its resurrection entry from
+    <code>~/.cache/zellij</code>. The "Claude Code pane" may replay a recorded Claude Code terminal
+    byte stream rather than run a live model session. Record one with <code>script</code> from a
+    short <code>claude -p</code> run on the local lane, or replay a stream.jsonl rendering. Logs
+    and the research note go on GPFS under the repository, not on node-local <code>/tmp</code>.</p>
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
