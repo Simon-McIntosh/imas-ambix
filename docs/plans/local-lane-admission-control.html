@@ -656,6 +656,20 @@
     in-flight request completes. Resuming admits the held request in FIFO order,
     <code>lane.json</code> reads <code>paused</code> with its reason, and the CLI round-trips
     the file. A mutation that drops the paused check from admission must fail the test.</p>
+    <p><strong>Landed.</strong> <code>_GateSettings</code> carries <code>paused</code> and
+    <code>reason</code>, validated from the file's payload. Admission treats a pause as
+    outranking the width: the <code>width == 0</code> bypass and the FIFO head's admission
+    both test <code>not paused</code>, so a paused gate starts no new generation whatever its
+    width while requests already admitted run to completion. A held request that passes
+    <code>wait_seconds</code> takes the existing 529 <code>overloaded_error</code> with
+    <code>Retry-After</code>. <code>snapshot()</code> publishes <code>paused</code> and the
+    reason into <code>lane.json</code> under <code>router_generation_gate</code>, so a
+    reader sees the pause rather than inferring it from a zero count.
+    <code>imas-ambix agent pause --reason &lt;text&gt;</code> writes the flag and reason and
+    prints the lane's running and waiting counts, and <code>agent resume</code> clears both
+    and prints the same counts; each leaves the width and wait bound untouched. The gate is
+    read live, as width already was, so no restart is needed. Evidence:
+    <a href="/imas-ambix/evidence/archive/local-lane-admission-control-landed.html#router-pause">the router pause anchor</a>.</p>
 
     <h2 id="s12">&sect;12 &mdash; Every destructive agent command proves its dry run changes nothing</h2>
     <p><code>agent restart --dry-run</code> cancelled the live engine because its cancel ran
