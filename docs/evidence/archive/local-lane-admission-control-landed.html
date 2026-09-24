@@ -519,9 +519,10 @@
     <code>imas_ambix/agent/cli.py</code>, with no test added for it, makes
     <code>test_every_agent_command_offering_a_dry_run_is_covered</code> fail with
     <code>Extra items in the left set: 'fleet hold'</code> (<code>1 failed in 0.32s</code>); the
-    scratch edit was restored, leaving <code>imas_ambix/agent/cli.py</code> unchanged. Against the
-    pre-fix shallow walk the same mutation produced a <em>pass</em>, which is the hole the recursion
-    closes.</p>
+    scratch edit was restored, leaving <code>imas_ambix/agent/cli.py</code> unchanged. The shallow walk the
+    recursion replaces read only the agent group's direct children, so by reading it the same
+    mutation would have passed. That is inferred from the code, not measured: no run against the
+    shallow walk was recorded.</p>
   </section>
 </main>
 </body>
