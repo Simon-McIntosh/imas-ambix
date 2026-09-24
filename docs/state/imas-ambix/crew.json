@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-24T09:27:38",
+  "updated": "2026-09-24T09:29:26",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -87699,6 +87699,259 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260924T071506268717-review-of-dry-run-guard-walks-nested-groups",
+        "plan": "local-lane-admission-control",
+        "section": "\u00a712",
+        "node": "review-of-dry-run-guard-walks-nested-groups",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 975,
+                "cached_input_tokens": 538635,
+                "input_tokens": 539612,
+                "output_tokens": 222,
+                "reasoning_output_tokens": 101,
+                "total_tokens": 539834,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "74b53aa2-1d4b-451f-8ce7-33c072085f83",
+            "session_id": "llac-20260923"
+          },
+          "done_when": "the review for r-20260924T070825604277-dry-run-guard-walks-nested-groups stores a parsed record scoring all 5 dimensions in the range 0..20; the turn ends once that record is stored and the manifest reads complete",
+          "estimated_hours": null,
+          "goal": "attach an independent review to run r-20260924T070825604277-dry-run-guard-walks-nested-groups",
+          "id": "review-of-dry-run-guard-walks-nested-groups",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-24T07:15:06Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": 19,
+            "binding_observed": "unknown",
+            "detail": "",
+            "headroom": 13,
+            "mean_context": 140000,
+            "observed_at": "2026-09-24T07:14:47Z",
+            "state": "fresh",
+            "suggested_shelf_life_seconds": 45
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260924T071506268717-review-of-dry-run-guard-walks-nested-groups/manifest.md",
+          "negative_control": "",
+          "plan": "local-lane-admission-control",
+          "requested_backend": null,
+          "requires_decisions": [],
+          "role": "review",
+          "section": "\u00a712",
+          "spec_level": "exact",
+          "time_budget": "30m",
+          "token_budget": null,
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260924T070825604277-dry-run-guard-walks-nested-groups.json",
+            "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260924T070825604277-dry-run-guard-walks-nested-groups.at-6453d5b3b2094635cafb5d122967717e5697a22d.json"
+          ]
+        },
+        "role": "review",
+        "spec_level": "exact",
+        "member": "session-d90b188b6863f5649170",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "xhigh",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "read-only",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-24T07:15:15Z",
+        "completed_at": "2026-09-24T07:25:06.013Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 580,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 591,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "e1e9fbc89b3af95d3fe6c1c55b1c27b3e2946e9e",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest -p no:cacheprovider tests/test_agent_dry_run.py",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260924T071506268717-review-of-dry-run-guard-walks-nested-groups/gate.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260924T071506268717-review-of-dry-run-guard-walks-nested-groups/manifest.md",
+        "scope_changed": false,
+        "session_id": "2980a96b-0fcc-41c7-b8c8-99e665f94a32",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 5452220,
+            "input_tokens_cumulative": 5452220,
+            "output_tokens": 48797,
+            "output_tokens_cumulative": 48797,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-24T07:25:06.013Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "15m",
+          "requested": true,
+          "waived_runs": []
+        },
+        "review": null,
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 5452220,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 586.804,
+          "generated_tokens": 48797,
+          "generation_seconds": 568.134,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 33.6,
+          "machine_seconds": 18.67,
+          "peak_input_tokens": 161438,
+          "tokens_per_second": 85.89,
+          "wall_tokens_per_second": 83.16
+        },
+        "follow_on_paths": [
+          "docs/evidence/archive/local-lane-admission-control-landed.html:523",
+          "/tmp/llac-guard-red.log"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": false,
+          "matched_measure": null,
+          "override": false,
+          "role": "review",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": "a read-only review writes no commit; its record is review.txt in the run directory",
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/llac-20260923/review-of-dry-run-guard-walks-nested-groups",
+          "session_id": "2980a96b-0fcc-41c7-b8c8-99e665f94a32",
+          "session_source": "stream",
+          "retained_at": "2026-09-24T07:25:06.013Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "promoted_revision": "e1e9fbc89b3af95d3fe6c1c55b1c27b3e2946e9e",
+        "plan_impl_at_dispatch": 0.85,
+        "impl_move": {
+          "plan": "local-lane-admission-control",
+          "at_dispatch": 0.85,
+          "at_complete": null,
+          "verdict": "exempt",
+          "reason": "role-not-enforced:review"
+        },
+        "negative_control": {
+          "verdict": "exempt",
+          "reason": "node-writes-no-test-path"
+        },
+        "lane_advisory": {
+          "backend": "clive",
+          "burn_multiple": null,
+          "cheaper_lane": {
+            "detail": "",
+            "lane": null,
+            "state": "not_evaluated"
+          },
+          "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+          "horizon_ends_at": "2026-09-24T07:45:06.654841+00:00",
+          "horizon_seconds": 1800,
+          "metered": false,
+          "observed_at": null,
+          "precedes_horizon": null,
+          "projected_exhaustion_at": null,
+          "resets_at": null,
+          "seconds_until_reset": null,
+          "state": "quiet",
+          "utilisation_pct": null
+        },
+        "lane_declaration": {
+          "backend": null,
+          "headroom": null,
+          "metered": false,
+          "observed_at": null,
+          "read_at": "2026-09-24T07:15:06Z",
+          "resolved_backend": "clive",
+          "utilisation_pct": null
+        },
+        "lane_reading": {
+          "age_seconds": 19,
+          "binding_observed": "unknown",
+          "detail": "",
+          "headroom": 13,
+          "mean_context": 140000,
+          "observed_at": "2026-09-24T07:14:47Z",
+          "state": "fresh",
+          "suggested_shelf_life_seconds": 45
+        },
+        "tool_steps": 63.0,
+        "orientation_input_tokens": null,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -87787,6 +88040,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 1079
+    "_version": 1080
   }
 }
