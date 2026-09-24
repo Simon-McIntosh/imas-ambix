@@ -9,7 +9,7 @@
   <meta name="plan-title"    content="Login Node Storage Contention — what loaded 98dci4-srv-1006 on 2026-09-23/24, and what must not recur">
   <meta name="plan-summary"  content="Load 143 on a 97%-idle login node was GPFS metadata waits from orphaned agent processes, polling loops and a long scan; findings feeding fleet relocation, cleanup and dashboard plans">
   <meta name="plan-tags"     content="agent-serving,gpu-deployment">
-  <meta name="plan-informs"  content="slurm-hosted-agent-fleet,local-lane-admission-control">
+  <meta name="plan-informs"  content="slurm-hosted-agent-fleet,local-lane-admission-control,reckon:a-crew-process-ends-with-its-owner,reckon:a-cutover-is-measured-against-its-baseline,imas-codex:host-dashboard-covers-every-agent-process">
   <title>Login Node Storage Contention | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
@@ -82,6 +82,7 @@
       the interactive worker node, with CPU, memory and filesystem load reported
       separately as correct percentages: a new plan in imas-codex, extending
       <code>imas-codex host</code>.</li>
+      <li>Written up on 2026-09-24 as plans: reckon's <code>a-crew-process-ends-with-its-owner</code> (owner liveness, producer lease, scoped polling, read deadlines, census, skill rules); the relocation order added to reckon's <code>a-cutover-is-measured-against-its-baseline</code> &sect;4; and imas-codex's <code>host-dashboard-covers-every-agent-process</code>.</li>
       <li>Agent guidance: a session stops every monitor and follower it armed before it
       ends; load average is never read as CPU. Both belong in
       <code>~/.agents/AGENTS.md</code>.</li>
