@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="a-recorded-field-is-one-that-was-measured">
+  <meta name="plan-title" content="A recorded field is one that was measured">
+  <meta name="plan-summary" content="Three places where the serving record presents a field as measured when nothing measured it, and a test that cannot fail.">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort-hours" content="5.0">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="general">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-sprint" content="S27">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-tags" content="serving,telemetry">
+  <meta name="plan-blocks" content="serving-record-warehouse">
+  <title>A recorded field is one that was measured | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <h2 id="s1">&sect;1 &mdash; Why this is a new plan rather than a reopened one</h2>
+    <p>These three items were carried as an open followup on a plan marked shipped at
+    <code>impl</code> 1.0. Reckon excludes a completed plan from <code>pending_work</code>
+    and from every open path, so the work was invisible to the roadmap and to anyone
+    reading the sprint &mdash; it existed only for someone who opened the finished plan and
+    read past its conclusion. That is the hidden-work trap, and the remedy is a live plan
+    rather than a reopened record, so the shipped plan stays an accurate account of what it
+    shipped.</p>
+    <p>The three share one property, which is why they belong together: in each case the
+    record presents a field as measured when nothing measured it. A reader downstream
+    cannot tell the difference, and the warehouse being built over these records will
+    aggregate them without hesitating.</p>
+
+    <h2 id="s2">&sect;2 &mdash; The contract the recorder no longer keeps</h2>
+    <p><code>serving_receipts.py</code> states that a probe which failed, is absent, or did
+    not run contributes no key at all, and that a present key always means a measurement.
+    The job table now breaks both sentences deliberately: it records a marker on a tick
+    where <code>squeue</code> did not answer, because conflating a failed read with an
+    absent source is exactly what hid that section never reading for the entire life of the
+    feature. The behaviour is right and the contract is stale, which is the dangerous
+    ordering &mdash; a reader who trusts the docstring will treat a marker as a measurement.
+    Both sentences are quoted verbatim with line numbers in the probe-hostname manifest.</p>
+    <p><strong>Done when.</strong> The stated contract matches what the recorder does, with
+    the marker case named explicitly, and a test asserts the distinction a reader depends
+    on: a failed read and an absent source produce different records, and neither is
+    presented as a measurement.</p>
+
+    <h2 id="s3">&sect;3 &mdash; A test that cannot fail</h2>
+    <p>No recorded vLLM exposition exists anywhere &mdash; not in the tree, not in its
+    history, not in the run records. The vLLM half of the family reader is therefore
+    asserted only against a body synthesised in the test itself, so the test and the code
+    agree because the same author wrote both. A namespace error or a label-shape change in
+    that engine's real output cannot fail any assertion, and the failure would first appear
+    as absent data in production.</p>
+    <p>This is the sharpest item of the three. A passing test over a synthetic fixture
+    reports a protection it does not provide, and it is indistinguishable from a real one
+    until the engine's output changes.</p>
+    <p><strong>Done when.</strong> A recorded exposition from a real vLLM serve is committed
+    under <code>tests/data/</code> and the family reader is asserted against it. The control
+    that proves the test can fail: a namespace or label-shape mutation of that recorded body
+    must break the assertion.</p>
+
+    <h2 id="s4">&sect;4 &mdash; A field that looks measured and is not</h2>
+    <p><code>cards[].name</code> returns <code>None</code> because the card model is never
+    parsed from the probe output. It is small, and it is precisely the shape the telemetry
+    work exists to stop: a present key carrying nothing, which a consumer renders as a blank
+    rather than as a gap.</p>
+    <p>One measurement is worth carrying forward here rather than being rediscovered, because
+    the obvious reading of it is wrong. The flat receipt columns were <em>not</em> dead: across
+    twenty recorded files, 141,598 of 258,594 rows carry a flat prefix-cache hit rate, all of
+    them from serves whose engine publishes the counters it is derived from. They are null
+    only for SGLang. A coordinator sampling one file can conclude the column is unused and
+    remove it.</p>
+    <p><strong>Done when.</strong> The card model is parsed from the probe output, or the key
+    is removed so nothing presents an unparsed field as present. The flat-column measurement
+    is recorded in the evidence record so the column is not removed on a single-file sample.</p>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">&sect;</span> Decisions</h2>
+      <div class="r-dec" data-key="unparsed-key-disposition" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">What should a key whose value was never parsed do?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="omit">Omit the key, so its absence is the signal</button>
+          <button class="r-opt" data-value="explicit-gap">Carry an explicit gap marker distinguishable from a measured null</button>
+          <button class="r-opt" data-value="parse">Parse it, and treat a failure to parse as a recording error</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">&sect;</span> Followups</h2>
+      <article class="r-fu" data-id="f-rfm-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-09-24">
+        <h4 class="r-fu-title">Give the vLLM reader a recorded fixture and a mutation that breaks it</h4>
+        <div class="r-fu-body"><p>Take §3 first: it is the only one of the three where the current state reports a protection that does not exist. Record a real vLLM exposition under <code>tests/data/</code>, assert the family reader against it, and prove the assertion can fail by mutating a namespace or label shape in the recorded body. §2 and §4 are smaller and may follow in either order.</p></div>
+        <pre class="r-fu-prompt">/reckon-ship a-recorded-field-is-one-that-was-measured</pre>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
