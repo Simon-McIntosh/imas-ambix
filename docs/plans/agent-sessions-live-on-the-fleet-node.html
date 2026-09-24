@@ -23,6 +23,8 @@
   <title>Agent sessions live on the fleet node | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-09-24">
+<meta name="plan-version" content="1">
 </head>
 <body>
   <main class="plan-doc">
@@ -200,21 +202,69 @@
     and listing the others as peers. The login node runs no Claude session of the fleet. Workers
     are dispatched through the supervisor before any fleet session dispatches.</p>
 
+    <h2 id="s8">&sect;8 &mdash; A slow view is not an extra hop</h2>
+    <p>On 2026-09-24 the lead reported that fleet tabs were slow. Some did not respond, graphics
+    sometimes garbled, the tab bar flickered, and lines near the input duplicated. The question was
+    whether the extra hops cause this, and whether zellij should move back to the login node with
+    each tab reaching into compute. <strong>The hops are not the cause.</strong> Each figure below
+    is a single-keystroke round trip through a raw pty, 40&ndash;60 samples per route, measured
+    that evening:</p>
+    <table>
+      <tr><th>Route</th><th>p50</th><th>p90</th></tr>
+      <tr><td>login &rarr; clu-2058, <code>srun --overlap --pty</code></td><td>0.7 ms</td><td>0.7 ms</td></tr>
+      <tr><td>login &rarr; clu-2058, direct <code>ssh -tt</code></td><td>0.7 ms</td><td>0.7 ms</td></tr>
+      <tr><td>laptop &rarr; <code>sdcc-login</code> (the WAN floor)</td><td>28 ms</td><td>29&ndash;30 ms</td></tr>
+      <tr><td>laptop &rarr; login &rarr; srun &rarr; clu-2058 (today's chain)</td><td>30 ms</td><td>33 ms</td></tr>
+      <tr><td>laptop &rarr; ProxyJump &rarr; clu-2058 directly</td><td>29 ms</td><td>32 ms</td></tr>
+    </table>
+    <p>Every route sits within 2 ms of the WAN floor when the link is quiet. In one earlier round,
+    every route, including the bare gateway, jumped together to p50 39&ndash;58 ms and p90
+    91&ndash;97 ms. That is jitter on the laptop's link, and no change of topology removes it.
+    Both transports carry a 2 MB escape-heavy burst byte-exact (619 ms srun, 656 ms ssh), and both
+    propagate a window resize. The idle viewer streams about 4 KB/s. Moving zellij to the login
+    node would put the same bytes across the same WAN. It would bring a multiplexer back onto the
+    node we left, and each Claude session would then need a separate holder on compute to survive a
+    dropped pane. <strong>Decision: zellij stays in the batch step.</strong> Direct ssh to the node
+    works while the job is held, but it gains nothing over <code>srun</code> for viewing.</p>
+    <p><strong>One defect was found and fixed on the laptop side.</strong> <code>focus-filter</code>,
+    which carries every byte between Windows Terminal and ssh, held a trailing partial escape for up
+    to 500 ms. A lone Esc (Claude Code's interrupt) is such a prefix, and so is the tail of any frame
+    that ends mid-CSI. The fix (dotfiles <code>3035280</code>, synced to the laptop) cut a lone Esc
+    from 501 ms to 21 ms, and focus events split across writes are still stripped. Tabs opened before
+    the sync keep the old filter until they reconnect.</p>
+    <p><strong>Still unexplained: the garbling, the tab-bar flicker and the duplicated lines.</strong>
+    The fleet zellij log shows 33 <code>Action NoOp did not complete within 1s timeout</code> errors,
+    all between 22:23 and 22:30, right after two reconnects 30 s apart at 22:22. The screen thread
+    stalls when a client attaches. Two candidate causes remain. The first is a resize storm on
+    attach: each Claude Code pane reflows and re-renders its transcript while zellij reflows up to
+    50,000 scrollback lines per pane. A one-pane probe with 60,000 lines could not start inside the
+    probe harness and needs redoing. The second is a brief second viewer: <code>fleet_connect</code>
+    cancels any earlier <code>cx-view-&lt;session&gt;</code> step, so opening the same profile in a
+    second tab freezes the first.</p>
+    <p><strong>Done when</strong> an investigate node reproduces the symptoms on a throwaway zellij
+    session on the fleet node, never on the live servers. Using the fleet zellij config and a Claude
+    Code pane with a long transcript, it measures three things: screen-thread stall time on attach
+    and on resize, at 10,000 and at 50,000 scrollback lines; whether a second attach at a different
+    size produces the tab-bar flicker; and whether the duplicated lines follow a width mismatch
+    between Claude Code and its pane. The deliverable is a research note naming the cause, with a
+    measured before and after for the config or cx change it recommends. The negative control is the
+    same probe on a plain shell pane, which must not stall.</p>
+
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-      <article class="r-fu" data-id="f-aslf-010" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-ship" data-written-at="2026-09-24">
-        <h4 class="r-fu-title">What breaks when the ambix holder retires, checked in code</h4>
-        <div class="r-fu-body"><p><strong>The decisions are locked in reckon and the code does not yet match them.</strong> Reckon HEAD keys the reservation record per project (<code>2b0be9f8</code>), not at the host layer, and no command adopts an already-held job. The imas-ambix record naming 1276262 was published by hand through <code>publish_reservation</code>. Reckon S21's <em>the fleet shares one allocation</em> owns closing that seam; nothing here can land before it does.</p>
-        <p><strong>fleet status returns a false negative the moment the holder retires.</strong> It matches comment <code>ambix-fleet</code> on account <code>iter</code>, while reckon holds its allocation as job-name <code>reckon-reservation</code> with no comment at all (<code>placement.py:52,150</code>). So it prints &ldquo;No fleet allocation is held&rdquo; and exits 0 while one is held. No test catches it, because every fixture carries the token &mdash; the guard and its tests agree with each other and not with the world. Retire status with the holder, or repoint it at reckon's record.</p>
-        <p><strong>Reckon ensure would resubmit the wrong shape.</strong> Its defaults are constants &mdash; partition <code>all</code>, 32 cores, 128G (<code>placement.py:38-52</code>) &mdash; against the locked rigel whole-node decision and ambix's <code>SiteConfig.fleet_*</code>. When 1276262 leaves, ensure resubmits its own shape unless it first learns the declared one.</p>
-        <p><strong>There are now two allocations and they are not interchangeable.</strong> 1276262 holds reckon's workers; 1277272 is the ambix-fleet supervisor job hosting the new sessions, with its record at <code>~/.local/state/fleet/record.json</code>. The unification target is the <em>supervisor</em> kind, so a reader of this plan should not assume the job id it names elsewhere is the one to unify.</p><p><strong>Every placed step, and every session moved into either job, dies with that job.</strong> Drain and move before retiring anything; never cancel it while work runs there.</p>
-        <p>Nothing else breaks: the flight layer and its test carry no job id, and <code>throttling.py</code> with the end reading are login-node cgroup reads. Two pieces of plan text assume the ambix holder and need revisiting: the locked allocation-shape decision, and &sect;6's &ldquo;imas-ambix owns the node&rdquo;.</p>
-        <p>Retire outright: <code>fleet.py placement_argv</code> and <code>fleet place</code> are shallow &mdash; tested, but nothing calls them since the shim was deleted and the flight layer stopped naming them. <code>fleet hold</code> is deep but redundant once ensure adopts.</p></div>
-        <pre class="r-fu-prompt">/reckon-build agent-sessions-live-on-the-fleet-node</pre>
-      </article>
+<article class="r-fu" data-id="f-aslf-010" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-ship" data-written-at="2026-09-24" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">What breaks when the ambix holder retires, checked in code</h4>
+    <div class="r-fu-body"><p><strong>The decisions are locked in reckon and the code does not yet match them.</strong> Reckon HEAD keys the reservation record per project (<code>2b0be9f8</code>), not at the host layer, and no command adopts an already-held job. The imas-ambix record naming 1276262 was published by hand through <code>publish_reservation</code>. Reckon S21's <em>the fleet shares one allocation</em> owns closing that seam; nothing here can land before it does.</p>
+<p><strong>fleet status returns a false negative the moment the holder retires.</strong> It matches comment <code>ambix-fleet</code> on account <code>iter</code>, while reckon holds its allocation as job-name <code>reckon-reservation</code> with no comment at all (<code>placement.py:52,150</code>). So it prints “No fleet allocation is held” and exits 0 while one is held. No test catches it, because every fixture carries the token — the guard and its tests agree with each other and not with the world. Retire status with the holder, or repoint it at reckon's record.</p>
+<p><strong>Reckon ensure would resubmit the wrong shape.</strong> Its defaults are constants — partition <code>all</code>, 32 cores, 128G (<code>placement.py:38-52</code>) — against the locked rigel whole-node decision and ambix's <code>SiteConfig.fleet_*</code>. When 1276262 leaves, ensure resubmits its own shape unless it first learns the declared one.</p>
+<p><strong>There are now two allocations and they are not interchangeable.</strong> 1276262 holds reckon's workers; 1277272 is the ambix-fleet supervisor job hosting the new sessions, with its record at <code>~/.local/state/fleet/record.json</code>. The unification target is the <em>supervisor</em> kind, so a reader of this plan should not assume the job id it names elsewhere is the one to unify.</p><p><strong>Every placed step, and every session moved into either job, dies with that job.</strong> Drain and move before retiring anything; never cancel it while work runs there.</p>
+<p>Nothing else breaks: the flight layer and its test carry no job id, and <code>throttling.py</code> with the end reading are login-node cgroup reads. Two pieces of plan text assume the ambix holder and need revisiting: the locked allocation-shape decision, and §6's “imas-ambix owns the node”.</p>
+<p>Retire outright: <code>fleet.py placement_argv</code> and <code>fleet place</code> are shallow — tested, but nothing calls them since the shim was deleted and the flight layer stopped naming them. <code>fleet hold</code> is deep but redundant once ensure adopts.</p></div>
+    <pre class="r-fu-prompt">/reckon-build agent-sessions-live-on-the-fleet-node</pre>
+    </article>
 <article class="r-fu" data-id="f-aslfn-001" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-create" data-written-at="2026-09-24" data-recommends-skill="/reckon-build" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Validate from WSL, then move the fleet</h4>
-    <div class="r-fu-body"><p>Validation from WSL needs the laptop's reverse tunnel. It was unreachable at 09:10Z, and the <code>wsl</code> host timed out at the banner exchange. After that, the move follows &sect;5. &sect;6's worker-launch change is reckon's, and it gates dispatch from fleet sessions, not the move itself.</p></div>
+    <div class="r-fu-body"><p>Validation from WSL needs the laptop's reverse tunnel. It was unreachable at 09:10Z, and the <code>wsl</code> host timed out at the banner exchange. After that, the move follows §5. §6's worker-launch change is reckon's, and it gates dispatch from fleet sessions, not the move itself.</p></div>
     <pre class="r-fu-prompt">/reckon-build agent-sessions-live-on-the-fleet-node</pre>
     </article>
 </section>
