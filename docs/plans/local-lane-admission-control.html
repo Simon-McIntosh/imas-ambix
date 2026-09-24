@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-24">
 <meta name="plan-impl" content="0.9">
-<meta name="plan-version" content="46">
+<meta name="plan-version" content="48">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;}">
 <meta name="plan-artifacts" content="docs/evidence/archive/local-lane-admission-control-landed.html">
 <meta name="plan-commits" content="4bb11e8917c6dc9662d6214da6ec7eb595713984,da60421b4267fc7fc6fafb2a7e5dbb242da1cfba,569b91efd9e1e2e0e00c6d86cd589810391752c5,7ecfec3ba6ed3d68d68e03a104bd33e70ba75037,decc190bc301c74e02f2491bc6a557a163f9c744">
@@ -710,6 +710,58 @@
     <a href="/imas-ambix/evidence/archive/local-lane-admission-control-landed.html#dry-run-nested">the
     dry-run-nested anchor</a>.</p>
 
+    <h2 id="s13">&sect;13 &mdash; A long pause backs off progressively</h2>
+    <p><strong>Today both of the pause's timings are fixed.</strong> The gate holds each waiting
+    request for <code>wait_seconds</code> (300 s), then answers the existing 529
+    <code>overloaded_error</code> with <code>Retry-After: 5</code>
+    (<code>GENERATION_RETRY_AFTER_SECONDS</code>). Claude Code honours <code>Retry-After</code>
+    exactly and retries 10 times (measured with a stub this session), so a paused client makes about
+    11 attempts of 305 s each. It rides out a pause of about 56 minutes, then its turn fails. That
+    covers a drained model reload with margin (9 minutes measured on 2026-09-24, and a cold load
+    budgeted at about 25 minutes). But every held client keeps re-entering the queue every five
+    minutes for the whole pause, and a longer pause ends turns that could simply have kept
+    waiting.</p>
+    <p><strong>The change: the retry delay grows with the age of the pause.</strong>
+    <code>agent pause</code> records when the pause began (<code>paused_at</code>) in the gate file,
+    beside <code>paused</code> and <code>reason</code>, and <code>agent resume</code> removes it. The
+    router computes the pause's age from that stamp on every refusal and chooses
+    <code>Retry-After</code> from a schedule. It keys on the pause's age, not on a client's attempt
+    count, because the router carries no client identity, and the pause's age is the same for every
+    caller. Because it is written in the file, the stamp survives a router restart. A proposed
+    schedule:</p>
+    <table>
+      <thead><tr><th>Pause age</th><th><code>Retry-After</code></th></tr></thead>
+      <tbody>
+        <tr><td>under 5 min</td><td>5 s (unchanged: a short pause costs nothing extra)</td></tr>
+        <tr><td>5 to 15 min</td><td>30 s</td></tr>
+        <tr><td>15 to 30 min</td><td>60 s</td></tr>
+        <tr><td>30 min and over</td><td>120 s (the cap)</td></tr>
+      </tbody>
+    </table>
+    <p>The cap bounds the cost on resume. A client sleeping on its <code>Retry-After</code> returns at
+    most 120 s after <code>agent resume</code>, whereas held requests are admitted at once. An
+    uncapped delay would make resuming the lane slow to take effect. The schedule belongs in the gate
+    file as an optional list, so it can be tuned without a router change; the table above is the
+    default when the list is absent.</p>
+    <p><strong>What it buys, from the same arithmetic.</strong> Under this schedule the 11 attempts
+    span about 69 minutes rather than 56: the refusals land at 300 s, 630, 960, 1320, 1680, 2040,
+    then every 420 s to about 4,140 s. The stretch is larger when the schedule is steeper.
+    Retry traffic into a paused router falls roughly in proportion to the delay, from one request per
+    held client every five minutes to far fewer. The rest of the gate is unchanged: a pause still
+    drains in-flight work, and an unpaused gate answers <code>Retry-After: 5</code> exactly as
+    today.</p>
+    <p><strong>Done when</strong> tests over a gate file with <code>paused_at</code> set to fixed
+    ages show the refusal carrying the scheduled <code>Retry-After</code> at each boundary (4:59,
+    5:00, 15:00, 30:00, and well past 30 min, where it holds at the cap). An unpaused refusal still
+    carries 5 s. A router restarted during a pause keeps the age, because the stamp comes from the
+    file. <code>agent pause</code> writes <code>paused_at</code> and <code>agent resume</code>
+    removes it, and a schedule written in the gate file overrides the default. Declared negative
+    control: making the delay read a constant instead of the pause's age must fail the boundary tests,
+    recorded verbatim in the node's report. Gate: <code>uv run --no-sync pytest -p
+    no:cacheprovider tests/test_agent_router_gate.py tests/test_agent_pause_cli.py</code> on the login
+    node, where it takes seconds. Deploying it needs a router restart, which drops requests held in
+    the router's memory, so time it outside any pause.</p>
+
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
 <div class="r-dec" data-key="binding-point" data-choice="both" data-by="reckon-ship (lead-approved deploy)" data-when="2026-09-23T11:15:12+00:00">
@@ -734,13 +786,13 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-      <article class="r-fu" data-id="f-llac-020" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-ship" data-written-at="2026-09-24">
-        <h4 class="r-fu-title">The published endpoint document routes around the gate and the pause</h4>
-        <div class="r-fu-body"><p><strong>Raised from deferred to near-term.</strong> <code>~/public/imas-ambix/endpoints.json</code> advertises the engine directly at <code>98dci4-gpu-0003:18810</code>, and the engine binds <code>0.0.0.0</code>. So any consumer that resolves the lane through that document reaches the engine without passing the admission gate, and without being subject to the pause the router now enforces. imas-codex's own config uses the router at <code>:18802</code>, so nothing is known to bypass it today &mdash; but the document invites it, and a pause that a published document routes around is not a pause.</p>
-        <p><strong>Separate the fix from the exposure, because they cost very different amounts.</strong> The fix is the loopback bind, and it needs a drained relaunch of the engine exactly as &sect;10 did. The <em>exposure</em> is the document, and correcting it to advertise only the router costs nothing, needs no drain, and removes the invitation the same day. Do the document first; it is not a substitute for the bind, since anything that already knows the host and port still reaches it, but it closes the path a well-behaved consumer would actually take.</p>
-        <p>Sequencing constraint for whoever takes this: the drained relaunch must not overlap the fleet allocation's retirement. Both require draining to a held zero, and running them together means neither drain's failure is attributable.</p></div>
-        <pre class="r-fu-prompt">/reckon-ship local-lane-admission-control</pre>
-      </article>
+<article class="r-fu" data-id="f-llac-020" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-ship" data-written-at="2026-09-24" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">The published endpoint document routes around the gate and the pause</h4>
+    <div class="r-fu-body"><p><strong>Raised from deferred to near-term.</strong> <code>~/public/imas-ambix/endpoints.json</code> advertises the engine directly at <code>98dci4-gpu-0003:18810</code>, and the engine binds <code>0.0.0.0</code>. So any consumer that resolves the lane through that document reaches the engine without passing the admission gate, and without being subject to the pause the router now enforces. imas-codex's own config uses the router at <code>:18802</code>, so nothing is known to bypass it today — but the document invites it, and a pause that a published document routes around is not a pause.</p>
+<p><strong>Separate the fix from the exposure, because they cost very different amounts.</strong> The fix is the loopback bind, and it needs a drained relaunch of the engine exactly as §10 did. The <em>exposure</em> is the document, and correcting it to advertise only the router costs nothing, needs no drain, and removes the invitation the same day. Do the document first; it is not a substitute for the bind, since anything that already knows the host and port still reaches it, but it closes the path a well-behaved consumer would actually take.</p>
+<p>Sequencing constraint for whoever takes this: the drained relaunch must not overlap the fleet allocation's retirement. Both require draining to a held zero, and running them together means neither drain's failure is attributable.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship local-lane-admission-control</pre>
+    </article>
 <article class="r-fu" data-id="f-llac-01" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-create" data-written-at="2026-09-23" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Investigate the three layers, then design the fix</h4>
     <div class="r-fu-body"><p>§3–§5 are independent investigation nodes on the local lane; §6 is authored from their evidence.</p></div>
