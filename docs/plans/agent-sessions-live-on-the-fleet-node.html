@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="agent-sessions-live-on-the-fleet-node">
+  <meta name="plan-title" content="Agent sessions live on the fleet node">
+  <meta name="plan-summary" content="Move every Claude session and its zellij tabs off the login node into the fleet allocation, reached through cx, with one SLURM step per session.">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort-hours" content="6.0">
+  <meta name="plan-impl" content="0.4">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="orchestrator">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-sprint" content="S24">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-tags" content="agent-serving,gpu-deployment">
+  <meta name="plan-informs" content="reckon:a-cutover-is-measured-against-its-baseline">
+  <title>Agent sessions live on the fleet node | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <h2 id="s1">&sect;1 &mdash; What moves, and why</h2>
+    <p>Every Claude Code session on this workstation, fourteen of them across five zellij
+    sessions (ambix, codex, efit, nova, reckon), runs on the login node
+    <code>98dci4-srv-1006</code>, together with its followers, dispatch shells and searches. On
+    2026-09-23/24 those processes contributed to a GPFS degradation that took the node to load
+    143. The evidence is in the research note <code>login-node-storage-contention</code>, whose
+    &sect;8 records the probes this design rests on. Reckon's
+    <code>a-cutover-is-measured-against-its-baseline</code> &sect;4 sets the topology: a zellij
+    server in the fleet allocation's batch step, login nodes attaching only as viewers, and one
+    SLURM step per session. This plan delivers that topology for the sessions themselves and the
+    connection you use to reach them.</p>
+    <figure>
+      <svg viewBox="0 0 760 250" role="img" aria-label="Connection path from the WSL client to a session on the fleet node" style="max-width:100%;font-family:system-ui,sans-serif;font-size:13px">
+        <rect x="10" y="30" width="150" height="180" fill="#fff" stroke="#333" stroke-width="1"/>
+        <text x="20" y="52" fill="#111">WSL client</text>
+        <text x="20" y="80" fill="#111">Windows Terminal</text>
+        <text x="20" y="98" fill="#111">profile</text>
+        <text x="20" y="126" fill="#111">cx iter ambix</text>
+        <text x="20" y="190" fill="#555">focus-filter, ssh</text>
+        <rect x="210" y="30" width="200" height="180" fill="#fff" stroke="#333" stroke-width="1"/>
+        <text x="220" y="52" fill="#111">login node (any)</text>
+        <text x="220" y="80" fill="#111">cx ambix: read fleet record,</text>
+        <text x="220" y="98" fill="#111">confirm with squeue, hold</text>
+        <text x="220" y="116" fill="#111">one if none runs</text>
+        <text x="220" y="144" fill="#111">srun --overlap --pty</text>
+        <text x="220" y="162" fill="#111">--job-name=cx-view-ambix</text>
+        <text x="220" y="190" fill="#555">viewer only; disposable</text>
+        <rect x="460" y="30" width="290" height="180" fill="#fff" stroke="#333" stroke-width="1"/>
+        <text x="470" y="52" fill="#111">fleet node, allocation (rigel, unlimited)</text>
+        <text x="470" y="80" fill="#111">batch step: fleet-supervisor</text>
+        <text x="485" y="100" fill="#111">zellij server per repo session</text>
+        <text x="500" y="120" fill="#111">tab &#8594; pane &#8594; fleet-claude</text>
+        <text x="515" y="140" fill="#555">= step claude-&lt;session&gt;-&lt;pane&gt;</text>
+        <text x="470" y="168" fill="#111">viewer step: fleet-attach &#8594; zellij attach</text>
+        <text x="470" y="196" fill="#555">runtime dir /tmp/&lt;uid&gt;-fleet</text>
+        <line x1="160" y1="126" x2="210" y2="98" stroke="#333"/>
+        <line x1="410" y1="150" x2="460" y2="168" stroke="#333"/>
+      </svg>
+      <figcaption>Your entry point is unchanged: a Windows Terminal profile runs <code>cx iter
+      &lt;session&gt;</code>. Everything that must survive runs on the fleet node, under the batch
+      step. The login node carries only a viewer step, which can be lost at no cost.</figcaption>
+    </figure>
+
+    <h2 id="s2">&sect;2 &mdash; The connection: idempotent, and nobody remembers the job id</h2>
+    <p>Landed in dotfiles <code>3cfd155</code> and imas-ambix <code>a102bafc</code>. A session is
+    in fleet mode when its name is listed in <code>~/.config/cx/fleet-sessions</code>, so sessions
+    move one at a time and the others are untouched. For a fleet session, the login-side
+    <code>cx</code>:</p>
+    <ol>
+      <li><strong>Resolves the fleet</strong> from <code>~/.local/state/fleet/record.json</code>,
+      which the supervisor writes at start. It confirms the job with <code>squeue</code> and never
+      trusts the record alone.</li>
+      <li><strong>Holds one only if none runs</strong>, by running <code>imas-ambix agent fleet hold
+      --submit</code> under a lock in <code>~/.local/state/fleet/</code>. If a submitted job is still
+      pending, it waits for that job rather than submitting another, and shows the pending reason
+      while it waits. Two terminals opening at once therefore produce one allocation.</li>
+      <li><strong>Cancels stale viewers</strong> by step id. Viewer steps are named
+      <code>cx-view-&lt;session&gt;</code>, so one left behind by a dropped connection is found by
+      name and cancelled by id, never matched by pattern.</li>
+      <li><strong>Attaches</strong> with <code>srun --overlap --pty --jobid=&lt;fleet&gt;
+      --job-name=cx-view-&lt;session&gt; fleet-attach &lt;session&gt;</code>. The step asks the
+      supervisor to start the session if it isn't running, then attaches to it.</li>
+    </ol>
+    <p>Running <code>cx</code> twice attaches to the same server. A laptop that sleeps or an ssh
+    connection that drops ends only the viewer step, and <code>cx</code> reattaches. If the
+    allocation is re-held on another node, the record moves with it, so the fleet's job id is
+    never typed or remembered.</p>
+    <p><strong>On the node:</strong> <code>fleet-supervisor</code> is the batch step. It creates
+    the runtime directory the node lacks and points <code>XDG_RUNTIME_DIR</code> at it, which puts
+    zellij's sockets and Claude Code's messaging sockets there. It starts zellij servers on
+    request, and on a <code>reload</code> request it re-executes itself in place, so a fix to it
+    needs no new allocation. <code>fleet-claude</code> runs a Claude session as its own step, so
+    SLURM removes whatever the session started when it ends. <code>fleet-shell</code> opens a
+    shell inside the job.</p>
+
+    <h2 id="s3">&sect;3 &mdash; What the demonstration showed</h2>
+    <p>Fleet job 1277272 on <code>98dci4-clu-2058</code>, 2026-09-24 09:02&ndash;09:10Z. The
+    demonstration moved reckon's burn-analysis session (session id <code>4c12395a</code>) into the
+    zellij session <code>fleet-demo</code>. All checks ran from the login node, since the WSL
+    tunnel was down.</p>
+    <table>
+      <thead><tr><th>Check</th><th>Observed</th></tr></thead>
+      <tbody>
+        <tr><td><code>cx fleet-demo</code> resolves the fleet and opens a named viewer step</td><td>step <code>cx-view-fleet-demo</code> present while attached</td></tr>
+        <tr><td>The session outlives its viewer</td><td>viewer killed; step gone; <code>fleet-demo</code> still listed afterwards</td></tr>
+        <tr><td>A resumed session keeps its context and saves its transcript</td><td>the pane showed its last question from before the move, and the transcript file was rewritten at 11:08:18</td></tr>
+        <tr><td>It registers, with its socket under the fleet runtime directory</td><td><code>messagingSocketPath: /tmp/39486-fleet/cc-socks/676201.sock</code></td></tr>
+        <tr><td>Sessions on the fleet can message each other</td><td>a headless probe on the node listed the session and sent it a message, which it processed at 11:09</td></tr>
+        <tr><td>Sessions on the login node cannot see fleet sessions</td><td>login-side <code>ListAgents</code> did not list it: two islands, confirmed</td></tr>
+        <tr><td>A session's step ends with the session</td><td>the first resume's step <code>claude-fleet-demo-2</code> disappeared when that session was stopped</td></tr>
+      </tbody>
+    </table>
+    <p><strong>Four defects the demonstration found, all fixed:</strong> (1) <code>sbatch</code>
+    exports the submitting shell, so the zellij variables leaked into the batch step and zellij
+    refused to create a session. (2) Submitted from inside a Claude session, the same export carried
+    <code>CLAUDE_CODE_CHILD_SESSION</code>, which turned transcript saving off for the resumed
+    session. It also carried the submitting session's messaging token. The supervisor and
+    <code>fleet-claude</code> now drop every inherited <code>ZELLIJ*</code> and <code>CLAUDE*</code>
+    variable. (3) <code>zellij attach --create-background</code> alone does not create a session in
+    0.45; it needs <code>--create</code> as well. (4) <code>cx</code>'s background create passed
+    <code>CX_BACKGROUND=1</code> into the environment of every pane it made, so a later
+    <code>cx</code> inside one exited silently. A peer's name is derived per process, so a moved
+    session gets a new name: reckon-2f came back as reckon-a0.</p>
+
+    <h2 id="s4">&sect;4 &mdash; ssh configuration: a fixed alias, not a rewritten one</h2>
+    <p>Rewriting <code>~/.ssh/config</code> on WSL and on the login node whenever the fleet moves
+    is not needed, and it would be the wrong route in. An ssh session straight onto the node lands
+    in the node's <code>user.slice</code>, outside the job, escaping both its limits and its cleanup
+    (research note &sect;8). The job id is already resolved on the login side, so a fixed alias is
+    enough: <code>Host fleet</code>, with the same connection settings as <code>iter</code>,
+    <code>RequestTTY yes</code> and <code>RemoteCommand ~/.local/bin/fleet-shell</code>. That gives
+    you a shell inside the job, wherever the job currently runs, and never needs editing.</p>
+
+    <h2 id="s5">&sect;5 &mdash; The fleet-wide move</h2>
+    <p>Every session has confirmed it is at a clean stop and has stopped its followers. The move
+    runs in one operation, because sessions on the two sides cannot message each other. For each
+    zellij session:</p>
+    <ol>
+      <li><strong>Inventory.</strong> <code>~/.claude/sessions/&lt;pid&gt;.json</code> maps each
+      live Claude process to its session id, directory and peer name. The process's environment
+      gives its zellij session and pane.</li>
+      <li><strong>Stop, then resume.</strong> Each Claude process is stopped by pid, with its child
+      tree listed first, before its session is resumed on the fleet: two processes must never write
+      one transcript. On the fleet, the zellij session of the same name gets one tab per former
+      pane, each running <code>fleet-claude --resume &lt;id&gt;</code> in that session's directory.
+      Stopping the old login-node zellij server comes before creating its fleet namesake: zellij's
+      resurrection cache is in the shared home, and two live servers must not write the same
+      entry.</li>
+      <li><strong>Verify from the healthy path only.</strong> Every resumed session registers with
+      its socket under the fleet runtime directory. Its pane shows its last pre-move turn. A fleet
+      session lists the others as peers.</li>
+      <li><strong>This coordinating session moves last</strong>, by a script launched detached on
+      the login node that stops it and resumes it on the fleet.</li>
+      <li><strong>Flip the sessions over</strong> by listing all five names in
+      <code>~/.config/cx/fleet-sessions</code>, so every Windows Terminal profile now lands on the
+      fleet.</li>
+    </ol>
+
+    <h2 id="s6">&sect;6 &mdash; What must change elsewhere before the fleet carries dispatch</h2>
+    <ul>
+      <li><strong>Workers must be launched through the supervisor</strong> (reckon). A worker
+      whose <code>srun</code> client lives in the orchestrator's step is removed when that session
+      ends. So dispatch must ask the supervisor to launch it from the batch step, which needs a
+      <code>spawn</code> request. The same applies to per-project producers. reckon-c4 has recorded
+      this on <code>a-dispatch-returns-without-its-worker</code>. <strong>Until it lands, full
+      RESUME must not dispatch from fleet sessions.</strong></li>
+      <li><strong>One allocation.</strong> Reckon's placement record still names the older
+      allocation, 1276262, whose batch step only sleeps. Reckon's re-hold path creates an allocation
+      with <code>salloc --no-shell</code>, which has no batch step at all. Both must move to the
+      supervisor-running allocation, and then 1276262 is retired.</li>
+      <li><strong>Durable evidence paths.</strong> Gate logs cited from a session scratchpad under
+      the runtime directory stop resolving once the session moves (reported by imas-ambix-b6, with
+      thirteen promotions affected). Anything cited as evidence belongs on GPFS.</li>
+      <li><strong>Image paste.</strong> The WSL clipboard bridge (port 2490) and the <code>wsl</code>
+      reverse tunnel (port 2222) end at <code>localhost</code> on the login node. Fleet sessions
+      cannot reach them, so the bridge needs a route from the node.</li>
+      <li><strong>Shell configuration drift.</strong> The live <code>~/.bashrc</code> is ahead of
+      dotfiles' <code>shell/bashrc</code> (the TMPDIR fix, the clive path, the clipboard bridge) and
+      is a plain file, not the symlink <code>install.sh</code> makes. Its <code>uv</code> wrapper was
+      fixed today to skip injecting <code>--no-sync</code> when it is already given, a fix that
+      exists only in the live file.</li>
+      <li><strong>WSL's <code>cx</code>.</strong> Reaching a fleet session needs no change to the
+      WSL copy. But <code>cx sync</code> from WSL copies it over <code>~/.local/bin/cx</code>, now a
+      symlink into dotfiles. So WSL must pull dotfiles before running <code>cx sync</code>, or its
+      older copy overwrites the repository's.</li>
+    </ul>
+
+    <h2 id="s7">&sect;7 &mdash; Done when</h2>
+    <p>A connection from WSL (<code>ssh wsl</code>, then <code>cx iter fleet-demo</code>) lands in
+    the fleet session, and a second connection replaces the first without a doubled display. All
+    fourteen sessions run on the fleet, each as its own step, each showing its last pre-move turn
+    and listing the others as peers. The login node runs no Claude session of the fleet. Workers
+    are dispatched through the supervisor before any fleet session dispatches.</p>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-aslfn-001" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-create" data-written-at="2026-09-24" data-recommends-skill="/reckon-ship" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Validate from WSL, then move the fleet</h4>
+    <div class="r-fu-body"><p>Validation from WSL needs the laptop's reverse tunnel. It was unreachable at 09:10Z, and the <code>wsl</code> host timed out at the banner exchange. After that, the move follows &sect;5. &sect;6's worker-launch change is reckon's, and it gates dispatch from fleet sessions, not the move itself.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship agent-sessions-live-on-the-fleet-node</pre>
+    </article>
+</section>
+  </main>
+</body>
+</html>
