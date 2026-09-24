@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-24T09:08:23",
+  "updated": "2026-09-24T09:10:03",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -86927,6 +86927,279 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260924T065305455188-dry-runs-change-nothing",
+        "plan": "local-lane-admission-control",
+        "section": "\u00a712",
+        "node": "dry-runs-change-nothing",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1958,
+                "cached_input_tokens": 501164,
+                "input_tokens": 503124,
+                "output_tokens": 370,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 503494,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "74b53aa2-1d4b-451f-8ce7-33c072085f83",
+            "session_id": "llac-20260923"
+          },
+          "done_when": "tests/test_agent_dry_run.py covers each agent subcommand that accepts --dry-run (at least restart, serve, router, download and any other found by reading imas_ambix/agent/cli.py), running it with a live-looking job, file or registration present and asserting that no scancel, sbatch, file write or registration change occurs; any defect found is fixed in imas_ambix/agent/cli.py or imas_ambix/agent/slurm.py; the report lists every destructive agent subcommand, whether it offers --dry-run, and whether it confirms before acting; uv run --no-sync ruff check imas_ambix tests exits 0; the new test file passes under uv run --no-sync pytest -p no:cacheprovider tests/test_agent_dry_run.py on the login node, as it takes seconds; no real scheduler command is issued by any test; no engine or router job is touched",
+          "estimated_hours": null,
+          "goal": "Prove that every imas-ambix agent subcommand offering --dry-run performs no scancel, sbatch, file write or registration change",
+          "id": "dry-runs-change-nothing",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-24T06:53:06Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": 23,
+            "binding_observed": "unknown",
+            "detail": "",
+            "headroom": 14,
+            "mean_context": 120000,
+            "observed_at": "2026-09-24T06:52:43Z",
+            "state": "fresh",
+            "suggested_shelf_life_seconds": 45
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260924T065305455188-dry-runs-change-nothing/manifest.md",
+          "negative_control": "move the restart command's dry-run branch below its cancel, so a dry run with a live job reaches scancel; the restart dry-run test in tests/test_agent_dry_run.py must fail, recorded verbatim with the exact edit",
+          "plan": "local-lane-admission-control",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a712",
+          "spec_level": "exact",
+          "time_budget": "60m",
+          "token_budget": null,
+          "write_paths": [
+            "imas_ambix/agent/cli.py",
+            "imas_ambix/agent/slurm.py",
+            "tests/test_agent_dry_run.py",
+            "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/llac-20260923/dry-runs-change-nothing.md",
+            "docs/evidence/archive/local-lane-admission-control-landed.html",
+            "docs/figures/local-lane-admission-control",
+            "docs/plans/local-lane-admission-control.html"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "llac-dryrun",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "high",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "worktree-full",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-24T06:53:17Z",
+        "completed_at": "2026-09-24T06:59:28.176Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 364,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 371,
+        "stalled": false,
+        "time_budget": "60m",
+        "base_sha": "a0a9aa89cae8377eefa0f472cb3160a3f2b849f3",
+        "commits": [
+          "d132d4ee770b4e2c70e8a734882e80e0f23d1164"
+        ],
+        "changed_lines": {
+          "added": 330,
+          "removed": 0,
+          "files": 4
+        },
+        "tests_added": 7,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest -p no:cacheprovider tests/test_agent_dry_run.py",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260924T065305455188-dry-runs-change-nothing/gate.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260924T065305455188-dry-runs-change-nothing/manifest.md",
+        "scope_changed": false,
+        "session_id": "0f47d337-bda9-477c-a8ad-db9a4f52a47f",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 7959355,
+            "input_tokens_cumulative": 7959355,
+            "output_tokens": 30452,
+            "output_tokens_cumulative": 30452,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-24T06:59:28.176Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": {
+          "status": "parsed",
+          "scores": {
+            "durability": 17,
+            "evidence": 18,
+            "fit": 19,
+            "goal_fidelity": 19,
+            "scope_discipline": 20
+          },
+          "absent": [],
+          "total": 93
+        },
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 7959355,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 367.362,
+          "generated_tokens": 30452,
+          "generation_seconds": 338.685,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 33.7,
+          "machine_seconds": 28.677,
+          "peak_input_tokens": 161590,
+          "tokens_per_second": 89.91,
+          "wall_tokens_per_second": 82.89
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest -p",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/llac-20260923/dry-runs-change-nothing",
+          "session_id": "0f47d337-bda9-477c-a8ad-db9a4f52a47f",
+          "session_source": "stream",
+          "retained_at": "2026-09-24T06:59:28.176Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "promoted_revision": "d132d4ee770b4e2c70e8a734882e80e0f23d1164",
+        "plan_impl_at_dispatch": 0.85,
+        "impl_move": {
+          "plan": "local-lane-admission-control",
+          "at_dispatch": 0.85,
+          "at_complete": 0.85,
+          "verdict": "waived",
+          "reason": "a test-only audit that found the restart defect already fixed; \u00a712 stays open until the nested-group coverage repair lands"
+        },
+        "negative_control": {
+          "verdict": "matched",
+          "test_paths": [
+            "tests/test_agent_dry_run.py"
+          ],
+          "declaration": "move the restart command's dry-run branch below its cancel, so a dry run with a live job reaches scancel; the restart dry-run test in tests/test_agent_dry_run.py must fail, recorded verbatim with the exact edit",
+          "log": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/llac-20260923/dry-runs-change-nothing-negative-control.log",
+          "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/llac-20260923/dry-runs-change-nothing-negative-control.log"
+        },
+        "lane_advisory": {
+          "backend": "clive",
+          "burn_multiple": null,
+          "cheaper_lane": {
+            "detail": "",
+            "lane": null,
+            "state": "not_evaluated"
+          },
+          "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+          "horizon_ends_at": "2026-09-24T07:53:06.263530+00:00",
+          "horizon_seconds": 3600,
+          "metered": false,
+          "observed_at": null,
+          "precedes_horizon": null,
+          "projected_exhaustion_at": null,
+          "resets_at": null,
+          "seconds_until_reset": null,
+          "state": "quiet",
+          "utilisation_pct": null
+        },
+        "lane_declaration": {
+          "backend": null,
+          "headroom": null,
+          "metered": false,
+          "observed_at": null,
+          "read_at": "2026-09-24T06:53:06Z",
+          "resolved_backend": "clive",
+          "utilisation_pct": null
+        },
+        "lane_reading": {
+          "age_seconds": 23,
+          "binding_observed": "unknown",
+          "detail": "",
+          "headroom": 14,
+          "mean_context": 120000,
+          "observed_at": "2026-09-24T06:52:43Z",
+          "state": "fresh",
+          "suggested_shelf_life_seconds": 45
+        },
+        "tool_steps": 63.0,
+        "orientation_input_tokens": 3634433.0,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -87015,6 +87288,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 1076
+    "_version": 1077
   }
 }
