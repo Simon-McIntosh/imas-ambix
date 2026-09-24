@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"  content="imas-ambix">
+  <meta name="reckon-type"   content="research">
+  <meta name="plan-slug"     content="login-node-storage-contention">
+  <meta name="plan-title"    content="Login Node Storage Contention — what loaded 98dci4-srv-1006 on 2026-09-23/24, and what must not recur">
+  <meta name="plan-summary"  content="Load 143 on a 97%-idle login node was GPFS metadata waits from orphaned agent processes, polling loops and a long scan; findings feeding fleet relocation, cleanup and dashboard plans">
+  <meta name="plan-tags"     content="agent-serving,gpu-deployment">
+  <meta name="plan-informs"  content="slurm-hosted-agent-fleet,local-lane-admission-control">
+  <title>Login Node Storage Contention | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <h2 id="s1">§1 — What was measured</h2>
+    <p>On the night of 2026-09-23 to 24 the login node <code>98dci4-srv-1006</code> (48
+    cores, 503 GB) reported a load average of 143, and every git, plan and
+    <code>reckon crew</code> operation took minutes. The node was not busy computing. Three
+    <code>vmstat</code> samples two seconds apart at about 03:45Z read 95–98% idle, 1–4%
+    user and a run queue of 0–6. Load average counts tasks in uninterruptible wait, and
+    those were the load: 25 of the lead's processes sat in <code>D</code> state on
+    <code>cxiWaitEventWait</code>, the GPFS client wait. Single <code>stat</code> calls at
+    about 03:48Z took 8.5 s on <code>~/public/imas-ambix/lane.json</code>, 5.5 s on
+    <code>~/.config/reckon/crew/live</code> and 2.6 s on <code>/work/projects/imas_gpu</code>.
+    Load fell from 143 to 130 over the next half hour as the contributors below were
+    removed.</p>
+
+    <h2 id="s2">§2 — The instrument that hid it</h2>
+    <p>The login-node panel from <code>imas-codex host iter</code> showed this node at
+    "100% CPU". Its bar is <code>os.getloadavg()[0] / cpu_count</code>
+    (<code>imas_codex/cli/host.py</code>, <code>_format_load_row</code>), so it reports load
+    average under a CPU label. On a node whose load is storage waits, it shows full CPU
+    while the CPU is idle, and it has no filesystem column at all. It also lists only
+    imas-codex processes, so the orphans below were invisible in it.</p>
+
+    <h2 id="s3">§3 — What was loading the storage</h2>
+    <table>
+      <thead><tr><th>Contributor</th><th>Evidence</th><th>Disposition</th></tr></thead>
+      <tbody>
+        <tr><td>A <code>bfs</code> scan of all of <code>/work/projects/imas_gpu</code></td><td>pid 1140603, running for about 13 hours, reported by the S26 session</td><td>Killed by the lead; it exited once its pending storage call returned</td></tr>
+        <tr><td>Ten orphaned <code>reckon crew follow --project nova --session s19-codex-20260916</code></td><td>Parent pid 1, ages 42 min to 6 h 21 min, each polling reckon's live-pointer directory on GPFS home, and one spawning a full-tree <code>git status</code>; the session they followed dates from 2026-09-16</td><td>All ten stopped by pid with the lead's authority at about 04:00Z</td></tr>
+        <tr><td>Full-tree <code>git status --porcelain=v1 -z --untracked-files=all</code> walks</td><td>Eight live at one sample. They are respawned every few seconds by four <code>reckon crew dispatch --project nova</code> processes 4–6 h old and by <code>reckon crew complete</code> promotion loops of 2–3 h, as found by imas-codex-10</td><td>The five walks present were already finishing. Their parents belong to other sessions and are reported to their owners, not stopped</td></tr>
+        <tr><td>Per-project <code>reckon crew watch</code> producers</td><td>Six projects, 21 h to 3.5 days old, four of them in <code>D</code> state; one watches a project named <code>sample</code></td><td>Left running: detached by design and still serving live followers</td></tr>
+        <tr><td>Dispatches stalled by the contention itself</td><td>The engine-relaunch dispatch sat 28 min in preflight; two imas-efit dispatches sat 34 and 67 min</td><td>Victims, not causes</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="s4">§4 — Why it happened, as process gaps</h2>
+    <ol>
+      <li><strong>Nothing ends a follower when the session that armed it ends.</strong>
+      A monitor or follower whose owning session exits is reparented to init and polls
+      forever. Ten had accumulated for one week-old session. Orphans are a symptom of
+      missing cleanup, and cleanup has to be bound to the session's end, not remembered.</li>
+      <li><strong>Every agent process runs on the shared login node.</strong> Claude
+      sessions, crew producers, followers, dispatches, promotions and their git walks
+      all share one GPFS client, whose metadata queue then serves editors and interactive
+      users too.</li>
+      <li><strong>Polling loops run full-tree untracked walks.</strong> A
+      <code>git status --untracked-files=all</code> every few seconds is a filesystem
+      crawl, and on GPFS its cost lands on every other client.</li>
+      <li><strong>The dashboard measures the wrong thing.</strong> Load average under a
+      CPU label, with no filesystem signal and no view of the lead's non-codex
+      processes, meant the contention was reported as CPU and its causes were not
+      visible.</li>
+    </ol>
+
+    <h2 id="s5">§5 — Where each fix is owned</h2>
+    <ul>
+      <li>Relocating every background agent process to a dedicated interactive SLURM
+      node, so that the login node runs editors and interactive shells only:
+      <code>slurm-hosted-agent-fleet</code> (imas-ambix), with the allocation side in
+      reckon's <code>the-fleet-shares-one-allocation</code>.</li>
+      <li>Ending followers and monitors with their session, and a reaper for any that
+      survive: reckon's <code>a-follower-outlives-its-monitor</code>.</li>
+      <li>Replacing full-tree walks in polling loops with scoped or event-driven checks:
+      reckon's <code>crew-observability-truth</code>.</li>
+      <li>A host dashboard covering all of the lead's processes on the login nodes and
+      the interactive worker node, with CPU, memory and filesystem load reported
+      separately as correct percentages: a new plan in imas-codex, extending
+      <code>imas-codex host</code>.</li>
+      <li>Agent guidance: a session stops every monitor and follower it armed before it
+      ends; load average is never read as CPU. Both belong in
+      <code>~/.agents/AGENTS.md</code>.</li>
+    </ul>
+  </main>
+</body>
+</html>
