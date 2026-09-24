@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-24">
 <meta name="plan-impl" content="0.85">
-<meta name="plan-version" content="39">
+<meta name="plan-version" content="40">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;}">
 <meta name="plan-artifacts" content="docs/evidence/archive/local-lane-admission-control-landed.html">
 <meta name="plan-commits" content="4bb11e8917c6dc9662d6214da6ec7eb595713984,da60421b4267fc7fc6fafb2a7e5dbb242da1cfba,569b91efd9e1e2e0e00c6d86cd589810391752c5,7ecfec3ba6ed3d68d68e03a104bd33e70ba75037,decc190bc301c74e02f2491bc6a557a163f9c744">
@@ -815,6 +815,9 @@
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20260923T125610955585-gate-auto-width" data-who="reckon-ship" data-when="2026-09-23T13:27:59.045Z">
     <div class="r-comment-body"><p>gate auto width: floor(pool x 0.90 / 600 s EMA of context) clamped [16, 36], holds last width on idle or missing readings; 52 router tests green; clamp removal fails 180 vs 36; merged c451c6c5; activation needs a router restart</p></div>
+</div>
+<div class="r-comment" data-section="s11" data-id="c-run-r-20260924T062202135853-router-enforced-pause" data-who="reckon-ship" data-when="2026-09-24T06:34:35.817Z">
+    <div class="r-comment-body"><p>A declared pause in router-gate.json stops new generation admissions at every gate path while in-flight requests finish; agent pause/resume; lane.json publishes it. Review 93/100; its one evidence-prose finding corrected on main.</p></div>
 </div>
 </section>
 </main>
