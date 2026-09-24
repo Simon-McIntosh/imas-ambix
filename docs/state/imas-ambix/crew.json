@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-24T14:41:56",
+  "updated": "2026-09-24T14:53:33",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -88763,6 +88763,279 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260923T142352849916-circular-assertion-audit",
+        "plan": "circular-assertion-guard",
+        "section": "\u00a72",
+        "node": "circular-assertion-audit",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 3902,
+                "cached_input_tokens": 326557,
+                "input_tokens": 330461,
+                "output_tokens": 122,
+                "reasoning_output_tokens": 33,
+                "total_tokens": 330583,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "312b5bff-827e-4ea8-824a-995a90d4d609",
+            "session_id": "s26-20260923"
+          },
+          "done_when": "(1) uv run --no-sync python -m scripts.circular_assertion_audit run from the repository root parses every module under tests/, prints one line per unallowlisted finding as path:line plus the comparison, prints the total, and exits 1 when findings exist; its output on the real tree is saved to a log and the total and per-file counts are quoted in the landing record. (2) tests/test_circular_assertion_audit.py passes and contains, each as a named test over a tmp_path tree handed to the scan as its root: an empty tree exits 0; a planted assert produced == imported_constant is reported; a written-out-literal case (the left name bound to a literal in the test module) is silent; a pinned-once case (the same file elsewhere asserts the constant equals a literal) is silent; a wiring case is reported without an allowlist entry and silent with one; an allowlist entry with an empty or missing reason makes the audit refuse with a nonzero exit naming that entry. (3) scripts/circular_assertion_audit.toml exists with the schema locked in the plan: [[entry]] tables with file, symbol, shape and reason, shape one of wiring, pinned-once, written-out-literal; it may be empty of entries. (4) The declared negative control is applied, the written-out-literal silence test is observed to fail, the log is recorded, and the control is reverted. (5) uv run --no-sync ruff check imas_ambix tests exits 0 and ruff check on the new script exits 0. (6) The landing record is appended to section s2 of the plan and an anchor is added to docs/evidence/archive/circular-assertion-guard-landed.html, created with reckon-type evidence and plan-evidence-for circular-assertion-guard if absent. Build on the reuse map at /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/cag-reuse-map.md: import resolution from tests/data/test_description_reader.py:39-52 and the passed-root scan from tests/test_agent_bench_shared_reader.py:219-238. Not owed: allowlist entries for real sites, CI wiring, or any edit to existing test files.",
+          "estimated_hours": 1.5,
+          "goal": "Build the circular-assertion audit described in plan section 2 as scripts/circular_assertion_audit.py with its TOML allowlist beside it",
+          "id": "circular-assertion-audit",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-23T14:23:55Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": 10,
+            "binding_observed": "unknown",
+            "detail": "",
+            "headroom": 0,
+            "mean_context": 84286,
+            "observed_at": "2026-09-23T14:23:45Z",
+            "state": "fresh",
+            "suggested_shelf_life_seconds": 45
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T142352849916-circular-assertion-audit/manifest.md",
+          "negative_control": "make the guard treat every Name as unanchored by skipping the lookup of names bound to a literal inside the test module",
+          "plan": "circular-assertion-guard",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a72",
+          "spec_level": "guided",
+          "time_budget": "60m",
+          "token_budget": null,
+          "write_paths": [
+            "scripts/circular_assertion_audit.py",
+            "scripts/circular_assertion_audit.toml",
+            "tests/test_circular_assertion_audit.py",
+            "docs/plans/circular-assertion-guard.html",
+            "docs/evidence/archive/circular-assertion-guard-landed.html",
+            "docs/figures/circular-assertion-guard"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "cag-guard-impl",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "high",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "worktree-full",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-23T14:24:24Z",
+        "completed_at": "2026-09-24T12:28:31.489Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 79436,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 79447,
+        "stalled": true,
+        "time_budget": "60m",
+        "base_sha": "ccf89ec6a4bda729370204d26033f4f60508bc9e",
+        "commits": [
+          "0574f371c5797d21313335467eefe42296e0b104",
+          "fda5e4bfe8f2d2a0a52793dfb59a44d31a1123c0"
+        ],
+        "changed_lines": {
+          "added": 761,
+          "removed": 0,
+          "files": 6
+        },
+        "tests_added": 12,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/test_circular_assertion_audit.py",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T142352849916-circular-assertion-audit/logs/pytest-audit.log",
+          "log_digest": "sha256:933882376ee3bcff4a492d2cf427e4bc46ba649c9628ecbf57befe93df8f980f"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "circular-assertion audit landed (merge 52c5543e): 12 tests, negative control observed red, 135 real-tree findings in 54 files. Review scored 90 and confirmed three defects that remain open (f-cag-002): an aliased constant escapes, literal bindings pool across scopes, constructor-wrapped literals are not recognised.",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T142352849916-circular-assertion-audit/manifest.md",
+        "scope_changed": false,
+        "session_id": "88373a6a-8f09-4477-9171-6427d62a0273",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 0,
+            "input_tokens_cumulative": 0,
+            "output_tokens": 0,
+            "output_tokens_cumulative": 0,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-24T12:28:31.489Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": {
+          "status": "parsed",
+          "scores": {
+            "goal_fidelity": 18,
+            "evidence": 18,
+            "scope_discipline": 19,
+            "durability": 17,
+            "fit": 18
+          },
+          "absent": [],
+          "total": 90
+        },
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 14617909,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 0.114,
+          "generated_tokens": 105234,
+          "generation_seconds": 5533.926,
+          "input_budget_tokens": 480000,
+          "tokens_per_second": 19.02,
+          "wall_tokens_per_second": 923105.26
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "resume",
+        "attempt": 3,
+        "duration_measurement": {
+          "status": "underivable",
+          "reason": "model_span_unavailable_at_promotion"
+        },
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/s26-20260923/circular-assertion-audit",
+          "session_id": "88373a6a-8f09-4477-9171-6427d62a0273",
+          "session_source": "stream",
+          "retained_at": "2026-09-24T12:28:31.489Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "promoted_revision": "fda5e4bfe8f2d2a0a52793dfb59a44d31a1123c0",
+        "impl_move": {
+          "plan": "circular-assertion-guard",
+          "at_dispatch": null,
+          "at_complete": 0.25,
+          "verdict": "exempt",
+          "reason": "no-impl-recorded-at-dispatch"
+        },
+        "negative_control": {
+          "verdict": "matched",
+          "test_paths": [
+            "tests/test_circular_assertion_audit.py"
+          ],
+          "declaration": "make the guard treat every Name as unanchored by skipping the lookup of names bound to a literal inside the test module",
+          "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T142352849916-circular-assertion-audit/logs/negative-control.log",
+          "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T142352849916-circular-assertion-audit/logs/negative-control.log"
+        },
+        "lane_advisory": {
+          "backend": "clive",
+          "burn_multiple": null,
+          "cheaper_lane": {
+            "detail": "",
+            "lane": null,
+            "state": "not_evaluated"
+          },
+          "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+          "horizon_ends_at": "2026-09-23T15:23:55.065392+00:00",
+          "horizon_seconds": 3600,
+          "metered": false,
+          "observed_at": null,
+          "precedes_horizon": null,
+          "projected_exhaustion_at": null,
+          "resets_at": null,
+          "seconds_until_reset": null,
+          "state": "quiet",
+          "utilisation_pct": null
+        },
+        "lane_declaration": {
+          "backend": null,
+          "headroom": null,
+          "metered": false,
+          "observed_at": null,
+          "read_at": "2026-09-23T14:23:55Z",
+          "resolved_backend": "clive",
+          "utilisation_pct": null
+        },
+        "lane_reading": {
+          "age_seconds": 10,
+          "binding_observed": "unknown",
+          "detail": "",
+          "headroom": 0,
+          "mean_context": 84286,
+          "observed_at": "2026-09-23T14:23:45Z",
+          "state": "fresh",
+          "suggested_shelf_life_seconds": 45
+        },
+        "tool_steps": 114.0,
+        "orientation_input_tokens": 922799.0,
+        "store_write": {
+          "status": "failed",
+          "error": "IntegrityError: UNIQUE constraint failed: runs.run_id"
+        }
       }
     ],
     "holds": [
@@ -88851,6 +89124,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 1086
+    "_version": 1087
   }
 }
