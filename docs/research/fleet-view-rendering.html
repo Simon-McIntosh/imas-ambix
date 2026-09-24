@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"  content="imas-ambix">
+  <meta name="reckon-type"   content="research">
+  <meta name="plan-slug"     content="agent-sessions-live-on-the-fleet-node">
+  <meta name="plan-title"    content="Fleet view rendering under a synthetic long transcript — attach, resize and a second client">
+  <meta name="plan-summary"  content="Throwaway zellij probe on the fleet node: a Claude Code byte-stream pane and a plain-shell control render in 153-175 ms on attach and 418-439 ms on resize, unchanged between scroll_buffer_size 10000 and 50000; the reported stalls were not reproduced, and two harness defects that made the first two runs measure nothing are recorded">
+  <meta name="plan-tags"     content="agent-serving">
+  <title>Fleet view rendering | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">&sect;1 &mdash; Outcome, stated first</h2>
+    <p><strong>The reported symptoms were not reproduced on a throwaway session, and the
+    cause is therefore not named from this reproduction.</strong> With a Claude Code
+    byte-stream pane holding a 60,000-line transcript, at the fleet config, a client
+    attach renders in <strong>153&nbsp;ms</strong> at <code>scroll_buffer_size 10000</code>
+    and <strong>175&nbsp;ms</strong> at <code>50000</code>; a resize to 80 columns renders
+    in <strong>434&nbsp;ms</strong> and <strong>418&nbsp;ms</strong> respectively. The
+    plain-shell negative control, identical in every other respect, measured
+    <strong>153&nbsp;ms</strong> attach and <strong>439&nbsp;ms</strong> resize. The
+    probe server logged <strong>no</strong> <code>did not complete within 1s</code> line
+    in any run.</p>
+    <p>Two conclusions follow, and neither supports the working hypothesis. First, neither
+    attach nor resize stalls at either scrollback setting: every render completes in under
+    half a second against a one-second stall threshold. Second, <strong>the scrollback
+    size is not a driver</strong> &mdash; the two <code>scroll_buffer_size</code> settings
+    render in the same time and send the client the <em>same 16,213 bytes on attach</em>,
+    which is the viewport alone. The control does not separate from the Claude Code pane
+    in time either, so on this payload the scrollback content is not what a render costs.</p>
+    <p>This contradicts the resize-storm hypothesis the plan recorded. The negative result
+    is the finding: at these scales a 50,000-line scrollback adds nothing measurable to an
+    attach or a resize. The one positive lead the live log offers points elsewhere
+    entirely: the action that stalls live is a literal <em>no-op</em>, so the second is the
+    router blocking rather than work being done &mdash; see &sect;7.</p>
+
+    <h2 id="s2">&sect;2 &mdash; What was measured</h2>
+    <p>Method: one throwaway session per scenario, created on the fleet node
+    <code>98dci4-clu-2058</code> (job <code>1277272</code>) under a private
+    <code>ZELLIJ_SOCKET_DIR</code>, using the fleet config with only
+    <code>scroll_buffer_size</code> and <code>scrollback_lines_to_serialize</code> changed.
+    The pane payload is a <strong>recorded Claude Code terminal byte stream</strong>
+    (<code>script -q -c 'claude -p &hellip;'</code> recorded on the node), cycled to
+    60,000 lines. A client is driven from a Python pty harness that answers the terminal
+    queries zellij issues; <em>render completion</em> is the moment the client's output
+    falls quiet for 500&nbsp;ms after the bytes begin. The probe server's own log is
+    counted before and after each run.</p>
+    <figure>
+      <img src="/imas-ambix/figures/fleet-view-rendering/render-cost.png"
+           alt="Render completion time and frame volume for three scenarios">
+      <figcaption>Left: milliseconds for the client's render to complete, with the zellij
+      one-second stall threshold marked. Right: bytes the server sends on attach and on
+      resize. Scrollback size changes neither.</figcaption>
+    </figure>
+    <table>
+      <tr><th>Scenario</th><th>attach (ms)</th><th>resize (ms)</th>
+          <th>attach bytes</th><th>resize bytes</th><th>1-s stall lines</th></tr>
+      <tr><td>Claude Code pane, scrollback 10000</td><td>153</td><td>434</td>
+          <td>16213</td><td>10135</td><td>0</td></tr>
+      <tr><td>Claude Code pane, scrollback 50000</td><td>175</td><td>418</td>
+          <td>16213</td><td>10135</td><td>0</td></tr>
+      <tr><td>Plain shell pane, scrollback 50000 (control)</td><td>153</td><td>439</td>
+          <td>13723</td><td>9353</td><td>0</td></tr>
+    </table>
+    <p><strong>The absence claim has a positive control.</strong> The instrument is the
+    server's own <code>Action &hellip; did not complete within 1s timeout</code> line,
+    which the live fleet server produced <strong>33 times</strong> on 2026-09-24 &mdash;
+    25 in the minute 22:23, 5 in 22:26 and 3 in 22:30, spanning 22:23:05.507 to
+    22:30:48.186 in its own log (<code>/tmp/zellij-39486/zellij-log/zellij.log</code> on the
+    fleet node). So it fires when a stall exists. A delta of zero in every
+    probe run therefore means no stall above one second occurred, not that the instrument
+    is blind. Read the instrument's own extraction:
+    <code>docs/figures/fleet-view-rendering/evidence-probe/log-*.timed</code>.</p>
+
+    <h2 id="s3">&sect;3 &mdash; The second client at a different size</h2>
+    <p>A second client attaching at 80 columns while a first is attached at 100 columns
+    caused the first client to receive <strong>exactly one full-screen clear</strong>
+    (<code>ESC[2J</code>), six cursor-home moves and <strong>20,235 bytes</strong> in the
+    ten-second window &mdash; a single coherent repaint, not a redraw storm. The probe
+    server logged no stall during it.</p>
+    <p><strong>The tab bar's own row cannot be read from this capture</strong>, and this is
+    stated rather than guessed: the session name appears <strong>zero</strong> times in the
+    first client's stream, because the fleet config sets <code>hide_session_name true</code>,
+    and the tab bar is a plugin whose frame is composed by cursor addressing, not as text.
+    So on this evidence a disappearing or duplicated tab-bar row is neither confirmed nor
+    excluded. Confirming it needs a screen renderer over the same capture, which the
+    capture is sufficient for and this node did not run.
+    Raw evidence:
+    <code>docs/figures/fleet-view-rendering/evidence-probe/first-client-diffsize.bin</code>.</p>
+
+    <h2 id="s4">&sect;4 &mdash; Duplicated lines</h2>
+    <p><strong>Not established.</strong> The duplicate-line question is whether a width
+    mismatch between a live Claude Code TUI and its pane duplicates lines. This probe
+    substituted a recorded byte stream replayed into a shell pane, so the pane was never a
+    live Claude Code TUI negotiating its own width, and the condition was not exercised.
+    Nothing here should be read as evidence either way.</p>
+
+    <h2 id="s5">&sect;5 &mdash; Two harness defects, recorded because they cost the first
+    two runs</h2>
+    <p>Both were found by insisting on a positive control rather than trusting a plausible
+    number, and both are worth knowing for any future probe or for <code>fleet_connect</code>.</p>
+    <p><strong>A session created with <code>-s</code> and <code>-l</code> does not exist.</strong>
+    <code>zellij -s NAME -l LAYOUT attach --create-background</code> exits 0, prints
+    <code>There is no active session!</code>, and creates nothing. Every later
+    <code>zellij attach NAME</code> then returns the literal 48&ndash;52 bytes
+    <code>No session with the name 'NAME' found!</code>. Because the harness bounded its
+    read at the <em>first</em> byte, that error string <em>was</em> the measurement: a
+    uniform 94&ndash;106&nbsp;ms across every scenario, including the control, which is
+    exactly the shape of a plausible result. The working form is a positional name,
+    <code>zellij attach --create-background NAME</code>, with the pane added afterwards by
+    <code>zellij run</code>. Reproduction:
+    <code>docs/figures/fleet-view-rendering/evidence-probe/log-cc-10000.create</code>
+    (the <code>create</code> files carry the string), and the rendering counter-example is
+    the same scenario under <code>run5.sh</code> in
+    <code>docs/figures/fleet-view-rendering/probe/</code>.</p>
+    <p><strong>A dumb pty must answer the terminal's queries.</strong> A zellij client
+    emits its setup, then blocks on the device-attributes query <code>ESC[c</code> and
+    renders nothing until it is answered. A harness that only reads sees about 48 bytes and
+    no screen. Answering <code>ESC[c</code> (and the cursor-position, colour and
+    keyboard-protocol queries) unblocks it. This is a property of the harness, not of
+    zellij: every real terminal answers automatically.</p>
+
+    <h2 id="s6">&sect;6 &mdash; Scope and cleanup</h2>
+    <p>No live session was attached, resized or killed. Every probe session was created,
+    used and removed by name under a private socket directory, and
+    <code>zellij delete-session</code> removed its resurrection entry &mdash;
+    <code>~/.cache/zellij</code> holds no directory named for a probe session.
+    Afterwards <code>zellij ls</code> on the fleet socket dir
+    <code>/tmp/39486-fleet/zellij</code> reports <strong>three live sessions</strong>,
+    <code>fleet-demo</code>, <code>ambix-fleet</code> and <code>reckon-fleet</code>, plus
+    six <code>(EXITED - attach to resurrect)</code> entries (<code>reckon</code>,
+    <code>nova</code>, <code>efit</code>, <code>codex</code>, <code>ambix</code>,
+    <code>iter</code>). The exited entries are the resurrection records under
+    <code>~/.cache/zellij</code>, which <code>zellij ls</code> merges into every listing
+    regardless of socket directory; they are not files on this socket dir and none is a
+    probe session. No probe process survives either: no process on the node carries a
+    probe session name or a probe command line, and the throwaway tree under
+    <code>/tmp</code> is gone.</p>
+
+    <h2 id="s7">&sect;7 &mdash; What would name the cause</h2>
+    <p>The reproduction did not meet the symptom, so the next step is to change the
+    reproduction rather than to re-run it. Three concrete paths, in the order I would try
+    them: (1) drive a <em>live</em> Claude Code TUI in the pane rather than replaying a
+    live recording, since the reported garbling and duplicated lines are reported for
+    panes whose application owns the width; (2) render the existing captures through a VT
+    parser and diff consecutive frames, which settles the tab-bar row and any duplicated
+    line directly from bytes already on disk; (3) reproduce the <em>known</em> event
+    instead of a synthetic one.</p>
+    <p>That third path is worth stating precisely, because the log already constrains it
+    and the constraint is not what the working hypothesis predicted. The 33 stall lines are
+    all <code>Action NoOp did not complete within 1s timeout</code> &mdash; <em>a no-op
+    taking a second</em>, which is only possible if the router is not running, so the time
+    is not the action's cost. They begin at 22:23:05, forty seconds after a second new tab
+    was created: the log shows <code>PtyInstruction::NewTab &hellip; tab 5</code> at
+    22:22:26 and <code>&hellip; tab 6</code> at 22:22:56, two tabs opened exactly 30&nbsp;s
+    apart, which is the shape of a client re-attach replacing its view. The stalls then
+    recur intermittently for seven minutes forty-three seconds and stop. On this evidence
+    the thing to reproduce is <strong>a second client attaching into a session that already
+    has tabs open</strong>, and the question to ask is what the route loop is blocked on
+    &mdash; not what a scrollback costs. Set against that, the <code>NoOp</code> action
+    itself and the scrollback size are both red herrings, and §2 says the same from the
+    other direction.</p>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">&sect;</span> Followups</h2>
+      <article class="r-fu" data-id="f-fvr-001" data-status="open"
+        data-capability-version="1.0" data-capability-class="general"
+        data-written-by="reckon-build" data-written-at="2026-09-24"
+        data-recommends-skill="" data-capability-label="fleet-view-tab-bar">
+        <h4 class="r-fu-title">Render the two-client capture through a VT parser</h4>
+        <div class="r-fu-body"><p>A VT parser over
+        <code>docs/figures/fleet-view-rendering/evidence-probe/first-client-diffsize.bin</code>
+        yields the tab-bar row as text and settles whether a second attach at a different
+        size duplicates or drops it. The capture is sufficient; only the renderer is
+        missing.</p></div>
+      </article>
+      <article class="r-fu" data-id="f-fvr-002" data-status="open"
+        data-capability-version="1.0" data-capability-class="general"
+        data-written-by="reckon-build" data-written-at="2026-09-24"
+        data-recommends-skill="" data-capability-label="reconnect-stall">
+        <h4 class="r-fu-title">Probe the reconnect path, not the attach path</h4>
+        <div class="r-fu-body"><p>All 33 recorded stalls follow the creation of two tabs
+        30&nbsp;s apart (22:22:26 and 22:22:56) and are all <code>Action NoOp</code>
+        &mdash; the router is blocked, not busy. The untested surface is therefore a second
+        client attaching into a session that already holds more than one tab; a clean
+        attach into a single-tab session is what this node measured, and it did not
+        stall.</p></div>
+      </article>
+    </section>
+
+  </main>
+</body>
+</html>

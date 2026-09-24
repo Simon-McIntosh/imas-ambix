@@ -1,0 +1,21 @@
+Throwaway-session probe, fleet node 98dci4-clu-2058, job 1277272.
+Method: run4.sh -- create session with a POSITIONAL name, add the Claude Code
+pane with `zellij run`, then drive a client from probe3.py in a pty and answer
+its terminal queries.  Render bytes counted from the client pty master.
+
+scenario             scroll_buffer   client render bytes in 25 s
+cc pane              10000           16690
+cc pane              50000           17625
+plain shell pane     50000           15081
+
+The client answers ESC[c (DA1) at ~0.10 s and then renders; the render is
+present in every scenario.  These are render presences, NOT stall timings:
+the timed attach/resize comparison (run2.sh) was never run against a session
+that existed (see create-failure below), so no stall figure is claimed.
+
+create-failure evidence (run.sh, `zellij -s NAME -l LAYOUT attach
+--create-background`): stdout "There is no active session!" and `zellij ls`
+lists no such session; every subsequent attach returned the 48-52 byte string
+"No session with the name ... found!".  The working form is
+`zellij attach --create-background NAME` (positional), followed by
+`zellij run -- <cmd>` inside the session.
