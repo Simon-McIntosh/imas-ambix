@@ -1,0 +1,21 @@
+# Allowlist for scripts/circular_assertion_audit.py.
+#
+# Each entry records one comparison chain the guard reports but that is sound,
+# keyed on the file it sits in and the package symbol it compares. The reason
+# is required: an exemption that does not say why is indistinguishable from an
+# unnoticed circular assertion, and the guard refuses an entry without one.
+#
+# shape is one of:
+#   wiring              the claim is that the field is fed by that constant,
+#                       not that the constant holds a particular value
+#   pinned-once         the constant is asserted against a literal elsewhere in
+#                       the same file, so this reference reads as prose
+#   written-out-literal the compared name is bound to a literal in the test
+#
+# Example (do not add entries until the site is inspected):
+#
+#   [[entry]]
+#   file = "tests/agent/test_lane.py"
+#   symbol = "LaneCapacity.OCCUPANCY_TARGET"
+#   shape = "wiring"
+#   reason = "asserts the published field is fed by the constant, not its value"
