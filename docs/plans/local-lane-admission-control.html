@@ -698,6 +698,18 @@
     <a href="/imas-ambix/evidence/archive/local-lane-admission-control-landed.html#dry-run-inert">the
     dry-run-inert anchor</a>.</p>
 
+    <p><strong>Coverage across nested groups (2026-09-24).</strong> The enumeration only walked the
+    agent group's direct children, so a <code>--dry-run</code> added to a subcommand of a nested
+    group such as <code>agent fleet</code> was invisible to it and the suite still passed. The
+    enumeration now walks every command reachable from the agent group and asserts the walk reaches
+    <code>fleet hold</code>, <code>fleet place</code> and <code>fleet status</code>, so a shallow
+    walk fails rather than silently guarding nothing. The expected set is unchanged; only the test
+    changed. Declared negative control: adding <code>--dry-run</code> to <code>agent fleet hold</code>
+    in a scratch edit makes the enumeration test fail naming <code>fleet hold</code>
+    (<code>1 failed</code>), restored. Evidence:
+    <a href="/imas-ambix/evidence/archive/local-lane-admission-control-landed.html#dry-run-nested">the
+    dry-run-nested anchor</a>.</p>
+
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
 <div class="r-dec" data-key="binding-point" data-choice="both" data-by="reckon-ship (lead-approved deploy)" data-when="2026-09-23T11:15:12+00:00">

@@ -10,7 +10,7 @@
   <meta name="plan-summary"      content="Cumulative execution record for local-lane-admission-control: capacity levers, scheduler levers, client behaviour, the router gate and the bypass trace">
   <meta name="plan-tags"         content="agent-serving,gpu-deployment">
   <meta name="plan-evidence-for" content="local-lane-admission-control">
-  <meta name="plan-verifies"     content="local-lane-admission-control#s3,local-lane-admission-control#s5,local-lane-admission-control#s6,local-lane-admission-control#s7,local-lane-admission-control#s8,local-lane-admission-control#s11">
+  <meta name="plan-verifies"     content="local-lane-admission-control#s3,local-lane-admission-control#s5,local-lane-admission-control#s6,local-lane-admission-control#s7,local-lane-admission-control#s8,local-lane-admission-control#s11,local-lane-admission-control#s12">
   <meta name="plan-owner"        content="Simon McIntosh">
   <title>Local Lane Admission Control — Landed Evidence | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
@@ -489,6 +489,39 @@
     restored. The focused gate is <code>tests/test_agent_dry_run.py</code> (7 passed) with
     <code>ruff check imas_ambix tests</code> exiting 0. No real scheduler command was issued by any
     test, and no engine or router job was touched.</p>
+
+    <h3 id="dry-run-nested">The coverage walk reaches nested groups (2026-09-24)</h3>
+
+    <p>The enumeration above built its set from <code>agent.commands.items()</code> and inspected
+    each command's own <code>params</code>. That sees the agent group's direct children, so the
+    subgroup <code>agent fleet</code> (a <code>click.Group</code> at
+    <code>imas_ambix/agent/cli.py:288</code> with subcommands <code>hold</code>, <code>place</code>
+    and <code>status</code>) was inspected as a single command and never descended into. A
+    <code>--dry-run</code> added to <code>agent fleet hold</code> would have been invisible: the
+    guard's assertion (<code>offering == {the five}</code>) would still hold and the suite would
+    pass while the new command sat uncovered, so the guard's claim was false for anything below a
+    nested group.</p>
+
+    <p>The walk is now recursive over every command reachable from the agent group, keyed by its
+    dotted path, and the test asserts the walk reaches <code>fleet hold</code>,
+    <code>fleet place</code> and <code>fleet status</code>. That assertion is load-bearing: without
+    it a shallow walk would still produce <code>offering == {the five}</code> (fleet's subcommands
+    offer no dry run today) and the test would pass while guarding nothing below the agent group.
+    The expected set is unchanged, because no nested subcommand offers <code>--dry-run</code> in
+    this tree. Only <code>tests/test_agent_dry_run.py</code> changed; no production code was
+    touched. Commit <code>ba71cb95</code> at base <code>92a74507</code>, with
+    <code>uv run --no-sync pytest -p no:cacheprovider tests/test_agent_dry_run.py</code> at
+    <code>7 passed</code> and <code>uv run --no-sync ruff check imas_ambix tests</code> exiting
+    <code>0</code>.</p>
+
+    <p><strong>Negative control for the nested walk.</strong> Adding a <code>--dry-run</code>
+    option to <code>agent fleet hold</code> in a scratch edit of
+    <code>imas_ambix/agent/cli.py</code>, with no test added for it, makes
+    <code>test_every_agent_command_offering_a_dry_run_is_covered</code> fail with
+    <code>Extra items in the left set: 'fleet hold'</code> (<code>1 failed in 0.32s</code>); the
+    scratch edit was restored, leaving <code>imas_ambix/agent/cli.py</code> unchanged. Against the
+    pre-fix shallow walk the same mutation produced a <em>pass</em>, which is the hole the recursion
+    closes.</p>
   </section>
 </main>
 </body>
