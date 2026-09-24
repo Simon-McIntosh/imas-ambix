@@ -19,6 +19,7 @@ import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 
+import click
 import pytest
 from click.testing import CliRunner
 
@@ -174,17 +175,40 @@ def test_restart_dry_run_leaves_the_endpoint_document_byte_identical(scene) -> N
     assert scene.endpoint.read_bytes() == before
 
 
+def _walk_commands(group: click.Group, prefix: tuple[str, ...] = ()):
+    """Yield ``(path, command)`` for every command reachable from ``group``.
+
+    Descends through nested groups, so a ``--dry-run`` added to a subcommand of
+    ``agent fleet`` is enumerated exactly as one added directly under ``agent``.
+    """
+    for name, command in group.commands.items():
+        path = prefix + (name,)
+        yield path, command
+        if isinstance(command, click.Group):
+            yield from _walk_commands(command, path)
+
+
 def test_every_agent_command_offering_a_dry_run_is_covered() -> None:
     """A newly added ``--dry-run`` command must be added to this file.
 
     Enumerated from the click group rather than from a hand-kept list, so the
-    audit cannot drift away from the surface it claims to cover.
+    audit cannot drift away from the surface it claims to cover. The walk
+    reaches subcommands of nested groups, so ``agent fleet hold`` is guarded
+    even though ``fleet`` sits below the agent group.
     """
     from imas_ambix.agent.cli import agent
 
+    commands = dict(_walk_commands(agent))
+
+    # The walk descends into nested groups; a shallow walk would silently stop
+    # guarding them, and every assertion below would still pass.
+    assert {"fleet hold", "fleet place", "fleet status"} <= {
+        " ".join(path) for path in commands
+    }
+
     offering = {
-        name
-        for name, command in agent.commands.items()
+        " ".join(path)
+        for path, command in commands.items()
         if any("--dry-run" in getattr(param, "opts", []) for param in command.params)
     }
 
