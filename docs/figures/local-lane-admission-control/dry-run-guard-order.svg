@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 560" font-family="Helvetica, Arial, sans-serif" font-size="15">
+  <rect width="940" height="560" fill="#fbfbfa"/>
+
+  <text x="40" y="42" font-size="20" font-weight="700" fill="#1a1a1a">A restart dry run is inert only if its dry-run check runs before its cancel</text>
+
+  <!-- Panel A -->
+  <text x="40" y="88" font-size="16" font-weight="700" fill="#1b6b3a">As shipped — the dry-run branch is first</text>
+  <g stroke="#1b6b3a" stroke-width="2" fill="none">
+    <rect x="40" y="106" width="180" height="52" rx="8" fill="#eef7f0"/>
+    <rect x="272" y="106" width="200" height="52" rx="8" fill="#eef7f0"/>
+    <rect x="524" y="106" width="200" height="52" rx="8" fill="#eef7f0"/>
+    <rect x="776" y="106" width="124" height="52" rx="8" fill="#eef7f0"/>
+  </g>
+  <text x="130" y="130" text-anchor="middle" fill="#123">live job found</text>
+  <text x="130" y="148" text-anchor="middle" fill="#123" font-size="13">targets = [424242]</text>
+  <text x="372" y="130" text-anchor="middle" fill="#123">targets and dry_run?</text>
+  <text x="372" y="148" text-anchor="middle" fill="#123" font-size="13">branch chosen first</text>
+  <text x="624" y="130" text-anchor="middle" fill="#123">print "would cancel</text>
+  <text x="624" y="148" text-anchor="middle" fill="#123">1 active job(s): 424242"</text>
+  <text x="838" y="130" text-anchor="middle" fill="#123">print script,</text>
+  <text x="838" y="148" text-anchor="middle" fill="#123">return</text>
+
+  <g stroke="#1b6b3a" stroke-width="2" fill="none" marker-end="url(#a)">
+    <line x1="220" y1="132" x2="268" y2="132"/>
+    <line x1="472" y1="132" x2="520" y2="132"/>
+    <line x1="724" y1="132" x2="772" y2="132"/>
+  </g>
+  <defs>
+    <marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="#1b6b3a"/>
+    </marker>
+    <marker id="b" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="#a11b1b"/>
+    </marker>
+  </defs>
+
+  <g stroke="#1b6b3a" stroke-width="2" fill="none" stroke-dasharray="5 4" marker-end="url(#a)">
+    <path d="M372 158 L372 220"/>
+  </g>
+  <rect x="272" y="224" width="200" height="46" rx="8" fill="#f4f4f2" stroke="#8a8a86" stroke-dasharray="4 3"/>
+  <text x="372" y="252" text-anchor="middle" fill="#6a6a66">elif targets: (cancel)</text>
+  <text x="372" y="288" text-anchor="middle" fill="#1b6b3a" font-size="13">not reached — never calls scancel</text>
+
+  <!-- Panel B -->
+  <line x1="40" y1="322" x2="900" y2="322" stroke="#d8d8d4"/>
+  <text x="40" y="358" font-size="16" font-weight="700" fill="#a11b1b">Mutated (negative control) — the dry-run branch is moved below the cancel</text>
+  <g stroke="#a11b1b" stroke-width="2" fill="none">
+    <rect x="40" y="376" width="180" height="52" rx="8" fill="#fdeeee"/>
+    <rect x="272" y="376" width="200" height="52" rx="8" fill="#fdeeee"/>
+    <rect x="524" y="376" width="200" height="52" rx="8" fill="#fdeeee"/>
+    <rect x="776" y="376" width="124" height="52" rx="8" fill="#fdeeee"/>
+  </g>
+  <text x="130" y="400" text-anchor="middle" fill="#411">live job found</text>
+  <text x="130" y="418" text-anchor="middle" fill="#411" font-size="13">targets = [424242]</text>
+  <text x="372" y="400" text-anchor="middle" fill="#411">targets?</text>
+  <text x="372" y="418" text-anchor="middle" fill="#411" font-size="13">cancel branch first</text>
+  <text x="624" y="400" text-anchor="middle" fill="#411">scancel 424242</text>
+  <text x="624" y="418" text-anchor="middle" fill="#411" font-size="13">live serve killed</text>
+  <text x="838" y="400" text-anchor="middle" fill="#411">wait, submit</text>
+  <text x="838" y="418" text-anchor="middle" fill="#411" font-size="13">replacement</text>
+
+  <g stroke="#a11b1b" stroke-width="2" fill="none" marker-end="url(#b)">
+    <line x1="220" y1="402" x2="268" y2="402"/>
+    <line x1="472" y1="402" x2="520" y2="402"/>
+    <line x1="724" y1="402" x2="772" y2="402"/>
+  </g>
+
+  <text x="40" y="476" font-weight="700" fill="#1a1a1a">What the tests assert</text>
+  <text x="40" y="502" fill="#333" font-size="14">A dry run reaches neither scancel nor sbatch, and no file under the site root changes.</text>
+  <text x="40" y="524" fill="#333" font-size="14">The restart test additionally requires the live job to be named in the output:</text>
+  <text x="40" y="546" fill="#333" font-size="14" font-family="monospace">"would cancel 1 active job(s): 424242"</text>
+</svg>
