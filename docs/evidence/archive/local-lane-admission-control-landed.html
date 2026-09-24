@@ -411,11 +411,11 @@
 
     <h3 id="pause-evidence">What the tests measure</h3>
 
-    <p>The paused-gate admission test declares a pause while one request of a width-2 gate is
-    in flight and minimum width 8. It asserts that the observed maximum concurrently running
-    is <strong>1</strong> — the in-flight request — while two further arrivals sit waiting,
-    that the in-flight request completes with 200 during the pause, and that clearing the
-    flag admits the two held requests and a third that arrived later in the order
+    <p>The paused-gate admission test declares a pause on a width-2 gate while one request, first, is
+    in flight. With the gate at width 2, a gate that ignored the pause would admit a second
+    request at once. The test asserts that the observed maximum concurrently running stays
+    1 while two later arrivals, second and third, sit waiting. It also asserts that the in-flight request completes
+    with 200 during the pause, and that clearing the flag admits the two held requests in the order
     <code>first, second, third</code>. A second test shows a paused gate returning 529 with
     <code>Retry-After: 5</code> and an <code>overloaded_error</code> body to a request held
     past its wait bound, with no generation started. A third shows a pause outranking a
