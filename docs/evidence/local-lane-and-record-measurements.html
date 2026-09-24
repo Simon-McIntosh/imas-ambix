@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="local-lane-and-record-measurements">
+  <meta name="plan-title" content="Local Lane and Serving Record — measurements a successor should not have to re-derive">
+  <meta name="plan-summary" content="Lane degradation mechanism, relay cost, the retracted knee, admission-filter history, and serving-record ingest costs, measured 2026-09-21 to 2026-09-24">
+  <meta name="plan-tags" content="agent-serving,gpu-deployment">
+  <meta name="plan-evidence-for" content="local-lane-admission-control,serving-record-warehouse,serve-telemetry-spine">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <title>Local Lane and Serving Record Measurements | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — Why this record exists</h2>
+
+    <p>These figures were produced across 2026-09-21 to 2026-09-24 and lived only
+    in one session's conversation. Every session retires at the end of this
+    exercise and its successors receive their work through the planning layer, so
+    anything not written here is either re-derived at cost or, worse, re-derived
+    wrongly &mdash; one figure below was already wrong once, propagated for two
+    days, and corrected only by a deliberate re-measurement.</p>
+
+    <p>Each entry states what was measured, on what, and what it does not
+    support. Where a figure has been retracted it is kept with its retraction
+    rather than deleted, because the retracted number is the one a successor is
+    most likely to rediscover.</p>
+
+    <h2 id="s2">§2 — The lane degrades without refusing, and the mechanism is not width</h2>
+
+    <p><strong>RETRACTED &mdash; do not cite: a throughput knee at ~22 workers.</strong>
+    Reported 2026-09-21 as aggregate falling from ~500 tok/s to 340 at 28
+    workers. Two nodes re-measured it on 2026-09-23 and traced the curve to a
+    <strong>window mean taken over a moving width</strong>, not to the engine.
+    Binned over 79,436 decode intervals from the five-day job and 1,151 from the
+    live one, per-step engine decode is <em>flat or rising</em> to the cap:</p>
+
+    <table>
+      <caption>Per-step decode against a fixed cap, 2026-09-23.</caption>
+      <thead><tr><th>concurrency</th><th>decode</th></tr></thead>
+      <tbody>
+        <tr><td>29&ndash;31</td><td>379.1 tok/s</td></tr>
+        <tr><td>36 (cap)</td><td><strong>436.7 tok/s</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>What is actually happening: clustered tail episodes.</strong> The
+    median holds through KV occupancy 0.90; the collapse appears in
+    <strong>14 of 397 intervals</strong>. It tracks occupancy and prefix spill,
+    not width:</p>
+
+    <table>
+      <caption>Two adjacent widths on the running lane.</caption>
+      <thead><tr><th>running</th><th>KV</th><th>prefix hit rate</th><th>aggregate</th></tr></thead>
+      <tbody>
+        <tr><td>32</td><td>0.83</td><td>99%</td><td>&gt;500 tok/s</td></tr>
+        <tr><td>33</td><td>0.88</td><td>94%</td><td><strong>98 tok/s</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p>One more running request pinned the pool, other agents' prefixes spilled
+    from a full host tier, and they returned as recomputed prefill. <strong>The
+    control this implies is the opposite of the knee's</strong>: a knee argues
+    for lowering everyone's ceiling, a tail argues for catching the ~3.5% of
+    intervals that collapse. It is why the router gate's width went up rather
+    than down.</p>
+
+    <p><strong>The lesson that survives both readings.</strong>
+    <code>waiting == 0</code> and a prefix hit rate near 0.98 are <em>not</em>
+    headroom: both stayed green across the whole degrading range and preemptions
+    never fired. A session inside the condition cannot see it. Observed
+    2026-09-23: the lane sat at 35 running against a published ceiling of 19 for
+    about three hours with nothing reporting it, and a node budgeted at 25
+    minutes took 68.</p>
+
+    <h2 id="s3">§3 — The relay is not the constraint</h2>
+
+    <p>Measured on <code>ambix-router</code> by <code>sacct</code>:
+    <strong>AveCPU 00:00:03 over Elapsed 00:55:38</strong>, MaxRSS 32&nbsp;MB
+    &mdash; about <strong>0.09% of one core while holding two</strong>. It
+    resolves an upstream, merges the catalog, clamps output tokens and relays.
+    Any admission logic placed there pays two cores to do nothing and sits in the
+    request path while it does.</p>
+
+    <h2 id="s4">§4 — What a per-consumer admission filter cost, when one existed</h2>
+
+    <p>A filter keyed on client host joined with user-agent lived in the relay
+    until 2026-09-14 (removed at <code>76a6a235</code>). Every harness process on
+    one login node resolved to a single bucket, so a whole fleet shared six
+    request slots. Over one afternoon:</p>
+
+    <table>
+      <thead><tr><th>measure</th><th>value</th></tr></thead>
+      <tbody>
+        <tr><td>requests refused</td><td><strong>402 of 1,075 &mdash; 37.4%</strong></td></tr>
+        <tr><td>of which queue timeouts</td><td>252, each burning 30&nbsp;s first</td></tr>
+        <tr><td>engine KV occupancy meanwhile</td><td><strong>0.0%</strong></td></tr>
+        <tr><td>eight concurrent completions</td><td>872 tok/s direct vs 110 tok/s through the bucket</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Its worst cost was not throughput.</strong> A worker that exhausted
+    its context tried to compact; the compaction request was refused by the
+    queue; the run died reporting <em>"Prompt is too long &mdash; automatic
+    compaction failed"</em>. That message is true, actionable, and points at node
+    sizing rather than at admission. <strong>A refused request is not equivalent
+    to a slow one</strong>, and the one request that must never be refused is a
+    compaction &mdash; it is what a worker sends when it has no room left to
+    retry.</p>
+
+    <p>This is history, not a live defect, and it is recorded because the same
+    shape returns whenever a bound refuses instead of absorbing.</p>
+
+    <h2 id="s5">§5 — The lane document changes shape when it drains</h2>
+
+    <p>At <code>running: 0</code> the published lane document reports
+    <code>sizing_verdict: "do-not-size"</code>, <code>headroom: null</code>, and
+    <strong><code>concurrent_requests</code> is absent entirely</strong> &mdash;
+    only <code>concurrent_requests_instant</code> remains. Confirmed again at
+    <code>running: 2</code> on 2026-09-23.</p>
+
+    <p>So a guard written as <em>hold when headroom is zero</em> never fires on a
+    drained lane, and cannot distinguish a drained lane from an unreadable one.
+    <strong>Key on presence, and treat a missing key as a state rather than as
+    permission.</strong></p>
+
+    <p><strong>Dispatch reads this document and fails open.</strong> From a real
+    run record, 2026-09-21T19:23:41Z:</p>
+
+    <pre>lane_reading = {"headroom":"unknown","mean_context":"unknown","state":"unknown",
+                "binding_observed":"unknown",
+                "detail":"lane document carries no numeric 'headroom'"}
+lane_advisory = null</pre>
+
+    <p>It read the document, got nothing usable, and dispatched anyway. The
+    degradation is per-document rather than per-field: one missing precondition
+    blanks all eight, so a null <code>binding_observed</code> discards a
+    perfectly good <code>running</code> count. Half of this was repaired in
+    reckon <code>7fbfc3ae</code>, which carries <code>binding_observed</code>
+    per field; <code>dispatch.py</code> lines 2287 and 2292 still return the
+    blanked reading when <code>headroom</code> or <code>mean_context</code> is
+    non-numeric, which is the path that produced the record above.</p>
+
+    <h2 id="s6">§6 — Serving record: ingest and index costs</h2>
+
+    <p>Measured on <code>sun_debug</code> against the live record at
+    <code>/work/projects/imas_gpu/agents/receipts</code>, 49 sources and
+    220.6&nbsp;MB:</p>
+
+    <table>
+      <thead><tr><th>operation</th><th>cost</th><th>note</th></tr></thead>
+      <tbody>
+        <tr><td>cold build, shared home (gpfs)</td><td>8.94 s/MB</td><td>same index either way</td></tr>
+        <tr><td>cold build, node-local disk</td><td>2.62 s/MB &mdash; 3.4&times; faster</td><td>penalty applies only to bulk writing</td></tr>
+        <tr><td>full cold build, local then copied</td><td><strong>862 s</strong></td><td>index <strong>1,046&nbsp;MB</strong>, 4.74&times; the source</td></tr>
+        <tr><td>steady pass, before the skip fix</td><td>8.57 s</td><td>re-digesting every finished serve</td></tr>
+        <tr><td>steady pass, after (one live serve)</td><td><strong>0.29 s</strong></td><td>at <code>356c0587</code></td></tr>
+        <tr><td>steady pass, nothing changed</td><td><strong>0.00 s</strong></td><td>&mdash;</td></tr>
+      </tbody>
+    </table>
+
+    <p>The cold build is <strong>101&times; the steady pass</strong>, so a design
+    that rebuilds is paying for the whole record every time. Index growth runs
+    about 49&nbsp;MB a day at the observed rate.</p>
+
+    <p><strong>Retention is declared but not implemented.</strong> The store
+    documents a ladder &mdash; raw at 5&nbsp;s for ~2 days, minute for ~5 weeks,
+    hour indefinitely &mdash; and <code>compact_file</code> states it "never
+    retires what it read". Evidence: 45 raw files, oldest 2026-09-07, 212&nbsp;MB,
+    against a declared raw retention of two days.</p>
+
+    <h2 id="s7">§7 — Compaction loses integrals, not just resolution</h2>
+
+    <p>Measured 2026-09-23 by compacting two serves that restart inside one
+    minute of one boot. Job 1001 advances to 1,500,000; job 1002 restarts at 0
+    and reaches 20,000. <strong>One row comes out, carrying job 1002 and
+    20,000.</strong> The first serve's closing value is gone and every token
+    behind it with it.</p>
+
+    <p>The cause is that a run is defined twice: the reader ends one at a change
+    of host, boot or job <em>or at a counter that fails to advance</em>, while
+    the compactor groups by host and boot alone. <strong>This is the reason
+    retention must not ship before compaction is repaired</strong>, and it is
+    scoped in <code>serving-record-warehouse</code> &sect;8 with the equality
+    that licenses deletion.</p>
+
+    <p>Two consequences that are live today rather than pending: the minute and
+    hour tiers <strong>already under-report across every restart</strong>, so any
+    week or month figure drawn from them is low; and the index ingests raw and
+    compacted files into one sample table with nothing distinguishing them,
+    because <code>key_kind</code> names host and boot resolution rather than
+    tier.</p>
+
+    <h2 id="s8">§8 — Request receipts: what the relay records</h2>
+
+    <p>Before the dialect repair, <strong>0 of 87 rows</strong> carried any token
+    figure. The reader knew one vocabulary and the engine answers agent traffic
+    in another. After <code>0f7f591c</code>, over about ninety minutes of real
+    fleet traffic:</p>
+
+    <table>
+      <thead><tr><th>measure</th><th>value</th></tr></thead>
+      <tbody>
+        <tr><td>rows from the current relay</td><td>7,848</td></tr>
+        <tr><td>relayed inferences, all carrying tokens</td><td><strong>7,324 of 7,324</strong></td></tr>
+        <tr><td>self-answered, dialect "unknown"</td><td>524 &mdash; correct, they carry no usage object</td></tr>
+        <tr><td>prompt tokens</td><td><strong>895,917,368</strong> (largest single prompt 178,238)</td></tr>
+        <tr><td>output tokens</td><td>5,841,601</td></tr>
+        <tr><td>time to first token observed</td><td>6,272 of 7,324; absent on non-streaming</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>What this means for the cost question.</strong> At the measured
+    prefix hit rate, roughly 45&nbsp;M of those prompt tokens were computed and
+    ~850&nbsp;M served from cache. A counterfactual third-party bill charges close
+    to the full 895.9&nbsp;M at the prompt rate, because no commercial API would
+    have given us that cache. The two price tiers differ by about fifty times.</p>
+
+    <p>The identity limit is unchanged and must be stated wherever a per-caller
+    figure appears: <code>ANTHROPIC_AUTH_TOKEN</code> is set to the fixed string
+    <code>clive-no-auth</code> on every launched session, so the channel exists,
+    carries a constant, and identifies nothing. A declared identity attributes
+    <em>workload</em>; it authenticates nobody, and on this workstation every
+    process runs as one OS user. Report callers, never users.</p>
+
+    <h2 id="s9">§9 — Login-node hazards, measured the hard way</h2>
+
+    <p>Two unbounded searches were left running on the login node and found on
+    2026-09-24: one of mine over <code>/work/projects/imas_gpu</code> for
+    <strong>13 h 50 min</strong>, reaped at 21:54:18 once GPFS released it; and an
+    imas-efit worker's <code>find / -name wall.h5 | head</code> for
+    <strong>10 h 49 min</strong>.</p>
+
+    <p><strong><code>| head</code> does not bound a search.</strong> It bounds the
+    output. The producer learns only when it next tries to write and receives
+    <code>EPIPE</code>, so with a rare filename <code>head</code> blocks waiting
+    for an EOF that arrives only when the walk finishes. <em>The success of the
+    search terminates it; the failure runs forever</em> &mdash; and the failing
+    case is the one whose author has already moved on. What bounds a search:
+    naming the subtree, <code>-maxdepth</code>, or <code>timeout N find</code>,
+    which bounds the producer rather than the consumer.</p>
+
+    <p>A process blocked in GPFS sits in <code>D</code> state with
+    <code>wchan: cxiWaitEventWait</code>; SIGTERM and SIGKILL both queue in
+    <code>ShdPnd</code> and are delivered only when the filesystem returns. It
+    cannot be killed sooner, and a single such process contributes 1 to the load
+    average &mdash; so stopping one will not move a load figure of 150, and the
+    real cost is its continuous metadata traffic.</p>
+
+    <h2 id="s10">§10 — A selector that cannot see itself</h2>
+
+    <p>Recorded because it recurred five times in one session and each instance
+    read as authoritative. A grep, glob or pattern that includes the process or
+    the region running it answers a question nobody asked:</p>
+
+    <ul>
+      <li>An alternation grep answers a disjunction while the claim asserted a
+      conjunction &mdash; "6 hostname/boot_id references" was hostname 6, boot_id 0.</li>
+      <li><code>ls -dt .../*node-name*</code> matched the review run as well as the
+      implement run and sorted the review first, so the wrong manifest was read twice.</li>
+      <li>A tag-stripping regex over a 2,600-character window fused five separate
+      comments into one narrative, which read as a record-keeping defect that did
+      not exist.</li>
+      <li><code>ps -u $USER | grep '&lt;session-id&gt;'</code> matches the shell
+      running it, because the id is in that shell's argv by construction. Bracket
+      a character <em>and</em> filter on elapsed time: the bracket stops the
+      pattern matching itself, not the shell carrying it.</li>
+      <li>Grepping <code>crew.json</code> for a run id and reading a hit as "this
+      run is reconciled". The id appears there for other reasons;
+      <code>reckon crew list</code> reported both runs unreconciled.</li>
+    </ul>
+
+    <p>Each was true about the set it selected and false about the set intended.</p>
+
+  </main>
+</body>
+</html>
