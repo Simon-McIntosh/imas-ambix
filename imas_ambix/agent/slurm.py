@@ -26,7 +26,10 @@ _DRAIN_SIDECAR = (
 # on the vLLM catalog block, because routing now reads topology from the
 # registration rather than from whatever the engine can echo back.
 _ACCELERATOR_FAMILY = "H200"
-_SUPPORTING_SERVICE_TIME_LIMIT = "7-00:00:00"
+# SLURM reads --time=0 as no limit. The router and the lane refresher are
+# standing services that every session depends on; a finite limit ends them
+# on a schedule nobody is watching.
+_SUPPORTING_SERVICE_TIME_LIMIT = "0"
 
 _MODEL_DIR_TOKEN = "__AMBIX_MODEL_DIR__"
 _PORT_TOKEN = "__AMBIX_PORT__"

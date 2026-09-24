@@ -26,7 +26,7 @@ def test_router_script_is_cpu_only_and_uses_file_backed_admission(tmp_path):
     assert "#SBATCH --cpus-per-task=3" in script
     assert "#SBATCH --mem=12G" in script
     assert "#SBATCH --comment=ambix-router;port=18802" in script
-    assert "#SBATCH --time=7-00:00:00" in script
+    assert "#SBATCH --time=0" in script
     assert str(site.python_path("vllm")) in script
     assert "from imas_ambix.cli import main; main()" in script
     assert "agent router" in script
@@ -36,7 +36,7 @@ def test_router_script_is_cpu_only_and_uses_file_backed_admission(tmp_path):
     assert "--max-queued" not in script
 
 
-def test_lane_refresher_script_has_finite_time_limit(tmp_path):
+def test_lane_refresher_script_has_no_time_limit(tmp_path):
     site = SiteConfig(
         base_dir=str(tmp_path),
         engine_env_root=str(tmp_path / "engine-envs"),
@@ -47,7 +47,7 @@ def test_lane_refresher_script_has_finite_time_limit(tmp_path):
         origin="http://127.0.0.1:18802",
     )
 
-    assert "#SBATCH --time=7-00:00:00" in script
+    assert "#SBATCH --time=0" in script
 
 
 def test_engine_serve_script_remains_unlimited(tmp_path):
