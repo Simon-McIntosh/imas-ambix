@@ -34,11 +34,31 @@ def _card() -> dict[str, Any]:
     }
 
 
-def _write_gate(path: Path, *, width: int, wait_seconds: float = 1.0) -> None:
-    path.write_text(
-        json.dumps({"width": width, "wait_seconds": wait_seconds}),
-        encoding="utf-8",
-    )
+def _write_gate(
+    path: Path,
+    *,
+    width: int,
+    wait_seconds: float = 1.0,
+    paused: bool = False,
+    reason: str | None = None,
+) -> None:
+    payload: dict[str, Any] = {"width": width, "wait_seconds": wait_seconds}
+    if paused:
+        payload["paused"] = True
+        payload["reason"] = reason
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+async def _await_gate(
+    predicate: Callable[[], bool], *, timeout: float = 3.0
+) -> None:
+    """Poll a gate predicate, because the config cache is refreshed once a second."""
+    deadline = asyncio.get_running_loop().time() + timeout
+    while asyncio.get_running_loop().time() < deadline:
+        if predicate():
+            return
+        await asyncio.sleep(0.01)
+    raise AssertionError("gate condition was not observed within the timeout")
 
 
 def _write_auto_gate(
@@ -558,6 +578,8 @@ def test_lane_document_publishes_nonzero_gate_counts(tmp_path) -> None:
             "effective_width": 1,
             "enabled": True,
             "in_flight": 1,
+            "paused": False,
+            "reason": None,
             "wait_seconds": 1.0,
             "waiting": 1,
             "width": 1,
@@ -656,3 +678,172 @@ def test_auto_width_publishes_effective_width_and_estimate(tmp_path) -> None:
         assert gate_snapshot["context_estimate"] == 200_000.0
 
     asyncio.run(exercise())
+
+
+def test_paused_gate_admits_nothing_new_while_in_flight_completes(tmp_path) -> None:
+    async def exercise() -> None:
+        gate_file = tmp_path / "router-gate.json"
+        _write_gate(gate_file, width=2, wait_seconds=2.0)
+        probe = GenerationProbe()
+        async with (
+            _server(_probe_app(probe)) as upstream,
+            _router(upstream, gate_file) as app,
+        ):
+            try:
+                first, _, first_sent = _start_call(
+                    app,
+                    "POST",
+                    "/v1/messages",
+                    b'{"model":"streamer","label":"first"}',
+                )
+                await probe.wait_for_active(1)
+
+                # The pause is declared while one relay is in flight. Width
+                # stays 2, so a gate that ignored the pause would admit a
+                # second relay at once.
+                _write_gate(
+                    gate_file,
+                    width=2,
+                    wait_seconds=2.0,
+                    paused=True,
+                    reason="draining for a relaunch",
+                )
+                await _await_gate(lambda: app._generation_gate.settings().paused)
+
+                second, _, second_sent = _start_call(
+                    app,
+                    "POST",
+                    "/v1/messages",
+                    b'{"model":"streamer","label":"second"}',
+                )
+                third, _, third_sent = _start_call(
+                    app,
+                    "POST",
+                    "/v1/messages",
+                    b'{"model":"streamer","label":"third"}',
+                )
+                await _await_gate(lambda: app._generation_gate.waiting == 2)
+
+                # Nothing new joined while paused, even though the width would
+                # allow it, and the in-flight relay is untouched by the pause.
+                assert probe.maximum == 1
+                assert probe.started == ["first"]
+
+                probe.release.set()
+                await asyncio.wait_for(first, timeout=1)
+                assert _status(first_sent) == 200
+                assert probe.maximum == 1
+                assert probe.started == ["first"]
+
+                # Clearing the pause admits the held requests, in arrival order.
+                _write_gate(gate_file, width=2, wait_seconds=2.0)
+                await _await_gate(
+                    lambda: not app._generation_gate.settings().paused
+                )
+                await asyncio.wait_for(asyncio.gather(second, third), timeout=2)
+
+                assert probe.started == ["first", "second", "third"]
+                assert _status(second_sent) == 200
+                assert _status(third_sent) == 200
+            finally:
+                # A regression that lets a paused gate admit would leave the
+                # held relays parked here and stall the run instead of failing
+                # it, so the probe is always released.
+                probe.release.set()
+
+    asyncio.run(exercise())
+
+
+def test_paused_gate_times_out_a_held_request_with_retry_after(tmp_path) -> None:
+    async def exercise() -> None:
+        gate_file = tmp_path / "router-gate.json"
+        _write_gate(
+            gate_file,
+            width=4,
+            wait_seconds=0.05,
+            paused=True,
+            reason="draining for a relaunch",
+        )
+        probe = GenerationProbe()
+        async with (
+            _server(_probe_app(probe)) as upstream,
+            _router(upstream, gate_file) as app,
+        ):
+            try:
+                refused = await asyncio.wait_for(
+                    _call(
+                        app,
+                        "POST",
+                        "/v1/messages",
+                        b'{"model":"streamer","label":"held"}',
+                    ),
+                    timeout=1,
+                )
+                assert _status(refused) == 529
+                assert _headers(refused)[b"retry-after"] == b"5"
+                assert json.loads(_body(refused)) == {
+                    "type": "error",
+                    "error": {
+                        "type": "overloaded_error",
+                        "message": "router generation queue wait limit exceeded",
+                    },
+                }
+                assert probe.started == []
+            finally:
+                # Under a regression the relay is admitted and parks on the
+                # probe; release it so the failure is reported rather than hung.
+                probe.release.set()
+
+    asyncio.run(exercise())
+
+
+def test_pause_outranks_a_disabled_width(tmp_path) -> None:
+    async def exercise() -> None:
+        gate_file = tmp_path / "router-gate.json"
+        _write_gate(
+            gate_file,
+            width=0,
+            wait_seconds=0.05,
+            paused=True,
+            reason="draining for a relaunch",
+        )
+        probe = GenerationProbe()
+        async with (
+            _server(_probe_app(probe)) as upstream,
+            _router(upstream, gate_file) as app,
+        ):
+            refused = await asyncio.wait_for(
+                _call(
+                    app,
+                    "POST",
+                    "/v1/messages",
+                    b'{"model":"streamer","label":"held"}',
+                ),
+                timeout=1,
+            )
+            assert _status(refused) == 529
+            assert probe.started == []
+
+    asyncio.run(exercise())
+
+
+def test_lane_snapshot_publishes_the_pause_and_its_reason(tmp_path) -> None:
+    gate_file = tmp_path / "router-gate.json"
+    lane_document = tmp_path / "lane.json"
+    _write_gate(
+        gate_file,
+        width=1,
+        paused=True,
+        reason="draining for a relaunch",
+    )
+    lane_document.write_text(
+        json.dumps({"running": 3, "waiting": 0}), encoding="utf-8"
+    )
+    app = RouterApp(Resolver([]), lane_document=lane_document, gate_file=gate_file)
+
+    app._publish_gate_snapshot()
+    published = json.loads(lane_document.read_text(encoding="utf-8"))
+    gate_snapshot = published["router_generation_gate"]
+    assert gate_snapshot["paused"] is True
+    assert gate_snapshot["reason"] == "draining for a relaunch"
+    assert published["running"] == 3

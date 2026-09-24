@@ -85,6 +85,13 @@ class _GateSettings:
     occupancy_target: float = DEFAULT_AUTO_OCCUPANCY_TARGET
     width_floor: int = DEFAULT_AUTO_WIDTH_FLOOR
     width_cap: int = DEFAULT_AUTO_WIDTH_CAP
+    # A pause outranks the width: an operator declaring the lane paused wants no
+    # NEW generation to start, whatever the gate would otherwise admit. Requests
+    # already admitted run to completion -- the pause drains, it does not cut --
+    # and callers that arrive during it wait in the same FIFO as any other
+    # caller, so clearing the flag admits them in arrival order.
+    paused: bool = False
+    reason: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,10 +172,13 @@ class _GenerationGate:
         self._cached_settings = settings
         if settings != self._last_logged_settings:
             logger.info(
-                "generation gate config path=%s width=%d wait_seconds=%s",
+                "generation gate config path=%s width=%d wait_seconds=%s "
+                "paused=%s reason=%s",
                 self.config_path,
                 settings.width,
                 settings.wait_seconds,
+                settings.paused,
+                settings.reason,
             )
             self._last_logged_settings = settings
         return settings
@@ -189,6 +199,12 @@ class _GenerationGate:
             or wait_seconds <= 0
         ):
             raise ValueError("wait_seconds must be a finite positive number")
+        paused = payload.get("paused", False)
+        if type(paused) is not bool:
+            raise ValueError("paused must be a boolean")
+        reason = payload.get("reason")
+        if reason is not None and not isinstance(reason, str):
+            raise ValueError("reason must be a string")
         target = payload.get("occupancy_target", DEFAULT_AUTO_OCCUPANCY_TARGET)
         raw_width = payload.get("width", self._defaults.width)
         if raw_width == GATE_AUTO_WIDTH:
@@ -214,11 +230,15 @@ class _GenerationGate:
                 occupancy_target=float(target),
                 width_floor=floor,
                 width_cap=cap,
+                paused=paused,
+                reason=reason,
             )
             return replace(settings, width=self._auto_width(settings))
         if type(raw_width) is not int or raw_width < 0:
             raise ValueError('width must be a non-negative integer or "auto"')
-        return _GateSettings(raw_width, float(wait_seconds))
+        return _GateSettings(
+            raw_width, float(wait_seconds), paused=paused, reason=reason
+        )
 
     def _auto_width(self, settings: _GateSettings) -> int:
         """The automatic width: pool arithmetic, clamped, or the held value.
@@ -271,9 +291,15 @@ class _GenerationGate:
         self._pool_tokens = pool_tokens
 
     async def acquire(self, receive: Receive) -> _Admission:
-        """Wait in FIFO order, or report timeout/departure without a relay."""
+        """Wait in FIFO order, or report timeout/departure without a relay.
+
+        A paused gate admits nobody: the width is ignored while the pause holds,
+        so an in-flight relay is left to finish and every later caller stays in
+        the FIFO. Clearing the pause releases them in arrival order through the
+        same head-of-queue test, so a pause needs no separate queue.
+        """
         initial = self.settings()
-        if initial.width == 0:
+        if initial.width == 0 and not initial.paused:
             return _Admission("bypass")
 
         token = object()
@@ -289,11 +315,12 @@ class _GenerationGate:
                     if disconnect_task.done():
                         return _Admission("disconnected")
                     settings = self.settings()
-                    if settings.width == 0:
+                    if settings.width == 0 and not settings.paused:
                         return _Admission("bypass")
                     if (
                         self._waiters
                         and self._waiters[0] is token
+                        and not settings.paused
                         and self._in_flight < settings.width
                     ):
                         self._waiters.popleft()
@@ -340,6 +367,11 @@ class _GenerationGate:
             "wait_seconds": settings.wait_seconds,
             "in_flight": self.in_flight,
             "waiting": self.waiting,
+            # Published so a reader sees the pause rather than inferring it from
+            # a zero admitted count: a lane with nothing running and a lane that
+            # is refusing to run anything look identical in the counters alone.
+            "paused": settings.paused,
+            "reason": settings.reason,
             "config_path": (
                 str(self.config_path) if self.config_path is not None else None
             ),
