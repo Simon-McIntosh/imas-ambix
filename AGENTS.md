@@ -219,7 +219,7 @@ Use the reckon skills — do not hand-edit `docs/*.html`:
 |---|---|
 | New plan **or** non-plan doc (RCA, ticket, explainer → `reckon-type=doc`) | `reckon-create` |
 | Edit / lock decision / followup / sprint / archive | `reckon-edit` |
-| Implement plan work + record outcomes + collapse-on-landing | `reckon-ship` |
+| Implement plan work + record outcomes + collapse-on-landing | `reckon-build` |
 | Read-only status / health audit | `reckon-status` |
 | Set up / refresh reckon infra | `reckon-sync` |
 
@@ -227,7 +227,7 @@ State mutations go through the reckon MCP tools (or `POST /plan/...`); if
 the MCP server is down, still author the HTML via `reckon-create` and
 apply state changes once it reconnects — **never fall back to markdown.**
 Closure: a shipped section collapses to a 2-4 line landed-summary on the
-evergreen with full detail archived under `docs/archive/` (reckon-ship §5b);
+evergreen with full detail archived under `docs/archive/` (reckon-build §5b);
 plans retire via `reckon-edit`. Full architecture:
 [`~/Code/reckon/AGENTS.md`](~/Code/reckon/AGENTS.md).
 

@@ -177,16 +177,16 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-cger-001" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-08-26" data-recommends-skill="/reckon-ship clive-global-endpoint-routing" data-resolved-at="2026-08-26T15:30:41+00:00" data-resolved-by="reckon-ship">
+<article class="r-fu" data-id="f-cger-001" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-08-26" data-recommends-skill="/reckon-build clive-global-endpoint-routing" data-resolved-at="2026-08-26T15:30:41+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Replace user-scoped discovery with the global endpoint contract</h4>
     <div class="r-fu-body"><p>Implement, independently review, test, deploy, and record the global shared-consumer route.</p></div>
-    <pre class="r-fu-prompt">/reckon-ship clive-global-endpoint-routing</pre>
+    <pre class="r-fu-prompt">/reckon-build clive-global-endpoint-routing</pre>
     <p class="r-fu-outcome">Code, independent verification, guidance, and shared launcher deployment completed. Resident endpoint authority is carried by f-cger-002.</p>
     </article>
-<article class="r-fu" data-id="f-cger-002" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-ship" data-written-at="2026-08-26" data-recommends-skill="/reckon-ship clive-global-endpoint-routing" data-resolved-at="2026-09-14T08:37:09+00:00" data-resolved-by="Simon McIntosh">
+<article class="r-fu" data-id="f-cger-002" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-ship" data-written-at="2026-08-26" data-recommends-skill="/reckon-build clive-global-endpoint-routing" data-resolved-at="2026-09-14T08:37:09+00:00" data-resolved-by="Simon McIntosh">
     <h4 class="r-fu-title">Establish the resident keyless global endpoint</h4>
     <div class="r-fu-body"><p><strong>Authority-required:</strong> an operator must start or assign a resident vLLM service at <code>http://98dci4-gpu-0003:18800</code> without returning discovery to user scheduler state. The launcher, catalog provider, deployment, and independent verification are complete; the current endpoint refuses connections. This plan does not authorize starting, restarting, or cancelling a serving allocation.</p></div>
-    <pre class="r-fu-prompt">/reckon-ship clive-global-endpoint-routing</pre>
+    <pre class="r-fu-prompt">/reckon-build clive-global-endpoint-routing</pre>
     <p class="r-fu-outcome"><p>Done — no followup; the chain closes here. Resident keyless endpoint established 2026-09-14 under explicit operator authority, and it is <strong>SGLang-backed rather than vLLM</strong>: DeepSeek-V4.1-Flash on 4×H200 at TP4/EP4, serving on <code>98dci4-gpu-0003:18810</code> behind the router on <code>:18802</code>. Verified end to end rather than probed — <code>clive --list</code> returns <code>deepseek-v4.1-flash@4xh200 · 4×H200 · mxfp4+fp8 · 1024k ctx</code>, and a chat completion routed through the router returned a correct answer.</p><p>Establishing it required reopening <code>topology-authority</code>, because the catalog contract refused a non-vLLM engine outright. See the re-locked decision, and the outage record in §4.</p></p>
     </article>
 </section>

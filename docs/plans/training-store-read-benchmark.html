@@ -128,25 +128,25 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-tsrb-001" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-08-13" data-recommends-skill="/reckon-ship training-store-read-benchmark §2" data-resolved-at="2026-08-13T08:49:15+00:00" data-resolved-by="reckon-ship">
+<article class="r-fu" data-id="f-tsrb-001" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-08-13" data-recommends-skill="/reckon-build training-store-read-benchmark §2" data-resolved-at="2026-08-13T08:49:15+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Measure the three arms across the four access patterns and the transport comparison</h4>
     <div class="r-fu-body"><p>The measurement itself: identical payloads through
         IMAS-netCDF, zarr with DD-path attributes, and native level-2, across static description
         load, single-shot slice, batch stream and random access, plus live transfer against a
         mapped on-disk entry. One node class throughout. Report throughput with wall clock and
         sample counts, never a size divided by an assumed rate.</p></div>
-    <pre class="r-fu-prompt">/reckon-ship training-store-read-benchmark §2</pre>
+    <pre class="r-fu-prompt">/reckon-build training-store-read-benchmark §2</pre>
     <p class="r-fu-outcome">Storage measurement complete (commits 0c970bc, 9f07377). All 12 cells measured on one node class: DD-annotated zarr wins every access pattern at 8.71-10.27x native level-2, IMAS-netCDF second at 2.35-2.73x, ranking pattern-independent. Each cell carries its own perf_counter wall clock and accumulated scalar count; no cell is a size divided by an assumed rate. The transport comparison is NOT included: 24 probed shots produced 0 identical live-versus-mapped payloads because the on-disk mirror is a different snapshot generation (live shapes 424-556, mapped 1561-2088), so its gate is recorded not-run and timing is now hard-gated on payload identity. The transport remainder is carried by f-tsrb-002 under an authority-required exemption.</p>
     </article>
-<article class="r-fu" data-id="f-tsrb-002" data-status="open" data-written-by="reckon-ship" data-written-at="2026-08-13" data-recommends-skill="/reckon-ship training-store-read-benchmark §2" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-tsrb-002" data-status="open" data-written-by="reckon-ship" data-written-at="2026-08-13" data-recommends-skill="/reckon-build training-store-read-benchmark §2" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Refresh the mapped level-2 mirror, then rerun the transport comparison only</h4>
     <div class="r-fu-body"><p>Exemption: <strong>authority-required</strong>. The remaining transport measurement needs the on-disk mirror rebuilt from the current public S3 snapshot — a bulk external download of 11,573 level-2 shot stores from s3.echo.stfc.ac.uk, which is outward-facing network spend the coordinator does not hold authority for. The mirror is a different snapshot generation, not a stale copy, so no subset selection substitutes for the refresh. Once refreshed, the committed <code>--transport-only</code> command yields the two admissible timed cells with no other rerun; the 12 storage cells are unaffected and stand as measured.</p></div>
-    <pre class="r-fu-prompt">/reckon-ship training-store-read-benchmark §2</pre>
+    <pre class="r-fu-prompt">/reckon-build training-store-read-benchmark §2</pre>
     </article>
-<article class="r-fu" data-id="f-tsrb-003" data-status="resolved" data-written-by="reckon-ship" data-written-at="2026-08-13" data-recommends-skill="/reckon-ship training-store-read-benchmark §2" data-resolved-at="2026-08-14T07:50:43+00:00" data-resolved-by="reckon-ship">
+<article class="r-fu" data-id="f-tsrb-003" data-status="resolved" data-written-by="reckon-ship" data-written-at="2026-08-13" data-recommends-skill="/reckon-build training-store-read-benchmark §2" data-resolved-at="2026-08-14T07:50:43+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Make the refreshed snapshot visible to the compute-node namespace, then rerun transport on the storage-arm node class</h4>
     <div class="r-fu-body"><p>Exemption: <strong>authority-required</strong>. The transport ratio is measured and admissible, but on the login node class rather than the <code>sirius_debug</code> class that carries the 12 storage cells, because <code>/work/projects/imas_gpu/mast/level2/public-snapshot-20260813</code> is not visible in the compute-node namespace while the older level-2 tree is. Resolving a shared-filesystem namespace difference is a facility-administration action outside the coordinator's authority. Until it is resolved the transport number stands on its own node class and must not be composed with the storage cells; the storage ranking and the format decision are unaffected.</p></div>
-    <pre class="r-fu-prompt">/reckon-ship training-store-read-benchmark §2</pre>
+    <pre class="r-fu-prompt">/reckon-build training-store-read-benchmark §2</pre>
     <p class="r-fu-outcome">Authorised by the owner 2026-08-14; the authority-required exemption lifts and the node-class rerun becomes ordinary executable work.</p>
     </article>
 </section>

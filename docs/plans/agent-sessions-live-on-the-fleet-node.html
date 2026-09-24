@@ -210,12 +210,12 @@
         <p><strong>There are now two allocations and they are not interchangeable.</strong> 1276262 holds reckon's workers; 1277272 is the ambix-fleet supervisor job hosting the new sessions, with its record at <code>~/.local/state/fleet/record.json</code>. The unification target is the <em>supervisor</em> kind, so a reader of this plan should not assume the job id it names elsewhere is the one to unify.</p><p><strong>Every placed step, and every session moved into either job, dies with that job.</strong> Drain and move before retiring anything; never cancel it while work runs there.</p>
         <p>Nothing else breaks: the flight layer and its test carry no job id, and <code>throttling.py</code> with the end reading are login-node cgroup reads. Two pieces of plan text assume the ambix holder and need revisiting: the locked allocation-shape decision, and &sect;6's &ldquo;imas-ambix owns the node&rdquo;.</p>
         <p>Retire outright: <code>fleet.py placement_argv</code> and <code>fleet place</code> are shallow &mdash; tested, but nothing calls them since the shim was deleted and the flight layer stopped naming them. <code>fleet hold</code> is deep but redundant once ensure adopts.</p></div>
-        <pre class="r-fu-prompt">/reckon-ship agent-sessions-live-on-the-fleet-node</pre>
+        <pre class="r-fu-prompt">/reckon-build agent-sessions-live-on-the-fleet-node</pre>
       </article>
-<article class="r-fu" data-id="f-aslfn-001" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-create" data-written-at="2026-09-24" data-recommends-skill="/reckon-ship" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-aslfn-001" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-create" data-written-at="2026-09-24" data-recommends-skill="/reckon-build" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Validate from WSL, then move the fleet</h4>
     <div class="r-fu-body"><p>Validation from WSL needs the laptop's reverse tunnel. It was unreachable at 09:10Z, and the <code>wsl</code> host timed out at the banner exchange. After that, the move follows &sect;5. &sect;6's worker-launch change is reckon's, and it gates dispatch from fleet sessions, not the move itself.</p></div>
-    <pre class="r-fu-prompt">/reckon-ship agent-sessions-live-on-the-fleet-node</pre>
+    <pre class="r-fu-prompt">/reckon-build agent-sessions-live-on-the-fleet-node</pre>
     </article>
 </section>
   </main>

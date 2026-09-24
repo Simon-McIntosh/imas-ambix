@@ -81,10 +81,10 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-gpos-01" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-capability-verification="strict" data-written-by="reckon-ship" data-written-at="2026-09-01" data-recommends-skill="/reckon-ship glm-parser-output-shape" data-resolved-at="2026-09-01T20:50:39+00:00" data-resolved-by="reckon-ship">
+<article class="r-fu" data-id="f-gpos-01" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-capability-verification="strict" data-written-by="reckon-ship" data-written-at="2026-09-01" data-recommends-skill="/reckon-build glm-parser-output-shape" data-resolved-at="2026-09-01T20:50:39+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Fix the two parser framing defects against a live engine</h4>
     <div class="r-fu-body">Both were observed on the live four-card release during its coherence proof, so both are reproducible against a running endpoint rather than needing a fixture. The stray closing marker appears in tool responses that carry no thinking block; the reasoning cap is consumed inside the thought so no separate final text block is emitted. Neither blocks serving, which is why they were split out of the bring-up rather than holding it. Re-run the same tool-use and reasoning probes afterwards to confirm correctness and coherence are unchanged.</div>
-    <pre class="r-fu-prompt">/reckon-ship glm-parser-output-shape</pre>
+    <pre class="r-fu-prompt">/reckon-build glm-parser-output-shape</pre>
     <p class="r-fu-outcome">Shipped in the same session that raised it, rather than handed on. The stray marker is stripped by middleware the serves already load, and the reasoning truncation was already closed by the per-release output reservation, which sits an order of magnitude above the measured threshold. Both are guarded by tests and neither alters tool-call correctness or coherence. done — no followup.</p>
     </article>
 </section>

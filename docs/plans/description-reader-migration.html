@@ -93,20 +93,20 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-drm-001" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-ship" data-written-at="2026-08-16" data-recommends-skill="/reckon-ship description-reader-migration §2" data-resolved-at="2026-08-16T20:05:21+00:00" data-resolved-by="reckon-ship">
+<article class="r-fu" data-id="f-drm-001" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-ship" data-written-at="2026-08-16" data-recommends-skill="/reckon-build description-reader-migration §2" data-resolved-at="2026-08-16T20:05:21+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Re-stamp the frozen baseline with corrected sensor identity</h4>
     <div class="r-fu-body"><p>The reference residual 0.7401030841614555 was produced with a
         sensor map whose nearest-coordinate join aliased six acquisition channels onto one
         reconstruction index, and flagged channels are not masked downstream. Re-stamp with the
         corrected identity so the comparator every migration step is judged against is sound.
         This gates the whole migration and must land first.</p></div>
-    <pre class="r-fu-prompt">/reckon-ship description-reader-migration §2</pre>
+    <pre class="r-fu-prompt">/reckon-build description-reader-migration §2</pre>
     <p class="r-fu-outcome">Landed as commits 3d3ed8c + d537b60 (merged e52d66f). One-to-one measured-waveform identity binding (digest sha256:1d41708300ef…) replaces the aliased join across all 19 flux-loop channels; corrected frozen references greens-matvec 0.6890842357802178 and grid-delstar 0.6889769655392166 (−6.89%/−6.91% vs aliased 0.7401030841614555); per-seam budget 0.1245% derived as 8× the corrected cross-substrate spread; 49 parity tests green; coverage pinned per shot. The §2 migration trigger is satisfied — seams may now migrate against a sound comparator.</p>
     </article>
-<article class="r-fu" data-id="f-drm-002" data-status="resolved" data-written-by="reckon-ship" data-written-at="2026-08-17" data-recommends-skill="/reckon-ship vacuum-field-position-adjudication §3" data-resolved-at="2026-08-17T04:58:59+00:00" data-resolved-by="reckon-ship">
+<article class="r-fu" data-id="f-drm-002" data-status="resolved" data-written-by="reckon-ship" data-written-at="2026-08-17" data-recommends-skill="/reckon-build vacuum-field-position-adjudication §3" data-resolved-at="2026-08-17T04:58:59+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Continuation: adjudicated loop positions enter the declared catalog</h4>
     <div class="r-fu-body"><p>Foreign-owner: the declared catalog this migration now makes production-authoritative still carries the disputed loop positions; applying the 16 directional vacuum verdicts and the 3 undecided qualifications is owned by the vacuum-field-position-adjudication plan and was deliberately sequenced after this retirement so it lands as its own measured content change.</p></div>
-    <pre class="r-fu-prompt">/reckon-ship vacuum-field-position-adjudication §3</pre>
+    <pre class="r-fu-prompt">/reckon-build vacuum-field-position-adjudication §3</pre>
     <p class="r-fu-outcome">Landed in vacuum-field-position-adjudication as commits cee483a + 06a579d (merged 62f4b91): all 19 adjudicated positions are range-scoped evidence-carrying catalog declarations, the 3 nulls explicitly undecided; the post-update frozen stamp moved ~1e-8 relative at 36/36 coverage. The declared catalog this migration made production-authoritative now carries measurement-vindicated loop positions. Done — no followup: both S23 plans are shipped and the chain closes here.</p>
     </article>
 </section>

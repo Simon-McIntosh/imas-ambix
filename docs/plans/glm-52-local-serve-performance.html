@@ -214,12 +214,12 @@
 <article class="r-fu" data-id="f-glm-01" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-08-26" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Record throughput for the INT4 serve and re-baseline DeepSeek on the same stack</h4>
     <div class="r-fu-body">The stored DeepSeek baselines predate the current engine and framework pin, so they cannot be compared against a run taken today. Once the INT4 serve answers, benchmark it with provenance capture active, then re-run the same suite against the DeepSeek serve so both numbers come from one stack. Report time to first token, single-stream decode rate, and the aggregate curve, and state the draft-token acceptance rate.</div>
-    <pre class="r-fu-prompt">/reckon-ship glm-52-local-serve-performance §4</pre>
+    <pre class="r-fu-prompt">/reckon-build glm-52-local-serve-performance §4</pre>
     </article>
-<article class="r-fu" data-id="f-glm-02" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-ship" data-written-at="2026-08-26" data-recommends-skill="/reckon-ship glm-52-local-serve-performance §4" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-glm-02" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-ship" data-written-at="2026-08-26" data-recommends-skill="/reckon-build glm-52-local-serve-performance §4" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Repair the GPU-allocation parsing that makes agent status blind to live serves</h4>
     <div class="r-fu-body">The status command reports zero serving while two serve jobs run, and flags every running job as a rejected serve candidate with 'unsupported or missing GPU allocation'. Reported by a peer session whose own serve was flagged, so it is not specific to one profile or card count; it appeared alongside the live-route discovery work. The scheduler itself is fine -- reading squeue directly gives the correct allocation -- so the fault is in how the command parses the generic-resource field. It matters because operators use this command to decide whether an endpoint is up.</div>
-    <pre class="r-fu-prompt">/reckon-ship glm-52-local-serve-performance §4</pre>
+    <pre class="r-fu-prompt">/reckon-build glm-52-local-serve-performance §4</pre>
     </article>
 </section>
 

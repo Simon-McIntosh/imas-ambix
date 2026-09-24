@@ -248,25 +248,25 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-mmte-001" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-08-13" data-recommends-skill="/reckon-ship machine-map-transform-engine §3" data-resolved-at="2026-08-13T08:19:12+00:00" data-resolved-by="reckon-ship">
+<article class="r-fu" data-id="f-mmte-001" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-08-13" data-recommends-skill="/reckon-build machine-map-transform-engine §3" data-resolved-at="2026-08-13T08:19:12+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Extend the shot manifest with named geometry transitions</h4>
     <div class="r-fu-body"><p>First rung, and deliberately before the map schema hardens:
         the manifest carries campaign per shot but not where geometry actually moved. Name the
         transitions from the per-campaign geometry table so a description is selected by shot
         through a declared boundary. What this exposes about mid-corpus change is the evidence
         the map-expressiveness decision needs.</p></div>
-    <pre class="r-fu-prompt">/reckon-ship machine-map-transform-engine §3</pre>
+    <pre class="r-fu-prompt">/reckon-build machine-map-transform-engine §3</pre>
     <p class="r-fu-outcome">Landed as commit c3cdba3 (merged 921069c). 11 named transitions over 11,573 level-2 shots spanning 11766-30471, gap-free and overlap-free, lookup resolved for every shot in span. The evidence it was sequenced to produce came back decisive: 10 of 11 boundaries fall strictly inside campaign M5, so campaign is not a usable key for geometry while shot range is, and map-expressiveness locked to range-scoped-maps on that partition rather than on the plan's stated preference. Carried qualification: the repeated 1004&lt;-&gt;938 PF-filament-count alternation is not physical, so 11 is an upper bound on real machine changes and some boundaries record EFIT setup-array churn.</p>
     </article>
-<article class="r-fu" data-id="f-mmte-002" data-status="open" data-written-by="reckon-ship" data-written-at="2026-08-16" data-recommends-skill="/reckon-ship description-reader-migration §2" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-mmte-002" data-status="open" data-written-by="reckon-ship" data-written-at="2026-08-16" data-recommends-skill="/reckon-build description-reader-migration §2" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Retire the 41 legacy description readers, re-stamping the baseline first</h4>
     <div class="r-fu-body"><p>Exemption: <strong>foreign-owner</strong>. §5's clause that no machine-specific reader remains is NOT met and is owned by <a href="/imas-ambix/plans/description-reader-migration">description-reader-migration</a> in S23, which surfaces it through its own lifecycle. It is a wide-surface migration across 41 call sites gated on a re-stamped frozen baseline, and that re-stamp is the first thing it does — migrating against a comparator built on the defective sensor identity join would bank the error twice. This plan produced everything that migration needs: an adapter whose operator is structurally identical to the legacy one, and the assessment naming what the baseline defect is.</p></div>
-    <pre class="r-fu-prompt">/reckon-ship description-reader-migration §2</pre>
+    <pre class="r-fu-prompt">/reckon-build description-reader-migration §2</pre>
     </article>
-<article class="r-fu" data-id="f-mmte-003" data-status="open" data-written-by="reckon-ship" data-written-at="2026-08-16" data-recommends-skill="/reckon-ship vacuum-field-position-adjudication §3" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-mmte-003" data-status="open" data-written-by="reckon-ship" data-written-at="2026-08-16" data-recommends-skill="/reckon-build vacuum-field-position-adjudication §3" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Adjudicate the nineteen disputed loop positions against measured vacuum flux</h4>
     <div class="r-fu-body"><p>Exemption: <strong>foreign-owner</strong>. The 19 level-2-versus-reconstruction loop-position residuals, maximum 0.437 m at fl_p4l_1, are owned by <a href="/imas-ambix/plans/vacuum-field-position-adjudication">vacuum-field-position-adjudication</a> in S23. They cannot be settled inside this plan because both candidates are plausible descriptions of the same signal-proven hardware and comparing descriptions to each other decides nothing; a vacuum shot makes the flux attributable to known coil currents so a measurement can arbitrate independently of both.</p></div>
-    <pre class="r-fu-prompt">/reckon-ship vacuum-field-position-adjudication §3</pre>
+    <pre class="r-fu-prompt">/reckon-build vacuum-field-position-adjudication §3</pre>
     </article>
 </section>
   <section data-reckon="comments" id="comments" class="r-comments">

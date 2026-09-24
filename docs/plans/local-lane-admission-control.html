@@ -791,12 +791,12 @@
     <div class="r-fu-body"><p><strong>Raised from deferred to near-term.</strong> <code>~/public/imas-ambix/endpoints.json</code> advertises the engine directly at <code>98dci4-gpu-0003:18810</code>, and the engine binds <code>0.0.0.0</code>. So any consumer that resolves the lane through that document reaches the engine without passing the admission gate, and without being subject to the pause the router now enforces. imas-codex's own config uses the router at <code>:18802</code>, so nothing is known to bypass it today — but the document invites it, and a pause that a published document routes around is not a pause.</p>
 <p><strong>Separate the fix from the exposure, because they cost very different amounts.</strong> The fix is the loopback bind, and it needs a drained relaunch of the engine exactly as §10 did. The <em>exposure</em> is the document, and correcting it to advertise only the router costs nothing, needs no drain, and removes the invitation the same day. Do the document first; it is not a substitute for the bind, since anything that already knows the host and port still reaches it, but it closes the path a well-behaved consumer would actually take.</p>
 <p>Sequencing constraint for whoever takes this: the drained relaunch must not overlap the fleet allocation's retirement. Both require draining to a held zero, and running them together means neither drain's failure is attributable.</p></div>
-    <pre class="r-fu-prompt">/reckon-ship local-lane-admission-control</pre>
+    <pre class="r-fu-prompt">/reckon-build local-lane-admission-control</pre>
     </article>
 <article class="r-fu" data-id="f-llac-01" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-create" data-written-at="2026-09-23" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Investigate the three layers, then design the fix</h4>
     <div class="r-fu-body"><p>§3–§5 are independent investigation nodes on the local lane; §6 is authored from their evidence.</p></div>
-    <pre class="r-fu-prompt">/reckon-ship local-lane-admission-control</pre>
+    <pre class="r-fu-prompt">/reckon-build local-lane-admission-control</pre>
     </article>
 </section>
   <section data-reckon="comments" id="comments" class="r-comments">
