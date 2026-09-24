@@ -11,7 +11,7 @@
   <meta name="plan-status" content="active">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort-hours" content="6.0">
-  <meta name="plan-impl" content="0.45">
+  <meta name="plan-impl" content="0.5">
   <meta name="plan-capability-version" content="1.0">
   <meta name="plan-capability-class" content="orchestrator">
   <meta name="plan-capability-reasoning" content="deep">
@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-25">
-<meta name="plan-version" content="6">
+<meta name="plan-version" content="9">
 </head>
 <body>
   <main class="plan-doc">
@@ -202,54 +202,21 @@
     and listing the others as peers. The login node runs no Claude session of the fleet. Workers
     are dispatched through the supervisor before any fleet session dispatches.</p>
 
-    <h2 id="s8">&sect;8 &mdash; A slow view is not an extra hop</h2>
-    <p>On 2026-09-24 the lead reported that fleet tabs were slow. Some did not respond, graphics
-    sometimes garbled, the tab bar flickered, and lines near the input duplicated. The question was
-    whether the extra hops cause this, and whether zellij should move back to the login node with
-    each tab reaching into compute. <strong>The hops are not the cause.</strong> Each figure below
-    is a single-keystroke round trip through a raw pty, 40&ndash;60 samples per route, measured
-    that evening:</p>
-    <table>
-      <tr><th>Route</th><th>p50</th><th>p90</th></tr>
-      <tr><td>login &rarr; clu-2058, <code>srun --overlap --pty</code></td><td>0.7 ms</td><td>0.7 ms</td></tr>
-      <tr><td>login &rarr; clu-2058, direct <code>ssh -tt</code></td><td>0.7 ms</td><td>0.7 ms</td></tr>
-      <tr><td>laptop &rarr; <code>sdcc-login</code> (the WAN floor)</td><td>28 ms</td><td>29&ndash;30 ms</td></tr>
-      <tr><td>laptop &rarr; login &rarr; srun &rarr; clu-2058 (today's chain)</td><td>30 ms</td><td>33 ms</td></tr>
-      <tr><td>laptop &rarr; ProxyJump &rarr; clu-2058 directly</td><td>29 ms</td><td>32 ms</td></tr>
-    </table>
-    <p>Every route sits within 2 ms of the WAN floor when the link is quiet. In one earlier round,
-    every route, including the bare gateway, jumped together to p50 39&ndash;58 ms and p90
-    91&ndash;97 ms. That is jitter on the laptop's link, and no change of topology removes it.
-    Both transports carry a 2 MB escape-heavy burst byte-exact (619 ms srun, 656 ms ssh), and both
-    propagate a window resize. The idle viewer streams about 4 KB/s. Moving zellij to the login
-    node would put the same bytes across the same WAN. It would bring a multiplexer back onto the
-    node we left, and each Claude session would then need a separate holder on compute to survive a
-    dropped pane. <strong>Decision: zellij stays in the batch step.</strong> Direct ssh to the node
-    works while the job is held, but it gains nothing over <code>srun</code> for viewing.</p>
-    <p><strong>One defect was found and fixed on the laptop side.</strong> <code>focus-filter</code>,
-    which carries every byte between Windows Terminal and ssh, held a trailing partial escape for up
-    to 500 ms. A lone Esc (Claude Code's interrupt) is such a prefix, and so is the tail of any frame
-    that ends mid-CSI. The fix (dotfiles <code>3035280</code>, synced to the laptop) cut a lone Esc
-    from 501 ms to 21 ms, and focus events split across writes are still stripped. Tabs opened before
-    the sync keep the old filter until they reconnect.</p>
-    <p><strong>Still unexplained: the garbling, the tab-bar flicker and the duplicated lines.</strong>
-    The fleet zellij log shows 33 <code>Action NoOp did not complete within 1s timeout</code> errors,
-    all between 22:23 and 22:30, right after two reconnects 30 s apart at 22:22. The screen thread
-    stalls when a client attaches. Two candidate causes remain. The first is a resize storm on
-    attach: each Claude Code pane reflows and re-renders its transcript while zellij reflows up to
-    50,000 scrollback lines per pane. A one-pane probe with 60,000 lines could not start inside the
-    probe harness and needs redoing. The second is a brief second viewer: <code>fleet_connect</code>
-    cancels any earlier <code>cx-view-&lt;session&gt;</code> step, so opening the same profile in a
-    second tab freezes the first.</p>
-    <p><strong>Done when</strong> an investigate node reproduces the symptoms on a throwaway zellij
-    session on the fleet node, never on the live servers. Using the fleet zellij config and a Claude
-    Code pane with a long transcript, it measures three things: screen-thread stall time on attach
-    and on resize, at 10,000 and at 50,000 scrollback lines; whether a second attach at a different
-    size produces the tab-bar flicker; and whether the duplicated lines follow a width mismatch
-    between Claude Code and its pane. The deliverable is a research note naming the cause, with a
-    measured before and after for the config or cx change it recommends. The negative control is the
-    same probe on a plain shell pane, which must not stall.</p>
-    <p><strong>How the node reaches the fleet node.</strong> The fleet job id and node are in
+    <section id="s8" class="section-landed">
+    <header><span class="badge badge-shipped">&#10003; landed 2026-09-25</span>
+    <h2>&sect;8 &mdash; A slow view is not an extra hop</h2></header>
+    <p class="landed-summary">Keystroke round trips put every route from the laptop within
+    2&nbsp;ms of the 28&nbsp;ms WAN floor, and <code>srun</code> and direct ssh to the node are
+    identical at 0.7&nbsp;ms, so zellij stays in the batch step. <code>focus-filter</code>'s
+    500&nbsp;ms Esc hold was fixed at 21&nbsp;ms (dotfiles <code>3035280</code>). A throwaway probe
+    measured no stall at 10,000 or 50,000 scrollback lines: attach 153/175&nbsp;ms, resize
+    434/418&nbsp;ms, plain-shell control 153/439&nbsp;ms. That refutes the resize-storm hypothesis.
+    The <a href="/imas-ambix/research/fleet-view-rendering">fleet-view rendering note</a> was
+    reviewed at 73/100 and its four defects were repaired. Full record:
+    <a href="/imas-ambix/evidence/archive/agent-sessions-live-on-the-fleet-node-landed#fleet-view-rendering-note-repair">&sect;8
+    landed</a> (commits <code>6bfe2da2</code>, <code>52691cc1</code>).</p>
+    </section>
+    <p><strong>Probe safety rules, which &sect;9 also follows.</strong> The fleet job id and node are in
     <code>~/.local/state/fleet/record.json</code>. Run probes there with
     <code>TMPDIR=/tmp srun --overlap --jobid=&lt;job_id&gt; --job-name=zj-probe &hellip;</code>, or
     with <code>ssh &lt;node&gt;</code>, which works while the job is held. Use a private
@@ -261,34 +228,7 @@
     byte stream rather than run a live model session. Record one with <code>script</code> from a
     short <code>claude -p</code> run on the local lane, or replay a stream.jsonl rendering. Logs
     and the research note go on GPFS under the repository, not on node-local <code>/tmp</code>.</p>
-    <p><strong>First result, 2026-09-25: no stall at either scrollback size.</strong> The
-    <a href="/imas-ambix/research/fleet-view-rendering">fleet-view rendering note</a> measured a
-    throwaway session with a recorded Claude Code pane:</p>
-    <ul>
-      <li>attach took 153&nbsp;ms at 10,000 scrollback lines and 175&nbsp;ms at 50,000;</li>
-      <li>resize took 434&nbsp;ms and 418&nbsp;ms respectively;</li>
-      <li>the plain-shell control took 153&nbsp;ms to attach and 439&nbsp;ms to resize;</li>
-      <li>no run logged a one-second stall.</li>
-    </ul>
-    <p>The resize-storm hypothesis is refuted.</p>
-    <p>The independent review scored the note 73/100, with durability at 8. The coordinator's
-    check found a fourth defect. The repair node, run on the same task, fixes all four:</p>
-    <ul>
-      <li>the create-failure pointer names an empty file;</li>
-      <li>the per-run stall-line deltas were never committed as a receipt;</li>
-      <li>the first live stall came 8.85&nbsp;s after the second new tab, not 40&nbsp;s;</li>
-      <li>the note's <code>plan-slug</code> is the plan's own slug, not
-      <code>fleet-view-rendering</code>, and that makes the plan's slug ambiguous.</li>
-    </ul>
-    <p><strong>Repair done when:</strong></p>
-    <ul>
-      <li>the pointer names the file that carries the string;</li>
-      <li>a committed receipt holds each run's before and after stall-line counts;</li>
-      <li>the interval reads 8.85&nbsp;s;</li>
-      <li>the note carries <code>plan-slug</code> <code>fleet-view-rendering</code> with
-      <code>plan-informs</code> naming this plan;</li>
-      <li><code>reckon audit-doc</code> passes on the note.</li>
-    </ul>
+
 
     <h2 id="s9">&sect;9 &mdash; What the probe could not see</h2>
     <p>&sect;8's probe ruled out scrollback size. It left three questions open, and the live
@@ -347,7 +287,7 @@
     <div class="r-comment-body"><p>Review of fleet-view-stall-cause: 73/100 (durability 8); three note defects found, zero-stall claim re-verified on the fleet node; commits line repaired from prose to empty (as-delivered kept)</p></div>
 </div>
 <div class="r-comment" data-section="s8" data-id="c-run-r-20260924T232256692621-fleet-view-note-repair" data-who="reckon-build" data-when="2026-09-25T01:40:00.000Z">
-    <div class="r-comment-body"><p>Repair node: all four note defects fixed in <code>docs/research/fleet-view-rendering.html</code>. The create-failure pointer now names <code>probe/create-cc-10000.out</code> (28&nbsp;B, carries <code>There is no active session!</code>); the receipt <code>evidence-probe/stall-lines.txt</code> holds all 33 stall lines read over ssh from the fleet log on 98dci4-clu-2058, last at 22:30:48.186 with the log running on to 23:44:22.328 without another; the interval now reads 8.85&nbsp;s (tab 6 at 22:22:56.655, first stall 22:23:05.507); the note's slug is now <code>fleet-view-rendering</code> with <code>plan-informs agent-sessions-live-on-the-fleet-node</code>. <code>reckon audit-doc</code> exits 0. Evidence anchor: <a href="/imas-ambix/evidence/archive/agent-sessions-live-on-the-fleet-node-landed">the landed evidence record</a>.</p></div>
+    <div class="r-comment-body"><p>Repair node: all four note defects fixed in <code>docs/research/fleet-view-rendering.html</code>. The create-failure pointer now names <code>probe/create-cc-10000.out</code> (28 B, carries <code>There is no active session!</code>); the receipt <code>evidence-probe/stall-lines.txt</code> holds all 33 stall lines read over ssh from the fleet log on 98dci4-clu-2058, last at 22:30:48.186 with the log running on to 23:44:22.328 without another; the interval now reads 8.85 s (tab 6 at 22:22:56.655, first stall 22:23:05.507); the note's slug is now <code>fleet-view-rendering</code> with <code>plan-informs agent-sessions-live-on-the-fleet-node</code>. <code>reckon audit-doc</code> exits 0. Evidence anchor: <a href="/imas-ambix/evidence/archive/agent-sessions-live-on-the-fleet-node-landed">the landed evidence record</a>.</p></div>
 </div>
 </section>
 </main>
