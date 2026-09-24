@@ -100,7 +100,7 @@
       whether its owner is alive.</strong> In <code>reckon/cli.py</code>,
       <code>_check_consumer</code> returns at once unless
       <code>registration.held</code>, so only one follower per session can ever notice
-      that its session died. Every read-only follower polls until it is killed.</li>
+      that its session died. Every read-only follower polls until it is killed. A parent pid of 1 cannot identify these orphans: reckon's dispatch deliberately exits right after launching its worker, so live workers have ppid 1 too. An orphan is a process whose owning session is dead, and a census must test that. Selecting by the crew session id in the argv finds one session's processes without touching anyone else's.</li>
       <li><strong>A monitor's expiry kills its wrapper, not the follower inside
       it.</strong> The follower is reparented to init and keeps polling, so each re-arm
       adds one more. The ten nova orphans were 6:21, 5:17, 4:47, 3:42, 3:03, 2:29,
