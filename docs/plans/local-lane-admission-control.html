@@ -23,9 +23,9 @@
   <title>Local Lane Admission Control | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-09-23">
+<meta name="plan-modified" content="2026-09-24">
 <meta name="plan-impl" content="0.77">
-<meta name="plan-version" content="36">
+<meta name="plan-version" content="38">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;}">
 <meta name="plan-artifacts" content="docs/evidence/archive/local-lane-admission-control-landed.html">
 <meta name="plan-commits" content="4bb11e8917c6dc9662d6214da6ec7eb595713984,da60421b4267fc7fc6fafb2a7e5dbb242da1cfba,569b91efd9e1e2e0e00c6d86cd589810391752c5,7ecfec3ba6ed3d68d68e03a104bd33e70ba75037,decc190bc301c74e02f2491bc6a557a163f9c744">
@@ -622,6 +622,55 @@
     <code>/v1/models</code>, one real completion, the new launch arguments in the
     engine's <code>server_args</code> line, and the gate's auto width appearing in
     <code>lane.json</code>. Only then is RESUME signalled.</p>
+    <p><strong>Landed 2026-09-24.</strong> Engine job 1277121 runs with
+    <code>schedule_policy 'lpm'</code>, <code>max_queued_requests 64</code>,
+    <code>max_running_requests 36</code> and <code>hicache_ratio 2.0</code>, quoted from its
+    server arguments. Router job 1277126 runs with no time limit, and the gate file reads
+    <code>"width": "auto"</code>. A request through the router returned 200 in 0.23 s. Two
+    defects surfaced and are fixed. <code>agent restart --dry-run</code> cancelled the live
+    engine before checking for the dry run (fixed in 31f80e9c, with a test that fails when
+    the guard is disabled). The lane had read zero, so nothing was lost. Standing services
+    had carried a seven-day limit; they now submit unlimited (b8ef2663).</p>
+
+    <h2 id="s11">&sect;11 &mdash; A pause is enforced at the router, not requested by message</h2>
+    <p>The drain for &sect;10 was a message to thirteen coordinators, and it leaked. At
+    05:13Z on 2026-09-24, reckon's review sweep, running inside nova-cc's follower, dispatched
+    a review onto the paused lane with no coordinator turn involved. nova-cc caught it and
+    stopped it within five minutes. A message reaches sessions; it does not reach processes
+    that act without one, nor any caller outside reckon. A pause that has to hold across the
+    whole lane belongs where every request passes: the router.</p>
+    <p><strong>The mechanism.</strong> The gate file (<code>router-gate.json</code>) gains
+    <code>"paused": true</code> with a <code>"reason"</code>. While it is set, the gate admits
+    no new generation, whatever its width. Requests already in flight run to completion, so a
+    pause drains rather than cuts. New requests wait in the gate's FIFO. Past
+    <code>wait_seconds</code> they receive the existing <code>overloaded_error</code> with a
+    <code>Retry-After</code>, and Claude Code honours that exactly. <code>lane.json</code>
+    publishes <code>paused</code> and the reason, so a reader sees the state rather than
+    inferring it from a zero count. <code>imas-ambix agent pause --reason &lt;text&gt;</code>
+    and <code>imas-ambix agent resume</code> write the file and print the lane's counts. The
+    router reads the file live, as it already does for width, so pausing needs no restart.</p>
+    <p>A pause also has to stop new workers being started into it, which is reckon's side: a
+    dispatch, including a follower's sweep, holds while <code>lane.json</code> reads
+    <code>paused</code>. That is reported to reckon rather than implemented here.</p>
+    <p><strong>Done when</strong> a test shows a paused gate admitting nothing new while an
+    in-flight request completes. Resuming admits the held request in FIFO order,
+    <code>lane.json</code> reads <code>paused</code> with its reason, and the CLI round-trips
+    the file. A mutation that drops the paused check from admission must fail the test.</p>
+
+    <h2 id="s12">&sect;12 &mdash; Every destructive agent command proves its dry run changes nothing</h2>
+    <p><code>agent restart --dry-run</code> cancelled the live engine because its cancel ran
+    before the dry-run check. Any command that offers a dry run and can also cancel, kill,
+    delete, rotate or overwrite can carry the same defect, and a dry run is exactly what an
+    operator reaches for when unsure. The audit covers every <code>imas-ambix agent</code>
+    subcommand with a destructive path: <code>restart</code>, <code>shutdown</code>,
+    <code>key --rotate</code>, <code>serve</code>, <code>router --submit</code>,
+    <code>download</code>, <code>clive --deploy</code>, and any subcommand that writes the
+    endpoint document or a registration.</p>
+    <p><strong>Done when</strong> each such subcommand that accepts <code>--dry-run</code> has a
+    test that runs it with a live-looking job or file present and asserts that no
+    <code>scancel</code>, <code>sbatch</code>, file write or registration change occurs. Each test
+    fails when its guard is disabled. A subcommand without a dry run is listed as such in the
+    record, with whether it confirms before acting.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
