@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="300" viewBox="0 0 960 300">
+  <style type="text/css">
+    .box { fill: #eef2f7; stroke: #4a5a6a; stroke-width: 1.5; rx: 8; }
+    .site { fill: #d8ead3; stroke: #2f6b2f; stroke-width: 2.5; rx: 8; }
+    .last { fill: #f4f0e6; stroke: #8a7a4a; stroke-width: 1.5; stroke-dasharray: 5 3; rx: 8; }
+    .t { font-family: "DejaVu Sans Mono", monospace; font-size: 15px; fill: #1a1a1a; }
+    .s { font-family: "DejaVu Sans Mono", monospace; font-size: 12.5px; fill: #333333; }
+    .h { font-family: "DejaVu Sans Mono", monospace; font-size: 16px; font-weight: bold; fill: #1a1a1a; }
+    .arrow { stroke: #4a5a6a; stroke-width: 2; fill: none; marker-end: url(#a); }
+    .slab { font-family: "DejaVu Sans Mono", monospace; font-size: 13px; fill: #2f6b2f; }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#4a5a6a"/>
+    </marker>
+  </defs>
+
+  <text class="h" x="24" y="34">Gate control path: one resolution order, four sources</text>
+
+  <rect class="box" x="24" y="60" width="196" height="74"/>
+  <text class="t" x="38" y="88">1. --gate-file</text>
+  <text class="s" x="38" y="110">explicit option,</text>
+  <text class="s" x="38" y="126">expanded and absolute</text>
+
+  <line class="arrow" x1="220" y1="97" x2="256" y2="97"/>
+
+  <rect class="box" x="260" y="60" width="196" height="74"/>
+  <text class="t" x="274" y="88">2. AMBIX_ROUTER_</text>
+  <text class="t" x="274" y="106">   GATE_PATH</text>
+  <text class="s" x="274" y="126">environment</text>
+
+  <line class="arrow" x1="456" y1="97" x2="492" y2="97"/>
+
+  <rect class="site" x="496" y="60" width="212" height="74"/>
+  <text class="t" x="510" y="88">3. site control path</text>
+  <text class="s" x="510" y="110">SiteConfig.gate_control_path</text>
+  <text class="s" x="510" y="126">default: &lt;base&gt;/agents/control/</text>
+
+  <line class="arrow" x1="708" y1="97" x2="744" y2="97"/>
+
+  <rect class="last" x="748" y="60" width="188" height="74"/>
+  <text class="t" x="762" y="88">4. lane document's</text>
+  <text class="t" x="762" y="106">   sibling</text>
+  <text class="s" x="762" y="126">last resort only</text>
+
+  <text class="slab" x="496" y="52">the step the wording omitted</text>
+  <line x1="496" y1="55" x2="708" y2="55" stroke="#2f6b2f" stroke-width="2"/>
+
+  <text class="h" x="24" y="184">Corrected to name all four, in this order</text>
+
+  <rect class="box" x="24" y="204" width="440" height="72"/>
+  <text class="t" x="38" y="230">imas_ambix/agent/cli.py</text>
+  <text class="s" x="38" y="250">router / pause / resume / width --gate-file help;</text>
+  <text class="s" x="38" y="266">_gate_document_path docstring</text>
+
+  <rect class="box" x="496" y="204" width="440" height="72"/>
+  <text class="t" x="510" y="230">imas_ambix/agent/slurm.py</text>
+  <text class="s" x="510" y="250">generate_router_script docstring;</text>
+  <text class="s" x="510" y="266">the no-option unset line's comment</text>
+</svg>
