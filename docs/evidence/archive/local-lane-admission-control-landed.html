@@ -10,7 +10,7 @@
   <meta name="plan-summary"      content="Cumulative execution record for local-lane-admission-control: capacity levers, scheduler levers, client behaviour, the router gate and the bypass trace">
   <meta name="plan-tags"         content="agent-serving,gpu-deployment">
   <meta name="plan-evidence-for" content="local-lane-admission-control">
-  <meta name="plan-verifies"     content="local-lane-admission-control#s3,local-lane-admission-control#s5,local-lane-admission-control#s6,local-lane-admission-control#s7,local-lane-admission-control#s8,local-lane-admission-control#s11,local-lane-admission-control#s12,local-lane-admission-control#s19,local-lane-admission-control#s14">
+  <meta name="plan-verifies"     content="local-lane-admission-control#s3,local-lane-admission-control#s5,local-lane-admission-control#s6,local-lane-admission-control#s7,local-lane-admission-control#s8,local-lane-admission-control#s11,local-lane-admission-control#s12,local-lane-admission-control#s19,local-lane-admission-control#s14,local-lane-admission-control#s17">
   <meta name="plan-owner"        content="Simon McIntosh">
   <title>Local Lane Admission Control — Landed Evidence | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
@@ -691,6 +691,13 @@
 
     <p id="width-controller-demand-independent"><strong>Queue-free guard and auto handoff correction, 2026-09-25</strong> (<code>30f5def9</code>). The health window is now independent of throughput demand: with <code>running=30</code>, <code>waiting=0</code>, width 36 and <code>prefix_hit_rate=0.70</code>, the test records one guard step per six-scrape window (36 to 34 to 32), then holds at 32 after the hit rate returns to 0.99. A live integer-to-auto edit records width 14 before the edit and width 14 after it, despite a memory ceiling of 36; the controller starts from the width currently in force. The final declared gate passes 36/36 and whole-tree <code>ruff check imas_ambix tests</code> exits 0. The declared negative-control string is &ldquo;making the guard require waiting &gt; 0 again must fail (a).&rdquo; The scratch mutation that discarded the health guard whenever <code>waiting &lt;= 0</code> fails the queue-free regression (<code>1 failed</code>) and is removed before the final green gate.</p>
 
+
+    <p><strong>Not deployed.</strong> The controller is landed but not in force: no
+    router restart and no write to <code>router-gate.json</code>, so the operator
+    width of 14 stands. The speculative-depth sweep and the served-settings
+    re-derivation on this section remain open.</p>
+  </section>
+
   <section id="generation-counter-parser">
     <h2>The SGLang parser retains the cumulative generation-token counter</h2>
     <p>The recorded SGLang fixture contains <code>sglang:generation_tokens_total</code>
@@ -711,10 +718,34 @@
     and is not part of the committed change.</p>
   </section>
 
-    <p><strong>Not deployed.</strong> The controller is landed but not in force: no
-    router restart and no write to <code>router-gate.json</code>, so the operator
-    width of 14 stands. The speculative-depth sweep and the served-settings
-    re-derivation on this section remain open.</p>
+  <section id="lane-cycle-runbook-repair">
+    <h2>Lane-cycle runbook receipt hardening</h2>
+
+    <p><strong>Defects reproduced.</strong> The independent review found that the
+    runbook's dry-run check could judge only the downstream count and that steps 1
+    and 7 had no executable command. The failing producer control
+    <code>false | grep -c x</code> emitted <code>0</code> while the producer exited
+    <code>1</code>; a real producer emitting <code>/tmp/.reckon-worktrees/generated-script</code>
+    emitted <code>1</code> with exit <code>0</code>. The output-only check therefore
+    could mistake a failed dry run for a clean zero-match script.</p>
+
+    <p><strong>Repair.</strong> Commits <code>42d8ea9e</code> and <code>f4047b37</code> add the exact coordinator
+    directory command, captures the dry-run producer status before counting
+    <code>.reckon-worktrees</code> matches, and asserts that the count is zero. It
+    also names the owning run receipt
+    <code>/home/ITER/mcintos/.config/reckon/crew/runs/$RECKON_RUN_ID/lane-cycle.jsonl</code>
+    and supplies the exact <code>printf</code> append command for pause start, pause
+    end, peak held count and final failures. The guard simulation rejected the
+    failing producer, accepted a clean zero-match producer and rejected a
+    forbidden path.</p>
+
+    <p><strong>Verification.</strong> The executable directory lookup exited 0 and
+    reported one live coordinator. The gate
+    <code>UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv
+    PYTHONPATH=$PWD uv run --no-sync ruff check imas_ambix tests</code> exited 0
+    with <code>All checks passed!</code>. No pause, resume, restart, shutdown or
+    serve mutation was run. Reproduction and repaired-guard receipts are preserved
+    under <code>/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T130830267275-s17-runbook-review-repair/</code>.</p>
   </section>
 </main>
 </body>
