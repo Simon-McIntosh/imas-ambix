@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 300" font-family="system-ui, sans-serif" font-size="13">
+  <rect width="720" height="300" fill="#ffffff"/>
+  <text x="16" y="26" font-size="15" font-weight="600">The gate path reaches a submitted router through the generated script</text>
+
+  <!-- submit side -->
+  <rect x="16" y="60" width="200" height="96" rx="6" fill="#eef4fb" stroke="#3b6ea5"/>
+  <text x="28" y="82" font-weight="600">agent router --submit</text>
+  <text x="28" y="102" font-family="monospace">--gate-file X</text>
+  <text x="28" y="124" fill="#555">the path is named only once,</text>
+  <text x="28" y="140" fill="#555">at submit time</text>
+
+  <!-- arrow -->
+  <line x1="216" y1="108" x2="272" y2="108" stroke="#333" stroke-width="1.5" marker-end="url(#a)"/>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#333"/>
+    </marker>
+  </defs>
+
+  <!-- generated script -->
+  <rect x="276" y="52" width="228" height="112" rx="6" fill="#f4f1e8" stroke="#a5893b"/>
+  <text x="288" y="74" font-weight="600">generated SLURM script</text>
+  <text x="288" y="96" font-family="monospace" font-size="12">#SBATCH ... (no --export)</text>
+  <text x="288" y="116" font-family="monospace" font-size="12">export AMBIX_ROUTER_GATE_PATH=X</text>
+  <text x="288" y="140" fill="#555">a value the running job carries</text>
+  <text x="288" y="156" fill="#555">and a reader can audit</text>
+
+  <line x1="504" y1="108" x2="560" y2="108" stroke="#333" stroke-width="1.5" marker-end="url(#a)"/>
+
+  <!-- router -->
+  <rect x="564" y="60" width="140" height="96" rx="6" fill="#eef7ee" stroke="#3b8a4e"/>
+  <text x="576" y="84" font-weight="600">submitted router</text>
+  <text x="576" y="106" fill="#555">reads the control file</text>
+  <text x="576" y="122" fill="#555">the submitter chose</text>
+
+  <!-- no-option branch -->
+  <line x1="390" y1="164" x2="390" y2="212" stroke="#777" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#b)"/>
+  <defs>
+    <marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#777"/>
+    </marker>
+  </defs>
+  <rect x="150" y="216" width="480" height="56" rx="6" fill="#f7f7f7" stroke="#999" stroke-dasharray="4 3"/>
+  <text x="164" y="240" font-weight="600">no --gate-file</text>
+  <text x="164" y="260" fill="#555" font-size="12">the generated script is byte-identical to the pre-option generator; the job keeps reading the lane document's sibling</text>
+</svg>
