@@ -14,6 +14,7 @@ import math
 import time
 from collections.abc import Sequence
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -1122,6 +1123,44 @@ def test_an_over_long_or_control_bearing_identity_is_recorded_as_absent(
         assert rows[1]["coordinator_session"] is None
 
     asyncio.run(exercise())
+
+
+def test_a_header_sequence_that_is_not_pairs_cannot_escape_the_recorder(
+    tmp_path: Path,
+) -> None:
+    """A scope whose headers are not pairs writes a row rather than raising.
+
+    The recorder runs in a ``finally`` whose exception may still be propagating,
+    so a header sequence it cannot read must be absorbed here: a failure that
+    escaped would replace the relay's own error with this one, and the caller
+    would be told about the bookkeeping instead of what went wrong. Both
+    identities are recorded absent, and the row is still written.
+    """
+    receipts = tmp_path / "requests.jsonl"
+    app = RouterApp(
+        Resolver([Upstream("http://engine")]), request_receipts_path=receipts
+    )
+    try:
+        for malformed in ([(b"x-reckon-run-id",)], [7]):
+            app._record_receipt(
+                accounting=StreamAccounting(),
+                status=STATUS_COMPLETED,
+                model_id="streamer",
+                upstream="http://engine",
+                caller_hint="local",
+                scope={"headers": malformed},
+                started_at=datetime.now(UTC),
+                began=time.perf_counter(),
+            )
+    finally:
+        if app._receipts is not None:
+            app._receipts.close()
+
+    rows = _read_rows(receipts)
+    assert len(rows) == 2
+    for row in rows:
+        assert row["run_id"] is None
+        assert row["coordinator_session"] is None
 
 
 def test_an_identity_that_is_not_a_well_formed_token_is_rejected_at_the_boundary() -> (

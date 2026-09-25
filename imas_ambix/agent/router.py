@@ -1921,14 +1921,27 @@ class RouterApp:
         keyed from the request that produced it rather than from anything the
         router might infer about the caller.
 
-        Never raises into the relay: this runs in a ``finally`` whose exception
-        may still be propagating, so a failure here would replace the real
-        error with a bookkeeping one.
+        Nothing here raises into the relay: this runs in a ``finally`` whose
+        exception may still be propagating, so a failure here would replace the
+        real error with a bookkeeping one. That governs the header read as much
+        as the write, so a header sequence that is not pairs of bytes is read as
+        absent and the row is still written with both identities null.
         """
         sink = self._receipt_sink()
         if sink is None:
             return
-        run_id, coordinator_session = identity_from_headers(scope.get("headers") or ())
+        run_id: str | None = None
+        coordinator_session: str | None = None
+        try:
+            run_id, coordinator_session = identity_from_headers(
+                scope.get("headers") or ()
+            )
+        except (TypeError, ValueError) as error:
+            logger.warning(
+                "request identity unreadable error=%s: %s",
+                type(error).__name__,
+                error,
+            )
         try:
             sink.record(
                 model=model_id,
