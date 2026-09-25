@@ -984,10 +984,10 @@ def generate_router_script(
     launched without. With no ``gate_file`` the script unsets
     ``AMBIX_ROUTER_GATE_PATH``, so the job resolves through the sources that
     remain, in order: the site control path (``SiteConfig.gate_control_path``,
-    default ``<base_dir>/agents/control/router-gate.json``), then the lane
-    document's sibling -- whatever the submitting shell happened to export. A
-    no-option submission depends only on the generated script, never on the
-    environment it was submitted from.
+    default ``<base_dir>/agents/control/router-gate.json``), then
+    the lane document's sibling -- whatever the submitting shell happened to
+    export. A no-option submission depends only on the generated script, never
+    on the environment it was submitted from.
     """
     if not 1 <= port <= 65535:
         raise ValueError("port must be between 1 and 65535")

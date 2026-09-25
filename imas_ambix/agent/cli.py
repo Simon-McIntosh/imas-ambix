@@ -1734,8 +1734,7 @@ def _resolve_router_upstreams(site: SiteConfig, api_key: str | None) -> list[Ups
         "Gate control file to read. The resolver takes the first source that "
         "names one: this option, then AMBIX_ROUTER_GATE_PATH, then the site "
         "control path (SiteConfig.gate_control_path, default "
-        "<base_dir>/agents/control/router-gate.json), then the lane "
-        "document's sibling."
+        "<base_dir>/agents/control/router-gate.json), then the lane document's sibling."
     ),
 )
 def router_command(
@@ -3292,10 +3291,10 @@ def _gate_document_path(site: SiteConfig, gate_file: str | None = None) -> Path:
     disagree about which file is in force: the first source that names one is
     the command-line path, then ``AMBIX_ROUTER_GATE_PATH``, then the site
     control path (``SiteConfig.gate_control_path``, default
-    ``<base_dir>/agents/control/router-gate.json``), then the lane document's
-    sibling. The router publishes the resolved path in ``lane.json`` beside the
-    gate snapshot, so a reader can always see which file the running process
-    took control from.
+    ``<base_dir>/agents/control/router-gate.json``), then
+    the lane document's sibling. The router publishes the resolved path in
+    ``lane.json`` beside the gate snapshot, so a reader can always see which
+    file the running process took control from.
     """
     from imas_ambix.agent.router import resolve_gate_path
 
@@ -3415,8 +3414,7 @@ def _print_lane_counts(site: SiteConfig) -> None:
         "Gate control file to write. The resolver takes the first source that "
         "names one: this option, then AMBIX_ROUTER_GATE_PATH, then the site "
         "control path (SiteConfig.gate_control_path, default "
-        "<base_dir>/agents/control/router-gate.json), then the lane "
-        "document's sibling."
+        "<base_dir>/agents/control/router-gate.json), then the lane document's sibling."
     ),
 )
 def pause(reason: str, cut: bool, cut_form: str | None, gate_file: str | None) -> None:
@@ -3475,8 +3473,7 @@ def pause(reason: str, cut: bool, cut_form: str | None, gate_file: str | None) -
         "Gate control file to write. The resolver takes the first source that "
         "names one: this option, then AMBIX_ROUTER_GATE_PATH, then the site "
         "control path (SiteConfig.gate_control_path, default "
-        "<base_dir>/agents/control/router-gate.json), then the lane "
-        "document's sibling."
+        "<base_dir>/agents/control/router-gate.json), then the lane document's sibling."
     ),
 )
 def resume(gate_file: str | None) -> None:
@@ -3508,8 +3505,7 @@ def resume(gate_file: str | None) -> None:
         "Gate control file to write. The resolver takes the first source that "
         "names one: this option, then AMBIX_ROUTER_GATE_PATH, then the site "
         "control path (SiteConfig.gate_control_path, default "
-        "<base_dir>/agents/control/router-gate.json), then the lane "
-        "document's sibling."
+        "<base_dir>/agents/control/router-gate.json), then the lane document's sibling."
     ),
 )
 def width(width: str, gate_file: str | None) -> None:
