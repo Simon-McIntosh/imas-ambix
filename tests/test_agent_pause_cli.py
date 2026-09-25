@@ -1,11 +1,64 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 from click.testing import CliRunner
 
 from imas_ambix.cli import main
+
+
+def test_importing_the_cli_module_does_not_import_the_router() -> None:
+    """Importing the CLI must not drag the router in through a module-level import.
+
+    The router is deferred to the commands that use it, so a CLI invocation that
+    never reaches the gate does not pay the router's import cost. Measured in a
+    fresh interpreter, because this test process already holds the router for
+    its other cases and a same-process check could not see the difference.
+    """
+    repo_root = Path(__file__).resolve().parents[1]
+    probe = (
+        "import sys\n"
+        "import imas_ambix.agent.cli\n"
+        "print(imas_ambix.agent.cli.__file__)\n"
+        "raise SystemExit(1 if 'imas_ambix.agent.router' in sys.modules else 0)\n"
+    )
+    env = dict(os.environ)
+    env["PYTHONPATH"] = os.pathsep.join([str(repo_root), env.get("PYTHONPATH", "")])
+    result = subprocess.run(
+        [sys.executable, "-c", probe],
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=str(repo_root),
+    )
+    assert result.returncode == 0, (
+        "importing imas_ambix.agent.cli imported imas_ambix.agent.router\n"
+        f"stdout: {result.stdout!r}\nstderr: {result.stderr!r}"
+    )
+    # The probe names the module it actually imported, so a run that resolved
+    # some other checkout rather than this tree would be visible rather than
+    # reading as a pass.
+    assert str(repo_root) in result.stdout, result.stdout
+
+
+def test_cut_form_choices_match_the_router() -> None:
+    """The CLI's form choices and the router's must not drift apart.
+
+    The ``click.Choice`` tuple is written out as a literal because the decorator
+    is evaluated when the module is imported, so no import keeps it equal to the
+    router's own. This test is what keeps the pair honest, and it reads the
+    choices off the built option rather than a copy so it measures the value the
+    command actually presents.
+    """
+    from imas_ambix.agent.cli import pause
+    from imas_ambix.agent.router import GATE_CUT_FORMS
+
+    cut_form = next(param for param in pause.params if param.name == "cut_form")
+    assert tuple(cut_form.type.choices) == tuple(GATE_CUT_FORMS)
 
 
 def _site_paths(tmp_path: Path, monkeypatch) -> tuple[Path, Path]:
