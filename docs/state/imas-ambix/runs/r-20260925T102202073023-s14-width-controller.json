@@ -1,0 +1,325 @@
+{
+  "agent": {
+    "alias": "luna5.6",
+    "backend": "codex-luna",
+    "effort": "high",
+    "launch": "cli",
+    "model": "gpt-5.6-luna",
+    "sandbox": "worktree-full"
+  },
+  "attempt": 4,
+  "attempt_kind": "resume",
+  "backend": "codex-luna",
+  "base_sha": "a39e611107f4533df43eb47e8f478e36f16ab211",
+  "boundary_waiver": null,
+  "budget": {
+    "cost_usd": null,
+    "detail": "backend reports token usage but no headroom",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_write_input_tokens": 0,
+      "cache_write_input_tokens_cumulative": 0,
+      "cached_input_tokens": 12072448,
+      "cached_input_tokens_cumulative": 12072448,
+      "input_tokens": 12336006,
+      "input_tokens_cumulative": 12336006,
+      "output_tokens": 62220,
+      "output_tokens_cumulative": 62220,
+      "reasoning_output_tokens": 19550,
+      "reasoning_output_tokens_cumulative": 19550
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": {
+    "added": 1081,
+    "files": 6,
+    "removed": 18
+  },
+  "commit_resolution": null,
+  "commits": [
+    "dfb286fbc26ea9bcbdd9e4dc948e386578e67c9f",
+    "515772a4a40992c8cb21c4ec1bc7d002baa9cd71",
+    "5c74c0c962cd8e712690902b82359e0ca95bfb8a",
+    "a6349b8102e2903f5fc9a40ce7916a2c93aaf6e4",
+    "30f5def998ab5c7b3d8e43c49d8bdd6e3fac0234",
+    "5147553d28b58b706ffafaa3bedf7a42f0b1801c",
+    "a69650515932099b10b4e2bc8d414b7c73ed1568",
+    "619dc060430c94853641a9148c5f1d645aaf0d35"
+  ],
+  "completed_at": "2026-09-25T12:41:45.399Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-09-25T10:22:08Z",
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": true,
+    "matched_measure": "pytest -p",
+    "override": false,
+    "role": "implement",
+    "status": "compatible"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [
+    "router-gate.json",
+    "tok/s",
+    "0.6"
+  ],
+  "gate": "passed",
+  "gate_check": {
+    "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv uv run --no-sync pytest -p no:cacheprovider tests/test_agent_router_gate.py tests/test_agent_router_width_controller.py tests/test_agent_lane_sglang.py",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T102202073023-s14-width-controller/demand-guard-integrated-final.log"
+  },
+  "impl_move": {
+    "at_complete": 0.9,
+    "at_dispatch": 0.9,
+    "plan": "local-lane-admission-control",
+    "reason": "sections 14-20 added on 2026-09-25 grew the executable denominator from 10 to about 26 nodes; the node fraction is about 14/26=0.54, below the recorded 0.9, and impl stays monotonic until the numerator passes it",
+    "verdict": "waived"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-09-25T11:22:02.509780+00:00",
+    "horizon_seconds": 3600,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": null,
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-09-25T10:22:02Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 3,
+    "binding_observed": "unknown",
+    "detail": "",
+    "headroom": 4,
+    "mean_context": 107692,
+    "observed_at": "2026-09-25T10:21:59Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45
+  },
+  "lane_receipt": {
+    "effective_context_window": 380000,
+    "notional_cost_usd": 2.5419,
+    "observed_at": "2026-09-25T12:41:45.399Z",
+    "quota_state": "measured",
+    "quota_windows": [
+      {
+        "observed_at": "2026-09-25T12:41:45.399Z",
+        "resets_at": 1790869123,
+        "used_percent": 17.0,
+        "window_minutes": 10080
+      }
+    ],
+    "rate_basis": {
+      "as_of": "2026-09-09",
+      "input_per_million": 0.2,
+      "model_identifier": "gpt-5.6-luna",
+      "output_per_million": 1.2
+    }
+  },
+  "lineage": {
+    "attempt": 3,
+    "kind": "lane-change",
+    "lanes": [
+      {
+        "changed_at": "2026-09-25T12:47:03Z",
+        "detail": "starting fresh because the session cannot follow the move from harness 'claude' to 'codex'",
+        "from_backend": "clive",
+        "from_harness": "claude",
+        "reason": "local lane congested (gate 14 in flight, 9 waiting at 12:42Z; workers at ~8.6 tok/s); the repair blocks the urgent gate-aware headroom node on router.py",
+        "session": "fresh",
+        "session_id": "d24fb41c-b1a3-423a-a8d7-718e2d4117af",
+        "session_source": "pointer",
+        "to_backend": "codex-luna",
+        "to_harness": "codex"
+      }
+    ],
+    "root_run_id": "r-20260925T102202073023-s14-width-controller"
+  },
+  "local": false,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T102202073023-s14-width-controller/manifest.md",
+  "member": "llac-knee",
+  "negative_control": {
+    "declaration": "(a) substituting the memory rule for the throughput reading drives the width to the cap and fails the convergence tests; (b) a keep-if-improved rule without the epsilon objective ends above 14 on the noisy plateau and fails the convergence tests; both applied as scratch edits and restored",
+    "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T102202073023-s14-width-controller/negative-control.log",
+    "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T102202073023-s14-width-controller/negative-control.log",
+    "test_paths": [
+      "tests/test_agent_router_width_controller.py"
+    ],
+    "verdict": "matched"
+  },
+  "no_commit": null,
+  "node": "s14-width-controller",
+  "node_definition": {
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 1334,
+          "cached_input_tokens": 207728,
+          "input_tokens": 209064,
+          "output_tokens": 1193,
+          "reasoning_output_tokens": 0,
+          "total_tokens": 210257,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "38dec84a-7cb6-4b27-ace6-501cc76dbec0",
+      "session_id": "llac-s14-0925"
+    },
+    "done_when": "'uv run --no-sync pytest -p no:cacheprovider tests/test_agent_router_gate.py tests/test_agent_router_width_controller.py tests/test_agent_lane_sglang.py' exits 0 on the login node, with the new file driving the controller over a synthetic surface (rise to a knee at 12, flat past it, per-window noise sigma 60 tok/s, fixed seed) and asserting: final width within 12±2 from starts 36 and 4; width never above the memory cap; per-stream tok/s never below the floor; width held while gate waiting is 0; a step down when prefix_hit_rate reads below 0.95 on a flat surface; a throughput delta across a counter reset is discarded; default width floor at most 12; lane.json gate block publishes the controller mode and reason. Both declared negative controls are recorded verbatim with failing test counts in the manifest. 'uv run --no-sync ruff check imas_ambix tests' exits 0. Not deployed: no router restart and no write to router-gate.json.",
+    "estimated_hours": null,
+    "goal": "Replace the router's memory-sized auto width with a throughput-seeking width controller fed by the lane scrape",
+    "id": "s14-width-controller",
+    "lane_declaration": {
+      "backend": null,
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-09-25T10:22:02Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 3,
+      "binding_observed": "unknown",
+      "detail": "",
+      "headroom": 4,
+      "mean_context": 107692,
+      "observed_at": "2026-09-25T10:21:59Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T102202073023-s14-width-controller/manifest.md",
+    "negative_control": "(a) substituting the memory rule for the throughput reading drives the width to the cap and fails the convergence tests; (b) a keep-if-improved rule without the epsilon objective ends above 14 on the noisy plateau and fails the convergence tests; both applied as scratch edits and restored",
+    "plan": "local-lane-admission-control",
+    "requested_backend": "clive",
+    "requires_decisions": [],
+    "role": "implement",
+    "section": "§14",
+    "spec_level": "guided",
+    "time_budget": "60m",
+    "token_budget": null,
+    "write_paths": [
+      "imas_ambix/agent/router.py",
+      "imas_ambix/agent/lane.py",
+      "tests/test_agent_router_width_controller.py",
+      "docs/plans/local-lane-admission-control.html",
+      "docs/evidence/archive/local-lane-admission-control-landed.html",
+      "docs/figures/local-lane-admission-control"
+    ]
+  },
+  "orientation_input_tokens": 5909972.0,
+  "outcome": "",
+  "plan": "local-lane-admission-control",
+  "plan_impl_at_dispatch": 0.9,
+  "promoted_revision": "619dc060430c94853641a9148c5f1d645aaf0d35",
+  "release": {
+    "process_signalled": false,
+    "process_withheld": "process is not alive",
+    "worktree_audit": {
+      "counts": {
+        "dirty": 0,
+        "disposable": 0,
+        "integrated": 0,
+        "live-referenced": 0,
+        "retained-for-resume": 0,
+        "unintegrated": 0
+      },
+      "worktrees": [
+        {
+          "available": false,
+          "detail": "tree is no longer available",
+          "path": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/llac-s14-0925/s14-width-controller"
+        }
+      ]
+    },
+    "worktree_released": true
+  },
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "scores": {
+      "durability": 15,
+      "evidence": 17,
+      "fit": 18,
+      "goal_fidelity": 20,
+      "scope_discipline": 20
+    },
+    "status": "parsed",
+    "total": 90
+  },
+  "role": "implement",
+  "run_id": "r-20260925T102202073023-s14-width-controller",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§14",
+  "session_harness": "codex",
+  "session_id": "01a0d89a-e09f-7e52-962f-6b521ba467b8",
+  "session_model": "gpt-5.6-luna",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "guided",
+  "stalled": true,
+  "suite_delta": null,
+  "tests_added": 13,
+  "throughput": {
+    "cumulative_cached_input_tokens": 12072448,
+    "cumulative_input_tokens": 12336006,
+    "detail": "model span bounded from the client rollout's tool spans; input cumulative summed across resets",
+    "generated_tokens": 81770,
+    "generation_seconds": 1488.789,
+    "machine_seconds": 109.529,
+    "tokens_per_second": 54.92
+  },
+  "time_budget": "60m",
+  "tool_steps": 149.0,
+  "unreconciled_override": null,
+  "wall_seconds": 8377,
+  "watch_override": null,
+  "worker_exit": {
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-09-25T12:36:34Z",
+    "last_record_type": "result",
+    "launched_at": "2026-09-25T10:22:14Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20260925T102202073023-s14-width-controller",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 27529,
+    "worker_pid": 296802
+  },
+  "worker_seconds": 8338,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
