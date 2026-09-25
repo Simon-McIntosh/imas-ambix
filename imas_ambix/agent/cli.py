@@ -24,6 +24,7 @@ from imas_ambix.agent.profile import (
     list_profiles,
     load_profile,
 )
+from imas_ambix.agent.router import DEFAULT_GATE_CUT_FORM, GATE_CUT_FORMS
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -3298,9 +3299,7 @@ def _write_gate_document(path: Path, payload: dict[str, object]) -> None:
 
     path.parent.mkdir(parents=True, exist_ok=True)
     scratch = path.with_suffix(".tmp")
-    scratch.write_text(
-        json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8"
-    )
+    scratch.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
     scratch.replace(path)
 
 
@@ -3345,7 +3344,25 @@ def _print_lane_counts(site: SiteConfig) -> None:
     required=True,
     help="Why the lane is paused; published beside the pause in lane.json.",
 )
-def pause(reason: str) -> None:
+@click.option(
+    "--cut",
+    is_flag=True,
+    help=(
+        "End the generations already in flight instead of waiting for the "
+        "longest turn to finish; a cut is honoured only while the pause holds."
+    ),
+)
+@click.option(
+    "--cut-form",
+    type=click.Choice(GATE_CUT_FORMS),
+    default=None,
+    help=(
+        "How a cut answers the client stream: 'close' drops the connection "
+        "with no terminal chunk and 'error' writes an overloaded_error frame. "
+        "Only meaningful with --cut."
+    ),
+)
+def pause(reason: str, cut: bool, cut_form: str | None) -> None:
     """Stop the router admitting new generation while in-flight work finishes.
 
     The pause is written to the gate file the running router reads live, so it
@@ -3354,27 +3371,59 @@ def pause(reason: str) -> None:
     configured wait, receive the usual overload response. The reason is
     required because a pause has to be readable as a stated decision rather
     than inferred from a lane that happens to look quiet.
+
+    With ``--cut`` the pause also declares that cutting, which the router
+    discovers by polling the same file: a generation already streaming is ended
+    rather than left to run out, so a cycle that must not wait on a long turn
+    does not have to. ``cut`` is written beside ``paused`` because the router
+    honours it only while ``paused`` also holds, and because a router restart
+    must find the declaration after the fact. The default form, ``close``,
+    drops the client connection so the client retries as a streaming request;
+    ``error`` writes an explicit ``overloaded_error`` frame. A pause without
+    ``--cut`` withdraws any cut an earlier pause left declared, so a re-pause
+    never inherits a cut it did not ask for.
     """
+    if cut_form is not None and not cut:
+        raise click.UsageError("--cut-form requires --cut")
     site = SiteConfig.from_env()
     path = _gate_document_path(site)
     payload = _read_gate_document(path)
     payload["paused"] = True
     payload["reason"] = reason
+    if cut:
+        payload["cut"] = True
+        payload["cut_form"] = cut_form or DEFAULT_GATE_CUT_FORM
+    else:
+        payload.pop("cut", None)
+        payload.pop("cut_form", None)
     _write_gate_document(path, payload)
     console.print(
         f"paused {site.endpoint_document.parent}", markup=False, highlight=False
     )
+    if cut:
+        console.print(
+            f"cut in flight (form {payload['cut_form']})",
+            markup=False,
+            highlight=False,
+        )
     _print_lane_counts(site)
 
 
 @agent.command()
 def resume() -> None:
-    """Clear the gate's pause and admit the requests it held, in arrival order."""
+    """Clear the gate's pause and admit the requests it held, in arrival order.
+
+    Clearing the pause clears the cut with it: the cut is a property of the
+    pause, so leaving it behind would end each relay at the moment the gate
+    admitted it.
+    """
     site = SiteConfig.from_env()
     path = _gate_document_path(site)
     payload = _read_gate_document(path)
     payload["paused"] = False
     payload.pop("reason", None)
+    payload.pop("cut", None)
+    payload.pop("cut_form", None)
     _write_gate_document(path, payload)
     console.print("resumed", markup=False, highlight=False)
     _print_lane_counts(site)

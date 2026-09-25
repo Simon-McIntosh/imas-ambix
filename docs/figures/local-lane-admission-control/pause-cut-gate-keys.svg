@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 406" role="img" aria-labelledby="title desc">
+  <title id="title">The pause, cut and cut_form keys each CLI command leaves in the gate file</title>
+  <desc id="desc">Three commands write the gate file router-gate.json. A plain pause sets paused true and reason, and withdraws any cut and cut_form left by an earlier pause. A pause with the cut flag sets paused, reason, cut true and cut_form (close by default, or error). Resume sets paused false and clears reason, cut and cut_form together, after which the router admits the requests the pause held in arrival order. Every write replaces the file by writing a scratch file and renaming it over the gate, so a router polling mid-write never reads a partial document.</desc>
+  <defs>
+    <style>
+      .band   { fill: #f7f9fb; stroke: #3f4b59; stroke-width: 2; rx: 9; }
+      .cutband{ fill: #fff0ee; stroke: #a43d35; stroke-width: 2; rx: 9; }
+      .resumeband { fill: #e8f5ec; stroke: #287a45; stroke-width: 2; rx: 9; }
+      .cmd    { font-family: ui-monospace, monospace; fill: #17202a; font-size: 14px; }
+      .key    { font-family: ui-monospace, monospace; fill: #17202a; font-size: 13px; }
+      .cleared{ font-family: ui-monospace, monospace; fill: #a43d35; font-size: 13px; }
+      text { font-family: system-ui, sans-serif; fill: #17202a; font-size: 15px; }
+      .label  { font-size: 13px; fill: #4b5563; }
+      .strong { font-weight: 700; }
+      .flow   { stroke: #9aa4b0; stroke-width: 2; marker-end: url(#arrow); }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#9aa4b0"/>
+    </marker>
+  </defs>
+
+  <text x="26" y="34" class="strong">The pause, cut and cut_form keys each write leaves behind</text>
+  <text x="26" y="56" class="label">all three write the same file, <tspan class="cmd">router-gate.json</tspan>, which the running router polls once a second</text>
+
+  <rect class="band" x="26" y="76" width="928" height="86"/>
+  <text x="44" y="102" class="cmd">agent pause --reason R</text>
+  <text x="330" y="102" class="label">pause only &#8212; in-flight work finishes</text>
+  <text x="44" y="130" class="key">paused = true&#160;&#160;&#160;reason = R</text>
+  <text x="330" y="130" class="cleared">cut and cut_form withdrawn</text>
+  <text x="44" y="152" class="label">a re-pause never inherits a cut it did not just ask for</text>
+
+  <rect class="cutband" x="26" y="176" width="928" height="86"/>
+  <text x="44" y="202" class="cmd">agent pause --reason R --cut [--cut-form close|error]</text>
+  <text x="330" y="202" class="label">cut the relays already in flight</text>
+  <text x="44" y="230" class="key">paused = true&#160;&#160;&#160;reason = R</text>
+  <text x="44" y="250" class="key">cut = true&#160;&#160;&#160;cut_form = close | error</text>
+  <text x="330" y="250" class="label">cut_form defaults to close; an unknown value is refused by click</text>
+
+  <rect class="resumeband" x="26" y="276" width="928" height="86"/>
+  <text x="44" y="302" class="cmd">agent resume</text>
+  <text x="330" y="302" class="label">clear the pause and admit what it held</text>
+  <text x="44" y="330" class="key">paused = false</text>
+  <text x="330" y="330" class="cleared">reason, cut and cut_form cleared together</text>
+  <text x="44" y="352" class="label">the held and retried requests are admitted in arrival order</text>
+
+  <text x="26" y="388" class="label">every write is atomic: a scratch file is written, then renamed over the gate, so a poll never reads a partial document</text>
+</svg>
