@@ -33,6 +33,7 @@ def _launch(
     user_settings: Path | None = None,
     agents: bool = True,
     receipt: Path | None = None,
+    dispatch_args: tuple[str, ...] = (),
 ):
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir(exist_ok=True)
@@ -111,7 +112,7 @@ def _launch(
                 str(profile),
             ]
         result = subprocess.run(
-            command,
+            command + list(dispatch_args),
             cwd=tmp_path,
             capture_output=True,
             text=True,
@@ -285,9 +286,14 @@ def test_hooks_are_carried_and_force_the_settings_route(tmp_path):
     }
     settings.write_text(json.dumps({"hooks": hooks}), encoding="utf-8")
     receipt = tmp_path / "hook-receipt.jsonl"
+    dispatch_args = ("-p", "--output-format", "stream-json", "--verbose")
     _first, _args, _expanded, profile, _digest, _mcp = _launch(tmp_path)
     result, args, expanded, _profile, _digest, _mcp = _launch(
-        tmp_path, profile=profile, user_settings=settings, receipt=receipt
+        tmp_path,
+        profile=profile,
+        user_settings=settings,
+        receipt=receipt,
+        dispatch_args=dispatch_args,
     )
 
     assert result.returncode == 0, result.stderr
@@ -303,11 +309,20 @@ def test_hooks_are_carried_and_force_the_settings_route(tmp_path):
     assert record["route"] == "settings"
     assert record["hooks"] == ["stop-hook", "guard-hook"]
     # The receipt and the emitted command share one definition of the added
-    # arguments: what the record claims was added is exactly the prefix the
-    # harness stub observed on its own command line.
+    # arguments: what the record claims was added is exactly the profile
+    # segment the harness stub observed on its own command line. The launcher
+    # emits that segment, then its own fixed --settings pair, then the
+    # dispatch arguments it was handed; so the profile segment is the argv
+    # with the fixed pair and the dispatch tail removed, and it must equal the
+    # record element for element. A prefix check would stay green on an
+    # argument appended to the emitted array after the receipt was read, since
+    # the record would under-report it while the command still carried it.
     added = record["added_arguments"]
     assert added[:2] == ["--setting-sources", ""]
-    assert args[: len(added)] == added
+    assert args[-len(dispatch_args) :] == list(dispatch_args)
+    assert args[-len(dispatch_args) - 2] == "--settings"
+    assert json.loads(args[-len(dispatch_args) - 1]) == expanded
+    assert args[: -len(dispatch_args) - 2] == added
     prompt = args[args.index("--append-system-prompt") + 1]
     assert "role digest" in prompt
     assert "repository guidance" in prompt
