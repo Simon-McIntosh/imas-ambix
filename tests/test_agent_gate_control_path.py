@@ -22,6 +22,8 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
+from imas_ambix.agent import slurm as slurm_mod
+from imas_ambix.agent.profile import SiteConfig
 from imas_ambix.agent.router import (
     GATE_FILENAME,
     GATE_PATH_ENV,
@@ -30,6 +32,10 @@ from imas_ambix.agent.router import (
     resolve_gate_path,
 )
 from imas_ambix.cli import main
+
+# The revision before the router script learned to carry the gate path. The
+# no-option script is compared against it so the option is additive.
+_PRE_GATE_PATH_OPTION_REVISION = "268df346"
 
 
 class _Resolver:
@@ -245,9 +251,7 @@ def test_width_accepts_auto_and_refuses_other_text(tmp_path, monkeypatch) -> Non
     assert "neither an integer" in bad.output
 
 
-def test_lane_document_publishes_the_explicit_gate_path(
-    tmp_path, monkeypatch
-) -> None:
+def test_lane_document_publishes_the_explicit_gate_path(tmp_path, monkeypatch) -> None:
     """A reader can see which file the running router took control from."""
     monkeypatch.delenv(GATE_PATH_ENV, raising=False)
     control, lane = _control_and_lane(tmp_path)
@@ -266,3 +270,147 @@ def _assert_utc_iso(value: str) -> None:
     parsed = datetime.fromisoformat(value)
     assert parsed.tzinfo is not None, value
     assert parsed.utcoffset().total_seconds() == 0, value
+
+
+def _scratch_site(tmp_path: Path) -> SiteConfig:
+    return SiteConfig(
+        base_dir=str(tmp_path),
+        engine_env_root=str(tmp_path / "engine-envs"),
+    )
+
+
+def _generate_at_revision(revision: str, site: SiteConfig, **kwargs) -> str:
+    """Run the router-script generator as it stood at ``revision``.
+
+    The base module is compiled with this module's own ``__file__`` so it
+    resolves the repository root identically; otherwise the embedded
+    ``PYTHONPATH`` would differ for a reason unrelated to the change under
+    test.
+    """
+    source = subprocess.run(
+        ["git", "show", f"{revision}:imas_ambix/agent/slurm.py"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    namespace: dict[str, object] = {
+        "__file__": slurm_mod.__file__,
+        "__name__": "base_slurm_under_test",
+    }
+    exec(compile(source, slurm_mod.__file__, "exec"), namespace)
+    generate = namespace["generate_router_script"]
+    return generate(site, **kwargs)  # type: ignore[operator]
+
+
+def test_generated_script_without_the_option_is_unchanged(tmp_path) -> None:
+    """An existing submission keeps today's script byte-for-byte."""
+    site = _scratch_site(tmp_path)
+
+    current = slurm_mod.generate_router_script(site, port=18802, cpus=3, memory="12G")
+    base = _generate_at_revision(
+        _PRE_GATE_PATH_OPTION_REVISION, site, port=18802, cpus=3, memory="12G"
+    )
+    assert current == base
+    assert GATE_PATH_ENV not in current
+
+    probed = slurm_mod.generate_router_script(
+        site, port=18802, cpus=3, memory="12G", prefix_probe=True
+    )
+    probed_base = _generate_at_revision(
+        _PRE_GATE_PATH_OPTION_REVISION,
+        site,
+        port=18802,
+        cpus=3,
+        memory="12G",
+        prefix_probe=True,
+    )
+    assert probed == probed_base
+
+
+def test_named_gate_path_is_embedded_in_the_generated_script(tmp_path) -> None:
+    site = _scratch_site(tmp_path)
+    control = tmp_path / "control" / GATE_FILENAME
+
+    script = slurm_mod.generate_router_script(site, port=18802, gate_file=control)
+
+    assert f"export {GATE_PATH_ENV}={control}" in script
+    # The path is a value the running job carries, not one inferred later.
+    assert str(control) in script.split("exec ", 1)[0]
+
+
+def test_submitted_job_environment_inheritance_is_read_from_the_header(
+    tmp_path,
+) -> None:
+    """State the inheritance fact from the header, never assume it."""
+    site = _scratch_site(tmp_path)
+    control = tmp_path / "control" / GATE_FILENAME
+
+    script = slurm_mod.generate_router_script(site, port=18802, gate_file=control)
+
+    export_lines = [
+        line
+        for line in script.splitlines()
+        if line.startswith("#SBATCH") and "--export" in line
+    ]
+    # No --export restriction is set, so sbatch's default applies and the job
+    # inherits the submitting environment. The gate path is exported in the body
+    # anyway, so the job reads the chosen file regardless of what it inherits.
+    assert export_lines == []
+    assert any(
+        line.startswith(f"export {GATE_PATH_ENV}=") for line in script.splitlines()
+    )
+
+
+def test_router_dry_run_shows_the_named_gate_path(tmp_path, monkeypatch) -> None:
+    def refuse_submission(_script: str) -> str:
+        raise AssertionError("dry-run must not submit")
+
+    monkeypatch.setattr(slurm_mod, "submit_script", refuse_submission)
+    control = tmp_path / "control" / GATE_FILENAME
+
+    result = CliRunner().invoke(
+        main,
+        [
+            "agent",
+            "router",
+            "--port",
+            "18802",
+            "--dry-run",
+            "--gate-file",
+            str(control),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert f"export {GATE_PATH_ENV}={control}" in result.output
+
+
+def test_router_submit_carries_the_gate_path_into_the_submitted_script(
+    tmp_path, monkeypatch
+) -> None:
+    """The submit path hands the same script on, with no job submitted."""
+    captured: dict[str, str] = {}
+
+    def submit(script: str) -> str:
+        captured["script"] = script
+        return "4242"
+
+    monkeypatch.setattr(slurm_mod, "submit_script", submit)
+    control = tmp_path / "control" / GATE_FILENAME
+
+    result = CliRunner().invoke(
+        main,
+        [
+            "agent",
+            "router",
+            "--port",
+            "18802",
+            "--submit",
+            "--gate-file",
+            str(control),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert f"export {GATE_PATH_ENV}={control}" in captured["script"]
+    assert "Submitted keyless router job 4242" in result.output

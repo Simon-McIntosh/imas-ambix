@@ -1758,24 +1758,13 @@ def router_command(
                 "--api-key cannot be embedded in a submitted router script; "
                 "use keyless upstreams or run the router in the foreground."
             )
-        if gate_file is not None and submit:
-            # The generated script does not yet carry the gate path, and a
-            # submitted job does not inherit the submitting shell's environment,
-            # so accepting the flag here would launch a router reading a
-            # different control file than the one named -- a value that lives
-            # only in an invocation, which is the defect this section exists to
-            # remove. Refuse rather than silently ignore it.
-            raise click.ClickException(
-                "--gate-file cannot yet reach a submitted router; the gate path "
-                "must be embedded in the generated script first. Run the router "
-                "in the foreground."
-            )
         script = generate_router_script(
             site,
             port=port,
             cpus=cpus,
             memory=memory,
             prefix_probe=prefix_probe,
+            gate_file=Path(gate_file) if gate_file else None,
         )
         if dry_run:
             console.print(script, markup=False, highlight=False, soft_wrap=True)

@@ -1334,6 +1334,74 @@
     <code>--submit</code> with <code>--gate-file</code> is refused rather than
     silently ignored.</p>
   </section>
+
+  <section id="submitted-router-gate-path">
+    <h2>The gate path reaches a submitted router</h2>
+    <p>The control path was reachable in the foreground but not through a
+    submission: <code>generate_router_script</code> did not carry it, so
+    <code>agent router --submit --gate-file X</code> was refused rather than
+    launch a job reading a different file than the one named. The production
+    router runs as a submitted job, so the group-writable control directory was
+    unreachable for it. This section records the change that closes that gap and
+    supersedes the &ldquo;refused rather than silently ignored&rdquo; sentence in
+    the section above.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/local-lane-admission-control/submitted-router-gate-path.svg"
+           alt="The submit-time gate path is embedded as an export in the generated
+                SLURM script, which the submitted router then reads; with no option
+                the script is byte-identical to the pre-option generator.">
+      <figcaption>The path is named once at submit time, embedded in the script
+      the job runs, and auditable from that script afterwards; without the
+      option nothing about the generated script changes.</figcaption>
+    </figure>
+
+    <p><strong>What changed.</strong> <code>generate_router_script</code> in
+    <code>imas_ambix/agent/slurm.py</code> takes an optional <code>gate_file</code>
+    and, when it is named, appends
+    <code>export AMBIX_ROUTER_GATE_PATH=&lt;quoted path&gt;</code> to the script
+    body. The export carries the same constant the router resolves through, so a
+    submitted job and a foreground router name the file the same way. In
+    <code>imas_ambix/agent/cli.py</code> the submit-time refusal is removed and
+    both <code>--dry-run</code> and <code>--submit</code> pass the option to the
+    generator.</p>
+
+    <p><strong>What the tests measure.</strong> Five tests added to
+    <code>tests/test_agent_gate_control_path.py</code> (14 in the file, 46 across
+    the declared gate). One asserts the dry-run script printed by the CLI
+    contains the named path. One stubs the submitter and asserts the script it
+    receives carries the path — no job is submitted. One states the inheritance
+    fact from the generated header: the script sets no <code>--export</code>
+    restriction, so sbatch's default applies and the job inherits the submitting
+    environment, while the gate path is exported into the body regardless. Two
+    compare the no-option script against the generator as it stood at the
+    pre-option revision, sourcing the base module from git and compiling it with
+    this module's own <code>__file__</code> so the embedded repository root is
+    identical; both the plain and the <code>prefix_probe</code> forms are
+    byte-identical.</p>
+
+    <p><strong>Evidence that could have failed.</strong> The declared negative
+    control, verbatim as the first line of the red log, is: &ldquo;dropping the
+    gate-path export from the generated router script must fail the dry-run test;
+    applied as a scratch edit and restored&rdquo;. Making the gate-file branch
+    inert (<code>if gate_file is not None:</code> &rarr; <code>if False and
+    gate_file is not None:</code>) produced <strong>4 failed, 10 passed</strong>
+    — the two CLI tests, the embedded-in-script test and the header-inheritance
+    test — and the scratch edit was reverted with <code>git diff --stat</code>
+    showing only this node's own change before the green gate ran. The declared
+    gate <code>uv run --no-sync pytest -p no:cacheprovider
+    tests/test_agent_gate_control_path.py tests/test_agent_router_gate.py
+    tests/test_agent_pause_cli.py</code> then ran 46 tests with 0 failures, and
+    whole-tree <code>uv run --no-sync ruff check imas_ambix tests</code> exited
+    0.</p>
+
+    <p><strong>What was not done.</strong> No job was submitted and no router was
+    restarted; <code>submit_script</code> is stubbed in the submit test. Nothing
+    under <code>/work</code> or <code>~/public</code> was created or written. The
+    deploy of the group-writable control directory — the one-time file copy and
+    the restart — remains the lead-authorised step. Verifying the merged result
+    belongs to a separately dispatched test node.</p>
+  </section>
 </main>
 </body>
 </html>

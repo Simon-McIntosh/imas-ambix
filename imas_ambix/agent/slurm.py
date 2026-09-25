@@ -965,6 +965,7 @@ def generate_router_script(
     cpus: int = 2,
     memory: str = "8G",
     prefix_probe: bool = False,
+    gate_file: Path | None = None,
 ) -> str:
     """Generate a CPU-only SLURM script for the standing router endpoint.
 
@@ -973,6 +974,15 @@ def generate_router_script(
     diagnostic is on. A value that lives only in an invocation is a value nobody
     can audit afterwards, which is how this router once ran at a quarter of its
     configured admission ceiling without anyone being able to tell.
+
+    ``gate_file`` is embedded the same way: when named, the script exports
+    ``AMBIX_ROUTER_GATE_PATH`` so the submitted router reads the control file the
+    submitter chose. A submitted job inherits the submitting shell's environment
+    (no ``--export`` restriction is set in the header), but an exported variable
+    is a value the running job carries and a reader can audit, whereas a value
+    that lives only in the submitting invocation is one the job can silently be
+    launched without. With no ``gate_file`` the script is unchanged, so a job
+    submitted without the option keeps reading the lane document's sibling.
     """
     if not 1 <= port <= 65535:
         raise ValueError("port must be between 1 and 65535")
@@ -1012,18 +1022,26 @@ def generate_router_script(
         if prefix_probe
         else "# prefix probe off"
     )
-    script_body = dedent(
-        f"""
-        set -euo pipefail
+    body_lines = [
+        "set -euo pipefail",
+        "",
+        "export TMPDIR=/scratch_local/$SLURM_JOB_ID",
+        'mkdir -p "$TMPDIR"',
+        f"export PYTHONPATH={shlex.quote(str(repo_root))}:${{PYTHONPATH:-}}",
+        probe_export,
+    ]
+    if gate_file is not None:
+        from imas_ambix.agent.router import GATE_PATH_ENV
 
-        export TMPDIR=/scratch_local/$SLURM_JOB_ID
-        mkdir -p "$TMPDIR"
-        export PYTHONPATH={shlex.quote(str(repo_root))}:${{PYTHONPATH:-}}
-        {probe_export}
-        echo "[$(date)] Starting keyless Ambix router on $(hostname):{port}"
-        exec {command}
-        """
-    ).strip()
+        body_lines.append(
+            f"export {GATE_PATH_ENV}={shlex.quote(str(gate_file))}"
+            "   # gate control file in force"
+        )
+    body_lines.append(
+        f'echo "[$(date)] Starting keyless Ambix router on $(hostname):{port}"'
+    )
+    body_lines.append(f"exec {command}")
+    script_body = "\n".join(body_lines)
     return "\n".join([*headers, "", script_body, ""])
 
 
