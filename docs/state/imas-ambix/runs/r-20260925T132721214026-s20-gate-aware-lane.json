@@ -1,0 +1,369 @@
+{
+  "agent": {
+    "alias": "luna5.6",
+    "backend": "codex-luna",
+    "effort": "high",
+    "launch": "cli",
+    "model": "gpt-5.6-luna",
+    "sandbox": "worktree-full"
+  },
+  "attempt": 2,
+  "attempt_kind": "resume",
+  "backend": "codex-luna",
+  "base_sha": "a30208faba5b9d127391502df33e1f7e84f4f027",
+  "boundary_waiver": null,
+  "budget": {
+    "cost_usd": null,
+    "detail": "backend reports token usage but no headroom",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_write_input_tokens": 0,
+      "cache_write_input_tokens_cumulative": 0,
+      "cached_input_tokens": 12797184,
+      "cached_input_tokens_cumulative": 12797184,
+      "input_tokens": 13027872,
+      "input_tokens_cumulative": 13027872,
+      "output_tokens": 39897,
+      "output_tokens_cumulative": 39897,
+      "reasoning_output_tokens": 10239,
+      "reasoning_output_tokens_cumulative": 10239
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": {
+    "added": 381,
+    "files": 5,
+    "removed": 12
+  },
+  "commit_resolution": null,
+  "commits": [
+    "8fc472a8c1649035f2e752bed82d1482bf9e20a3",
+    "e050d89a9718541298a9446208631924e49f236c",
+    "275f82d9706ab9675f82758e97a36636b2e4cd45",
+    "3b42f115b522d229346d69b3bf58bc9ff8c9dc7f"
+  ],
+  "completed_at": "2026-09-25T13:44:42Z",
+  "completed_at_source": "stream_mtime",
+  "dispatched_at": "2026-09-25T13:27:32Z",
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": true,
+    "matched_measure": "pytest -p",
+    "override": false,
+    "role": "implement",
+    "status": "compatible"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [],
+  "gate": "passed",
+  "gate_check": {
+    "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv uv run --no-sync pytest -p no:cacheprovider tests/test_agent_router_gate.py tests/test_request_receipts.py tests/test_agent_router_width_controller.py tests/test_agent_router_admission.py",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T132721214026-s20-gate-aware-lane/gate-edge.log"
+  },
+  "impl_move": {
+    "at_complete": 0.9,
+    "at_dispatch": 0.9,
+    "plan": "local-lane-admission-control",
+    "reason": "sections 14-20 grew the executable denominator from 10 to about 26 nodes; impl stays at 0.9 until the node fraction passes it",
+    "verdict": "waived"
+  },
+  "lane_advisory": {
+    "backend": "codex-luna",
+    "burn_multiple": 1.4634929125434608,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'codex-luna' is projected to exhaust at 2026-09-29T17:20:47Z, which is after this node's 3600s horizon ending 2026-09-25T14:27:23.479684+00:00",
+    "horizon_ends_at": "2026-09-25T14:27:23.479684+00:00",
+    "horizon_seconds": 3600,
+    "metered": true,
+    "observed_at": "2026-09-25T13:27:21Z",
+    "precedes_horizon": false,
+    "projected_exhaustion_at": "2026-09-29T17:20:47Z",
+    "resets_at": "2026-10-01T15:38:43Z",
+    "seconds_until_reset": 526281,
+    "state": "quiet",
+    "utilisation_pct": 19.0
+  },
+  "lane_declaration": {
+    "backend": "codex-luna",
+    "headroom": "known",
+    "metered": true,
+    "observed_at": "2026-09-25T13:27:21Z",
+    "read_at": "2026-09-25T13:27:23Z",
+    "resolved_backend": "codex-luna",
+    "utilisation_pct": 19.0
+  },
+  "lane_reading": {
+    "age_seconds": null,
+    "binding_observed": "unknown",
+    "detail": "backend declares no lane document",
+    "headroom": "unknown",
+    "mean_context": "unknown",
+    "observed_at": null,
+    "state": "unknown",
+    "suggested_shelf_life_seconds": null
+  },
+  "lane_receipt": {
+    "effective_context_window": 380000,
+    "notional_cost_usd": 2.6535,
+    "observed_at": "2026-09-25T13:44:42Z",
+    "quota_state": "measured",
+    "quota_windows": [
+      {
+        "observed_at": "2026-09-25T13:44:42Z",
+        "resets_at": 1790869124,
+        "used_percent": 21.0,
+        "window_minutes": 10080
+      }
+    ],
+    "rate_basis": {
+      "as_of": "2026-09-09",
+      "input_per_million": 0.2,
+      "model_identifier": "gpt-5.6-luna",
+      "output_per_million": 1.2
+    }
+  },
+  "lineage": null,
+  "local": false,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T132721214026-s20-gate-aware-lane/manifest.md",
+  "member": "luna-impl-1",
+  "negative_control": {
+    "declaration": "publishing the engine headroom unchanged at the top level must fail the congested-state test; applied as a scratch edit and restored",
+    "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T132721214026-s20-gate-aware-lane/negative-control.log",
+    "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T132721214026-s20-gate-aware-lane/negative-control.log",
+    "test_paths": [
+      "tests/test_agent_router_admission.py"
+    ],
+    "verdict": "matched"
+  },
+  "no_commit": null,
+  "node": "s20-gate-aware-lane",
+  "node_definition": {
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 2213,
+          "cached_input_tokens": 497797,
+          "input_tokens": 500012,
+          "output_tokens": 1145,
+          "reasoning_output_tokens": 89,
+          "total_tokens": 501157,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "38dec84a-7cb6-4b27-ace6-501cc76dbec0",
+      "session_id": "llac-s14-0925"
+    },
+    "done_when": "'uv run --no-sync pytest -p no:cacheprovider tests/test_agent_router_gate.py tests/test_request_receipts.py tests/test_agent_router_width_controller.py tests/test_agent_router_admission.py' exits 0 on the login node, where the new file asserts over a stub lane: with width 14, 14 in flight and 9 waiting the published lane document carries admission.headroom -9, admission.verdict congested, admission.waiting 9, admission.oldest_wait_seconds equal to the head waiter's age within 0.1 s, top-level headroom equal to min(engine headroom, -9) and engine_headroom holding the engine figure; with width 14, 10 in flight and 0 waiting the verdict is open and admission.headroom 4; with 14 in flight and 0 waiting the verdict is full; a completed request's receipt carries gate_wait_s equal to a controlled gate wait within 0.1 s and a request timed out at the gate records its wait. The declared negative control is recorded verbatim with its failing test count in the manifest. 'uv run --no-sync ruff check imas_ambix tests' exits 0. No router restart and no write under ~/public.",
+    "estimated_hours": null,
+    "goal": "Publish the router gate's admission state in lane.json and record gate wait in request receipts",
+    "id": "s20-gate-aware-lane",
+    "lane_declaration": {
+      "backend": "codex-luna",
+      "headroom": "known",
+      "metered": true,
+      "observed_at": "2026-09-25T13:27:21Z",
+      "read_at": "2026-09-25T13:27:23Z",
+      "resolved_backend": "codex-luna",
+      "utilisation_pct": 19.0
+    },
+    "lane_reading": {
+      "age_seconds": null,
+      "binding_observed": "unknown",
+      "detail": "backend declares no lane document",
+      "headroom": "unknown",
+      "mean_context": "unknown",
+      "observed_at": null,
+      "state": "unknown",
+      "suggested_shelf_life_seconds": null
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T132721214026-s20-gate-aware-lane/manifest.md",
+    "negative_control": "publishing the engine headroom unchanged at the top level must fail the congested-state test; applied as a scratch edit and restored",
+    "plan": "local-lane-admission-control",
+    "requested_backend": "codex-luna",
+    "requires_decisions": [],
+    "role": "implement",
+    "section": "§20",
+    "spec_level": "guided",
+    "time_budget": "60m",
+    "token_budget": null,
+    "write_paths": [
+      "imas_ambix/agent/router.py",
+      "imas_ambix/agent/request_receipts.py",
+      "tests/test_agent_router_admission.py",
+      "docs/plans/local-lane-admission-control.html",
+      "docs/evidence/archive/local-lane-admission-control-landed.html",
+      "docs/figures/local-lane-admission-control"
+    ]
+  },
+  "orientation_input_tokens": null,
+  "outcome": "",
+  "plan": "local-lane-admission-control",
+  "plan_impl_at_dispatch": 0.9,
+  "promoted_revision": "3b42f115b522d229346d69b3bf58bc9ff8c9dc7f",
+  "release": {
+    "process_signalled": false,
+    "process_withheld": "process is not alive",
+    "worktree_audit": {
+      "counts": {
+        "dirty": 0,
+        "disposable": 0,
+        "integrated": 0,
+        "live-referenced": 0,
+        "retained-for-resume": 0,
+        "unintegrated": 0
+      },
+      "worktrees": [
+        {
+          "available": false,
+          "detail": "tree is no longer available",
+          "path": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/llac-s14-0925/s20-gate-aware-lane"
+        }
+      ]
+    },
+    "worktree_released": true
+  },
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "scores": {
+      "durability": 19,
+      "evidence": 19,
+      "fit": 19,
+      "goal_fidelity": 20,
+      "scope_discipline": 20
+    },
+    "status": "parsed",
+    "total": 97
+  },
+  "role": "implement",
+  "run_id": "r-20260925T132721214026-s20-gate-aware-lane",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§20",
+  "session_harness": "codex",
+  "session_id": "01a0d8c0-0cdb-7b02-a0f3-438f373a4a95",
+  "session_model": "gpt-5.6-luna",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "guided",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 11,
+  "throughput": {
+    "cumulative_cached_input_tokens": 12797184,
+    "cumulative_input_tokens": 13027872,
+    "detail": "model span bounded from the client rollout's tool spans; input cumulative summed across resets",
+    "generated_tokens": 50136,
+    "generation_seconds": 959.776,
+    "machine_seconds": 62.057,
+    "tokens_per_second": 52.24
+  },
+  "time_budget": "60m",
+  "tool_steps": 89.0,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": [
+      {
+        "budget_overrun": false,
+        "budget_overrun_seconds": 0,
+        "budget_seconds": 2400,
+        "classification": "scoring",
+        "commits_beyond_base": 0,
+        "detail": "the worker manifest reports completion, but no independent review is attached; an independent review must be produced before promotion",
+        "effective_phase": "complete",
+        "elapsed_seconds": 1716,
+        "exit_record": {
+          "ended_during": "working",
+          "exit_code": 0,
+          "exited_at": "2026-09-25T12:32:01Z",
+          "last_record_type": "result",
+          "launched_at": "2026-09-25T12:03:32Z",
+          "recorded_by": "supervisor",
+          "run_id": "r-20260925T120318053991-s19-clive-compact-window",
+          "signal": null,
+          "signal_name": null,
+          "stream_records_seen": 3616,
+          "worker_pid": 674086
+        },
+        "external_wait": null,
+        "interruption": null,
+        "lifting_condition": null,
+        "liveness_proven": true,
+        "log_age_seconds": 3324,
+        "log_fresh": false,
+        "manifest_commits": [
+          "2fde47dd e8f5b2c4"
+        ],
+        "manifest_derived": false,
+        "manifest_digest": "b029347082e8fa416942442d9b8f4671c069b600f5771fc7f4366ff043386e1e",
+        "manifest_error": null,
+        "manifest_file_present": true,
+        "manifest_fresh": true,
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T120318053991-s19-clive-compact-window/manifest.md",
+        "manifest_present": true,
+        "manifest_reported_status": "complete",
+        "manifest_status": "complete",
+        "marker": null,
+        "needs_help_complete": null,
+        "next_action": "reckon crew dispatch --project imas-ambix --plan local-lane-admission-control --section '§19' --role review --spec-level exact --node review-of-s19-clive-compact-window --goal 'attach an independent review to run r-20260925T120318053991-s19-clive-compact-window' --done-when 'the review for r-20260925T120318053991-s19-clive-compact-window stores a parsed record scoring all 5 dimensions in the range 0..20; the turn ends once that record is stored and the manifest reads complete' --write-path /home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260925T120318053991-s19-clive-compact-window.json --write-path /home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260925T120318053991-s19-clive-compact-window.at-e8f5b2c4802d37198bb4de52158fd3dcd8a63d86.json --time-budget 40m --session llac-s14-0925 --allow-unreconciled-runs --backend clive",
+        "node": "s19-clive-compact-window",
+        "phase": "starting",
+        "plan": "local-lane-admission-control",
+        "process_alive": false,
+        "project": "imas-ambix",
+        "recovery": "review",
+        "recovery_classification": "scoring",
+        "resets_at": null,
+        "review_error": null,
+        "review_present": false,
+        "review_status": null,
+        "run_id": "r-20260925T120318053991-s19-clive-compact-window",
+        "session": "llac-s14-0925",
+        "terminal_age_seconds": 3434,
+        "terminal_at": "2026-09-25T12:30:11Z",
+        "wait_age_seconds": null,
+        "wait_condition_state": null,
+        "wait_key_defect": null,
+        "wait_observed": null,
+        "wait_overdue": null,
+        "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/llac-s14-0925/s19-clive-compact-window"
+      }
+    ]
+  },
+  "wall_seconds": 1030,
+  "watch_override": null,
+  "worker_exit": {
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-09-25T13:39:14Z",
+    "last_record_type": "turn.completed",
+    "launched_at": "2026-09-25T13:27:39Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20260925T132721214026-s20-gate-aware-lane",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 248,
+    "worker_pid": 1060183
+  },
+  "worker_seconds": 1030,
+  "worker_seconds_source": "wall_fallback",
+  "worktree_retention": null
+}
