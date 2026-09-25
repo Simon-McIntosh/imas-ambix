@@ -691,6 +691,26 @@
 
     <p id="width-controller-demand-independent"><strong>Queue-free guard and auto handoff correction, 2026-09-25</strong> (<code>30f5def9</code>). The health window is now independent of throughput demand: with <code>running=30</code>, <code>waiting=0</code>, width 36 and <code>prefix_hit_rate=0.70</code>, the test records one guard step per six-scrape window (36 to 34 to 32), then holds at 32 after the hit rate returns to 0.99. A live integer-to-auto edit records width 14 before the edit and width 14 after it, despite a memory ceiling of 36; the controller starts from the width currently in force. The final declared gate passes 36/36 and whole-tree <code>ruff check imas_ambix tests</code> exits 0. The declared negative-control string is &ldquo;making the guard require waiting &gt; 0 again must fail (a).&rdquo; The scratch mutation that discarded the health guard whenever <code>waiting &lt;= 0</code> fails the queue-free regression (<code>1 failed</code>) and is removed before the final green gate.</p>
 
+  <section id="generation-counter-parser">
+    <h2>The SGLang parser retains the cumulative generation-token counter</h2>
+    <p>The recorded SGLang fixture contains <code>sglang:generation_tokens_total</code>
+    at <code>104.0</code>. Commit <code>57928a20</code> adds the explicit assertion
+    <code>capacity.generation_tokens == 104</code> to
+    <code>tests/test_agent_lane_sglang.py</code>; the equality contract remains
+    engine-independent because the counter is a cumulative odometer and is not part
+    of <code>LaneCapacity</code> equality.</p>
+    <p>The declared gate <code>uv run --no-sync pytest -p no:cacheprovider
+    tests/test_agent_lane_sglang.py</code> passes <code>3/3</code>, and whole-tree
+    <code>uv run --no-sync ruff check imas_ambix tests</code> exits <code>0</code>.
+    The required negative control was applied as a scratch edit and restored. Its
+    exact declaration was: &ldquo;dropping the generation_tokens assignment in
+    _lane_capacity_from_roles in imas_ambix/agent/lane.py must fail the new
+    assertion; applied as a scratch edit and restored&rdquo;. With that assignment
+    removed, the targeted gate reported <code>1 failed, 2 passed</code> at
+    <code>assert None == 104</code>; <code>lane.py</code> was restored byte-for-byte
+    and is not part of the committed change.</p>
+  </section>
+
     <p><strong>Not deployed.</strong> The controller is landed but not in force: no
     router restart and no write to <code>router-gate.json</code>, so the operator
     width of 14 stands. The speculative-depth sweep and the served-settings
