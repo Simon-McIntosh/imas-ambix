@@ -1,0 +1,286 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effort": "high",
+    "launch": "cli",
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "worktree-full",
+    "usable_input_window": 480000
+  },
+  "attempt": 2,
+  "attempt_kind": "resume",
+  "backend": "clive",
+  "base_sha": "a099ee9b15cdb377111d276574fc5d4ff2251e93",
+  "boundary_waiver": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "inference_geo": "",
+      "input_tokens": 4808449,
+      "input_tokens_cumulative": 4808449,
+      "output_tokens": 23949,
+      "output_tokens_cumulative": 23949,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": {
+    "added": 456,
+    "files": 6,
+    "removed": 10
+  },
+  "commit_resolution": null,
+  "commits": [
+    "91c2b563d9822d90498bd368b50c11e7ed1d7aed",
+    "60fe41b879dde0bc01d3bd00b1173fb4525b90c7",
+    "a83dd422f4dc9eaa5e60354bcd23646c184e668c",
+    "b1df1ee61bab59a3f434c52f54eb9f0cc355c9e0",
+    "ade5b333f93a9b70ca2b30c43beba2e538d1f3cb"
+  ],
+  "completed_at": "2026-09-25T21:35:46.699Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-09-25T20:34:18Z",
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": true,
+    "matched_measure": "pytest -p",
+    "override": false,
+    "role": "implement",
+    "status": "compatible"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [],
+  "gate": "passed",
+  "gate_check": {
+    "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv uv run --no-sync pytest -p no:cacheprovider tests/test_request_receipts.py tests/test_agent_router_gate.py tests/test_agent_router_admission.py",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T203411617863-s16-receipt-run-id/gate.log"
+  },
+  "impl_move": {
+    "at_complete": 0.9,
+    "at_dispatch": 0.9,
+    "plan": "local-lane-admission-control",
+    "reason": "sections 14-20 grew the executable denominator; impl stays at 0.9 until the node fraction passes it",
+    "verdict": "waived"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-09-25T21:19:12.264326+00:00",
+    "horizon_seconds": 2700,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": "clive",
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-09-25T20:34:12Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 8,
+    "binding_observed": "unknown",
+    "detail": "",
+    "headroom": 20,
+    "mean_context": 70000,
+    "observed_at": "2026-09-25T20:34:04Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-09-25T21:35:46.699Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": false,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T203411617863-s16-receipt-run-id/manifest.md",
+  "member": "llac-knee",
+  "negative_control": {
+    "declaration": "deriving run_id from the caller_hint peer port instead of the header must fail the header test; applied as a scratch edit and restored",
+    "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T203411617863-s16-receipt-run-id/negative-control.log",
+    "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T203411617863-s16-receipt-run-id/negative-control.log",
+    "test_paths": [
+      "tests/test_request_receipts.py"
+    ],
+    "verdict": "matched"
+  },
+  "no_commit": null,
+  "node": "s16-receipt-run-id",
+  "node_definition": {
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 775,
+          "cached_input_tokens": 792240,
+          "input_tokens": 793017,
+          "output_tokens": 2679,
+          "reasoning_output_tokens": 382,
+          "total_tokens": 795696,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "38dec84a-7cb6-4b27-ace6-501cc76dbec0",
+      "session_id": "llac-s14-0925"
+    },
+    "done_when": "'uv run --no-sync pytest -p no:cacheprovider tests/test_request_receipts.py tests/test_agent_router_gate.py tests/test_agent_router_admission.py' exits 0 on the login node with new tests asserting: a relayed request carrying X-Reckon-Run-Id r-abc and X-Reckon-Session s-1 produces a receipt with run_id r-abc and coordinator_session s-1; a request without them records both as null; a value over 128 characters or containing a control character is recorded as null; the fields also appear on a gate-timeout (529) receipt; existing receipt tests stay green; the declared negative control is recorded verbatim with its failing test count in the manifest; 'uv run --no-sync ruff check imas_ambix tests' exits 0. No router restart.",
+    "estimated_hours": null,
+    "goal": "Record the X-Reckon-Run-Id and X-Reckon-Session request headers in the router's request receipts",
+    "id": "s16-receipt-run-id",
+    "lane_declaration": {
+      "backend": "clive",
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-09-25T20:34:12Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 8,
+      "binding_observed": "unknown",
+      "detail": "",
+      "headroom": 20,
+      "mean_context": 70000,
+      "observed_at": "2026-09-25T20:34:04Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T203411617863-s16-receipt-run-id/manifest.md",
+    "negative_control": "deriving run_id from the caller_hint peer port instead of the header must fail the header test; applied as a scratch edit and restored",
+    "plan": "local-lane-admission-control",
+    "requested_backend": "clive",
+    "requires_decisions": [],
+    "role": "implement",
+    "section": "§16",
+    "spec_level": "guided",
+    "time_budget": "45m",
+    "token_budget": null,
+    "write_paths": [
+      "imas_ambix/agent/router.py",
+      "imas_ambix/agent/request_receipts.py",
+      "tests/test_request_receipts.py",
+      "docs/plans/local-lane-admission-control.html",
+      "docs/evidence/archive/local-lane-admission-control-landed.html",
+      "docs/figures/local-lane-admission-control"
+    ]
+  },
+  "orientation_input_tokens": 1564834.0,
+  "outcome": "",
+  "plan": "local-lane-admission-control",
+  "plan_impl_at_dispatch": 0.9,
+  "promoted_revision": "ade5b333f93a9b70ca2b30c43beba2e538d1f3cb",
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "scores": {
+      "durability": 18,
+      "evidence": 19,
+      "fit": 20,
+      "goal_fidelity": 20,
+      "scope_discipline": 19
+    },
+    "status": "parsed",
+    "total": 96
+  },
+  "role": "implement",
+  "run_id": "r-20260925T203411617863-s16-receipt-run-id",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§16",
+  "session_harness": "claude",
+  "session_id": "5ea7df38-4fc6-4a1b-85ba-c2a2961d05c6",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "guided",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 8,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 13476535,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+    "elapsed_seconds": 728.808,
+    "generated_tokens": 62700,
+    "generation_seconds": 693.296,
+    "input_budget_tokens": 480000,
+    "input_utilisation_pct": 32.3,
+    "machine_seconds": 35.512,
+    "peak_input_tokens": 155071,
+    "tokens_per_second": 90.44,
+    "wall_tokens_per_second": 86.03
+  },
+  "time_budget": "45m",
+  "tool_steps": 72.0,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": []
+  },
+  "wall_seconds": 3688,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 2,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-09-25T21:35:47Z",
+    "last_record_type": "result",
+    "launched_at": "2026-09-25T21:23:35Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20260925T203411617863-s16-receipt-run-id",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 7537,
+    "worker_pid": 2341139
+  },
+  "worker_seconds": 3672,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
