@@ -23,12 +23,14 @@ from aiohttp import web
 
 import imas_ambix.agent.request_receipts as request_receipts
 from imas_ambix.agent.request_receipts import (
+    MAX_IDENTITY_CHARS,
     SELF_ANSWERED_UPSTREAM,
     STATUS_ABORTED,
     STATUS_COMPLETED,
     STATUS_FAILED,
     RequestReceiptSink,
     StreamAccounting,
+    identity_from_headers,
 )
 from imas_ambix.agent.router import (
     RECEIPT_MAX_ROWS_PER_S_ENV,
@@ -1018,3 +1020,172 @@ def test_a_new_shape_is_added_as_a_dialect_entry_not_as_parsing_code() -> None:
     assert [dict(u) for u in usages] == [{"tokens_in": 3, "tokens_out": 4}]
     assert invented.speaks(usages[0])
     assert invented.carries_first_token({"kind": "chunk", "piece": {"body": "hi"}})
+
+
+def _identity_headers(
+    run_id: bytes | None, session: bytes | None
+) -> list[tuple[bytes, bytes]]:
+    headers: list[tuple[bytes, bytes]] = [(b"content-type", b"application/json")]
+    if run_id is not None:
+        headers.append((b"x-reckon-run-id", run_id))
+    if session is not None:
+        headers.append((b"x-reckon-session", session))
+    return headers
+
+
+def test_a_relayed_request_records_the_session_identity_it_carried(
+    tmp_path: Path,
+) -> None:
+    """The two headers a keyed caller sends land on the row it produced."""
+
+    async def exercise() -> None:
+        receipts = tmp_path / "requests.jsonl"
+        engine = _sse_engine()
+        async with (
+            _server(engine) as engine_url,
+            _router_with_receipts([Upstream(engine_url)], receipts) as app,
+        ):
+            response = await _invoke(
+                app,
+                "POST",
+                "/v1/chat/completions",
+                _request_body(),
+                headers=_identity_headers(b"r-abc", b"s-1"),
+            )
+            assert _status(response) == 200
+
+        rows = _read_rows(receipts)
+        assert len(rows) == 1
+        assert rows[0]["run_id"] == "r-abc"
+        assert rows[0]["coordinator_session"] == "s-1"
+
+    asyncio.run(exercise())
+
+
+def test_a_request_reported_while_unkeyed_records_both_identities_null(
+    tmp_path: Path,
+) -> None:
+    """No header means null, not a value the router inferred from the socket."""
+
+    async def exercise() -> None:
+        receipts = tmp_path / "requests.jsonl"
+        engine = _sse_engine()
+        async with (
+            _server(engine) as engine_url,
+            _router_with_receipts([Upstream(engine_url)], receipts) as app,
+        ):
+            response = await _invoke(
+                app, "POST", "/v1/chat/completions", _request_body()
+            )
+            assert _status(response) == 200
+
+        rows = _read_rows(receipts)
+        assert len(rows) == 1
+        assert rows[0]["run_id"] is None
+        assert rows[0]["coordinator_session"] is None
+
+    asyncio.run(exercise())
+
+
+def test_an_over_long_or_control_bearing_identity_is_recorded_as_absent(
+    tmp_path: Path,
+) -> None:
+    """Two malformed values on one request do not contaminate each other."""
+
+    async def exercise() -> None:
+        receipts = tmp_path / "requests.jsonl"
+        engine = _sse_engine()
+        async with (
+            _server(engine) as engine_url,
+            _router_with_receipts([Upstream(engine_url)], receipts) as app,
+        ):
+            await _invoke(
+                app,
+                "POST",
+                "/v1/chat/completions",
+                _request_body(),
+                headers=_identity_headers(b"a" * (MAX_IDENTITY_CHARS + 1), b"s-ok"),
+            )
+            await _invoke(
+                app,
+                "POST",
+                "/v1/chat/completions",
+                _request_body(),
+                headers=_identity_headers(b"r-ok", b"s\x07bad"),
+            )
+
+        rows = _read_rows(receipts)
+        assert len(rows) == 2
+        assert rows[0]["run_id"] is None
+        assert rows[0]["coordinator_session"] == "s-ok"
+        assert rows[1]["run_id"] == "r-ok"
+        assert rows[1]["coordinator_session"] is None
+
+    asyncio.run(exercise())
+
+
+def test_an_identity_that_is_not_a_well_formed_token_is_rejected_at_the_boundary() -> (
+    None
+):
+    """The token rule is stated once and read without a request in flight."""
+    at_limit = b"a" * MAX_IDENTITY_CHARS
+
+    assert identity_from_headers([(b"x-reckon-run-id", at_limit)]) == (
+        at_limit.decode(),
+        None,
+    )
+    assert identity_from_headers(
+        [(b"x-reckon-run-id", b"a" * (MAX_IDENTITY_CHARS + 1))]
+    ) == (
+        None,
+        None,
+    )
+    assert identity_from_headers([(b"X-Reckon-Session", b"s-1")]) == (None, "s-1")
+    assert identity_from_headers([(b"x-reckon-run-id", b"")]) == (None, None)
+    assert identity_from_headers([(b"x-reckon-run-id", b"r\x07x")]) == (None, None)
+    assert identity_from_headers([]) == (None, None)
+
+
+def test_the_gate_timeout_receipt_also_carries_the_session_identity(
+    tmp_path: Path,
+) -> None:
+    """A 529 composed by the gate is keyed from the request that waited."""
+
+    async def exercise() -> None:
+        receipts = tmp_path / "requests.jsonl"
+        gate_file = tmp_path / "router-gate.json"
+        gate_file.write_text(
+            json.dumps({"width": 1, "wait_seconds": 0.05}), encoding="utf-8"
+        )
+        async with (
+            _server(_sse_engine()) as engine_url,
+            _router_with_receipts(
+                [Upstream(engine_url)], receipts, gate_file=gate_file
+            ) as app,
+        ):
+            held_queue: asyncio.Queue[SendMessage] = asyncio.Queue()
+
+            async def _receive() -> SendMessage:
+                return await held_queue.get()
+
+            held = await app._generation_gate.acquire(_receive)
+            response = await _invoke(
+                app,
+                "POST",
+                "/v1/chat/completions",
+                _request_body(),
+                headers=_identity_headers(b"r-timeout", b"s-timeout"),
+            )
+            assert _status(response) == 529
+            await app._generation_gate.release()
+            if held.disconnect_task is not None:
+                held.disconnect_task.cancel()
+                await asyncio.gather(held.disconnect_task, return_exceptions=True)
+
+        rows = _read_rows(receipts)
+        assert len(rows) == 1
+        assert rows[0]["status"] == "failed"
+        assert rows[0]["run_id"] == "r-timeout"
+        assert rows[0]["coordinator_session"] == "s-timeout"
+
+    asyncio.run(exercise())

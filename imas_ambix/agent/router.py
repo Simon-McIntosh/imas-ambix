@@ -29,6 +29,7 @@ from imas_ambix.agent.request_receipts import (
     STATUS_FAILED,
     RequestReceiptSink,
     StreamAccounting,
+    identity_from_headers,
 )
 from imas_ambix.agent.vllm_catalog import validate_catalog_metadata
 
@@ -1764,9 +1765,7 @@ class RouterApp:
             # whole wait a cut exists to shorten. Racing the two is what lets a
             # cut pause end exactly the relays that are longest in flight.
             opened = asyncio.create_task(
-                _open_upstream(
-                    session, scope["method"], target, body, request_headers
-                )
+                _open_upstream(session, scope["method"], target, body, request_headers)
             )
             if cut_task is not None:
                 done, _ = await asyncio.wait(
@@ -1871,6 +1870,7 @@ class RouterApp:
                 model_id=model_id,
                 upstream=upstream.base_url,
                 caller_hint=caller_hint,
+                scope=scope,
                 started_at=started_at,
                 began=began,
                 gate_wait_s=gate_wait_s,
@@ -1909,11 +1909,17 @@ class RouterApp:
         model_id: str,
         upstream: str,
         caller_hint: str,
+        scope: Mapping[str, Any],
         started_at: datetime,
         began: float,
         gate_wait_s: float = 0.0,
     ) -> None:
         """Append the row for one request, whatever its outcome and whoever answered it.
+
+        The session identity is read from the request's own headers here, so
+        every row that is written -- relayed, cut, refused or timed out -- is
+        keyed from the request that produced it rather than from anything the
+        router might infer about the caller.
 
         Never raises into the relay: this runs in a ``finally`` whose exception
         may still be propagating, so a failure here would replace the real
@@ -1922,6 +1928,7 @@ class RouterApp:
         sink = self._receipt_sink()
         if sink is None:
             return
+        run_id, coordinator_session = identity_from_headers(scope.get("headers") or ())
         try:
             sink.record(
                 model=model_id,
@@ -1931,6 +1938,8 @@ class RouterApp:
                 duration_s=time.perf_counter() - began,
                 accounting=accounting,
                 gate_wait_s=gate_wait_s,
+                run_id=run_id,
+                coordinator_session=coordinator_session,
                 timestamp=started_at,
             )
         except (OSError, TypeError, ValueError) as error:
@@ -1994,6 +2003,7 @@ class RouterApp:
             model_id=model_id,
             upstream=SELF_ANSWERED_UPSTREAM,
             caller_hint=self._caller_hint(scope),
+            scope=scope,
             started_at=datetime.now(UTC),
             began=began,
             gate_wait_s=gate_wait_s,
