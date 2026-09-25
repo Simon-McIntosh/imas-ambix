@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-25">
-<meta name="plan-version" content="15">
+<meta name="plan-version" content="16">
 </head>
 <body>
   <main class="plan-doc">
@@ -293,6 +293,9 @@
 </div>
 <div class="r-comment" data-section="s9" data-id="c-run-r-20260925T023508527905-fleet-view-wording-repair" data-who="reckon-build" data-when="2026-09-25T02:42:37.636Z">
     <div class="r-comment-body"><p>Repair node: both wording findings from the unseen-surfaces review fixed. The one-tab control sentence in <code>docs/research/fleet-view-rendering.html</code> now reproduces only the earlier probe's attach band (163 ms against the declared 150–175 ms, zero stalls added) and states that the two probes time a resize differently — the earlier probe waits for a 500 ms quiet period, this one reads the client's own quiet period — so the resize comparison holds within each probe: a live Claude Code pane reflowed in 3,756 ms at 100→70 columns against 12–13 ms for a shell under the same method, rather than claiming its 13 ms reproduces the earlier 418–439 ms column. <code>evidence-second-client/run.log</code>'s live line (attach_ms 156, resize_ms 3748, 7,475 B) now carries a SUPERSEDED marker naming the committed run (147/3,756/10,247). <code>reckon audit-doc</code> exits 0. Evidence anchor: <a href="/imas-ambix/evidence/archive/agent-sessions-live-on-the-fleet-node-landed#fleet-view-wording-repair">the landed evidence record</a>.</p></div>
+</div>
+<div class="r-comment" data-section="s9" data-id="c-run-r-20260925T024511971481-review-of-fleet-view-wording-repair" data-who="reckon-build" data-when="2026-09-25T03:05:39.457Z">
+    <div class="r-comment-body"><p>Review of fleet-view-wording-repair: 78/100; found the substituted resize-gap explanation wrong, sent to a second repair</p></div>
 </div>
 </section>
 </main>
