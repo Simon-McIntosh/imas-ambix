@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-25T11:21:41",
+  "updated": "2026-09-25T12:25:39",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -91951,6 +91951,268 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260925T092139080548-s14-reuse-map",
+        "plan": "local-lane-admission-control",
+        "section": "\u00a714",
+        "node": "s14-reuse-map",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 488,
+                "cached_input_tokens": 180184,
+                "input_tokens": 180674,
+                "output_tokens": 775,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 181449,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "38dec84a-7cb6-4b27-ace6-501cc76dbec0",
+            "session_id": "llac-s14-0925"
+          },
+          "done_when": "The report at the write path answers three questions, each with a file:line citation or with the exact grep command that returned zero matches: (1) every existing reader of engine generation_tokens, prefix_hit_rate and num_requests_running in imas_ambix/agent; (2) the flags imas-ambix agent bench exposes for concurrency and speculative draft tokens, with the output of 'uv run --no-sync imas-ambix agent bench --help' recorded verbatim; (3) whether the installed SGLang speculative path has a batch-size cutoff for speculation, citing the .venv or serving-environment source line or recording absence",
+          "estimated_hours": null,
+          "goal": "Produce the prior-art reuse map for the \u00a714 throughput width controller and speculative-depth sweep",
+          "id": "s14-reuse-map",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-25T09:21:39Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": 21,
+            "binding_observed": "unknown",
+            "detail": "",
+            "headroom": 6,
+            "mean_context": 101538,
+            "observed_at": "2026-09-25T09:21:18Z",
+            "state": "fresh",
+            "suggested_shelf_life_seconds": 45
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T092139080548-s14-reuse-map/manifest.md",
+          "negative_control": "",
+          "plan": "local-lane-admission-control",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "investigate",
+          "section": "\u00a714",
+          "spec_level": "guided",
+          "time_budget": "25m",
+          "token_budget": null,
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/s14-reuse-map.md"
+          ]
+        },
+        "role": "investigate",
+        "spec_level": "guided",
+        "member": "llac-engine",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "xhigh",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "read-only",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-25T09:21:47Z",
+        "completed_at": "2026-09-25T10:25:07.217Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 3708,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 3800,
+        "stalled": true,
+        "time_budget": "25m",
+        "base_sha": "2e17d8b858d906e5fe511f02aa27b3db78655a92",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": 0,
+        "gate": "passed",
+        "gate_check": {
+          "command": "test -s /home/ITER/mcintos/.config/reckon/crew/reports/s14-reuse-map.md && test $(grep -c '^## Q[123]' /home/ITER/mcintos/.config/reckon/crew/reports/s14-reuse-map.md) -eq 3",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T092139080548-s14-reuse-map/gate.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T092139080548-s14-reuse-map/manifest.md",
+        "scope_changed": false,
+        "session_id": "4bb99808-48e9-4a89-81ae-1f9b1b3d09a1",
+        "session_harness": "claude",
+        "session_model": "deepseek-v4.1-flash",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 6163919,
+            "input_tokens_cumulative": 6163919,
+            "output_tokens": 31306,
+            "output_tokens_cumulative": 31306,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-25T10:25:07.217Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": null,
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 6163919,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 3789.807,
+          "generated_tokens": 31306,
+          "generation_seconds": 3648.346,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 29.5,
+          "machine_seconds": 141.461,
+          "peak_input_tokens": 141546,
+          "tokens_per_second": 8.58,
+          "wall_tokens_per_second": 8.26
+        },
+        "follow_on_paths": [
+          "4..36"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": false,
+          "matched_measure": null,
+          "override": false,
+          "role": "investigate",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": "read-only investigate node; delivery is the report under crew/reports, summarised into plan \u00a714 at a39e6111",
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/llac-s14-0925/s14-reuse-map",
+          "session_id": "4bb99808-48e9-4a89-81ae-1f9b1b3d09a1",
+          "session_source": "pointer",
+          "retained_at": "2026-09-25T10:25:07.217Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "worker_exit": {
+          "ended_during": "working",
+          "exit_code": 0,
+          "exited_at": "2026-09-25T10:25:07Z",
+          "last_record_type": "result",
+          "launched_at": "2026-09-25T09:21:53Z",
+          "recorded_by": "supervisor",
+          "run_id": "r-20260925T092139080548-s14-reuse-map",
+          "signal": null,
+          "signal_name": null,
+          "stream_records_seen": 5098,
+          "worker_pid": 137223
+        },
+        "promoted_revision": "2e17d8b858d906e5fe511f02aa27b3db78655a92",
+        "plan_impl_at_dispatch": 0.9,
+        "impl_move": {
+          "plan": "local-lane-admission-control",
+          "at_dispatch": 0.9,
+          "at_complete": null,
+          "verdict": "exempt",
+          "reason": "role-not-enforced:investigate"
+        },
+        "negative_control": {
+          "verdict": "exempt",
+          "reason": "node-writes-no-test-path"
+        },
+        "lane_advisory": {
+          "backend": "clive",
+          "burn_multiple": null,
+          "cheaper_lane": {
+            "detail": "",
+            "lane": null,
+            "state": "not_evaluated"
+          },
+          "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+          "horizon_ends_at": "2026-09-25T09:46:39.618391+00:00",
+          "horizon_seconds": 1500,
+          "metered": false,
+          "observed_at": null,
+          "precedes_horizon": null,
+          "projected_exhaustion_at": null,
+          "resets_at": null,
+          "seconds_until_reset": null,
+          "state": "quiet",
+          "utilisation_pct": null
+        },
+        "lane_declaration": {
+          "backend": null,
+          "headroom": null,
+          "metered": false,
+          "observed_at": null,
+          "read_at": "2026-09-25T09:21:39Z",
+          "resolved_backend": "clive",
+          "utilisation_pct": null
+        },
+        "lane_reading": {
+          "age_seconds": 21,
+          "binding_observed": "unknown",
+          "detail": "",
+          "headroom": 6,
+          "mean_context": 101538,
+          "observed_at": "2026-09-25T09:21:18Z",
+          "state": "fresh",
+          "suggested_shelf_life_seconds": 45
+        },
+        "tool_steps": 74.0,
+        "orientation_input_tokens": 4124462.0,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -92053,6 +92315,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 1105
+    "_version": 1106
   }
 }
