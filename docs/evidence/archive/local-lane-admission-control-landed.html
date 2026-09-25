@@ -1573,6 +1573,90 @@
     group-owned directory and the router restart remain the lead-authorised
     deploy step.</p>
   </section>
+
+  <section id="gate-resolution-wording">
+    <h2>The resolution order is stated, and the gate-path tests can fail</h2>
+    <p>The site control path became the default, but the wording did not move
+    with it: every statement of the resolution order in the router CLI's help
+    strings and docstrings still stopped at the lane document's sibling and never
+    named the site step, and two gate-path tests asserted against a value they
+    derived the same way the CLI does, so an unexpanded path would have passed
+    them.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/local-lane-admission-control/gate-resolution-stated-order.svg"
+           alt="The gate control path resolves through four sources in order: the
+                --gate-file option, then AMBIX_ROUTER_GATE_PATH, then the site
+                control path (the step the wording omitted, shown highlighted),
+                then the lane document's sibling as the last resort. The corrected
+                statements are listed in cli.py and slurm.py.">
+      <figcaption>The four sources in the order every corrected statement now
+      names; the site control path (highlighted) is the step the wording
+      omitted.</figcaption>
+    </figure>
+
+    <p><strong>What changed.</strong> In
+    <code>imas_ambix/agent/cli.py</code> the <code>--gate-file</code> help for
+    <code>router_command</code>, <code>pause</code>, <code>resume</code> and
+    <code>width</code>, and the <code>_gate_document_path</code> docstring, now
+    state the order as the option, then <code>AMBIX_ROUTER_GATE_PATH</code>, then
+    the site control path (<code>SiteConfig.gate_control_path</code>, default
+    <code>&lt;base_dir&gt;/agents/control/router-gate.json</code>), then the lane
+    document's sibling. In <code>imas_ambix/agent/slurm.py</code> the
+    <code>generate_router_script</code> docstring and the no-option
+    <code>unset</code> line's comment state the same order: a submission with no
+    gate file unsets <code>AMBIX_ROUTER_GATE_PATH</code> and resolves past it to
+    the site control path, then the lane sibling, so the no-option job reads the
+    site file rather than the sibling the earlier wording named. The reflow keeps
+    the phrase <code>lane document's sibling</code> on one source line, so a
+    search finds each statement rather than a fragment of it.</p>
+
+    <p><strong>The tests can now fail.</strong> In
+    <code>tests/test_agent_gate_control_path.py</code> the tilde and
+    relative-path tests asserted against <code>expected</code>, a value the test
+    computed with the same <code>expanduser</code>/<code>resolve</code> the CLI
+    uses, so an unexpanded path reaching the script would have left them green;
+    they now read the emitted <code>export</code> line back from the output and
+    assert on that. A new test,
+    <code>test_foreground_router_receives_the_expanded_absolute_gate_file</code>,
+    stubs <code>serve_router</code> and captures the <code>gate_file</code> the
+    foreground router receives, requiring it absolute and equal to the expanded
+    home-directory path. The two lane-sibling fallback tests now set the site
+    value empty and say in their docstrings that the site step precedes the
+    sibling they exercise. The module docstrings of both test files state the
+    four-source order without relying on history.</p>
+
+    <p><strong>The phrase is grep-visible, and each hit is an order
+    statement.</strong> <code>grep -n "lane document's sibling"
+    imas_ambix/agent/cli.py imas_ambix/agent/slurm.py</code> returns seven hits:
+    <code>cli.py</code> 1737, 3295, 3417, 3476, 3508 and <code>slurm.py</code>
+    988, 1049. Each sits inside a statement that names the site control path as
+    the preceding step; the two <code>slurm.py</code> hits are the docstring and
+    the <code>unset</code> comment, and the four <code>cli.py</code> help hits
+    share the line <code>&lt;base_dir&gt;/agents/control/router-gate.json), then
+    the lane document's sibling.</code></p>
+
+    <p><strong>Evidence that could have failed.</strong> The declared negative
+    control, verbatim as the first line of the red log, is: &ldquo;reverting
+    router_command's serve_router call to pass gate_file=Path(gate_file)
+    unexpanded must fail the new foreground-router test; applied as a scratch
+    edit and restored&rdquo;. Changing the foreground <code>serve_router</code>
+    call to <code>gate_file=Path(gate_file) if gate_file else None</code>
+    produced <strong>1 failed</strong> of 1 selected — the new test, with
+    <code>PosixPath('~/ambix-gate.json')</code> not absolute — and the scratch
+    edit was restored byte-identical, <code>git diff</code> empty against the
+    committed revision before the green gate ran. The declared gate <code>uv run
+    --no-sync pytest -p no:cacheprovider
+    tests/test_agent_gate_control_path.py tests/test_agent_gate_site_default.py
+    tests/test_agent_router_gate.py tests/test_agent_pause_cli.py</code> ran 58
+    tests with 0 failures at the committed revision, and whole-tree <code>uv run
+    --no-sync ruff check imas_ambix tests</code> exited 0.</p>
+
+    <p><strong>What was not done.</strong> No behaviour changed in
+    <code>imas_ambix/</code>: the edits are help text, docstrings and comments,
+    plus an added test and two strengthened assertions. No router was restarted
+    and no job submitted.</p>
+  </section>
 </main>
 </body>
 </html>

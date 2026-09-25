@@ -1,15 +1,17 @@
 """The gate control file defaults to the group control directory.
 
-The router's gate control file used to be inferred from the lane document, so
-control lived beside the published lane in a personal public directory shared
-with observations and a large request log. It now defaults to the group-owned
-control directory under the project base, with the site value itself
-overridable from the environment like every other ``SiteConfig`` setting.
+The router and the CLI resolve one control file through the same order: the
+explicit option, then ``AMBIX_ROUTER_GATE_PATH``, then the site control path
+(``SiteConfig.gate_control_path``, overridable through
+``AMBIX_AGENT_GATE_CONTROL_PATH`` and defaulting to
+``<base_dir>/agents/control/router-gate.json`` when the value is non-empty),
+then the lane document's sibling. The site control path is where control lives
+by default, in the group-owned directory under the project base, so the file is
+not derived from wherever the lane publishes; the lane sibling is the last
+resort and applies only when the site value is empty.
 
-These tests pin the resolution order the router and the CLI share: the explicit
-option, then ``AMBIX_ROUTER_GATE_PATH``, then the site control path when it is
-non-empty, then the lane document's sibling. They also pin that no test can
-reach the production path while the session fixture holds the site value empty.
+These tests pin that order, and that no test can reach the production path while
+the session fixture holds the site value empty.
 """
 
 from __future__ import annotations

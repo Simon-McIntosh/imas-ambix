@@ -982,10 +982,12 @@ def generate_router_script(
     is a value the running job carries and a reader can audit, whereas a value
     that lives only in the submitting invocation is one the job can silently be
     launched without. With no ``gate_file`` the script unsets
-    ``AMBIX_ROUTER_GATE_PATH``, so the job reads the lane document's sibling
-    whatever the submitting shell happened to export -- a no-option submission
-    depends only on the generated script, never on the environment it was
-    submitted from.
+    ``AMBIX_ROUTER_GATE_PATH``, so the job resolves through the sources that
+    remain, in order: the site control path (``SiteConfig.gate_control_path``,
+    default ``<base_dir>/agents/control/router-gate.json``), then
+    the lane document's sibling -- whatever the submitting shell happened to
+    export. A no-option submission depends only on the generated script, never
+    on the environment it was submitted from.
     """
     if not 1 <= port <= 65535:
         raise ValueError("port must be between 1 and 65535")
@@ -1043,7 +1045,8 @@ def generate_router_script(
     else:
         body_lines.append(
             f"unset {GATE_PATH_ENV}"
-            "   # read the lane document's sibling, whatever the shell exported"
+            "   # unset, so resolution falls to the site control path, then the"
+            " lane document's sibling"
         )
     body_lines.append(
         f'echo "[$(date)] Starting keyless Ambix router on $(hostname):{port}"'
