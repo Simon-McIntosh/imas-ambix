@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-25">
-<meta name="plan-version" content="16">
+<meta name="plan-version" content="17">
 </head>
 <body>
   <main class="plan-doc">
@@ -298,7 +298,10 @@
     <div class="r-comment-body"><p>Review of fleet-view-wording-repair: 78/100; found the substituted resize-gap explanation wrong, sent to a second repair</p></div>
 </div>
 <div class="r-comment" data-section="s9" data-id="c-run-r-20260925T030908916465-fleet-view-resize-gap-wording" data-who="reckon-build" data-when="2026-09-25T03:15:19.000Z">
-    <div class="r-comment-body"><p>Repair node: the finding from the wording-repair review fixed. The sentence in <code>docs/research/fleet-view-rendering.html</code> no longer explains the 13&nbsp;ms versus 418&ndash;439&nbsp;ms resize gap by a difference in how the two probes time a resize &mdash; that explanation was wrong, since both probes time it the same way and the earlier probe's own receipt (<code>evidence-probe/log-shell-50000.timed</code>) reaches its first byte at 13&nbsp;ms &mdash; the same value the second probe records. The note now states the cause is not settled, cites that receipt for the earlier probe's own 13&nbsp;ms first byte, and keeps only the within-probe comparison (3,756&nbsp;ms live Claude Code reflow at 100&rarr;70 columns against 12&ndash;13&nbsp;ms for a shell under the same method). <code>grep -c 'waits for a 500'</code> on the note returns 0; <code>reckon audit-doc</code> exits 0. Evidence anchor: <a href="/imas-ambix/evidence/archive/agent-sessions-live-on-the-fleet-node-landed#fleet-view-resize-gap-wording">the landed evidence record</a>.</p></div>
+    <div class="r-comment-body"><p>Repair node: the finding from the wording-repair review fixed. The sentence in <code>docs/research/fleet-view-rendering.html</code> no longer explains the 13 ms versus 418–439 ms resize gap by a difference in how the two probes time a resize — that explanation was wrong, since both probes time it the same way and the earlier probe's own receipt (<code>evidence-probe/log-shell-50000.timed</code>) reaches its first byte at 13 ms — the same value the second probe records. The note now states the cause is not settled, cites that receipt for the earlier probe's own 13 ms first byte, and keeps only the within-probe comparison (3,756 ms live Claude Code reflow at 100→70 columns against 12–13 ms for a shell under the same method). <code>grep -c 'waits for a 500'</code> on the note returns 0; <code>reckon audit-doc</code> exits 0. Evidence anchor: <a href="/imas-ambix/evidence/archive/agent-sessions-live-on-the-fleet-node-landed#fleet-view-resize-gap-wording">the landed evidence record</a>.</p></div>
+</div>
+<div class="r-comment" data-section="s9" data-id="c-run-r-20260925T032018167463-review-of-fleet-view-resize-gap-wording" data-who="reckon-build" data-when="2026-09-25T03:39:21.969Z">
+    <div class="r-comment-body"><p>Review of fleet-view-resize-gap-wording: 81/100; one stray closing tag in the evidence record, fixed in 44bd7ef7</p></div>
 </div>
 </section>
 </main>
