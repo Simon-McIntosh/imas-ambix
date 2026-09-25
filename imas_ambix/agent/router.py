@@ -161,6 +161,8 @@ class _GenerationGate:
         self.config_path = config_path
         self._defaults = _GateSettings(default_width, default_wait_seconds)
         self._cached_settings = self._defaults
+        self._last_integer_width: int | None = None
+        self._auto_transition_pending = False
         self._last_logged_settings: _GateSettings | None = None
         self._next_config_refresh_at = 0.0
         self._condition = asyncio.Condition()
@@ -223,6 +225,11 @@ class _GenerationGate:
                 payload = json.loads(self.config_path.read_text(encoding="utf-8"))
                 if not isinstance(payload, Mapping):
                     raise ValueError("the root must be an object")
+                self._auto_transition_pending = (
+                    payload.get("width") == GATE_AUTO_WIDTH
+                    and not self._cached_settings.auto
+                    and self._last_integer_width is not None
+                )
                 settings = self._settings_from_payload(payload)
             except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
                 logger.warning(
@@ -234,6 +241,9 @@ class _GenerationGate:
                     self._defaults.width,
                     self._defaults.wait_seconds,
                 )
+        if not settings.auto:
+            self._last_integer_width = settings.width
+        self._auto_transition_pending = False
         self._cached_settings = settings
         if settings != self._last_logged_settings:
             logger.info(
@@ -333,7 +343,21 @@ class _GenerationGate:
         memory = self._memory_width(settings)
         held = self._effective_width
         lower = min(settings.width_floor, GATE_CONTROLLER_WIDTH_FLOOR)
-        if memory is None:
+        if self._auto_transition_pending and self._last_integer_width is not None:
+            # A live switch from an operator width to auto must not jump to the
+            # memory rule. Preserve the width that was in force, then let the
+            # throughput controller move it from that safe starting point.
+            starting = self._last_integer_width
+            width = starting if memory is None else min(starting, memory)
+            self._controller_width = width
+            self._controller_proposal = width
+            self._controller_phase = "climb"
+            self._controller_reference_width = None
+            self._controller_reference_rate = None
+            self._controller_best_rate = None
+            self._controller_rates.clear()
+            self._controller_health.clear()
+        elif memory is None:
             width = held if held is not None else settings.width_floor
         elif self._controller_width is None:
             width = memory
@@ -419,12 +443,31 @@ class _GenerationGate:
         is that rate, judged over enough readings that its own noise is small
         against a step, with the health watches outranking it.
         """
-        if generation_tokens is None:
-            return
         previous = self._throughput_tokens
         elapsed = stamp - self._throughput_stamp
-        self._throughput_tokens = generation_tokens
-        self._throughput_stamp = stamp
+        rate = (
+            (generation_tokens - previous) / elapsed
+            if generation_tokens is not None
+            and previous is not None
+            and elapsed > 0
+            and generation_tokens >= previous
+            else None
+        )
+        if generation_tokens is not None:
+            self._throughput_tokens = generation_tokens
+            self._throughput_stamp = stamp
+        health_guard = self._record_health_sample(
+            rate=rate,
+            running=running,
+            prefix_hit_rate=prefix_hit_rate,
+            kv_occupancy=kv_occupancy,
+        )
+        if health_guard is not None:
+            self._controller_rates.clear()
+            self._step_width_down(health_guard)
+            return
+        if generation_tokens is None:
+            return
         if previous is None or elapsed <= 0:
             self._controller_note = "memory rule: throughput needs two readings"
             return
@@ -434,6 +477,7 @@ class _GenerationGate:
             # measures nothing, so the window is dropped rather than judged on a
             # rate no width produced.
             self._controller_rates.clear()
+            self._controller_health.clear()
             self._controller_note = "memory rule: generation counter reset"
             return
         rate = (generation_tokens - previous) / elapsed
@@ -443,7 +487,6 @@ class _GenerationGate:
             # width allows. With nothing waiting, the reading describes the
             # demand rather than the width, and every width would look alike.
             self._controller_rates.clear()
-            self._controller_health.clear()
             self._controller_note = "holding: no demand above the current width"
             return
 
@@ -455,6 +498,29 @@ class _GenerationGate:
             self._controller_note = "holding: no width in force to score"
             return
         self._controller_rates.append(rate)
+        if len(self._controller_rates) < GATE_CONTROLLER_WINDOWS:
+            if not (self._controller_note or "").startswith("stepping down:"):
+                self._controller_note = (
+                    f"measuring width {self._controller_proposal}: "
+                    f"{len(self._controller_rates)}/{GATE_CONTROLLER_WINDOWS} windows"
+                )
+            return
+        judged = math.fsum(self._controller_rates) / len(self._controller_rates)
+        self._controller_rates.clear()
+        self._judge_width(judged)
+
+    def _record_health_sample(
+        self,
+        *,
+        rate: float | None,
+        running: int | None,
+        prefix_hit_rate: float | None,
+        kv_occupancy: float | None,
+    ) -> str | None:
+        """Judge health independently of queued demand and throughput scoring."""
+        if running is None or running <= 0:
+            self._controller_health.clear()
+            return None
         self._controller_health.append(
             self._controller_health_sample(
                 rate=rate,
@@ -463,23 +529,11 @@ class _GenerationGate:
                 kv_occupancy=kv_occupancy,
             )
         )
-        if len(self._controller_rates) < GATE_CONTROLLER_WINDOWS:
-            self._controller_note = (
-                f"measuring width {self._controller_proposal}: "
-                f"{len(self._controller_rates)}/{GATE_CONTROLLER_WINDOWS} windows"
-            )
-            return
-        judged = math.fsum(self._controller_rates) / len(self._controller_rates)
-        self._controller_rates.clear()
+        if len(self._controller_health) < GATE_CONTROLLER_WINDOWS:
+            return None
         guard = self._controller_guard(self._controller_health)
         self._controller_health.clear()
-        if guard is not None:
-            # A guard outranks the objective, but only after the same window of
-            # readings used for throughput. This prevents one idle scrape or
-            # one ordinary loaded-minute fluctuation from changing the width.
-            self._step_width_down(guard)
-            return
-        self._judge_width(judged)
+        return guard
 
     def _judge_width(self, judged: float) -> None:
         """Choose the next width from one judged throughput reading.
@@ -646,7 +700,7 @@ class _GenerationGate:
     @staticmethod
     def _controller_health_sample(
         *,
-        rate: float,
+        rate: float | None,
         running: int | None,
         prefix_hit_rate: float | None,
         kv_occupancy: float | None,
@@ -657,7 +711,7 @@ class _GenerationGate:
         return (
             prefix_hit_rate,
             float(kv_occupancy) if kv_occupancy is not None else None,
-            rate / running,
+            rate / running if rate is not None else None,
         )
 
     def _step_width_down(self, reason: str) -> None:
@@ -675,6 +729,7 @@ class _GenerationGate:
         self._controller_reference_width = None
         self._controller_reference_rate = None
         self._controller_best_rate = None
+        self._controller_rates.clear()
         self._controller_health.clear()
         self._controller_note = reason
 

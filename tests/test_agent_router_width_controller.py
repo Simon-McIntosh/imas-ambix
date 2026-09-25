@@ -346,9 +346,81 @@ def test_width_controller_steps_down_once_per_sustained_health_window(
         prefix_hit_rate=0.80,
     )
 
-    assert widths[:7] == [20] * 7
-    assert widths[7:] == [18] * 6
+    assert widths[:6] == [20] * 6
+    assert widths[6:12] == [18] * 6
+    assert widths[12:] == [16]
     assert gate._controller_width == 16
+
+
+def test_width_controller_guards_loaded_lane_without_waiters(
+    tmp_path, monkeypatch
+) -> None:
+    """A loaded lane can exceed its queue demand and still need protection."""
+    monkeypatch.setattr(router_mod, "GATE_CONTROLLER_WINDOWS", 6)
+    gate_file = tmp_path / "router-gate.json"
+    _write_auto_gate(gate_file, width_floor=4, width_cap=36)
+    clock = _fake_clock(monkeypatch)
+    gate = router_mod._GenerationGate(gate_file)
+
+    widths = _drive(
+        gate,
+        clock,
+        random.Random(SEED),
+        scrapes=18,
+        start_width=36,
+        running=30,
+        waiting=0,
+        prefix_sequence=[0.70] * 12 + [0.99] * 6,
+    )
+
+    assert widths[:6] == [36] * 6
+    assert widths[6:12] == [34] * 6
+    assert widths[12:] == [32] * 6
+    assert gate._controller_width == 32
+
+
+def test_switching_from_integer_width_to_auto_preserves_current_width(
+    tmp_path, monkeypatch
+) -> None:
+    """An auto switch starts at the operator width, below the memory ceiling."""
+    gate_file = tmp_path / "router-gate.json"
+    gate_file.write_text(
+        json.dumps(
+            {
+                "width": 14,
+                "width_floor": 4,
+                "width_cap": 36,
+                "wait_seconds": 1.0,
+            }
+        ),
+        encoding="utf-8",
+    )
+    clock = _fake_clock(monkeypatch)
+    gate = router_mod._GenerationGate(gate_file)
+
+    assert gate.settings().width == 14
+    gate.observe_lane(
+        4_000_000,
+        20_000,
+        now=clock[0],
+        running=30,
+        waiting=0,
+    )
+    gate_file.write_text(
+        json.dumps(
+            {
+                "width": "auto",
+                "width_floor": 4,
+                "width_cap": 36,
+                "wait_seconds": 1.0,
+            }
+        ),
+        encoding="utf-8",
+    )
+    clock[0] += 2.0
+
+    assert gate.settings().width == 14
+    assert gate._controller_width == 14
 
 
 def test_width_controller_discards_the_window_spanning_a_counter_reset(
