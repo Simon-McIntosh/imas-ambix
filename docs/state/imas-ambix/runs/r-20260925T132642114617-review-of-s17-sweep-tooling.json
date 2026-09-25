@@ -1,0 +1,342 @@
+{
+  "agent": {
+    "alias": "luna5.6",
+    "backend": "codex-luna",
+    "effort": "xhigh",
+    "launch": "cli",
+    "model": "gpt-5.6-luna",
+    "sandbox": "read-only"
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "codex-luna",
+  "base_sha": "9d1d79111203981cf3e4ca98d115ae29ba167af2",
+  "boundary_waiver": null,
+  "budget": {
+    "cost_usd": null,
+    "detail": "backend reports token usage but no headroom",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_write_input_tokens": 0,
+      "cache_write_input_tokens_cumulative": 0,
+      "cached_input_tokens": 7897600,
+      "cached_input_tokens_cumulative": 7897600,
+      "input_tokens": 8133754,
+      "input_tokens_cumulative": 8133754,
+      "output_tokens": 35840,
+      "output_tokens_cumulative": 35840,
+      "reasoning_output_tokens": 11197,
+      "reasoning_output_tokens_cumulative": 11197
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": null,
+  "commit_resolution": null,
+  "commits": [],
+  "completed_at": "2026-09-25T13:43:37Z",
+  "completed_at_source": "stream_mtime",
+  "dispatched_at": "2026-09-25T13:26:51Z",
+  "dispute_count": 0,
+  "duration_measurement": {
+    "reason": "model_span_unavailable_at_promotion",
+    "status": "underivable"
+  },
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": false,
+    "matched_measure": null,
+    "override": false,
+    "role": "review",
+    "status": "no-execution-measure"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [
+    "repair/review:"
+  ],
+  "gate": "passed",
+  "gate_check": {
+    "command": "python3 -c \"import json;d=json.load(open('/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260925T115334948530-s17-sweep-tooling.json'));s=d['scores'];assert len(s)==5 and all(0<=v<=20 for v in s.values());print(sum(s.values()))\"",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T132642114617-review-of-s17-sweep-tooling/gate.log"
+  },
+  "impl_move": {
+    "at_complete": null,
+    "at_dispatch": 0.9,
+    "plan": "local-lane-admission-control",
+    "reason": "role-not-enforced:review",
+    "verdict": "exempt"
+  },
+  "lane_advisory": {
+    "backend": "codex-luna",
+    "burn_multiple": 1.4642388409638247,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'codex-luna' is projected to exhaust at 2026-09-29T17:17:32Z, which is after this node's 3600s horizon ending 2026-09-25T14:26:43.382224+00:00",
+    "horizon_ends_at": "2026-09-25T14:26:43.382224+00:00",
+    "horizon_seconds": 3600,
+    "metered": true,
+    "observed_at": "2026-09-25T13:26:42Z",
+    "precedes_horizon": false,
+    "projected_exhaustion_at": "2026-09-29T17:17:32Z",
+    "resets_at": "2026-10-01T15:38:44Z",
+    "seconds_until_reset": 526321,
+    "state": "quiet",
+    "utilisation_pct": 19.0
+  },
+  "lane_declaration": {
+    "backend": "codex-luna",
+    "headroom": "known",
+    "metered": true,
+    "observed_at": "2026-09-25T13:26:42Z",
+    "read_at": "2026-09-25T13:26:43Z",
+    "resolved_backend": "codex-luna",
+    "utilisation_pct": 19.0
+  },
+  "lane_reading": {
+    "age_seconds": null,
+    "binding_observed": "unknown",
+    "detail": "backend declares no lane document",
+    "headroom": "unknown",
+    "mean_context": "unknown",
+    "observed_at": null,
+    "state": "unknown",
+    "suggested_shelf_life_seconds": null
+  },
+  "lane_receipt": {
+    "effective_context_window": 380000,
+    "notional_cost_usd": 1.6698,
+    "observed_at": "2026-09-25T13:43:37Z",
+    "quota_state": "measured",
+    "quota_windows": [
+      {
+        "observed_at": "2026-09-25T13:43:37Z",
+        "resets_at": 1790869124,
+        "used_percent": 21.0,
+        "window_minutes": 10080
+      }
+    ],
+    "rate_basis": {
+      "as_of": "2026-09-09",
+      "input_per_million": 0.2,
+      "model_identifier": "gpt-5.6-luna",
+      "output_per_million": 1.2
+    }
+  },
+  "lineage": null,
+  "local": false,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T132642114617-review-of-s17-sweep-tooling/manifest.md",
+  "member": "session-7ca67b36b53f773f8358",
+  "negative_control": {
+    "reason": "node-writes-no-test-path",
+    "verdict": "exempt"
+  },
+  "no_commit": "review node; delivery is the stored review record",
+  "node": "review-of-s17-sweep-tooling",
+  "node_definition": {
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 563,
+          "cached_input_tokens": 496620,
+          "input_tokens": 497185,
+          "output_tokens": 395,
+          "reasoning_output_tokens": 185,
+          "total_tokens": 497580,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "38dec84a-7cb6-4b27-ace6-501cc76dbec0",
+      "session_id": "llac-s14-0925"
+    },
+    "done_when": "the review for r-20260925T115334948530-s17-sweep-tooling stores a parsed record scoring all 5 dimensions in the range 0..20; the turn ends once that record is stored and the manifest reads complete",
+    "estimated_hours": null,
+    "goal": "attach an independent review to run r-20260925T115334948530-s17-sweep-tooling",
+    "id": "review-of-s17-sweep-tooling",
+    "lane_declaration": {
+      "backend": "codex-luna",
+      "headroom": "known",
+      "metered": true,
+      "observed_at": "2026-09-25T13:26:42Z",
+      "read_at": "2026-09-25T13:26:43Z",
+      "resolved_backend": "codex-luna",
+      "utilisation_pct": 19.0
+    },
+    "lane_reading": {
+      "age_seconds": null,
+      "binding_observed": "unknown",
+      "detail": "backend declares no lane document",
+      "headroom": "unknown",
+      "mean_context": "unknown",
+      "observed_at": null,
+      "state": "unknown",
+      "suggested_shelf_life_seconds": null
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T132642114617-review-of-s17-sweep-tooling/manifest.md",
+    "negative_control": "",
+    "plan": "local-lane-admission-control",
+    "requested_backend": "codex-luna",
+    "requires_decisions": [],
+    "role": "review",
+    "section": "§17",
+    "spec_level": "exact",
+    "time_budget": "60m",
+    "token_budget": null,
+    "write_paths": [
+      "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260925T115334948530-s17-sweep-tooling.json",
+      "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260925T115334948530-s17-sweep-tooling.at-e68717a2513130162571b7c01d71195ecf8c6700.json"
+    ]
+  },
+  "orientation_input_tokens": null,
+  "outcome": "",
+  "plan": "local-lane-admission-control",
+  "plan_impl_at_dispatch": 0.9,
+  "promoted_revision": "9d1d79111203981cf3e4ca98d115ae29ba167af2",
+  "release": {
+    "process_signalled": false,
+    "process_withheld": "process is not alive",
+    "worktree_audit": {
+      "counts": {
+        "dirty": 0,
+        "disposable": 0,
+        "integrated": 0,
+        "live-referenced": 0,
+        "retained-for-resume": 0,
+        "unintegrated": 0
+      },
+      "worktrees": [
+        {
+          "available": false,
+          "detail": "tree is no longer available",
+          "path": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/llac-s14-0925/review-of-s17-sweep-tooling"
+        }
+      ]
+    },
+    "worktree_released": true
+  },
+  "resume_waiver": null,
+  "review": null,
+  "role": "review",
+  "run_id": "r-20260925T132642114617-review-of-s17-sweep-tooling",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§17",
+  "session_harness": "codex",
+  "session_id": "01a0d8bf-6ec3-7b33-a726-2ca83395d78f",
+  "session_model": "gpt-5.6-luna",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "exact",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 0,
+  "throughput": {
+    "cumulative_cached_input_tokens": 7897600,
+    "cumulative_input_tokens": 16031354,
+    "detail": "turn tokens recorded, but no span was supplied to rate them",
+    "generated_tokens": 47037
+  },
+  "time_budget": "60m",
+  "tool_steps": 80.0,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": [
+      {
+        "budget_overrun": false,
+        "budget_overrun_seconds": 0,
+        "budget_seconds": 2400,
+        "classification": "scoring",
+        "commits_beyond_base": 0,
+        "detail": "the worker manifest reports completion, but no independent review is attached; an independent review must be produced before promotion",
+        "effective_phase": "complete",
+        "elapsed_seconds": 1716,
+        "exit_record": {
+          "ended_during": "working",
+          "exit_code": 0,
+          "exited_at": "2026-09-25T12:32:01Z",
+          "last_record_type": "result",
+          "launched_at": "2026-09-25T12:03:32Z",
+          "recorded_by": "supervisor",
+          "run_id": "r-20260925T120318053991-s19-clive-compact-window",
+          "signal": null,
+          "signal_name": null,
+          "stream_records_seen": 3616,
+          "worker_pid": 674086
+        },
+        "external_wait": null,
+        "interruption": null,
+        "lifting_condition": null,
+        "liveness_proven": true,
+        "log_age_seconds": 3284,
+        "log_fresh": false,
+        "manifest_commits": [
+          "2fde47dd e8f5b2c4"
+        ],
+        "manifest_derived": false,
+        "manifest_digest": "b029347082e8fa416942442d9b8f4671c069b600f5771fc7f4366ff043386e1e",
+        "manifest_error": null,
+        "manifest_file_present": true,
+        "manifest_fresh": true,
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T120318053991-s19-clive-compact-window/manifest.md",
+        "manifest_present": true,
+        "manifest_reported_status": "complete",
+        "manifest_status": "complete",
+        "marker": null,
+        "needs_help_complete": null,
+        "next_action": "reckon crew dispatch --project imas-ambix --plan local-lane-admission-control --section '§19' --role review --spec-level exact --node review-of-s19-clive-compact-window --goal 'attach an independent review to run r-20260925T120318053991-s19-clive-compact-window' --done-when 'the review for r-20260925T120318053991-s19-clive-compact-window stores a parsed record scoring all 5 dimensions in the range 0..20; the turn ends once that record is stored and the manifest reads complete' --write-path /home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260925T120318053991-s19-clive-compact-window.json --write-path /home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260925T120318053991-s19-clive-compact-window.at-e8f5b2c4802d37198bb4de52158fd3dcd8a63d86.json --time-budget 40m --session llac-s14-0925 --allow-unreconciled-runs --backend clive",
+        "node": "s19-clive-compact-window",
+        "phase": "starting",
+        "plan": "local-lane-admission-control",
+        "process_alive": false,
+        "project": "imas-ambix",
+        "recovery": "review",
+        "recovery_classification": "scoring",
+        "resets_at": null,
+        "review_error": null,
+        "review_present": false,
+        "review_status": null,
+        "run_id": "r-20260925T120318053991-s19-clive-compact-window",
+        "session": "llac-s14-0925",
+        "terminal_age_seconds": 3394,
+        "terminal_at": "2026-09-25T12:30:11Z",
+        "wait_age_seconds": null,
+        "wait_condition_state": null,
+        "wait_key_defect": null,
+        "wait_observed": null,
+        "wait_overdue": null,
+        "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/llac-s14-0925/s19-clive-compact-window"
+      }
+    ]
+  },
+  "wall_seconds": 1006,
+  "watch_override": null,
+  "worker_exit": {
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-09-25T13:43:39Z",
+    "last_record_type": "turn.completed",
+    "launched_at": "2026-09-25T13:26:59Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20260925T132642114617-review-of-s17-sweep-tooling",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 232,
+    "worker_pid": 1054811
+  },
+  "worker_seconds": 1006,
+  "worker_seconds_source": "wall_fallback",
+  "worktree_retention": null
+}
