@@ -52,6 +52,19 @@
     <h3>Gate and negative control</h3>
     <p><code>uv run --no-sync pytest -p no:cacheprovider tests/test_agent_clive_worker_profile.py tests/test_agent_clive_picker.py</code> — 23 passed; <code>uv run --no-sync ruff check imas_ambix tests</code> — exit 0. <strong>Negative control</strong> (declared verbatim, applied as a scratch edit and restored): changing only the receipt's <code>--setting-sources</code> value to <code>'user'</code> fails <code>test_hooks_are_carried_and_force_the_settings_route</code> — <strong>1 failed, 9 passed</strong>, red log at <code>crew/runs/r-20260925T221824231333-cwp-receipt-matches-launch/negative-control.log</code>.</p>
     <p>No launcher was deployed. This node changed no repository file outside its scope; its gate measures only its own change, so verifying the merged result belongs to a separately dispatched test node.</p>
+    <h2>Receipt agreement asserted exactly — whole segment, equal length</h2>
+    <p><strong>Change.</strong> Commit <code>94779aff263a2de303315bc0d034d4b64eb6d508</code>. The hook-carrying launch's agreement test compared <code>record["added_arguments"]</code> against a <em>prefix</em> of the argv the harness stub recorded, so an argument appended to the emitted profile array after the receipt was read left the record under-reporting while the assertion stayed green. The test now strips the launcher's own fixed <code>--settings</code> pair and the dispatch arguments it was handed from the recorded argv, and requires the remaining profile segment to equal the record element for element — an equality that fixes the segment's length as well as its contents. The fixture passes explicit dispatch arguments (<code>-p --output-format stream-json --verbose</code>) so the profile segment is bracketed on both sides rather than merely prefixed.</p>
+    <h3>Measured contracts</h3>
+    <ul>
+      <li>Settings route: <code>args[-len(dispatch):] == dispatch</code>, <code>args[-len(dispatch) - 2] == "--settings"</code>, <code>json.loads(args[-len(dispatch) - 1]) == expanded</code>, and <code>args[: -len(dispatch) - 2] == record["added_arguments"]</code>. The last is an equality, so a longer emitted profile segment fails it.</li>
+      <li>Only <code>tests/test_agent_clive_worker_profile.py</code> changes. The launcher is unchanged, so the receipt and the emitted command still share one definition of the added arguments; the test now measures the whole emitted segment rather than a prefix of it.</li>
+    </ul>
+    <h3>Gate and negative control</h3>
+    <p><code>uv run --no-sync pytest -p no:cacheprovider tests/test_agent_clive_worker_profile.py tests/test_agent_clive_picker.py</code> — 23 passed; <code>uv run --no-sync ruff check imas_ambix tests</code> — exit 0. <strong>Negative control</strong> (declared verbatim, applied as a scratch edit to <code>imas_ambix/agent/clive.py</code> and restored): appending an extra argument to <code>PROFILE_ARGS</code> after the receipt read fails <code>test_hooks_are_carried_and_force_the_settings_route</code> — <strong>1 failed, 22 passed</strong>, red log at <code>crew/runs/r-20260925T223841117771-cwp-receipt-exact-agreement/logs/negative-control.log</code>. The scratch edit was removed and <code>git diff imas_ambix/agent/clive.py</code> is empty.</p>
+    <figure>
+      <img src="/imas-ambix/figures/clive-worker-profiles/receipt-exact-agreement.svg" alt="The profile-route argv split into the profile segment, the launcher's fixed --settings pair and the dispatch arguments; the profile segment must equal the receipt's added_arguments element for element">
+      <figcaption>The compared slice: the emitted argv with the launcher's fixed pair and the dispatch tail removed, against the receipt's <code>added_arguments</code>.</figcaption>
+    </figure>
   </main>
 </body>
 </html>
