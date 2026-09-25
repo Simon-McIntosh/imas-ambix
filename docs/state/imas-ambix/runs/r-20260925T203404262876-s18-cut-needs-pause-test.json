@@ -1,0 +1,281 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effort": "high",
+    "launch": "cli",
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "worktree-full",
+    "usable_input_window": 480000
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "a099ee9b15cdb377111d276574fc5d4ff2251e93",
+  "boundary_waiver": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "inference_geo": "",
+      "input_tokens": 4485550,
+      "input_tokens_cumulative": 4485550,
+      "output_tokens": 22033,
+      "output_tokens_cumulative": 22033,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": {
+    "added": 94,
+    "files": 3,
+    "removed": 0
+  },
+  "commit_resolution": null,
+  "commits": [
+    "bb3f061a6969e9483df15c417663f6547765713a",
+    "2b67688ff9bcfde10ddfb1bd2430e2758d257a70"
+  ],
+  "completed_at": "2026-09-25T20:50:45.418Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-09-25T20:34:10Z",
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": true,
+    "matched_measure": "pytest -p",
+    "override": false,
+    "role": "implement",
+    "status": "compatible"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [],
+  "gate": "passed",
+  "gate_check": {
+    "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv uv run --no-sync pytest -p no:cacheprovider tests/test_agent_router_cut.py",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T203404262876-s18-cut-needs-pause-test/ruff.log"
+  },
+  "impl_move": {
+    "at_complete": 0.9,
+    "at_dispatch": 0.9,
+    "plan": "local-lane-admission-control",
+    "reason": "test-only follow-up on the already-counted router cut node",
+    "verdict": "waived"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-09-25T21:04:04.947404+00:00",
+    "horizon_seconds": 1800,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": "clive",
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-09-25T20:34:04Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 0,
+    "binding_observed": "unknown",
+    "detail": "",
+    "headroom": 20,
+    "mean_context": 70000,
+    "observed_at": "2026-09-25T20:34:04Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-09-25T20:50:45.418Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": false,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T203404262876-s18-cut-needs-pause-test/manifest.md",
+  "member": "llac-guard",
+  "negative_control": {
+    "declaration": "removing the settings.paused conjunct from _GenerationGate.wait_for_cut in imas_ambix/agent/router.py must fail the new test; applied as a scratch edit and restored",
+    "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T203404262876-s18-cut-needs-pause-test/negative-control.log",
+    "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T203404262876-s18-cut-needs-pause-test/negative-control.log",
+    "test_paths": [
+      "tests/test_agent_router_cut.py"
+    ],
+    "verdict": "matched"
+  },
+  "no_commit": null,
+  "node": "s18-cut-needs-pause-test",
+  "node_definition": {
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 775,
+          "cached_input_tokens": 792240,
+          "input_tokens": 793017,
+          "output_tokens": 2679,
+          "reasoning_output_tokens": 382,
+          "total_tokens": 795696,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "38dec84a-7cb6-4b27-ace6-501cc76dbec0",
+      "session_id": "llac-s14-0925"
+    },
+    "done_when": "'uv run --no-sync pytest -p no:cacheprovider tests/test_agent_router_cut.py' exits 0 on the login node with a new test in tests/test_agent_router_cut.py: a gate file carrying cut true and paused false (or paused absent) leaves an admitted streaming relay from a slow stub engine running to its normal terminal chunk; only the test file changes; the declared negative control is recorded verbatim with its failing test count in the manifest; 'uv run --no-sync ruff check imas_ambix tests' exits 0.",
+    "estimated_hours": null,
+    "goal": "Pin with a test that a cut declaration without a pause leaves in-flight relays running",
+    "id": "s18-cut-needs-pause-test",
+    "lane_declaration": {
+      "backend": "clive",
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-09-25T20:34:04Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 0,
+      "binding_observed": "unknown",
+      "detail": "",
+      "headroom": 20,
+      "mean_context": 70000,
+      "observed_at": "2026-09-25T20:34:04Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T203404262876-s18-cut-needs-pause-test/manifest.md",
+    "negative_control": "removing the settings.paused conjunct from _GenerationGate.wait_for_cut in imas_ambix/agent/router.py must fail the new test; applied as a scratch edit and restored",
+    "plan": "local-lane-admission-control",
+    "requested_backend": "clive",
+    "requires_decisions": [],
+    "role": "implement",
+    "section": "§18",
+    "spec_level": "exact",
+    "time_budget": "30m",
+    "token_budget": null,
+    "write_paths": [
+      "tests/test_agent_router_cut.py",
+      "docs/evidence/archive/local-lane-admission-control-landed.html",
+      "docs/figures/local-lane-admission-control",
+      "docs/plans/local-lane-admission-control.html"
+    ]
+  },
+  "orientation_input_tokens": 687590.0,
+  "outcome": "",
+  "plan": "local-lane-admission-control",
+  "plan_impl_at_dispatch": 0.9,
+  "promoted_revision": "2b67688ff9bcfde10ddfb1bd2430e2758d257a70",
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "scores": {
+      "durability": 20,
+      "evidence": 19,
+      "fit": 20,
+      "goal_fidelity": 20,
+      "scope_discipline": 20
+    },
+    "status": "parsed",
+    "total": 99
+  },
+  "role": "implement",
+  "run_id": "r-20260925T203404262876-s18-cut-needs-pause-test",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§18",
+  "session_harness": "claude",
+  "session_id": "41f197a7-9633-41b7-80c0-244e8b495ded",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "exact",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 1,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 4485550,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+    "elapsed_seconds": 984.093,
+    "generated_tokens": 22033,
+    "generation_seconds": 792.819,
+    "input_budget_tokens": 480000,
+    "input_utilisation_pct": 30.8,
+    "machine_seconds": 191.274,
+    "peak_input_tokens": 147872,
+    "tokens_per_second": 27.79,
+    "wall_tokens_per_second": 22.39
+  },
+  "time_budget": "30m",
+  "tool_steps": 40.0,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": []
+  },
+  "wall_seconds": 995,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-09-25T20:50:50Z",
+    "last_record_type": "system",
+    "launched_at": "2026-09-25T20:34:16Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20260925T203404262876-s18-cut-needs-pause-test",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 3468,
+    "worker_pid": 2221712
+  },
+  "worker_seconds": 975,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
