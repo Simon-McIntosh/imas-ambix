@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-26">
-<meta name="plan-version" content="22">
+<meta name="plan-version" content="23">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;}">
 </head>
 <body>
@@ -113,9 +113,11 @@
 <div class="r-comment" data-section="s2" data-id="c-run-r-20260925T222611273711-review-of-cwp-receipt-matches-launch" data-who="reckon-build" data-when="2026-09-25T22:38:25.960Z">
     <div class="r-comment-body"><p>receipt agreement review 91/100</p></div>
 </div>
-<!-- Landing comment appended by hand; the plan-version and plan-modified meta lines were left untouched. -->
 <div class="r-comment" data-section="s2" data-id="c-run-r-20260925T223841117771-cwp-receipt-exact-agreement" data-who="cwp-receipt-exact-agreement" data-when="2026-09-25T22:48:50Z">
     <div class="r-comment-body"><p><strong>Receipt agreement asserted exactly.</strong> Commit <code>94779aff263a2de303315bc0d034d4b64eb6d508</code>. The settings-route agreement test compared <code>record["added_arguments"]</code> against a prefix of the argv the harness stub recorded, so a flag appended to the emitted profile array after the receipt read left the record under-reporting while the assertion stayed green. The test now strips the launcher's fixed <code>--settings</code> pair and the dispatch arguments it was handed (the fixture passes <code>-p --output-format stream-json --verbose</code>) and requires the remaining profile segment to equal the record element for element, which fixes the segment's length as well as its contents. Only the test file changed; the launcher still reads its added arguments back from the receipt.</p><p><strong>Gate.</strong> <code>uv run --no-sync pytest -p no:cacheprovider tests/test_agent_clive_worker_profile.py tests/test_agent_clive_picker.py</code> — 23 passed; <code>uv run --no-sync ruff check imas_ambix tests</code> — exit 0. Negative control, declared verbatim, applied as a scratch edit to <code>imas_ambix/agent/clive.py</code> and restored: appending an extra argument to <code>PROFILE_ARGS</code> after the receipt read fails <code>test_hooks_are_carried_and_force_the_settings_route</code> — 1 failed, 22 passed, red log at <code>crew/runs/r-20260925T223841117771-cwp-receipt-exact-agreement/logs/negative-control.log</code>. No launcher was deployed.</p></div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-run-r-20260925T225256261317-review-of-cwp-receipt-exact-agreement" data-who="reckon-build" data-when="2026-09-25T23:09:07.954Z">
+    <div class="r-comment-body"><p>receipt exact-agreement review 98/100</p></div>
 </div>
 <div class="r-comment" data-section="s3" data-id="c-run-r-20260925T210224385419-cwp-production-baseline" data-who="reckon-build" data-when="2026-09-25T22:04:58.500Z">
     <div class="r-comment-body"><p>production clive worker launch (unfenced, real ~/.claude): dispatch prompt rule present, global Git Safety text present in the user-message memory block (as 'Always banned** — commit instead'), Stop hook fired (3 refusals then cap, observed by side effect; no Stop event in the stream); first request 276,931 B</p></div>

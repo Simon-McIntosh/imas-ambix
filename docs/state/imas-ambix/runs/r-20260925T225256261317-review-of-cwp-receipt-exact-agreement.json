@@ -1,0 +1,258 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effort": "xhigh",
+    "launch": "cli",
+    "local": true,
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "read-only",
+    "usable_input_window": 480000
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "cc7ad9e3cfe4850533caf9b27c73f7847622c3a7",
+  "boundary_waiver": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "inference_geo": "",
+      "input_tokens": 4582861,
+      "input_tokens_cumulative": 4582861,
+      "output_tokens": 53067,
+      "output_tokens_cumulative": 53067,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": null,
+  "commit_resolution": null,
+  "commits": [],
+  "completed_at": "2026-09-25T23:09:07.954Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-09-25T22:53:02Z",
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": false,
+    "matched_measure": null,
+    "override": false,
+    "role": "review",
+    "status": "no-execution-measure"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [
+    "imas_ambix/agent/clive.py:974"
+  ],
+  "gate": "passed",
+  "gate_check": {
+    "command": "python3 -c \"import json;d=json.load(open('/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260925T223841117771-cwp-receipt-exact-agreement.json'));s=d['scores'];assert len(s)==5 and all(0<=v<=20 for v in s.values());print(sum(s.values()))\"",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T225256261317-review-of-cwp-receipt-exact-agreement/gate.log"
+  },
+  "impl_move": {
+    "at_complete": null,
+    "at_dispatch": null,
+    "plan": "clive-worker-profiles",
+    "reason": "role-not-enforced:review",
+    "verdict": "exempt"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-09-25T23:22:56.704250+00:00",
+    "horizon_seconds": 1800,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": null,
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-09-25T22:52:56Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 23,
+    "binding_observed": "unknown",
+    "detail": "lane document carries no numeric 'headroom'",
+    "headroom": "unknown",
+    "mean_context": 130000,
+    "observed_at": "2026-09-25T22:52:33Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-09-25T23:09:07.954Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": true,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T225256261317-review-of-cwp-receipt-exact-agreement/manifest.md",
+  "member": "disposable-r-20260925T225256261317-review-of-cwp-receipt-exact-agreement",
+  "negative_control": {
+    "reason": "node-writes-no-test-path",
+    "verdict": "exempt"
+  },
+  "no_commit": "review node; delivery is the stored review record",
+  "node": "review-of-cwp-receipt-exact-agreement",
+  "node_definition": {
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 1899,
+          "cached_input_tokens": 177629,
+          "input_tokens": 179530,
+          "output_tokens": 1083,
+          "reasoning_output_tokens": 113,
+          "total_tokens": 180613,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "38dec84a-7cb6-4b27-ace6-501cc76dbec0",
+      "session_id": "llac-s14-0925"
+    },
+    "done_when": "the review for r-20260925T223841117771-cwp-receipt-exact-agreement stores a parsed record scoring all 5 dimensions in the range 0..20; the turn ends once that record is stored and the manifest reads complete",
+    "estimated_hours": null,
+    "goal": "attach an independent review to run r-20260925T223841117771-cwp-receipt-exact-agreement",
+    "id": "review-of-cwp-receipt-exact-agreement",
+    "lane_declaration": {
+      "backend": null,
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-09-25T22:52:56Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 23,
+      "binding_observed": "unknown",
+      "detail": "lane document carries no numeric 'headroom'",
+      "headroom": "unknown",
+      "mean_context": 130000,
+      "observed_at": "2026-09-25T22:52:33Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T225256261317-review-of-cwp-receipt-exact-agreement/manifest.md",
+    "negative_control": "",
+    "plan": "clive-worker-profiles",
+    "requested_backend": null,
+    "requires_decisions": [],
+    "role": "review",
+    "section": "§2",
+    "spec_level": "exact",
+    "time_budget": "30m",
+    "token_budget": null,
+    "write_paths": [
+      "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260925T223841117771-cwp-receipt-exact-agreement.json",
+      "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260925T223841117771-cwp-receipt-exact-agreement.at-f13cb59fc7a6fae57198c13eae6251ed6233e513.json"
+    ]
+  },
+  "orientation_input_tokens": null,
+  "outcome": "",
+  "plan": "clive-worker-profiles",
+  "promoted_revision": "cc7ad9e3cfe4850533caf9b27c73f7847622c3a7",
+  "resume_waiver": null,
+  "review": null,
+  "role": "review",
+  "run_id": "r-20260925T225256261317-review-of-cwp-receipt-exact-agreement",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§2",
+  "session_harness": "claude",
+  "session_id": "bc1102b1-3074-4c14-851c-f686eb0aa081",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "exact",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 0,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 4750393,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+    "elapsed_seconds": 955.519,
+    "generated_tokens": 61253,
+    "generation_seconds": 943.579,
+    "input_budget_tokens": 480000,
+    "input_utilisation_pct": 34.6,
+    "machine_seconds": 11.94,
+    "peak_input_tokens": 166232,
+    "tokens_per_second": 64.92,
+    "wall_tokens_per_second": 64.1
+  },
+  "time_budget": "30m",
+  "tool_steps": 56.0,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": []
+  },
+  "wall_seconds": 965,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-09-25T23:09:08Z",
+    "last_record_type": "result",
+    "launched_at": "2026-09-25T22:53:08Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20260925T225256261317-review-of-cwp-receipt-exact-agreement",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 11919,
+    "worker_pid": 2487328
+  },
+  "worker_seconds": 945,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
