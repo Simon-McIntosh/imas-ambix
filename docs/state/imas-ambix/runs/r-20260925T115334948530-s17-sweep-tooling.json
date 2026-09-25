@@ -1,0 +1,317 @@
+{
+  "agent": {
+    "alias": "luna5.6",
+    "backend": "codex-luna",
+    "effort": "high",
+    "launch": "cli",
+    "model": "gpt-5.6-luna",
+    "sandbox": "worktree-full"
+  },
+  "attempt": 3,
+  "attempt_kind": "resume",
+  "backend": "codex-luna",
+  "base_sha": "c2901ec5dbb8a3bc03314b72b3596ef7b68a5566",
+  "boundary_waiver": null,
+  "budget": {
+    "cost_usd": null,
+    "detail": "backend reports token usage but no headroom",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_write_input_tokens": 0,
+      "cache_write_input_tokens_cumulative": 0,
+      "cached_input_tokens": 6906624,
+      "cached_input_tokens_cumulative": 6906624,
+      "input_tokens": 7097939,
+      "input_tokens_cumulative": 7097939,
+      "output_tokens": 26921,
+      "output_tokens_cumulative": 26921,
+      "reasoning_output_tokens": 8640,
+      "reasoning_output_tokens_cumulative": 8640
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": {
+    "added": 794,
+    "files": 6,
+    "removed": 26
+  },
+  "commit_resolution": null,
+  "commits": [
+    "af7de5ede7f1d4711028cef52951ac15c0fd2725",
+    "0d9d657ca63d171c4b2f710ddb59584975377f2a",
+    "bf3057562490a5b370c0e844b40ef8b30048c541",
+    "e68717a2513130162571b7c01d71195ecf8c6700"
+  ],
+  "completed_at": "2026-09-25T13:10:42.358Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-09-25T11:53:43Z",
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": true,
+    "matched_measure": "pytest -p",
+    "override": false,
+    "role": "implement",
+    "status": "compatible"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [],
+  "gate": "passed",
+  "gate_check": {
+    "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv uv run --no-sync pytest -p no:cacheprovider tests/test_bench.py tests/test_agent_sweep_options.py",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T115334948530-s17-sweep-tooling/focused-gate.log"
+  },
+  "impl_move": {
+    "at_complete": 0.9,
+    "at_dispatch": 0.9,
+    "plan": "local-lane-admission-control",
+    "reason": "sections 14-20 grew the executable denominator from 10 to about 26 nodes; impl stays at 0.9 until the node fraction passes it",
+    "verdict": "waived"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-09-25T12:53:36.294341+00:00",
+    "horizon_seconds": 3600,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": null,
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-09-25T11:53:36Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 16,
+    "binding_observed": "unknown",
+    "detail": "",
+    "headroom": 8,
+    "mean_context": 92308,
+    "observed_at": "2026-09-25T11:53:20Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45
+  },
+  "lane_receipt": {
+    "effective_context_window": 380000,
+    "notional_cost_usd": 1.4519,
+    "observed_at": "2026-09-25T13:10:42.358Z",
+    "quota_state": "measured",
+    "quota_windows": [
+      {
+        "observed_at": "2026-09-25T13:10:42.358Z",
+        "resets_at": 1790869124,
+        "used_percent": 18.0,
+        "window_minutes": 10080
+      }
+    ],
+    "rate_basis": {
+      "as_of": "2026-09-09",
+      "input_per_million": 0.2,
+      "model_identifier": "gpt-5.6-luna",
+      "output_per_million": 1.2
+    }
+  },
+  "lineage": {
+    "attempt": 2,
+    "kind": "lane-change",
+    "lanes": [
+      {
+        "changed_at": "2026-09-25T13:11:12Z",
+        "detail": "starting fresh because the session cannot follow the move from harness 'claude' to 'codex'",
+        "from_backend": "clive",
+        "from_harness": "claude",
+        "reason": "the local worker's turn ended after committing af7de5ed without writing its manifest; the local lane is congested, so finishing moves to luna",
+        "session": "fresh",
+        "session_id": "1da3ef9f-e76e-4603-80c5-608a3a6f0fba",
+        "session_source": "stream",
+        "to_backend": "codex-luna",
+        "to_harness": "codex"
+      }
+    ],
+    "root_run_id": "r-20260925T115334948530-s17-sweep-tooling"
+  },
+  "local": false,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T115334948530-s17-sweep-tooling/manifest.md",
+  "member": "llac-dryrun",
+  "negative_control": {
+    "declaration": "removing the block-size override from the generated serve script must fail the dry-run test; applied as a scratch edit and restored",
+    "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T115334948530-s17-sweep-tooling/negative-control.log",
+    "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T115334948530-s17-sweep-tooling/negative-control.log",
+    "test_paths": [
+      "tests/test_agent_sweep_options.py"
+    ],
+    "verdict": "matched"
+  },
+  "no_commit": null,
+  "node": "s17-sweep-tooling",
+  "node_definition": {
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 735,
+          "cached_input_tokens": 260835,
+          "input_tokens": 261572,
+          "output_tokens": 910,
+          "reasoning_output_tokens": 0,
+          "total_tokens": 262482,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "38dec84a-7cb6-4b27-ace6-501cc76dbec0",
+      "session_id": "llac-s14-0925"
+    },
+    "done_when": "'uv run --no-sync pytest -p no:cacheprovider tests/test_bench.py tests/test_agent_sweep_options.py' exits 0 on the login node, where the new file asserts: a --levels value such as 4,8,12,16,20,24,28,32,36 reaches the bench concurrency runner in place of the hardcoded ladder; the default ladder is unchanged when --levels is absent; the block-size override appears in 'imas-ambix agent restart deepseek-v4-1-flash --dry-run' generated script and the default generated script is byte-identical to the base revision's; each concurrency result row carries engine.spec_decode accept length and active draft tokens when the metrics endpoint publishes them and null otherwise. The declared negative control is recorded verbatim with its failing test count in the manifest. 'uv run --no-sync ruff check imas_ambix tests' exits 0. No serve is started, restarted or cancelled.",
+    "estimated_hours": null,
+    "goal": "Give agent bench a concurrency-levels option and agent restart a DSpark block-size override for the depth sweep",
+    "id": "s17-sweep-tooling",
+    "lane_declaration": {
+      "backend": null,
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-09-25T11:53:36Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 16,
+      "binding_observed": "unknown",
+      "detail": "",
+      "headroom": 8,
+      "mean_context": 92308,
+      "observed_at": "2026-09-25T11:53:20Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T115334948530-s17-sweep-tooling/manifest.md",
+    "negative_control": "removing the block-size override from the generated serve script must fail the dry-run test; applied as a scratch edit and restored",
+    "plan": "local-lane-admission-control",
+    "requested_backend": "clive",
+    "requires_decisions": [],
+    "role": "implement",
+    "section": "§17",
+    "spec_level": "guided",
+    "time_budget": "60m",
+    "token_budget": null,
+    "write_paths": [
+      "imas_ambix/agent/bench.py",
+      "imas_ambix/agent/cli.py",
+      "tests/test_agent_sweep_options.py",
+      "docs/plans/local-lane-admission-control.html",
+      "docs/evidence/archive/local-lane-admission-control-landed.html",
+      "docs/figures/local-lane-admission-control"
+    ]
+  },
+  "orientation_input_tokens": 4321915.0,
+  "outcome": "",
+  "plan": "local-lane-admission-control",
+  "plan_impl_at_dispatch": 0.9,
+  "promoted_revision": "e68717a2513130162571b7c01d71195ecf8c6700",
+  "release": {
+    "process_signalled": false,
+    "process_withheld": "process is not alive",
+    "worktree_audit": {
+      "counts": {
+        "dirty": 0,
+        "disposable": 0,
+        "integrated": 0,
+        "live-referenced": 0,
+        "retained-for-resume": 0,
+        "unintegrated": 0
+      },
+      "worktrees": [
+        {
+          "available": false,
+          "detail": "tree is no longer available",
+          "path": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/llac-s14-0925/s17-sweep-tooling"
+        }
+      ]
+    },
+    "worktree_released": true
+  },
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "scores": {
+      "durability": 15,
+      "evidence": 18,
+      "fit": 18,
+      "goal_fidelity": 19,
+      "scope_discipline": 20
+    },
+    "status": "parsed",
+    "total": 90
+  },
+  "role": "implement",
+  "run_id": "r-20260925T115334948530-s17-sweep-tooling",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§17",
+  "session_harness": "codex",
+  "session_id": "01a0d8b0-fcb3-7a33-8456-21e73b8c51ac",
+  "session_model": "gpt-5.6-luna",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "guided",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 15,
+  "throughput": {
+    "cumulative_cached_input_tokens": 6906624,
+    "cumulative_input_tokens": 7097939,
+    "detail": "model span bounded from the client rollout's tool spans; input cumulative summed across resets",
+    "generated_tokens": 35561,
+    "generation_seconds": 695.83,
+    "machine_seconds": 58.889,
+    "tokens_per_second": 51.11
+  },
+  "time_budget": "60m",
+  "tool_steps": 144.0,
+  "unreconciled_override": null,
+  "wall_seconds": 4619,
+  "watch_override": null,
+  "worker_exit": {
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-09-25T13:10:42Z",
+    "last_record_type": "result",
+    "launched_at": "2026-09-25T11:53:49Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20260925T115334948530-s17-sweep-tooling",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 7985,
+    "worker_pid": 641258
+  },
+  "worker_seconds": 4583,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
