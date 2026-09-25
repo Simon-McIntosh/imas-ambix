@@ -337,13 +337,17 @@ def _concurrency_levels(text: str) -> list[int]:
     Every entry must be a positive integer, and a malformed one refuses the
     whole ladder rather than being dropped: a ladder that silently loses a
     level produces a sweep with a hole in it, which reads as a concurrency the
-    sweep decided against rather than as one it never measured.
+    sweep decided against rather than as one it never measured. A blank entry
+    is malformed for that same reason, so ``4,,8`` is refused rather than
+    read as ``4,8``.
     """
     levels: list[int] = []
     for part in text.split(","):
         part = part.strip()
         if not part:
-            continue
+            raise click.BadParameter(
+                f"empty component in ladder {text!r}; give levels as 4,8,12,16"
+            )
         try:
             value = int(part)
         except ValueError as exc:
@@ -353,8 +357,6 @@ def _concurrency_levels(text: str) -> list[int]:
         if value < 1:
             raise click.BadParameter(f"concurrency level {value} is below 1")
         levels.append(value)
-    if not levels:
-        raise click.BadParameter("give at least one concurrency level")
     return levels
 
 

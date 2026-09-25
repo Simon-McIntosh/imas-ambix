@@ -286,7 +286,7 @@ def test_spec_decode_depth_leaves_unpublished_gauges_unset() -> None:
 
 @pytest.mark.parametrize(
     "ladder",
-    ["4,eight", "4,0", "4,-2", ",,", ""],
+    ["4,eight", "4,0", "4,-2", ",,", "", "4,,8", "4,8,", ",4,8"],
 )
 def test_malformed_ladder_is_refused(ladder: str) -> None:
     """A malformed ladder is refused whole rather than silently shortened.
@@ -297,6 +297,20 @@ def test_malformed_ladder_is_refused(ladder: str) -> None:
     from imas_ambix.agent.cli import _concurrency_levels
 
     with pytest.raises(click.BadParameter):
+        _concurrency_levels(ladder)
+
+
+@pytest.mark.parametrize("ladder", ["4,,8", "4,8,", ",4,8", "4, ,8", ",,"])
+def test_blank_ladder_component_is_named_in_the_refusal(ladder: str) -> None:
+    """A blank component is refused as an empty entry, not skipped.
+
+    ``4,,8`` must not read as ``[4, 8]``: the interior blank is a level the
+    caller did not name, so absorbing it would record that concurrency as one
+    the sweep decided against rather than as one it never measured.
+    """
+    from imas_ambix.agent.cli import _concurrency_levels
+
+    with pytest.raises(click.BadParameter, match="empty component"):
         _concurrency_levels(ladder)
 
 
