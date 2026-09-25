@@ -122,6 +122,48 @@ def test_admission_headroom_reports_open_and_full_states(tmp_path: Path) -> None
             "verdict": "full",
             "waiting": 0,
         }
+
+        gate_file.write_text(
+            json.dumps({"width": 12, "wait_seconds": 1.0}), encoding="utf-8"
+        )
+        app._generation_gate._next_config_refresh_at = 0.0
+        narrowed_state = app._generation_gate.admission_snapshot()
+        assert narrowed_state == {
+            "headroom": -2,
+            "oldest_wait_seconds": None,
+            "verdict": "full",
+            "waiting": 0,
+        }
+        await _release_slots(app, admitted)
+
+    asyncio.run(exercise())
+
+
+def test_paused_admission_reports_zero_headroom_and_paused_verdict(
+    tmp_path: Path,
+) -> None:
+    async def exercise() -> None:
+        gate_file = tmp_path / "router-gate.json"
+        gate_file.write_text(
+            json.dumps({"width": 14, "wait_seconds": 1.0}), encoding="utf-8"
+        )
+        app = RouterApp(Resolver([]), gate_file=gate_file)
+        admitted, _ = await _acquire_slots(app, 3)
+
+        gate_file.write_text(
+            json.dumps(
+                {"width": 14, "wait_seconds": 1.0, "paused": True, "reason": "test"}
+            ),
+            encoding="utf-8",
+        )
+        app._generation_gate._next_config_refresh_at = 0.0
+        paused_state = app._generation_gate.admission_snapshot()
+        assert paused_state == {
+            "headroom": 0,
+            "oldest_wait_seconds": None,
+            "verdict": "paused",
+            "waiting": 0,
+        }
         await _release_slots(app, admitted)
 
     asyncio.run(exercise())

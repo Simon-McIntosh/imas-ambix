@@ -215,9 +215,12 @@ class _GenerationGate:
         else:
             oldest_wait_seconds = None
         headroom = settings.width - self.in_flight - self.waiting
-        if self.waiting > 0:
+        if settings.paused:
+            headroom = min(headroom, 0)
+            verdict = "paused"
+        elif self.waiting > 0:
             verdict = "congested"
-        elif self.in_flight == settings.width:
+        elif self.in_flight >= settings.width:
             verdict = "full"
         else:
             verdict = "open"
