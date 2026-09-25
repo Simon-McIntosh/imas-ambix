@@ -76,6 +76,53 @@ DEFAULT_AUTO_WIDTH_CAP = 36
 # its value while a genuine shift still arrives within a few minutes.
 DEFAULT_AUTO_CONTEXT_TIME_CONSTANT_SECONDS = 600.0
 
+# The pool arithmetic above answers "how many contexts fit", which is a
+# different question from "how many are worth admitting". The two disagree
+# because the prefix cache and the per-stream decode rate fall before the pool
+# is full: measured on this lane the aggregate throughput plateaus from about
+# twelve running while the pool sits at half occupancy and preemptions stay at
+# zero, so a width chosen for pool population admits every stream past the point
+# where they all slow down still costs every stream already running and buys no
+# aggregate throughput. The controller here searches the lane's own measured
+# throughput for the smallest width that holds the plateau. It keeps the pool
+# arithmetic as the ceiling it may not exceed -- a width the pool cannot hold is
+# wrong however fast it looks -- and as the width before it has any measurement
+# to reason from.
+GATE_CONTROLLER_STEP = 2
+# Scrapes per decision. One scrape of this lane carries roughly sixty tokens per
+# second of noise against a rise of a few hundred, so a single scrape cannot
+# separate a real step from a draw; sixteen average to a noise near fifteen, and
+# a step of that size then clears the threshold many times over. The cost is
+# latency rather than correctness: a decision takes several lane intervals, so
+# the controller settles in tens of minutes and not seconds.
+GATE_CONTROLLER_WINDOWS = 16
+GATE_CONTROLLER_NOISE_TOK_S = 60.0
+# The throughput change a judged step must show before the controller believes
+# it. It is a floor on what counts as evidence rather than a target: above the
+# noise the judged average carries, which is what stops the upward walk from
+# climbing a plateau that is flat, and below a genuine step, which is what stops
+# it discarding one. Derived from the noise and the number of scrapes behind each
+# judgement so the number carries its own provenance.
+GATE_CONTROLLER_MATERIAL_TOK_S = (
+    3.2 * GATE_CONTROLLER_NOISE_TOK_S / math.sqrt(GATE_CONTROLLER_WINDOWS)
+)
+# Aggregate throughput is not the only thing a width can ruin. A lane that is
+# fast in total while every stream crawls is one nobody can use, and the prefix
+# cache -- which is what pays for the context every stream shares -- is evicted
+# by width long before the pool fills. These two read the lane's health and step
+# the width down directly, ahead of the throughput objective, because a reading
+# taken while the cache is thrashing describes the damage rather than the width.
+GATE_CONTROLLER_PER_STREAM_FLOOR_TOK_S = 10.0
+GATE_CONTROLLER_PREFIX_HIT_FLOOR = 0.95
+GATE_CONTROLLER_KV_CEILING = 0.6
+# The narrowest width the search may resolve. The pool arithmetic's own floor is
+# a different kind of number -- it says how many contexts the engine can hold,
+# and its default sits above the measured knee -- so it must not also bound a
+# search whose whole purpose is to find a width below it. An operator floor lower
+# than this one is still honoured, which is why the controller takes the smaller
+# of the two.
+GATE_CONTROLLER_WIDTH_FLOOR = 4
+
 
 @dataclass(frozen=True, slots=True)
 class _GateSettings:
@@ -128,6 +175,21 @@ class _GenerationGate:
         self._context_stamp = 0.0
         self._pool_tokens: int | None = None
         self._effective_width: int | None = None
+        # The width controller's state, fed by the same fresh readings. The
+        # bounds are refreshed on every resolve rather than configured here, so
+        # an operator edit to the gate file moves the ceiling without a restart.
+        self._controller_width: int | None = None
+        self._controller_lower: int | None = None
+        self._controller_upper: int | None = None
+        self._controller_phase = "climb"
+        self._controller_proposal: int | None = None
+        self._controller_reference_width: int | None = None
+        self._controller_reference_rate: float | None = None
+        self._controller_best_rate: float | None = None
+        self._controller_rates: list[float] = []
+        self._controller_note: str | None = "memory rule: no throughput reading"
+        self._throughput_tokens: int | None = None
+        self._throughput_stamp = 0.0
 
     @property
     def in_flight(self) -> int:
@@ -240,24 +302,44 @@ class _GenerationGate:
             raw_width, float(wait_seconds), paused=paused, reason=reason
         )
 
+    def _memory_width(self, settings: _GateSettings) -> int | None:
+        """The pool arithmetic's width, clamped, or ``None`` before it can run."""
+        if self._context_estimate is None or not self._pool_tokens:
+            return None
+        raw = math.floor(
+            self._pool_tokens * settings.occupancy_target / self._context_estimate
+        )
+        return max(settings.width_floor, min(raw, settings.width_cap))
+
     def _auto_width(self, settings: _GateSettings) -> int:
-        """The automatic width: pool arithmetic, clamped, or the held value.
+        """The automatic width: the controller's choice under the pool ceiling.
 
         A missing reading is a state to hold across, never a zero to compute
         from: with no estimate the last width stands, and before any reading the
         floor does. The cap is the engine's own running ceiling, so the gate must
         never publish past it however large the pool arithmetic comes out.
+
+        Until the controller has a throughput reading to reason from, the pool
+        arithmetic is the width, which is what an operator has always gotten from
+        ``"auto"``. Past that the pool arithmetic becomes a ceiling instead: it
+        is still the figure that says how much the engine can hold, and the
+        controller's measured width is clamped under it every time it is
+        resolved, so a shrinking pool pulls the published width down at the same
+        moment the gate would have noticed it.
         """
-        if self._context_estimate is not None and self._pool_tokens:
-            raw = math.floor(
-                self._pool_tokens * settings.occupancy_target / self._context_estimate
-            )
-            width = max(settings.width_floor, min(raw, settings.width_cap))
-            self._effective_width = width
-            return width
-        if self._effective_width is not None:
-            return self._effective_width
-        return settings.width_floor
+        memory = self._memory_width(settings)
+        held = self._effective_width
+        lower = min(settings.width_floor, GATE_CONTROLLER_WIDTH_FLOOR)
+        if memory is None:
+            width = held if held is not None else settings.width_floor
+        elif self._controller_width is None:
+            width = memory
+        else:
+            width = max(lower, min(self._controller_width, memory))
+        self._controller_lower = lower
+        self._controller_upper = memory
+        self._effective_width = width
+        return width
 
     def observe_lane(
         self,
@@ -265,8 +347,36 @@ class _GenerationGate:
         mean_context: int | None,
         *,
         now: float | None = None,
+        generation_tokens: int | None = None,
+        running: int | None = None,
+        waiting: int | None = None,
+        prefix_hit_rate: float | None = None,
+        kv_occupancy: float | None = None,
     ) -> None:
         """Fold one fresh lane reading into the automatic width estimate.
+
+        The context and pool feed the pool arithmetic exactly as before; the
+        counters feed the controller, which differences the cumulative
+        generation counter between successive readings rather than reading any
+        level out of it. A caller that supplies no counter -- a lane whose engine
+        publishes none -- leaves the controller unstarted and the pool arithmetic
+        in force.
+        """
+        stamp = time.monotonic() if now is None else now
+        self._fold_capacity(pool_tokens, mean_context, stamp)
+        self._step_controller(
+            generation_tokens=generation_tokens,
+            stamp=stamp,
+            running=running,
+            waiting=waiting,
+            prefix_hit_rate=prefix_hit_rate,
+            kv_occupancy=kv_occupancy,
+        )
+
+    def _fold_capacity(
+        self, pool_tokens: int | None, mean_context: int | None, stamp: float
+    ) -> None:
+        """Fold one reading into the working-context estimate.
 
         Only a reading with traffic in it says anything about how large the
         traffic is: an idle lane reports no context, and a reading without a pool
@@ -278,7 +388,6 @@ class _GenerationGate:
             return
         if mean_context is None or mean_context <= 0:
             return
-        stamp = time.monotonic() if now is None else now
         if self._context_estimate is None:
             self._context_estimate = float(mean_context)
         else:
@@ -289,6 +398,261 @@ class _GenerationGate:
             self._context_estimate += alpha * (mean_context - self._context_estimate)
         self._context_stamp = stamp
         self._pool_tokens = pool_tokens
+
+    def _step_controller(
+        self,
+        *,
+        generation_tokens: int | None,
+        stamp: float,
+        running: int | None,
+        waiting: int | None,
+        prefix_hit_rate: float | None,
+        kv_occupancy: float | None,
+    ) -> None:
+        """Advance the width controller by one lane reading.
+
+        The counter is an odometer, so the only quantity in it is the difference
+        between two readings divided by the time between them. Everything below
+        is that rate, judged over enough readings that its own noise is small
+        against a step, with the health watches outranking it.
+        """
+        if generation_tokens is None:
+            return
+        previous = self._throughput_tokens
+        elapsed = stamp - self._throughput_stamp
+        self._throughput_tokens = generation_tokens
+        self._throughput_stamp = stamp
+        if previous is None or elapsed <= 0:
+            self._controller_note = "memory rule: throughput needs two readings"
+            return
+        if generation_tokens < previous:
+            # A counter below its own previous value means a new engine is
+            # answering: the difference spans two processes and the interval
+            # measures nothing, so the window is dropped rather than judged on a
+            # rate no width produced.
+            self._controller_rates.clear()
+            self._controller_note = "memory rule: generation counter reset"
+            return
+        rate = (generation_tokens - previous) / elapsed
+
+        guard = self._controller_guard(
+            rate=rate,
+            running=running,
+            prefix_hit_rate=prefix_hit_rate,
+            kv_occupancy=kv_occupancy,
+        )
+        if guard is not None:
+            # A guard outranks the objective: the width is stepped down on
+            # evidence that the lane is failing, so a throughput judged here
+            # would describe the damage rather than the width that caused it.
+            self._controller_rates.clear()
+            self._step_width_down(guard)
+            return
+        if waiting is not None and waiting <= 0:
+            # A width can only be scored against a lane that wants more than the
+            # width allows. With nothing waiting, the reading describes the
+            # demand rather than the width, and every width would look alike.
+            self._controller_rates.clear()
+            self._controller_note = "holding: no demand above the current width"
+            return
+
+        if self._controller_proposal is None:
+            self._controller_proposal = self._current_width()
+        if self._controller_proposal is None:
+            self._controller_rates.clear()
+            self._controller_note = "holding: no width in force to score"
+            return
+        self._controller_rates.append(rate)
+        if len(self._controller_rates) < GATE_CONTROLLER_WINDOWS:
+            self._controller_note = (
+                f"measuring width {self._controller_proposal}: "
+                f"{len(self._controller_rates)}/{GATE_CONTROLLER_WINDOWS} windows"
+            )
+            return
+        judged = math.fsum(self._controller_rates) / len(self._controller_rates)
+        self._controller_rates.clear()
+        self._judge_width(judged)
+
+    def _judge_width(self, judged: float) -> None:
+        """Choose the next width from one judged throughput reading.
+
+        Three questions, in order: is the rise still rising, has the plateau
+        started, or is the width already inside it. The objective throughout is
+        the SMALLEST width that still holds the plateau, because a width above it
+        costs speed on every stream and buys no aggregate throughput -- so the
+        search climbs while climbing pays, and once it stops paying it walks back
+        down and stops at the first width the plateau no longer survives.
+        """
+        current = self._controller_proposal
+        upper = self._controller_upper
+        if current is None:
+            return
+        if upper is None:
+            self._controller_note = "holding: the pool ceiling is not yet known"
+            return
+        lower = self._controller_lower if self._controller_lower is not None else 0
+
+        if self._controller_phase == "hold":
+            self._controller_proposal = self._controller_reference_width
+            best = self._controller_best_rate
+            if best is None:
+                return
+            if judged > best + GATE_CONTROLLER_MATERIAL_TOK_S:
+                # Faster at an unchanged width means the lane itself grew, so
+                # there is room again and the climb re-opens from here.
+                self._controller_best_rate = judged
+                self._controller_phase = "climb"
+            elif judged < best - GATE_CONTROLLER_MATERIAL_TOK_S:
+                # Materially slower at an unchanged width: the lane shrank under
+                # the width rather than the width having changed, and the safe
+                # response to a degraded lane is a narrower one.
+                self._controller_phase = "descend"
+                self._controller_rates.clear()
+                self._controller_proposal = max(lower, current - GATE_CONTROLLER_STEP)
+                self._controller_width = self._controller_proposal
+            return
+        if self._controller_phase == "climb":
+            reference = self._controller_reference_rate
+            if reference is None or (
+                judged > reference + GATE_CONTROLLER_MATERIAL_TOK_S
+            ):
+                # The rise is still paying: keep this width and reach for the
+                # next one.
+                self._accept(current, judged)
+                if current + GATE_CONTROLLER_STEP <= upper:
+                    self._propose(current + GATE_CONTROLLER_STEP, wider=True)
+                else:
+                    # Already at the memory arithmetic's ceiling, so the wider
+                    # width the climb would ask for does not exist. What has been
+                    # accepted stands, and the search turns around from it.
+                    self._controller_phase = "descend"
+                    self._propose(current - GATE_CONTROLLER_STEP, wider=False)
+                return
+            # The rise has stopped. The width in force held it, and above this
+            # point every extra slot costs speed on every stream and buys no
+            # aggregate throughput -- so the search turns around and walks down
+            # from here.
+            self._controller_phase = "descend"
+            self._propose(current - GATE_CONTROLLER_STEP, wider=False)
+            return
+
+        if self._controller_phase == "descend":
+            best = self._controller_best_rate
+            if best is None:
+                return
+            if judged >= best - GATE_CONTROLLER_MATERIAL_TOK_S:
+                # The narrower width still holds the plateau, and a narrower one
+                # is what the objective asks for, so keep it and try the next
+                # one down.
+                self._accept(current, judged)
+                if current - GATE_CONTROLLER_STEP >= lower:
+                    self._propose(current - GATE_CONTROLLER_STEP, wider=False)
+                else:
+                    self._hold("holding: the narrowest width the plateau survives")
+                return
+            # Throughput fell materially, so the width below this one does not
+            # hold the plateau. The last width that did is the answer, and this
+            # reading is discarded rather than taken as its throughput.
+            self._hold("holding: the narrowest width the plateau survives")
+            return
+
+    def _accept(self, width: int, rate: float) -> None:
+        """Record a width as one the lane held, and the throughput it held it at."""
+        self._controller_width = width
+        self._controller_proposal = width
+        self._controller_reference_width = width
+        self._controller_reference_rate = rate
+        best = self._controller_best_rate
+        self._controller_best_rate = rate if best is None else max(best, rate)
+
+    def _propose(self, width: int, *, wider: bool) -> None:
+        """Put a width in force so the next window measures it."""
+        lower = self._controller_lower if self._controller_lower is not None else 0
+        upper = self._controller_upper
+        if upper is None:
+            self._controller_note = "holding: the pool ceiling is not yet known"
+            return
+        bounded = max(lower, min(width, upper))
+        self._controller_width = bounded
+        self._controller_proposal = bounded
+        self._controller_note = (
+            f"measuring a {'wider' if wider else 'narrower'} width {bounded}"
+        )
+
+    def _hold(self, note: str) -> None:
+        """Settle on the reference width and go on checking it."""
+        self._controller_phase = "hold"
+        self._controller_width = self._controller_reference_width
+        self._controller_proposal = self._controller_reference_width
+        self._controller_note = note
+
+    def _controller_guard(
+        self,
+        *,
+        rate: float,
+        running: int | None,
+        prefix_hit_rate: float | None,
+        kv_occupancy: float | None,
+    ) -> str | None:
+        """Report the health watch that says the current width is too wide."""
+        if (
+            prefix_hit_rate is not None
+            and prefix_hit_rate < GATE_CONTROLLER_PREFIX_HIT_FLOOR
+        ):
+            # The prefix cache pays for the context every stream shares, and it
+            # is evicted by width long before the pool fills -- measured at half
+            # occupancy with preemptions still at zero -- so the hit rate is the
+            # first signal that the width has gone too far.
+            return (
+                f"stepping down: prefix hit rate {float(prefix_hit_rate):.3f} "
+                f"is below the {GATE_CONTROLLER_PREFIX_HIT_FLOOR:.2f} floor"
+            )
+        if (
+            kv_occupancy is not None
+            and float(kv_occupancy) >= GATE_CONTROLLER_KV_CEILING
+        ):
+            # The pool ceiling is a second, blunter reading of the same
+            # pressure: it fills later than the cache thrashes, which is why it
+            # is a guard and not the objective's measurement.
+            return (
+                f"stepping down: KV occupancy {float(kv_occupancy):.3f} is at the "
+                f"{GATE_CONTROLLER_KV_CEILING:.2f} ceiling"
+            )
+        if (
+            running is not None
+            and running > 0
+            and rate / running < GATE_CONTROLLER_PER_STREAM_FLOOR_TOK_S
+        ):
+            # Aggregate throughput can hold while every stream crawls, which is
+            # a lane nobody can use: the floor is on what one stream gets.
+            return (
+                f"stepping down: {rate / running:.1f} tokens/s per stream is "
+                f"below the {GATE_CONTROLLER_PER_STREAM_FLOOR_TOK_S:.0f} floor"
+            )
+        return None
+
+    def _step_width_down(self, reason: str) -> None:
+        """Step the width down on a health watch and re-plan from there."""
+        current = self._current_width()
+        if current is None:
+            return
+        lower = self._controller_lower if self._controller_lower is not None else 0
+        self._controller_width = max(lower, current - GATE_CONTROLLER_STEP)
+        # The watches overrule the objective's evidence rather than adding to it:
+        # every judgement made at the old width measured the width that caused
+        # the failure, so the search restarts from the width that survives it.
+        self._controller_phase = "climb"
+        self._controller_proposal = self._controller_width
+        self._controller_reference_width = None
+        self._controller_reference_rate = None
+        self._controller_best_rate = None
+        self._controller_note = reason
+
+    def _current_width(self) -> int | None:
+        """The width in force, controller's choice first."""
+        if self._controller_width is not None:
+            return self._controller_width
+        return self._effective_width
 
     async def acquire(self, receive: Receive) -> _Admission:
         """Wait in FIFO order, or report timeout/departure without a relay.
@@ -359,7 +723,7 @@ class _GenerationGate:
 
     def snapshot(self) -> dict[str, object]:
         settings = self.settings()
-        return {
+        snapshot: dict[str, object] = {
             "enabled": settings.width > 0,
             "width": settings.width,
             "effective_width": settings.width,
@@ -376,6 +740,16 @@ class _GenerationGate:
                 str(self.config_path) if self.config_path is not None else None
             ),
         }
+        if settings.auto:
+            # Only an automatic width has a rule behind it to report. An
+            # operator-set integer is the whole explanation of itself, so the
+            # extra keys appear for the mode that chose a width rather than for
+            # the mode that was handed one.
+            snapshot["width_mode"] = (
+                "throughput" if self._controller_width is not None else "memory"
+            )
+            snapshot["width_reason"] = self._controller_note
+        return snapshot
 
 
 def _receipt_setting(name: str, explicit: float | None, default: float) -> float:
@@ -887,9 +1261,20 @@ class RouterApp:
                 # engine reports and the working context its sessions carry, so
                 # the fresh reading is folded in here while it is known to be a
                 # measurement rather than re-read from the published document
-                # the gate itself is writing.
+                # the gate itself is writing. The counters ride along with the
+                # same reading: the decoded-token odometer is what the width
+                # controller differences, the health readings are what its
+                # watches trip on, and the gate's own FIFO depth is the demand
+                # that says whether the width in force is the thing limiting the
+                # lane or merely idle under it.
                 self._generation_gate.observe_lane(
-                    capacity.pool_tokens, capacity.mean_context
+                    capacity.pool_tokens,
+                    capacity.mean_context,
+                    generation_tokens=capacity.generation_tokens,
+                    running=capacity.running,
+                    waiting=self._generation_gate.waiting,
+                    prefix_hit_rate=capacity.prefix_hit_rate,
+                    kv_occupancy=capacity.kv_occupancy,
                 )
                 write_lane_document(
                     capacity,
