@@ -578,6 +578,66 @@
     confirming run past 250k context with no <code>compact_boundary</code> below
     270k belongs to the separately dispatched deploy node.</p>
   </section>
+
+  <section id="lane-cycle-runbook">
+    <h2>Lane-cycle runbook — the pause procedure, written from the CLI surface it commands</h2>
+
+    <p>The lane-cycle procedure now lives at <code>ops/lane-cycle/AGENTS.md</code>, beside a
+    two-line <code>CLAUDE.md</code> loader, and is reachable from the root
+    <code>AGENTS.md</code> and from the lane's own subsection in
+    <code>imas_ambix/agent/AGENTS.md</code>, which now points at the runbook instead of
+    restating a run-level drain. The runbook states the seven steps of the pause cycle —
+    announce, pause, drain, relaunch, readiness, resume, record — each with the exact
+    command it runs, and none of those commands was executed here: the node wrote the
+    procedure, it did not run it.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/local-lane-admission-control/lane-cycle-timeline.svg"
+           alt="Seven steps of a lane cycle left to right under a 40-minute pause ceiling, inside a held client's approximately 56-minute retry ride-out, with the rollback path and the router-restart distinction" />
+      <figcaption>The seven steps under one bounded pause. The pause is capped at 40 minutes
+      (steps 2–6), about 16 minutes inside the ~56-minute ride-out a held client has — 11
+      attempts of 305 s (300 s held plus the fixed 5 s <code>Retry-After</code>).</figcaption>
+    </figure>
+
+    <h3>Every command was checked against the command that exists</h3>
+
+    <p>The runbook's commands were written against the verbatim output of
+    <code>uv run --no-sync imas-ambix agent pause --help</code>,
+    <code>agent resume --help</code>, <code>agent restart --help</code> and
+    <code>agent shutdown --help</code>, recorded to
+    <code>logs/agent-help.txt</code> in the run's directory (each exit 0). That record
+    fixed the exact spellings the runbook uses: <code>pause</code> requires
+    <code>--reason</code>; <code>restart</code> takes the profile slug positionally and
+    <code>--dry-run</code>; <code>shutdown</code> takes the slug and <code>--all</code> /
+    <code>-y</code>; <code>resume</code> takes no argument.</p>
+
+    <h3>Evidence that could have failed</h3>
+
+    <p>The drain step's reading command was run live against the serving lane rather than
+    written from the module's docstring: it printed <code>measured running=13
+    waiting=0</code>, with the gate block reading <code>effective_width 14</code>,
+    <code>in_flight 14</code> and <code>paused false</code>. A reading whose classifier had
+    returned <code>stale</code> or <code>unavailable</code> would have printed that instead,
+    which is the distinction the step exists to enforce — an unreadable lane and an idle one
+    must not look alike.</p>
+
+    <p>The pool figure in the lane's own guidance was corrected from
+    <code>8000000</code> to <code>4000000</code> against
+    <code>max_total_tokens</code> in
+    <code>imas_ambix/agent/profiles/deepseek-v4-1-flash.toml</code>. The 8M increment was
+    taken on 2026-09-17 and reverted the same day, so the figure had been stale rather than
+    wrong at the time it was written.</p>
+
+    <p><strong>Self-applied mutation.</strong> No negative control was declared for this
+    node. The one mutation applied to a measurement was a scratch write outside the
+    worktree, removed immediately; the work is prose and a figure, and its checks are the
+    greps below plus the whole-tree lint gate.</p>
+
+    <p>Checks recorded at the landed revision:
+    <code>grep -c ops/lane-cycle AGENTS.md imas_ambix/agent/AGENTS.md</code> returns at
+    least 1 for each file, and <code>uv run --no-sync ruff check imas_ambix tests</code>
+    exits 0.</p>
+  </section>
 </main>
 </body>
 </html>

@@ -242,6 +242,8 @@ hardware specs, the SLURM submission pattern and CPU/GPU sizing, storage paths,
 `imas-ambix agent {list,info,download,serve,status,key,clive}`, per-model
 deployment notes and memory budgets, and the `clive` interactive-harness setup.
 
+Cycling the serving lane — pause admission, relaunch the engine, resume — is its own bounded procedure: [`ops/lane-cycle/AGENTS.md`](ops/lane-cycle/AGENTS.md).
+
 ## Physics-spine benchmark (perf + quality, incl. H200/GPU policy)
 
 The equilibrium-engine benchmark — how to run the frozen CPU metric on SLURM,

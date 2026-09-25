@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 500" role="img" aria-labelledby="title desc">
+  <title id="title">Cycling the serving lane: seven steps under one bounded router pause</title>
+  <desc id="desc">Seven numbered steps run left to right: announce the pause to the live coordinators, pause admission, wait for the engine to drain in-flight requests to a running count of zero read from a successful scrape, relaunch with the new settings from the main checkout, wait for readiness within fifteen minutes from the job entering RUNNING and validate with a real multi-hundred-token completion, resume to admit the held requests in arrival order, and record the pause's start, end, peak held count and final failures. The whole pause is capped at forty minutes, well inside the held client's approximately fifty-six minute retry ride-out of eleven attempts of 305 seconds. If readiness is not reached inside the bound the cycle rolls back to the previous settings, relaunches and resumes. A router restart is not an engine relaunch: it drops the requests held in router memory, so it runs inside the pause after the drain and its own start-up must fit a client's retry budget.</desc>
+  <defs>
+    <style>
+      .lane   { fill: #f7f9fb; stroke: #3f4b59; stroke-width: 2; }
+      .run    { fill: #e8f5ec; stroke: #287a45; stroke-width: 2; }
+      .wait   { fill: #fdf6e3; stroke: #b58105; stroke-width: 2; }
+      .refuse { fill: #fff0ee; stroke: #a43d35; stroke-width: 2; }
+      .pause  { fill: #efeaf7; stroke: #6b4fa0; stroke-width: 2; }
+      .step   { fill: #eef4fb; stroke: #2f6bb0; stroke-width: 2; }
+      text { font-family: system-ui, sans-serif; fill: #17202a; font-size: 15px; }
+      .label { font-size: 13px; fill: #4b5563; }
+      .small { font-size: .label; }
+      .strong { font-weight: 700; }
+      .rule { stroke: #6b4fa0; stroke-width: 2; stroke-dasharray: 8 6; }
+      .outer { stroke: #a43d35; stroke-width: 2; stroke-dasharray: 4 5; }
+      .flow { stroke: #2f6bb0; stroke-width: 2; marker-end: url(#arrow); }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" marker-end="url(#arrow)" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#2f6bb0"/>
+    </marker>
+  </defs>
+
+  <text x="22" y="34" class="strong" font-size="17">Cycling the serving lane — seven steps under one bounded router pause</text>
+  <text x="22" y="56" class="label">time runs left to right; every command runs from the main checkout, never a worktree</text>
+
+  <!-- connecting flow arrows between the seven boxes -->
+  <path class="flow" d="M168 152 H186"/>
+  <path class="flow" d="M336 152 H354"/>
+  <path class="flow" d="M504 152 H522"/>
+  <path class="flow" d="M672 152 H690"/>
+  <path class="flow" d="M840 152 H858"/>
+  <path class="flow" d="M1008 152 H1026"/>
+
+  <!-- step 1 -->
+  <rect class="step" x="20" y="110" width="148" height="84"/>
+  <text x="34" y="134" class="strong">1 · announce</text>
+  <text x="34" y="154" class="label">message every live</text>
+  <text x="34" y="170" class="label">coordinator: why,</text>
+  <text x="34" y="186" class="label">and the bound</text>
+
+  <!-- step 2 -->
+  <rect class="pause" x="188" y="110" width="148" height="84"/>
+  <text x="202" y="134" class="strong">2 · pause</text>
+  <text x="202" y="154" class="label">agent pause</text>
+  <text x="202" y="170" class="label">--reason "&lt;why&gt;"</text>
+  <text x="202" y="186" class="label">pause window opens</text>
+
+  <!-- step 3 -->
+  <rect class="wait" x="356" y="110" width="148" height="84"/>
+  <text x="370" y="134" class="strong">3 · drain</text>
+  <text x="370" y="154" class="label">running = 0 from a</text>
+  <text x="370" y="170" class="label">reading that reads</text>
+  <text x="370" y="186" class="label">"measured" (1–3 min)</text>
+
+  <!-- step 4 -->
+  <rect class="step" x="524" y="110" width="148" height="84"/>
+  <text x="538" y="134" class="strong">4 · relaunch</text>
+  <text x="538" y="154" class="label">restart --dry-run:</text>
+  <text x="538" y="170" class="label">no .reckon-worktrees;</text>
+  <text x="538" y="186" class="label">then restart &lt;slug&gt;</text>
+
+  <!-- step 5 -->
+  <rect class="step" x="692" y="110" width="148" height="84"/>
+  <text x="706" y="134" class="strong">5 · readiness</text>
+  <text x="706" y="154" class="label">bound 15 min from</text>
+  <text x="706" y="170" class="label">RUNNING, not submit;</text>
+  <text x="706" y="186" class="label">validate for real</text>
+
+  <!-- step 6 -->
+  <rect class="run" x="860" y="110" width="148" height="84"/>
+  <text x="874" y="134" class="strong">6 · resume</text>
+  <text x="874" y="154" class="label">agent resume —</text>
+  <text x="874" y="170" class="label">held requests in</text>
+  <text x="874" y="186" class="label">arrival order</text>
+
+  <!-- step 7 -->
+  <rect class="step" x="1028" y="110" width="148" height="84"/>
+  <text x="1042" y="134" class="strong">7 · record</text>
+  <text x="1042" y="154" class="label">start, end, peak</text>
+  <text x="1042" y="170" class="label">held count, final</text>
+  <text x="1042" y="186" class="label">failures</text>
+
+  <!-- pause window: steps 2 through 6 -->
+  <rect class="pause" x="188" y="236" width="952" height="30" opacity="0.55"/>
+  <text x="202" y="257" class="strong" fill="#6b4fa0">the pause window — capped at 40 min from step 2 to step 6, ≈16 min inside the ride-out below</text>
+
+  <!-- client ride-out bound -->
+  <rect class="refuse" x="160" y="280" width="1006" height="30" opacity="0.35"/>
+  <path class="outer" d="M160 280 V310"/>
+  <path class="outer" d="M1166 280 V310"/>
+  <text x="176" y="300" class="strong" fill="#a43d35">held client rides out the pause: about 56 min — 11 attempts of 305 s (300 s wait + fixed 5 s Retry-After)</text>
+  <text x="188" y="332" class="label">past this bound the held turn fails; dispatch seeks its own lane</text>
+
+  <!-- rollback -->
+  <rect class="refuse" x="20" y="360" width="700" height="112"/>
+  <text x="36" y="386" class="strong" fill="#a43d35">rollback — readiness not reached within the bound</text>
+  <text x="36" y="408" class="label">restore the previous settings (previous draft-block size, or --no-speculative, or the previous gate width)</text>
+  <text x="36" y="428" class="label">agent restart &lt;slug&gt;   then   agent resume</text>
+  <text x="36" y="456" class="label">resume is never skipped: a lane left paused holds every arrival until its client's retries are exhausted</text>
+  <path class="outer" d="M692 310 V360"/>
+  <path class="outer" d="M356 194 V236"/>
+
+  <!-- router restart note -->
+  <rect class="lane" x="740" y="360" width="426" height="112"/>
+  <text x="756" y="386" class="strong">A router restart is not an engine relaunch</text>
+  <text x="756" y="408" class="label">it drops the requests held in the router's memory,</text>
+  <text x="756" y="428" class="label">so it runs inside a pause with the engine already quiet;</text>
+  <text x="756" y="448" class="label">its own start-up must fit a client's retry budget.</text>
+</svg>

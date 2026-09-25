@@ -1688,7 +1688,7 @@ imas-ambix agent serve deepseek-v4-flash-2x   # 2× GPUs — share node with oth
 **Profile:** `deepseek-v4-1-flash` — SGLang, TP=4/EP=4 on four H200, MXFP4+FP8
 checkpoint, 512,000-token per-request context, keyless port 18810. The 183.1 GiB
 of Engram tables live in host RAM; the device pool is pinned rather than
-auto-sized, at `max_total_tokens = 8000000` (8,000,000 tokens). The committed
+auto-sized, at `max_total_tokens = 4000000` (4,000,000 tokens). The committed
 tuning carries DSpark speculative decoding (`speculative_algorithm = "DSPARK"`,
 `speculative_dspark_block_size = 5`), `hicache_ratio = 2.0` and
 `memory = "600G"`.
@@ -1734,30 +1734,21 @@ launch did. Readiness is not the gate for DSpark: the fused-MoE workspace
 allocates lazily at generation, so validate with a real multi-hundred-token
 completion.
 
-#### Draining this lane — two drains sixty times apart, the slow one governing
+#### Draining this lane — a router pause, not a run-level drain
 
-Stopping the lane means two different things, and confusing them kills peer
-work:
+The run-level drain is retired. A serve-settings change, a bench against the
+quiet engine and a router deploy all run as a *cycle* under a router pause:
+admission stops, the engine finishes the requests already in flight (1–3 min),
+the service relaunches while the router holds every new arrival in its FIFO,
+and `resume` admits them in arrival order. Nothing is charged to another
+project's dispatch, and each pause is bounded inside the client's retry
+ride-out.
 
-| Drain | What retires | Cost | What it protects |
-|---|---|---|---|
-| **Run-level** | a worker's node reaches its end and it writes a manifest | **~1 h** | a peer's in-flight implementation work — uncommitted, with no commit behind it |
-| Request-level | the HTTP completions already in flight | ~1–3 min | nothing not already covered once the runs have ended |
-
-The **run-level drain governs**: the load is other orchestrators' workers, each
-mid-plan, so the unit that must be allowed to finish is the *node*, not the
-request. A hot restart therefore costs about an hour of held dispatch, charged
-to other projects. The duty cycle makes it free — 00:00–03:00 UTC is two
-independently observed hours of 100% idle.
-
-Read the fleet and the engine, never the clock. The non-terminal run pointers
-across the projects using the lane and the engine's running and waiting request
-counters are both observable, via
-`serving_receipts.sample_serving_metrics`, which declares exact aliases for
-`num_requests_running` and `num_requests_waiting` and scrapes them from
-`<origin>/metrics`. **A failed scrape returns `None`, and none is not
-zero** — a drain must never read a failed read as quiescence. A drain reporting
-zero on both counters is also the in-flight-count evidence a cutover records.
+The procedure — its seven steps with the exact command for each, the readiness
+bound, the rollback to the previous settings, the bound that keeps a pause
+inside the client ride-out, and how a router restart differs from an engine
+relaunch — is the directory-scoped runbook at
+[`ops/lane-cycle/AGENTS.md`](../../ops/lane-cycle/AGENTS.md).
 
 Stop the lane with `imas-ambix agent shutdown`, never `scancel`. `shutdown`
 selects the profile's own jobs, cancels them, and *republishes the endpoint
