@@ -1,0 +1,361 @@
+{
+  "agent": {
+    "alias": "luna5.6",
+    "backend": "codex-luna",
+    "effort": "xhigh",
+    "launch": "cli",
+    "model": "gpt-5.6-luna",
+    "sandbox": "worktree-full"
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "codex-luna",
+  "base_sha": "37640906e9122c5d467a44fa3e33b52f4a010f97",
+  "boundary_waiver": null,
+  "budget": {
+    "cost_usd": null,
+    "detail": "backend reports token usage but no headroom",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_write_input_tokens": 0,
+      "cache_write_input_tokens_cumulative": 0,
+      "cached_input_tokens": 6155264,
+      "cached_input_tokens_cumulative": 6155264,
+      "input_tokens": 6339329,
+      "input_tokens_cumulative": 6339329,
+      "output_tokens": 34716,
+      "output_tokens_cumulative": 34716,
+      "reasoning_output_tokens": 19290,
+      "reasoning_output_tokens_cumulative": 19290
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": {
+    "added": 65,
+    "files": 3,
+    "removed": 4
+  },
+  "commit_resolution": null,
+  "commits": [
+    "42d8ea9e4c4ab6ff534dc48fc94ae6ac4bf2277e",
+    "f4047b377d8cb97fe15cada1a96fbc873b988984",
+    "2daaee800f4e82ef4dcfa3212b5048573022cf4d"
+  ],
+  "completed_at": "2026-09-25T13:22:16Z",
+  "completed_at_source": "stream_mtime",
+  "dispatched_at": "2026-09-25T13:08:39Z",
+  "dispute_count": 0,
+  "duration_measurement": {
+    "reason": "model_span_unavailable_at_promotion",
+    "status": "underivable"
+  },
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": true,
+    "matched_measure": null,
+    "override": false,
+    "role": "documentation",
+    "status": "no-execution-measure"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [],
+  "gate": "passed",
+  "gate_check": {
+    "command": "bash /home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T130830267275-s17-runbook-review-repair/runbook-guard-after-repair.log is the recorded guard simulation; uv run --no-sync ruff check imas_ambix tests",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T130830267275-s17-runbook-review-repair/runbook-guard-after-repair.log"
+  },
+  "impl_move": {
+    "at_complete": null,
+    "at_dispatch": 0.9,
+    "plan": "local-lane-admission-control",
+    "reason": "role-not-enforced:documentation",
+    "verdict": "exempt"
+  },
+  "lane_advisory": {
+    "backend": "codex-luna",
+    "burn_multiple": 1.3285780741200186,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'codex-luna' is projected to exhaust at 2026-09-30T03:24:44Z, which is after this node's 1800s horizon ending 2026-09-25T13:38:31.723602+00:00",
+    "horizon_ends_at": "2026-09-25T13:38:31.723602+00:00",
+    "horizon_seconds": 1800,
+    "metered": true,
+    "observed_at": "2026-09-25T13:08:30Z",
+    "precedes_horizon": false,
+    "projected_exhaustion_at": "2026-09-30T03:24:44Z",
+    "resets_at": "2026-10-01T15:38:43Z",
+    "seconds_until_reset": 527412,
+    "state": "quiet",
+    "utilisation_pct": 17.0
+  },
+  "lane_declaration": {
+    "backend": "codex-luna",
+    "headroom": "known",
+    "metered": true,
+    "observed_at": "2026-09-25T13:08:30Z",
+    "read_at": "2026-09-25T13:08:31Z",
+    "resolved_backend": "codex-luna",
+    "utilisation_pct": 17.0
+  },
+  "lane_reading": {
+    "age_seconds": null,
+    "binding_observed": "unknown",
+    "detail": "backend declares no lane document",
+    "headroom": "unknown",
+    "mean_context": "unknown",
+    "observed_at": null,
+    "state": "unknown",
+    "suggested_shelf_life_seconds": null
+  },
+  "lane_receipt": {
+    "effective_context_window": 380000,
+    "notional_cost_usd": 1.3095,
+    "observed_at": "2026-09-25T13:22:16Z",
+    "quota_state": "measured",
+    "quota_windows": [
+      {
+        "observed_at": "2026-09-25T13:22:16Z",
+        "resets_at": 1790869123,
+        "used_percent": 18.0,
+        "window_minutes": 10080
+      }
+    ],
+    "rate_basis": {
+      "as_of": "2026-09-09",
+      "input_per_million": 0.2,
+      "model_identifier": "gpt-5.6-luna",
+      "output_per_million": 1.2
+    }
+  },
+  "lineage": null,
+  "local": false,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T130830267275-s17-runbook-review-repair/manifest.md",
+  "member": "luna-doc-1",
+  "negative_control": {
+    "reason": "node-writes-no-test-path",
+    "verdict": "exempt"
+  },
+  "no_commit": null,
+  "node": "s17-runbook-review-repair",
+  "node_definition": {
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 894,
+          "cached_input_tokens": 448354,
+          "input_tokens": 449250,
+          "output_tokens": 810,
+          "reasoning_output_tokens": 0,
+          "total_tokens": 450060,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "38dec84a-7cb6-4b27-ace6-501cc76dbec0",
+      "session_id": "llac-s14-0925"
+    },
+    "done_when": "ops/lane-cycle/AGENTS.md: (1) every shell pipeline whose success is judged by a downstream count (the dry-run grep for .reckon-worktrees) checks the producer's exit status, with set -o pipefail or a captured exit code, so a failed dry run cannot read as zero matches, and the manifest records the check failing on a deliberately failing producer (e.g. false | grep -c x) and passing on a real one; (2) step 1 (announce) and step 7 (record) each carry an executable command: announce names the exact 'reckon crew directory --project imas-ambix' call that lists live coordinators, and record names the file the cycle record is appended to and the exact command that appends it; (3) 'uv run --no-sync ruff check imas_ambix tests' exits 0. Only ops/lane-cycle/AGENTS.md changes; nothing is paused, resumed, restarted or shut down.",
+    "estimated_hours": null,
+    "goal": "Repair the two runbook defects the independent review found in ops/lane-cycle/AGENTS.md",
+    "id": "s17-runbook-review-repair",
+    "lane_declaration": {
+      "backend": "codex-luna",
+      "headroom": "known",
+      "metered": true,
+      "observed_at": "2026-09-25T13:08:30Z",
+      "read_at": "2026-09-25T13:08:31Z",
+      "resolved_backend": "codex-luna",
+      "utilisation_pct": 17.0
+    },
+    "lane_reading": {
+      "age_seconds": null,
+      "binding_observed": "unknown",
+      "detail": "backend declares no lane document",
+      "headroom": "unknown",
+      "mean_context": "unknown",
+      "observed_at": null,
+      "state": "unknown",
+      "suggested_shelf_life_seconds": null
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T130830267275-s17-runbook-review-repair/manifest.md",
+    "negative_control": "",
+    "plan": "local-lane-admission-control",
+    "requested_backend": "codex-luna",
+    "requires_decisions": [],
+    "role": "documentation",
+    "section": "§17",
+    "spec_level": "guided",
+    "time_budget": "30m",
+    "token_budget": null,
+    "write_paths": [
+      "ops/lane-cycle/AGENTS.md",
+      "docs/evidence/archive/local-lane-admission-control-landed.html",
+      "docs/figures/local-lane-admission-control",
+      "docs/plans/local-lane-admission-control.html"
+    ]
+  },
+  "orientation_input_tokens": null,
+  "outcome": "runbook: pipefail-guarded dry-run check, executable announce and record commands, record append refuses missing values; review 100/100",
+  "plan": "local-lane-admission-control",
+  "plan_impl_at_dispatch": 0.9,
+  "promoted_revision": "2daaee800f4e82ef4dcfa3212b5048573022cf4d",
+  "release": {
+    "process_signalled": false,
+    "process_withheld": "process is not alive",
+    "worktree_audit": {
+      "counts": {
+        "dirty": 0,
+        "disposable": 0,
+        "integrated": 0,
+        "live-referenced": 0,
+        "retained-for-resume": 0,
+        "unintegrated": 0
+      },
+      "worktrees": [
+        {
+          "available": false,
+          "detail": "tree is no longer available",
+          "path": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/llac-s14-0925/s17-runbook-review-repair"
+        }
+      ]
+    },
+    "worktree_released": true
+  },
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "scores": {
+      "durability": 20,
+      "evidence": 20,
+      "fit": 20,
+      "goal_fidelity": 20,
+      "scope_discipline": 20
+    },
+    "status": "parsed",
+    "total": 100
+  },
+  "role": "documentation",
+  "run_id": "r-20260925T130830267275-s17-runbook-review-repair",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§17",
+  "session_harness": "codex",
+  "session_id": "01a0d8ae-c02f-7221-a0cb-8523d976799b",
+  "session_model": "gpt-5.6-luna",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "guided",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 0,
+  "throughput": {
+    "cumulative_cached_input_tokens": 6155264,
+    "cumulative_input_tokens": 12494593,
+    "detail": "turn tokens recorded, but no span was supplied to rate them",
+    "generated_tokens": 54006
+  },
+  "time_budget": "30m",
+  "tool_steps": 53.0,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": [
+      {
+        "budget_overrun": false,
+        "budget_overrun_seconds": 0,
+        "budget_seconds": 2400,
+        "classification": "scoring",
+        "commits_beyond_base": 0,
+        "detail": "the worker manifest reports completion, but no independent review is attached; an independent review must be produced before promotion",
+        "effective_phase": "complete",
+        "elapsed_seconds": 1716,
+        "exit_record": {
+          "ended_during": "working",
+          "exit_code": 0,
+          "exited_at": "2026-09-25T12:32:01Z",
+          "last_record_type": "result",
+          "launched_at": "2026-09-25T12:03:32Z",
+          "recorded_by": "supervisor",
+          "run_id": "r-20260925T120318053991-s19-clive-compact-window",
+          "signal": null,
+          "signal_name": null,
+          "stream_records_seen": 3616,
+          "worker_pid": 674086
+        },
+        "external_wait": null,
+        "interruption": null,
+        "lifting_condition": null,
+        "liveness_proven": true,
+        "log_age_seconds": 2192,
+        "log_fresh": false,
+        "manifest_commits": [
+          "2fde47dd e8f5b2c4"
+        ],
+        "manifest_derived": false,
+        "manifest_digest": "b029347082e8fa416942442d9b8f4671c069b600f5771fc7f4366ff043386e1e",
+        "manifest_error": null,
+        "manifest_file_present": true,
+        "manifest_fresh": true,
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T120318053991-s19-clive-compact-window/manifest.md",
+        "manifest_present": true,
+        "manifest_reported_status": "complete",
+        "manifest_status": "complete",
+        "marker": null,
+        "needs_help_complete": null,
+        "next_action": "reckon crew dispatch --project imas-ambix --plan local-lane-admission-control --section '§19' --role review --spec-level exact --node review-of-s19-clive-compact-window --goal 'attach an independent review to run r-20260925T120318053991-s19-clive-compact-window' --done-when 'the review for r-20260925T120318053991-s19-clive-compact-window stores a parsed record scoring all 5 dimensions in the range 0..20; the turn ends once that record is stored and the manifest reads complete' --write-path /home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260925T120318053991-s19-clive-compact-window.json --write-path /home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260925T120318053991-s19-clive-compact-window.at-e8f5b2c4802d37198bb4de52158fd3dcd8a63d86.json --time-budget 40m --session llac-s14-0925 --allow-unreconciled-runs --backend clive",
+        "node": "s19-clive-compact-window",
+        "phase": "starting",
+        "plan": "local-lane-admission-control",
+        "process_alive": false,
+        "project": "imas-ambix",
+        "recovery": "review",
+        "recovery_classification": "scoring",
+        "resets_at": null,
+        "review_error": null,
+        "review_present": false,
+        "review_status": null,
+        "run_id": "r-20260925T120318053991-s19-clive-compact-window",
+        "session": "llac-s14-0925",
+        "terminal_age_seconds": 2302,
+        "terminal_at": "2026-09-25T12:30:11Z",
+        "wait_age_seconds": null,
+        "wait_condition_state": null,
+        "wait_key_defect": null,
+        "wait_observed": null,
+        "wait_overdue": null,
+        "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/llac-s14-0925/s19-clive-compact-window"
+      }
+    ]
+  },
+  "wall_seconds": 817,
+  "watch_override": null,
+  "worker_exit": {
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-09-25T13:22:17Z",
+    "last_record_type": "turn.completed",
+    "launched_at": "2026-09-25T13:08:45Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20260925T130830267275-s17-runbook-review-repair",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 195,
+    "worker_pid": 927674
+  },
+  "worker_seconds": 817,
+  "worker_seconds_source": "wall_fallback",
+  "worktree_retention": null
+}
