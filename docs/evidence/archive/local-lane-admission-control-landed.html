@@ -1008,6 +1008,85 @@
     28 tests with 0 failures, and whole-tree
     <code>uv run --no-sync ruff check imas_ambix tests</code> exited 0.</p>
   </section>
+
+  <section id="receipt-session-identity">
+    <h2>Receipts carry a session identity (<code>91c2b563</code>, 2026-09-25)</h2>
+
+    <p>A <code>RequestReceipt</code> had no identity finer than a TCP connection:
+    <code>Router._caller_hint</code> joins the peer IP, the ephemeral source port and
+    the user agent, so one client appears as many hints (3,651 distinct hints for
+    23,917 requests in one day) and neither "how many sessions share the lane" nor
+    "which consumer bypasses the gate" can be read from the record. Two request
+    headers are now copied into new optional receipt fields:
+    <code>X-Reckon-Run-Id</code> becomes <code>run_id</code> and
+    <code>X-Reckon-Session</code> becomes <code>coordinator_session</code>. They are
+    read from the request's own headers and never inferred, so a row's null says the
+    caller was unkeyed rather than that the router guessed.</p>
+
+    <p>The extraction is one function, <code>identity_from_headers</code>
+    (<code>request_receipts.py</code>), called once in
+    <code>RouterApp._record_receipt</code> (<code>router.py</code>). Placing it at the
+    single receipt entry point keys every row path from the request that produced it
+    &#8212; relayed, cut, refused and gate-timed-out alike &#8212; instead of at each
+    call site. A value that is not a well-formed short token is recorded as null
+    rather than truncated: empty, longer than 128 characters, or carrying a control
+    character. Truncating would let one session's id collide with another's, which is
+    the property the field exists to give.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/local-lane-admission-control/receipt-session-identity.svg" alt="A request's two identity headers pass a well-formed-short-token check; a valid value lands on the receipt as run_id and coordinator_session, and an empty, over-long or control-bearing value is recorded as null. An absent header also records null, and no identity is inferred from the per-connection caller_hint.">
+      <figcaption>Where a receipt's session identity comes from: the request's own
+      headers, gated by a short-token rule, never the connection.</figcaption>
+    </figure>
+
+    <h3 id="receipt-session-identity-evidence">What the tests measure</h3>
+
+    <p>Five new tests in <code>tests/test_request_receipts.py</code>, each asserting
+    behaviour the change introduces rather than a shape it preserves. A relayed
+    request carrying <code>X-Reckon-Run-Id: r-abc</code> and
+    <code>X-Reckon-Session: s-1</code> records <code>run_id "r-abc"</code> and
+    <code>coordinator_session "s-1"</code>. A request carrying neither records both as
+    null. Two malformed values on one request do not contaminate each other: a
+    129-character run id beside a valid session records <code>run_id null</code> and
+    <code>coordinator_session "s-ok"</code>, and a valid run id beside a
+    control-bearing session records <code>run_id "r-ok"</code> and
+    <code>coordinator_session null</code>. The boundary is also read directly through
+    <code>identity_from_headers</code>: exactly 128 characters is accepted, 129 is
+    not, an empty value is not, a value containing <code>\x07</code> is not, the
+    header name matches case-insensitively, and an empty header list yields
+    <code>(None, None)</code>. A gate-timeout request that waits past the configured
+    <code>wait_seconds</code> is answered 529 and its receipt still carries both
+    fields, so the router's own self-answered rows are keyed too.</p>
+
+    <p><strong>Evidence that could have failed.</strong> The declared negative control,
+    verbatim as the first line of the red log, is: &ldquo;deriving run_id from the
+    caller_hint peer port instead of the header must fail the header test; applied as
+    a scratch edit and restored&rdquo;. Replacing the header read in
+    <code>_record_receipt</code> with a <code>run_id</code> taken from the peer
+    port failed three tests &#8212; the header test
+    <code>test_a_relayed_request_records_the_session_identity_it_carried</code>, the
+    malformed-value test and the gate-timeout test &#8212; at
+    <code>3 failed, 30 passed</code>. The scratch mutation was restored and the
+    restored call verified in place before the green gate ran. The declared gate
+    <code>uv run --no-sync pytest -p no:cacheprovider tests/test_request_receipts.py
+    tests/test_agent_router_gate.py tests/test_agent_router_admission.py</code> then
+    ran 55 tests with 0 failures, and whole-tree
+    <code>uv run --no-sync ruff check imas_ambix tests</code> exited 0.</p>
+
+    <h3 id="receipt-session-identity-reproduce">Artifacts and how to reproduce</h3>
+
+    <p>Changed: <code>imas_ambix/agent/request_receipts.py</code> (the fields, the
+    short-token rule and <code>identity_from_headers</code>),
+    <code>imas_ambix/agent/router.py</code> (the single <code>_record_receipt</code>
+    call site) and <code>tests/test_request_receipts.py</code>. Figure:
+    <code>docs/figures/local-lane-admission-control/receipt-session-identity.svg</code>.
+    Deployment rides the next router restart; this node performed no restart and no
+    engine call. Run the gates above from the worktree at
+    <code>91c2b563</code> to reproduce. The unkeyed share of requests
+    is itself a published figure: reckon sets both headers for clive workers through
+    <code>ANTHROPIC_CUSTOM_HEADERS</code>, and codex workers stay unkeyed until their
+    provider config carries them.</p>
+  </section>
 </main>
 </body>
 </html>
