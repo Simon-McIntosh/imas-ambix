@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 300" role="img"
+     aria-label="Exported CLAUDE_CODE_AUTO_COMPACT_WINDOW against a release's usable input budget: the identity below the 300000 ceiling, flat at 300000 above it.">
+  <style>
+    .axis { stroke: #6b7280; stroke-width: 1; }
+    .tick { stroke: #d1d5db; stroke-width: 1; }
+    .rule { fill: none; stroke: #2563eb; stroke-width: 2.5; }
+    .label { font: 12px system-ui, sans-serif; fill: #111827; }
+    .muted { font: 11px system-ui, sans-serif;
+             fill: #4b5563; }
+    .ceil  { stroke: #dc2626; stroke-width: 1.5; stroke-dasharray: 5 4; }
+  </style>
+
+  <rect x="0" y="0" width="560" height="300" fill="#ffffff"/>
+
+  <!-- axes: x = usable input budget (thousands of tokens), y = exported window -->
+  <g transform="translate(70,20)">
+    <!-- plot area 0..460 wide, 0..230 tall -->
+    <line class="axis" x1="0" y1="230" x2="460" y2="230"/>
+    <line class="axis" x1="0" y1="0" x2="0" y2="230"/>
+
+    <!-- y ticks every 100k up to 350k: 350k -> 230px? use 0..350k over 230px -->
+    <g class="label" text-anchor="end">
+      <text x="-8" y="234">0</text>
+      <text x="-8" y="167">100k</text>
+      <text x="-8" y="100">200k</text>
+      <text x="-8" y="34">300k</text>
+    </g>
+    <line class="tick" x1="0" y1="164" x2="460" y2="164"/>
+    <line class="tick" x1="0" y1="98"  x2="460" y2="98"/>
+
+    <!-- ceiling guide at 300k -->
+    <line class="ceil" x1="0" y1="33" x2="460" y2="33"/>
+    <text class="muted" x="6" y="27">ceiling 300000</text>
+
+    <!-- x ticks at 0, 250k, 470k usable budget; map budget->px: 470k over 460px -->
+    <g class="label" text-anchor="middle">
+      <text x="0" y="248">0</text>
+      <text x="245" y="248">250k</text>
+      <text x="460" y="248">470k</text>
+    </g>
+    <text class="muted" x="230" y="272" text-anchor="middle">usable input budget (tokens)</text>
+    <text class="muted" x="-46" y="130" text-anchor="middle"
+          transform="rotate(-90)">exported window</text>
+
+    <!-- the rule: identity y=x up to 300000, then flat.
+         budget 300k -> x=293.6px, y=33px. slope: 100k -> 65.7px x, 67px y -->
+    <polyline class="rule"
+      points="0,230 293.6,33 460,33"/>
+    <circle cx="293.6" cy="33" r="3.5" fill="#2563eb"/>
+    <text class="label" x="300" y="26">plateau at 300000</text>
+
+    <!-- annotated scenario dots -->
+    <circle cx="481" cy="33" r="0" fill="none"/>
+    <circle cx="293.6" cy="33" r="3.5" fill="#2563eb"/>
+    <text class="label" x="150" y="150" text-anchor="middle"
+          transform="rotate(-45 150 150)">identity below the ceiling</text>
+
+    <!-- dsv4.1-flash point: usable 492288 is off-scale; show small release instead -->
+    <circle cx="48" cy="198" r="3.5" fill="#111827"/>
+    <text class="label" x="56" y="210">49152-token release &#8594; 49152</text>
+  </g>
+</svg>

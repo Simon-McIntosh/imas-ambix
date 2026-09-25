@@ -16,6 +16,18 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from imas_ambix.agent.profile import SiteConfig
 
+# The harness reads CLAUDE_CODE_AUTO_COMPACT_WINDOW ahead of the model's default
+# window, and the picker maps every served release to a Sonnet-class
+# ``behavesAs``, so without this export auto-compaction fires at Sonnet's 200k
+# default rather than the release's own budget. The ceiling keeps the window
+# below the full usable input budget (about 480k for a 4xH200 dsv4.1-flash
+# release): with 14 running sessions near their ceiling that budget would hold
+# about 6M KV against a 4M device pool. Compacting near 270k-285k costs far
+# fewer compactions than 200k while the lane's memory cap and prefix-hit guard
+# absorb the larger contexts. A release whose usable budget is smaller than the
+# ceiling compacts at its own budget.
+AUTO_COMPACT_WINDOW_CEILING = 300_000
+
 
 def generate_clive_script(
     site: SiteConfig,
@@ -633,10 +645,22 @@ if [[ -n "$MAX_CONTEXT" ]]; then
     # for prompt plus the reservation on top and be refused at the API. Telling
     # it the ceiling turns that refusal into context pressure it can compact.
     export CLAUDE_CODE_MAX_CONTEXT_TOKENS="$USABLE_INPUT_BUDGET"
+    # Auto-compaction is governed by its own window, separate from the input
+    # ceiling above, and the harness reads it ahead of the behavesAs default.
+    # Cap it at the lane ceiling so a large-window release compacts near the
+    # usable budget rather than at the 200k Sonnet-class default, while a
+    # smaller release still compacts at its own budget.
+    AUTO_COMPACT_WINDOW_CEILING=__AUTO_COMPACT_WINDOW_CEILING__
+    if (( USABLE_INPUT_BUDGET < AUTO_COMPACT_WINDOW_CEILING )); then
+        export CLAUDE_CODE_AUTO_COMPACT_WINDOW="$USABLE_INPUT_BUDGET"
+    else
+        export CLAUDE_CODE_AUTO_COMPACT_WINDOW="$AUTO_COMPACT_WINDOW_CEILING"
+    fi
     CONTEXT_LABEL="$(( MAX_CONTEXT / 1024 ))k"
 else
     unset CLAUDE_CODE_MAX_CONTEXT_TOKENS
     unset CLAUDE_CODE_MAX_OUTPUT_TOKENS
+    unset CLAUDE_CODE_AUTO_COMPACT_WINDOW
 fi
 
 # The global service is anonymous. Harnesses receive a fixed non-secret value
@@ -742,6 +766,9 @@ exit 2
         .replace("__PREFERRED_RELEASE_ID__", shlex.quote(preferred_release_id))
         .replace("__OPENROUTER_NATIVE_RELEASE__", shlex.quote(proxy_native_release))
         .replace("__LITELLM_PORT__", str(LITELLM_PORT))
+        .replace(
+            "__AUTO_COMPACT_WINDOW_CEILING__", str(AUTO_COMPACT_WINDOW_CEILING)
+        )
         .replace(
             "__HYBRID_BRANCH__",
             hybrid_branch if mode == "hybrid" else local_branch,

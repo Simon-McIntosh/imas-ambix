@@ -228,6 +228,60 @@ def test_small_context_uses_its_own_safe_output_reservation(tmp_path):
     assert result.stderr == ""
 
 
+def test_auto_compact_window_is_capped_at_the_lane_ceiling(tmp_path):
+    items = [
+        _catalog_item("dsv4.1-flash", accelerator_count=4, max_model_len=524_288),
+    ]
+
+    result, _settings, environment, _requests = _run_launcher(
+        tmp_path, items, "dsv4.1-flash"
+    )
+
+    assert result.returncode == 0, result.stderr
+    # The usable input budget is 524288 - 32000 = 492288, above the lane
+    # ceiling, so the window binds at the ceiling rather than the full budget.
+    assert environment["CLAUDE_CODE_MAX_CONTEXT_TOKENS"] == "492288"
+    assert environment["CLAUDE_CODE_AUTO_COMPACT_WINDOW"] == "300000"
+
+
+def test_auto_compact_window_uses_a_smaller_release_budget(tmp_path):
+    items = [
+        _catalog_item("small-release", accelerator_count=4, max_model_len=65_536),
+    ]
+
+    result, _settings, environment, _requests = _run_launcher(
+        tmp_path, items, "small-release"
+    )
+
+    assert result.returncode == 0, result.stderr
+    # 65536 - 16384 = 49152, below the ceiling, so the release compacts at its
+    # own usable budget rather than being raised to the lane ceiling.
+    assert environment["CLAUDE_CODE_MAX_CONTEXT_TOKENS"] == "49152"
+    assert environment["CLAUDE_CODE_AUTO_COMPACT_WINDOW"] == "49152"
+
+
+def test_auto_compact_window_is_unset_without_a_reported_context(tmp_path):
+    items = [
+        {
+            "id": "contextless-release",
+            "ambix": {
+                "accelerator_family": "H200",
+                "accelerator_count": 2,
+                "checkpoint_precision": "fp8",
+            },
+        },
+    ]
+
+    result, _settings, environment, _requests = _run_launcher(
+        tmp_path, items, "contextless-release"
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "CLAUDE_CODE_MAX_CONTEXT_TOKENS" not in environment
+    assert "CLAUDE_CODE_MAX_OUTPUT_TOKENS" not in environment
+    assert "CLAUDE_CODE_AUTO_COMPACT_WINDOW" not in environment
+
+
 @pytest.mark.parametrize("max_model_len", [2, 3, 65_536, 524_288])
 def test_output_reservation_always_leaves_a_minimal_prompt(tmp_path, max_model_len):
     items = [
