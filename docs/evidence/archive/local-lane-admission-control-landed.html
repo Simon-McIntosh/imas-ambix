@@ -1008,6 +1008,60 @@
     28 tests with 0 failures, and whole-tree
     <code>uv run --no-sync ruff check imas_ambix tests</code> exited 0.</p>
   </section>
+
+  <section id="pause-cut-cli">
+    <h2>The pause CLI declares the cut, so an operator never hand-edits the gate</h2>
+    <p>The router half above honours a gate file carrying <code>cut</code>, but until
+    now nothing but a hand edit could put it there. <code>agent pause</code> gains a
+    <code>--cut</code> flag and a <code>--cut-form close|error</code> option, both
+    written into the same gate file the pause write already replaces. The form is
+    validated by <code>click</code> against the router's own
+    <code>GATE_CUT_FORMS</code>, so the CLI cannot declare a form the router would
+    refuse to parse, and naming <code>--cut-form</code> without <code>--cut</code> is a
+    usage error rather than a silently ignored flag.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/local-lane-admission-control/pause-cut-gate-keys.svg"
+           alt="Three commands write router-gate.json. A plain pause sets paused true and reason, and withdraws any cut and cut_form an earlier pause left. A pause with the cut flag additionally sets cut true and cut_form to close by default or error. Resume sets paused false and clears reason, cut and cut_form together, after which the held requests are admitted in arrival order. Every write is a scratch write followed by a rename.">
+      <figcaption>The three writes, and the keys each leaves in the gate file. The cut
+      is a property of the pause, so <code>resume</code> clears <code>cut</code> and
+      <code>cut_form</code> with the pause, and a pause that did not ask for a cut
+      withdraws one an earlier pause left.</figcaption>
+    </figure>
+
+    <p><strong>What the tests measure.</strong> Each done-when behaviour has a test that
+    fails without it, driven through <code>CliRunner</code> against a scratch endpoint
+    document so no live gate file is touched. The tests assert: <code>pause --reason R
+    --cut</code> writes <code>paused true</code> and <code>cut true</code>;
+    <code>--cut-form error</code> writes <code>cut_form error</code> and the default
+    writes <code>cut_form close</code>; a pause <em>without</em> <code>--cut</code>
+    leaves no <code>cut</code> in the file, both from a plain gate and from a gate an
+    earlier cut pause left; <code>resume</code> clears <code>paused</code>,
+    <code>cut</code> and <code>cut_form</code> together; an invalid
+    <code>--cut-form</code> is refused by <code>click</code> with
+    <code>Invalid value</code>; and the gate write is atomic. The atomicity test spies
+    on <code>Path.write_text</code> and <code>Path.replace</code> and asserts no write
+    lands on the gate path itself, that the scratch sibling is renamed onto it, that
+    the scratch is gone afterwards, and that the file the reader then sees carries the
+    cut the invocation declared &#8212; which is the observable that separates a
+    write-then-rename from an in-place write.</p>
+
+    <p><strong>Evidence that could have failed.</strong> The declared negative control,
+    verbatim as the first line of the red log, is: &ldquo;making agent resume leave cut
+    in the gate file must fail the resume test; applied as a scratch edit and
+    restored&rdquo;. Removing the two <code>pop</code> calls from <code>resume</code>
+    failed exactly the test that asserts the clearing:
+    <code>AssertionError: assert 'cut' not in {'cut': True, 'cut_form': 'error',
+    'paused': False, 'width': 18}</code>, <strong>1 failed, 2 passed</strong>, and the
+    scratch edit was restored and verified byte-identical by object hash
+    (<code>14422bd919c9350c849cafd50a9da0f625e56874b14694677b5d5cc56acd4359</code>)
+    before the green gate ran. The declared gate
+    <code>uv run --no-sync pytest -p no:cacheprovider tests/test_agent_pause_cli.py
+    tests/test_agent_router_cut.py</code> then ran 19 tests with 0 failures, and
+    whole-tree <code>uv run --no-sync ruff check imas_ambix tests</code> exited 0. No
+    pause was issued against the live gate file, and no router or engine was touched:
+    this node writes the CLI surface only.</p>
+  </section>
 </main>
 </body>
 </html>
