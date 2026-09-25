@@ -1,0 +1,274 @@
+{
+  "agent": {
+    "alias": "luna5.6",
+    "backend": "codex-luna",
+    "effort": "xhigh",
+    "launch": "cli",
+    "model": "gpt-5.6-luna",
+    "sandbox": "read-only"
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "codex-luna",
+  "base_sha": "eb75d76b6c9c58949719854f90c74d799ff9977c",
+  "boundary_waiver": null,
+  "budget": {
+    "cost_usd": null,
+    "detail": "backend reports token usage but no headroom",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_write_input_tokens": 0,
+      "cache_write_input_tokens_cumulative": 0,
+      "cached_input_tokens": 6981888,
+      "cached_input_tokens_cumulative": 6981888,
+      "input_tokens": 7171716,
+      "input_tokens_cumulative": 7171716,
+      "output_tokens": 28539,
+      "output_tokens_cumulative": 28539,
+      "reasoning_output_tokens": 9131,
+      "reasoning_output_tokens_cumulative": 9131
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": null,
+  "commit_resolution": null,
+  "commits": [],
+  "completed_at": "2026-09-25T13:56:20Z",
+  "completed_at_source": "stream_mtime",
+  "dispatched_at": "2026-09-25T13:44:52Z",
+  "dispute_count": 0,
+  "duration_measurement": {
+    "reason": "model_span_unavailable_at_promotion",
+    "status": "underivable"
+  },
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": false,
+    "matched_measure": null,
+    "override": false,
+    "role": "review",
+    "status": "no-execution-measure"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [],
+  "gate": "passed",
+  "gate_check": {
+    "command": "python3 -c \"import json;d=json.load(open('/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260925T132721214026-s20-gate-aware-lane.json'));s=d['scores'];assert len(s)==5 and all(0<=v<=20 for v in s.values());print(sum(s.values()))\"",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T134443408723-review-of-s20-gate-aware-lane/gate.log"
+  },
+  "impl_move": {
+    "at_complete": null,
+    "at_dispatch": 0.9,
+    "plan": "local-lane-admission-control",
+    "reason": "role-not-enforced:review",
+    "verdict": "exempt"
+  },
+  "lane_advisory": {
+    "backend": "codex-luna",
+    "burn_multiple": 1.5963800904977374,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'codex-luna' is projected to exhaust at 2026-09-29T09:08:22Z, which is after this node's 3600s horizon ending 2026-09-25T14:44:44.773296+00:00",
+    "horizon_ends_at": "2026-09-25T14:44:44.773296+00:00",
+    "horizon_seconds": 3600,
+    "metered": true,
+    "observed_at": "2026-09-25T13:44:43Z",
+    "precedes_horizon": false,
+    "projected_exhaustion_at": "2026-09-29T09:08:22Z",
+    "resets_at": "2026-10-01T15:38:44Z",
+    "seconds_until_reset": 525240,
+    "state": "quiet",
+    "utilisation_pct": 21.0
+  },
+  "lane_declaration": {
+    "backend": "codex-luna",
+    "headroom": "known",
+    "metered": true,
+    "observed_at": "2026-09-25T13:44:43Z",
+    "read_at": "2026-09-25T13:44:44Z",
+    "resolved_backend": "codex-luna",
+    "utilisation_pct": 21.0
+  },
+  "lane_reading": {
+    "age_seconds": null,
+    "binding_observed": "unknown",
+    "detail": "backend declares no lane document",
+    "headroom": "unknown",
+    "mean_context": "unknown",
+    "observed_at": null,
+    "state": "unknown",
+    "suggested_shelf_life_seconds": null
+  },
+  "lane_receipt": {
+    "effective_context_window": 380000,
+    "notional_cost_usd": 1.4686,
+    "observed_at": "2026-09-25T13:56:20Z",
+    "quota_state": "measured",
+    "quota_windows": [
+      {
+        "observed_at": "2026-09-25T13:56:20Z",
+        "resets_at": 1790869123,
+        "used_percent": 22.0,
+        "window_minutes": 10080
+      }
+    ],
+    "rate_basis": {
+      "as_of": "2026-09-09",
+      "input_per_million": 0.2,
+      "model_identifier": "gpt-5.6-luna",
+      "output_per_million": 1.2
+    }
+  },
+  "lineage": null,
+  "local": false,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T134443408723-review-of-s20-gate-aware-lane/manifest.md",
+  "member": "session-7ca67b36b53f773f8358",
+  "negative_control": {
+    "reason": "node-writes-no-test-path",
+    "verdict": "exempt"
+  },
+  "no_commit": "review node; delivery is the stored review record",
+  "node": "review-of-s20-gate-aware-lane",
+  "node_definition": {
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 2774,
+          "cached_input_tokens": 580360,
+          "input_tokens": 583136,
+          "output_tokens": 887,
+          "reasoning_output_tokens": 81,
+          "total_tokens": 584023,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "38dec84a-7cb6-4b27-ace6-501cc76dbec0",
+      "session_id": "llac-s14-0925"
+    },
+    "done_when": "the review for r-20260925T132721214026-s20-gate-aware-lane stores a parsed record scoring all 5 dimensions in the range 0..20; the turn ends once that record is stored and the manifest reads complete",
+    "estimated_hours": null,
+    "goal": "attach an independent review to run r-20260925T132721214026-s20-gate-aware-lane",
+    "id": "review-of-s20-gate-aware-lane",
+    "lane_declaration": {
+      "backend": "codex-luna",
+      "headroom": "known",
+      "metered": true,
+      "observed_at": "2026-09-25T13:44:43Z",
+      "read_at": "2026-09-25T13:44:44Z",
+      "resolved_backend": "codex-luna",
+      "utilisation_pct": 21.0
+    },
+    "lane_reading": {
+      "age_seconds": null,
+      "binding_observed": "unknown",
+      "detail": "backend declares no lane document",
+      "headroom": "unknown",
+      "mean_context": "unknown",
+      "observed_at": null,
+      "state": "unknown",
+      "suggested_shelf_life_seconds": null
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T134443408723-review-of-s20-gate-aware-lane/manifest.md",
+    "negative_control": "",
+    "plan": "local-lane-admission-control",
+    "requested_backend": "codex-luna",
+    "requires_decisions": [],
+    "role": "review",
+    "section": "§20",
+    "spec_level": "exact",
+    "time_budget": "60m",
+    "token_budget": null,
+    "write_paths": [
+      "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260925T132721214026-s20-gate-aware-lane.json",
+      "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260925T132721214026-s20-gate-aware-lane.at-3b42f115b522d229346d69b3bf58bc9ff8c9dc7f.json"
+    ]
+  },
+  "orientation_input_tokens": null,
+  "outcome": "",
+  "plan": "local-lane-admission-control",
+  "plan_impl_at_dispatch": 0.9,
+  "promoted_revision": "eb75d76b6c9c58949719854f90c74d799ff9977c",
+  "release": {
+    "process_signalled": false,
+    "process_withheld": "process is not alive",
+    "worktree_audit": {
+      "counts": {
+        "dirty": 0,
+        "disposable": 0,
+        "integrated": 0,
+        "live-referenced": 0,
+        "retained-for-resume": 0,
+        "unintegrated": 0
+      },
+      "worktrees": [
+        {
+          "available": false,
+          "detail": "tree is no longer available",
+          "path": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/llac-s14-0925/review-of-s20-gate-aware-lane"
+        }
+      ]
+    },
+    "worktree_released": true
+  },
+  "resume_waiver": null,
+  "review": null,
+  "role": "review",
+  "run_id": "r-20260925T134443408723-review-of-s20-gate-aware-lane",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§20",
+  "session_harness": "codex",
+  "session_id": "01a0d8cf-ea3c-7ed0-92f9-e7a9e6fe8a51",
+  "session_model": "gpt-5.6-luna",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "exact",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 0,
+  "throughput": {
+    "cumulative_cached_input_tokens": 6981888,
+    "cumulative_input_tokens": 14153604,
+    "detail": "turn tokens recorded, but no span was supplied to rate them",
+    "generated_tokens": 37670
+  },
+  "time_budget": "60m",
+  "tool_steps": 70.0,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": []
+  },
+  "wall_seconds": 688,
+  "watch_override": null,
+  "worker_exit": {
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-09-25T13:56:20Z",
+    "last_record_type": "turn.completed",
+    "launched_at": "2026-09-25T13:44:59Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20260925T134443408723-review-of-s20-gate-aware-lane",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 207,
+    "worker_pid": 1173572
+  },
+  "worker_seconds": 688,
+  "worker_seconds_source": "wall_fallback",
+  "worktree_retention": null
+}
