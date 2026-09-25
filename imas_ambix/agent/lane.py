@@ -24,7 +24,7 @@ import json
 import os
 import urllib.request
 import zlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -88,6 +88,14 @@ class LaneCapacity:
     offload_resident_fraction: float | None = None
     hicache_host_total_tokens: int | None = None
     hicache_host_used_tokens: int | None = None
+    # Cumulative decoded tokens since the engine started. It is an odometer, not
+    # a level: its value differs between any two readings of an unchanged lane,
+    # so it takes no part in deciding whether two readings describe the same
+    # lane (``compare=False``) and a caller that wants a rate differences two of
+    # them. It is the only figure here that is meaningless on its own -- a
+    # counter that has gone backwards means the engine restarted, and the
+    # interval spanning that restart measures nothing.
+    generation_tokens: int | None = field(default=None, compare=False)
     # Safety ceiling, independent of workload. The pool arithmetic below is a
     # capacity estimate that rises without bound as the working context shrinks
     # -- on a cold lane with short prompts it read 131, which would invite a
@@ -413,6 +421,7 @@ def _lane_capacity_from_roles(
     host_used = read("hicache_host_used_tokens")
     queries = read("prefix_cache_queries") or 0.0
     hits = read("prefix_cache_hits") or 0.0
+    generated = read("generation_tokens")
     prefix_hit_rate = read("prefix_hit_rate")
     if prefix_hit_rate is None and queries > 0:
         prefix_hit_rate = hits / queries
@@ -436,6 +445,7 @@ def _lane_capacity_from_roles(
         offload_resident_fraction=read("offload_resident_fraction"),
         hicache_host_total_tokens=int(host_total) if host_total is not None else None,
         hicache_host_used_tokens=int(host_used) if host_used is not None else None,
+        generation_tokens=int(generated) if generated is not None else None,
     )
 
 

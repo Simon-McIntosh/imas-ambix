@@ -10,7 +10,7 @@
   <meta name="plan-summary"      content="Cumulative execution record for local-lane-admission-control: capacity levers, scheduler levers, client behaviour, the router gate and the bypass trace">
   <meta name="plan-tags"         content="agent-serving,gpu-deployment">
   <meta name="plan-evidence-for" content="local-lane-admission-control">
-  <meta name="plan-verifies"     content="local-lane-admission-control#s3,local-lane-admission-control#s5,local-lane-admission-control#s6,local-lane-admission-control#s7,local-lane-admission-control#s8,local-lane-admission-control#s11,local-lane-admission-control#s12,local-lane-admission-control#s19">
+  <meta name="plan-verifies"     content="local-lane-admission-control#s3,local-lane-admission-control#s5,local-lane-admission-control#s6,local-lane-admission-control#s7,local-lane-admission-control#s8,local-lane-admission-control#s11,local-lane-admission-control#s12,local-lane-admission-control#s19,local-lane-admission-control#s14">
   <meta name="plan-owner"        content="Simon McIntosh">
   <title>Local Lane Admission Control — Landed Evidence | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
@@ -637,6 +637,64 @@
     <code>grep -c ops/lane-cycle AGENTS.md imas_ambix/agent/AGENTS.md</code> returns at
     least 1 for each file, and <code>uv run --no-sync ruff check imas_ambix tests</code>
     exits 0.</p>
+  </section>
+
+  <section id="width-controller">
+    <h2>The gate's automatic width seeks the throughput knee (2026-09-25)</h2>
+    <p>The automatic width now measures the lane's plateau rather than computing it
+    from memory. <code>_GenerationGate.observe_lane</code> in
+    <code>imas_ambix/agent/router.py</code> takes the engine's cumulative
+    <code>generation_tokens</code> counter alongside the readings it already
+    received, and derives a rate as the counter delta over the interval between
+    scrapes, discarding any delta whose reading lands below its predecessor, since a
+    counter that restarted describes two processes and is not a rate. Sixteen
+    scrapes (&sigma; 60 tok/s per window, pre-declared) make one judgement against a
+    material-change margin of <code>3.2 &times; 60 &divide; &radic;16 = 48</code> tok/s,
+    about three standard deviations of the judged mean; a passing climb or descent
+    moves the width by two. A prefix hit rate under 0.95, KV occupancy at 0.6, and a
+    per-stream rate under 10 tok/s each step the width down without waiting for
+    throughput to react. Nothing is scored while the gate holds no queue, because a
+    rate measured with demand below the width describes the lane and not the width.
+    <code>ims_ambix/agent/lane.py</code> gains the counter as a
+    <code>LaneCapacity</code> field declared <code>compare=False</code>, so it takes
+    no part in lane identity. The published gate block gains <code>width_mode</code>
+    and <code>width_reason</code> for an automatic gate only.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/local-lane-admission-control/fig-width-controller-convergence.png"
+           alt="Left: aggregate generation rising to a knee at twelve concurrent streams and falling past it, with the per-stream rate crossing its ten tok-per-second floor. Right: width trajectories from starts of thirty-six and four, both settling inside a band two either side of twelve.">
+      <figcaption>The search over the surface the tests assert against, drawn from the
+      test module itself so it cannot drift from the asserted behaviour.</figcaption>
+    </figure>
+
+    <p>Over a synthetic surface rising to a knee at 12 and flat past it, with a fixed
+    seed, the width settles at 12 from a start of 36 and from a start of 4, and the
+    last forty scrapes from either side are 12 alone. Commit <code>dfb286fb</code> at
+    base <code>a39e6111</code>, with
+    <code>uv run --no-sync pytest -p no:cacheprovider tests/test_agent_router_gate.py
+    tests/test_agent_router_width_controller.py tests/test_agent_lane_sglang.py</code>
+    at <code>31 passed</code> (the width-controller module joining the same run as a
+    fourth file gives <code>32 passed</code>), and
+    <code>uv run --no-sync ruff check imas_ambix tests</code> exiting <code>0</code>.</p>
+
+    <p><strong>Negative controls.</strong> The declared string, recorded verbatim:
+    "(a) substituting the memory rule for the throughput reading drives the width to
+    the cap and fails the convergence tests; (b) a keep-if-improved rule without the
+    epsilon objective ends above 14 on the noisy plateau and fails the convergence
+    tests; both applied as scratch edits and restored". Measured: (a) ran the width
+    to the 36 cap and failed 6 of the 11 tests (<code>6 failed, 5 passed</code>);
+    (b) ended above 14 on the noisy plateau and failed 5 of the 11
+    (<code>5 failed, 6 passed</code>). Both edits were restored, and the controller
+    source was byte-identical to its pre-control copy before the gate above ran.</p>
+
+    <p id="width-controller-health-window"><strong>Health-window correction, 2026-09-25</strong> (<code>5c74c0c9</code>). The coordinator's reproduction against the prior controller recorded 100 idle scrapes with <code>running=0</code> and <code>prefix_hit_rate=0.0</code> driving width 36 to 4, and one <code>prefix_hit_rate=0.80</code> reading in six loaded scrapes driving width 20 to 18. The repair skips every health guard for a zero or missing running count, stores health samples beside the sixteen throughput samples, and requires a guard to hold in at least half the judged window before one down-step. The guard state is cleared at the window boundary, so a sustained failure moves once per window rather than once per scrape. The new regression tests pass 14/14 in isolation and the declared integrated gate passes 34/34 in 5.12 s; whole-tree <code>ruff check imas_ambix tests</code> exits 0. The per-scrape guard was restored as a scratch mutation and the two new tests failed (<code>2 failed</code>): idle prefix sentinel ratcheting and one noisy loaded reading. The scratch mutation was removed before the final green gate; <code>git diff</code> is empty at <code>5c74c0c9</code>.</p>
+
+    <p id="width-controller-demand-independent"><strong>Queue-free guard and auto handoff correction, 2026-09-25</strong> (<code>30f5def9</code>). The health window is now independent of throughput demand: with <code>running=30</code>, <code>waiting=0</code>, width 36 and <code>prefix_hit_rate=0.70</code>, the test records one guard step per six-scrape window (36 to 34 to 32), then holds at 32 after the hit rate returns to 0.99. A live integer-to-auto edit records width 14 before the edit and width 14 after it, despite a memory ceiling of 36; the controller starts from the width currently in force. The final declared gate passes 36/36 and whole-tree <code>ruff check imas_ambix tests</code> exits 0. The declared negative-control string is &ldquo;making the guard require waiting &gt; 0 again must fail (a).&rdquo; The scratch mutation that discarded the health guard whenever <code>waiting &lt;= 0</code> fails the queue-free regression (<code>1 failed</code>) and is removed before the final green gate.</p>
+
+    <p><strong>Not deployed.</strong> The controller is landed but not in force: no
+    router restart and no write to <code>router-gate.json</code>, so the operator
+    width of 14 stands. The speculative-depth sweep and the served-settings
+    re-derivation on this section remain open.</p>
   </section>
 </main>
 </body>
