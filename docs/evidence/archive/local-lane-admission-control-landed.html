@@ -10,7 +10,7 @@
   <meta name="plan-summary"      content="Cumulative execution record for local-lane-admission-control: capacity levers, scheduler levers, client behaviour, the router gate and the bypass trace">
   <meta name="plan-tags"         content="agent-serving,gpu-deployment">
   <meta name="plan-evidence-for" content="local-lane-admission-control">
-  <meta name="plan-verifies"     content="local-lane-admission-control#s3,local-lane-admission-control#s5,local-lane-admission-control#s6,local-lane-admission-control#s7,local-lane-admission-control#s8,local-lane-admission-control#s11,local-lane-admission-control#s12">
+  <meta name="plan-verifies"     content="local-lane-admission-control#s3,local-lane-admission-control#s5,local-lane-admission-control#s6,local-lane-admission-control#s7,local-lane-admission-control#s8,local-lane-admission-control#s11,local-lane-admission-control#s12,local-lane-admission-control#s19">
   <meta name="plan-owner"        content="Simon McIntosh">
   <title>Local Lane Admission Control — Landed Evidence | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
@@ -523,6 +523,60 @@
     recursion replaces read only the agent group's direct children, so by reading it the same
     mutation would have passed. That is inferred from the code, not measured: no run against the
     shallow walk was recorded.</p>
+  </section>
+<section id="compact-window">
+    <h2>Clive auto-compact window capped at the lane ceiling</h2>
+    <p>Clive-launched Claude Code sessions auto-compacted at the picker's
+    Sonnet-class <code>behavesAs</code> default of 200k, because the generated
+    launcher exported <code>CLAUDE_CODE_MAX_CONTEXT_TOKENS</code> but not the
+    separate auto-compaction window the harness reads ahead of that default.
+    The generator now exports <code>CLAUDE_CODE_AUTO_COMPACT_WINDOW</code> as
+    <code>min(usable input budget, 300000)</code>, with the ceiling a named
+    module constant (<code>AUTO_COMPACT_WINDOW_CEILING</code>) carrying its
+    reason, and unsets it in the no-context branch. A release whose usable
+    budget is smaller than the ceiling compacts at its own budget.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/local-lane-admission-control/auto-compact-window.svg"
+           alt="Exported auto-compact window against usable input budget: the window tracks the budget one-for-one below 300000 and is right at 300000 above it.">
+      <figcaption>The window is the identity below the ceiling and flat at the
+      ceiling above it, so a large-window release compacts near the lane bound
+      while a smaller release compacts at its own budget.</figcaption>
+    </figure>
+
+    <table>
+      <thead><tr><th>Release</th><th>Engine window</th><th>Usable input budget</th><th>Exported window</th></tr></thead>
+      <tbody>
+        <tr><td><code>dsv4.1-flash</code></td><td>524288</td><td>492288</td><td><code>300000</code> (ceiling binds)</td></tr>
+        <tr><td>small release</td><td>65536</td><td>49152</td><td><code>49152</code> (its own budget)</td></tr>
+        <tr><td>context not reported</td><td>—</td><td>—</td><td>unset</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Gate.</strong>
+    <code>uv run --no-sync pytest -p no:cacheprovider tests/test_agent_clive_picker.py</code>
+    exits 0 at <code>13 passed</code>; whole-tree
+    <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0. The three
+    new assertions are the exported value for a large-window release (ceiling
+    binds), the exported value for a release below the ceiling (its own budget),
+    and absence of the variable when the catalog reports no context.</p>
+
+    <p><strong>Negative control.</strong> Removing the export in a scratch edit
+    of <code>imas_ambix/agent/clive.py</code> (a no-op in place of each
+    <code>export CLAUDE_CODE_AUTO_COMPACT_WINDOW</code> line, restored afterwards)
+    makes the dsv4.1-flash assertion fail with
+    <code>KeyError: 'CLAUDE_CODE_AUTO_COMPACT_WINDOW'</code>
+    (<code>1 failed, 12 deselected</code>). An earlier scratch edit that removed
+    the export lines outright failed for the wrong reason — the emptied
+    <code>if</code> branch was a bash syntax error, so the launcher never ran —
+    and was discarded in favour of the no-op mutation, which reaches the assertion
+    with a running launcher.</p>
+
+    <p><strong>Not deployed.</strong> This records the generator change and its
+    gate only. The deployed launcher at
+    <code>/work/projects/imas_gpu/agents/clive</code> is untouched, and the
+    confirming run past 250k context with no <code>compact_boundary</code> below
+    270k belongs to the separately dispatched deploy node.</p>
   </section>
 </main>
 </body>

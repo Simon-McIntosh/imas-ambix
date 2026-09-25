@@ -851,6 +851,12 @@
     </article>
 </section>
   <section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="s19" data-id="c-run-r-20260925T120318053991-s19-clive-compact-window" data-who="s19-clive-compact-window" data-when="2026-09-25T12:40:00Z">
+    <div class="r-comment-body"><p>the generator exports CLAUDE_CODE_AUTO_COMPACT_WINDOW = min(USABLE_INPUT_BUDGET, 300000) as the named constant AUTO_COMPACT_WINDOW_CEILING and unsets it in the no-context branch</p></div>
+</div>
+<div class="r-comment" data-section="s19" data-id="c-20260925-s19-compact-window-landing" data-who="s19-clive-compact-window" data-when="2026-09-25T12:40:00Z">
+    <div class="r-comment-body">Source landed: the generated clive launcher now exports CLAUDE_CODE_AUTO_COMPACT_WINDOW as min(usable input budget, 300000), the ceiling a named module constant carrying its reason, and unsets it in the no-context branch. dsv4.1-flash (usable 492288) exports 300000, a 65536-token release (usable 49152) exports 49152, absence exports nothing. Gate <code>uv run --no-sync pytest -p no:cacheprovider tests/test_agent_clive_picker.py</code> exits 0 at 13 passed, whole-tree <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0. Negative control: removing the export (scratch no-op edit, restored) fails the dsv4.1-flash assertion with KeyError on CLAUDE_CODE_AUTO_COMPACT_WINDOW. Not deployed: the launcher at /work/projects/imas_gpu/agents/clive is untouched, and the run past 250k context belongs to the deploy node. Evidence: /imas-ambix/evidence/archive/local-lane-admission-control-landed#compact-window</div>
+</div>
 <div class="r-comment" data-section="s8" data-id="c-run-r-20260923T063235271112-kv-capacity-levers" data-who="reckon-ship" data-when="2026-09-23T06:58:55Z">
     <div class="r-comment-body"><p>DP attention projects 4M-&gt;16M pool tokens (40-&gt;162 contexts at 98,750) but requires disabling decoder bounded replay; 8M pinned pool projects 81 contexts; graph reclaim 62-63; host/storage tier and KV dtype give 0 resident gain</p></div>
 </div>
