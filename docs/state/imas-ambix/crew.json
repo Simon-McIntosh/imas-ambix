@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-25T15:08:18",
+  "updated": "2026-09-25T15:11:34",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -92795,6 +92795,351 @@
             ]
           }
         }
+      },
+      {
+        "run_id": "r-20260925T125918916111-review-of-s17-lane-cycle-runbook",
+        "plan": "local-lane-admission-control",
+        "section": "\u00a717",
+        "node": "review-of-s17-lane-cycle-runbook",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 6414,
+                "cached_input_tokens": 418439,
+                "input_tokens": 424855,
+                "output_tokens": 1092,
+                "reasoning_output_tokens": 410,
+                "total_tokens": 425947,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "38dec84a-7cb6-4b27-ace6-501cc76dbec0",
+            "session_id": "llac-s14-0925"
+          },
+          "done_when": "the review for r-20260925T115355281795-s17-lane-cycle-runbook stores a parsed record scoring all 5 dimensions in the range 0..20; the turn ends once that record is stored and the manifest reads complete",
+          "estimated_hours": null,
+          "goal": "attach an independent review to run r-20260925T115355281795-s17-lane-cycle-runbook",
+          "id": "review-of-s17-lane-cycle-runbook",
+          "lane_declaration": {
+            "backend": "codex-luna",
+            "headroom": "known",
+            "metered": true,
+            "observed_at": "2026-09-25T12:59:19Z",
+            "read_at": "2026-09-25T12:59:20Z",
+            "resolved_backend": "codex-luna",
+            "utilisation_pct": 16.0
+          },
+          "lane_reading": {
+            "age_seconds": null,
+            "binding_observed": "unknown",
+            "detail": "backend declares no lane document",
+            "headroom": "unknown",
+            "mean_context": "unknown",
+            "observed_at": null,
+            "state": "unknown",
+            "suggested_shelf_life_seconds": null
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T125918916111-review-of-s17-lane-cycle-runbook/manifest.md",
+          "negative_control": "",
+          "plan": "local-lane-admission-control",
+          "requested_backend": "codex-luna",
+          "requires_decisions": [],
+          "role": "review",
+          "section": "\u00a717",
+          "spec_level": "exact",
+          "time_budget": "45m",
+          "token_budget": null,
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260925T115355281795-s17-lane-cycle-runbook.json",
+            "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260925T115355281795-s17-lane-cycle-runbook.at-c79d278c41b2718978ae27a3d0a754acf82cef8e.json"
+          ]
+        },
+        "role": "review",
+        "spec_level": "exact",
+        "member": "session-7ca67b36b53f773f8358",
+        "backend": "codex-luna",
+        "local": false,
+        "agent": {
+          "alias": "luna5.6",
+          "backend": "codex-luna",
+          "effort": "xhigh",
+          "launch": "cli",
+          "model": "gpt-5.6-luna",
+          "sandbox": "read-only"
+        },
+        "dispatched_at": "2026-09-25T12:59:28Z",
+        "completed_at": "2026-09-25T13:10:55Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 687,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 687,
+        "stalled": false,
+        "time_budget": "45m",
+        "base_sha": "1a0fac6220d53d594d3ead97a3af8fdb2a8562c6",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": 0,
+        "gate": "passed",
+        "gate_check": {
+          "command": "python3 -c \"import json;d=json.load(open('/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260925T115355281795-s17-lane-cycle-runbook.json'));s=d['scores'];assert len(s)==5 and all(0<=v<=20 for v in s.values());print(sum(s.values()))\"",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T125918916111-review-of-s17-lane-cycle-runbook/gate.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T125918916111-review-of-s17-lane-cycle-runbook/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a0d8a6-61c7-7421-95f3-eead91c7bb06",
+        "session_harness": "codex",
+        "session_model": "gpt-5.6-luna",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 5241856,
+            "cached_input_tokens_cumulative": 5241856,
+            "input_tokens": 5443100,
+            "input_tokens_cumulative": 5443100,
+            "output_tokens": 27963,
+            "output_tokens_cumulative": 27963,
+            "reasoning_output_tokens": 11114,
+            "reasoning_output_tokens_cumulative": 11114
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lane_receipt": {
+          "quota_state": "measured",
+          "observed_at": "2026-09-25T13:10:55Z",
+          "effective_context_window": 380000,
+          "quota_windows": [
+            {
+              "window_minutes": 10080,
+              "used_percent": 17.0,
+              "resets_at": 1790869124,
+              "observed_at": "2026-09-25T13:10:55Z"
+            }
+          ],
+          "notional_cost_usd": 1.1222,
+          "rate_basis": {
+            "model_identifier": "gpt-5.6-luna",
+            "input_per_million": 0.2,
+            "output_per_million": 1.2,
+            "as_of": "2026-09-09"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "15m",
+          "requested": true,
+          "waived_runs": [
+            {
+              "budget_overrun": false,
+              "budget_overrun_seconds": 0,
+              "budget_seconds": 2400,
+              "classification": "scoring",
+              "commits_beyond_base": 0,
+              "detail": "the worker manifest reports completion, but no independent review is attached; an independent review must be produced before promotion",
+              "effective_phase": "complete",
+              "elapsed_seconds": 1716,
+              "exit_record": {
+                "ended_during": "working",
+                "exit_code": 0,
+                "exited_at": "2026-09-25T12:32:01Z",
+                "last_record_type": "result",
+                "launched_at": "2026-09-25T12:03:32Z",
+                "recorded_by": "supervisor",
+                "run_id": "r-20260925T120318053991-s19-clive-compact-window",
+                "signal": null,
+                "signal_name": null,
+                "stream_records_seen": 3616,
+                "worker_pid": 674086
+              },
+              "external_wait": null,
+              "interruption": null,
+              "lifting_condition": null,
+              "liveness_proven": true,
+              "log_age_seconds": 1641,
+              "log_fresh": false,
+              "manifest_commits": [
+                "2fde47dd e8f5b2c4"
+              ],
+              "manifest_derived": false,
+              "manifest_digest": "b029347082e8fa416942442d9b8f4671c069b600f5771fc7f4366ff043386e1e",
+              "manifest_error": null,
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T120318053991-s19-clive-compact-window/manifest.md",
+              "manifest_present": true,
+              "manifest_reported_status": "complete",
+              "manifest_status": "complete",
+              "marker": null,
+              "needs_help_complete": null,
+              "next_action": "reckon crew dispatch --project imas-ambix --plan local-lane-admission-control --section '\u00a719' --role review --spec-level exact --node review-of-s19-clive-compact-window --goal 'attach an independent review to run r-20260925T120318053991-s19-clive-compact-window' --done-when 'the review for r-20260925T120318053991-s19-clive-compact-window stores a parsed record scoring all 5 dimensions in the range 0..20; the turn ends once that record is stored and the manifest reads complete' --write-path /home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260925T120318053991-s19-clive-compact-window.json --write-path /home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260925T120318053991-s19-clive-compact-window.at-e8f5b2c4802d37198bb4de52158fd3dcd8a63d86.json --time-budget 40m --session llac-s14-0925 --allow-unreconciled-runs --backend clive",
+              "node": "s19-clive-compact-window",
+              "phase": "starting",
+              "plan": "local-lane-admission-control",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "recovery": "review",
+              "recovery_classification": "scoring",
+              "resets_at": null,
+              "review_error": null,
+              "review_present": false,
+              "review_status": null,
+              "run_id": "r-20260925T120318053991-s19-clive-compact-window",
+              "session": "llac-s14-0925",
+              "terminal_age_seconds": 1751,
+              "terminal_at": "2026-09-25T12:30:11Z",
+              "wait_age_seconds": null,
+              "wait_condition_state": null,
+              "wait_key_defect": null,
+              "wait_observed": null,
+              "wait_overdue": null,
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/llac-s14-0925/s19-clive-compact-window"
+            }
+          ]
+        },
+        "review": null,
+        "throughput": {
+          "cumulative_cached_input_tokens": 5241856,
+          "cumulative_input_tokens": 10684956,
+          "detail": "turn tokens recorded, but no span was supplied to rate them",
+          "generated_tokens": 39077
+        },
+        "follow_on_paths": [
+          "announcement/recording"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": false,
+          "matched_measure": null,
+          "override": false,
+          "role": "review",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": {
+          "status": "underivable",
+          "reason": "model_span_unavailable_at_promotion"
+        },
+        "scope_acceptances": null,
+        "no_commit": "review node; delivery is the stored review record",
+        "commit_resolution": null,
+        "worktree_retention": null,
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "worker_exit": {
+          "ended_during": "working",
+          "exit_code": 0,
+          "exited_at": "2026-09-25T13:10:56Z",
+          "last_record_type": "turn.completed",
+          "launched_at": "2026-09-25T12:59:37Z",
+          "recorded_by": "supervisor",
+          "run_id": "r-20260925T125918916111-review-of-s17-lane-cycle-runbook",
+          "signal": null,
+          "signal_name": null,
+          "stream_records_seen": 216,
+          "worker_pid": 876187
+        },
+        "promoted_revision": "1a0fac6220d53d594d3ead97a3af8fdb2a8562c6",
+        "plan_impl_at_dispatch": 0.9,
+        "impl_move": {
+          "plan": "local-lane-admission-control",
+          "at_dispatch": 0.9,
+          "at_complete": null,
+          "verdict": "exempt",
+          "reason": "role-not-enforced:review"
+        },
+        "negative_control": {
+          "verdict": "exempt",
+          "reason": "node-writes-no-test-path"
+        },
+        "lane_advisory": {
+          "backend": "codex-luna",
+          "burn_multiple": 1.2594096517257536,
+          "cheaper_lane": {
+            "detail": "",
+            "lane": null,
+            "state": "not_evaluated"
+          },
+          "detail": "'codex-luna' is projected to exhaust at 2026-09-30T09:26:14Z, which is after this node's 2700s horizon ending 2026-09-25T13:44:20.669958+00:00",
+          "horizon_ends_at": "2026-09-25T13:44:20.669958+00:00",
+          "horizon_seconds": 2700,
+          "metered": true,
+          "observed_at": "2026-09-25T12:59:19Z",
+          "precedes_horizon": false,
+          "projected_exhaustion_at": "2026-09-30T09:26:14Z",
+          "resets_at": "2026-10-01T15:38:44Z",
+          "seconds_until_reset": 527964,
+          "state": "quiet",
+          "utilisation_pct": 16.0
+        },
+        "lane_declaration": {
+          "backend": "codex-luna",
+          "headroom": "known",
+          "metered": true,
+          "observed_at": "2026-09-25T12:59:19Z",
+          "read_at": "2026-09-25T12:59:20Z",
+          "resolved_backend": "codex-luna",
+          "utilisation_pct": 16.0
+        },
+        "lane_reading": {
+          "age_seconds": null,
+          "binding_observed": "unknown",
+          "detail": "backend declares no lane document",
+          "headroom": "unknown",
+          "mean_context": "unknown",
+          "observed_at": null,
+          "state": "unknown",
+          "suggested_shelf_life_seconds": null
+        },
+        "tool_steps": 79.0,
+        "orientation_input_tokens": null,
+        "store_write": {
+          "status": "written"
+        },
+        "release": {
+          "worktree_released": true,
+          "process_signalled": false,
+          "process_withheld": "process is not alive",
+          "worktree_audit": {
+            "counts": {
+              "dirty": 0,
+              "disposable": 0,
+              "integrated": 0,
+              "live-referenced": 0,
+              "retained-for-resume": 0,
+              "unintegrated": 0
+            },
+            "worktrees": [
+              {
+                "path": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/llac-s14-0925/review-of-s17-lane-cycle-runbook",
+                "available": false,
+                "detail": "tree is no longer available"
+              }
+            ]
+          }
+        }
       }
     ],
     "holds": [
@@ -92897,6 +93242,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 1114
+    "_version": 1116
   }
 }
