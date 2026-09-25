@@ -41,6 +41,17 @@
     <h3>Gate and negative control</h3>
     <p><code>uv run --no-sync pytest -p no:cacheprovider tests/test_agent_clive_worker_profile.py tests/test_agent_clive_picker.py</code> — 23 passed. <code>uv run --no-sync ruff check imas_ambix tests</code> — exit 0. <strong>Negative control</strong> (declared verbatim, applied as a scratch edit and restored): adding <code>--add-dir .</code> to the expansion fails <code>test_expansion_never_makes_the_global_agents_file_reachable</code> — <strong>1 failed, 9 passed</strong>, red log at <code>crew/runs/r-20260925T173248536034-cwp-profile-route-repair/negative-control.log</code>.</p>
     <p><strong>Commit blocked.</strong> The common git directory was mounted read-only from the worker node (<code>fatal: Unable to create '…/.git/worktrees/cwp-profile-route-repair/index.lock': Read-only file system</code>), so this change is carried as an uncommitted diff; <code>expansion-flow.svg</code> annotates the settings route with the empty <code>setting-sources</code> value. No launcher was deployed.</p>
+    <h2>Receipt agrees with the launch — one definition of the added arguments</h2>
+    <p><strong>Change.</strong> Commit <code>77beecaad6d2971e139fd7a3cbfd9804fa765e9a</code>. The hook-carrying expansion wrote the <code>--setting-sources</code> value twice: once into the receipt's <code>added_arguments</code> in the Python expansion block, and again as a literal in the emitted bash array. The two could drift, so the receipt could name flags the launch did not emit. The bash profile route now reads <code>receipt.added_arguments</code> back NUL-separated, which preserves the empty <code>--setting-sources</code> value and the multi-line system prompt, so one definition feeds both the record and the command and the second literal is gone. The intermediate <code>PROFILE_PROMPT</code>, <code>PROFILE_TOOLS</code> and <code>MCP_ARGUMENTS</code> bash variables are removed with it.</p>
+    <h3>Measured contracts</h3>
+    <ul>
+      <li>Settings route: <code>record["added_arguments"][:2] == ["--setting-sources", ""]</code> and <code>args[:len(record["added_arguments"])] == record["added_arguments"]</code>, where <code>args</code> is the argv the harness stub observed on its own command line.</li>
+      <li>Evidence pointer is the full path: <code>record["evidence"]["hook_route_measurement"] == "/home/ITER/mcintos/.config/reckon/crew/reports/cwp-settings-hook-check.md"</code>, not its basename.</li>
+      <li>Only one literal <code>--setting-sources</code> value remains in <code>imas_ambix/agent/clive.py</code> (the definition in the expansion block).</li>
+    </ul>
+    <h3>Gate and negative control</h3>
+    <p><code>uv run --no-sync pytest -p no:cacheprovider tests/test_agent_clive_worker_profile.py tests/test_agent_clive_picker.py</code> — 23 passed; <code>uv run --no-sync ruff check imas_ambix tests</code> — exit 0. <strong>Negative control</strong> (declared verbatim, applied as a scratch edit and restored): changing only the receipt's <code>--setting-sources</code> value to <code>'user'</code> fails <code>test_hooks_are_carried_and_force_the_settings_route</code> — <strong>1 failed, 9 passed</strong>, red log at <code>crew/runs/r-20260925T221824231333-cwp-receipt-matches-launch/negative-control.log</code>.</p>
+    <p>No launcher was deployed. This node changed no repository file outside its scope; its gate measures only its own change, so verifying the merged result belongs to a separately dispatched test node.</p>
   </main>
 </body>
 </html>
