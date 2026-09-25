@@ -192,7 +192,10 @@ variables from the readings above, then append the machine-readable record to
 ```bash
 CYCLE_RECORD="/home/ITER/mcintos/.config/reckon/crew/runs/${RECKON_RUN_ID:?set RECKON_RUN_ID to this inline cycle's run id}/lane-cycle.jsonl"
 printf '{"pause_start":"%s","pause_end":"%s","peak_held":%s,"final_failures":%s}\n' \
-  "$PAUSE_START" "$PAUSE_END" "$PEAK_HELD" "$FINAL_FAILURES" >> "$CYCLE_RECORD"
+  "${PAUSE_START:?set PAUSE_START from pause confirmation}" \
+  "${PAUSE_END:?set PAUSE_END from resume output}" \
+  "${PEAK_HELD:?set PEAK_HELD from pause reads}" \
+  "${FINAL_FAILURES:?set FINAL_FAILURES from retry receipts}" >> "$CYCLE_RECORD"
 ```
 
 ## Bounds
