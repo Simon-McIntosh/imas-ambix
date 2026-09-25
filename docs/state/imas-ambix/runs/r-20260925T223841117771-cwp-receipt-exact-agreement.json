@@ -1,0 +1,282 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effort": "high",
+    "launch": "cli",
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "worktree-full",
+    "usable_input_window": 480000
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "2a2075370af7a1d9a9fd97e9f427c2cb7af474e9",
+  "boundary_waiver": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "inference_geo": "",
+      "input_tokens": 4602747,
+      "input_tokens_cumulative": 4602747,
+      "output_tokens": 39378,
+      "output_tokens_cumulative": 39378,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": {
+    "added": 79,
+    "files": 4,
+    "removed": 5
+  },
+  "commit_resolution": null,
+  "commits": [
+    "94779aff263a2de303315bc0d034d4b64eb6d508",
+    "f13cb59fc7a6fae57198c13eae6251ed6233e513"
+  ],
+  "completed_at": "2026-09-25T22:52:03.884Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-09-25T22:38:46Z",
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": true,
+    "matched_measure": "pytest -p",
+    "override": false,
+    "role": "implement",
+    "status": "compatible"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [
+    "wording/order"
+  ],
+  "gate": "passed",
+  "gate_check": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider tests/test_agent_clive_worker_profile.py tests/test_agent_clive_picker.py",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T223841117771-cwp-receipt-exact-agreement/logs/gate-focused.log"
+  },
+  "impl_move": {
+    "at_complete": null,
+    "at_dispatch": null,
+    "plan": "clive-worker-profiles",
+    "reason": "no-impl-recorded-at-dispatch",
+    "verdict": "exempt"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-09-25T23:08:41.497152+00:00",
+    "horizon_seconds": 1800,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": "clive",
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-09-25T22:38:41Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 10,
+    "binding_observed": "unknown",
+    "detail": "",
+    "headroom": 11,
+    "mean_context": 140000,
+    "observed_at": "2026-09-25T22:38:31Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-09-25T22:52:03.884Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": false,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T223841117771-cwp-receipt-exact-agreement/manifest.md",
+  "member": "llac-autowidth",
+  "negative_control": {
+    "declaration": "appending an extra argument to PROFILE_ARGS in imas_ambix/agent/clive.py after the receipt read must fail the exact-agreement test; applied as a scratch edit and restored",
+    "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T223841117771-cwp-receipt-exact-agreement/logs/negative-control.log",
+    "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T223841117771-cwp-receipt-exact-agreement/logs/negative-control.log",
+    "test_paths": [
+      "tests/test_agent_clive_worker_profile.py"
+    ],
+    "verdict": "matched"
+  },
+  "no_commit": null,
+  "node": "cwp-receipt-exact-agreement",
+  "node_definition": {
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 1272,
+          "cached_input_tokens": 965177,
+          "input_tokens": 966451,
+          "output_tokens": 1435,
+          "reasoning_output_tokens": 0,
+          "total_tokens": 967886,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "38dec84a-7cb6-4b27-ace6-501cc76dbec0",
+      "session_id": "llac-s14-0925"
+    },
+    "done_when": "tests/test_agent_clive_worker_profile.py asserts that the profile arguments the launch emitted (the argv segment between the launcher's fixed leading arguments and its dispatch arguments, identified from the stub claude's recorded argv) equal record['added_arguments'] element for element with equal length, not only as a prefix; 'uv run --no-sync pytest -p no:cacheprovider tests/test_agent_clive_worker_profile.py tests/test_agent_clive_picker.py' exits 0 on the login node; the declared negative control is recorded verbatim with its failing test count in the manifest, run at a committed revision named in the log header; only the test file changes; 'uv run --no-sync ruff check imas_ambix tests' exits 0. Pass checkout_path on every reckon MCP call; never write or run git in the main checkout.",
+    "estimated_hours": null,
+    "goal": "Tighten the worker-profile receipt test to require the emitted profile arguments to equal the receipt exactly",
+    "id": "cwp-receipt-exact-agreement",
+    "lane_declaration": {
+      "backend": "clive",
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-09-25T22:38:41Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 10,
+      "binding_observed": "unknown",
+      "detail": "",
+      "headroom": 11,
+      "mean_context": 140000,
+      "observed_at": "2026-09-25T22:38:31Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T223841117771-cwp-receipt-exact-agreement/manifest.md",
+    "negative_control": "appending an extra argument to PROFILE_ARGS in imas_ambix/agent/clive.py after the receipt read must fail the exact-agreement test; applied as a scratch edit and restored",
+    "plan": "clive-worker-profiles",
+    "requested_backend": "clive",
+    "requires_decisions": [],
+    "role": "implement",
+    "section": "§2",
+    "spec_level": "exact",
+    "time_budget": "30m",
+    "token_budget": null,
+    "write_paths": [
+      "tests/test_agent_clive_worker_profile.py",
+      "docs/evidence/archive/clive-worker-profiles-landed.html",
+      "docs/figures/clive-worker-profiles",
+      "docs/plans/clive-worker-profiles.html"
+    ]
+  },
+  "orientation_input_tokens": 1317401.0,
+  "outcome": "receipt agreement asserted exactly (element for element); review 98",
+  "plan": "clive-worker-profiles",
+  "promoted_revision": "f13cb59fc7a6fae57198c13eae6251ed6233e513",
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "scores": {
+      "durability": 19,
+      "evidence": 20,
+      "fit": 19,
+      "goal_fidelity": 20,
+      "scope_discipline": 20
+    },
+    "status": "parsed",
+    "total": 98
+  },
+  "role": "implement",
+  "run_id": "r-20260925T223841117771-cwp-receipt-exact-agreement",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§2",
+  "session_harness": "claude",
+  "session_id": "4dcc6dc8-8dbf-473f-9e29-6a00a1779463",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "exact",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 0,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 4770859,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+    "elapsed_seconds": 787.62,
+    "generated_tokens": 46599,
+    "generation_seconds": 687.367,
+    "input_budget_tokens": 480000,
+    "input_utilisation_pct": 34.8,
+    "machine_seconds": 100.253,
+    "peak_input_tokens": 166812,
+    "tokens_per_second": 67.79,
+    "wall_tokens_per_second": 59.16
+  },
+  "time_budget": "30m",
+  "tool_steps": 44.0,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": []
+  },
+  "wall_seconds": 797,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-09-25T22:52:04Z",
+    "last_record_type": "result",
+    "launched_at": "2026-09-25T22:38:52Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20260925T223841117771-cwp-receipt-exact-agreement",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 8139,
+    "worker_pid": 2466094
+  },
+  "worker_seconds": 783,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
