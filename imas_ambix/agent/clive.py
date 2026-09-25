@@ -10,6 +10,7 @@ failure never enters the hosted proxy path.
 
 from __future__ import annotations
 
+import json
 import shlex
 from typing import TYPE_CHECKING
 
@@ -27,6 +28,15 @@ if TYPE_CHECKING:
 # absorb the larger contexts. A release whose usable budget is smaller than the
 # ceiling compacts at its own budget.
 AUTO_COMPACT_WINDOW_CEILING = 300_000
+
+# The hook-carrying expansion's flag choice is a measurement, not a reading of
+# the help text: Claude Code's help says --bare skips settings hooks, and
+# whether a hook in the explicit --settings file survives is decided by
+# launching a stub hook and watching for its marker. The receipt points at that
+# measurement so a later reader can re-derive the route rather than trust it.
+HOOK_ROUTE_EVIDENCE = (
+    "/home/ITER/mcintos/.config/reckon/crew/reports/cwp-settings-hook-check.md"
+)
 
 
 def generate_clive_script(
@@ -58,7 +68,8 @@ def generate_clive_script(
 #
 # Usage:
 #   clive [--claude|--codex] [--mode local|hybrid] [--list]
-#         [--selector RELEASE[@NxFAMILY]|--model RELEASE] [agent-args...]
+#         [--selector RELEASE[@NxFAMILY]|--model RELEASE]
+#         [--worker-profile PATH] [agent-args...]
 
 set -euo pipefail
 
@@ -70,6 +81,7 @@ LITELLM_PORT="__LITELLM_PORT__"
 LITELLM_SERVICE="imas-ambix-llm.service"
 HARNESS="claude"
 SELECTOR=""
+WORKER_PROFILE=""
 LIST_ONLY=false
 MODE="local"
 
@@ -90,6 +102,8 @@ clive — drive an agent CLI against the site model catalog.
              Select an exact release id or release-at-topology label.
   --model RELEASE
              Alias for selecting an exact release id.
+  --worker-profile PATH
+             Load a role digest, MCP configuration and built-in tool list.
 USAGE
 }
 
@@ -110,6 +124,10 @@ while [[ $# -gt 0 ]]; do
             [[ $# -ge 2 ]] || { echo "clive: $1 requires a value." >&2; exit 2; }
             [[ -z "$SELECTOR" ]] || { echo "clive: select a model only once." >&2; exit 2; }
             SELECTOR="$2"; shift 2 ;;
+        --worker-profile)
+            [[ $# -ge 2 ]] || { echo "clive: --worker-profile requires a path." >&2; exit 2; }
+            [[ -z "$WORKER_PROFILE" ]] || { echo "clive: worker profile may be selected only once." >&2; exit 2; }
+            WORKER_PROFILE="$2"; shift 2 ;;
         -h|--help) usage; exit 0 ;;
         --) shift; ARGS+=("$@"); break ;;
         *) ARGS+=("$1"); shift ;;
@@ -663,10 +681,202 @@ else
     unset CLAUDE_CODE_AUTO_COMPACT_WINDOW
 fi
 
+PROFILE_SETTINGS="$PICKER_SETTINGS"
+PROFILE_PROMPT="$DISPATCH_GUIDANCE"
+PROFILE_ARGS=()
+PROFILE_RECEIPT=""
+PROFILE_ROUTE="none"
+PROFILE_TOOLS=""
+if [[ -n "$WORKER_PROFILE" ]]; then
+    [[ "$HARNESS" == "claude" ]] || {
+        echo "clive: --worker-profile is supported only with the Claude harness." >&2
+        exit 2
+    }
+    USER_SETTINGS="${CLIVE_USER_SETTINGS:-${HOME}/.claude/settings.json}"
+    PROFILE_DATA="$(python3 - "$WORKER_PROFILE" "$PWD" "$USER_SETTINGS" "$PICKER_SETTINGS" "$DISPATCH_GUIDANCE" <<'PY'
+import hashlib
+import json
+import os
+import sys
+from pathlib import Path
+
+
+def fail(message):
+    print(f"clive: invalid worker profile: {message}", file=sys.stderr)
+    raise SystemExit(2)
+
+
+def resolve_file(value, field, *, required=True):
+    if value is None and not required:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        fail(f"{field} must be a path")
+    path = Path(value).expanduser()
+    if not path.is_absolute():
+        path = Path.cwd() / path
+    if not path.is_file():
+        fail(f"{field} does not exist: {path}")
+    return path.resolve()
+
+
+def digest(path):
+    if path is None:
+        return None
+    hasher = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            hasher.update(block)
+    return {"path": str(path), "sha256": hasher.hexdigest()}
+
+
+profile_path = resolve_file(sys.argv[1], "profile")
+try:
+    with profile_path.open(encoding="utf-8") as stream:
+        profile = json.load(stream)
+except (UnicodeDecodeError, json.JSONDecodeError) as error:
+    fail(f"profile is not valid JSON: {error}")
+if not isinstance(profile, dict):
+    fail("profile must be a JSON object")
+if set(profile) != {"digest", "mcp_config", "tools"}:
+    fail("profile must contain exactly digest, mcp_config and tools")
+
+digest_path = resolve_file(profile["digest"], "digest")
+mcp_path = resolve_file(profile["mcp_config"], "mcp_config", required=False)
+tools = profile["tools"]
+if (
+    not isinstance(tools, list)
+    or not tools
+    or any(not isinstance(tool, str) or not tool.strip() for tool in tools)
+):
+    fail("tools must be a non-empty list of names")
+tools_value = ",".join(tools)
+
+working_agents = Path(sys.argv[2]) / "AGENTS.md"
+agents_path = working_agents.resolve() if working_agents.is_file() else None
+try:
+    with Path(sys.argv[3]).open(encoding="utf-8") as stream:
+        user_settings = json.load(stream)
+except FileNotFoundError:
+    user_settings = {}
+except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+    fail(f"user settings are unreadable: {error}")
+if not isinstance(user_settings, dict):
+    fail("user settings must be a JSON object")
+hooks = user_settings.get("hooks", {})
+if not isinstance(hooks, dict):
+    fail("user settings hooks must be an object")
+
+hook_commands = []
+
+
+def collect_commands(value):
+    if isinstance(value, dict):
+        command = value.get("command")
+        if isinstance(command, str) and command:
+            hook_commands.append(command)
+        for nested in value.values():
+            collect_commands(nested)
+    elif isinstance(value, list):
+        for nested in value:
+            collect_commands(nested)
+
+
+collect_commands(hooks)
+settings = json.loads(sys.argv[4])
+if not isinstance(settings, dict):
+    fail("launcher settings are not an object")
+settings["hooks"] = hooks
+
+prompt_parts = [
+    "Role digest (loaded from the worker profile):\n" + digest_path.read_text(encoding="utf-8")
+]
+if agents_path is not None:
+    prompt_parts.append(
+        "Repository guidance (loaded from the working directory):\n"
+        + agents_path.read_text(encoding="utf-8")
+    )
+prompt_parts.append("Dispatch guidance:\n" + sys.argv[5])
+prompt = "\n\n".join(prompt_parts)
+
+# Claude's help states that --bare skips settings hooks, so a profile carrying
+# hook commands cannot use it. An empty --setting-sources then loads nothing
+# from the user or project config while still firing the hooks carried in the
+# explicit --settings file, which is why it is preferred over
+# --setting-sources user: user is the source that restores the global guidance
+# the profile exists to omit. Decided by measurement; see the record's
+# evidence pointer.
+route = "settings" if hook_commands else "bare"
+added_args = []
+if route == "bare":
+    added_args.append("--bare")
+else:
+    added_args.extend(("--setting-sources", ""))
+added_args.extend(("--append-system-prompt", prompt))
+if mcp_path is not None:
+    added_args.extend(("--strict-mcp-config", "--mcp-config", str(mcp_path)))
+added_args.extend(("--tools", tools_value))
+
+receipt = {
+    "profile": str(profile_path),
+    "route": route,
+    "evidence": {"hook_route_measurement": __HOOK_ROUTE_EVIDENCE__},
+    "evidence_note": (
+        "hook_route_measurement is the live launch that decided the settings "
+        "route's --setting-sources value"
+    ),
+    "files": {
+        "profile": digest(profile_path),
+        "digest": digest(digest_path),
+        "mcp_config": digest(mcp_path),
+        "agents": digest(agents_path),
+        "settings": digest(Path(sys.argv[3])) if Path(sys.argv[3]).is_file() else None,
+    },
+    "tools": tools,
+    "hooks": hook_commands,
+    "added_arguments": added_args,
+}
+print(json.dumps({
+    "settings": settings,
+    "prompt": prompt,
+    "tools": tools_value,
+    "route": route,
+    "receipt": receipt,
+}, ensure_ascii=False, separators=(",", ":")))
+PY
+)"
+    PROFILE_SETTINGS="$(python3 -c 'import json,sys; print(json.dumps(json.load(sys.stdin)["settings"], ensure_ascii=False, separators=(",", ":")), end="")' <<< "$PROFILE_DATA")"
+    PROFILE_PROMPT="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["prompt"], end="")' <<< "$PROFILE_DATA")"
+    PROFILE_TOOLS="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["tools"], end="")' <<< "$PROFILE_DATA")"
+    PROFILE_ROUTE="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["route"], end="")' <<< "$PROFILE_DATA")"
+    if [[ "$PROFILE_ROUTE" == "bare" ]]; then
+        PROFILE_ARGS+=(--bare)
+    else
+        PROFILE_ARGS+=(--setting-sources "")
+    fi
+    PROFILE_ARGS+=(--append-system-prompt "$PROFILE_PROMPT")
+    MCP_ARGUMENTS="$(python3 -c 'import json,sys; d=json.load(sys.stdin); f=d["receipt"]["files"]["mcp_config"]; print(f["path"] if f else "", end="")' <<< "$PROFILE_DATA")"
+    if [[ -n "$MCP_ARGUMENTS" ]]; then
+        PROFILE_ARGS+=(--strict-mcp-config --mcp-config "$MCP_ARGUMENTS")
+    fi
+    PROFILE_ARGS+=(--tools "$PROFILE_TOOLS")
+    PROFILE_RECEIPT="$(python3 -c 'import json,sys; print(json.dumps(json.load(sys.stdin)["receipt"], ensure_ascii=False, separators=(",", ":")), end="")' <<< "$PROFILE_DATA")"
+    if [[ -n "${CLIVE_PROFILE_RECEIPT:-}" ]]; then
+        printf '%s\n' "$PROFILE_RECEIPT" >> "$CLIVE_PROFILE_RECEIPT"
+    else
+        printf '%s\n' "$PROFILE_RECEIPT" >&2
+    fi
+fi
+
 # The global service is anonymous. Harnesses receive a fixed non-secret value
 # only because their client configuration requires an API-key variable.
 KEY="clive-no-auth"
 SUPPORTED_CAPABILITIES="thinking"
+if [[ "$WORKER_PROFILE" && "$PROFILE_ROUTE" == "bare" ]]; then
+    # Bare mode does not read the auth-token variable; its documented
+    # credential path is the API-key variable or apiKeyHelper in settings.
+    export ANTHROPIC_API_KEY="$KEY"
+    unset ANTHROPIC_AUTH_TOKEN
+fi
 
 if [[ "$HARNESS" == "codex" ]]; then
     command -v codex >/dev/null 2>&1 || { echo "clive: 'codex' not on PATH." >&2; exit 127; }
@@ -676,29 +886,38 @@ fi
 command -v claude >/dev/null 2>&1 || { echo "clive: 'claude' not on PATH." >&2; exit 127; }
 
 if [[ "$MODE" == "local" ]]; then
-    ANTHROPIC_BASE_URL="$GLOBAL_ORIGIN" \
-    ANTHROPIC_AUTH_TOKEN="$KEY" \
-    ANTHROPIC_API_KEY="" \
-    ANTHROPIC_DEFAULT_OPUS_MODEL="$MODEL_ID" \
-    ANTHROPIC_DEFAULT_OPUS_MODEL_NAME="$MODEL_ID" \
-    ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION="$RUNTIME_LABEL, $CONTEXT_LABEL ctx" \
-    ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES="$SUPPORTED_CAPABILITIES" \
-    ANTHROPIC_DEFAULT_SONNET_MODEL="$MODEL_ID" \
-    ANTHROPIC_DEFAULT_SONNET_MODEL_NAME="$MODEL_ID" \
-    ANTHROPIC_DEFAULT_SONNET_MODEL_DESCRIPTION="$RUNTIME_LABEL, $CONTEXT_LABEL ctx" \
-    ANTHROPIC_DEFAULT_SONNET_MODEL_SUPPORTED_CAPABILITIES="$SUPPORTED_CAPABILITIES" \
-    ANTHROPIC_DEFAULT_HAIKU_MODEL="$MODEL_ID" \
-    ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME="$MODEL_ID" \
-    ANTHROPIC_DEFAULT_HAIKU_MODEL_DESCRIPTION="$RUNTIME_LABEL, $CONTEXT_LABEL ctx" \
-    ANTHROPIC_DEFAULT_HAIKU_MODEL_SUPPORTED_CAPABILITIES="$SUPPORTED_CAPABILITIES" \
-    ANTHROPIC_DEFAULT_FABLE_MODEL="$MODEL_ID" \
-    ANTHROPIC_DEFAULT_FABLE_MODEL_NAME="$MODEL_ID" \
-    ANTHROPIC_DEFAULT_FABLE_MODEL_DESCRIPTION="$RUNTIME_LABEL, $CONTEXT_LABEL ctx" \
-    ANTHROPIC_DEFAULT_FABLE_MODEL_SUPPORTED_CAPABILITIES="$SUPPORTED_CAPABILITIES" \
-    ANTHROPIC_SMALL_FAST_MODEL="$MODEL_ID" \
-    ANTHROPIC_MODEL="$MODEL_ID" \
-    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \
-    exec claude --settings "$PICKER_SETTINGS" --append-system-prompt "$DISPATCH_GUIDANCE" "${ARGS[@]}"
+    export ANTHROPIC_BASE_URL="$GLOBAL_ORIGIN"
+    export ANTHROPIC_AUTH_TOKEN="$KEY"
+    if [[ "$WORKER_PROFILE" && "$PROFILE_ROUTE" == "bare" ]]; then
+        export ANTHROPIC_API_KEY="$KEY"
+        unset ANTHROPIC_AUTH_TOKEN
+    else
+        export ANTHROPIC_API_KEY=""
+    fi
+    export ANTHROPIC_DEFAULT_OPUS_MODEL="$MODEL_ID"
+    export ANTHROPIC_DEFAULT_OPUS_MODEL_NAME="$MODEL_ID"
+    export ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION="$RUNTIME_LABEL, $CONTEXT_LABEL ctx"
+    export ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES="$SUPPORTED_CAPABILITIES"
+    export ANTHROPIC_DEFAULT_SONNET_MODEL="$MODEL_ID"
+    export ANTHROPIC_DEFAULT_SONNET_MODEL_NAME="$MODEL_ID"
+    export ANTHROPIC_DEFAULT_SONNET_MODEL_DESCRIPTION="$RUNTIME_LABEL, $CONTEXT_LABEL ctx"
+    export ANTHROPIC_DEFAULT_SONNET_MODEL_SUPPORTED_CAPABILITIES="$SUPPORTED_CAPABILITIES"
+    export ANTHROPIC_DEFAULT_HAIKU_MODEL="$MODEL_ID"
+    export ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME="$MODEL_ID"
+    export ANTHROPIC_DEFAULT_HAIKU_MODEL_DESCRIPTION="$RUNTIME_LABEL, $CONTEXT_LABEL ctx"
+    export ANTHROPIC_DEFAULT_HAIKU_MODEL_SUPPORTED_CAPABILITIES="$SUPPORTED_CAPABILITIES"
+    export ANTHROPIC_DEFAULT_FABLE_MODEL="$MODEL_ID"
+    export ANTHROPIC_DEFAULT_FABLE_MODEL_NAME="$MODEL_ID"
+    export ANTHROPIC_DEFAULT_FABLE_MODEL_DESCRIPTION="$RUNTIME_LABEL, $CONTEXT_LABEL ctx"
+    export ANTHROPIC_DEFAULT_FABLE_MODEL_SUPPORTED_CAPABILITIES="$SUPPORTED_CAPABILITIES"
+    export ANTHROPIC_SMALL_FAST_MODEL="$MODEL_ID"
+    export ANTHROPIC_MODEL="$MODEL_ID"
+    export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+    if [[ -n "$WORKER_PROFILE" ]]; then
+        exec claude "${PROFILE_ARGS[@]}" --settings "$PROFILE_SETTINGS" "${ARGS[@]}"
+    else
+        exec claude --settings "$PICKER_SETTINGS" --append-system-prompt "$DISPATCH_GUIDANCE" "${ARGS[@]}"
+    fi
 fi
 
 __HYBRID_BRANCH__
@@ -730,32 +949,41 @@ if ! $_PROXY_READY; then
     exit 1
 fi
 
-ANTHROPIC_BASE_URL="http://127.0.0.1:$LITELLM_PORT" \
-ANTHROPIC_AUTH_TOKEN="clive" \
-ANTHROPIC_API_KEY="" \
-ANTHROPIC_MODEL="$MODEL_ID" \
-ANTHROPIC_DEFAULT_SONNET_MODEL="$PRIMARY_LOCAL_MODEL" \
-ANTHROPIC_DEFAULT_SONNET_MODEL_NAME="$PRIMARY_LOCAL_MODEL" \
-ANTHROPIC_DEFAULT_SONNET_MODEL_DESCRIPTION="$PRIMARY_LOCAL_DESCRIPTION" \
-ANTHROPIC_DEFAULT_SONNET_MODEL_SUPPORTED_CAPABILITIES="$SUPPORTED_CAPABILITIES" \
-ANTHROPIC_DEFAULT_HAIKU_MODEL="$SECONDARY_LOCAL_MODEL" \
-ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME="$SECONDARY_LOCAL_MODEL" \
-ANTHROPIC_DEFAULT_HAIKU_MODEL_DESCRIPTION="$SECONDARY_LOCAL_DESCRIPTION" \
-ANTHROPIC_DEFAULT_HAIKU_MODEL_SUPPORTED_CAPABILITIES="$SUPPORTED_CAPABILITIES" \
-ANTHROPIC_DEFAULT_OPUS_MODEL="or-opus-4.8" \
-ANTHROPIC_DEFAULT_OPUS_MODEL_NAME="or-opus-4.8" \
-ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION="Claude Opus 4.8 via OpenRouter — frontier" \
-ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES="$SUPPORTED_CAPABILITIES" \
-ANTHROPIC_DEFAULT_FABLE_MODEL="or-glm-5.2" \
-ANTHROPIC_DEFAULT_FABLE_MODEL_NAME="or-glm-5.2" \
-ANTHROPIC_DEFAULT_FABLE_MODEL_DESCRIPTION="GLM-5.2 via OpenRouter — open-weight frontier, 1M ctx" \
-ANTHROPIC_DEFAULT_FABLE_MODEL_SUPPORTED_CAPABILITIES="$SUPPORTED_CAPABILITIES" \
-ANTHROPIC_CUSTOM_MODEL_OPTION="or-gpt-5.5" \
-ANTHROPIC_CUSTOM_MODEL_OPTION_NAME="or-gpt-5.5" \
-ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION="GPT-5.5 via OpenRouter — coding model" \
-ANTHROPIC_CUSTOM_MODEL_OPTION_SUPPORTED_CAPABILITIES="$SUPPORTED_CAPABILITIES" \
-CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \
-exec claude --settings "$PICKER_SETTINGS" --append-system-prompt "$DISPATCH_GUIDANCE" "${ARGS[@]}"
+export ANTHROPIC_BASE_URL="http://127.0.0.1:$LITELLM_PORT"
+export ANTHROPIC_AUTH_TOKEN="clive"
+if [[ "$WORKER_PROFILE" && "$PROFILE_ROUTE" == "bare" ]]; then
+    export ANTHROPIC_API_KEY="$KEY"
+    unset ANTHROPIC_AUTH_TOKEN
+else
+    export ANTHROPIC_API_KEY=""
+fi
+export ANTHROPIC_MODEL="$MODEL_ID"
+export ANTHROPIC_DEFAULT_SONNET_MODEL="$PRIMARY_LOCAL_MODEL"
+export ANTHROPIC_DEFAULT_SONNET_MODEL_NAME="$PRIMARY_LOCAL_MODEL"
+export ANTHROPIC_DEFAULT_SONNET_MODEL_DESCRIPTION="$PRIMARY_LOCAL_DESCRIPTION"
+export ANTHROPIC_DEFAULT_SONNET_MODEL_SUPPORTED_CAPABILITIES="$SUPPORTED_CAPABILITIES"
+export ANTHROPIC_DEFAULT_HAIKU_MODEL="$SECONDARY_LOCAL_MODEL"
+export ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME="$SECONDARY_LOCAL_MODEL"
+export ANTHROPIC_DEFAULT_HAIKU_MODEL_DESCRIPTION="$SECONDARY_LOCAL_DESCRIPTION"
+export ANTHROPIC_DEFAULT_HAIKU_MODEL_SUPPORTED_CAPABILITIES="$SUPPORTED_CAPABILITIES"
+export ANTHROPIC_DEFAULT_OPUS_MODEL="or-opus-4.8"
+export ANTHROPIC_DEFAULT_OPUS_MODEL_NAME="or-opus-4.8"
+export ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION="Claude Opus 4.8 via OpenRouter — frontier"
+export ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES="$SUPPORTED_CAPABILITIES"
+export ANTHROPIC_DEFAULT_FABLE_MODEL="or-glm-5.2"
+export ANTHROPIC_DEFAULT_FABLE_MODEL_NAME="or-glm-5.2"
+export ANTHROPIC_DEFAULT_FABLE_MODEL_DESCRIPTION="GLM-5.2 via OpenRouter — open-weight frontier, 1M ctx"
+export ANTHROPIC_DEFAULT_FABLE_MODEL_SUPPORTED_CAPABILITIES="$SUPPORTED_CAPABILITIES"
+export ANTHROPIC_CUSTOM_MODEL_OPTION="or-gpt-5.5"
+export ANTHROPIC_CUSTOM_MODEL_OPTION_NAME="or-gpt-5.5"
+export ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION="GPT-5.5 via OpenRouter — coding model"
+export ANTHROPIC_CUSTOM_MODEL_OPTION_SUPPORTED_CAPABILITIES="$SUPPORTED_CAPABILITIES"
+export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+if [[ -n "$WORKER_PROFILE" ]]; then
+    exec claude "${PROFILE_ARGS[@]}" --settings "$PROFILE_SETTINGS" "${ARGS[@]}"
+else
+    exec claude --settings "$PICKER_SETTINGS" --append-system-prompt "$DISPATCH_GUIDANCE" "${ARGS[@]}"
+fi
 """
     local_branch = r"""echo "clive: hybrid mode is not installed; redeploy with 'imas-ambix agent clive PROFILE --mode hybrid'." >&2
 exit 2
@@ -769,6 +997,7 @@ exit 2
         .replace(
             "__AUTO_COMPACT_WINDOW_CEILING__", str(AUTO_COMPACT_WINDOW_CEILING)
         )
+        .replace("__HOOK_ROUTE_EVIDENCE__", json.dumps(HOOK_ROUTE_EVIDENCE))
         .replace(
             "__HYBRID_BRANCH__",
             hybrid_branch if mode == "hybrid" else local_branch,
