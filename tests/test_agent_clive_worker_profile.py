@@ -116,8 +116,16 @@ def _launch(
             check=False,
             env=environment,
         )
-    args = [value.decode() for value in args_path.read_bytes().split(b"\0")[:-1]]
-    settings = json.loads(settings_path.read_text(encoding="utf-8"))
+    args = (
+        [value.decode() for value in args_path.read_bytes().split(b"\0")[:-1]]
+        if args_path.exists()
+        else []
+    )
+    settings = (
+        json.loads(settings_path.read_text(encoding="utf-8"))
+        if settings_path.exists()
+        else {}
+    )
     return result, args, settings, marker_path, profile_path, digest, mcp
 
 
@@ -209,6 +217,10 @@ def test_profile_expands_verified_flags_and_records_file_digests(tmp_path):
     [
         (lambda data: data.pop("digest"), "profile must contain"),
         (
+            lambda data: data.update({"digest": str(Path("missing-digest.txt"))}),
+            "digest does not exist",
+        ),
+        (
             lambda data: data.update({"mcp_config": str(Path("missing-mcp.json"))}),
             "mcp_config does not exist",
         ),
@@ -224,6 +236,14 @@ def test_malformed_profiles_are_refused(tmp_path, mutator, message):
 
     assert result.returncode == 2
     assert message in result.stderr
+
+
+def test_missing_profile_is_refused(tmp_path):
+    missing = tmp_path / "missing-profile.json"
+    result, *_ = _launch(tmp_path, profile=missing)
+
+    assert result.returncode == 2
+    assert "profile does not exist" in result.stderr
 
 
 def test_profile_without_agents_file_still_expands(tmp_path):
