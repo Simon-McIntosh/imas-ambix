@@ -1,0 +1,233 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effort": "xhigh",
+    "launch": "cli",
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "read-only",
+    "usable_input_window": 480000
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "bef111109c890f29727b8e8e8de0e1ef3ea72209",
+  "boundary_waiver": null,
+  "budget": {
+    "cost_usd": null,
+    "detail": "no events yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": null,
+    "utilisation_pct": null
+  },
+  "changed_lines": null,
+  "commit_resolution": null,
+  "commits": [],
+  "completed_at": "2026-09-25T22:38:25.960Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-09-25T22:26:17Z",
+  "dispute_count": 0,
+  "duration_measurement": {
+    "reason": "model_span_unavailable_at_promotion",
+    "status": "underivable"
+  },
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": false,
+    "matched_measure": null,
+    "override": false,
+    "role": "review",
+    "status": "no-execution-measure"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [
+    "tests/test_agent_clive_worker_profile.py:310",
+    "docs/plans/clive-worker-profiles.html"
+  ],
+  "gate": "passed",
+  "gate_check": {
+    "command": "python3 -c \"import json;d=json.load(open('/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260925T221824231333-cwp-receipt-matches-launch.at-3d53386129510995f8747bd54085aeed0934db37.json'));s=d['scores'];assert len(s)==5 and all(0<=v<=20 for v in s.values());print(sum(s.values()))\"",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T222611273711-review-of-cwp-receipt-matches-launch/gate.log"
+  },
+  "impl_move": {
+    "at_complete": null,
+    "at_dispatch": null,
+    "plan": "clive-worker-profiles",
+    "reason": "role-not-enforced:review",
+    "verdict": "exempt"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-09-25T23:06:11.880223+00:00",
+    "horizon_seconds": 2400,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": "clive",
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-09-25T22:26:11Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 12,
+    "binding_observed": "unknown",
+    "detail": "",
+    "headroom": 12,
+    "mean_context": 133333,
+    "observed_at": "2026-09-25T22:25:59Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-09-25T22:38:25.960Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": false,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T222611273711-review-of-cwp-receipt-matches-launch/manifest.md",
+  "member": "llac-review",
+  "negative_control": {
+    "reason": "node-writes-no-test-path",
+    "verdict": "exempt"
+  },
+  "no_commit": "review node; delivery is the stored review record",
+  "node": "review-of-cwp-receipt-matches-launch",
+  "node_definition": {
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 1871,
+          "cached_input_tokens": 945361,
+          "input_tokens": 947234,
+          "output_tokens": 1393,
+          "reasoning_output_tokens": 409,
+          "total_tokens": 948627,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "38dec84a-7cb6-4b27-ace6-501cc76dbec0",
+      "session_id": "llac-s14-0925"
+    },
+    "done_when": "the review for r-20260925T221824231333-cwp-receipt-matches-launch stores a parsed record scoring all 5 dimensions in the range 0..20; the turn ends once that record is stored and the manifest reads complete",
+    "estimated_hours": null,
+    "goal": "attach an independent review to run r-20260925T221824231333-cwp-receipt-matches-launch",
+    "id": "review-of-cwp-receipt-matches-launch",
+    "lane_declaration": {
+      "backend": "clive",
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-09-25T22:26:11Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 12,
+      "binding_observed": "unknown",
+      "detail": "",
+      "headroom": 12,
+      "mean_context": 133333,
+      "observed_at": "2026-09-25T22:25:59Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T222611273711-review-of-cwp-receipt-matches-launch/manifest.md",
+    "negative_control": "",
+    "plan": "clive-worker-profiles",
+    "requested_backend": "clive",
+    "requires_decisions": [],
+    "role": "review",
+    "section": "§2",
+    "spec_level": "exact",
+    "time_budget": "40m",
+    "token_budget": null,
+    "write_paths": [
+      "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260925T221824231333-cwp-receipt-matches-launch.json",
+      "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260925T221824231333-cwp-receipt-matches-launch.at-3d53386129510995f8747bd54085aeed0934db37.json"
+    ]
+  },
+  "orientation_input_tokens": null,
+  "outcome": "",
+  "plan": "clive-worker-profiles",
+  "promoted_revision": "bef111109c890f29727b8e8e8de0e1ef3ea72209",
+  "resume_waiver": null,
+  "review": null,
+  "role": "review",
+  "run_id": "r-20260925T222611273711-review-of-cwp-receipt-matches-launch",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§2",
+  "session_harness": "claude",
+  "session_id": "611c29a1-05d9-4c75-b2ad-ccbc84b00b48",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "exact",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 0,
+  "time_budget": "40m",
+  "tool_steps": 63.0,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": []
+  },
+  "wall_seconds": 728,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 137,
+    "exited_at": "2026-09-25T22:38:26Z",
+    "last_record_type": "assistant",
+    "launched_at": "2026-09-25T22:26:23Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20260925T222611273711-review-of-cwp-receipt-matches-launch",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 10971,
+    "worker_pid": 2447825
+  },
+  "worker_seconds": 713,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
