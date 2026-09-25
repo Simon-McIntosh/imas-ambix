@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-25T14:59:29",
+  "updated": "2026-09-25T15:07:34",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -92460,6 +92460,305 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260925T115355281795-s17-lane-cycle-runbook",
+        "plan": "local-lane-admission-control",
+        "section": "\u00a717",
+        "node": "s17-lane-cycle-runbook",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 970,
+                "cached_input_tokens": 261570,
+                "input_tokens": 262542,
+                "output_tokens": 969,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 263511,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "38dec84a-7cb6-4b27-ace6-501cc76dbec0",
+            "session_id": "llac-s14-0925"
+          },
+          "done_when": "ops/lane-cycle/AGENTS.md states the seven steps of plan \u00a717 each with its exact command, the 15-minute readiness bound, the rollback to the previous settings, the bound that keeps a pause inside the ~56 minute client ride-out, and how a router restart differs from an engine relaunch; ops/lane-cycle/CLAUDE.md is the two-line loader; the root AGENTS.md gains exactly one line linking the runbook; the 'Draining this lane' subsection of imas_ambix/agent/AGENTS.md points to the runbook instead of restating a run-level drain and its pool figure reads 4000000 to match max_total_tokens in imas_ambix/agent/profiles/deepseek-v4-1-flash.toml; the manifest records the verbatim output of 'uv run --no-sync imas-ambix agent pause --help', 'agent resume --help', 'agent restart --help' and 'agent shutdown --help' against which every runbook command was checked, and 'grep -c ops/lane-cycle AGENTS.md imas_ambix/agent/AGENTS.md' returns at least 1 for each file. No pause, resume, restart or shutdown is executed.",
+          "estimated_hours": null,
+          "goal": "Write the directory-scoped lane-cycle runbook that cycles the serve under a router pause",
+          "id": "s17-lane-cycle-runbook",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-25T11:53:55Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": 5,
+            "binding_observed": "unknown",
+            "detail": "",
+            "headroom": 7,
+            "mean_context": 92308,
+            "observed_at": "2026-09-25T11:53:50Z",
+            "state": "fresh",
+            "suggested_shelf_life_seconds": 45
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T115355281795-s17-lane-cycle-runbook/manifest.md",
+          "negative_control": "",
+          "plan": "local-lane-admission-control",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "documentation",
+          "section": "\u00a717",
+          "spec_level": "guided",
+          "time_budget": "45m",
+          "token_budget": null,
+          "write_paths": [
+            "ops/lane-cycle/AGENTS.md",
+            "ops/lane-cycle/CLAUDE.md",
+            "AGENTS.md",
+            "imas_ambix/agent/AGENTS.md",
+            "docs/plans/local-lane-admission-control.html",
+            "docs/evidence/archive/local-lane-admission-control-landed.html",
+            "docs/figures/local-lane-admission-control"
+          ]
+        },
+        "role": "documentation",
+        "spec_level": "guided",
+        "member": "llac-tail",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "xhigh",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "worktree-full",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-25T11:54:02Z",
+        "completed_at": "2026-09-25T12:58:38.042Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 3807,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 3876,
+        "stalled": false,
+        "time_budget": "45m",
+        "base_sha": "c2901ec5dbb8a3bc03314b72b3596ef7b68a5566",
+        "commits": [
+          "c79d278c41b2718978ae27a3d0a754acf82cef8e"
+        ],
+        "changed_lines": {
+          "added": 411,
+          "removed": 25,
+          "files": 7
+        },
+        "tests_added": 0,
+        "gate": "passed",
+        "gate_check": {
+          "command": "grep -c ops/lane-cycle AGENTS.md imas_ambix/agent/AGENTS.md",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T115355281795-s17-lane-cycle-runbook/gate.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "ops/lane-cycle/AGENTS.md seven-step pause/relaunch/resume runbook with a 40-minute pause cap and rollback, linked from root and agent AGENTS.md; review 90/100 with three findings (pipefail on the dry-run grep, commands for announce/record, plan-verifies binding) routed to a repair node",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T115355281795-s17-lane-cycle-runbook/manifest.md",
+        "scope_changed": false,
+        "session_id": "4b676e7b-b827-4074-b261-491760ad491a",
+        "session_harness": "claude",
+        "session_model": "deepseek-v4.1-flash",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 8844430,
+            "input_tokens_cumulative": 8844430,
+            "output_tokens": 62790,
+            "output_tokens_cumulative": 62790,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-25T12:58:38.042Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": {
+          "status": "parsed",
+          "scores": {
+            "goal_fidelity": 18,
+            "evidence": 16,
+            "scope_discipline": 20,
+            "durability": 18,
+            "fit": 18
+          },
+          "absent": [],
+          "total": 90
+        },
+        "throughput": {
+          "cumulative_cached_input_tokens": 0,
+          "cumulative_input_tokens": 9011882,
+          "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+          "elapsed_seconds": 3865.526,
+          "generated_tokens": 72616,
+          "generation_seconds": 3845.138,
+          "input_budget_tokens": 480000,
+          "input_utilisation_pct": 34.6,
+          "machine_seconds": 20.388,
+          "peak_input_tokens": 166152,
+          "tokens_per_second": 18.89,
+          "wall_tokens_per_second": 18.79
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "documentation",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": null,
+        "scope_acceptances": null,
+        "no_commit": null,
+        "commit_resolution": null,
+        "worktree_retention": null,
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "worker_exit": {
+          "ended_during": "working",
+          "exit_code": 0,
+          "exited_at": "2026-09-25T12:58:38Z",
+          "last_record_type": "result",
+          "launched_at": "2026-09-25T11:54:08Z",
+          "recorded_by": "supervisor",
+          "run_id": "r-20260925T115355281795-s17-lane-cycle-runbook",
+          "signal": null,
+          "signal_name": null,
+          "stream_records_seen": 11098,
+          "worker_pid": 642327
+        },
+        "promoted_revision": "c79d278c41b2718978ae27a3d0a754acf82cef8e",
+        "plan_impl_at_dispatch": 0.9,
+        "impl_move": {
+          "plan": "local-lane-admission-control",
+          "at_dispatch": 0.9,
+          "at_complete": null,
+          "verdict": "exempt",
+          "reason": "role-not-enforced:documentation"
+        },
+        "negative_control": {
+          "verdict": "exempt",
+          "reason": "node-writes-no-test-path"
+        },
+        "lane_advisory": {
+          "backend": "clive",
+          "burn_multiple": null,
+          "cheaper_lane": {
+            "detail": "",
+            "lane": null,
+            "state": "not_evaluated"
+          },
+          "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+          "horizon_ends_at": "2026-09-25T12:38:55.877072+00:00",
+          "horizon_seconds": 2700,
+          "metered": false,
+          "observed_at": null,
+          "precedes_horizon": null,
+          "projected_exhaustion_at": null,
+          "resets_at": null,
+          "seconds_until_reset": null,
+          "state": "quiet",
+          "utilisation_pct": null
+        },
+        "lane_declaration": {
+          "backend": null,
+          "headroom": null,
+          "metered": false,
+          "observed_at": null,
+          "read_at": "2026-09-25T11:53:55Z",
+          "resolved_backend": "clive",
+          "utilisation_pct": null
+        },
+        "lane_reading": {
+          "age_seconds": 5,
+          "binding_observed": "unknown",
+          "detail": "",
+          "headroom": 7,
+          "mean_context": 92308,
+          "observed_at": "2026-09-25T11:53:50Z",
+          "state": "fresh",
+          "suggested_shelf_life_seconds": 45
+        },
+        "tool_steps": 104.0,
+        "orientation_input_tokens": 2930939.0,
+        "store_write": {
+          "status": "written"
+        },
+        "release": {
+          "worktree_released": true,
+          "process_signalled": false,
+          "process_withheld": "process is not alive",
+          "worktree_audit": {
+            "counts": {
+              "dirty": 0,
+              "disposable": 0,
+              "integrated": 0,
+              "live-referenced": 0,
+              "retained-for-resume": 0,
+              "unintegrated": 0
+            },
+            "worktrees": [
+              {
+                "path": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/llac-s14-0925/s17-lane-cycle-runbook",
+                "available": false,
+                "detail": "tree is no longer available"
+              }
+            ]
+          }
+        }
       }
     ],
     "holds": [
@@ -92562,6 +92861,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 1108
+    "_version": 1110
   }
 }
