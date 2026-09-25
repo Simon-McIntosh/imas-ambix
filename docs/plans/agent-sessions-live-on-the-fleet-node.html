@@ -11,7 +11,7 @@
   <meta name="plan-status" content="active">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort-hours" content="6.0">
-  <meta name="plan-impl" content="0.55">
+  <meta name="plan-impl" content="0.6">
   <meta name="plan-capability-version" content="1.0">
   <meta name="plan-capability-class" content="orchestrator">
   <meta name="plan-capability-reasoning" content="deep">
@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-25">
-<meta name="plan-version" content="13">
+<meta name="plan-version" content="15">
 </head>
 <body>
   <main class="plan-doc">
@@ -230,51 +230,26 @@
     and the research note go on GPFS under the repository, not on node-local <code>/tmp</code>.</p>
 
 
-    <h2 id="s9">&sect;9 &mdash; What the probe could not see</h2>
-    <p>&sect;8's probe ruled out scrollback size. It left three questions open, and the live
-    symptoms point at all three:</p>
-    <ul>
-      <li><strong>A second viewer against several tabs.</strong> All 33 live stall lines are
-      <code>Action NoOp</code>. They followed two new tabs created at 22:22:26 and 22:22:56 on
-      2026-09-24. The probe attached a second client to a single-tab session only.</li>
-      <li><strong>The tab bar.</strong> The two-client capture,
-      <code>docs/figures/fleet-view-rendering/evidence-probe/first-client-diffsize.bin</code>,
-      has not been rendered to a screen. Whether the first viewer's tab-bar row drops or
-      duplicates is still unknown.</li>
-      <li><strong>Duplicated lines.</strong> The probe replayed recorded bytes into a shell pane.
-      No live Claude Code session ever negotiated its own width, so whether duplicated lines follow
-      a width mismatch was never tested.</li>
-    </ul>
-    <p><strong>Done when</strong> a new section of the fleet-view rendering note answers all three
-    from a throwaway session on the fleet node, under the same safety rules as &sect;8:</p>
-    <ul>
-      <li>the stall-line count and render timings for a second client attaching, at a different
-      size from the first, to a session with at least four tabs;</li>
-      <li>the first client's captured stream rendered through a terminal emulator library such as
-      <code>pyte</code>, with the tab-bar row quoted before and after the second attach;</li>
-      <li>a live <code>claude</code> pane, run on the local lane, resized between two widths, with
-      the rendered screen checked for repeated lines.</li>
-    </ul>
-    <p>The negative control is the same attach against a session with one tab, which must match
-    &sect;8's figures. Every run's stall-line count is committed as a receipt.</p>
-
-    <section id="s9-landed" class="section-landed">
+    <section id="s9" class="section-landed">
     <header><span class="badge badge-shipped">&#10003; landed 2026-09-25</span>
-    <h2>&sect;9 &mdash; The three open questions, answered</h2></header>
-    <p class="landed-summary">All three were answered from a throwaway session on the fleet
-    node, and every run added <strong>zero</strong> stall lines (33 before, 33 after). (a) A
-    second client at 60 columns attaching to a four-tab session: first attach 159&nbsp;ms,
-    second 307&nbsp;ms, resize 12&nbsp;ms; the one-tab control reproduced &sect;8's figures
-    (attach 163&nbsp;ms against the declared 150&ndash;175&nbsp;ms band, zero stalls). One
-    ordering is fatal and it is not the second attach: four tabs opened <em>before any client
-    attached</em> make the server panic (<code>Not enough room for panes</code> &rarr;
-    <code>failed to attach client 2 to tab with index 3</code>), while the same tabs opened
-    while a client is attached are clean. (b) The tab bar, rendered through pyte, is neither
-    dropped nor duplicated across the second attach &mdash; only a focus marker is added. (c)
-    A live Claude Code pane on the local lane resized 100&rarr;70 columns (3,756&nbsp;ms)
-    renders <strong>zero duplicated content rows</strong> at both widths. Full record:
+    <h2>&sect;9 &mdash; What the probe could not see</h2></header>
+    <p class="landed-summary">Answered from throwaway sessions on the fleet node. Every run
+    added zero stall lines, reading 33 before and 33 after:</p>
+    <ul>
+      <li>a second client at 60 columns attaching to a four-tab session adds no stall
+      (first attach 159&nbsp;ms, second 307&nbsp;ms), and the one-tab control matched &sect;8's
+      attach figures;</li>
+      <li>the tab-bar row, rendered through <code>pyte</code>, is neither dropped nor duplicated,
+      and only a focus marker moves;</li>
+      <li>a live Claude Code pane shows zero duplicated rows at 100 and 70 columns, but its resize
+      reflow takes 3,756&nbsp;ms, against 12&ndash;13&nbsp;ms for a shell pane under the same
+      method.</li>
+    </ul>
+    <p>That reflow is the working explanation for slow, half-drawn tabs after a reconnect at a new
+    window size. The probe also found a zellij 0.45.1 server panic when tabs are opened before
+    any client attaches; that went to reckon's fleet-supervisor owner. Full record:
     <a href="/imas-ambix/evidence/archive/agent-sessions-live-on-the-fleet-node-landed#fleet-view-unseen-surfaces">&sect;9
-    landed</a>.</p>
+    landed</a> (commits <code>386924e3</code>, <code>9ad7b060</code>).</p>
     </section>
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
@@ -317,7 +292,7 @@
     <div class="r-comment-body"><p>Review of fleet-view-unseen-surfaces: 89/100; two wording findings (the one-tab resize reproduction claim and a superseded run.log line) sent to a repair</p></div>
 </div>
 <div class="r-comment" data-section="s9" data-id="c-run-r-20260925T023508527905-fleet-view-wording-repair" data-who="reckon-build" data-when="2026-09-25T02:42:37.636Z">
-    <div class="r-comment-body"><p>Repair node: both wording findings from the unseen-surfaces review fixed. The one-tab control sentence in <code>docs/research/fleet-view-rendering.html</code> now reproduces only the earlier probe's attach band (163&nbsp;ms against the declared 150&ndash;175&nbsp;ms, zero stalls added) and states that the two probes time a resize differently &mdash; the earlier probe waits for a 500&nbsp;ms quiet period, this one reads the client's own quiet period &mdash; so the resize comparison holds within each probe: a live Claude Code pane reflowed in 3,756&nbsp;ms at 100&rarr;70 columns against 12&ndash;13&nbsp;ms for a shell under the same method, rather than claiming its 13&nbsp;ms reproduces the earlier 418&ndash;439&nbsp;ms column. <code>evidence-second-client/run.log</code>'s live line (attach_ms 156, resize_ms 3748, 7,475&nbsp;B) now carries a SUPERSEDED marker naming the committed run (147/3,756/10,247). <code>reckon audit-doc</code> exits 0. Evidence anchor: <a href="/imas-ambix/evidence/archive/agent-sessions-live-on-the-fleet-node-landed#fleet-view-wording-repair">the landed evidence record</a>.</p></div>
+    <div class="r-comment-body"><p>Repair node: both wording findings from the unseen-surfaces review fixed. The one-tab control sentence in <code>docs/research/fleet-view-rendering.html</code> now reproduces only the earlier probe's attach band (163 ms against the declared 150–175 ms, zero stalls added) and states that the two probes time a resize differently — the earlier probe waits for a 500 ms quiet period, this one reads the client's own quiet period — so the resize comparison holds within each probe: a live Claude Code pane reflowed in 3,756 ms at 100→70 columns against 12–13 ms for a shell under the same method, rather than claiming its 13 ms reproduces the earlier 418–439 ms column. <code>evidence-second-client/run.log</code>'s live line (attach_ms 156, resize_ms 3748, 7,475 B) now carries a SUPERSEDED marker naming the committed run (147/3,756/10,247). <code>reckon audit-doc</code> exits 0. Evidence anchor: <a href="/imas-ambix/evidence/archive/agent-sessions-live-on-the-fleet-node-landed#fleet-view-wording-repair">the landed evidence record</a>.</p></div>
 </div>
 </section>
 </main>
