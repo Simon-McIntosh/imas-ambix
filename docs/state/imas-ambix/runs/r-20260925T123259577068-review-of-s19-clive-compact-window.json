@@ -1,0 +1,275 @@
+{
+  "agent": {
+    "alias": "luna5.6",
+    "backend": "codex-luna",
+    "effort": "xhigh",
+    "launch": "cli",
+    "model": "gpt-5.6-luna",
+    "sandbox": "read-only"
+  },
+  "attempt": 3,
+  "attempt_kind": "resume",
+  "backend": "codex-luna",
+  "base_sha": "595e777f639d25809efdc88d76a6d257fc7ab6fa",
+  "boundary_waiver": null,
+  "budget": {
+    "cost_usd": null,
+    "detail": "no events yet on the resumed attempt",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": null,
+    "utilisation_pct": null
+  },
+  "changed_lines": null,
+  "commit_resolution": null,
+  "commits": [],
+  "completed_at": "2026-09-25T13:16:37.252Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-09-25T12:33:07Z",
+  "dispute_count": 0,
+  "duration_measurement": {
+    "reason": "model_span_unavailable_at_promotion",
+    "status": "underivable"
+  },
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": false,
+    "matched_measure": null,
+    "override": false,
+    "role": "review",
+    "status": "no-execution-measure"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [],
+  "gate": "passed",
+  "gate_check": {
+    "command": "python3 -c \"import json;d=json.load(open('/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260925T120318053991-s19-clive-compact-window.json'));s=d['scores'];assert len(s)==5 and all(0<=v<=20 for v in s.values());print(sum(s.values()))\"",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T123259577068-review-of-s19-clive-compact-window/gate.log"
+  },
+  "impl_move": {
+    "at_complete": null,
+    "at_dispatch": 0.9,
+    "plan": "local-lane-admission-control",
+    "reason": "role-not-enforced:review",
+    "verdict": "exempt"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-09-25T13:13:00.802431+00:00",
+    "horizon_seconds": 2400,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": "clive",
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-09-25T12:33:00Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 2,
+    "binding_observed": "unknown",
+    "detail": "",
+    "headroom": 7,
+    "mean_context": 91429,
+    "observed_at": "2026-09-25T12:32:58Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45
+  },
+  "lane_receipt": {
+    "effective_context_window": 380000,
+    "notional_cost_usd": 1.3031,
+    "observed_at": "2026-09-25T13:16:37.252Z",
+    "quota_state": "measured",
+    "quota_windows": [
+      {
+        "observed_at": "2026-09-25T13:16:37.252Z",
+        "resets_at": 1790869124,
+        "used_percent": 20.0,
+        "window_minutes": 10080
+      }
+    ],
+    "rate_basis": {
+      "as_of": "2026-09-09",
+      "input_per_million": 0.2,
+      "model_identifier": "gpt-5.6-luna",
+      "output_per_million": 1.2
+    }
+  },
+  "lineage": {
+    "attempt": 2,
+    "kind": "lane-change",
+    "lanes": [
+      {
+        "changed_at": "2026-09-25T13:19:29Z",
+        "detail": "starting fresh because the session cannot follow the move from harness 'claude' to 'codex'",
+        "from_backend": "clive",
+        "from_harness": "claude",
+        "reason": "47 min on the congested local lane against a 40 min budget; the lane gate holds 14 in flight with a queue",
+        "session": "fresh",
+        "session_id": "2a40fd96-10db-4a22-9788-933d98293620",
+        "session_source": "stream",
+        "to_backend": "codex-luna",
+        "to_harness": "codex"
+      }
+    ],
+    "root_run_id": "r-20260925T123259577068-review-of-s19-clive-compact-window"
+  },
+  "local": false,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T123259577068-review-of-s19-clive-compact-window/manifest.md",
+  "member": "llac-review",
+  "negative_control": {
+    "reason": "node-writes-no-test-path",
+    "verdict": "exempt"
+  },
+  "no_commit": "review node; delivery is the stored review record",
+  "node": "review-of-s19-clive-compact-window",
+  "node_definition": {
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 911,
+          "cached_input_tokens": 348760,
+          "input_tokens": 349673,
+          "output_tokens": 1012,
+          "reasoning_output_tokens": 246,
+          "total_tokens": 350685,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "38dec84a-7cb6-4b27-ace6-501cc76dbec0",
+      "session_id": "llac-s14-0925"
+    },
+    "done_when": "the review for r-20260925T120318053991-s19-clive-compact-window stores a parsed record scoring all 5 dimensions in the range 0..20; the turn ends once that record is stored and the manifest reads complete",
+    "estimated_hours": null,
+    "goal": "attach an independent review to run r-20260925T120318053991-s19-clive-compact-window",
+    "id": "review-of-s19-clive-compact-window",
+    "lane_declaration": {
+      "backend": "clive",
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-09-25T12:33:00Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 2,
+      "binding_observed": "unknown",
+      "detail": "",
+      "headroom": 7,
+      "mean_context": 91429,
+      "observed_at": "2026-09-25T12:32:58Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T123259577068-review-of-s19-clive-compact-window/manifest.md",
+    "negative_control": "",
+    "plan": "local-lane-admission-control",
+    "requested_backend": "clive",
+    "requires_decisions": [],
+    "role": "review",
+    "section": "§19",
+    "spec_level": "exact",
+    "time_budget": "40m",
+    "token_budget": null,
+    "write_paths": [
+      "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260925T120318053991-s19-clive-compact-window.json",
+      "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260925T120318053991-s19-clive-compact-window.at-e8f5b2c4802d37198bb4de52158fd3dcd8a63d86.json"
+    ]
+  },
+  "orientation_input_tokens": null,
+  "outcome": "",
+  "plan": "local-lane-admission-control",
+  "plan_impl_at_dispatch": 0.9,
+  "promoted_revision": "595e777f639d25809efdc88d76a6d257fc7ab6fa",
+  "release": {
+    "process_signalled": true,
+    "process_withheld": "process ended by promotion before the fold",
+    "worktree_audit": {
+      "counts": {
+        "dirty": 0,
+        "disposable": 0,
+        "integrated": 0,
+        "live-referenced": 0,
+        "retained-for-resume": 0,
+        "unintegrated": 0
+      },
+      "worktrees": [
+        {
+          "available": false,
+          "detail": "tree is no longer available",
+          "path": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/llac-s14-0925/review-of-s19-clive-compact-window"
+        }
+      ]
+    },
+    "worktree_released": true
+  },
+  "resume_waiver": null,
+  "review": null,
+  "role": "review",
+  "run_id": "r-20260925T123259577068-review-of-s19-clive-compact-window",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§19",
+  "session_harness": "codex",
+  "session_id": "01a0d8b8-92e4-7103-aea0-dc9953a58f7b",
+  "session_model": "gpt-5.6-luna",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "exact",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 0,
+  "time_budget": "40m",
+  "tool_steps": 58.0,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": []
+  },
+  "wall_seconds": 2610,
+  "watch_override": null,
+  "worker_exit": {
+    "ended_during": "working",
+    "exit_code": 137,
+    "exited_at": "2026-09-25T13:19:29Z",
+    "last_record_type": "system",
+    "launched_at": "2026-09-25T12:33:15Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20260925T123259577068-review-of-s19-clive-compact-window",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 11030,
+    "worker_pid": 782291
+  },
+  "worker_seconds": 2543,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
