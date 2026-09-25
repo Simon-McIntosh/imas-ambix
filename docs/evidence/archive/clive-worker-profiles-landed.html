@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-evidence-for" content="clive-worker-profiles#s2">
+  <title>Clive Worker Profiles — landed evidence</title>
+</head>
+<body>
+  <main>
+    <h1>Clive Worker Profiles — landed evidence</h1>
+    <p><strong>Implementation.</strong> Commit <code>b450ccb9c6e5b6ee8a6d0f56f945cd334e10cc04</code> adds the opt-in <code>--worker-profile</code> expansion to <code>imas_ambix/agent/clive.py</code> and its generated-launcher tests in <code>tests/test_agent_clive_worker_profile.py</code>.</p>
+    <h2>Measured contracts</h2>
+    <ul>
+      <li>No profile: the generated launcher reaches the existing <code>--settings</code> and <code>--append-system-prompt</code> exec vector unchanged; the profile option is consumed by clive rather than forwarded.</li>
+      <li>Profile expansion: the record contains the profile, digest, MCP, repository guidance, and user-settings SHA-256 identities; the added flags include <code>--bare</code> for the hook-free route, <code>--strict-mcp-config</code>, <code>--mcp-config</code>, <code>--tools Bash,Read</code>, and the appended prompt.</li>
+      <li>Validation: missing keys, nonexistent MCP files, and an empty tool list stop with exit status 2 and named diagnostics.</li>
+      <li>Context and hooks: a missing working-directory <code>AGENTS.md</code> is omitted; fixture hook commands are copied into the settings payload and force the non-bare settings route.</li>
+      <li>Live-style control: the stub Claude harness observed the hook-carrying settings payload without <code>--bare</code> and wrote the Stop-hook marker.</li>
+      <li>Help capture: the installed Claude Code help contains <code>--bare</code>, <code>--append-system-prompt</code>, <code>--strict-mcp-config</code>, <code>--mcp-config</code>, <code>--tools</code>, and <code>--settings</code>.</li>
+    </ul>
+    <p><strong>Gate.</strong> <code>uv run --no-sync pytest -p no:cacheprovider tests/test_agent_clive_worker_profile.py tests/test_agent_clive_picker.py</code> — 20 passed. <code>uv run --no-sync ruff check imas_ambix tests</code> — exit 0. No launcher deployment was performed.</p>
+    <p><strong>Remaining.</strong> §3 still requires live per-role qualification after the upstream digest generator and dispatch option are available.</p>
+    <figure>
+      <img src="/imas-ambix/figures/clive-worker-profiles/expansion-flow.svg" alt="Worker profile validation and route selection flow">
+      <figcaption>Validation precedes context assembly, hook-aware route selection, receipt emission, and Claude Code execution.</figcaption>
+    </figure>
+  </main>
+</body>
+</html>
