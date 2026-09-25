@@ -280,6 +280,84 @@ def _tensor_width(profile: ModelProfile, gpus: int) -> int:
     return max(1, gpus // replicas)
 
 
+def _without_speculation(profile: ModelProfile) -> ModelProfile:
+    """Return *profile* with every speculation setting cleared.
+
+    The two engine families carry speculation in different keys — vLLM's
+    ``speculative_method`` family and SGLang's ``speculative_algorithm`` with
+    its DSpark block size. Clearing one family leaves the other's flag in a
+    generated serve script, so a launch asked for as "no speculation" would
+    still draft.
+    """
+    return profile.model_copy(
+        update={
+            "engine": profile.engine.model_copy(
+                update={
+                    "speculative_method": None,
+                    "speculative_num_tokens": None,
+                    "speculative_model": None,
+                    "speculative_draft_sample_method": None,
+                    "speculative_algorithm": None,
+                    "speculative_dspark_block_size": None,
+                }
+            )
+        }
+    )
+
+
+def _override_dspark_block_size(profile: ModelProfile, size: int) -> ModelProfile:
+    """Return *profile* with its DSpark draft block size overridden.
+
+    Refused unless the profile declares DSpark on an SGLang engine: the block
+    size is a DSpark setting, so overriding the profile's declared value is only
+    meaningful where DSpark is what runs. Applied elsewhere it emits an engine
+    flag with no algorithm to accept it, the engine ignores it, and a sweep cell
+    would report the profile's depth while labelled with the one that was asked
+    for.
+    """
+    algorithm = (profile.engine.speculative_algorithm or "").upper()
+    if profile.engine.type != "sglang" or algorithm != "DSPARK":
+        raise click.ClickException(
+            f"--dspark-block-size needs a profile serving DSpark on SGLang; "
+            f"{profile.slug!r} runs the {profile.engine.type!r} engine with "
+            f"speculative algorithm {profile.engine.speculative_algorithm!r}."
+        )
+    return profile.model_copy(
+        update={
+            "engine": profile.engine.model_copy(
+                update={"speculative_dspark_block_size": size}
+            )
+        }
+    )
+
+
+def _concurrency_levels(text: str) -> list[int]:
+    """Parse a comma-separated concurrency ladder from ``--levels``.
+
+    Every entry must be a positive integer, and a malformed one refuses the
+    whole ladder rather than being dropped: a ladder that silently loses a
+    level produces a sweep with a hole in it, which reads as a concurrency the
+    sweep decided against rather than as one it never measured.
+    """
+    levels: list[int] = []
+    for part in text.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            value = int(part)
+        except ValueError as exc:
+            raise click.BadParameter(
+                f"{part!r} is not an integer; give levels as 4,8,12,16"
+            ) from exc
+        if value < 1:
+            raise click.BadParameter(f"concurrency level {value} is below 1")
+        levels.append(value)
+    if not levels:
+        raise click.BadParameter("give at least one concurrency level")
+    return levels
+
+
 @click.group()
 def agent() -> None:
     """Manage LLM agent deployments on SLURM GPU clusters."""
@@ -574,6 +652,16 @@ def download(
     "when acceptance is high and the batch is large enough to amortise the "
     "draft pass; below that it costs decode rate, so measure both ways.",
 )
+@click.option(
+    "--dspark-block-size",
+    "dspark_block_size",
+    type=click.IntRange(min=1),
+    default=None,
+    help="Override the DSpark draft block size — the tokens drafted per step — "
+    "for this launch. Each depth is a launch setting rather than a request "
+    "parameter, so a sweep across depths cycles the serve once per value "
+    "instead of editing the profile.",
+)
 def serve(
     slug: str | None,
     dry_run: bool,
@@ -583,6 +671,7 @@ def serve(
     gpus: int | None,
     cpus: int | None,
     no_speculative: bool,
+    dspark_block_size: int | None,
     time_limit: str | None,
 ) -> None:
     """Generate and submit a model serving job."""
@@ -601,18 +690,15 @@ def serve(
                 "slurm": profile.slurm.model_copy(update={"time_serve": time_limit})
             }
         )
-    if no_speculative:
-        profile = profile.model_copy(
-            update={
-                "engine": profile.engine.model_copy(
-                    update={
-                        "speculative_method": None,
-                        "speculative_num_tokens": None,
-                        "speculative_model": None,
-                    }
-                )
-            }
+    if no_speculative and dspark_block_size is not None:
+        raise click.ClickException(
+            "--no-speculative disables drafting, so it cannot be combined with "
+            "--dspark-block-size; pass one of the two."
         )
+    if dspark_block_size is not None:
+        profile = _override_dspark_block_size(profile, dspark_block_size)
+    if no_speculative:
+        profile = _without_speculation(profile)
     site = SiteConfig.from_env()
     resolved_port = (
         port
@@ -2239,6 +2325,16 @@ def _deploy_launcher(name: str, path, content: str, mode: int = 0o755) -> None:
     "when acceptance is high and the batch is large enough to amortise the "
     "draft pass; below that it costs decode rate, so measure both ways.",
 )
+@click.option(
+    "--dspark-block-size",
+    "dspark_block_size",
+    type=click.IntRange(min=1),
+    default=None,
+    help="Override the DSpark draft block size — the tokens drafted per step — "
+    "for this launch. Each depth is a launch setting rather than a request "
+    "parameter, so a sweep across depths cycles the serve once per value "
+    "instead of editing the profile.",
+)
 def restart(
     slug: str | None,
     dry_run: bool,
@@ -2248,6 +2344,7 @@ def restart(
     gpus: int | None,
     cpus: int | None,
     no_speculative: bool,
+    dspark_block_size: int | None,
     time_limit: str | None,
 ) -> None:
     """Restart a model serving job (shutdown + serve).
@@ -2273,18 +2370,15 @@ def restart(
                 "slurm": profile.slurm.model_copy(update={"time_serve": time_limit})
             }
         )
-    if no_speculative:
-        profile = profile.model_copy(
-            update={
-                "engine": profile.engine.model_copy(
-                    update={
-                        "speculative_method": None,
-                        "speculative_num_tokens": None,
-                        "speculative_model": None,
-                    }
-                )
-            }
+    if no_speculative and dspark_block_size is not None:
+        raise click.ClickException(
+            "--no-speculative disables drafting, so it cannot be combined with "
+            "--dspark-block-size; pass one of the two."
         )
+    if dspark_block_size is not None:
+        profile = _override_dspark_block_size(profile, dspark_block_size)
+    if no_speculative:
+        profile = _without_speculation(profile)
     site = SiteConfig.from_env()
     # Same precedence as ``serve``: an explicit flag, then the profile's own
     # declared port, then the site default. Skipping the profile here put a
@@ -2411,6 +2505,15 @@ def restart(
 )
 @click.option("--repeat", type=int, default=1, help="Repeat each test N times.")
 @click.option(
+    "--levels",
+    "levels",
+    default=None,
+    help="Comma-separated concurrency ladder for the concurrency category, in "
+    "the order to sweep it, e.g. 4,8,12,16,20,24,28,32,36. Default: "
+    "1,2,4,8,16,32. The throughput knee is a property of the serve, so a sweep "
+    "around it passes its own ladder rather than inheriting the default.",
+)
+@click.option(
     "--max-context", type=int, default=None, help="Max context for context tests."
 )
 @click.option("--json", "json_output", is_flag=True, help="Output raw JSON only.")
@@ -2430,6 +2533,7 @@ def bench(
     api_key: str | None,
     category: tuple[str, ...],
     repeat: int,
+    levels: str | None,
     max_context: int | None,
     json_output: bool,
     output_path: str | None,
@@ -2503,6 +2607,7 @@ def bench(
         raise click.ClickException(f"Cannot reach server at {base_url}: {exc}") from exc
 
     cats = list(category) if category else None
+    concurrency_levels = _concurrency_levels(levels) if levels else None
 
     status_console.print(f"\n[bold]Benchmarking[/] {model} at {base_url}")
     if cats:
@@ -2521,6 +2626,7 @@ def bench(
         # unattributable run cannot be compared against another.
         profile=profile,
         serve_job_id=serve_job,
+        concurrency_levels=concurrency_levels,
     )
 
     # Auto-save results
