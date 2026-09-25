@@ -302,11 +302,19 @@ def test_hooks_are_carried_and_force_the_settings_route(tmp_path):
     record = json.loads(receipt.read_text(encoding="utf-8").splitlines()[0])
     assert record["route"] == "settings"
     assert record["hooks"] == ["stop-hook", "guard-hook"]
+    # The receipt and the emitted command share one definition of the added
+    # arguments: what the record claims was added is exactly the prefix the
+    # harness stub observed on its own command line.
+    added = record["added_arguments"]
+    assert added[:2] == ["--setting-sources", ""]
+    assert args[: len(added)] == added
     prompt = args[args.index("--append-system-prompt") + 1]
     assert "role digest" in prompt
     assert "repository guidance" in prompt
-    assert Path(record["evidence"]["hook_route_measurement"]).name == (
-        "cwp-settings-hook-check.md"
+    # The evidence pointer is the full report path, not a basename a reader
+    # cannot open.
+    assert record["evidence"]["hook_route_measurement"] == (
+        "/home/ITER/mcintos/.config/reckon/crew/reports/cwp-settings-hook-check.md"
     )
 
 
