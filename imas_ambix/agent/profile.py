@@ -468,6 +468,25 @@ def _default_endpoint_document_path() -> str:
     return str(Path.home() / "public" / "imas-ambix" / "endpoints.json")
 
 
+# The router gate's control file is operator input, so it belongs in the
+# group-owned control directory rather than beside the lane document in a
+# personal public directory. This names the site-wide default; the router's own
+# ``AMBIX_ROUTER_GATE_PATH`` names a router instance's file explicitly and wins
+# over it.
+GATE_CONTROL_PATH_ENV = "AMBIX_AGENT_GATE_CONTROL_PATH"
+
+
+def _default_gate_control_path(base_dir: str) -> str:
+    """Return the group control file path under the project base.
+
+    The filename is the router's own, imported here rather than restated so the
+    site default and the file the router reads cannot drift apart.
+    """
+    from imas_ambix.agent.router import GATE_FILENAME
+
+    return str(Path(base_dir) / "agents" / "control" / GATE_FILENAME)
+
+
 class SiteConfig(BaseModel):
     """Cluster-specific settings, layered separately from model profiles.
 
@@ -501,6 +520,29 @@ class SiteConfig(BaseModel):
     global_origin: str = "http://98dci4-gpu-0003:18800"
     endpoint_document_path: str = Field(default_factory=_default_endpoint_document_path)
     preferred_release_id: str | None = None
+    # Control lives in the group-owned directory beside the model store, not in
+    # the personal public directory the lane document is published from. The
+    # default follows ``base_dir``, so relocating the project moves the control
+    # file with it; setting this empty hands control resolution to the lane
+    # document's sibling.
+    gate_control_path: str = ""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _fill_gate_control_path(cls, data: object) -> object:
+        """Derive the gate control path from ``base_dir`` when it is not given.
+
+        A caller that names the value -- including to the empty string -- has it
+        honoured as given, which is what leaves an explicit empty value able to
+        mean "no site control file" rather than "use the site default".
+        """
+        if isinstance(data, dict) and "gate_control_path" not in data:
+            base_dir = data.get("base_dir", cls.model_fields["base_dir"].default)
+            return {
+                **data,
+                "gate_control_path": _default_gate_control_path(str(base_dir)),
+            }
+        return data
 
     @field_validator("global_origin", mode="before")
     @classmethod
@@ -542,6 +584,14 @@ class SiteConfig(BaseModel):
     @classmethod
     def from_env(cls) -> SiteConfig:
         """Build config from environment, falling back to defaults."""
+        # The gate control path is left absent when the variable is unset so the
+        # field default follows ``base_dir``; a variable set to the empty string
+        # is passed through, which is how a deployment asks for no site control
+        # file and the lane document's sibling instead.
+        gate_control = os.environ.get(GATE_CONTROL_PATH_ENV)
+        gate_override = (
+            {} if gate_control is None else {"gate_control_path": gate_control}
+        )
         return cls(
             base_dir=os.environ.get("AMBIX_AGENT_BASE_DIR", "/work/projects/imas_gpu"),
             engine_env_root=os.environ.get(
@@ -577,6 +627,7 @@ class SiteConfig(BaseModel):
                 "AMBIX_AGENT_ENDPOINT_DOCUMENT", _default_endpoint_document_path()
             ),
             preferred_release_id=os.environ.get("AMBIX_AGENT_PREFERRED_RELEASE"),
+            **gate_override,
         )
 
     @property

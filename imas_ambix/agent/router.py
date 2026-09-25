@@ -59,8 +59,9 @@ GATE_FILENAME = "router-gate.json"
 # silently the day the lane moves, which is how one operator's control input
 # came to sit beside a 19 MB request log in a world-readable directory.
 # Resolution order is the command-line path, then this environment variable,
-# then the lane document's sibling -- the last kept so a deployment that names
-# neither keeps taking control from exactly where it does today.
+# then the site control path in the group-owned control directory, then the lane
+# document's sibling -- the last kept so a deployment that names neither keeps
+# taking control from exactly where it does today.
 GATE_PATH_ENV = "AMBIX_ROUTER_GATE_PATH"
 DEFAULT_GENERATION_WIDTH = 22
 DEFAULT_GENERATION_WAIT_SECONDS = 300.0
@@ -237,13 +238,17 @@ def resolve_gate_path(
     explicit: Path | None,
     lane_document: Path | None,
 ) -> Path | None:
-    """Resolve the gate control file, explicit first and lane-sibling last.
+    """Resolve the gate control file, most specific source first.
 
     The order is the command-line option, then ``AMBIX_ROUTER_GATE_PATH``, then
-    the lane document's sibling. The last branch is what keeps a deployment that
-    names neither option taking its control input from exactly where it does
-    today, so moving the lane document and moving the control file stay separate
-    decisions. An explicitly named path is honoured whether or not it exists,
+    the site control path (``SiteConfig.gate_control_path``, itself
+    ``AMBIX_AGENT_GATE_CONTROL_PATH``) when that value is non-empty, then the
+    lane document's sibling. The site branch is where control lives by default,
+    in the group-owned directory beside the model store, so the file is not
+    derived from wherever the lane publishes. The lane-sibling branch remains as
+    the last resort, so a deployment that names nothing and sets the site value
+    empty keeps taking control from exactly where it did before this default
+    existed. An explicitly named path is honoured whether or not it exists,
     because a gate that has not been written yet must read as an empty gate
     rather than fall back to a different file.
     """
@@ -256,9 +261,27 @@ def resolve_gate_path(
         from pathlib import Path
 
         return Path(from_env)
+    site_control = _site_gate_control_path()
+    if site_control is not None:
+        return site_control
     if lane_document is not None:
         return lane_document.with_name(GATE_FILENAME)
     return None
+
+
+def _site_gate_control_path() -> Path | None:
+    """The site-configured gate control file, or ``None`` when it is empty.
+
+    ``SiteConfig`` is imported here rather than at module scope so the router's
+    import surface does not grow with the model-profile layer; ``profile`` reads
+    the router's own gate filename lazily for the same reason.
+    """
+    from pathlib import Path
+
+    from imas_ambix.agent.profile import SiteConfig
+
+    value = SiteConfig.from_env().gate_control_path.strip()
+    return Path(value) if value else None
 
 
 class _GenerationGate:
