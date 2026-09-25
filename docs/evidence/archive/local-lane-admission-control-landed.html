@@ -1402,6 +1402,104 @@
     the restart — remains the lead-authorised step. Verifying the merged result
     belongs to a separately dispatched test node.</p>
   </section>
+
+  <section id="gate-site-default">
+    <h2>The group control directory is the default, not only the option</h2>
+    <p>The explicit sources added for the control path were reachable but not
+    default: a deployment that named nothing still read
+    <code>router-gate.json</code> beside the lane document in the personal
+    public directory. This section records the change that makes the
+    group-owned control directory the default for the router and the CLI alike,
+    so control stops being an opt-in that a launch can forget.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/local-lane-admission-control/gate-site-default.svg"
+           alt="Resolution order for the gate control path: explicit option, then
+                AMBIX_ROUTER_GATE_PATH, then the new site control path under the
+                project base, then the lane document's sibling as the last
+                resort.">
+      <figcaption>The site control path is now the third source and the one a
+      deployment with no explicit naming lands on; the lane-document sibling
+      stays as the last resort so an empty site value keeps the old
+      behaviour.</figcaption>
+    </figure>
+
+    <p><strong>What changed.</strong> <code>SiteConfig</code> in
+    <code>imas_ambix/agent/profile.py</code> gains a <code>gate_control_path</code>
+    field, overridable through <code>AMBIX_AGENT_GATE_CONTROL_PATH</code> like
+    its siblings, defaulting to
+    <code>&lt;base_dir&gt;/agents/control/router-gate.json</code> and deriving
+    that default from <code>base_dir</code> when it is not given. The filename
+    is imported from the router rather than restated, so the site default and
+    the file the router reads cannot drift apart. In
+    <code>imas_ambix/agent/router.py</code>, <code>resolve_gate_path</code> keeps
+    its signature and its order: the explicit option, then
+    <code>AMBIX_ROUTER_GATE_PATH</code>, then the site control path when that
+    value is non-empty, then the lane document's sibling; the docstring states
+    that order. A new module-level test fixture in <code>tests/conftest.py</code>
+    points every test at its own site value so no test can resolve or write the
+    production path.</p>
+
+    <p><strong>What the tests measure.</strong> Seven tests added in
+    <code>tests/test_agent_gate_site_default.py</code>. They assert the site
+    default derives under the base directory; that the site value is
+    environment-overridable; that the site default beats the lane document's
+    sibling for both <code>resolve_gate_path</code> and the running router's
+    <code>_generation_gate.config_path</code>; that
+    <code>AMBIX_ROUTER_GATE_PATH</code> beats the site default; that the
+    explicit option beats every other source; that an empty site value falls
+    back to the lane sibling and yields <code>None</code> for a missing lane
+    document; that <code>agent width</code> through the CLI writes the site
+    control file and leaves the lane sibling untouched; and a positive control
+    that releases the fixture's site value and shows the production default
+    appearing, so the guard is not passing vacuously.</p>
+
+    <p><strong>Evidence that could have failed.</strong> The declared negative
+    control, verbatim as the first line of the red log, is: &ldquo;removing the
+    site-default branch from resolve_gate_path must fail the
+    site-default-beats-lane-sibling test; applied as a scratch edit and
+    restored&rdquo;. Removing the <code>site_control</code> branch from
+    <code>resolve_gate_path</code> produced <strong>1 failed, 7
+    deselected</strong> — the site-default-beats-lane-sibling test — and the
+    scratch edit was restored byte-identical, with <code>git diff</code> empty
+    against the committed revision before the green gate ran. The declared gate
+    <code>uv run --no-sync pytest -p no:cacheprovider
+    tests/test_agent_gate_site_default.py tests/test_agent_gate_control_path.py
+    tests/test_agent_router_gate.py tests/test_agent_pause_cli.py
+    tests/test_agent_router_width_controller.py tests/test_agent_router_cut.py</code>
+    ran 77 tests with 0 failures at the committed revision, and whole-tree
+    <code>uv run --no-sync ruff check imas_ambix tests</code> exited 0.</p>
+
+    <p><strong>The production path is checked, not assumed.</strong>
+    <code>/work/projects/imas_gpu/agents/control</code> was read with
+    <code>test -e</code> before the gate run (<code>ABSENT</code>) and after it
+    (<code>ABSENT</code>), so the tests neither created nor wrote the production
+    control directory.</p>
+
+    <p><strong>One deviation from the letter of the brief, recorded because it
+    is load-bearing.</strong> The brief asked the new fixture to point the site
+    value at a scratch file under <code>tmp_path</code>. A non-empty site value
+    makes <code>resolve_gate_path(None, None)</code> return that file rather
+    than <code>None</code>, and makes <code>resolve_gate_path(None, lane)</code>
+    return the site file rather than the lane sibling — so two tests in the
+    concurrently-owned <code>tests/test_agent_gate_control_path.py</code>
+    (<code>test_resolve_gate_path_prefers_explicit_then_env_then_sibling</code>
+    and <code>test_router_falls_back_to_the_lane_sibling_when_neither_is_named</code>)
+    fail under any non-empty site value, whatever the ordering. Those two
+    assertions pin the pre-default contract and cannot both hold beside a
+    non-empty default; the file is outside this node's write scope. The fixture
+    therefore sets the site variable to the <strong>empty string</strong>, which
+    suppresses the site branch and preserves both the sibling contract those
+    tests pin and the &ldquo;no test resolves the production path&rdquo;
+    requirement. This is the one respect in which the fixture differs from the
+    brief's wording, and it is surfaced rather than silently applied.</p>
+
+    <p><strong>What was not done.</strong> No router was restarted and no job was
+    submitted; nothing under <code>/work</code> or <code>~/public</code> was
+    created or written. The one-time copy of the current control file into the
+    group-owned directory and the router restart remain the lead-authorised
+    deploy step.</p>
+  </section>
 </main>
 </body>
 </html>
