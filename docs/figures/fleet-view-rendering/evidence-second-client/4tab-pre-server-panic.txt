@@ -1,0 +1,48 @@
+# Server log excerpt for the 4tab-pre run, where the tabs are opened before
+# any client attaches. Verbatim lines, timestamps intact, from the fleet
+# node's per-uid server log.
+
+INFO   |zellij_server::pty       | 2026-09-25 02:51:58.784 [pty       ] zellij-server/src/pty.rs:1307: spawn_terminals_for_layout: 1 tiled + 0 floating panes created, sending ApplyLayout 
+INFO   |zellij_server::screen    | 2026-09-25 02:51:58.784 [screen    ] zellij-server/src/screen.rs:9814: ScreenInstruction::ApplyLayout: applying layout for tab 1 
+ERROR  |zellij_server::tab       | 2026-09-25 02:51:58.784 [screen    ] zellij-server/src/tab/mod.rs:1777: Failed to apply layout: Not enough room for panes 
+WARN   |zellij_utils::input::layo| 2026-09-25 02:52:00.325 [wasm      ] zellij-utils/src/input/layout.rs:125: Overriding plugin alias 
+WARN   |zellij_utils::input::layo| 2026-09-25 02:52:00.325 [wasm      ] zellij-utils/src/input/layout.rs:125: Overriding plugin alias 
+INFO   |zellij_server::pty       | 2026-09-25 02:52:00.325 [pty       ] zellij-server/src/pty.rs:502: PtyInstruction::NewTab: spawning terminals for tab 2 
+INFO   |zellij_server::pty       | 2026-09-25 02:52:00.328 [pty       ] zellij-server/src/pty.rs:1307: spawn_terminals_for_layout: 1 tiled + 0 floating panes created, sending ApplyLayout 
+INFO   |zellij_server::screen    | 2026-09-25 02:52:00.328 [screen    ] zellij-server/src/screen.rs:9814: ScreenInstruction::ApplyLayout: applying layout for tab 2 
+ERROR  |zellij_server::tab       | 2026-09-25 02:52:00.328 [screen    ] zellij-server/src/tab/mod.rs:1777: Failed to apply layout: Not enough room for panes 
+WARN   |zellij_utils::input::layo| 2026-09-25 02:52:01.866 [wasm      ] zellij-utils/src/input/layout.rs:125: Overriding plugin alias 
+WARN   |zellij_utils::input::layo| 2026-09-25 02:52:01.866 [wasm      ] zellij-utils/src/input/layout.rs:125: Overriding plugin alias 
+INFO   |zellij_server::pty       | 2026-09-25 02:52:01.866 [pty       ] zellij-server/src/pty.rs:502: PtyInstruction::NewTab: spawning terminals for tab 3 
+INFO   |zellij_server::pty       | 2026-09-25 02:52:01.869 [pty       ] zellij-server/src/pty.rs:1307: spawn_terminals_for_layout: 1 tiled + 0 floating panes created, sending ApplyLayout 
+INFO   |zellij_server::screen    | 2026-09-25 02:52:01.869 [screen    ] zellij-server/src/screen.rs:9814: ScreenInstruction::ApplyLayout: applying layout for tab 3 
+ERROR  |zellij_server::tab       | 2026-09-25 02:52:01.869 [screen    ] zellij-server/src/tab/mod.rs:1777: Failed to apply layout: Not enough room for panes 
+INFO   |zellij_client            | 2026-09-25 02:52:03.540 [main      ] zellij-client/src/lib.rs:953: Starting Zellij client! 
+INFO   |zellij_client            | 2026-09-25 02:52:05.656 [main      ] zellij-client/src/lib.rs:953: Starting Zellij client! 
+ERROR  |???                      | 2026-09-25 02:52:05.661 [plugin-exec-1] zellij-server/src/plugins/zellij_exports.rs:879: a non-fatal error occurred
+
+Caused by:
+    0: failed to set plugin false selectable from plugin status-bar (ID 2)
+    1: failed to send message to screen
+    2: Originating Thread(s)
+       
+    3: failed to send message to channel 
+ERROR  |zellij_utils::errors::not| 2026-09-25 02:52:05.667 [screen    ] zellij-utils/src/errors.rs:850: Panic occurred:
+             thread: screen
+             location: At zellij-server/src/lib.rs:2191:18
+             message: Program terminates: a fatal error occurred
+
+Caused by:
+    failed to attach client 2 to tab with index 3 
+ERROR  |zellij_utils::errors::not| 2026-09-25 02:52:05.667 [server_router] zellij-utils/src/errors.rs:850: Panic occurred:
+             thread: server_router
+             location: At zellij-server/src/lib.rs:978:38
+             message: Program terminates: a fatal error occurred
+
+Caused by:
+    0: failed to handle instruction for client 2
+    1: failed to send message to screen
+    2: Originating Thread(s)
+       
+    3: failed to send message to channel 
+ERROR  |???                      | 2026-09-25 02:52:05.669 [plugin-exec-0] zellij-server/src/plugins/zellij_exports.rs:879: a non-fatal error occurred

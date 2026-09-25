@@ -1,0 +1,15 @@
+the same second-client attach against a single-tab throwaway session must match the earlier probe's figures (attach about 150-175 ms, zero stall lines)
+
+The single-tab case is zj-second-1tab-attached.marks.json, produced by the
+same client harness as the four-tab case with tabs=1:
+
+  attach_ms        163   (earlier probe: 150-175)          match
+  second_attach_ms 225
+  resize_ms         13   (resize 100 -> 80 cols)
+  server_error   false
+  stall delta        0   (33 before, 33 after)             match, zero
+
+So the four-tab figures are not an artefact of the harness or of the second
+attach: the same instrument on a one-tab session reproduces the earlier
+numbers, and the four-tab case differs only in the second attach's latency
+(307 ms against 225 ms) and in the tab-bar focus marker.

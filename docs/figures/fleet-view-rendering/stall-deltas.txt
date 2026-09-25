@@ -1,0 +1,16 @@
+# Stall-line counts around each probe run.
+#
+# Instrument: the zellij server log line for an action that exceeded its
+# timeout, counted immediately before the run and immediately after it. The
+# log is the per-uid server log on the fleet node; the count is a delta across
+# the run, so unrelated fleet activity before the run is already in the base.
+#
+# run                                     tabs  second client  before  after  delta
+4tab-attached (tabs opened while attached)    4        60 cols      33     33      0
+4tab-pre (tabs opened before any attach)      4        60 cols      33     33      0
+1tab-attached (negative control)              1        60 cols      33     33      0
+live claude pane (resize)                     1     resize only      33     33      0
+
+# Zero added stall lines in every run. The 4tab-pre run ends with the server
+# panicking, and it panics without emitting a timeout line: the failure is a
+# layout rejection and a thread panic, not a slow action.
