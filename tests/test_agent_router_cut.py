@@ -390,6 +390,49 @@ def test_pause_without_cut_lets_the_in_flight_relay_finish(tmp_path: Path) -> No
     asyncio.run(exercise())
 
 
+def test_cut_without_a_pause_lets_the_in_flight_relay_finish(tmp_path: Path) -> None:
+    """A cut ends a relay only while a pause holds beside it.
+
+    A gate file carrying ``cut`` alone declares no pause, so nothing in flight
+    may be ended by it: the relay drains to its own terminal chunk exactly as a
+    pause-free lane does. The pair above shows that same terminal chunk is what a
+    pause without a cut produces, so the two together are evidence about the
+    pause conjunct rather than about the response simply ending. ``paused``
+    absent and ``paused`` false reach the gate identically, because the setting
+    is read with a false default.
+    """
+
+    async def exercise() -> None:
+        gate_file = tmp_path / "router-gate.json"
+        # The cut is in the gate file before the relay is named, so the watcher
+        # a cut arms sees it on its first poll rather than racing the stream -- a
+        # mutation that honoured a cut with no pause would end this relay at once
+        # instead of the several seconds the slow engine takes to finish.
+        _write_gate(gate_file, width=4, cut=True)
+        engine = StreamingEngine(chunks=60, chunk_delay=0.05)
+        async with (
+            _server(_engine_app(engine)) as upstream,
+            _router(upstream, gate_file) as app,
+        ):
+            settings = app._generation_gate.settings()
+            assert settings.cut is True
+            assert settings.paused is False
+
+            task, _, sent = _start_call(
+                app, "POST", "/v1/messages", _body_bytes("first")
+            )
+            await _wait_started(engine)
+            await asyncio.wait_for(task, timeout=10)
+
+        assert _status(sent) == 200
+        assert len(_terminal_chunks(sent)) == 1
+        assert engine.arrivals == ["first"]
+        assert engine.completed.is_set()
+        assert not engine.cancelled.is_set()
+
+    asyncio.run(exercise())
+
+
 def test_pause_cut_ends_a_non_streaming_relay_with_a_retryable_overload(
     tmp_path: Path,
 ) -> None:
