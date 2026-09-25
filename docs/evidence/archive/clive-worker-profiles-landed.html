@@ -26,6 +26,21 @@
       <img src="/imas-ambix/figures/clive-worker-profiles/expansion-flow.svg" alt="Worker profile validation and route selection flow">
       <figcaption>Validation precedes context assembly, hook-aware route selection, receipt emission, and Claude Code execution.</figcaption>
     </figure>
+    <h2>Route repair — hook-carrying expansion on an empty <code>--setting-sources</code></h2>
+    <p><strong>Change.</strong> A profile carrying hook commands previously launched with <code>--setting-sources user</code>, which reloads the global guidance the profile exists to omit. The route now passes <code>--setting-sources ''</code> and merges the <code>hooks</code> block read from the user settings into the <code>--settings</code> file the launcher already hands the harness, with no <code>--bare</code> on that route. The hook-free route, the no-profile exec vector, and the validation refusals are unchanged.</p>
+    <h3>Measured contracts</h3>
+    <ul>
+      <li>Hook-bearing expansion argv: <code>--setting-sources ''</code> present with an empty value, <code>--bare</code> absent, the digest and the working directory's <code>AGENTS.md</code> in <code>--append-system-prompt</code>, and the fixture <code>hooks</code> block (Stop <code>stop-hook</code>, PreToolUse <code>guard-hook</code>) present in the settings payload handed to the harness.</li>
+      <li>Expansion record: <code>route == "settings"</code>, <code>hooks == ["stop-hook", "guard-hook"]</code>, and <code>evidence.hook_route_measurement</code> names <code>~/.config/reckon/crew/reports/cwp-settings-hook-check.md</code>.</li>
+      <li>The generated-launch stub no longer decides the hook outcome: it records argv and the settings payload only, and the suite asserts on the generated argv. Whether a hook fires is the live launch's measurement, not a fixture's.</li>
+      <li>No-profile exec: the base revision's exec line appears byte-identical, once, in the generated launcher.</li>
+      <li>Global file unreachable: the expansion adds no <code>--add-dir</code>, and the global <code>~/.agents/AGENTS.md</code> text does not appear in the appended prompt.</li>
+    </ul>
+    <h3>Live evidence (the hook route itself)</h3>
+    <p><code>~/.config/reckon/crew/reports/cwp-settings-hook-check.md</code> — real Claude Code 2.1.282 launched against a probe stub. With <code>--setting-sources ''</code> and the Stop hook in the explicit <code>--settings</code> file, the hook marker appears and both the user-memory and project-memory markers stay absent (first request 102,174 bytes vs 106,534 with all sources). A byte-identical control with the hook removed writes no marker; a default-sources positive control fires both hooks and carries all three markers.</p>
+    <h3>Gate and negative control</h3>
+    <p><code>uv run --no-sync pytest -p no:cacheprovider tests/test_agent_clive_worker_profile.py tests/test_agent_clive_picker.py</code> — 23 passed. <code>uv run --no-sync ruff check imas_ambix tests</code> — exit 0. <strong>Negative control</strong> (declared verbatim, applied as a scratch edit and restored): adding <code>--add-dir .</code> to the expansion fails <code>test_expansion_never_makes_the_global_agents_file_reachable</code> — <strong>1 failed, 9 passed</strong>, red log at <code>crew/runs/r-20260925T173248536034-cwp-profile-route-repair/negative-control.log</code>.</p>
+    <p><strong>Commit blocked.</strong> The common git directory was mounted read-only from the worker node (<code>fatal: Unable to create '…/.git/worktrees/cwp-profile-route-repair/index.lock': Read-only file system</code>), so this change is carried as an uncommitted diff; <code>expansion-flow.svg</code> annotates the settings route with the empty <code>setting-sources</code> value. No launcher was deployed.</p>
   </main>
 </body>
 </html>

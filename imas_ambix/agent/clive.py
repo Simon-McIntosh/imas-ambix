@@ -10,6 +10,7 @@ failure never enters the hosted proxy path.
 
 from __future__ import annotations
 
+import json
 import shlex
 from typing import TYPE_CHECKING
 
@@ -27,6 +28,15 @@ if TYPE_CHECKING:
 # absorb the larger contexts. A release whose usable budget is smaller than the
 # ceiling compacts at its own budget.
 AUTO_COMPACT_WINDOW_CEILING = 300_000
+
+# The hook-carrying expansion's flag choice is a measurement, not a reading of
+# the help text: Claude Code's help says --bare skips settings hooks, and
+# whether a hook in the explicit --settings file survives is decided by
+# launching a stub hook and watching for its marker. The receipt points at that
+# measurement so a later reader can re-derive the route rather than trust it.
+HOOK_ROUTE_EVIDENCE = (
+    "/home/ITER/mcintos/.config/reckon/crew/reports/cwp-settings-hook-check.md"
+)
 
 
 def generate_clive_script(
@@ -788,15 +798,19 @@ if agents_path is not None:
 prompt_parts.append("Dispatch guidance:\n" + sys.argv[5])
 prompt = "\n\n".join(prompt_parts)
 
-# Claude's help states that --bare skips settings hooks. Preserve the worker
-# safety hooks by taking the explicit settings route whenever the profile has
-# any hook commands; a profile without hooks can use the smaller bare route.
+# Claude's help states that --bare skips settings hooks, so a profile carrying
+# hook commands cannot use it. An empty --setting-sources then loads nothing
+# from the user or project config while still firing the hooks carried in the
+# explicit --settings file, which is why it is preferred over
+# --setting-sources user: user is the source that restores the global guidance
+# the profile exists to omit. Decided by measurement; see the record's
+# evidence pointer.
 route = "settings" if hook_commands else "bare"
 added_args = []
 if route == "bare":
     added_args.append("--bare")
 else:
-    added_args.extend(("--setting-sources", "user"))
+    added_args.extend(("--setting-sources", ""))
 added_args.extend(("--append-system-prompt", prompt))
 if mcp_path is not None:
     added_args.extend(("--strict-mcp-config", "--mcp-config", str(mcp_path)))
@@ -805,6 +819,11 @@ added_args.extend(("--tools", tools_value))
 receipt = {
     "profile": str(profile_path),
     "route": route,
+    "evidence": {"hook_route_measurement": __HOOK_ROUTE_EVIDENCE__},
+    "evidence_note": (
+        "hook_route_measurement is the live launch that decided the settings "
+        "route's --setting-sources value"
+    ),
     "files": {
         "profile": digest(profile_path),
         "digest": digest(digest_path),
@@ -832,7 +851,7 @@ PY
     if [[ "$PROFILE_ROUTE" == "bare" ]]; then
         PROFILE_ARGS+=(--bare)
     else
-        PROFILE_ARGS+=(--setting-sources user)
+        PROFILE_ARGS+=(--setting-sources "")
     fi
     PROFILE_ARGS+=(--append-system-prompt "$PROFILE_PROMPT")
     MCP_ARGUMENTS="$(python3 -c 'import json,sys; d=json.load(sys.stdin); f=d["receipt"]["files"]["mcp_config"]; print(f["path"] if f else "", end="")' <<< "$PROFILE_DATA")"
@@ -978,6 +997,7 @@ exit 2
         .replace(
             "__AUTO_COMPACT_WINDOW_CEILING__", str(AUTO_COMPACT_WINDOW_CEILING)
         )
+        .replace("__HOOK_ROUTE_EVIDENCE__", json.dumps(HOOK_ROUTE_EVIDENCE))
         .replace(
             "__HYBRID_BRANCH__",
             hybrid_branch if mode == "hybrid" else local_branch,
