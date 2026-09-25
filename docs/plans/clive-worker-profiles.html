@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="clive-worker-profiles">
+  <meta name="plan-title" content="Clive Worker Profiles — launch a worker with a role digest, a minimal MCP set and a narrowed tool list">
+  <meta name="plan-summary" content="clive takes a worker profile, expands it to verified Claude Code flags, and records the expansion; with no profile, behaviour is unchanged">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort-hours" content="3.0">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="general">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-sprint" content="S27">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-tags" content="agent-serving">
+  <meta name="plan-blocks" content="reckon:the-local-lane-is-the-default">
+  <title>Clive Worker Profiles | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-09-25">
+<meta name="plan-version" content="1">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;}">
+</head>
+<body>
+  <main class="plan-doc">
+    <h2 id="s1">§1 — Why, and what clive owns</h2>
+    <p><strong>The cost.</strong> Every clive worker starts at a median of 66.5k input tokens. About 22.5k of that is the global <code>~/.agents/AGENTS.md</code>, loaded whole into every worker whatever its role. The study behind this plan (<code>~/.config/reckon/crew/reports/reckon/s21-coord/worker-context-budget/context.md</code>) estimates that a role-scoped digest, plus narrowing the MCP servers and built-in tools, saves about 18–25k tokens per worker. On the local lane that is also less KV per session held against the 4M-token device pool, which the gate in <code>local-lane-admission-control</code> is sizing around.</p>
+    <p><strong>The split.</strong> The lead approved per-role digests, opt-in first and default later. Reckon owns the digest generator (which role gets which blocks) and an opt-in <code>--worker-profile</code> on <code>crew dispatch</code>. That work is tracked in reckon's <code>the-local-lane-is-the-default</code>. Clive owns the launch: it accepts a profile, turns it into Claude Code flags that <code>claude --help</code> actually lists, and records what it loaded. This plan is that clive half. It changes nothing for a launch that passes no profile.</p>
+    <p><strong>Three hazards the expansion must not walk into</strong>, each read from Claude Code 2.1.282's own help text on 2026-09-25:</p>
+    <ul>
+      <li><code>--bare</code> skips CLAUDE.md auto-discovery, and with it the <em>repository's</em> guidance, not only the global file. A worktree's <code>CLAUDE.md</code> <code>@</code>-includes <code>~/.agents/AGENTS.md</code>, so restoring context through <code>--add-dir</code> would load the global file again and undo the saving. The repository's own <code>AGENTS.md</code> must therefore be supplied explicitly, beside the digest.</li>
+      <li><code>--bare</code> also skips hooks defined in settings and plugins. Any hook that enforces worker safety stops firing. The profile must say, in its recorded expansion, which hooks are therefore absent, so the loss is visible rather than silent.</li>
+      <li><code>--tools</code> with an empty string disables every tool. A profile naming no tools must be refused, never expanded to <code>""</code>.</li>
+    </ul>
+
+    <h2 id="s2">§2 — clive accepts a worker profile and records its expansion</h2>
+<section data-reckon="section" data-id="s2" data-effort-hours="2.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-attempts="0" data-status="implementable" data-links=""></section>
+    <p><strong>The profile.</strong> A small JSON file with three keys. <code>digest</code> is the path of the role digest Reckon generates. <code>mcp_config</code> is the path of a minimal MCP configuration, or null for none. <code>tools</code> is a non-empty list of built-in tool names. Clive gains <code>--worker-profile PATH</code>, alongside its existing <code>--mode</code> and <code>--selector</code> options, and stops with a named error when the file is missing, a key is malformed, a path does not exist, or <code>tools</code> is empty.</p>
+    <p><strong>The expansion.</strong> With a profile, clive adds <code>--bare</code>. It supplies the digest and the working directory's own <code>AGENTS.md</code> (when present) through the system-prompt route <code>claude --help</code> lists, alongside the dispatch guidance clive already appends. It adds <code>--strict-mcp-config --mcp-config &lt;path&gt;</code> when <code>mcp_config</code> is set, and <code>--tools &lt;comma list&gt;</code>. It keeps every existing clive setting: the model picker settings file, the context and output ceilings, and the auto-compact window. Under <code>--bare</code> the only accepted credential is <code>ANTHROPIC_API_KEY</code> or an <code>apiKeyHelper</code>, so the node confirms that clive's fixed key still reaches the harness. <strong>The record.</strong> Before exec, clive writes one JSON line naming the profile path, each file's sha256 digest, and the exact argument vector it added. It goes to <code>$CLIVE_PROFILE_RECEIPT</code> when that variable is set and to stderr otherwise, so the run receipt shows exactly what was loaded.</p>
+    <p><strong>Done when</strong> tests over the generated launcher show four things. (1) With no profile, the exec line is byte-identical to the base revision's. (2) With a profile, the added arguments are exactly the expansion above, every flag appears in a recorded <code>claude --help</code> capture from the installed 2.1.x, and the record carries the three file digests. (3) Each malformed-profile case is refused with its named error, including an empty <code>tools</code> list. (4) A working directory without <code>AGENTS.md</code> expands without it rather than failing. Declared negative control: adding <code>--add-dir .</code> to the expansion must fail an assertion that the global file is not reachable from the launch. Gate: <code>uv run --no-sync pytest -p no:cacheprovider tests/test_agent_clive_worker_profile.py tests/test_agent_clive_picker.py</code> on the login node. No launcher is deployed by this section.</p>
+
+    <h2 id="s3">§3 — Qualify each role on a live worker before it becomes the default</h2>
+<section data-reckon="section" data-id="s3" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-attempts="0" data-status="implementable" data-links=""></section>
+    <p>A saving on paper is not a qualification. Once Reckon's generator and dispatch option have landed, and after the launcher carrying §2 is deployed from the main checkout (with its diff against the installed <code>/work/projects/imas_gpu/agents/clive</code> read first), run one throwaway worker per role (report, review, implement, test) twice: with its profile and without. Done when a table records, per role, the first-request input tokens both ways, together with a positive-control call of each tool the profile keeps and an MCP call where the profile keeps a server. The saving is stated as measured tokens, and a role whose control call fails is withheld from the default.</p>
+
+    
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-cwp-01" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-09-25" data-recommends-skill="/reckon-build clive-worker-profiles §2" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Build the profile option, then qualify each role live</h4>
+    <div class="r-fu-body"><p>§2 needs nothing from Reckon: the profile's shape is fixed here. §3 waits for Reckon's digest generator and its dispatch option to land.</p></div>
+    <pre class="r-fu-prompt">/reckon-build clive-worker-profiles §2</pre>
+    </article>
+</section>
+  </main>
+</body>
+</html>
