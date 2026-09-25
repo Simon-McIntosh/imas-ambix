@@ -1086,6 +1086,21 @@
     is itself a published figure: reckon sets both headers for clive workers through
     <code>ANTHROPIC_CUSTOM_HEADERS</code>, and codex workers stay unkeyed until their
     provider config carries them.</p>
+
+    <p><strong>Repair, 2026-09-25</strong> (<code>b1df1ee6</code>). An independent review
+    found that the header read sat above the <code>try</code> guarding the write, so a
+    scope whose headers were not pairs of bytes raised out of
+    <code>_record_receipt</code> &#8212; a method that runs in a <code>finally</code>
+    whose exception may still be propagating, so the raise would replace the relay's
+    own error with a bookkeeping one. The read is now guarded like the write: an
+    unreadable header sequence is logged and both identities are recorded null while
+    the row is still written. A test drives <code>_record_receipt</code> with two
+    malformed scopes and asserts two rows with null identities and no raise. The
+    repair's negative control, verbatim: &ldquo;moving the call back above the try must
+    fail the new test&rdquo; &#8212; with the call lifted out of its guard the test
+    fails at <code>1 failed, 33 deselected</code>, the <code>ValueError</code> escaping
+    the recorder. The declared gate then ran <strong>56 passed</strong> with whole-tree
+    <code>ruff</code> exit 0 at this head.</p>
   </section>
 </main>
 </body>
