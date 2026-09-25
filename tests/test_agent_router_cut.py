@@ -23,11 +23,14 @@ from imas_ambix.agent.router import RouterApp, Upstream
 from tests.test_agent_router_gate import (
     Resolver,
     _await_gate,
+    _body,
     _card,
+    _headers,
     _server,
     _start_call,
     _status,
 )
+from tests.test_request_receipts import _read_rows, _router_with_receipts
 
 AsgiMessage = dict[str, Any]
 
@@ -125,7 +128,38 @@ class StreamingEngine:
         return response
 
 
-def _engine_app(engine: StreamingEngine) -> web.Application:
+class HeldEngine:
+    """A stub engine that withholds its answer until its generation is done.
+
+    A non-streaming request receives neither bytes nor response headers before
+    the engine finishes, so its relay waits on the upstream response itself
+    rather than inside the body loop where a streaming relay spends its time.
+    ``cancelled`` is the engine observing that the router dropped the request
+    before it answered -- the observable that tells a cut from an engine that
+    simply took its time -- and ``completed`` is the engine reaching its own end.
+    """
+
+    def __init__(self, *, delay: float = 30.0) -> None:
+        self.delay = delay
+        self.arrivals: list[str] = []
+        self.started = asyncio.Event()
+        self.cancelled = asyncio.Event()
+        self.completed = asyncio.Event()
+
+    async def completion(self, request: web.Request) -> web.Response:
+        payload = await request.json()
+        self.arrivals.append(str(payload.get("label", "request")))
+        self.started.set()
+        try:
+            await asyncio.sleep(self.delay)
+        except _UPSTREAM_ABORTS:
+            self.cancelled.set()
+            raise
+        self.completed.set()
+        return web.json_response({"choices": [{"message": {"content": "done"}}]})
+
+
+def _engine_app(engine: StreamingEngine | HeldEngine) -> web.Application:
     app = web.Application()
 
     async def catalog(_: web.Request) -> web.Response:
@@ -135,6 +169,26 @@ def _engine_app(engine: StreamingEngine) -> web.Application:
     app.router.add_post("/v1/messages", engine.completion)
     app.router.add_post("/v1/chat/completions", engine.completion)
     return app
+
+
+@asynccontextmanager
+async def _cancelling_server(app: web.Application):
+    """Serve ``app``, cancelling a handler when its own client goes away.
+
+    aiohttp runs a handler to completion on a client disconnect unless the
+    server is asked not to, so a stub engine that withholds its answer cannot
+    otherwise observe the router dropping its request -- and without that
+    observation a cut is indistinguishable from an engine that took its time.
+    """
+    runner = web.AppRunner(app, handler_cancellation=True)
+    await runner.setup()
+    site = web.TCPSite(runner, "127.0.0.1", 0)
+    await site.start()
+    sockets = site._server.sockets
+    try:
+        yield f"http://127.0.0.1:{sockets[0].getsockname()[1]}"
+    finally:
+        await runner.cleanup()
 
 
 @asynccontextmanager
@@ -332,5 +386,64 @@ def test_pause_without_cut_lets_the_in_flight_relay_finish(tmp_path: Path) -> No
         assert len(_terminal_chunks(sent)) == 1
         assert engine.completed.is_set()
         assert not engine.cancelled.is_set()
+
+    asyncio.run(exercise())
+
+
+def test_pause_cut_ends_a_non_streaming_relay_with_a_retryable_overload(
+    tmp_path: Path,
+) -> None:
+    """A relay that has not been answered yet is cut out of its upstream wait.
+
+    A non-streaming request receives neither bytes nor response headers before
+    the engine finishes, so the relay is waiting on the upstream response itself
+    and never reaches the body loop a streaming relay spends its time in. The
+    cut form does not apply here because nothing has been handed to the caller:
+    every form answers the same retryable overload, which a client re-sends into
+    the paused FIFO.
+    """
+
+    async def exercise() -> None:
+        receipts = tmp_path / "requests.jsonl"
+        for cut_form in (None, "close", "error"):
+            gate_file = tmp_path / f"router-gate-held-{cut_form}.json"
+            _write_gate(gate_file, width=4)
+            engine = HeldEngine()
+            async with (
+                _cancelling_server(_engine_app(engine)) as upstream,
+                _router_with_receipts(
+                    [Upstream(upstream)],
+                    receipts,
+                    gate_file=gate_file,
+                    receipt_max_rows_per_s=float("inf"),
+                ) as app,
+            ):
+                body = json.dumps(
+                    {"model": "streamer", "stream": False, "label": "held"}
+                ).encode()
+                task, _, sent = _start_call(
+                    app, "POST", "/v1/chat/completions", body
+                )
+                await _wait_started(engine)
+                began = asyncio.get_running_loop().time()
+                _write_gate(
+                    gate_file, width=4, paused=True, cut=True, cut_form=cut_form
+                )
+                await asyncio.wait_for(task, timeout=10)
+                elapsed = asyncio.get_running_loop().time() - began
+                await asyncio.wait_for(engine.cancelled.wait(), timeout=3)
+
+            assert elapsed < 10, f"cut_form={cut_form} took {elapsed:.1f}s"
+            assert _status(sent) == 529
+            assert b"overloaded_error" in _body(sent)
+            assert _headers(sent).get(b"retry-after")
+            assert not engine.completed.is_set()
+
+        # One row per cut form, each recording the relay the cut ended. The
+        # cut is a departure the router performed, so the row says the answer
+        # was never handed over rather than that the caller received it.
+        rows = _read_rows(receipts)
+        assert len(rows) == 3
+        assert {row["status"] for row in rows} == {"aborted"}
 
     asyncio.run(exercise())

@@ -85,6 +85,47 @@ def _cut_error_frame() -> bytes:
     }
     return b"event: error\ndata: " + json.dumps(payload).encode() + b"\n\n"
 
+
+def _cut_overload_body() -> bytes:
+    """The retryable overload answer for a relay cut before its upstream answered.
+
+    A relay is answered whole here rather than truncated because nothing has
+    been handed to the caller yet: the cut won the race against the upstream
+    response, so there is no stream to end and no partial body to complete. The
+    shape is the gate's own wait expiry -- 529 with a short Retry-After -- so a
+    client that honours it re-sends the same turn, which lands in the paused
+    FIFO where resume admits it in arrival order.
+    """
+    return json.dumps(
+        {
+            "type": "error",
+            "error": {
+                "type": "overloaded_error",
+                "message": "generation cut by an operator pause; retry the request",
+            },
+        },
+        separators=(",", ":"),
+    ).encode()
+
+
+async def _open_upstream(
+    session: aiohttp.ClientSession,
+    method: str,
+    target: str,
+    body: bytes,
+    headers: list[tuple[str, str]],
+) -> aiohttp.ClientResponse:
+    """Await the upstream's response, so the wait for it can be raced.
+
+    Kept separate from the relay's body loop because for some relays this is the
+    only wait there is: a non-streaming answer sends nothing until its
+    generation is complete. A task is the only handle a race can cancel, and
+    cancelling this is what drops the upstream request the client never heard
+    about.
+    """
+    return await session.request(method, target, data=body, headers=headers)
+
+
 # The automatic width mode sizes the gate to the pool the engine actually holds
 # rather than to a number an operator picks once and forgets. The width is
 # floor(pool tokens x target / context), so it moves with the workload: a lane
@@ -1626,6 +1667,30 @@ class RouterApp:
             scope, "", began, http_status=200, caller_gone=caller_gone
         )
 
+    async def _cut_before_upstream(self, send: Send) -> None:
+        """Answer a relay the cut won before its upstream response arrived.
+
+        Nothing has been sent to the caller at this point -- the upstream was
+        still generating and had not written its headers -- so the answer is a
+        whole response rather than a truncated stream. The 529 and its short
+        Retry-After match the gate's wait expiry, so a client that honours them
+        re-sends the same turn and lands in the paused FIFO, where resume admits
+        it in arrival order.
+        """
+        body = _cut_overload_body()
+        await send(
+            {
+                "type": "http.response.start",
+                "status": 529,
+                "headers": [
+                    (b"content-type", b"application/json"),
+                    (b"content-length", str(len(body)).encode()),
+                    (b"retry-after", str(GENERATION_RETRY_AFTER_SECONDS).encode()),
+                ],
+            }
+        )
+        await send({"type": "http.response.body", "body": body})
+
     async def _relay(
         self,
         scope: dict[str, Any],
@@ -1690,9 +1755,35 @@ class RouterApp:
             else None
         )
         try:
-            async with session.request(
-                scope["method"], target, data=body, headers=request_headers
-            ) as response:
+            # Opening the upstream is itself a wait the cut has to be able to
+            # end, and for some relays it is the only one. A streaming answer
+            # sends its headers before its first token, so the body loop below
+            # sees the cut; a non-streaming answer sends nothing at all until
+            # its generation is complete, so a relay in that shape holds its
+            # decode width here from the pause until the engine finishes -- the
+            # whole wait a cut exists to shorten. Racing the two is what lets a
+            # cut pause end exactly the relays that are longest in flight.
+            opened = asyncio.create_task(
+                _open_upstream(
+                    session, scope["method"], target, body, request_headers
+                )
+            )
+            if cut_task is not None:
+                done, _ = await asyncio.wait(
+                    {opened, cut_task}, return_when=asyncio.FIRST_COMPLETED
+                )
+                if cut_task in done:
+                    # Nothing has been handed to the caller yet, so the cut is
+                    # answered with a whole response rather than a truncated
+                    # stream: the retryable overload the gate's own wait expiry
+                    # uses, which a client re-sends into the paused FIFO.
+                    opened.cancel()
+                    await asyncio.gather(opened, return_exceptions=True)
+                    status = STATUS_ABORTED
+                    await self._cut_before_upstream(send)
+                    return
+            response = await opened
+            async with response:
                 # The response's status describes what the ENGINE accepted, not
                 # what the caller received. Holding it here and promoting it to
                 # the row's outcome only once the body has been relayed whole is
