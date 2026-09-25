@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 600" font-family="Helvetica, Arial, sans-serif" font-size="15">
+  <rect width="940" height="600" fill="#fbfbfa"/>
+
+  <text x="40" y="40" font-size="20" font-weight="700" fill="#1a1a1a">Each sweep axis is a launch setting, so a depth cell costs a relaunch</text>
+  <text x="40" y="64" fill="#555" font-size="14">The concurrency ladder varies per request; the DSpark block size only at launch. Both reach the sweep from the CLI, not a profile edit.</text>
+
+  <!-- ============ Panel A: concurrency ladder ============ -->
+  <line x1="40" y1="84" x2="900" y2="84" stroke="#d8d8d4"/>
+  <text x="40" y="112" font-size="16" font-weight="700" fill="#1b6b3a">A — concurrency ladder: one bench run</text>
+
+  <rect x="40" y="128" width="230" height="54" rx="8" fill="#eef7f0" stroke="#1b6b3a" stroke-width="2"/>
+  <text x="155" y="152" text-anchor="middle" fill="#123" font-family="monospace" font-size="13">agent bench --levels</text>
+  <text x="155" y="170" text-anchor="middle" fill="#123" font-family="monospace" font-size="13">4,8,12,16,20,24,28,32,36</text>
+
+  <g stroke="#1b6b3a" stroke-width="2" fill="none" marker-end="url(#a)">
+    <line x1="270" y1="155" x2="316" y2="155"/>
+  </g>
+
+  <rect x="320" y="128" width="200" height="54" rx="8" fill="#eef7f0" stroke="#1b6b3a" stroke-width="2"/>
+  <text x="420" y="152" text-anchor="middle" fill="#123" font-family="monospace" font-size="13">_concurrency_levels()</text>
+  <text x="420" y="170" text-anchor="middle" fill="#123" font-size="13">parses whole or refuses</text>
+
+  <g stroke="#1b6b3a" stroke-width="2" fill="none" marker-end="url(#a)">
+    <line x1="520" y1="155" x2="566" y2="155"/>
+  </g>
+
+  <rect x="570" y="128" width="330" height="54" rx="8" stroke="#1b6b3a" stroke-width="2" fill="#eef7f0"/>
+  <text x="735" y="152" text-anchor="middle" fill="#123" font-family="monospace" font-size="13">_run_concurrency(levels=[…])</text>
+  <text x="735" y="170" text-anchor="middle" fill="#123" font-size="13">sweeps the ladder in order</text>
+
+  <!-- per-level row -->
+  <g stroke="#1b6b3a" stroke-width="2" fill="none" marker-end="url(#a)">
+    <line x1="735" y1="182" x2="735" y2="214"/>
+  </g>
+  <rect x="470" y="218" width="430" height="80" rx="8" fill="#f4f4f2" stroke="#8a8a86"/>
+  <text x="486" y="242" fill="#333" font-size="13">per level, per repeat:</text>
+  <text x="486" y="262" fill="#333" font-family="monospace" font-size="12">scrape /metrics &#8594; accept_length, active_draft_tokens</text>
+  <text x="486" y="282" fill="#333" font-family="monospace" font-size="12">row.metadata = {aggregate_tps, n_workers, spec_decode{…}}</text>
+  <text x="486" y="296" fill="#777" font-size="12">absent gauge &#8594; null, never 0</text>
+
+  <!-- the default is unchanged -->
+  <rect x="40" y="218" width="400" height="80" rx="8" fill="#fbfbfa" stroke="#8a8a86" stroke-dasharray="4 3"/>
+  <text x="56" y="242" fill="#555" font-size="13" font-weight="700">--levels omitted</text>
+  <text x="56" y="264" fill="#555" font-family="monospace" font-size="12">DEFAULT_CONCURRENCY_LEVELS = (1,2,4,8,16,32)</text>
+  <text x="56" y="284" fill="#555" font-size="12">unchanged from the hardcoded ladder it replaces</text>
+
+  <!-- ============ Panel B: draft depth ============ -->
+  <line x1="40" y1="322" x2="900" y2="322" stroke="#d8d8d4"/>
+  <text x="40" y="350" font-size="16" font-weight="700" fill="#8a5a12">B — DSpark block size: one relaunch per cell</text>
+
+  <rect x="40" y="366" width="230" height="54" rx="8" fill="#fdf6e8" stroke="#b5811b" stroke-width="2"/>
+  <text x="155" y="390" text-anchor="middle" fill="#412" font-family="monospace" font-size="13">agent serve|restart</text>
+  <text x="155" y="408" text-anchor="middle" fill="#412" font-family="monospace" font-size="13">--dspark-block-size N</text>
+
+  <g stroke="#b5811b" stroke-width="2" fill="none"/>
+  <g stroke="#b5811b" stroke-width="2" fill="none" marker-end="url(#c)">
+    <line x1="270" y1="393" x2="316" y2="393"/>
+  </g>
+
+  <rect x="320" y="358" width="230" height="70" rx="8" fill="#fdf6e8" stroke="#b5811b" stroke-width="2"/>
+  <text x="435" y="382" text-anchor="middle" fill="#412" font-family="monospace" font-size="13">_override_dspark_block_size</text>
+  <text x="435" y="402" text-anchor="middle" fill="#412" font-size="13">sglang engine AND</text>
+  <text x="435" y="420" text-anchor="middle" fill="#412" font-size="13">speculative_algorithm == DSPARK ?</text>
+
+  <!-- yes branch -->
+  <g stroke="#1b6b3a" stroke-width="2" fill="none" marker-end="url(#a)">
+    <line x1="550" y1="378" x2="596" y2="378"/>
+  </g>
+  <text x="573" y="370" text-anchor="middle" fill="#1b6b3a" font-size="13" font-weight="700">yes</text>
+  <rect x="600" y="352" width="300" height="52" rx="8" fill="#eef7f0" stroke="#1b6b3a" stroke-width="2"/>
+  <text x="750" y="374" text-anchor="middle" fill="#123" font-family="monospace" font-size="12">script: --speculative-dspark-block-size N</text>
+  <text x="750" y="392" text-anchor="middle" fill="#123" font-size="12">everything else byte-identical</text>
+
+  <!-- no branch -->
+  <g stroke="#a11b1b" stroke-width="2" fill="none" marker-end="url(#b)">
+    <line x1="550" y1="410" x2="596" y2="410"/>
+  </g>
+  <text x="573" y="430" text-anchor="middle" fill="#a11b1b" font-size="13" font-weight="700">no</text>
+  <rect x="600" y="412" width="300" height="46" rx="8" fill="#fdeeee" stroke="#a11b1b" stroke-width="2"/>
+  <text x="750" y="440" text-anchor="middle" fill="#411" font-family="monospace" font-size="12">ClickException — flag never emitted</text>
+
+  <!-- footer -->
+  <line x1="40" y1="480" x2="900" y2="480" stroke="#d8d8d4"/>
+  <text x="40" y="510" font-weight="700" fill="#1a1a1a">What the tests assert</text>
+  <text x="40" y="536" y-font-size="14" font-size="14" fill="#333">A supplied ladder reaches the concurrency runner in order; an omitted one leaves the default untouched. The depth override reaches the generated serve script, the profile's declared value renders when it is absent, and a non-DSpark profile refuses it.</text>
+  <text x="40" y="562" font-size="14" fill="#333">Negative control: dropping the override from the generated script fails the dry-run test (3 failed); restored byte-identical.</text>
+  <text x="40" y="586" fill="#333" font-family="monospace" font-size="13">uv run --no-sync pytest -p no:cacheprovider tests/test_bench.py tests/test_agent_sweep_options.py  &#8594;  36 passed</text>
+
+  <defs>
+    <marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="#1b6b3a"/>
+    </marker>
+    <marker id="b" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="#a11b1b"/>
+    </marker>
+    <marker id="c" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="#b5811b"/>
+    </marker>
+  </defs>
+</svg>
