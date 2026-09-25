@@ -34,7 +34,13 @@ assuming it worked.
 
 ### 1. Announce the pause to the live coordinators
 
-`crew(view="directory")` lists the live reckon coordinators; add the
+Run the directory command to list the live reckon coordinators:
+
+```bash
+/home/ITER/mcintos/Code/reckon/.venv/bin/reckon crew directory --project imas-ambix
+```
+
+Add the
 interactive sessions running on this machine. Message every session whose
 workers dispatch to the lane before touching the gate:
 
@@ -91,7 +97,18 @@ passed; a serve setting with no CLI flag is a profile edit
 Check the generated script before submitting it:
 
 ```bash
-uv run imas-ambix agent restart deepseek-v4-1-flash --dry-run | grep -c '\.reckon-worktrees'   # must print 0
+set -o pipefail
+dry_run_output="$(uv run imas-ambix agent restart deepseek-v4-1-flash --dry-run)" || {
+  status=$?
+  printf 'dry-run failed before script inspection (exit %s)\n' "$status" >&2
+  exit "$status"
+}
+match_count="$(
+  printf '%s\n' "$dry_run_output" |
+    grep -c '\.reckon-worktrees' || test "$?" -eq 1
+)"
+printf 'worktree paths: %s\n' "$match_count"
+test "$match_count" -eq 0
 ```
 
 Then relaunch (this is shutdown plus serve, so the endpoint document
@@ -168,6 +185,15 @@ Record four figures against the cycle:
 Write the cycle's record to the plan evidence record that owns the cycle, so
 the figures sit beside the settings they were measured under. A cycle that ran
 as an inline exception also leaves a one-line note in the run's own directory.
+Set `RECKON_RUN_ID` to that inline exception's run id and set the four value
+variables from the readings above, then append the machine-readable record to
+`/home/ITER/mcintos/.config/reckon/crew/runs/$RECKON_RUN_ID/lane-cycle.jsonl`:
+
+```bash
+CYCLE_RECORD="/home/ITER/mcintos/.config/reckon/crew/runs/${RECKON_RUN_ID:?set RECKON_RUN_ID to this inline cycle's run id}/lane-cycle.jsonl"
+printf '{"pause_start":"%s","pause_end":"%s","peak_held":%s,"final_failures":%s}\n' \
+  "$PAUSE_START" "$PAUSE_END" "$PEAK_HELD" "$FINAL_FAILURES" >> "$CYCLE_RECORD"
+```
 
 ## Bounds
 
