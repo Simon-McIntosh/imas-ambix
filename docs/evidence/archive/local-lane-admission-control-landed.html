@@ -573,6 +573,8 @@
     (<code>5 failed, 6 passed</code>). Both edits were restored, and the controller
     source was byte-identical to its pre-control copy before the gate above ran.</p>
 
+    <p id="width-controller-health-window"><strong>Health-window correction, 2026-09-25</strong> (<code>5c74c0c9</code>). The coordinator's reproduction against the prior controller recorded 100 idle scrapes with <code>running=0</code> and <code>prefix_hit_rate=0.0</code> driving width 36 to 4, and one <code>prefix_hit_rate=0.80</code> reading in six loaded scrapes driving width 20 to 18. The repair skips every health guard for a zero or missing running count, stores health samples beside the sixteen throughput samples, and requires a guard to hold in at least half the judged window before one down-step. The guard state is cleared at the window boundary, so a sustained failure moves once per window rather than once per scrape. The new regression tests pass 14/14 in isolation and the declared integrated gate passes 34/34 in 5.12 s; whole-tree <code>ruff check imas_ambix tests</code> exits 0. The per-scrape guard was restored as a scratch mutation and the two new tests failed (<code>2 failed</code>): idle prefix sentinel ratcheting and one noisy loaded reading. The scratch mutation was removed before the final green gate; <code>git diff</code> is empty at <code>5c74c0c9</code>.</p>
+
     <p><strong>Not deployed.</strong> The controller is landed but not in force: no
     router restart and no write to <code>router-gate.json</code>, so the operator
     width of 14 stands. The speculative-depth sweep and the served-settings
