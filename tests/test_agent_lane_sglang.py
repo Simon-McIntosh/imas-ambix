@@ -32,6 +32,7 @@ def test_sglang_metrics_produce_a_populated_lane_capacity(tmp_path):
         hicache_host_used_tokens=55_552,
     )
     assert capacity.binding_observed is None
+    assert capacity.generation_tokens == 104
     document = json.loads(
         write_lane_document(capacity, tmp_path / "lane.json").read_text(
             encoding="utf-8"
