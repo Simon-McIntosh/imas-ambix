@@ -1,0 +1,303 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effort": "high",
+    "launch": "cli",
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "worktree-full",
+    "usable_input_window": 480000
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "eb75d76b6c9c58949719854f90c74d799ff9977c",
+  "boundary_waiver": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "inference_geo": "",
+      "input_tokens": 8907872,
+      "input_tokens_cumulative": 8907872,
+      "output_tokens": 36548,
+      "output_tokens_cumulative": 36548,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": {
+    "added": 126,
+    "files": 5,
+    "removed": 5
+  },
+  "commit_resolution": null,
+  "commits": [
+    "03f88c9e3fc354b42be623825cf3cbca9cec0e0a",
+    "2b0d930c2222bc3c0137ee7f4d4dd56484a5c4fe"
+  ],
+  "completed_at": "2026-09-25T14:09:00.662Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-09-25T13:45:00Z",
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": true,
+    "matched_measure": "pytest -p",
+    "override": false,
+    "role": "implement",
+    "status": "compatible"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [],
+  "gate": "passed",
+  "gate_check": {
+    "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv uv run --no-sync pytest -p no:cacheprovider tests/test_agent_sweep_options.py",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T134452356205-s17-ladder-rejects-blank-level/gate-sweep-options-post-restore.log"
+  },
+  "impl_move": {
+    "at_complete": 0.9,
+    "at_dispatch": 0.9,
+    "plan": "local-lane-admission-control",
+    "reason": "follow-up fix on an already-counted sweep-tooling node",
+    "verdict": "waived"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-09-25T14:14:52.880524+00:00",
+    "horizon_seconds": 1800,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": "clive",
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-09-25T13:44:52Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 11,
+    "binding_observed": "unknown",
+    "detail": "",
+    "headroom": 14,
+    "mean_context": 91429,
+    "observed_at": "2026-09-25T13:44:41Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-09-25T14:09:00.662Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": false,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T134452356205-s17-ladder-rejects-blank-level/manifest.md",
+  "member": "llac-dryrun",
+  "negative_control": {
+    "declaration": "restoring the skip of empty components in _concurrency_levels must fail the '4,,8' case; applied as a scratch edit and restored",
+    "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T134452356205-s17-ladder-rejects-blank-level/negative-control-blank-level.log",
+    "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T134452356205-s17-ladder-rejects-blank-level/negative-control-blank-level.log",
+    "test_paths": [
+      "tests/test_agent_sweep_options.py"
+    ],
+    "verdict": "matched"
+  },
+  "no_commit": null,
+  "node": "s17-ladder-rejects-blank-level",
+  "node_definition": {
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 2774,
+          "cached_input_tokens": 580360,
+          "input_tokens": 583136,
+          "output_tokens": 887,
+          "reasoning_output_tokens": 81,
+          "total_tokens": 584023,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "38dec84a-7cb6-4b27-ace6-501cc76dbec0",
+      "session_id": "llac-s14-0925"
+    },
+    "done_when": "'uv run --no-sync pytest -p no:cacheprovider tests/test_agent_sweep_options.py' exits 0 on the login node with the malformed-ladder parametrization extended to '4,,8', '4,8,' and ',4,8', each refused by _concurrency_levels in imas_ambix/agent/cli.py with a click error naming the empty component; every existing test in the file stays green; the declared negative control is recorded verbatim with its failing test count in the manifest; 'uv run --no-sync ruff check imas_ambix tests' exits 0.",
+    "estimated_hours": null,
+    "goal": "Make the --levels parser refuse a ladder with an empty interior component",
+    "id": "s17-ladder-rejects-blank-level",
+    "lane_declaration": {
+      "backend": "clive",
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-09-25T13:44:52Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 11,
+      "binding_observed": "unknown",
+      "detail": "",
+      "headroom": 14,
+      "mean_context": 91429,
+      "observed_at": "2026-09-25T13:44:41Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T134452356205-s17-ladder-rejects-blank-level/manifest.md",
+    "negative_control": "restoring the skip of empty components in _concurrency_levels must fail the '4,,8' case; applied as a scratch edit and restored",
+    "plan": "local-lane-admission-control",
+    "requested_backend": "clive",
+    "requires_decisions": [],
+    "role": "implement",
+    "section": "§17",
+    "spec_level": "exact",
+    "time_budget": "30m",
+    "token_budget": null,
+    "write_paths": [
+      "imas_ambix/agent/cli.py",
+      "tests/test_agent_sweep_options.py",
+      "docs/evidence/archive/local-lane-admission-control-landed.html",
+      "docs/figures/local-lane-admission-control",
+      "docs/plans/local-lane-admission-control.html"
+    ]
+  },
+  "orientation_input_tokens": 1032053.0,
+  "outcome": "",
+  "plan": "local-lane-admission-control",
+  "plan_impl_at_dispatch": 0.9,
+  "promoted_revision": "2b0d930c2222bc3c0137ee7f4d4dd56484a5c4fe",
+  "release": {
+    "process_signalled": false,
+    "process_withheld": "process is not alive",
+    "worktree_audit": {
+      "counts": {
+        "dirty": 0,
+        "disposable": 0,
+        "integrated": 0,
+        "live-referenced": 0,
+        "retained-for-resume": 0,
+        "unintegrated": 0
+      },
+      "worktrees": [
+        {
+          "available": false,
+          "detail": "tree is no longer available",
+          "path": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/llac-s14-0925/s17-ladder-rejects-blank-level"
+        }
+      ]
+    },
+    "worktree_released": true
+  },
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "scores": {
+      "durability": 19,
+      "evidence": 20,
+      "fit": 20,
+      "goal_fidelity": 20,
+      "scope_discipline": 20
+    },
+    "status": "parsed",
+    "total": 99
+  },
+  "role": "implement",
+  "run_id": "r-20260925T134452356205-s17-ladder-rejects-blank-level",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§17",
+  "session_harness": "claude",
+  "session_id": "2c0a22c0-02f8-494c-a0d6-28d9695998ca",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "exact",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 8,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 8907872,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+    "elapsed_seconds": 1429.252,
+    "generated_tokens": 36548,
+    "generation_seconds": 1406.213,
+    "input_budget_tokens": 480000,
+    "input_utilisation_pct": 34.6,
+    "machine_seconds": 23.039,
+    "peak_input_tokens": 166147,
+    "tokens_per_second": 25.99,
+    "wall_tokens_per_second": 25.57
+  },
+  "time_budget": "30m",
+  "tool_steps": 72.0,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": []
+  },
+  "wall_seconds": 1440,
+  "watch_override": null,
+  "worker_exit": {
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-09-25T14:09:01Z",
+    "last_record_type": "result",
+    "launched_at": "2026-09-25T13:45:07Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20260925T134452356205-s17-ladder-rejects-blank-level",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 5653,
+    "worker_pid": 1175008
+  },
+  "worker_seconds": 1418,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
