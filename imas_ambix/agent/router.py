@@ -56,6 +56,75 @@ DEFAULT_GENERATION_WIDTH = 22
 DEFAULT_GENERATION_WAIT_SECONDS = 300.0
 GENERATION_RETRY_AFTER_SECONDS = 5
 _GATE_CONFIG_REFRESH_SECONDS = 1.0
+# A pause can end the relays already in flight instead of waiting for the
+# longest turn to finish. The cut is a property of a pause, never a mode on its
+# own: cutting with no pause would end each relay at the moment it was admitted,
+# so ``cut`` is honoured only while ``paused`` holds. The two forms answer the
+# cut client stream differently -- ``close`` drops the connection with no
+# terminal chunk, which a streaming client retries as a streaming request, and the
+# ``error`` form writes an SSE overloaded_error frame and ends the stream for
+# clients that need an explicit signal. Both cancel the upstream request, so the
+# engine aborts it rather than finishing a generation nobody will read.
+GATE_CUT_FORMS = ("close", "error")
+DEFAULT_GATE_CUT_FORM = "close"
+# The cut is discovered by polling the same gate file the rest of the settings
+# come from, so an operator edit reaches a relay already streaming without
+# anyone holding a handle to it. This interval bounds how long an in-flight
+# relay can survive a cut that has already been written.
+_CUT_POLL_SECONDS = 0.2
+
+
+def _cut_error_frame() -> bytes:
+    """One Anthropic SSE error event carrying an overloaded_error."""
+    payload = {
+        "type": "error",
+        "error": {
+            "type": "overloaded_error",
+            "message": "generation cut by an operator pause; retry the request",
+        },
+    }
+    return b"event: error\ndata: " + json.dumps(payload).encode() + b"\n\n"
+
+
+def _cut_overload_body() -> bytes:
+    """The retryable overload answer for a relay cut before its upstream answered.
+
+    A relay is answered whole here rather than truncated because nothing has
+    been handed to the caller yet: the cut won the race against the upstream
+    response, so there is no stream to end and no partial body to complete. The
+    shape is the gate's own wait expiry -- 529 with a short Retry-After -- so a
+    client that honours it re-sends the same turn, which lands in the paused
+    FIFO where resume admits it in arrival order.
+    """
+    return json.dumps(
+        {
+            "type": "error",
+            "error": {
+                "type": "overloaded_error",
+                "message": "generation cut by an operator pause; retry the request",
+            },
+        },
+        separators=(",", ":"),
+    ).encode()
+
+
+async def _open_upstream(
+    session: aiohttp.ClientSession,
+    method: str,
+    target: str,
+    body: bytes,
+    headers: list[tuple[str, str]],
+) -> aiohttp.ClientResponse:
+    """Await the upstream's response, so the wait for it can be raced.
+
+    Kept separate from the relay's body loop because for some relays this is the
+    only wait there is: a non-streaming answer sends nothing until its
+    generation is complete. A task is the only handle a race can cancel, and
+    cancelling this is what drops the upstream request the client never heard
+    about.
+    """
+    return await session.request(method, target, data=body, headers=headers)
+
 
 # The automatic width mode sizes the gate to the pool the engine actually holds
 # rather than to a number an operator picks once and forgets. The width is
@@ -134,10 +203,15 @@ class _GateSettings:
     width_cap: int = DEFAULT_AUTO_WIDTH_CAP
     # A pause outranks the width: an operator declaring the lane paused wants no
     # NEW generation to start, whatever the gate would otherwise admit. Requests
-    # already admitted run to completion -- the pause drains, it does not cut --
-    # and callers that arrive during it wait in the same FIFO as any other
+    # already admitted run to completion unless ``cut`` is also set, in which
+    # case they are ended instead and each cut client stream is answered by
+    # ``cut_form``: an overloaded_error frame, or the connection dropped without
+    # a terminal chunk. The upstream request is cancelled in both forms, and
+    # callers that arrive during the pause wait in the same FIFO as any other
     # caller, so clearing the flag admits them in arrival order.
     paused: bool = False
+    cut: bool = False
+    cut_form: str = DEFAULT_GATE_CUT_FORM
     reason: str | None = None
 
 
@@ -304,6 +378,12 @@ class _GenerationGate:
         paused = payload.get("paused", False)
         if type(paused) is not bool:
             raise ValueError("paused must be a boolean")
+        cut = payload.get("cut", False)
+        if type(cut) is not bool:
+            raise ValueError("cut must be a boolean")
+        cut_form = payload.get("cut_form", DEFAULT_GATE_CUT_FORM)
+        if cut_form not in GATE_CUT_FORMS:
+            raise ValueError('cut_form must be one of "close" or "error"')
         reason = payload.get("reason")
         if reason is not None and not isinstance(reason, str):
             raise ValueError("reason must be a string")
@@ -333,13 +413,20 @@ class _GenerationGate:
                 width_floor=floor,
                 width_cap=cap,
                 paused=paused,
+                cut=cut,
+                cut_form=cut_form,
                 reason=reason,
             )
             return replace(settings, width=self._auto_width(settings))
         if type(raw_width) is not int or raw_width < 0:
             raise ValueError('width must be a non-negative integer or "auto"')
         return _GateSettings(
-            raw_width, float(wait_seconds), paused=paused, reason=reason
+            raw_width,
+            float(wait_seconds),
+            paused=paused,
+            cut=cut,
+            cut_form=cut_form,
+            reason=reason,
         )
 
     def _memory_width(self, settings: _GateSettings) -> int | None:
@@ -847,6 +934,20 @@ class _GenerationGate:
             self._in_flight -= 1
             self._condition.notify_all()
 
+    async def wait_for_cut(self) -> None:
+        """Return once a paused gate declares a cut, so a relay can end itself.
+
+        The setting is re-read from the gate file rather than signalled through
+        a handle, which is what lets an operator cut relays in flight, and what
+        makes a cut survive a router restart: nothing has to be carried in
+        memory for the next process to honour it.
+        """
+        while True:
+            settings = self.settings()
+            if settings.paused and settings.cut:
+                return
+            await asyncio.sleep(_CUT_POLL_SECONDS)
+
     def snapshot(self) -> dict[str, object]:
         settings = self.settings()
         snapshot: dict[str, object] = {
@@ -1259,6 +1360,7 @@ class RouterApp:
                 started_at=datetime.now(UTC),
                 gate_wait_s=admission.gate_wait_s,
                 disconnect_task=admission.disconnect_task,
+                watch_cut=admission.outcome == "acquired",
             )
         finally:
             if admission.outcome == "acquired":
@@ -1565,6 +1667,30 @@ class RouterApp:
             scope, "", began, http_status=200, caller_gone=caller_gone
         )
 
+    async def _cut_before_upstream(self, send: Send) -> None:
+        """Answer a relay the cut won before its upstream response arrived.
+
+        Nothing has been sent to the caller at this point -- the upstream was
+        still generating and had not written its headers -- so the answer is a
+        whole response rather than a truncated stream. The 529 and its short
+        Retry-After match the gate's wait expiry, so a client that honours them
+        re-sends the same turn and lands in the paused FIFO, where resume admits
+        it in arrival order.
+        """
+        body = _cut_overload_body()
+        await send(
+            {
+                "type": "http.response.start",
+                "status": 529,
+                "headers": [
+                    (b"content-type", b"application/json"),
+                    (b"content-length", str(len(body)).encode()),
+                    (b"retry-after", str(GENERATION_RETRY_AFTER_SECONDS).encode()),
+                ],
+            }
+        )
+        await send({"type": "http.response.body", "body": body})
+
     async def _relay(
         self,
         scope: dict[str, Any],
@@ -1578,6 +1704,7 @@ class RouterApp:
         started_at: datetime,
         gate_wait_s: float = 0.0,
         disconnect_task: asyncio.Task[None] | None = None,
+        watch_cut: bool = False,
     ) -> None:
         session = await self._client()
         # content-length and transfer-encoding describe the body the CLIENT
@@ -1619,10 +1746,44 @@ class RouterApp:
         disconnected = disconnect_task or asyncio.create_task(
             self._wait_for_disconnect(receive)
         )
+        # Armed only for a relay the gate admitted, so the cut reaches exactly
+        # the relays holding decode width and never a catalog or token-count
+        # request that consumes none.
+        cut_task = (
+            asyncio.create_task(self._generation_gate.wait_for_cut())
+            if watch_cut
+            else None
+        )
         try:
-            async with session.request(
-                scope["method"], target, data=body, headers=request_headers
-            ) as response:
+            # Opening the upstream is itself a wait the cut has to be able to
+            # end, and for some relays it is the only one. A streaming answer
+            # sends its headers before its first token, so the body loop below
+            # sees the cut; a non-streaming answer sends nothing at all until
+            # its generation is complete, so a relay in that shape holds its
+            # decode width here from the pause until the engine finishes -- the
+            # whole wait a cut exists to shorten. Racing the two is what lets a
+            # cut pause end exactly the relays that are longest in flight.
+            opened = asyncio.create_task(
+                _open_upstream(
+                    session, scope["method"], target, body, request_headers
+                )
+            )
+            if cut_task is not None:
+                done, _ = await asyncio.wait(
+                    {opened, cut_task}, return_when=asyncio.FIRST_COMPLETED
+                )
+                if cut_task in done:
+                    # Nothing has been handed to the caller yet, so the cut is
+                    # answered with a whole response rather than a truncated
+                    # stream: the retryable overload the gate's own wait expiry
+                    # uses, which a client re-sends into the paused FIFO.
+                    opened.cancel()
+                    await asyncio.gather(opened, return_exceptions=True)
+                    status = STATUS_ABORTED
+                    await self._cut_before_upstream(send)
+                    return
+            response = await opened
+            async with response:
                 # The response's status describes what the ENGINE accepted, not
                 # what the caller received. Holding it here and promoting it to
                 # the row's outcome only once the body has been relayed whole is
@@ -1640,8 +1801,11 @@ class RouterApp:
                 )
                 while True:
                     next_chunk = asyncio.create_task(response.content.readany())
+                    watched = {next_chunk, disconnected}
+                    if cut_task is not None:
+                        watched.add(cut_task)
                     done, _ = await asyncio.wait(
-                        {next_chunk, disconnected},
+                        watched,
                         return_when=asyncio.FIRST_COMPLETED,
                     )
                     if disconnected in done:
@@ -1649,6 +1813,30 @@ class RouterApp:
                         next_chunk.cancel()
                         await asyncio.gather(next_chunk, return_exceptions=True)
                         response.close()
+                        return
+                    if cut_task is not None and cut_task in done:
+                        # A cut is not a completed turn: the relay stops reading
+                        # the upstream, cancels it, and answers the client in the
+                        # form the operator chose. The receipt records ABORTED so
+                        # a cut turn is never recorded as one that finished.
+                        status = STATUS_ABORTED
+                        next_chunk.cancel()
+                        await asyncio.gather(next_chunk, return_exceptions=True)
+                        response.close()
+                        if self._generation_gate.settings().cut_form == "error":
+                            await send(
+                                {
+                                    "type": "http.response.body",
+                                    "body": _cut_error_frame(),
+                                    "more_body": True,
+                                }
+                            )
+                            await send({"type": "http.response.body", "body": b""})
+                        # The close form deliberately sends no terminal chunk: an
+                        # ASGI app that returns without completing its response
+                        # makes the server drop the connection, and a streaming
+                        # client retries a stream closed mid-stream, keeping the
+                        # turn alive rather than ending it.
                         return
                     chunk = next_chunk.result()
                     if not chunk:
@@ -1674,6 +1862,9 @@ class RouterApp:
         finally:
             disconnected.cancel()
             await asyncio.gather(disconnected, return_exceptions=True)
+            if cut_task is not None:
+                cut_task.cancel()
+                await asyncio.gather(cut_task, return_exceptions=True)
             self._record_receipt(
                 accounting=accounting,
                 status=status,

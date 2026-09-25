@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 560" role="img" aria-labelledby="title desc">
+  <title id="title">A cut pause ends the relay itself, and the form decides how the client retries</title>
+  <desc id="desc">A gate file declaring paused true and cut true reaches a relay already in flight. The router cancels the upstream request in both forms. In the default close form it closes the client connection with no terminal chunk, so the client retries once as a streaming request with a byte-identical body. In the error form it writes an event: error carrying overloaded_error and then ends the stream, so the client retries once as a non-streaming request. Either way the retry waits in the paused FIFO and resume admits it in arrival order.</desc>
+  <defs>
+    <style>
+      .decl   { fill: #efeaf7; stroke: #6b4fa0; stroke-width: 2; rx: 9; }
+      .step   { fill: #f7f9fb; stroke: #3f4b59; stroke-width: 2; rx: 9; }
+      .cut    { fill: #fff0ee; stroke: #a43d35; stroke-width: 2; rx: 9; }
+      .wait   { fill: #fdf6e3; stroke: #b58105; stroke-width: 2; rx: 9; }
+      .run    { fill: #e8f5ec; stroke: #287a45; stroke-width: 2; rx: 9; }
+      text { font-family: system-ui, sans-serif; fill: #17202a; font-size: 15px; }
+      .label { font-size: 13px; fill: #4b5563; }
+      .mono  { font-family: ui-monospace, monospace; font-size: 13px; }
+      .strong { font-weight: 700; }
+      .panel { font-size: 16px; font-weight: 700; }
+      .flow { stroke: #9aa4b0; stroke-width: 2; marker-end: url(#arrow); }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#9aa4b0"/>
+    </marker>
+  </defs>
+
+  <text x="26" y="34" class="strong">One cut, two client-visible forms</text>
+  <text x="26" y="56" class="label">the gate file   <tspan class="mono">router-gate.json</tspan>   is written while a generation relay is already in flight</text>
+
+  <!-- declaration -->
+  <rect class="decl" x="26" y="78" width="1048" height="56"/>
+  <text x="46" y="102" class="mono strong">{ "paused": true, "cut": true }</text>
+  <text x="46" y="124" class="mono">{ "cut_form": "close" | "error" }</text>
+  <text x="470" y="102" class="label">the relay polls the gate file, so a cut reaches relays already streaming</text>
+  <text x="470" y="124" class="label">and survives a router restart: nothing is carried in memory</text>
+
+  <!-- panels -->
+  <text x="26" y="166" class="panel">cut_form: "close" &#8212; the default</text>
+  <text x="558" y="166" class="panel">cut_form: "error"</text>
+
+  <rect class="step" x="26" y="178" width="506" height="56"/>
+  <text x="44" y="202" class="strong">relay in flight</text>
+  <text x="44" y="222" class="label">engine streaming; client has some content</text>
+
+  <rect class="cut" x="26" y="248" width="506" height="56"/>
+  <text x="44" y="272" class="strong">the router ends it</text>
+  <text x="44" y="292" class="label">cancels the upstream read, closes the upstream request</text>
+
+  <rect class="cut" x="26" y="318" width="506" height="56"/>
+  <text x="44" y="342" class="strong">client connection closed, no terminal chunk</text>
+  <text x="44" y="362" class="label">the response never ends cleanly, so the turn cannot be read as complete</text>
+
+  <rect class="run" x="26" y="388" width="506" height="56"/>
+  <text x="44" y="412" class="strong">client retries once</text>
+  <text x="44" y="432" class="label">same conversation, streaming, byte-identical body</text>
+
+  <rect class="step" x="558" y="178" width="516" height="56"/>
+  <text x="576" y="202" class="strong">relay in flight</text>
+  <text x="576" y="222" class="label">engine streaming; client has some content</text>
+
+  <rect class="cut" x="558" y="248" width="516" height="56"/>
+  <text x="576" y="272" class="strong">the router ends it the same way</text>
+  <text x="576" y="292" class="label">cancels the upstream read, closes the upstream request</text>
+
+  <rect class="cut" x="558" y="318" width="516" height="56"/>
+  <text x="576" y="342" class="strong"><tspan class="mono">event: error</tspan> carrying <tspan class="mono">overloaded_error</tspan></text>
+  <text x="576" y="362" class="label">then the stream ends cleanly, so the client has an explicit signal</text>
+
+  <rect class="run" x="558" y="388" width="516" height="56"/>
+  <text x="576" y="412" class="strong">client retries once</text>
+  <text x="576" y="432" class="label">same conversation, but as a non-streaming request (stream:false)</text>
+
+  <!-- flow between declaration and panels -->
+  <path class="flow" d="M200 134 V172"/>
+  <path class="flow" d="M800 134 V172"/>
+
+  <!-- footer -->
+  <rect class="wait" x="26" y="466" width="1048" height="60"/>
+  <text x="46" y="490" class="strong">either retry waits in the paused FIFO</text>
+  <text x="46" y="512" class="label">no new generation is admitted while paused; <tspan class="mono">resume</tspan> admits the held and retried requests in arrival order, exactly as a pause without a cut drains today</text>
+
+  <text x="26" y="552" class="label">the cut is a property of the pause: <tspan class="mono">cut</tspan> alone ends nothing, so a relay cannot be cut on admission and loop</text>
+</svg>

@@ -10,7 +10,7 @@
   <meta name="plan-summary"      content="Cumulative execution record for local-lane-admission-control: capacity levers, scheduler levers, client behaviour, the router gate and the bypass trace">
   <meta name="plan-tags"         content="agent-serving,gpu-deployment">
   <meta name="plan-evidence-for" content="local-lane-admission-control">
-  <meta name="plan-verifies"     content="local-lane-admission-control#s3,local-lane-admission-control#s5,local-lane-admission-control#s6,local-lane-admission-control#s7,local-lane-admission-control#s8,local-lane-admission-control#s11,local-lane-admission-control#s12,local-lane-admission-control#s19,local-lane-admission-control#s14,local-lane-admission-control#s17,local-lane-admission-control#s20">
+  <meta name="plan-verifies"     content="local-lane-admission-control#s3,local-lane-admission-control#s5,local-lane-admission-control#s6,local-lane-admission-control#s7,local-lane-admission-control#s8,local-lane-admission-control#s11,local-lane-admission-control#s12,local-lane-admission-control#s19,local-lane-admission-control#s14,local-lane-admission-control#s18,local-lane-admission-control#s17,local-lane-admission-control#s20">
   <meta name="plan-owner"        content="Simon McIntosh">
   <title>Local Lane Admission Control — Landed Evidence | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
@@ -895,6 +895,118 @@
     publishes headroom <code>0</code> and verdict <code>paused</code>; the pause
     takes precedence over open/full classification. The final declared gate is
     66 passed and whole-tree Ruff exits 0.</p>
+  </section>
+
+  <section id="router-cut-pause">
+    <h2>A cut pause ends the in-flight generation relays itself</h2>
+    <p>A pause stopped admission and then waited for the longest turn to finish, so
+    draining the lane for a relaunch was bound by whatever reasoning turn was
+    running. Commit <code>9a89de3a8abe4297ee755eff871a043b1070d572</code> lets a pause
+    also end the running relays. The gate file gains <code>cut</code> and
+    <code>cut_form</code> beside <code>paused</code>; a relay the gate admitted arms a
+    watcher that polls the same gate file, so an operator edit reaches a relay that is
+    already streaming and a cut written before the process started is honoured with
+    nothing carried in memory. On the cut the relay cancels its upstream read, closes
+    the upstream request so the engine aborts it, and records the receipt
+    <code>STATUS_ABORTED</code>, so a cut turn is never recorded as one that finished.</p>
+
+    <p>The two forms answer the cut client stream differently, and the difference is
+    which retry the client produces:</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/local-lane-admission-control/pause-cut-forms.svg"
+           alt="A gate file declaring paused true and cut true reaches a relay already in flight. The router cancels the upstream request in both forms. In the default close form it closes the client connection with no terminal chunk, so the client retries once as a streaming request with a byte-identical body. In the error form it writes an event: error carrying overloaded_error and then ends the stream, so the client retries once as a non-streaming request. Either way the retry waits in the paused FIFO and resume admits it in arrival order.">
+      <figcaption>The cut cancels the upstream request in both forms. The default
+      <code>close</code> returns without a terminal chunk, which makes the ASGI server
+      drop the connection so a streaming client retries as a streaming request;
+      <code>error</code> writes an SSE <code>overloaded_error</code> frame and ends the
+      stream for clients that need an explicit signal, and that retry is
+      non-streaming.</figcaption>
+    </figure>
+
+    <h3 id="router-cut-pause-evidence">What the tests measure</h3>
+    <p>Each done-when behaviour has a test that fails without it, driven over a stub
+    engine that streams slowly and records whether each request reached its own end or
+    was aborted &#8212; the observable that separates a router cut from the engine's
+    stream ending. The tests assert: the cut ends the relay well inside the 10 s bound
+    for <code>cut_form</code> absent and for an explicit <code>close</code>; the close
+    form leaves <strong>no</strong> terminal chunk where a pause without a cut emits
+    exactly one, and two tests assert that pair, so the assertion is about the
+    cut and not about a response ending; the <code>error</code> form puts the
+    <code>overloaded_error</code> event before the terminal chunk; the upstream request
+    is cancelled in both forms; two requests held during the cut pause reach the engine
+    only after <code>resume</code>, in arrival order; a gate file already carrying the
+    cut is honoured by a freshly built router; and a pause without a cut drains to a
+    terminal chunk as before.</p>
+
+    <p>The two guards on arming are part of that evidence rather than incidental: the
+    watcher is armed only for an <code>acquired</code> admission, so a catalog or
+    token-count request that consumed no decode width is never answered with a cut form,
+    and <code>cut</code> is honoured only while <code>paused</code> also holds, so a
+    relay cannot be cut at the instant it is admitted and retries without end.</p>
+
+    <h3>Evidence that could have failed</h3>
+    <p>The declared negative control was applied as a scratch edit and restored, the
+    source verified byte-identical by object hash afterwards. The declared string is the
+    first line of the red log: &ldquo;letting the upstream stream end normally instead of
+    the router performing the cut must fail the test that the client sees no terminal
+    chunk; applied as a scratch edit and restored&rdquo;. It produced <strong>3 failures
+    and 2 passes</strong>, the first failure being that declared test. The two passes are
+    the cases that must not depend on the cut &#8212; the gate file carrying a cut into a
+    fresh router, and a pause without a cut draining normally &#8212; so the control
+    discriminates the cut rather than the file.</p>
+
+    <p><strong>Checks.</strong> The declared gate
+    <code>uv run --no-sync pytest -p no:cacheprovider tests/test_agent_router_gate.py
+    tests/test_agent_router_admission.py tests/test_agent_router_cut.py</code> ran 27
+    tests with 0 failures. Whole-tree
+    <code>uv run --no-sync ruff check imas_ambix tests</code> exited 0. Nothing outside
+    the router changed: <code>cli.py</code> is untouched, so <code>agent pause
+    --cut</code> is not yet wired, and no router restart, engine call or write under
+    <code>~/public</code> occurred.</p>
+
+    <h3 id="router-cut-pause-nonstreaming">The non-streaming relay is cut too</h3>
+    <p>The watcher above was armed only inside the streaming chunk loop of the relay, so
+    it reached exactly the relays that spend their time <em>after</em> the upstream
+    answered. A relay whose upstream sends nothing until its generation is complete
+    &#8212; a non-streaming request, which is how Claude Code re-sends a turn after the
+    <code>error</code> form's <code>overloaded_error</code> &#8212; is waiting on the
+    upstream's response itself and never enters that loop, so it held its decode width
+    from the pause until the engine finished. Commit
+    <code>d2893cb3c6ae026c3489583741cc40c6cc2cfb36</code> races the upstream's own
+    response against the cut, which makes opening the upstream a wait the cut can end.
+    When the cut wins, the upstream request is cancelled and the caller is answered
+    <em>whole</em> with a 529 <code>overloaded_error</code> and a short
+    <code>Retry-After</code> &#8212; the answer the gate's own wait expiry gives &#8212;
+    because nothing has been handed over yet, so there is no stream to end. The receipt
+    records the relay <code>aborted</code>.</p>
+
+    <p><strong>How the non-streaming case is observed.</strong> The stub engine that
+    withholds its answer must be able to see the router drop its request, which it cannot
+    do by default: aiohttp runs a handler to completion on a client disconnect unless the
+    server is asked not to. The test serves it through an <code>AppRunner</code> with
+    <code>handler_cancellation=True</code>, so the handler is cancelled when its client
+    departs and the cancelled upstream request is observed rather than inferred. The test
+    then asserts the cut lands inside 10 s for <code>cut_form</code> absent,
+    <code>close</code> and <code>error</code>; that the answer is a 529 carrying
+    <code>overloaded_error</code> and a <code>Retry-After</code> header; that the upstream
+    request was cancelled; and that the receipts record one <code>aborted</code> row per
+    cut form. Read alone, a status code cannot tell a cut from an engine that answered;
+    <code>cancelled</code> set with <code>completed</code> unset is what does.</p>
+
+    <p><strong>Evidence that could have failed.</strong> The declared negative control,
+    verbatim as the first line of the red log, is: &ldquo;removing the non-streaming cut
+    watcher from the upstream-open race in _relay must fail the test that a held relay is
+    cut within ten seconds and answered a retryable overload; applied as a scratch edit
+    and restored&rdquo;. Removing that watcher failed the new test with a
+    <code>TimeoutError</code> at 10.9 s &#8212; the relay ran past the 10 s bound the
+    done-when names &#8212; and the scratch edit was restored and verified byte-identical
+    by object hash (<code>6a6a8452b53ca1456138cabc6795bf5d782716d9</code>) before the
+    green gate ran. The declared gate
+    <code>uv run --no-sync pytest -p no:cacheprovider tests/test_agent_router_gate.py
+    tests/test_agent_router_admission.py tests/test_agent_router_cut.py</code> then ran
+    28 tests with 0 failures, and whole-tree
+    <code>uv run --no-sync ruff check imas_ambix tests</code> exited 0.</p>
   </section>
 </main>
 </body>
