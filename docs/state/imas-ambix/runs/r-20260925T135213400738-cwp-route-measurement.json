@@ -1,0 +1,355 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effort": "xhigh",
+    "launch": "cli",
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "read-only",
+    "usable_input_window": 480000
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "693f2f8eb140309dc98b18b887e370716efc1741",
+  "boundary_waiver": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "inference_geo": "",
+      "input_tokens": 10170986,
+      "input_tokens_cumulative": 10170986,
+      "output_tokens": 61832,
+      "output_tokens_cumulative": 61832,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": null,
+  "commit_resolution": null,
+  "commits": [],
+  "completed_at": "2026-09-25T14:55:45.701Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-09-25T13:52:20Z",
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": false,
+    "matched_measure": null,
+    "override": false,
+    "role": "investigate",
+    "status": "no-execution-measure"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [
+    "CLAUDE.md"
+  ],
+  "gate": "passed",
+  "gate_check": {
+    "command": "test -s /home/ITER/mcintos/.config/reckon/crew/reports/cwp-route-measurement.md && grep -q '^## The three routes' /home/ITER/mcintos/.config/reckon/crew/reports/cwp-route-measurement.md && grep -q '^## Controls' /home/ITER/mcintos/.config/reckon/crew/reports/cwp-route-measurement.md",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T135213400738-cwp-route-measurement/gate.log"
+  },
+  "impl_move": {
+    "at_complete": null,
+    "at_dispatch": null,
+    "plan": "clive-worker-profiles",
+    "reason": "role-not-enforced:investigate",
+    "verdict": "exempt"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-09-25T14:37:13.890667+00:00",
+    "horizon_seconds": 2700,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": "clive",
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-09-25T13:52:13Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 29,
+    "binding_observed": "unknown",
+    "detail": "",
+    "headroom": 10,
+    "mean_context": 100000,
+    "observed_at": "2026-09-25T13:51:44Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-09-25T14:55:45.701Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": false,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T135213400738-cwp-route-measurement/manifest.md",
+  "member": "llac-engine",
+  "negative_control": {
+    "reason": "node-writes-no-test-path",
+    "verdict": "exempt"
+  },
+  "no_commit": "measurement node; delivery is the report and run-directory evidence",
+  "node": "cwp-route-measurement",
+  "node_definition": {
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 1319,
+          "cached_input_tokens": 600588,
+          "input_tokens": 601909,
+          "output_tokens": 1141,
+          "reasoning_output_tokens": 0,
+          "total_tokens": 603050,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "38dec84a-7cb6-4b27-ace6-501cc76dbec0",
+      "session_id": "llac-s14-0925"
+    },
+    "done_when": "The report at the write path holds a three-row table, one per route in plan clive-worker-profiles §2 Measurement node ((a) today's clive launch, (b) --bare with --settings carrying a Stop hook plus the digest via the system-prompt route, (c) non-bare with --setting-sources user), each row recording: whether the Stop-hook marker file appeared, whether the global-guidance marker text appears in the first request's system prompt captured by the stub, and the first request body size in bytes; each row names its exact command, the stub request-body path and 'claude --version' output; launches use the real installed claude against the §18 probe stub on 127.0.0.1 with CLAUDE_CONFIG_DIR under /tmp from a scratch directory whose CLAUDE.md @-includes a marker file; the report ends naming the route that both keeps the hook and omits the global file, or stating that none does. No repository file changes and no production endpoint is contacted.",
+    "estimated_hours": null,
+    "goal": "Measure which Claude Code launch route keeps a Stop hook while omitting the global guidance file",
+    "id": "cwp-route-measurement",
+    "lane_declaration": {
+      "backend": "clive",
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-09-25T13:52:13Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 29,
+      "binding_observed": "unknown",
+      "detail": "",
+      "headroom": 10,
+      "mean_context": 100000,
+      "observed_at": "2026-09-25T13:51:44Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T135213400738-cwp-route-measurement/manifest.md",
+    "negative_control": "",
+    "plan": "clive-worker-profiles",
+    "requested_backend": "clive",
+    "requires_decisions": [],
+    "role": "investigate",
+    "section": "§2",
+    "spec_level": "guided",
+    "time_budget": "45m",
+    "token_budget": null,
+    "write_paths": [
+      "/home/ITER/mcintos/.config/reckon/crew/reports/cwp-route-measurement.md"
+    ]
+  },
+  "orientation_input_tokens": 6170791.0,
+  "outcome": "",
+  "plan": "clive-worker-profiles",
+  "promoted_revision": "693f2f8eb140309dc98b18b887e370716efc1741",
+  "release": {
+    "process_signalled": false,
+    "process_withheld": "process is not alive",
+    "worktree_audit": {
+      "counts": {
+        "dirty": 0,
+        "disposable": 0,
+        "integrated": 0,
+        "live-referenced": 0,
+        "retained-for-resume": 0,
+        "unintegrated": 0
+      },
+      "worktrees": [
+        {
+          "available": false,
+          "detail": "tree is no longer available",
+          "path": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/llac-s14-0925/cwp-route-measurement"
+        }
+      ]
+    },
+    "worktree_released": true
+  },
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "scores": {
+      "durability": 19,
+      "evidence": 19,
+      "fit": 20,
+      "goal_fidelity": 20,
+      "scope_discipline": 20
+    },
+    "status": "parsed",
+    "total": 98
+  },
+  "role": "investigate",
+  "run_id": "r-20260925T135213400738-cwp-route-measurement",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§2",
+  "session_harness": "claude",
+  "session_id": "68649c78-8134-4267-bf29-326c23031cb9",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "guided",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 0,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 10338064,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+    "elapsed_seconds": 3792.787,
+    "generated_tokens": 70855,
+    "generation_seconds": 3656.304,
+    "input_budget_tokens": 480000,
+    "input_utilisation_pct": 34.5,
+    "machine_seconds": 136.483,
+    "peak_input_tokens": 165778,
+    "tokens_per_second": 19.38,
+    "wall_tokens_per_second": 18.68
+  },
+  "time_budget": "45m",
+  "tool_steps": 98.0,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": [
+      {
+        "budget_overrun": false,
+        "budget_overrun_seconds": 0,
+        "budget_seconds": 1200,
+        "classification": "scoring",
+        "commits_beyond_base": 0,
+        "detail": "the worker manifest reports completion, but no independent review is attached; an independent review must be produced before promotion",
+        "effective_phase": "complete",
+        "elapsed_seconds": 401,
+        "exit_record": {
+          "ended_during": "working",
+          "exit_code": 0,
+          "exited_at": "2026-09-25T13:35:41Z",
+          "last_record_type": "turn.completed",
+          "launched_at": "2026-09-25T13:29:07Z",
+          "recorded_by": "supervisor",
+          "run_id": "r-20260925T132848508461-s14-parser-counter-assertion",
+          "signal": null,
+          "signal_name": null,
+          "stream_records_seen": 132,
+          "worker_pid": 1071523
+        },
+        "external_wait": null,
+        "interruption": null,
+        "lifting_condition": null,
+        "liveness_proven": true,
+        "log_age_seconds": 996,
+        "log_fresh": false,
+        "manifest_commits": [
+          "57928a2064ec64d7215352ce659de90599fa720b",
+          "4e89b38f5c075f4b8a5ea22e7c8c1d0cf64d6d6d"
+        ],
+        "manifest_derived": false,
+        "manifest_digest": "fff4690e5a2c5b5abf139a3b2f79012106c31a7fd1e91782bb12601ff99e6b6f",
+        "manifest_error": null,
+        "manifest_file_present": true,
+        "manifest_fresh": true,
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T132848508461-s14-parser-counter-assertion/manifest.md",
+        "manifest_present": true,
+        "manifest_reported_status": "complete",
+        "manifest_status": "complete",
+        "marker": null,
+        "needs_help_complete": null,
+        "next_action": "reckon crew dispatch --project imas-ambix --plan local-lane-admission-control --section '§14' --role review --spec-level exact --node review-of-s14-parser-counter-assertion --goal 'attach an independent review to run r-20260925T132848508461-s14-parser-counter-assertion' --done-when 'the review for r-20260925T132848508461-s14-parser-counter-assertion stores a parsed record scoring all 5 dimensions in the range 0..20; the turn ends once that record is stored and the manifest reads complete' --write-path /home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260925T132848508461-s14-parser-counter-assertion.json --write-path /home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260925T132848508461-s14-parser-counter-assertion.at-4e89b38f5c075f4b8a5ea22e7c8c1d0cf64d6d6d.json --time-budget 20m --session llac-s14-0925 --allow-unreconciled-runs --backend codex-luna",
+        "node": "s14-parser-counter-assertion",
+        "phase": "starting",
+        "plan": "local-lane-admission-control",
+        "process_alive": false,
+        "project": "imas-ambix",
+        "recovery": "review",
+        "recovery_classification": "scoring",
+        "resets_at": null,
+        "review_error": null,
+        "review_present": false,
+        "review_status": null,
+        "run_id": "r-20260925T132848508461-s14-parser-counter-assertion",
+        "session": "llac-s14-0925",
+        "terminal_age_seconds": 1026,
+        "terminal_at": "2026-09-25T13:35:10Z",
+        "wait_age_seconds": null,
+        "wait_condition_state": null,
+        "wait_key_defect": null,
+        "wait_observed": null,
+        "wait_overdue": null,
+        "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/llac-s14-0925/s14-parser-counter-assertion"
+      }
+    ]
+  },
+  "wall_seconds": 3805,
+  "watch_override": null,
+  "worker_exit": {
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-09-25T14:55:46Z",
+    "last_record_type": "result",
+    "launched_at": "2026-09-25T13:52:29Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20260925T135213400738-cwp-route-measurement",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 10241,
+    "worker_pid": 1229383
+  },
+  "worker_seconds": 3784,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
