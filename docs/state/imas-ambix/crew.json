@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-25T12:25:39",
+  "updated": "2026-09-25T12:51:39",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -92213,6 +92213,244 @@
         "store_write": {
           "status": "written"
         }
+      },
+      {
+        "run_id": "r-20260925T092200468000-s14-working-set",
+        "plan": "local-lane-admission-control",
+        "section": "\u00a714",
+        "node": "s14-working-set",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 866,
+                "cached_input_tokens": 180672,
+                "input_tokens": 181540,
+                "output_tokens": 998,
+                "reasoning_output_tokens": 105,
+                "total_tokens": 182538,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "38dec84a-7cb6-4b27-ace6-501cc76dbec0",
+            "session_id": "llac-s14-0925"
+          },
+          "done_when": "The report at the write path holds two tables built from /work/projects/imas_gpu/agents/receipts/deepseek-v4-1-flash-1277121.jsonl and /home/ITER/mcintos/public/imas-ambix/requests.jsonl over 2026-09-24T05:30Z to 2026-09-25T09:30Z: prefix_hit_rate binned by num_requests_running, and prefix_hit_rate binned by distinct live sessions (a session is live if it sent a request in the preceding 10 minutes; the session-identity field used is named), each row giving minutes and the summed working-set tokens against the 4,000,000-token device pool; the report states the live-session count and working-set tokens at which hit rate first falls below 0.95 as numbers, or states that the source carries no session identity naming the fields inspected; the analysis ran through srun --partition=all_debug --time=00:59:00 with its job id and log path recorded",
+          "estimated_hours": null,
+          "goal": "Measure how the prefix hit rate depends on live session count versus running request count on the deepseek-v4.1-flash lane",
+          "id": "s14-working-set",
+          "lane_declaration": {
+            "backend": null,
+            "headroom": null,
+            "metered": false,
+            "observed_at": null,
+            "read_at": "2026-09-25T09:22:01Z",
+            "resolved_backend": "clive",
+            "utilisation_pct": null
+          },
+          "lane_reading": {
+            "age_seconds": 13,
+            "binding_observed": "unknown",
+            "detail": "",
+            "headroom": 6,
+            "mean_context": 101538,
+            "observed_at": "2026-09-25T09:21:48Z",
+            "state": "fresh",
+            "suggested_shelf_life_seconds": 45
+          },
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T092200468000-s14-working-set/manifest.md",
+          "negative_control": "",
+          "plan": "local-lane-admission-control",
+          "requested_backend": "clive",
+          "requires_decisions": [],
+          "role": "investigate",
+          "section": "\u00a714",
+          "spec_level": "guided",
+          "time_budget": "40m",
+          "token_budget": null,
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/s14-working-set.md"
+          ]
+        },
+        "role": "investigate",
+        "spec_level": "guided",
+        "member": "llac-client",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4.1-flash",
+          "backend": "clive",
+          "effort": "xhigh",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4.1-flash",
+          "sandbox": "read-only",
+          "usable_input_window": 480000
+        },
+        "dispatched_at": "2026-09-25T09:22:06Z",
+        "completed_at": "2026-09-25T10:50:41.254Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 5096,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 5315,
+        "stalled": true,
+        "time_budget": "40m",
+        "base_sha": "2e17d8b858d906e5fe511f02aa27b3db78655a92",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": 0,
+        "gate": "passed",
+        "gate_check": {
+          "command": "test -s /home/ITER/mcintos/.config/reckon/crew/reports/s14-working-set.md && grep -q '^## Table A' /home/ITER/mcintos/.config/reckon/crew/reports/s14-working-set.md && grep -q '^## Table B' /home/ITER/mcintos/.config/reckon/crew/reports/s14-working-set.md && grep -q '30\u201332 running' /home/ITER/mcintos/.config/reckon/crew/reports/s14-working-set.md",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T092200468000-s14-working-set/gate.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T092200468000-s14-working-set/manifest.md",
+        "scope_changed": false,
+        "session_id": "59d4e2a6-a177-4e3c-8b05-fc6b1bf7135d",
+        "session_harness": "claude",
+        "session_model": "deepseek-v4.1-flash",
+        "budget": {
+          "cost_usd": null,
+          "detail": "no events yet",
+          "headroom": "unknown",
+          "rate_limit_period_minutes": null,
+          "rate_limit_type": null,
+          "refusal": false,
+          "resets_at": null,
+          "surpassed_threshold": null,
+          "threshold_status": null,
+          "tokens": null,
+          "utilisation_pct": null
+        },
+        "lane_receipt": {
+          "quota_state": "unmeasured",
+          "observed_at": "2026-09-25T10:50:41.254Z",
+          "effective_context_window": "unmeasured",
+          "quota_windows": [],
+          "notional_cost_usd": "unmeasured",
+          "rate_basis": "unmeasured",
+          "unmeasured": {
+            "effective_context_window": "missing_rollout",
+            "notional_cost_usd": "missing_rollout",
+            "rate_basis": "missing_rollout",
+            "quota_windows": "unmetered"
+          }
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "review": null,
+        "follow_on_paths": [
+          "3.9-4.5M",
+          "0.71-0.81"
+        ],
+        "dispute_count": 0,
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": false,
+          "matched_measure": null,
+          "override": false,
+          "role": "investigate",
+          "status": "no-execution-measure"
+        },
+        "attempt_kind": "dispatch",
+        "attempt": 1,
+        "duration_measurement": {
+          "status": "underivable",
+          "reason": "model_span_unavailable_at_promotion"
+        },
+        "scope_acceptances": null,
+        "no_commit": "read-only investigate node; delivery is the report under crew/reports with tables.json in the run directory",
+        "commit_resolution": null,
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/llac-s14-0925/s14-working-set",
+          "session_id": "59d4e2a6-a177-4e3c-8b05-fc6b1bf7135d",
+          "session_source": "stream",
+          "retained_at": "2026-09-25T10:50:41.254Z"
+        },
+        "boundary_waiver": null,
+        "resume_waiver": null,
+        "watch_override": null,
+        "worker_exit": {
+          "ended_during": "working",
+          "exit_code": 137,
+          "exited_at": "2026-09-25T10:51:32Z",
+          "last_record_type": "system",
+          "launched_at": "2026-09-25T09:22:11Z",
+          "recorded_by": "supervisor",
+          "run_id": "r-20260925T092200468000-s14-working-set",
+          "signal": null,
+          "signal_name": null,
+          "stream_records_seen": 12750,
+          "worker_pid": 138247
+        },
+        "promoted_revision": "2e17d8b858d906e5fe511f02aa27b3db78655a92",
+        "plan_impl_at_dispatch": 0.9,
+        "impl_move": {
+          "plan": "local-lane-admission-control",
+          "at_dispatch": 0.9,
+          "at_complete": null,
+          "verdict": "exempt",
+          "reason": "role-not-enforced:investigate"
+        },
+        "negative_control": {
+          "verdict": "exempt",
+          "reason": "node-writes-no-test-path"
+        },
+        "lane_advisory": {
+          "backend": "clive",
+          "burn_multiple": null,
+          "cheaper_lane": {
+            "detail": "",
+            "lane": null,
+            "state": "not_evaluated"
+          },
+          "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+          "horizon_ends_at": "2026-09-25T10:02:01.020951+00:00",
+          "horizon_seconds": 2400,
+          "metered": false,
+          "observed_at": null,
+          "precedes_horizon": null,
+          "projected_exhaustion_at": null,
+          "resets_at": null,
+          "seconds_until_reset": null,
+          "state": "quiet",
+          "utilisation_pct": null
+        },
+        "lane_declaration": {
+          "backend": null,
+          "headroom": null,
+          "metered": false,
+          "observed_at": null,
+          "read_at": "2026-09-25T09:22:01Z",
+          "resolved_backend": "clive",
+          "utilisation_pct": null
+        },
+        "lane_reading": {
+          "age_seconds": 13,
+          "binding_observed": "unknown",
+          "detail": "",
+          "headroom": 6,
+          "mean_context": 101538,
+          "observed_at": "2026-09-25T09:21:48Z",
+          "state": "fresh",
+          "suggested_shelf_life_seconds": 45
+        },
+        "tool_steps": 92.0,
+        "orientation_input_tokens": 3766732.0,
+        "store_write": {
+          "status": "written"
+        }
       }
     ],
     "holds": [
@@ -92315,6 +92553,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 1106
+    "_version": 1107
   }
 }
