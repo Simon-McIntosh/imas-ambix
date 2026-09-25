@@ -1,0 +1,288 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effort": "xhigh",
+    "launch": "cli",
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "read-only",
+    "usable_input_window": 480000
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "186b0b47a60874a83d94d023cd96d581de8c23ac",
+  "boundary_waiver": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "inference_geo": "",
+      "input_tokens": 4781562,
+      "input_tokens_cumulative": 4781562,
+      "output_tokens": 45836,
+      "output_tokens_cumulative": 45836,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": null,
+  "commit_resolution": null,
+  "commits": [],
+  "completed_at": "2026-09-25T15:36:24.518Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-09-25T14:58:24Z",
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": false,
+    "matched_measure": null,
+    "override": false,
+    "role": "investigate",
+    "status": "no-execution-measure"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [
+    "CLAUDE.md"
+  ],
+  "gate": "passed",
+  "gate_check": {
+    "command": "test -s /home/ITER/mcintos/.config/reckon/crew/reports/cwp-user-memory-control.md && grep -q '^## Table' /home/ITER/mcintos/.config/reckon/crew/reports/cwp-user-memory-control.md && grep -q '^## Conclusion' /home/ITER/mcintos/.config/reckon/crew/reports/cwp-user-memory-control.md",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T145817222035-cwp-user-memory-control/gate.log"
+  },
+  "impl_move": {
+    "at_complete": null,
+    "at_dispatch": null,
+    "plan": "clive-worker-profiles",
+    "reason": "role-not-enforced:investigate",
+    "verdict": "exempt"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-09-25T15:38:17.804169+00:00",
+    "horizon_seconds": 2400,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": "clive",
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-09-25T14:58:17Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 18,
+    "binding_observed": "unknown",
+    "detail": "",
+    "headroom": 6,
+    "mean_context": 116923,
+    "observed_at": "2026-09-25T14:57:59Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-09-25T15:36:24.518Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": false,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T145817222035-cwp-user-memory-control/manifest.md",
+  "member": "llac-client",
+  "negative_control": {
+    "reason": "node-writes-no-test-path",
+    "verdict": "exempt"
+  },
+  "no_commit": "measurement node; delivery is the report and run-directory evidence",
+  "node": "cwp-user-memory-control",
+  "node_definition": {
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 1572,
+          "cached_input_tokens": 645009,
+          "input_tokens": 646583,
+          "output_tokens": 1254,
+          "reasoning_output_tokens": 0,
+          "total_tokens": 647837,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "38dec84a-7cb6-4b27-ace6-501cc76dbec0",
+      "session_id": "llac-s14-0925"
+    },
+    "done_when": "The report at the write path holds a table with one row per launch named in plan clive-worker-profiles §2 Control node (today's clive launch as baseline; route (c) --setting-sources user; and route (c) with an empty or project-free --setting-sources value if 'claude --help' and the CLI accept one, else the exact refusal text), each launched by the real installed claude against the §18 probe stub on 127.0.0.1 with a test CLAUDE_CONFIG_DIR containing a user-level CLAUDE.md that @-includes a user-memory marker file and a scratch working directory whose CLAUDE.md @-includes a distinct project-memory marker file and whose user settings carry a Stop hook writing a marker; each row records whether the Stop-hook marker appeared, whether each of the two memory markers appears in the first request body, and the first request body size in bytes, with the exact command and body path; 'claude --version' is recorded; the report ends stating whether any launch keeps the hook while omitting both memory markers. The existing fixture and driver under ~/.config/reckon/crew/runs/r-20260925T135213400738-cwp-route-measurement/ may be reused. No repository file changes and no production endpoint is contacted.",
+    "estimated_hours": null,
+    "goal": "Measure whether the setting-sources route still loads the global guidance through user-level CLAUDE.md memory",
+    "id": "cwp-user-memory-control",
+    "lane_declaration": {
+      "backend": "clive",
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-09-25T14:58:17Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 18,
+      "binding_observed": "unknown",
+      "detail": "",
+      "headroom": 6,
+      "mean_context": 116923,
+      "observed_at": "2026-09-25T14:57:59Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T145817222035-cwp-user-memory-control/manifest.md",
+    "negative_control": "",
+    "plan": "clive-worker-profiles",
+    "requested_backend": "clive",
+    "requires_decisions": [],
+    "role": "investigate",
+    "section": "§2",
+    "spec_level": "guided",
+    "time_budget": "40m",
+    "token_budget": null,
+    "write_paths": [
+      "/home/ITER/mcintos/.config/reckon/crew/reports/cwp-user-memory-control.md"
+    ]
+  },
+  "orientation_input_tokens": 2546446.0,
+  "outcome": "",
+  "plan": "clive-worker-profiles",
+  "promoted_revision": "186b0b47a60874a83d94d023cd96d581de8c23ac",
+  "release": {
+    "process_signalled": false,
+    "process_withheld": "process is not alive",
+    "worktree_audit": {
+      "counts": {
+        "dirty": 0,
+        "disposable": 0,
+        "integrated": 0,
+        "live-referenced": 0,
+        "retained-for-resume": 0,
+        "unintegrated": 0
+      },
+      "worktrees": [
+        {
+          "available": false,
+          "detail": "tree is no longer available",
+          "path": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/llac-s14-0925/cwp-user-memory-control"
+        }
+      ]
+    },
+    "worktree_released": true
+  },
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "scores": {
+      "durability": 19,
+      "evidence": 19,
+      "fit": 20,
+      "goal_fidelity": 20,
+      "scope_discipline": 20
+    },
+    "status": "parsed",
+    "total": 98
+  },
+  "role": "investigate",
+  "run_id": "r-20260925T145817222035-cwp-user-memory-control",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§2",
+  "session_harness": "claude",
+  "session_id": "7b775948-f58b-4d68-9f02-4c4f93f56604",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "guided",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 0,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 4781562,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+    "elapsed_seconds": 2270.42,
+    "generated_tokens": 45836,
+    "generation_seconds": 2245.161,
+    "input_budget_tokens": 480000,
+    "input_utilisation_pct": 29.0,
+    "machine_seconds": 25.259,
+    "peak_input_tokens": 139371,
+    "tokens_per_second": 20.42,
+    "wall_tokens_per_second": 20.19
+  },
+  "time_budget": "40m",
+  "tool_steps": 58.0,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": []
+  },
+  "wall_seconds": 2280,
+  "watch_override": null,
+  "worker_exit": {
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-09-25T15:36:24Z",
+    "last_record_type": "result",
+    "launched_at": "2026-09-25T14:58:30Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20260925T145817222035-cwp-user-memory-control",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 8565,
+    "worker_pid": 1450264
+  },
+  "worker_seconds": 2227,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
