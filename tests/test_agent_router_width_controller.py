@@ -74,8 +74,10 @@ def _drive(
     start_width: int | None = None,
     per_stream: float | None = None,
     prefix_hit_rate: float = 0.99,
+    prefix_sequence: list[float] | None = None,
     kv_occupancy: float = 0.30,
     waiting: int = 3,
+    running: int | None = None,
 ) -> list[int]:
     """Feed the controller a run of scrapes and record the width in force.
 
@@ -84,7 +86,10 @@ def _drive(
     sequence is what the lane document would have published.
     """
     if start_width is not None:
+        gate.settings()
         gate._controller_width = start_width
+        gate._effective_width = start_width
+        gate._next_config_refresh_at = 0.0
     tokens = 10_000_000
     widths: list[int] = []
     for _ in range(scrapes):
@@ -101,9 +106,13 @@ def _drive(
             20_000,
             now=clock[0],
             generation_tokens=tokens,
-            running=max(width, 1),
+            running=max(width, 1) if running is None else running,
             waiting=waiting,
-            prefix_hit_rate=prefix_hit_rate,
+            prefix_hit_rate=(
+                prefix_sequence[len(widths) - 1]
+                if prefix_sequence is not None
+                else prefix_hit_rate
+            ),
             kv_occupancy=kv_occupancy,
         )
     return widths
@@ -214,7 +223,13 @@ def test_width_controller_steps_down_when_the_prefix_cache_stops_reusing(
     gate = router_mod._GenerationGate(gate_file)
     gate.settings()
 
-    _drive(gate, clock, random.Random(SEED), scrapes=2, prefix_hit_rate=0.40)
+    _drive(
+        gate,
+        clock,
+        random.Random(SEED),
+        scrapes=router_mod.GATE_CONTROLLER_WINDOWS + 1,
+        prefix_hit_rate=0.40,
+    )
 
     assert gate._controller_width == 34
     assert gate._controller_note is not None
@@ -230,7 +245,13 @@ def test_width_controller_steps_down_at_the_kv_ceiling(tmp_path, monkeypatch) ->
     gate = router_mod._GenerationGate(gate_file)
     gate.settings()
 
-    _drive(gate, clock, random.Random(SEED), scrapes=2, kv_occupancy=0.75)
+    _drive(
+        gate,
+        clock,
+        random.Random(SEED),
+        scrapes=router_mod.GATE_CONTROLLER_WINDOWS + 1,
+        kv_occupancy=0.75,
+    )
 
     assert gate._controller_width == 34
     assert gate._controller_note is not None
@@ -251,7 +272,7 @@ def test_width_controller_never_keeps_a_width_one_stream_cannot_use(
         gate,
         clock,
         random.Random(SEED),
-        scrapes=2,
+        scrapes=router_mod.GATE_CONTROLLER_WINDOWS + 1,
         per_stream=8.0,
     )
 
@@ -259,6 +280,75 @@ def test_width_controller_never_keeps_a_width_one_stream_cannot_use(
     assert gate._controller_note is not None
     assert gate._controller_note.startswith("stepping down: ")
     assert "per stream" in gate._controller_note
+
+
+def test_width_controller_ignores_idle_prefix_sentinel(tmp_path, monkeypatch) -> None:
+    """Idle SGLang scrapes report zero hits without a cold prefix cache."""
+    gate_file = tmp_path / "router-gate.json"
+    _write_auto_gate(gate_file, width_floor=4, width_cap=36)
+    clock = _fake_clock(monkeypatch)
+    gate = router_mod._GenerationGate(gate_file)
+
+    widths = _drive(
+        gate,
+        clock,
+        random.Random(SEED),
+        scrapes=100,
+        start_width=36,
+        running=0,
+        waiting=0,
+        prefix_hit_rate=0.0,
+    )
+
+    assert set(widths) == {36}
+
+
+def test_width_controller_ignores_one_noisy_health_reading(
+    tmp_path, monkeypatch
+) -> None:
+    """One loaded-minute prefix dip does not change the width."""
+    monkeypatch.setattr(router_mod, "GATE_CONTROLLER_WINDOWS", 6)
+    gate_file = tmp_path / "router-gate.json"
+    _write_auto_gate(gate_file, width_floor=4, width_cap=36)
+    clock = _fake_clock(monkeypatch)
+    gate = router_mod._GenerationGate(gate_file)
+
+    widths = _drive(
+        gate,
+        clock,
+        random.Random(SEED),
+        scrapes=7,
+        start_width=20,
+        prefix_sequence=[0.99, 0.99, 0.99, 0.80, 0.99, 0.99, 0.99],
+    )
+
+    assert widths == [20] * 7
+    assert gate._controller_width >= 20
+    assert not (gate._controller_note or "").startswith("stepping down:")
+
+
+def test_width_controller_steps_down_once_per_sustained_health_window(
+    tmp_path, monkeypatch
+) -> None:
+    """A sustained prefix collapse gets one step for each judged window."""
+    monkeypatch.setattr(router_mod, "GATE_CONTROLLER_WINDOWS", 6)
+    gate_file = tmp_path / "router-gate.json"
+    _write_auto_gate(gate_file, width_floor=4, width_cap=36)
+    clock = _fake_clock(monkeypatch)
+    gate = router_mod._GenerationGate(gate_file)
+
+    widths = _drive(
+        gate,
+        clock,
+        random.Random(SEED),
+        scrapes=13,
+        start_width=20,
+        prefix_hit_rate=0.80,
+    )
+
+    assert widths[:7] == [20] * 7
+    assert widths[7:] == [18] * 6
+    assert gate._controller_width == 16
 
 
 def test_width_controller_discards_the_window_spanning_a_counter_reset(

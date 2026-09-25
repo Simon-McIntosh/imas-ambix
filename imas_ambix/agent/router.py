@@ -187,6 +187,9 @@ class _GenerationGate:
         self._controller_reference_rate: float | None = None
         self._controller_best_rate: float | None = None
         self._controller_rates: list[float] = []
+        self._controller_health: list[
+            tuple[float | None, float | None, float | None]
+        ] = []
         self._controller_note: str | None = "memory rule: no throughput reading"
         self._throughput_tokens: int | None = None
         self._throughput_stamp = 0.0
@@ -435,24 +438,12 @@ class _GenerationGate:
             return
         rate = (generation_tokens - previous) / elapsed
 
-        guard = self._controller_guard(
-            rate=rate,
-            running=running,
-            prefix_hit_rate=prefix_hit_rate,
-            kv_occupancy=kv_occupancy,
-        )
-        if guard is not None:
-            # A guard outranks the objective: the width is stepped down on
-            # evidence that the lane is failing, so a throughput judged here
-            # would describe the damage rather than the width that caused it.
-            self._controller_rates.clear()
-            self._step_width_down(guard)
-            return
         if waiting is not None and waiting <= 0:
             # A width can only be scored against a lane that wants more than the
             # width allows. With nothing waiting, the reading describes the
             # demand rather than the width, and every width would look alike.
             self._controller_rates.clear()
+            self._controller_health.clear()
             self._controller_note = "holding: no demand above the current width"
             return
 
@@ -460,9 +451,18 @@ class _GenerationGate:
             self._controller_proposal = self._current_width()
         if self._controller_proposal is None:
             self._controller_rates.clear()
+            self._controller_health.clear()
             self._controller_note = "holding: no width in force to score"
             return
         self._controller_rates.append(rate)
+        self._controller_health.append(
+            self._controller_health_sample(
+                rate=rate,
+                running=running,
+                prefix_hit_rate=prefix_hit_rate,
+                kv_occupancy=kv_occupancy,
+            )
+        )
         if len(self._controller_rates) < GATE_CONTROLLER_WINDOWS:
             self._controller_note = (
                 f"measuring width {self._controller_proposal}: "
@@ -471,6 +471,14 @@ class _GenerationGate:
             return
         judged = math.fsum(self._controller_rates) / len(self._controller_rates)
         self._controller_rates.clear()
+        guard = self._controller_guard(self._controller_health)
+        self._controller_health.clear()
+        if guard is not None:
+            # A guard outranks the objective, but only after the same window of
+            # readings used for throughput. This prevents one idle scrape or
+            # one ordinary loaded-minute fluctuation from changing the width.
+            self._step_width_down(guard)
+            return
         self._judge_width(judged)
 
     def _judge_width(self, judged: float) -> None:
@@ -588,48 +596,69 @@ class _GenerationGate:
 
     def _controller_guard(
         self,
+        health: list[tuple[float | None, float | None, float | None]],
+    ) -> str | None:
+        """Report a health watch that fails across one controller window.
+
+        ``None`` running readings are deliberately absent from each health
+        column: SGLang publishes zero prefix hits when the lane is idle, and
+        that value is not evidence of a cold cache. A loaded window must have
+        the same health failure in at least half its readings before it can
+        step the width down.
+        """
+        required = math.ceil(len(health) / 2)
+        prefix = [sample[0] for sample in health if sample[0] is not None]
+        if (
+            sum(value < GATE_CONTROLLER_PREFIX_HIT_FLOOR for value in prefix)
+            >= required
+        ):
+            # The prefix cache pays for the context every stream shares, and it
+            # is evicted by width long before the pool fills -- measured at half
+            # occupancy with preemptions still at zero -- so a sustained low hit
+            # rate is the first signal that the width has gone too far.
+            return (
+                f"stepping down: prefix hit rate {float(min(prefix)):.3f} "
+                f"is below the {GATE_CONTROLLER_PREFIX_HIT_FLOOR:.2f} floor"
+            )
+        kv = [sample[1] for sample in health if sample[1] is not None]
+        if sum(value >= GATE_CONTROLLER_KV_CEILING for value in kv) >= required:
+            # The pool ceiling is a second, blunter reading of the same
+            # pressure: it fills later than the cache thrashes, which is why a
+            # sustained ceiling is a guard and not the objective's measurement.
+            return (
+                f"stepping down: KV occupancy {float(max(kv)):.3f} is at the "
+                f"{GATE_CONTROLLER_KV_CEILING:.2f} ceiling"
+            )
+        per_stream = [sample[2] for sample in health if sample[2] is not None]
+        if (
+            sum(value < GATE_CONTROLLER_PER_STREAM_FLOOR_TOK_S for value in per_stream)
+            >= required
+        ):
+            # Aggregate throughput can hold while every stream crawls, which is
+            # a lane nobody can use: the floor is on what one stream gets, and
+            # one noisy scrape is not enough to declare the lane unusable.
+            return (
+                f"stepping down: {float(min(per_stream)):.1f} tokens/s per stream is "
+                f"below the {GATE_CONTROLLER_PER_STREAM_FLOOR_TOK_S:.0f} floor"
+            )
+        return None
+
+    @staticmethod
+    def _controller_health_sample(
         *,
         rate: float,
         running: int | None,
         prefix_hit_rate: float | None,
         kv_occupancy: float | None,
-    ) -> str | None:
-        """Report the health watch that says the current width is too wide."""
-        if (
-            prefix_hit_rate is not None
-            and prefix_hit_rate < GATE_CONTROLLER_PREFIX_HIT_FLOOR
-        ):
-            # The prefix cache pays for the context every stream shares, and it
-            # is evicted by width long before the pool fills -- measured at half
-            # occupancy with preemptions still at zero -- so the hit rate is the
-            # first signal that the width has gone too far.
-            return (
-                f"stepping down: prefix hit rate {float(prefix_hit_rate):.3f} "
-                f"is below the {GATE_CONTROLLER_PREFIX_HIT_FLOOR:.2f} floor"
-            )
-        if (
-            kv_occupancy is not None
-            and float(kv_occupancy) >= GATE_CONTROLLER_KV_CEILING
-        ):
-            # The pool ceiling is a second, blunter reading of the same
-            # pressure: it fills later than the cache thrashes, which is why it
-            # is a guard and not the objective's measurement.
-            return (
-                f"stepping down: KV occupancy {float(kv_occupancy):.3f} is at the "
-                f"{GATE_CONTROLLER_KV_CEILING:.2f} ceiling"
-            )
-        if (
-            running is not None
-            and running > 0
-            and rate / running < GATE_CONTROLLER_PER_STREAM_FLOOR_TOK_S
-        ):
-            # Aggregate throughput can hold while every stream crawls, which is
-            # a lane nobody can use: the floor is on what one stream gets.
-            return (
-                f"stepping down: {rate / running:.1f} tokens/s per stream is "
-                f"below the {GATE_CONTROLLER_PER_STREAM_FLOOR_TOK_S:.0f} floor"
-            )
-        return None
+    ) -> tuple[float | None, float | None, float | None]:
+        """Capture health values, ignoring the idle lane's sentinel readings."""
+        if running is None or running <= 0:
+            return (None, None, None)
+        return (
+            prefix_hit_rate,
+            float(kv_occupancy) if kv_occupancy is not None else None,
+            rate / running,
+        )
 
     def _step_width_down(self, reason: str) -> None:
         """Step the width down on a health watch and re-plan from there."""
@@ -646,6 +675,7 @@ class _GenerationGate:
         self._controller_reference_width = None
         self._controller_reference_rate = None
         self._controller_best_rate = None
+        self._controller_health.clear()
         self._controller_note = reason
 
     def _current_width(self) -> int | None:
