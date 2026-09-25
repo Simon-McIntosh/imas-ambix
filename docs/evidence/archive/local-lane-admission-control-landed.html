@@ -1007,6 +1007,55 @@
     tests/test_agent_router_admission.py tests/test_agent_router_cut.py</code> then ran
     28 tests with 0 failures, and whole-tree
     <code>uv run --no-sync ruff check imas_ambix tests</code> exited 0.</p>
+
+    <h3 id="router-cut-pause-needs-pause">A cut is a cut only while a pause holds</h3>
+    <p>The cut is armed only for a relay the gate admitted, and it is honoured only
+    while <code>paused</code> also holds. Without that second conjunct a gate file
+    carrying <code>cut</code> alone would end the relay at the instant it is admitted,
+    and the client would retry into the same cut without end. Commit
+    <code>bb3f061a6969e9483df15c417663f6547765713a</code> pins the conjunct with a
+    test, so the behaviour rests on an executable check rather than on the comment at
+    the guard.</p>
+
+    <table>
+      <caption>The four states of the two gate keys, and what each does to a streaming relay in flight.</caption>
+      <thead>
+        <tr><th><code>paused</code></th><th><code>cut</code></th><th>An in-flight streaming relay</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>false</td><td>false</td><td>drains to its own terminal chunk</td></tr>
+        <tr><td>true</td><td>false</td><td>drains to its own terminal chunk (the pause stops admission, not the relay)</td></tr>
+        <tr><td>false</td><td>true</td><td>drains to its own terminal chunk &#8212; a cut with no pause is not a cut</td></tr>
+        <tr><td>true</td><td>true</td><td>ended by the cut: no terminal chunk (<code>close</code>) or an <code>overloaded_error</code> frame (<code>error</code>)</td></tr>
+      </tr></tbody>
+    </table>
+
+    <p><strong>How the no-pause case is observed.</strong> The stub engine streams
+    slowly and records whether each request reached its own end or was aborted, so the
+    test discriminates a router cut from the engine's stream simply ending. The gate
+    file carries <code>cut: true</code> with <code>paused</code> absent before the relay
+    is named, so a watcher that wrongly honoured a bare cut would end the relay on its
+    first poll rather than racing the several seconds the slow engine takes to finish.
+    The test then asserts the relay drained to exactly one terminal chunk, that the
+    client received HTTP 200, and that the engine set <code>completed</code> and not
+    <code>cancelled</code>. Its pair is the pause-without-cut case, which asserts the
+    same terminal chunk, so together they are evidence about the pause conjunct rather
+    than about a response merely ending.</p>
+
+    <p><strong>Evidence that could have failed.</strong> The declared negative control,
+    verbatim as the first line of the red log, is: &ldquo;removing the settings.paused
+    conjunct from _GenerationGate.wait_for_cut in imas_ambix/agent/router.py must fail
+    the new test; applied as a scratch edit and restored&rdquo;. With the conjunct
+    removed from <code>if settings.paused and settings.cut:</code>, the watcher returned
+    on its first read and the relay was cut before the slow engine finished: the new
+    test failed in 0.41 s on <code>assert 529 == 200</code>, the 529 being the gate's
+    retryable overload, and the upstream request was observed cancelled. The scratch
+    edit was restored and verified byte-identical by object hash
+    (<code>83d4a76bf553740ddf9696faf2fb59f760d9028a583bcddde9d547017a0bcfe1</code>)
+    before the green gate ran. The declared gate
+    <code>uv run --no-sync pytest -p no:cacheprovider tests/test_agent_router_cut.py</code>
+    then ran 7 tests with 0 failures, and whole-tree
+    <code>uv run --no-sync ruff check imas_ambix tests</code> exited 0.</p>
   </section>
 </main>
 </body>
