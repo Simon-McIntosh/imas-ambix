@@ -1750,6 +1750,11 @@ def router_command(
     from imas_ambix.agent.router import DynamicUpstreamResolver, serve_router
 
     site = SiteConfig.from_env()
+    # Resolve the gate control file once, here, so the path a submitted job
+    # carries is absolute and independent of the submitting shell's working
+    # directory and of any ``~`` the shell would not expand under sbatch. The
+    # value a reader audits from the job is then the file in force.
+    gate_path = Path(gate_file).expanduser().resolve() if gate_file else None
     if submit or dry_run:
         from imas_ambix.agent.slurm import generate_router_script, submit_script
 
@@ -1764,7 +1769,7 @@ def router_command(
             cpus=cpus,
             memory=memory,
             prefix_probe=prefix_probe,
-            gate_file=Path(gate_file) if gate_file else None,
+            gate_file=gate_path,
         )
         if dry_run:
             console.print(script, markup=False, highlight=False, soft_wrap=True)
@@ -1783,14 +1788,13 @@ def router_command(
     resolver = DynamicUpstreamResolver(
         lambda: _resolve_router_upstreams(site, resolved_key)
     )
-    from pathlib import Path as _Path
 
     serve_router(
         resolver,
         host=host,
         port=port,
-        lane_document=_Path(site.endpoint_document).with_name("lane.json"),
-        gate_file=_Path(gate_file) if gate_file else None,
+        lane_document=Path(site.endpoint_document).with_name("lane.json"),
+        gate_file=gate_path,
     )
 
 
