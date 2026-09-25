@@ -10,7 +10,7 @@
   <meta name="plan-summary"      content="Cumulative execution record for local-lane-admission-control: capacity levers, scheduler levers, client behaviour, the router gate and the bypass trace">
   <meta name="plan-tags"         content="agent-serving,gpu-deployment">
   <meta name="plan-evidence-for" content="local-lane-admission-control">
-  <meta name="plan-verifies"     content="local-lane-admission-control#s3,local-lane-admission-control#s5,local-lane-admission-control#s6,local-lane-admission-control#s7,local-lane-admission-control#s8,local-lane-admission-control#s11,local-lane-admission-control#s12,local-lane-admission-control#s19,local-lane-admission-control#s14,local-lane-admission-control#s18,local-lane-admission-control#s17,local-lane-admission-control#s20">
+  <meta name="plan-verifies"     content="local-lane-admission-control#s3,local-lane-admission-control#s5,local-lane-admission-control#s6,local-lane-admission-control#s7,local-lane-admission-control#s8,local-lane-admission-control#s11,local-lane-admission-control#s12,local-lane-admission-control#s19,local-lane-admission-control#s14,local-lane-admission-control#s18,local-lane-admission-control#s17,local-lane-admission-control#s20,local-lane-admission-control#s15">
   <meta name="plan-owner"        content="Simon McIntosh">
   <title>Local Lane Admission Control — Landed Evidence | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
@@ -1250,6 +1250,89 @@
     whole-tree <code>uv run --no-sync ruff check imas_ambix tests</code> exited 0.
     No router, engine or live gate file was touched: this node writes the CLI
     module and its tests only.</p>
+  </section>
+
+  <section id="gate-control-path">
+    <h2>The gate control file is named explicitly</h2>
+    <p>The router used to take its admission-gate control file from the lane
+    document's sibling (<code>lane_document.with_name(GATE_FILENAME)</code>, mirrored
+    in the CLI), so one operator control input sat in a world-readable directory
+    shared with the 19 MB <code>requests.jsonl</code>, and moving where the lane
+    publishes moved where the router took control without any code saying so.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/local-lane-admission-control/gate-control-path.svg"
+           alt="The gate control path resolves from an explicit option, then the
+                AMBIX_ROUTER_GATE_PATH environment variable, then the lane
+                document's sibling; the router and the CLI both call the one
+                resolver, and lane.json publishes which file is in force.">
+      <figcaption>One resolver, two callers: the router and the CLI cannot
+      disagree about which file is in force, and the lane document still
+      publishes the path it resolved.</figcaption>
+    </figure>
+
+    <p><strong>Where the path comes from.</strong> A single function,
+    <code>resolve_gate_path(explicit, lane_document)</code> in
+    <code>imas_ambix/agent/router.py</code>, resolves the control path in a fixed
+    order: the <code>--gate-file</code> option, then the
+    <code>AMBIX_ROUTER_GATE_PATH</code> environment variable, then the lane
+    document's sibling. An explicitly named path is returned whether or not it
+    exists, because a gate not yet written must read as an empty gate rather than
+    fall through to a different file. The router and the CLI both call this one
+    function, so they cannot disagree about the file in force — the disagreement
+    was the whole reason the path was worth naming.</p>
+
+    <p><strong>The CLI half.</strong> <code>agent pause</code>, <code>agent
+    resume</code> and a new <code>agent width &lt;n|auto&gt;</code> all resolve
+    through the same function and all write through one
+    <code>_write_gate_document</code>, which stamps <code>set_by</code> (the
+    invoking user) and <code>set_at</code> (UTC ISO) into the payload before the
+    write-then-rename, so a group-writable control file stays auditable. A
+    <code>--gate-file</code> on any of the three overrides the environment.</p>
+
+    <p><strong>What the tests measure.</strong> Nine tests in
+    <code>tests/test_agent_gate_control_path.py</code>. The resolver order is
+    pinned directly. The router is constructed over a scratch control directory
+    standing in for <code>/work/projects/imas_gpu/agents/control</code> with a
+    populated decoy beside the lane document at width 99, and reads width 7 from
+    the explicit path while the decoy is neither read nor written. The fallback
+    case names neither and reads width 13 from the sibling. A second process
+    writes width 11 to the explicit path and the running gate picks it up within
+    the one-second refresh, asserted by polling the gate's own
+    <code>settings().width</code>. One lane document is published and its
+    <code>router_generation_gate.config_path</code> asserted against the explicit
+    path. Two tests drive the CLI through <code>CliRunner</code>: a
+    <code>pause</code> → <code>width 14</code> → <code>resume</code> sequence
+    asserts every write landed on the named path, not the sibling, and carries
+    <code>set_by</code>/<code>set_at</code>; and <code>--gate-file</code> is
+    shown to override the environment.</p>
+
+    <p><strong>Evidence that could have failed.</strong> The declared negative
+    control, verbatim as the first line of the red log, is: &ldquo;making the
+    router ignore the explicit path and fall back to the lane document's sibling
+    must fail the explicit-path test; applied as a scratch edit and
+    restored&rdquo;. With the explicit-path and environment branches removed so
+    the resolver fell straight to the lane sibling, the red log carried
+    <strong>10 failed</strong>, including every explicit-path test and the two
+    router-gate tests that had been relying on the option. The scratch edit was
+    reverted and the source verified byte-identical by SHA-256
+    (<code>af9b62a1f8cd4005623be07e210127e47ce11f6e83f82c233d5005f5e8b7cce3</code>)
+    before the green gate ran. The declared gate
+    <code>uv run --no-sync pytest -p no:cacheprovider
+    tests/test_agent_router_gate.py tests/test_agent_pause_cli.py
+    tests/test_agent_gate_control_path.py</code> then ran 41 tests with 0
+    failures at the committed revision, and whole-tree
+    <code>uv run --no-sync ruff check imas_ambix tests</code> exited 0.</p>
+
+    <p><strong>What was not done.</strong> Nothing under <code>/work</code> or
+    <code>~/public</code> was created or written, and no router was restarted.
+    The one-time copy of the current control file into the group-owned directory,
+    and the restart that points a running router at it, remain the deployment
+    step the section reserves to the lead. The submitted-router path is a
+    follow-on: <code>generate_router_script</code> lives in
+    <code>slurm.py</code> and cannot yet carry the path, so
+    <code>--submit</code> with <code>--gate-file</code> is refused rather than
+    silently ignored.</p>
   </section>
 </main>
 </body>

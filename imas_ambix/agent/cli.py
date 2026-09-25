@@ -1726,6 +1726,15 @@ def _resolve_router_upstreams(site: SiteConfig, api_key: str | None) -> list[Ups
     is_flag=True,
     help="Log where each caller's prompt stops matching its previous turn.",
 )
+@click.option(
+    "--gate-file",
+    type=click.Path(),
+    default=None,
+    help=(
+        "Gate control file to read; overrides AMBIX_ROUTER_GATE_PATH and the "
+        "lane document's sibling."
+    ),
+)
 def router_command(
     host: str,
     port: int,
@@ -1735,6 +1744,7 @@ def router_command(
     cpus: int,
     memory: str,
     prefix_probe: bool,
+    gate_file: str | None,
 ) -> None:
     """Run or submit the multi-engine pass-through router."""
     from imas_ambix.agent.router import DynamicUpstreamResolver, serve_router
@@ -1747,6 +1757,18 @@ def router_command(
             raise click.ClickException(
                 "--api-key cannot be embedded in a submitted router script; "
                 "use keyless upstreams or run the router in the foreground."
+            )
+        if gate_file is not None and submit:
+            # The generated script does not yet carry the gate path, and a
+            # submitted job does not inherit the submitting shell's environment,
+            # so accepting the flag here would launch a router reading a
+            # different control file than the one named -- a value that lives
+            # only in an invocation, which is the defect this section exists to
+            # remove. Refuse rather than silently ignore it.
+            raise click.ClickException(
+                "--gate-file cannot yet reach a submitted router; the gate path "
+                "must be embedded in the generated script first. Run the router "
+                "in the foreground."
             )
         script = generate_router_script(
             site,
@@ -1779,6 +1801,7 @@ def router_command(
         host=host,
         port=port,
         lane_document=_Path(site.endpoint_document).with_name("lane.json"),
+        gate_file=_Path(gate_file) if gate_file else None,
     )
 
 
@@ -3266,11 +3289,21 @@ def lane(origin: str | None, publish: bool, refresh: int | None, submit: bool) -
         time.sleep(refresh)
 
 
-def _gate_document_path(site: SiteConfig) -> Path:
-    """The admission gate file the running router reads live."""
-    from imas_ambix.agent.router import GATE_FILENAME
+def _gate_document_path(site: SiteConfig, gate_file: str | None = None) -> Path:
+    """The admission gate file the running router reads live.
 
-    return Path(site.endpoint_document).with_name(GATE_FILENAME)
+    Resolved through the router's own resolver so the CLI and the router never
+    disagree about which file is in force: the command-line path first, then
+    ``AMBIX_ROUTER_GATE_PATH``, then the lane document's sibling. The router
+    publishes the resolved path in ``lane.json`` beside the gate snapshot, so a
+    reader can always see which file the running process took control from.
+    """
+    from imas_ambix.agent.router import resolve_gate_path
+
+    lane_document = Path(site.endpoint_document).with_name("lane.json")
+    resolved = resolve_gate_path(Path(gate_file) if gate_file else None, lane_document)
+    assert resolved is not None  # the lane document branch always resolves
+    return resolved
 
 
 def _read_gate_document(path: Path) -> dict[str, object]:
@@ -3293,9 +3326,19 @@ def _read_gate_document(path: Path) -> dict[str, object]:
 
 
 def _write_gate_document(path: Path, payload: dict[str, object]) -> None:
-    """Replace the gate file atomically, as the running router does for lane.json."""
-    import json
+    """Replace the gate file atomically, stamping who wrote it and when.
 
+    A group-writable control file stays auditable only if every write says whose
+    it was, so the write itself stamps the invoking user and the UTC time rather
+    than trusting each command to remember. The write is a write-then-rename so a
+    router polling mid-write reads either the old file or the new one and never a
+    partial one.
+    """
+    import json
+    from datetime import UTC, datetime
+
+    payload["set_by"] = getpass.getuser()
+    payload["set_at"] = datetime.now(UTC).isoformat()
     path.parent.mkdir(parents=True, exist_ok=True)
     scratch = path.with_suffix(".tmp")
     scratch.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
@@ -3365,7 +3408,16 @@ def _print_lane_counts(site: SiteConfig) -> None:
         "Only meaningful with --cut."
     ),
 )
-def pause(reason: str, cut: bool, cut_form: str | None) -> None:
+@click.option(
+    "--gate-file",
+    type=click.Path(),
+    default=None,
+    help=(
+        "Gate control file to write; overrides AMBIX_ROUTER_GATE_PATH and the "
+        "lane document's sibling."
+    ),
+)
+def pause(reason: str, cut: bool, cut_form: str | None, gate_file: str | None) -> None:
     """Stop the router admitting new generation while in-flight work finishes.
 
     The pause is written to the gate file the running router reads live, so it
@@ -3391,7 +3443,7 @@ def pause(reason: str, cut: bool, cut_form: str | None) -> None:
     if cut_form is not None and not cut:
         raise click.UsageError("--cut-form requires --cut")
     site = SiteConfig.from_env()
-    path = _gate_document_path(site)
+    path = _gate_document_path(site, gate_file)
     payload = _read_gate_document(path)
     payload["paused"] = True
     payload["reason"] = reason
@@ -3402,9 +3454,7 @@ def pause(reason: str, cut: bool, cut_form: str | None) -> None:
         payload.pop("cut", None)
         payload.pop("cut_form", None)
     _write_gate_document(path, payload)
-    console.print(
-        f"paused {site.endpoint_document.parent}", markup=False, highlight=False
-    )
+    console.print(f"paused {path}", markup=False, highlight=False)
     if cut:
         console.print(
             f"cut in flight (form {payload['cut_form']})",
@@ -3415,7 +3465,16 @@ def pause(reason: str, cut: bool, cut_form: str | None) -> None:
 
 
 @agent.command()
-def resume() -> None:
+@click.option(
+    "--gate-file",
+    type=click.Path(),
+    default=None,
+    help=(
+        "Gate control file to write; overrides AMBIX_ROUTER_GATE_PATH and the "
+        "lane document's sibling."
+    ),
+)
+def resume(gate_file: str | None) -> None:
     """Clear the gate's pause and admit the requests it held, in arrival order.
 
     Clearing the pause clears the cut with it: the cut is a property of the
@@ -3423,7 +3482,7 @@ def resume() -> None:
     admitted it.
     """
     site = SiteConfig.from_env()
-    path = _gate_document_path(site)
+    path = _gate_document_path(site, gate_file)
     payload = _read_gate_document(path)
     payload["paused"] = False
     payload.pop("reason", None)
@@ -3431,6 +3490,49 @@ def resume() -> None:
     payload.pop("cut_form", None)
     _write_gate_document(path, payload)
     console.print("resumed", markup=False, highlight=False)
+    _print_lane_counts(site)
+
+
+@agent.command()
+@click.argument("width", type=str)
+@click.option(
+    "--gate-file",
+    type=click.Path(),
+    default=None,
+    help=(
+        "Gate control file to write; overrides AMBIX_ROUTER_GATE_PATH and the "
+        "lane document's sibling."
+    ),
+)
+def width(width: str, gate_file: str | None) -> None:
+    """Set the gate's admission width without a router restart.
+
+    ``width`` is either an integer, or ``auto`` to let the router size the
+    width itself. The value is written to the gate file the running router
+    reads live, so it takes effect on the router's next refresh -- at most one
+    second -- and needs no restart and no message to any coordinator. Zero
+    admits nobody, which is the same effect as a pause without calling it one.
+    """
+    from imas_ambix.agent.router import GATE_AUTO_WIDTH
+
+    value: object
+    if width.strip().casefold() == GATE_AUTO_WIDTH:
+        value = GATE_AUTO_WIDTH
+    else:
+        try:
+            value = int(width)
+        except ValueError:
+            raise click.BadParameter(
+                f"{width!r} is neither an integer nor {GATE_AUTO_WIDTH!r}"
+            ) from None
+        if value < 0:
+            raise click.BadParameter("width must not be negative")
+    site = SiteConfig.from_env()
+    path = _gate_document_path(site, gate_file)
+    payload = _read_gate_document(path)
+    payload["width"] = value
+    _write_gate_document(path, payload)
+    console.print(f"width {value} -> {path}", markup=False, highlight=False)
     _print_lane_counts(site)
 
 
