@@ -24,7 +24,6 @@ from imas_ambix.agent.profile import (
     list_profiles,
     load_profile,
 )
-from imas_ambix.agent.router import DEFAULT_GATE_CUT_FORM, GATE_CUT_FORMS
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -3354,7 +3353,11 @@ def _print_lane_counts(site: SiteConfig) -> None:
 )
 @click.option(
     "--cut-form",
-    type=click.Choice(GATE_CUT_FORMS),
+    # Written out rather than read from the router: this option is built when
+    # the module is imported, so naming the router's tuple here would import
+    # the router for every CLI invocation, including ones that never touch the
+    # gate. A test pins this tuple equal to the router's own forms.
+    type=click.Choice(("close", "error")),
     default=None,
     help=(
         "How a cut answers the client stream: 'close' drops the connection "
@@ -3383,6 +3386,8 @@ def pause(reason: str, cut: bool, cut_form: str | None) -> None:
     ``--cut`` withdraws any cut an earlier pause left declared, so a re-pause
     never inherits a cut it did not ask for.
     """
+    from imas_ambix.agent.router import DEFAULT_GATE_CUT_FORM
+
     if cut_form is not None and not cut:
         raise click.UsageError("--cut-form requires --cut")
     site = SiteConfig.from_env()
