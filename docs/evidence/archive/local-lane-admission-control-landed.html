@@ -788,6 +788,57 @@
     <code>test_block_size_override_is_refused_without_dspark</code>, and
     <code>test_serve_dry_run_offers_the_same_override</code> to fail: 4 failed and 32 passed.
     The implementation was restored before the lint gate.</p>
+    <p>The concurrency-ladder parser's own refusal contract, and the blank component it
+    previously absorbed, are recorded in <a href="#ladder-blank-component">An empty ladder
+    component is refused, not silently skipped</a>.</p>
+  </section>
+
+  <section id="ladder-blank-component">
+    <h2>An empty ladder component is refused, not silently skipped</h2>
+
+    <p><strong>Defect reproduced.</strong> The concurrency-ladder parser skipped a blank
+    component rather than refusing it, so <code>_concurrency_levels("4,,8")</code> returned
+    <code>[4, 8]</code>, silently dropping the interior level. That is the same hole the
+    parser's whole-or-refuse contract exists to prevent: a level the sweep never measured
+    would be recorded as one it decided against. Reproduced before the change, at the base
+    revision: <code>'4,,8' -&gt; [4, 8]</code>, <code>'4,8,' -&gt; [4, 8]</code>,
+    <code>',4,8' -&gt; [4, 8]</code>, while the all-empty ladders <code>',,'</code> and
+    <code>''</code> were already refused.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/local-lane-admission-control/ladder-refuses-blank-component.svg"
+        alt="Decision path of the concurrency-ladder parser: a blank component stops the parse and raises a click BadParameter naming the empty component, where it previously continued and dropped the level.">
+      <figcaption>The parser refuses a whole ladder when any component is blank, naming the
+      empty component. The superseded behaviour (<code>if not part: continue</code>) absorbed
+      the blank, so <code>4,,8</code> became <code>[4, 8]</code>.</figcaption>
+    </figure>
+
+    <h3 id="ladder-blank-component-evidence">What the tests measure</h3>
+
+    <p><strong>Repair.</strong> Commit <code>03f88c9e</code> makes a blank component stop
+    the parse and raise <code>click.BadParameter</code> naming the empty component
+    (<code>empty component in ladder '4,,8'; give levels as 4,8,12,16</code>). The malformed
+    ladder parametrization is extended with <code>4,,8</code>, <code>4,8,</code> and
+    <code>,4,8</code>, and a second parametrized test asserts the refusal message names the
+    empty component for those three plus a whitespace-only component
+    (<code>4, ,8</code>) and <code>,,</code>.</p>
+
+    <p><strong>Verification.</strong> The gate
+    <code>UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD
+    uv run --no-sync pytest -p no:cacheprovider tests/test_agent_sweep_options.py</code> on
+    the login node exited 0 with 27 passed (base revision: 19 collected, so the change adds
+    eight cases and removes none); every pre-existing test stayed green. Whole-tree
+    <code>uv run --no-sync ruff check imas_ambix tests</code> exited 0 with
+    <code>All checks passed!</code>. No serve was started, restarted, or cancelled.</p>
+
+    <p><strong>Declared negative control.</strong> The exact scratch mutation was:
+    <code>restoring the skip of empty components in _concurrency_levels must fail the '4,,8'
+    case; applied as a scratch edit and restored</code>. With the base parser restored, the
+    focused gate reported <code>8 failed, 19 passed</code>, including
+    <code>test_malformed_ladder_is_refused[4,,8]</code>,
+    <code>[4,8,]</code>, <code>[,4,8]</code> and the message-naming test for each blank
+    component. The file was restored byte-for-byte (a post-restore gate re-run passed 27/27)
+    and is not part of the committed change.</p>
   </section>
 
   <section id="gate-aware-lane">
