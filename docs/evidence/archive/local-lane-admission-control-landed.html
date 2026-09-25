@@ -1111,6 +1111,52 @@
     pause was issued against the live gate file, and no router or engine was touched:
     this node writes the CLI surface only.</p>
   </section>
+
+  <section id="cli-lazy-router-import">
+    <h2>The CLI no longer imports the router to describe its own options</h2>
+    <p><code>imas_ambix/agent/cli.py</code> carried
+    <code>from imas_ambix.agent.router import DEFAULT_GATE_CUT_FORM, GATE_CUT_FORMS</code>
+    at module level, so importing the CLI pulled the router in for every
+    invocation, including the many that never touch the gate. Every other router
+    name in the file is already deferred to the function that uses it, so this
+    one import was the exception. The module-level import is removed:
+    <code>DEFAULT_GATE_CUT_FORM</code> is now imported inside <code>pause</code>,
+    which is the only place it is read.</p>
+
+    <p>The <code>--cut-form</code> option needed care: its
+    <code>click.Choice</code> argument is evaluated when the decorator runs, which
+    is module import, so naming the router's <code>GATE_CUT_FORMS</code> there
+    would import the router for exactly the reason being removed. The argument is
+    therefore a literal tuple <code>("close", "error")</code>, and a new test
+    reads the choices off the built option and asserts they equal the router's
+    <code>GATE_CUT_FORMS</code>, so the CLI cannot present a form the router would
+    refuse to parse. The test reads the value the command actually presents rather
+    than a copy of the literal, so a change to one side alone fails it.</p>
+
+    <p><strong>What the tests measure.</strong> The deferral is measured in a fresh
+    interpreter, because the test process itself holds the router for its other
+    cases and a same-process check could not see the difference. A subprocess
+    imports <code>imas_ambix.agent.cli</code>, prints the module's own
+    <code>__file__</code> so a run that resolved another checkout reads as a
+    failure rather than a pass, and exits non-zero if
+    <code>imas_ambix.agent.router</code> is in <code>sys.modules</code>. Before the
+    change the same probe reported the router present; after it, absent.</p>
+
+    <p><strong>Evidence that could have failed.</strong> The declared negative
+    control, verbatim as the first line of the red log, is: &ldquo;restoring the
+    module-level router import must fail the fresh-interpreter import test;
+    applied as a scratch edit and restored&rdquo;. With the module-level import
+    restored, the fresh-interpreter test failed and no other did: running only
+    that test, <code>1 failed, 14 deselected in 0.52s</code>. The scratch edit was
+    reverted and the source verified byte-identical by SHA-256
+    (<code>e96936035857dca6352c6a1d2a5d5c55bc4da9f6dfe78db1237f86190366cd76</code>)
+    before the green gate ran. The declared gate
+    <code>uv run --no-sync pytest -p no:cacheprovider tests/test_agent_pause_cli.py
+    tests/test_agent_router_cut.py</code> then ran 22 tests with 0 failures, and
+    whole-tree <code>uv run --no-sync ruff check imas_ambix tests</code> exited 0.
+    No router, engine or live gate file was touched: this node writes the CLI
+    module and its tests only.</p>
+  </section>
 </main>
 </body>
 </html>
