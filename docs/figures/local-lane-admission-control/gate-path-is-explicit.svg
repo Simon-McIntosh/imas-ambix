@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 372" font-family="system-ui, sans-serif" font-size="13">
+  <rect width="760" height="372" fill="#ffffff"/>
+  <text x="16" y="26" font-size="15" font-weight="600">A submitted router's gate path depends only on the generated script</text>
+
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#333"/>
+    </marker>
+  </defs>
+
+  <!-- ============ Row 1: an explicit --gate-file ============ -->
+  <text x="16" y="66" font-weight="600" fill="#3b6ea5">with --gate-file X</text>
+
+  <rect x="16" y="78" width="196" height="80" rx="6" fill="#eef4fb" stroke="#3b6ea5"/>
+  <text x="28" y="100" font-weight="600">submitting shell</text>
+  <text x="28" y="120" font-family="monospace" font-size="12">--gate-file ~/x.json</text>
+  <text x="28" y="140" fill="#555">a value named once, at submit</text>
+
+  <line x1="212" y1="118" x2="266" y2="118" stroke="#333" stroke-width="1.5" marker-end="url(#ar)"/>
+
+  <rect x="270" y="78" width="196" height="80" rx="6" fill="#eef7ee" stroke="#4a8a4a"/>
+  <text x="282" y="100" font-weight="600">router_command resolves it</text>
+  <text x="282" y="120" font-family="monospace" font-size="12">expanduser + resolve</text>
+  <text x="282" y="140" fill="#555">&rarr; /home/&hellip;/x.json</text>
+
+  <line x1="466" y1="118" x2="520" y2="118" stroke="#333" stroke-width="1.5" marker-end="url(#ar)"/>
+
+  <rect x="524" y="78" width="220" height="80" rx="6" fill="#f4f1e8" stroke="#a5893b"/>
+  <text x="536" y="100" font-weight="600">generated script</text>
+  <text x="536" y="120" font-family="monospace" font-size="11">export AMBIX_ROUTER_GATE_PATH=/home/&hellip;/x.json</text>
+  <text x="536" y="140" fill="#555">job reads the named file</text>
+
+  <!-- ============ Row 2: no option ============ -->
+  <text x="16" y="206" font-weight="600" fill="#a5503b">with no option</text>
+
+  <rect x="16" y="218" width="196" height="80" rx="6" fill="#fdf1ee" stroke="#c0705a"/>
+  <text x="28" y="240" font-weight="600">submitting shell</text>
+  <text x="28" y="260" font-family="monospace" font-size="11">may export&hellip;=/tmp/other.json</text>
+  <text x="28" y="280" fill="#555">inherited by the job (no --export)</text>
+
+  <line x1="212" y1="258" x2="266" y2="258" stroke="#333" stroke-width="1.5" marker-end="url(#ar)"/>
+
+  <rect x="270" y="218" width="196" height="80" rx="6" fill="#f4f1e8" stroke="#a5893b"/>
+  <text x="282" y="240" font-weight="600">generated script</text>
+  <text x="282" y="260" font-family="monospace" font-size="12">unset AMBIX_ROUTER_GATE_PATH</text>
+  <text x="282" y="280" fill="#555">the shell's value is discarded</text>
+
+  <line x1="466" y1="258" x2="520" y2="258" stroke="#333" stroke-width="1.5" marker-end="url(#ar)"/>
+
+  <rect x="524" y="218" width="220" height="80" rx="6" fill="#eef7ee" stroke="#4a8a4a"/>
+  <text x="536" y="240" font-weight="600">job reads the lane sibling</text>
+  <text x="536" y="260" font-family="monospace" font-size="11">L(lane.json).with_name(GATE_FILENAME)</text>
+  <text x="536" y="280" fill="#555">today's path, unchanged</text>
+
+  <text x="16" y="336" fill="#555">The generated script is the only source: an absolute export when a file is named, an</text>
+  <text x="16" y="354" fill="#555">unset when none is, so the no-option behaviour cannot be an artefact of the submitting shell.</text>
+</svg>
