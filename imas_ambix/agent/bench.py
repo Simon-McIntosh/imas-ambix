@@ -996,6 +996,30 @@ def _scrape_spec_decode(
     return _spec_decode_snapshot(body)
 
 
+def _spec_decode_depth(snapshot: dict[str, Any] | None) -> dict[str, Any]:
+    """Effective speculative depth from one ``/metrics`` snapshot.
+
+    Two gauges, both recorded per concurrency level so a row's throughput can
+    be read against the depth the engine was actually running rather than
+    against the profile's declared setting:
+
+    * ``accept_length`` — mean number of draft tokens the target model keeps
+      per speculative forward, so a drafter that has silently degraded shows up
+      as a rate rather than as unexplained slowness;
+    * ``active_draft_tokens`` — the draft count the engine currently runs.
+
+    Both are gauges rather than counters, so they are read directly and not
+    differenced. An engine family that does not publish one records ``None``
+    for it: a missing reading is an absence, and a zero would be a measurement
+    nothing took.
+    """
+    snapshot = snapshot or {}
+    return {
+        "accept_length": snapshot.get("accept_length"),
+        "active_draft_tokens": snapshot.get("active_draft_tokens"),
+    }
+
+
 def _counter_delta(
     before: dict[str, Any],
     after: dict[str, Any],
@@ -1376,14 +1400,27 @@ def _run_reasoning(
     return results
 
 
+#: Concurrency ladder ``agent bench`` sweeps when the caller supplies none.
+#: A serve is a function of its own batching behaviour, so a sweep that needs
+#: resolution around a particular serve's knee passes its own ladder rather
+#: than inheriting this one.
+DEFAULT_CONCURRENCY_LEVELS: tuple[int, ...] = (1, 2, 4, 8, 16, 32)
+
+
 def _run_concurrency(
     base_url: str,
     model: str,
     repeat: int,
     api_key: str | None = None,
     gen_tokens: int = 1024,
+    levels: list[int] | None = None,
 ) -> list[BenchResult]:
     """Parallel request handling tests.
+
+    *levels* is the concurrency ladder to sweep, in order; it defaults to
+    :data:`DEFAULT_CONCURRENCY_LEVELS`. A sweep around a measured knee passes
+    its own ladder, because the plateau's width and the batch at which the
+    speculative draft depth becomes a cost are properties of the serve.
 
     *gen_tokens* sets how much each worker generates. It has to be long enough
     that steady-state decoding dominates the measurement: a short generation
@@ -1391,7 +1428,7 @@ def _run_concurrency(
     which do not scale with the concurrency level, so the aggregate rate comes
     out non-monotone and says more about the transient than about the server.
     """
-    levels = [1, 2, 4, 8, 16, 32]
+    ladder = list(levels) if levels is not None else list(DEFAULT_CONCURRENCY_LEVELS)
     prompt = [
         {
             "role": "user",
@@ -1400,7 +1437,7 @@ def _run_concurrency(
     ]
     results: list[BenchResult] = []
 
-    for n_workers in levels:
+    for n_workers in ladder:
         test_name = f"concurrent_{n_workers}"
         for rep in range(repeat):
             barrier = threading.Barrier(n_workers, timeout=30)
@@ -1438,11 +1475,16 @@ def _run_concurrency(
 
             total_comp = sum(r.completion_tokens for r in worker_results)
             aggregate_tps = total_comp / wall_time if wall_time > 0 else 0
+            # Read from the engine once per level, so a row's throughput is
+            # comparable against the draft depth the level actually ran at
+            # rather than against the profile's declared setting.
+            depth = _spec_decode_depth(_scrape_spec_decode(base_url, api_key))
 
             for wr in worker_results:
                 wr.metadata["wall_time"] = round(wall_time, 3)
                 wr.metadata["aggregate_tps"] = round(aggregate_tps, 1)
                 wr.metadata["n_workers"] = n_workers
+                wr.metadata["spec_decode"] = depth
                 results.append(wr)
     return results
 
@@ -1462,8 +1504,12 @@ def run_benchmark(
     profile: ModelProfile | None = None,
     serve_job_id: str | None = None,
     concurrency_tokens: int = 1024,
+    concurrency_levels: list[int] | None = None,
 ) -> BenchReport:
     """Run the full benchmark suite and return a :class:`BenchReport`.
+
+    *concurrency_levels* replaces the concurrency category's ladder, so a sweep
+    can span a wider or finer range than :data:`DEFAULT_CONCURRENCY_LEVELS`.
 
     ``report.server_info`` keeps the raw ``/v1/models`` payload at the top
     level — its ``object`` and ``data`` keys, unchanged, so existing readers
@@ -1517,7 +1563,12 @@ def run_benchmark(
         "tools": lambda: _run_tools(base_url, model, repeat, api_key),
         "reasoning": lambda: _run_reasoning(base_url, model, repeat, api_key),
         "concurrency": lambda: _run_concurrency(
-            base_url, model, repeat, api_key, gen_tokens=concurrency_tokens
+            base_url,
+            model,
+            repeat,
+            api_key,
+            gen_tokens=concurrency_tokens,
+            levels=concurrency_levels,
         ),
     }
 
