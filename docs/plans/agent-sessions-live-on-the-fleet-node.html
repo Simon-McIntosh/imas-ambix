@@ -258,6 +258,24 @@
     <p>The negative control is the same attach against a session with one tab, which must match
     &sect;8's figures. Every run's stall-line count is committed as a receipt.</p>
 
+    <section id="s9-landed" class="section-landed">
+    <header><span class="badge badge-shipped">&#10003; landed 2026-09-25</span>
+    <h2>&sect;9 &mdash; The three open questions, answered</h2></header>
+    <p class="landed-summary">All three were answered from a throwaway session on the fleet
+    node, and every run added <strong>zero</strong> stall lines (33 before, 33 after). (a) A
+    second client at 60 columns attaching to a four-tab session: first attach 159&nbsp;ms,
+    second 307&nbsp;ms, resize 12&nbsp;ms; the one-tab control reproduced &sect;8's figures
+    (attach 163&nbsp;ms against the declared 150&ndash;175&nbsp;ms band, zero stalls). One
+    ordering is fatal and it is not the second attach: four tabs opened <em>before any client
+    attached</em> make the server panic (<code>Not enough room for panes</code> &rarr;
+    <code>failed to attach client 2 to tab with index 3</code>), while the same tabs opened
+    while a client is attached are clean. (b) The tab bar, rendered through pyte, is neither
+    dropped nor duplicated across the second attach &mdash; only a focus marker is added. (c)
+    A live Claude Code pane on the local lane resized 100&rarr;70 columns (3,756&nbsp;ms)
+    renders <strong>zero duplicated content rows</strong> at both widths. Full record:
+    <a href="/imas-ambix/evidence/archive/agent-sessions-live-on-the-fleet-node-landed#fleet-view-unseen-surfaces">&sect;9
+    landed</a>.</p>
+    </section>
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
 <article class="r-fu" data-id="f-aslf-010" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-ship" data-written-at="2026-09-24" data-recommends-skill="" data-resolved-at="" data-resolved-by="">

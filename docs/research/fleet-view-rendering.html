@@ -80,7 +80,7 @@
     <code>docs/figures/fleet-view-rendering/evidence-probe/log-*.timed</code>, and the
     receipt <code>docs/figures/fleet-view-rendering/evidence-probe/stall-lines.txt</code>,
     which lists all 33 lines with timestamps and shows the last of them at
-    <code>22:30:48.186</code> with the log continuing to <code>23:44:22.328</code> without
+    <code>22:30:48.186</code> with the log continuing to <code>23:44:22.329</code> without
     another.</p>
 
     <h2 id="s3">&sect;3 &mdash; The second client at a different size</h2>
@@ -97,14 +97,18 @@
     excluded. Confirming it needs a screen renderer over the same capture, which the
     capture is sufficient for and this node did not run.
     Raw evidence:
-    <code>docs/figures/fleet-view-rendering/evidence-probe/first-client-diffsize.bin</code>.</p>
+    <code>docs/figures/fleet-view-rendering/evidence-probe/first-client-diffsize.bin</code>.
+    <strong>Superseded by <a href="#s8">&sect;8</a></strong>, which runs that renderer and
+    reads the row.</p>
 
     <h2 id="s4">&sect;4 &mdash; Duplicated lines</h2>
     <p><strong>Not established.</strong> The duplicate-line question is whether a width
     mismatch between a live Claude Code TUI and its pane duplicates lines. This probe
     substituted a recorded byte stream replayed into a shell pane, so the pane was never a
     live Claude Code TUI negotiating its own width, and the condition was not exercised.
-    Nothing here should be read as evidence either way.</p>
+    Nothing here should be read as evidence either way.
+    <strong>Answered in <a href="#s8">&sect;8</a></strong>, which resizes a live pane and
+    renders both widths.</p>
 
     <h2 id="s5">&sect;5 &mdash; Two harness defects, recorded because they cost the first
     two runs</h2>
@@ -172,6 +176,66 @@
     &mdash; not what a scrollback costs. Set against that, the <code>NoOp</code> action
     itself and the scrollback size are both red herrings, and §2 says the same from the
     other direction.</p>
+
+    <h2 id="s8">&sect;8 &mdash; The three questions this note left open, answered</h2>
+    <p>This section answers the three questions &sect;3, &sect;4 and &sect;7 named as open, by
+    running the probes they asked for: a second client at a different size attaching to a
+    throwaway session that already holds four tabs, a VT renderer over the captured stream,
+    and a live Claude Code pane resized between two widths. Every scenario also counts the
+    stall lines in the same server log immediately before and after it, and
+    <strong>every run added zero</strong>.</p>
+
+    <p><strong>(a) A second client at a different size, four tabs, and the one-tab
+    control.</strong> The second client attached at 60 columns to a session whose first
+    client sat at 100. In every scenario the stall-line count read 33 before and 33 after
+    &mdash; no stall was added by an attach or a resize, four tabs or one. Timings, from the
+    client's own quiet period: with four tabs the first attach took 159&nbsp;ms, the second
+    307&nbsp;ms (11,501 bytes), and a later resize of the first client 100&rarr;80 columns
+    12&nbsp;ms (8,738 bytes), with exactly one full-screen clear delivered to the first
+    client. The one-tab control &mdash; the negative control this node declared &mdash;
+    reproduced the earlier probe's figures: attach 163&nbsp;ms (declared 150&ndash;175),
+    second attach 225&nbsp;ms, resize 13&nbsp;ms, server error false. The four-tab figures
+    are therefore not an artefact of the harness.</p>
+    <p><strong>One ordering of the four-tab case kills the server, and the ordering is the
+    variable.</strong> Opened <em>before any client attached</em>, four tabs leave the
+    server unable to size them: its log shows <code>Failed to apply layout: Not enough room
+    for panes</code> for the very first tab at 02:51:58, again for each new tab, and then
+    <code>Panic occurred &hellip; failed to attach client 2 to tab with index 3</code> at
+    02:52:05.667, followed by router and wasm panics. The second client received
+    <code>Error occurred in server:</code>. Opened <em>while a client is attached</em>, the
+    same four tabs are clean. A tab created with no client has no usable size, and the
+    failure surfaces when the next client attaches &mdash; not when the tabs are created and
+    not from the second attach alone. This is a different failure from the 33 recorded
+    stalls and emits no stall line at all. Verbatim log excerpt:
+    <code>docs/figures/fleet-view-rendering/evidence-second-client/4tab-pre-server-panic.txt</code>;
+    per-run timings in
+    <code>docs/figures/fleet-view-rendering/evidence-second-client/*.marks.json</code>;
+    figure: <img src="/imas-ambix/figures/fleet-view-rendering/second-client-timings.png"
+    alt="Client render time by scenario, and stall lines before and after each run" />.</p>
+
+    <p><strong>(b) The tab-bar row, rendered.</strong> The four-tab capture was fed to a VT
+    emulator (pyte) and the top row read at both moments. Before the second attach the tab
+    bar reads <code>Zellij &hellip; Tab #1 &hellip; t2 &hellip; t3 &hellip; t4 &hellip; +</code>;
+    after it reads the same with a focus marker added to the newly focused tab. The row is
+    <strong>neither dropped nor duplicated</strong> &mdash; the only change is that marker.
+    Rendered text with the row in place:
+    <code>docs/figures/fleet-view-rendering/evidence-second-client/4tab-attached.screen.before.txt</code>
+    and <code>&hellip;.after.txt</code>.</p>
+
+    <p><strong>(c) A live pane resized between two widths.</strong> A live Claude Code
+    pane on the local lane was attached at 100 columns (147&nbsp;ms) and resized to 70
+    columns, which reflowed the pane in 3,756&nbsp;ms and 10,247 bytes. The rendered screen
+    holds <strong>zero duplicated content rows</strong> at both widths: the only repeated
+    adjacent rows are the pane's own vertical frame borders, which are identical by
+    construction. Screens:
+    <code>docs/figures/fleet-view-rendering/evidence-second-client/live.before.txt</code>
+    and <code>live.after.txt</code>. Two harness facts are recorded because they cost runs:
+    a pane launched in a folder claude has not been trusted in shows its trust prompt
+    instead of the TUI, so the resize is measured over a dialog rather than over the live
+    screen; and a custom API-key value in the environment raises claude's API-key prompt,
+    which does the same. Launching with no key variable and the local lane's model name
+    reaches the TUI directly. The driver, the renderer and the plot script are under
+    <code>docs/figures/fleet-view-rendering/probe-second-client/</code>.</p>
 
     <section data-reckon="followups" id="followups" class="r-followups">
       <h2><span class="sec">&sect;</span> Followups</h2>

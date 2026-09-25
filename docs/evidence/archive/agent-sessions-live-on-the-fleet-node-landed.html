@@ -56,6 +56,50 @@
   the receipt and the interval read as above. The gate measures only this node's change;
   verifying the merged result belongs to a separately dispatched test node.</p>
 </section>
+<section id="fleet-view-unseen-surfaces">
+  <h2>&sect;9 landed &mdash; the three open questions, answered from the fleet node</h2>
+  <p>Throwaway sessions under a private socket directory on the fleet node; no fleet session
+  was attached, resized or killed, and the probe tree under <code>/tmp</code> is gone.</p>
+  <ul>
+    <li><strong>Every run's stall-line count, before and after: 33 and 33 &mdash; zero added
+    in all four runs</strong> (four tabs opened attached, four tabs opened before any attach,
+    the one-tab control, and the live-pane resize). Receipt:
+    <code>docs/figures/fleet-view-rendering/stall-deltas.txt</code>.</li>
+    <li><strong>Second client at a different size, four tabs.</strong> Attach 159&nbsp;ms,
+    second attach 307&nbsp;ms (11,501 bytes), resize 100&rarr;80 columns 12&nbsp;ms with
+    exactly one full-screen clear. Marks:
+    <code>docs/figures/fleet-view-rendering/evidence-second-client/zj-second-4tab-attached.marks.json</code>.</li>
+    <li><strong>Negative control.</strong> The same attach against a one-tab session: attach
+    163&nbsp;ms (declared 150&ndash;175), second attach 225&nbsp;ms, resize 13&nbsp;ms, no
+    server error. Receipt:
+    <code>docs/figures/fleet-view-rendering/evidence-second-client/negative-control.txt</code>.</li>
+    <li><strong>One ordering is fatal, and it is not the second attach.</strong> Four tabs
+    created before any client is attached leave the server unable to size them
+    (<code>Failed to apply layout: Not enough room for panes</code>), and the client attach
+    then panics: <code>failed to attach client 2 to tab with index 3</code>. The second
+    client received <code>Error occurred in server:</code>. The same four tabs created while
+    a client is attached are clean. This failure emits no stall line, so it is invisible to
+    the stall instrument. Verbatim log:
+    <code>docs/figures/fleet-view-rendering/evidence-second-client/4tab-pre-server-panic.txt</code>.</li>
+    <li><strong>Tab bar, rendered through pyte.</strong> The row is neither dropped nor
+    duplicated across the second attach; the only change is the focus marker on the newly
+    focused tab. Screens:
+    <code>docs/figures/fleet-view-rendering/evidence-second-client/4tab-attached.screen.before.txt</code>,
+    <code>&hellip;.after.txt</code>.</li>
+    <li><strong>Live pane resized.</strong> A live Claude Code pane on the local lane
+    attached at 100 columns (147&nbsp;ms) and resized to 70 columns (3,756&nbsp;ms,
+    10,247 bytes); the rendered screen holds zero duplicated content rows at both widths.
+    Screens: <code>&hellip;/live.before.txt</code>, <code>&hellip;/live.after.txt</code>.</li>
+    <li><strong>Note corrections.</strong> The note's <code>23:44:22.328</code> now reads
+    <code>23:44:22.329</code>; <code>stall-lines.txt</code>'s header no longer carries the
+    phrase it counts, so <code>grep -c</code> on it returns 33. Figure:
+    <code>docs/figures/fleet-view-rendering/second-client-timings.png</code>.</li>
+  </ul>
+  <p><strong>Gate.</strong> <code>reckon audit-doc</code> exits 0 on the note;
+  <code>grep -c 'did not complete within'</code> on the receipt returns 33. The gate
+  measures only this node's change; verifying the merged result belongs to a separately
+  dispatched test node.</p>
+</section>
 
 </main>
 </body>

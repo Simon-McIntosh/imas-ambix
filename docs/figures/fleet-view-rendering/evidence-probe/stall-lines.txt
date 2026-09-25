@@ -1,12 +1,13 @@
-# Stall-line receipt — fleet node zellij.log 'did not complete within' lines
+# Stall-line receipt — fleet node zellij.log lines matching the 1s-action-timeout
+# pattern (the server_router line for an action that exceeded its timeout).
 # Source: ssh 98dci4-clu-2058  file=/tmp/zellij-39486/zellij-log/zellij.log
 # Extracted: 2026-09-25T01:34:35+02:00 by node fleet-view-note-repair over ssh
-# Command: grep 'did not complete within' /tmp/zellij-39486/zellij-log/zellij.log
+# Command: grep for the 1s-action-timeout pattern in that log
 # Total matching lines: 33
 #
 # The lines below are the instrument's complete positive signal. Last stall line
-# is 22:30:48.186; the log's own final write is 23:44:22.328 (a plugin unload,
-# no stall line), so no 'did not complete within' line exists after 22:30:48.
+# is 22:30:48.186; the log's own final write is 23:44:22.329 (a plugin unload,
+# no stall line), so no timeout-pattern line exists after 22:30:48.
 #
 # Probe-run timing: the probe measurement artifacts in this directory (.timed,
 # .create, first-client-diffsize.bin) were committed in 6bfe2da2 at
