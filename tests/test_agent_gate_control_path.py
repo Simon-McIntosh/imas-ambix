@@ -1,13 +1,14 @@
 """The gate control file is named explicitly, not inferred from the lane.
 
-The router used to take its control file from the lane document's sibling, so
-control lived wherever the lane published -- a world-readable directory shared
-with a large request log, and one that moves the day the lane moves. These tests
-pin the replacement contract: the control path comes from an explicit option or
-``AMBIX_ROUTER_GATE_PATH``, and only when neither is set does the old
-sibling-of-the-lane-document path apply, so an existing deployment keeps taking
-control from exactly where it does today. The CLI resolves the same path and
-stamps ``set_by``/``set_at`` so a group-writable file stays auditable.
+The router resolves its control file from the first source that names one: the
+explicit option or ``AMBIX_ROUTER_GATE_PATH``, then the site control path
+(``SiteConfig.gate_control_path``, defaulting to the group-owned control
+directory under the project base), and only then the lane document's sibling.
+The sibling step is the last resort, reached only when the site value is empty,
+so a deployment that names nothing and sets the site value empty keeps taking
+control from exactly where it did before the site default existed. The CLI
+resolves the same path and stamps ``set_by``/``set_at`` so a group-writable file
+stays auditable.
 """
 
 from __future__ import annotations
@@ -23,7 +24,7 @@ from pathlib import Path
 from click.testing import CliRunner
 
 from imas_ambix.agent import slurm as slurm_mod
-from imas_ambix.agent.profile import SiteConfig
+from imas_ambix.agent.profile import GATE_CONTROL_PATH_ENV, SiteConfig
 from imas_ambix.agent.router import (
     GATE_FILENAME,
     GATE_PATH_ENV,
@@ -67,9 +68,29 @@ def _control_and_lane(tmp_path: Path) -> tuple[Path, Path]:
     return control, lane
 
 
+def _emitted_gate_export(output: str) -> Path:
+    """The gate path the CLI actually wrote, read back from the emitted script.
+
+    Reading the value out of the output is the point: an assertion computed from
+    the same expression the CLI uses cannot show that the CLI expanded anything,
+    because both sides would move together.
+    """
+    marker = f"export {GATE_PATH_ENV}="
+    line = next(line for line in output.splitlines() if line.startswith(marker))
+    value = line[len(marker) :].split("#", 1)[0].strip()
+    return Path(value.strip("'\""))
+
+
 def test_resolve_gate_path_prefers_explicit_then_env_then_sibling(
     tmp_path, monkeypatch
 ) -> None:
+    """The order is explicit, env, site control, then the lane sibling.
+
+    The sibling step is the last resort and is reached here only because the
+    site control value is set empty; with its default it would win the step
+    before.
+    """
+    monkeypatch.setenv(GATE_CONTROL_PATH_ENV, "")
     monkeypatch.delenv(GATE_PATH_ENV, raising=False)
     lane = tmp_path / "lane.json"
     explicit = tmp_path / "control" / GATE_FILENAME
@@ -122,7 +143,13 @@ def test_router_environment_variable_names_the_control_path(
 def test_router_falls_back_to_the_lane_sibling_when_neither_is_named(
     tmp_path, monkeypatch
 ) -> None:
-    """An existing deployment that names nothing keeps today's behaviour."""
+    """With the site value empty, naming nothing keeps the lane sibling.
+
+    The site control path precedes this branch, so this is the pre-default
+    behaviour preserved: an existing deployment that names nothing and carries
+    an empty site value keeps taking control from the lane document's sibling.
+    """
+    monkeypatch.setenv(GATE_CONTROL_PATH_ENV, "")
     monkeypatch.delenv(GATE_PATH_ENV, raising=False)
     _, lane = _control_and_lane(tmp_path)
     monkeypatch.setenv(
@@ -463,10 +490,13 @@ def test_router_gate_file_tilde_is_absolute_under_the_home_directory(
     )
 
     assert result.exit_code == 0, result.output
-    expected = Path("~/ambix-gate.json").expanduser().resolve()
-    assert expected.is_absolute()
-    assert expected.parent == Path.home().resolve()
-    assert f"export {GATE_PATH_ENV}={expected}" in result.output
+    # Assert on the path the CLI emitted, not on a value this test computed the
+    # same way the CLI does: an unexpanded ``~`` reaching the script would leave
+    # a re-derived expectation unchanged and pass.
+    emitted = _emitted_gate_export(result.output)
+    assert emitted.is_absolute(), emitted
+    assert emitted.parent == Path.home().resolve(), emitted
+    assert emitted == Path.home().resolve() / "ambix-gate.json"
 
 
 def test_router_gate_file_relative_argument_resolves_against_the_cwd(
@@ -490,9 +520,42 @@ def test_router_gate_file_relative_argument_resolves_against_the_cwd(
     )
 
     assert result.exit_code == 0, result.output
-    expected = (tmp_path / "control" / GATE_FILENAME).resolve()
-    assert expected.is_absolute()
-    assert f"export {GATE_PATH_ENV}={expected}" in result.output
+    # The emitted path is read back from the script, so a relative value the CLI
+    # failed to resolve fails this rather than matching a re-derived guess.
+    emitted = _emitted_gate_export(result.output)
+    assert emitted.is_absolute(), emitted
+    assert emitted == (tmp_path / "control" / GATE_FILENAME).resolve()
+
+
+def test_foreground_router_receives_the_expanded_absolute_gate_file(
+    tmp_path, monkeypatch
+) -> None:
+    """The foreground router gets the same resolved path the script carries.
+
+    A ``~`` is expanded once, in the CLI, before it reaches either the generated
+    script or the running server, so the foreground router reads the file the
+    operator named rather than one its own shell would resolve differently.
+    """
+    import imas_ambix.agent.router as router_mod
+
+    captured: dict[str, object] = {}
+
+    def fake_serve_router(_resolver, **kwargs: object) -> None:
+        captured.update(kwargs)
+
+    monkeypatch.setattr(router_mod, "serve_router", fake_serve_router)
+
+    result = CliRunner().invoke(
+        main,
+        ["agent", "router", "--port", "18802", "--gate-file", "~/ambix-gate.json"],
+    )
+
+    assert result.exit_code == 0, result.output
+    gate_file = captured["gate_file"]
+    assert gate_file is not None
+    assert isinstance(gate_file, Path)
+    assert gate_file.is_absolute(), gate_file
+    assert gate_file == Path.home().resolve() / "ambix-gate.json"
 
 
 def test_router_no_option_dry_run_carries_the_unset_line(tmp_path, monkeypatch) -> None:

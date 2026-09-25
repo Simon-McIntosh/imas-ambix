@@ -1731,8 +1731,11 @@ def _resolve_router_upstreams(site: SiteConfig, api_key: str | None) -> list[Ups
     type=click.Path(),
     default=None,
     help=(
-        "Gate control file to read; overrides AMBIX_ROUTER_GATE_PATH and the "
-        "lane document's sibling."
+        "Gate control file to read. The resolver takes the first source that "
+        "names one: this option, then AMBIX_ROUTER_GATE_PATH, then the site "
+        "control path (SiteConfig.gate_control_path, default "
+        "<base_dir>/agents/control/router-gate.json), then the lane "
+        "document's sibling."
     ),
 )
 def router_command(
@@ -3286,10 +3289,13 @@ def _gate_document_path(site: SiteConfig, gate_file: str | None = None) -> Path:
     """The admission gate file the running router reads live.
 
     Resolved through the router's own resolver so the CLI and the router never
-    disagree about which file is in force: the command-line path first, then
-    ``AMBIX_ROUTER_GATE_PATH``, then the lane document's sibling. The router
-    publishes the resolved path in ``lane.json`` beside the gate snapshot, so a
-    reader can always see which file the running process took control from.
+    disagree about which file is in force: the first source that names one is
+    the command-line path, then ``AMBIX_ROUTER_GATE_PATH``, then the site
+    control path (``SiteConfig.gate_control_path``, default
+    ``<base_dir>/agents/control/router-gate.json``), then the lane document's
+    sibling. The router publishes the resolved path in ``lane.json`` beside the
+    gate snapshot, so a reader can always see which file the running process
+    took control from.
     """
     from imas_ambix.agent.router import resolve_gate_path
 
@@ -3406,8 +3412,11 @@ def _print_lane_counts(site: SiteConfig) -> None:
     type=click.Path(),
     default=None,
     help=(
-        "Gate control file to write; overrides AMBIX_ROUTER_GATE_PATH and the "
-        "lane document's sibling."
+        "Gate control file to write. The resolver takes the first source that "
+        "names one: this option, then AMBIX_ROUTER_GATE_PATH, then the site "
+        "control path (SiteConfig.gate_control_path, default "
+        "<base_dir>/agents/control/router-gate.json), then the lane "
+        "document's sibling."
     ),
 )
 def pause(reason: str, cut: bool, cut_form: str | None, gate_file: str | None) -> None:
@@ -3463,8 +3472,11 @@ def pause(reason: str, cut: bool, cut_form: str | None, gate_file: str | None) -
     type=click.Path(),
     default=None,
     help=(
-        "Gate control file to write; overrides AMBIX_ROUTER_GATE_PATH and the "
-        "lane document's sibling."
+        "Gate control file to write. The resolver takes the first source that "
+        "names one: this option, then AMBIX_ROUTER_GATE_PATH, then the site "
+        "control path (SiteConfig.gate_control_path, default "
+        "<base_dir>/agents/control/router-gate.json), then the lane "
+        "document's sibling."
     ),
 )
 def resume(gate_file: str | None) -> None:
@@ -3493,8 +3505,11 @@ def resume(gate_file: str | None) -> None:
     type=click.Path(),
     default=None,
     help=(
-        "Gate control file to write; overrides AMBIX_ROUTER_GATE_PATH and the "
-        "lane document's sibling."
+        "Gate control file to write. The resolver takes the first source that "
+        "names one: this option, then AMBIX_ROUTER_GATE_PATH, then the site "
+        "control path (SiteConfig.gate_control_path, default "
+        "<base_dir>/agents/control/router-gate.json), then the lane "
+        "document's sibling."
     ),
 )
 def width(width: str, gate_file: str | None) -> None:
