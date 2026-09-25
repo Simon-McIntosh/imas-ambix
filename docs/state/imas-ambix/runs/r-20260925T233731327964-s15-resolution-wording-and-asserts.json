@@ -1,0 +1,287 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effort": "high",
+    "launch": "cli",
+    "local": true,
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "worktree-full",
+    "usable_input_window": 480000
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "ca089acfe5ce357341c3fdb912fb946cceb9617c",
+  "boundary_waiver": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "inference_geo": "",
+      "input_tokens": 7976551,
+      "input_tokens_cumulative": 7976551,
+      "output_tokens": 33625,
+      "output_tokens_cumulative": 33625,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": {
+    "added": 285,
+    "files": 7,
+    "removed": 60
+  },
+  "commit_resolution": null,
+  "commits": [
+    "95b9247801c463fd9a5d6a67a1b7f14f0724736d",
+    "56bb910031825ee4ce7aa6177878719dae4913bb",
+    "abd9502b8a00f7234adfab85f9527e8b98bf0c77"
+  ],
+  "completed_at": "2026-09-25T23:43:23.242Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-09-25T23:37:38Z",
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": true,
+    "matched_measure": "pytest -p",
+    "override": false,
+    "role": "implement",
+    "status": "compatible"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [],
+  "gate": "passed",
+  "gate_check": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider tests/test_agent_gate_control_path.py tests/test_agent_gate_site_default.py tests/test_agent_router_gate.py tests/test_agent_pause_cli.py",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T233731327964-s15-resolution-wording-and-asserts/gate-green.log"
+  },
+  "impl_move": {
+    "at_complete": 0.9,
+    "at_dispatch": 0.9,
+    "plan": "local-lane-admission-control",
+    "reason": "wording and test repair after the deploy",
+    "verdict": "waived"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-09-26T00:22:31.883735+00:00",
+    "horizon_seconds": 2700,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": null,
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-09-25T23:37:31Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 22,
+    "binding_observed": "unknown",
+    "detail": "lane document carries no numeric 'headroom' or 'mean_context'",
+    "headroom": "unknown",
+    "mean_context": "unknown",
+    "observed_at": "2026-09-25T23:37:09Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-09-25T23:43:23.242Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": true,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T233731327964-s15-resolution-wording-and-asserts/manifest.md",
+  "member": "llac-autowidth",
+  "negative_control": {
+    "declaration": "reverting router_command's serve_router call to pass gate_file=Path(gate_file) unexpanded must fail the new foreground-router test; applied as a scratch edit and restored",
+    "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T233731327964-s15-resolution-wording-and-asserts/negative-control.log",
+    "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T233731327964-s15-resolution-wording-and-asserts/negative-control.log",
+    "test_paths": [
+      "tests/test_agent_gate_control_path.py",
+      "tests/test_agent_gate_site_default.py"
+    ],
+    "verdict": "matched"
+  },
+  "no_commit": null,
+  "node": "s15-resolution-wording-and-asserts",
+  "node_definition": {
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 514,
+          "cached_input_tokens": 296633,
+          "input_tokens": 297149,
+          "output_tokens": 1202,
+          "reasoning_output_tokens": 0,
+          "total_tokens": 298351,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "38dec84a-7cb6-4b27-ace6-501cc76dbec0",
+      "session_id": "llac-s14-0925"
+    },
+    "done_when": "every docstring, comment and --gate-file help string in imas_ambix/agent/cli.py (router_command, pause, resume, width and the gate-document helpers) and imas_ambix/agent/slurm.py (generate_router_script docstring and the unset line's comment) states the order: option, AMBIX_ROUTER_GATE_PATH, the site control path (SiteConfig.gate_control_path, default <base_dir>/agents/control/router-gate.json), then the lane document's sibling; tests/test_agent_gate_control_path.py replaces the assertions on the test's own 'expected' value in the tilde and relative-path tests with assertions on the path the CLI actually emitted, adds a test that the foreground router (serve_router, stubbed) receives the expanded absolute gate_file, and rewrites the two sibling-fallback assertions and their docstrings to state that they hold with the site value empty; tests/test_agent_gate_site_default.py's module docstring states the invariant without history; 'grep -n \"lane document.s sibling\" imas_ambix/agent/cli.py imas_ambix/agent/slurm.py' output is listed in the manifest with each hit shown to be in an order statement that includes the site step; 'uv run --no-sync pytest -p no:cacheprovider tests/test_agent_gate_control_path.py tests/test_agent_gate_site_default.py tests/test_agent_router_gate.py tests/test_agent_pause_cli.py' exits 0 on the login node; 'uv run --no-sync ruff check imas_ambix tests' exits 0; the declared negative control is recorded verbatim with its failing test count, run at a committed revision named in the log header. No behaviour change in imas_ambix/. Pass checkout_path on every reckon MCP call; never write or run git in the main checkout.",
+    "estimated_hours": null,
+    "goal": "Bring every statement of the gate control resolution order in line with the site default, and make the gate-path tests able to fail",
+    "id": "s15-resolution-wording-and-asserts",
+    "lane_declaration": {
+      "backend": null,
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-09-25T23:37:31Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 22,
+      "binding_observed": "unknown",
+      "detail": "lane document carries no numeric 'headroom' or 'mean_context'",
+      "headroom": "unknown",
+      "mean_context": "unknown",
+      "observed_at": "2026-09-25T23:37:09Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T233731327964-s15-resolution-wording-and-asserts/manifest.md",
+    "negative_control": "reverting router_command's serve_router call to pass gate_file=Path(gate_file) unexpanded must fail the new foreground-router test; applied as a scratch edit and restored",
+    "plan": "local-lane-admission-control",
+    "requested_backend": "clive",
+    "requires_decisions": [],
+    "role": "implement",
+    "section": "§15",
+    "spec_level": "exact",
+    "time_budget": "45m",
+    "token_budget": null,
+    "write_paths": [
+      "imas_ambix/agent/cli.py",
+      "imas_ambix/agent/slurm.py",
+      "tests/test_agent_gate_control_path.py",
+      "tests/test_agent_gate_site_default.py",
+      "docs/evidence/archive/local-lane-admission-control-landed.html",
+      "docs/figures/local-lane-admission-control",
+      "docs/plans/local-lane-admission-control.html"
+    ]
+  },
+  "orientation_input_tokens": 1118511.0,
+  "outcome": "",
+  "plan": "local-lane-admission-control",
+  "plan_impl_at_dispatch": 0.9,
+  "promoted_revision": "abd9502b8a00f7234adfab85f9527e8b98bf0c77",
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "scores": {
+      "durability": 19,
+      "evidence": 18,
+      "fit": 20,
+      "goal_fidelity": 20,
+      "scope_discipline": 20
+    },
+    "status": "parsed",
+    "total": 97
+  },
+  "role": "implement",
+  "run_id": "r-20260925T233731327964-s15-resolution-wording-and-asserts",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§15",
+  "session_harness": "claude",
+  "session_id": "14842d0c-a295-40ef-ac62-5f7d7968513e",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "exact",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 1,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 7976551,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+    "elapsed_seconds": 334.487,
+    "generated_tokens": 33625,
+    "generation_seconds": 282.271,
+    "input_budget_tokens": 480000,
+    "input_utilisation_pct": 34.2,
+    "machine_seconds": 52.216,
+    "peak_input_tokens": 164105,
+    "tokens_per_second": 119.12,
+    "wall_tokens_per_second": 100.53
+  },
+  "time_budget": "45m",
+  "tool_steps": 67.0,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": []
+  },
+  "wall_seconds": 345,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-09-25T23:43:23Z",
+    "last_record_type": "result",
+    "launched_at": "2026-09-25T23:37:43Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20260925T233731327964-s15-resolution-wording-and-asserts",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 4641,
+    "worker_pid": 2556830
+  },
+  "worker_seconds": 331,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
