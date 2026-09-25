@@ -157,7 +157,11 @@ def test_profile_expands_verified_flags_and_records_file_digests(tmp_path):
 
     fake_bin = tmp_path / "profile-bin"
     fake_bin.mkdir()
-    (fake_bin / "claude").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    api_key = tmp_path / "api-key"
+    (fake_bin / "claude").write_text(
+        f"#!/bin/sh\nprintf '%s' \"$ANTHROPIC_API_KEY\" > {api_key}\nexit 0\n",
+        encoding="utf-8",
+    )
     (fake_bin / "claude").chmod(0o755)
     # Reuse the launch fixture's profile but make its receipt explicit.
     with serve_catalog_items([_catalog_item("release")]) as (site, _requests):
@@ -197,6 +201,7 @@ def test_profile_expands_verified_flags_and_records_file_digests(tmp_path):
     assert "--mcp-config" in record["added_arguments"]
     assert "--tools" in record["added_arguments"]
     assert "Bash,Read" in record["added_arguments"]
+    assert api_key.read_text(encoding="utf-8") == "clive-no-auth"
     help_result = subprocess.run(
         ["claude", "--help"], capture_output=True, text=True, check=True
     )
