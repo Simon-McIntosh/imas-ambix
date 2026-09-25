@@ -100,6 +100,39 @@
   measures only this node's change; verifying the merged result belongs to a separately
   dispatched test node.</p>
 </section>
+<section id="fleet-view-wording-repair">
+  <h2>The fleet-view rendering note, two wording defects repaired</h2>
+  <p><strong>Deliverable.</strong> The review of the unseen-surfaces probe returned two
+  wording findings against the note's second-client section. Both are repaired in place;
+  no measurement changes.</p>
+  <ul>
+    <li><strong>The one-tab control claimed to reproduce the earlier probe's resize, which
+    the two probes measured a different way.</strong> The note said the control
+    "reproduced the earlier probe's figures &hellip; resize 13&nbsp;ms", which is not
+    comparable with the earlier probe's 418&ndash;439&nbsp;ms resize column: the earlier
+    probe waits for a 500&nbsp;ms quiet period after the bytes begin, while the
+    second-client probe reads the client's own quiet period. The sentence now reproduces
+    only the <em>attach</em> band (163&nbsp;ms against the declared
+    150&ndash;175&nbsp;ms, zero stalls added), states how the two probes time a resize
+    differently, and holds the resize comparison within each probe: a live Claude Code pane
+    reflowed in 3,756&nbsp;ms at 100&rarr;70 columns against 12&ndash;13&nbsp;ms for a
+    shell pane under the same method.</li>
+    <li><strong>A superseded live run sat unmarked in run.log.</strong>
+    <code>docs/figures/fleet-view-rendering/evidence-second-client/run.log</code> carried a
+    live line with <code>attach_ms 156</code> / <code>resize_ms 3748</code> /
+    7,475&nbsp;bytes beside the committed run in
+    <code>zj-second-live.marks.json</code> (attach 147&nbsp;ms, resize 3,756&nbsp;ms,
+    10,247&nbsp;bytes) with no supersession marker. That attempt measured over claude's
+    trust dialog rather than the live TUI; the line now carries a <code>SUPERSEDED</code>
+    marker naming the committed run. Both runs read a 33/33 stall delta, so no conclusion
+    changed.</li>
+  </ul>
+  <p><strong>Gate.</strong> <code>reckon audit-doc</code> exits 0 on the note; before the
+  edit <code>grep -c 'reproduced the earlier probe'</code> on the note returned 1 and
+  <code>grep -ci 'supersed*'</code> on run.log returned 0. The gate measures only this
+  node's change; verifying the merged result belongs to a separately dispatched test
+  node.</p>
+</section>
 
 </main>
 </body>
