@@ -134,6 +134,38 @@
   node.</p>
 </section>
 
+<section id="fleet-view-resize-gap-wording">
+  <h2>The fleet-view rendering note, the resize-gap explanation corrected</h2>
+  <p><strong>Deliverable.</strong> The review of the wording repair returned one finding: the
+  sentence that replaced the incorrect resize-reproduction claim explained the 13&nbsp;ms
+  versus 418&ndash;439&nbsp;ms gap by saying the two probes time a resize differently. That
+  explanation is itself wrong. Both probes measure the gap the same way, and the earlier
+  probe's own receipt reaches its first byte at the same 13&nbsp;ms the second probe
+  records at; the note's sentence in
+  <a href="/imas-ambix/research/fleet-view-rendering">Fleet view rendering under a synthetic
+  long transcript</a> now states that the cause is not settled, cites the earlier probe's own
+  receipt for the 13&nbsp;ms first byte, and keeps only the within-probe comparison. No
+  measurement changes.</p>
+  <ul>
+    <li><strong>The gap was explained by a difference that does not exist.</strong> The note
+    read that the earlier probe "waits for a 500&nbsp;ms quiet period after the bytes begin,
+    while this one reads the client's own quiet period". Both probes time the resize by the
+    client's output falling quiet; the earlier probe's receipt
+    <code>docs/figures/fleet-view-rendering/evidence-probe/log-shell-50000.timed</code>
+    carries <code>resize_first_ms=13 resize_render_ms=439</code> under that method, so its own
+    first byte lands at the same 13&nbsp;ms the second probe reports. The sentence now reads
+    that its 13&nbsp;ms resize does not match the earlier probe's 418&ndash;439&nbsp;ms for
+    the same shell case and the cause of that gap is not settled, naming the receipt for the
+    earlier probe's own 13&nbsp;ms first byte, and retaining the within-probe comparison
+    (3,756&nbsp;ms live Claude Code reflow at 100&rarr;70 columns against
+    12&ndash;13&nbsp;ms for a shell under the same method).</li>
+  </ul>
+  <p><strong>Gate.</strong> <code>reckon audit-doc</code> exits 0 on the note; before the edit
+  <code>grep -c 'waits for a 500'</code> on the note returned 1 and after it returns 0. The
+  gate measures only this node's change; verifying the merged result belongs to a separately
+  dispatched test node.</strong></p>
+</section>
+
 </main>
 </body>
 </html>

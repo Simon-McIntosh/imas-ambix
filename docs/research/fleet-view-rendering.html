@@ -195,12 +195,11 @@
     client. The one-tab control &mdash; the negative control this node declared &mdash;
     reproduced the earlier probe's <em>attach</em> figures: attach 163&nbsp;ms against the
     declared 150&ndash;175&nbsp;ms band, second attach 225&nbsp;ms, server error false.
-    Its 13&nbsp;ms resize is not a reproduction of the earlier probe's
-    418&ndash;439&nbsp;ms resize column, because the two probes time a resize differently:
-    the earlier probe waits for a 500&nbsp;ms quiet period after the bytes begin, while this
-    one reads the client's own quiet period. The comparison holds within each probe &mdash;
-    under this method a live Claude Code pane reflowed in 3,756&nbsp;ms at 100&rarr;70
-    columns against 12&ndash;13&nbsp;ms for a shell pane resized the same way. The four-tab
+    Its 13 ms resize does not match the earlier probe's 418-439 ms for the same shell case,
+    and the cause of that gap is not settled: both probes time a resize the same way, and the
+    earlier probe's own receipt (evidence-probe/log-shell-50000.timed) reaches its first byte
+    at 13 ms. Within this probe the comparison holds: a live Claude Code pane reflowed in
+    3,756 ms at 100 to 70 columns against 12-13 ms for a shell pane resized the same way. The four-tab
     figures are therefore not an artefact of the harness.</p>
     <p><strong>One ordering of the four-tab case kills the server, and the ordering is the
     variable.</strong> Opened <em>before any client attached</em>, four tabs leave the
