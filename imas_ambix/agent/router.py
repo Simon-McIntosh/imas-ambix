@@ -146,6 +146,7 @@ class _Admission:
     outcome: str
     disconnect_task: asyncio.Task[None] | None = None
     retry_after_seconds: int = 1
+    gate_wait_s: float = 0.0
 
 
 class _GenerationGate:
@@ -166,7 +167,7 @@ class _GenerationGate:
         self._last_logged_settings: _GateSettings | None = None
         self._next_config_refresh_at = 0.0
         self._condition = asyncio.Condition()
-        self._waiters: deque[object] = deque()
+        self._waiters: deque[tuple[object, float]] = deque()
         self._in_flight = 0
         # Automatic width state, fed only by fresh measured readings. The
         # estimate starts undefined so the first reading seeds it whole rather
@@ -203,6 +204,32 @@ class _GenerationGate:
     @property
     def waiting(self) -> int:
         return len(self._waiters)
+
+    def admission_snapshot(self) -> dict[str, object]:
+        """Return the queue's demand signal independently of engine capacity."""
+        settings = self.settings()
+        if self._waiters:
+            oldest_wait_seconds: float | None = max(
+                0.0, time.monotonic() - self._waiters[0][1]
+            )
+        else:
+            oldest_wait_seconds = None
+        headroom = settings.width - self.in_flight - self.waiting
+        if settings.paused:
+            headroom = min(headroom, 0)
+            verdict = "paused"
+        elif self.waiting > 0:
+            verdict = "congested"
+        elif self.in_flight >= settings.width:
+            verdict = "full"
+        else:
+            verdict = "open"
+        return {
+            "headroom": headroom,
+            "oldest_wait_seconds": oldest_wait_seconds,
+            "waiting": self.waiting,
+            "verdict": verdict,
+        }
 
     def settings(self) -> _GateSettings:
         """Read changed configuration and otherwise return the cached settings."""
@@ -747,6 +774,7 @@ class _GenerationGate:
         the FIFO. Clearing the pause releases them in arrival order through the
         same head-of-queue test, so a pause needs no separate queue.
         """
+        arrived_at = time.monotonic()
         initial = self.settings()
         if initial.width == 0 and not initial.paused:
             return _Admission("bypass")
@@ -756,19 +784,25 @@ class _GenerationGate:
         disconnect_task = asyncio.create_task(RouterApp._wait_for_disconnect(receive))
         carry_disconnect = False
         async with self._condition:
-            self._waiters.append(token)
+            self._waiters.append((token, arrived_at))
             self._condition.notify_all()
         try:
             while True:
                 async with self._condition:
                     if disconnect_task.done():
-                        return _Admission("disconnected")
+                        return _Admission(
+                            "disconnected",
+                            gate_wait_s=max(0.0, time.monotonic() - arrived_at),
+                        )
                     settings = self.settings()
                     if settings.width == 0 and not settings.paused:
-                        return _Admission("bypass")
+                        return _Admission(
+                            "bypass",
+                            gate_wait_s=max(0.0, time.monotonic() - arrived_at),
+                        )
                     if (
                         self._waiters
-                        and self._waiters[0] is token
+                        and self._waiters[0][0] is token
                         and not settings.paused
                         and self._in_flight < settings.width
                     ):
@@ -776,13 +810,18 @@ class _GenerationGate:
                         self._in_flight += 1
                         self._condition.notify_all()
                         carry_disconnect = True
-                        return _Admission("acquired", disconnect_task=disconnect_task)
+                        return _Admission(
+                            "acquired",
+                            disconnect_task=disconnect_task,
+                            gate_wait_s=max(0.0, time.monotonic() - arrived_at),
+                        )
 
                     remaining = deadline - asyncio.get_running_loop().time()
                     if remaining <= 0:
                         return _Admission(
                             "timed-out",
                             retry_after_seconds=GENERATION_RETRY_AFTER_SECONDS,
+                            gate_wait_s=max(0.0, time.monotonic() - arrived_at),
                         )
                     with suppress(TimeoutError):
                         await asyncio.wait_for(
@@ -791,8 +830,10 @@ class _GenerationGate:
                         )
         finally:
             async with self._condition:
-                with suppress(ValueError):
-                    self._waiters.remove(token)
+                with suppress(ValueError, StopIteration):
+                    self._waiters.remove(
+                        next(item for item in self._waiters if item[0] is token)
+                    )
                 self._condition.notify_all()
             if not carry_disconnect:
                 disconnect_task.cancel()
@@ -1186,7 +1227,12 @@ class RouterApp:
         )
         if admission.outcome == "disconnected":
             self._record_self_answer(
-                scope, model_id, began, http_status=None, caller_gone=True
+                scope,
+                model_id,
+                began,
+                http_status=None,
+                caller_gone=True,
+                gate_wait_s=admission.gate_wait_s,
             )
             return
         if admission.outcome == "timed-out":
@@ -1197,6 +1243,7 @@ class RouterApp:
                 model_id=model_id,
                 began=began,
                 retry_after_seconds=admission.retry_after_seconds,
+                gate_wait_s=admission.gate_wait_s,
             )
             return
 
@@ -1210,6 +1257,7 @@ class RouterApp:
                 model_id=model_id,
                 caller_hint=self._caller_hint(scope),
                 started_at=datetime.now(UTC),
+                gate_wait_s=admission.gate_wait_s,
                 disconnect_task=admission.disconnect_task,
             )
         finally:
@@ -1380,7 +1428,16 @@ class RouterApp:
             document = json.loads(self._lane_document.read_text(encoding="utf-8"))
             if not isinstance(document, dict):
                 raise ValueError("lane document root is not an object")
-            document["router_generation_gate"] = self._generation_gate.snapshot()
+            gate_snapshot = self._generation_gate.snapshot()
+            admission = self._generation_gate.admission_snapshot()
+            document["router_generation_gate"] = gate_snapshot
+            document["admission"] = admission
+            engine_headroom = document.get("headroom")
+            if isinstance(engine_headroom, int | float) and not isinstance(
+                engine_headroom, bool
+            ):
+                document["engine_headroom"] = engine_headroom
+                document["headroom"] = min(engine_headroom, admission["headroom"])
             scratch = self._lane_document.with_suffix(".gate.tmp")
             scratch.write_text(
                 json.dumps(document, indent=2, sort_keys=True), encoding="utf-8"
@@ -1519,6 +1576,7 @@ class RouterApp:
         model_id: str,
         caller_hint: str,
         started_at: datetime,
+        gate_wait_s: float = 0.0,
         disconnect_task: asyncio.Task[None] | None = None,
     ) -> None:
         session = await self._client()
@@ -1624,6 +1682,7 @@ class RouterApp:
                 caller_hint=caller_hint,
                 started_at=started_at,
                 began=began,
+                gate_wait_s=gate_wait_s,
             )
 
     def _receipt_sink(self) -> RequestReceiptSink | None:
@@ -1661,6 +1720,7 @@ class RouterApp:
         caller_hint: str,
         started_at: datetime,
         began: float,
+        gate_wait_s: float = 0.0,
     ) -> None:
         """Append the row for one request, whatever its outcome and whoever answered it.
 
@@ -1679,6 +1739,7 @@ class RouterApp:
                 status=status,
                 duration_s=time.perf_counter() - began,
                 accounting=accounting,
+                gate_wait_s=gate_wait_s,
                 timestamp=started_at,
             )
         except (OSError, TypeError, ValueError) as error:
@@ -1697,6 +1758,7 @@ class RouterApp:
         *,
         http_status: int | None,
         caller_gone: bool,
+        gate_wait_s: float = 0.0,
     ) -> None:
         """Record a request this process answered without relaying it.
 
@@ -1743,6 +1805,7 @@ class RouterApp:
             caller_hint=self._caller_hint(scope),
             started_at=datetime.now(UTC),
             began=began,
+            gate_wait_s=gate_wait_s,
         )
 
     @staticmethod
@@ -1955,6 +2018,7 @@ class RouterApp:
         model_id: str,
         began: float,
         retry_after_seconds: int,
+        gate_wait_s: float = 0.0,
     ) -> None:
         """Return the native overload shape after a generation wait expires."""
         body = json.dumps(
@@ -1979,7 +2043,12 @@ class RouterApp:
             body,
         )
         self._record_self_answer(
-            scope, model_id, began, http_status=529, caller_gone=caller_gone
+            scope,
+            model_id,
+            began,
+            http_status=529,
+            caller_gone=caller_gone,
+            gate_wait_s=gate_wait_s,
         )
 
 

@@ -89,6 +89,7 @@ class RequestReceipt:
     reasoning_tokens: int | None
     time_to_first_token_s: float | None
     duration_s: float
+    gate_wait_s: float
     caller_hint: str
     status: str
     sample_fraction: float
@@ -452,6 +453,7 @@ class RequestReceiptSink:
         status: str,
         duration_s: float,
         accounting: StreamAccounting,
+        gate_wait_s: float = 0.0,
         timestamp: datetime | None = None,
     ) -> RequestReceipt | None:
         """Append one row, or drop it. Returns the row written, or None."""
@@ -470,6 +472,7 @@ class RequestReceiptSink:
             reasoning_tokens=accounting.reasoning_tokens,
             time_to_first_token_s=_round_or_none(accounting.time_to_first_token_s),
             duration_s=round(duration_s, 6),
+            gate_wait_s=round(max(0.0, gate_wait_s), 6),
             caller_hint=caller_hint,
             status=status,
             sample_fraction=round(fraction, 6),
