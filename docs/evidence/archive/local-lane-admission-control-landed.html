@@ -704,7 +704,8 @@
     top-level <code>headroom</code> is the minimum of that figure and the router's
     admission headroom. The adjacent <code>admission</code> block reports
     <code>width - in_flight - waiting</code>, the FIFO head's age, the waiting count,
-    and one of <code>open</code>, <code>full</code>, or <code>congested</code>. Queue
+    and one of <code>open</code>, <code>full</code>, <code>congested</code>, or
+    <code>paused</code>. Queue
     pressure therefore reaches readers that never see the engine's private queue.</p>
 
     <p>The router's request record gains <code>gate_wait_s</code>, measured from the
@@ -739,6 +740,16 @@
     tests/test_agent_router_admission.py</code> ran 65 tests with 0 failures. The
     whole-tree <code>uv run --no-sync ruff check imas_ambix tests</code> exited 0.
     No router restart and no write under <code>~/public</code> occurred.</p>
+
+    <p><strong>Verdict edge correction.</strong> Commit
+    <code>275f82d9706ab9675f82758e97a36636b2e4cd45</code> makes the full verdict
+    apply when <code>in_flight &ge; width</code>, covering a width controller
+    narrowing below already-running work. The regression fixture publishes width
+    12, 14 in flight, 0 waiting, headroom <code>-2</code>, and verdict
+    <code>full</code>. A paused width-14 fixture with 3 in flight and no waiters
+    publishes headroom <code>0</code> and verdict <code>paused</code>; the pause
+    takes precedence over open/full classification. The final declared gate is
+    66 passed and whole-tree Ruff exits 0.</p>
   </section>
 </main>
 </body>
