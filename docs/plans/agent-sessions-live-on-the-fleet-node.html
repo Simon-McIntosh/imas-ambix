@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-25">
-<meta name="plan-version" content="17">
+<meta name="plan-version" content="20">
 </head>
 <body>
   <main class="plan-doc">
@@ -87,9 +87,15 @@
       <li><strong>Cancels stale viewers</strong> by step id. Viewer steps are named
       <code>cx-view-&lt;session&gt;</code>, so one left behind by a dropped connection is found by
       name and cancelled by id, never matched by pattern.</li>
-      <li><strong>Attaches</strong> with <code>srun --overlap --pty --jobid=&lt;fleet&gt;
-      --job-name=cx-view-&lt;session&gt; fleet-attach &lt;session&gt;</code>. The step asks the
-      supervisor to start the session if it isn't running, then attaches to it.</li>
+      <li><strong>Attaches</strong> over ssh to the fleet node:
+      <code>ssh -tt &lt;node&gt; fleet-attach &lt;session&gt;</code>. The node admits ssh while
+      the job is held. <code>fleet-attach</code> asks the supervisor to start the session if it
+      isn't running, then attaches to it. Until 2026-09-25 the viewer was an
+      <code>srun --overlap --pty</code> step named <code>cx-view-&lt;session&gt;</code>. Through
+      that step the live view was almost unworkable: the tab bar vanished until a mouse event
+      forced a repaint, lines duplicated, and escape codes arrived missing their leading bytes.
+      The same sessions viewed over ssh were stable at once (dotfiles <code>bb4d958</code>).
+      <code>CX_FLEET_VIA=srun</code> keeps the step viewer for comparison.</li>
     </ol>
     <p>Running <code>cx</code> twice attaches to the same server. A laptop that sleeps or an ssh
     connection that drops ends only the viewer step, and <code>cx</code> reattaches. If the
@@ -206,8 +212,12 @@
     <header><span class="badge badge-shipped">&#10003; landed 2026-09-25</span>
     <h2>&sect;8 &mdash; A slow view is not an extra hop</h2></header>
     <p class="landed-summary">Keystroke round trips put every route from the laptop within
-    2&nbsp;ms of the 28&nbsp;ms WAN floor, and <code>srun</code> and direct ssh to the node are
-    identical at 0.7&nbsp;ms, so zellij stays in the batch step. <code>focus-filter</code>'s
+    2&nbsp;ms of the 28&nbsp;ms WAN floor, so zellij stays in the batch step. Synthetic probes
+    found <code>srun</code> and ssh identical: 0.7&nbsp;ms round trips, and byte-exact output even
+    under a slow reader. The live view settled it the other way. Viewed through the
+    <code>srun --pty</code> step, the fleet was almost unworkable, and over ssh it was stable, so
+    the viewer now uses ssh (dotfiles <code>bb4d958</code>). Which <code>srun</code> behaviour
+    corrupts an interactive full-screen client is not established. <code>focus-filter</code>'s
     500&nbsp;ms Esc hold was fixed at 21&nbsp;ms (dotfiles <code>3035280</code>). A throwaway probe
     measured no stall at 10,000 or 50,000 scrollback lines: attach 153/175&nbsp;ms, resize
     434/418&nbsp;ms, plain-shell control 153/439&nbsp;ms. That refutes the resize-storm hypothesis.
@@ -245,8 +255,9 @@
       reflow takes 3,756&nbsp;ms, against 12&ndash;13&nbsp;ms for a shell pane under the same
       method.</li>
     </ul>
-    <p>That reflow is the working explanation for slow, half-drawn tabs after a reconnect at a new
-    window size. The probe also found a zellij 0.45.1 server panic when tabs are opened before
+    <p>That reflow is real, and it costs about 4&nbsp;s after a reconnect at a new window size.
+    It was not what made the view unworkable: the <code>srun</code> viewer was, and switching the
+    viewer to ssh fixed the view (&sect;2). The probe also found a zellij 0.45.1 server panic when tabs are opened before
     any client attaches; that went to reckon's fleet-supervisor owner. Full record:
     <a href="/imas-ambix/evidence/archive/agent-sessions-live-on-the-fleet-node-landed#fleet-view-unseen-surfaces">&sect;9
     landed</a> (commits <code>386924e3</code>, <code>9ad7b060</code>).</p>
