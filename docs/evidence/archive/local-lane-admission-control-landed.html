@@ -1402,6 +1402,79 @@
     the restart — remains the lead-authorised step. Verifying the merged result
     belongs to a separately dispatched test node.</p>
   </section>
+
+  <section id="gate-path-is-explicit">
+    <h2>The gate path a submitted router reads is decided by the script alone</h2>
+    <p>The submitted job inherits the submitting shell's environment, because the
+    generated <code>#SBATCH</code> header sets no <code>--export</code>
+    restriction. That is what makes a no-option submission's control path depend
+    on the shell it was launched from: a stray
+    <code>AMBIX_ROUTER_GATE_PATH</code> in the operator's environment decided
+    which control file a router submitted without the option would read. The
+    path was also exported as the literal string the operator typed, so a
+    <code>~</code> arrived at the job unexpanded — sbatch does not run the
+    submitting shell — and a relative path was resolved against the job's
+    working directory rather than the one it was named in.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/local-lane-admission-control/gate-path-is-explicit.svg"
+           alt="Two rows: with --gate-file the path is expanded and the resolved
+                absolute path is exported into the script; with no option the script
+                unsets AMBIX_ROUTER_GATE_PATH so the inherited shell value is
+                discarded and the job reads the lane document's sibling.">
+      <figcaption>The generated script is the only source of the submitted gate
+      path: an absolute export when a file is named, an <code>unset</code> when
+      none is, so a no-option submission reads the lane document's sibling
+      whatever the submitting shell held.</figcaption>
+    </figure>
+
+    <p><strong>What changed.</strong> <code>router_command</code> in
+    <code>imas_ambix/agent/cli.py</code> resolves <code>--gate-file</code> once —
+    <code>Path(gate_file).expanduser().resolve()</code> — before the path reaches
+    either the generator or the foreground server, so the exported line names an
+    absolute file rather than one the submitting shell would have expanded and
+    sbatch does not. <code>generate_router_script</code> in
+    <code>imas_ambix/agent/slurm.py</code> appends
+    <code>unset AMBIX_ROUTER_GATE_PATH</code> (through the same
+    <code>GATE_PATH_ENV</code> constant the router resolves) when no gate file is
+    named, so the no-option behaviour is a property of the generated script and
+    not of the environment it was submitted from.</p>
+
+    <p><strong>What the tests measure.</strong> Three tests are added to
+    <code>tests/test_agent_gate_control_path.py</code> and one is rewritten (17
+    in the file, 49 across the declared gate). A <code>~/ambix-gate.json</code>
+    argument yields an absolute exported path whose parent is the home
+    directory. A relative argument yields the cwd-joined absolute path. A
+    no-option dry run carries the <code>unset</code> line and no
+    <code>export</code>. The byte-identity test is updated to the new no-option
+    form: the no-option script now differs from the pre-option revision
+    <code>268df346</code> by exactly the <code>unset</code> line, so stripping
+    that one line recovers the base script byte-for-byte, for both the plain and
+    the <code>prefix_probe</code> forms. This supersedes the byte-identical
+    guarantee recorded in the section above, which the <code>unset</code> line
+    necessarily changes.</p>
+
+    <p><strong>Evidence that could have failed.</strong> The declared negative
+    control, verbatim as the first line of the red log, is: &ldquo;removing the
+    expanduser/resolve call in router_command must fail the tilde and
+    relative-path tests; applied as a scratch edit and restored&rdquo;. Reducing
+    the resolution to <code>Path(gate_file)</code> produced <strong>2 failed, 15
+    deselected</strong> — exactly the tilde and relative-path tests — at the
+    revision <code>92d6d82f</code> named in the log header, and the scratch edit
+    was restored with <code>git diff --stat</code> showing an empty tree before
+    the green gate ran. The declared gate <code>uv run --no-sync pytest -p
+    no:cacheprovider tests/test_agent_gate_control_path.py
+    tests/test_agent_router_gate.py tests/test_agent_pause_cli.py</code> then ran
+    49 tests with 0 failures, and whole-tree <code>uv run --no-sync ruff check
+    imas_ambix tests</code> exited 0.</p>
+
+    <p><strong>What was not done.</strong> No job was submitted and no router was
+    restarted; <code>submit_script</code> is stubbed in the submit test. Nothing
+    under <code>/work</code> or <code>~/public</code> was created or written. The
+    deploy of the group-writable control directory — the one-time file copy and
+    the restart — remains the lead-authorised step. Verifying the merged result
+    belongs to a separately dispatched test node.</p>
+  </section>
 </main>
 </body>
 </html>

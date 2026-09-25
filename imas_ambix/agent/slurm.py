@@ -981,8 +981,11 @@ def generate_router_script(
     (no ``--export`` restriction is set in the header), but an exported variable
     is a value the running job carries and a reader can audit, whereas a value
     that lives only in the submitting invocation is one the job can silently be
-    launched without. With no ``gate_file`` the script is unchanged, so a job
-    submitted without the option keeps reading the lane document's sibling.
+    launched without. With no ``gate_file`` the script unsets
+    ``AMBIX_ROUTER_GATE_PATH``, so the job reads the lane document's sibling
+    whatever the submitting shell happened to export -- a no-option submission
+    depends only on the generated script, never on the environment it was
+    submitted from.
     """
     if not 1 <= port <= 65535:
         raise ValueError("port must be between 1 and 65535")
@@ -1030,12 +1033,17 @@ def generate_router_script(
         f"export PYTHONPATH={shlex.quote(str(repo_root))}:${{PYTHONPATH:-}}",
         probe_export,
     ]
-    if gate_file is not None:
-        from imas_ambix.agent.router import GATE_PATH_ENV
+    from imas_ambix.agent.router import GATE_PATH_ENV
 
+    if gate_file is not None:
         body_lines.append(
             f"export {GATE_PATH_ENV}={shlex.quote(str(gate_file))}"
             "   # gate control file in force"
+        )
+    else:
+        body_lines.append(
+            f"unset {GATE_PATH_ENV}"
+            "   # read the lane document's sibling, whatever the shell exported"
         )
     body_lines.append(
         f'echo "[$(date)] Starting keyless Ambix router on $(hostname):{port}"'

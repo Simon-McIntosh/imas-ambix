@@ -302,16 +302,38 @@ def _generate_at_revision(revision: str, site: SiteConfig, **kwargs) -> str:
     return generate(site, **kwargs)  # type: ignore[operator]
 
 
-def test_generated_script_without_the_option_is_unchanged(tmp_path) -> None:
-    """An existing submission keeps today's script byte-for-byte."""
+def _without_unset_line(script: str) -> str:
+    """The no-option script with its single unset line removed.
+
+    The pre-option revision had no gate-path line at all, so stripping this one
+    line recovers the script the generator produced before the option existed --
+    the strongest available statement that the option changed nothing else.
+    """
+    lines = script.splitlines(keepends=True)
+    kept = [line for line in lines if not line.startswith(f"unset {GATE_PATH_ENV}")]
+    assert len(kept) == len(lines) - 1, script
+    return "".join(kept)
+
+
+def test_generated_script_without_the_option_unsets_the_gate_path(tmp_path) -> None:
+    """A no-option submission reads the lane sibling, whatever the shell exported.
+
+    The submitted job inherits the submitting shell's environment (no --export
+    restriction is set), so a value exported there would otherwise decide which
+    control file a no-option router reads. The generated script unsets it, which
+    makes the no-option behaviour a property of the script alone.
+    """
     site = _scratch_site(tmp_path)
 
     current = slurm_mod.generate_router_script(site, port=18802, cpus=3, memory="12G")
     base = _generate_at_revision(
         _PRE_GATE_PATH_OPTION_REVISION, site, port=18802, cpus=3, memory="12G"
     )
-    assert current == base
-    assert GATE_PATH_ENV not in current
+    assert f"unset {GATE_PATH_ENV}" in current
+    assert f"export {GATE_PATH_ENV}=" not in current
+    # The option is additive: the no-option script differs from the pre-option
+    # revision by exactly the unset line, and by nothing else.
+    assert _without_unset_line(current) == base
 
     probed = slurm_mod.generate_router_script(
         site, port=18802, cpus=3, memory="12G", prefix_probe=True
@@ -324,7 +346,7 @@ def test_generated_script_without_the_option_is_unchanged(tmp_path) -> None:
         memory="12G",
         prefix_probe=True,
     )
-    assert probed == probed_base
+    assert _without_unset_line(probed) == probed_base
 
 
 def test_named_gate_path_is_embedded_in_the_generated_script(tmp_path) -> None:
@@ -414,3 +436,73 @@ def test_router_submit_carries_the_gate_path_into_the_submitted_script(
     assert result.exit_code == 0, result.output
     assert f"export {GATE_PATH_ENV}={control}" in captured["script"]
     assert "Submitted keyless router job 4242" in result.output
+
+
+def test_router_gate_file_tilde_is_absolute_under_the_home_directory(
+    tmp_path, monkeypatch
+) -> None:
+    """A '~' argument reaches the generated script fully expanded.
+
+    sbatch does not run the submitting shell, so a literal '~' in the exported
+    line names a directory nobody meant and the submitted router would read the
+    wrong file -- or none.
+    """
+    monkeypatch.setattr(slurm_mod, "submit_script", lambda _script: "4242")
+
+    result = CliRunner().invoke(
+        main,
+        [
+            "agent",
+            "router",
+            "--port",
+            "18802",
+            "--dry-run",
+            "--gate-file",
+            "~/ambix-gate.json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    expected = Path("~/ambix-gate.json").expanduser().resolve()
+    assert expected.is_absolute()
+    assert expected.parent == Path.home().resolve()
+    assert f"export {GATE_PATH_ENV}={expected}" in result.output
+
+
+def test_router_gate_file_relative_argument_resolves_against_the_cwd(
+    tmp_path, monkeypatch
+) -> None:
+    """A relative argument becomes an absolute path, not a cwd-relative guess."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(slurm_mod, "submit_script", lambda _script: "4242")
+
+    result = CliRunner().invoke(
+        main,
+        [
+            "agent",
+            "router",
+            "--port",
+            "18802",
+            "--dry-run",
+            "--gate-file",
+            "control/router-gate.json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    expected = (tmp_path / "control" / GATE_FILENAME).resolve()
+    assert expected.is_absolute()
+    assert f"export {GATE_PATH_ENV}={expected}" in result.output
+
+
+def test_router_no_option_dry_run_carries_the_unset_line(tmp_path, monkeypatch) -> None:
+    """A submission with no option does not inherit the shell's gate path."""
+    monkeypatch.setattr(slurm_mod, "submit_script", lambda _script: "4242")
+
+    result = CliRunner().invoke(
+        main, ["agent", "router", "--port", "18802", "--dry-run"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert f"unset {GATE_PATH_ENV}" in result.output
+    assert f"export {GATE_PATH_ENV}=" not in result.output
