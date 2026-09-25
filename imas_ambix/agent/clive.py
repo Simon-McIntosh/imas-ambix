@@ -682,11 +682,9 @@ else
 fi
 
 PROFILE_SETTINGS="$PICKER_SETTINGS"
-PROFILE_PROMPT="$DISPATCH_GUIDANCE"
 PROFILE_ARGS=()
 PROFILE_RECEIPT=""
 PROFILE_ROUTE="none"
-PROFILE_TOOLS=""
 if [[ -n "$WORKER_PROFILE" ]]; then
     [[ "$HARNESS" == "claude" ]] || {
         echo "clive: --worker-profile is supported only with the Claude harness." >&2
@@ -845,20 +843,13 @@ print(json.dumps({
 PY
 )"
     PROFILE_SETTINGS="$(python3 -c 'import json,sys; print(json.dumps(json.load(sys.stdin)["settings"], ensure_ascii=False, separators=(",", ":")), end="")' <<< "$PROFILE_DATA")"
-    PROFILE_PROMPT="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["prompt"], end="")' <<< "$PROFILE_DATA")"
-    PROFILE_TOOLS="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["tools"], end="")' <<< "$PROFILE_DATA")"
     PROFILE_ROUTE="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["route"], end="")' <<< "$PROFILE_DATA")"
-    if [[ "$PROFILE_ROUTE" == "bare" ]]; then
-        PROFILE_ARGS+=(--bare)
-    else
-        PROFILE_ARGS+=(--setting-sources "")
-    fi
-    PROFILE_ARGS+=(--append-system-prompt "$PROFILE_PROMPT")
-    MCP_ARGUMENTS="$(python3 -c 'import json,sys; d=json.load(sys.stdin); f=d["receipt"]["files"]["mcp_config"]; print(f["path"] if f else "", end="")' <<< "$PROFILE_DATA")"
-    if [[ -n "$MCP_ARGUMENTS" ]]; then
-        PROFILE_ARGS+=(--strict-mcp-config --mcp-config "$MCP_ARGUMENTS")
-    fi
-    PROFILE_ARGS+=(--tools "$PROFILE_TOOLS")
+    # The arguments this launch adds are the receipt's own added_arguments,
+    # read back NUL-separated so the empty --setting-sources value and the
+    # multi-line system prompt both survive the round trip. The receipt and
+    # the emitted command therefore share one definition and cannot disagree
+    # about which flags were added.
+    mapfile -d '' -t PROFILE_ARGS < <(python3 -c 'import json,sys; sys.stdout.write("\0".join(json.load(sys.stdin)["receipt"]["added_arguments"]))' <<< "$PROFILE_DATA")
     PROFILE_RECEIPT="$(python3 -c 'import json,sys; print(json.dumps(json.load(sys.stdin)["receipt"], ensure_ascii=False, separators=(",", ":")), end="")' <<< "$PROFILE_DATA")"
     if [[ -n "${CLIVE_PROFILE_RECEIPT:-}" ]]; then
         printf '%s\n' "$PROFILE_RECEIPT" >> "$CLIVE_PROFILE_RECEIPT"
