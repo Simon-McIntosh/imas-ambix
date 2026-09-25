@@ -696,6 +696,50 @@
     width of 14 stands. The speculative-depth sweep and the served-settings
     re-derivation on this section remain open.</p>
   </section>
+  <section id="gate-aware-lane">
+    <h2>Router admission state and gate wait receipts (2026-09-25)</h2>
+
+    <p>The router now publishes two layers of capacity in <code>lane.json</code>. The
+    <code>engine_headroom</code> field preserves the engine-derived figure, while the
+    top-level <code>headroom</code> is the minimum of that figure and the router's
+    admission headroom. The adjacent <code>admission</code> block reports
+    <code>width - in_flight - waiting</code>, the FIFO head's age, the waiting count,
+    and one of <code>open</code>, <code>full</code>, or <code>congested</code>. Queue
+    pressure therefore reaches readers that never see the engine's private queue.</p>
+
+    <p>The router's request record gains <code>gate_wait_s</code>, measured from the
+    request's arrival at the generation gate through admission. The same value is
+    written when the wait expires and the router answers 529, so a failed request's
+    receipt explains whether it was refused immediately or held by the gate. Requests
+    that bypass the gate retain a zero value.</p>
+
+    <h3>Evidence that could have failed</h3>
+
+    <p>The focused tests drive a stub gate to width 14 with 14 in flight and 9 FIFO
+    waiters. The published record carries <code>admission.headroom = -9</code>,
+    <code>admission.verdict = congested</code>, <code>admission.waiting = 9</code>,
+    and an oldest-wait age above the controlled 40 ms floor. With 10 in flight and
+    no waiters it reports <code>open</code> and headroom 4; with 14 in flight and no
+    waiters it reports <code>full</code> and headroom 0. The same test family holds
+    one slot, delays a second request, releases the slot, and reads its receipt;
+    the completed row carries the controlled wait. A second case lets the gate
+    timeout and verifies the 529 row carries its wait as well.</p>
+
+    <p><strong>Negative control.</strong> Before the repair, a base-arm run against
+    the pre-repair source left the engine headroom unchanged at the top level. The
+    congested-state test failed with <code>KeyError: 'engine_headroom'</code>,
+    demonstrating that no separate gate-aware publication existed. The first line
+    of the red log repeats the declared string verbatim; the scratch state was not
+    retained in the landed tree. The source commit is
+    <code>8fc472a8c1649035f2e752bed82d1482bf9e20a3</code>.</p>
+
+    <p><strong>Checks.</strong> The declared gate
+    <code>uv run --no-sync pytest -p no:cacheprovider tests/test_agent_router_gate.py
+    tests/test_request_receipts.py tests/test_agent_router_width_controller.py
+    tests/test_agent_router_admission.py</code> ran 65 tests with 0 failures. The
+    whole-tree <code>uv run --no-sync ruff check imas_ambix tests</code> exited 0.
+    No router restart and no write under <code>~/public</code> occurred.</p>
+  </section>
 </main>
 </body>
 </html>
