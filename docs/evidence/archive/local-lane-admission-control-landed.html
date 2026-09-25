@@ -524,6 +524,48 @@
     mutation would have passed. That is inferred from the code, not measured: no run against the
     shallow walk was recorded.</p>
   </section>
+
+  <section id="sweep-tooling">
+    <h2>Sweep tooling exposes both launch axes without changing the baseline</h2>
+
+    <p><strong>Implementation, 2026-09-25.</strong> <code>agent bench</code> now accepts a
+    caller-supplied comma-separated concurrency ladder and passes it to the concurrency runner;
+    omitting the option preserves <code>(1, 2, 4, 8, 16, 32)</code>. Each result row retains the
+    engine's published <code>spec_decode</code> accept length and active draft-token gauges, or
+    records null when either gauge is absent. <code>agent serve</code> and <code>agent restart</code>
+    accept <code>--dspark-block-size</code>, apply it only to an SGLang DSpark profile, and refuse
+    a non-DSpark profile. The default generated restart script remains byte-identical to the
+    profile's declared block size.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/local-lane-admission-control/sweep-axes-are-launch-settings.svg"
+        alt="Two-panel flow showing a caller-supplied concurrency ladder reaching the bench runner and a DSpark block-size override reaching the generated serve script only for an SGLang DSpark profile.">
+      <figcaption>Concurrency is a per-run bench setting; DSpark depth is a launch setting, so
+      each depth cell requires a relaunch. The figure also shows the refusal boundary for profiles
+      that do not serve DSpark on SGLang.</figcaption>
+    </figure>
+
+    <h3 id="sweep-tooling-evidence">What the tests measure</h3>
+
+    <p><code>uv run --no-sync pytest -p no:cacheprovider tests/test_bench.py
+    tests/test_agent_sweep_options.py</code> collected 36 tests and passed all 36. The focused
+    tests cover the custom levels reaching the runner, the unchanged default ladder, metadata
+    preservation and null handling, both generated launch paths, byte identity of the default
+    script, non-DSpark refusal, and mutual exclusion with <code>--no-speculative</code>. The
+    whole-tree gate <code>uv run --no-sync ruff check imas_ambix tests</code> passed with exit
+    status 0. No serve was started, restarted, or cancelled. The implementation and tests are
+    in commits <code>af7de5ed</code>, with the figure in <code>0d9d657c</code> and its corrected
+    measurement in <code>bf305756</code>.</p>
+
+    <p><strong>Declared negative control.</strong> The exact scratch mutation was: <code>removing
+    the block-size override from the generated serve script must fail the dry-run test; applied as
+    a scratch edit and restored</code>. Removing both launch-path applications caused
+    <code>test_restart_dry_run_carries_the_block_size_override</code>,
+    <code>test_restart_dry_run_default_script_is_unchanged</code>,
+    <code>test_block_size_override_is_refused_without_dspark</code>, and
+    <code>test_serve_dry_run_offers_the_same_override</code> to fail: 4 failed and 32 passed.
+    The implementation was restored before the lint gate.</p>
+  </section>
 </main>
 </body>
 </html>
