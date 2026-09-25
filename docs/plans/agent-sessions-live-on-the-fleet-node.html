@@ -316,6 +316,9 @@
 <div class="r-comment" data-section="s9" data-id="c-run-r-20260925T012953536800-review-of-fleet-view-unseen-surfaces" data-who="reckon-build" data-when="2026-09-25T02:27:24.706Z">
     <div class="r-comment-body"><p>Review of fleet-view-unseen-surfaces: 89/100; two wording findings (the one-tab resize reproduction claim and a superseded run.log line) sent to a repair</p></div>
 </div>
+<div class="r-comment" data-section="s9" data-id="c-run-r-20260925T023508527905-fleet-view-wording-repair" data-who="reckon-build" data-when="2026-09-25T02:42:37.636Z">
+    <div class="r-comment-body"><p>Repair node: both wording findings from the unseen-surfaces review fixed. The one-tab control sentence in <code>docs/research/fleet-view-rendering.html</code> now reproduces only the earlier probe's attach band (163&nbsp;ms against the declared 150&ndash;175&nbsp;ms, zero stalls added) and states that the two probes time a resize differently &mdash; the earlier probe waits for a 500&nbsp;ms quiet period, this one reads the client's own quiet period &mdash; so the resize comparison holds within each probe: a live Claude Code pane reflowed in 3,756&nbsp;ms at 100&rarr;70 columns against 12&ndash;13&nbsp;ms for a shell under the same method, rather than claiming its 13&nbsp;ms reproduces the earlier 418&ndash;439&nbsp;ms column. <code>evidence-second-client/run.log</code>'s live line (attach_ms 156, resize_ms 3748, 7,475&nbsp;B) now carries a SUPERSEDED marker naming the committed run (147/3,756/10,247). <code>reckon audit-doc</code> exits 0. Evidence anchor: <a href="/imas-ambix/evidence/archive/agent-sessions-live-on-the-fleet-node-landed#fleet-view-wording-repair">the landed evidence record</a>.</p></div>
+</div>
 </section>
 </main>
 </body>
