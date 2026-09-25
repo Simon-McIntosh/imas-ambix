@@ -53,6 +53,15 @@ RECEIPT_MAX_ROWS_PER_S_ENV = "AMBIX_ROUTER_RECEIPT_MAX_ROWS_PER_S"
 RECEIPT_WINDOW_S_ENV = "AMBIX_ROUTER_RECEIPT_WINDOW_S"
 
 GATE_FILENAME = "router-gate.json"
+# The gate's control file is operator input, not a published observation, so its
+# location is named explicitly rather than inferred from wherever the lane
+# document happens to publish. A path derived from the lane document moves
+# silently the day the lane moves, which is how one operator's control input
+# came to sit beside a 19 MB request log in a world-readable directory.
+# Resolution order is the command-line path, then this environment variable,
+# then the lane document's sibling -- the last kept so a deployment that names
+# neither keeps taking control from exactly where it does today.
+GATE_PATH_ENV = "AMBIX_ROUTER_GATE_PATH"
 DEFAULT_GENERATION_WIDTH = 22
 DEFAULT_GENERATION_WAIT_SECONDS = 300.0
 GENERATION_RETRY_AFTER_SECONDS = 5
@@ -222,6 +231,34 @@ class _Admission:
     disconnect_task: asyncio.Task[None] | None = None
     retry_after_seconds: int = 1
     gate_wait_s: float = 0.0
+
+
+def resolve_gate_path(
+    explicit: Path | None,
+    lane_document: Path | None,
+) -> Path | None:
+    """Resolve the gate control file, explicit first and lane-sibling last.
+
+    The order is the command-line option, then ``AMBIX_ROUTER_GATE_PATH``, then
+    the lane document's sibling. The last branch is what keeps a deployment that
+    names neither option taking its control input from exactly where it does
+    today, so moving the lane document and moving the control file stay separate
+    decisions. An explicitly named path is honoured whether or not it exists,
+    because a gate that has not been written yet must read as an empty gate
+    rather than fall back to a different file.
+    """
+    if explicit is not None:
+        return explicit
+    from_env = os.environ.get(GATE_PATH_ENV, "").strip()
+    if from_env:
+        # Imported here rather than at module scope: ``Path`` is otherwise a
+        # typing-only name in this module, and this is its only runtime use.
+        from pathlib import Path
+
+        return Path(from_env)
+    if lane_document is not None:
+        return lane_document.with_name(GATE_FILENAME)
+    return None
 
 
 class _GenerationGate:
@@ -1198,11 +1235,7 @@ class RouterApp:
         self._lane_interval = lane_interval
         self._lane_task: asyncio.Task[None] | None = None
         self._generation_gate = _GenerationGate(
-            gate_file
-            if gate_file is not None
-            else lane_document.with_name(GATE_FILENAME)
-            if lane_document is not None
-            else None
+            resolve_gate_path(gate_file, lane_document)
         )
         # Opt-in, because it logs one line per routed request. Hashes only.
         self._prefix_diagnostic = (
