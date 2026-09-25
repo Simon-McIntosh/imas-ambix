@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 470" font-family="Helvetica, Arial, sans-serif" font-size="15">
+  <rect width="940" height="470" fill="#fbfbfa"/>
+
+  <text x="40" y="42" font-size="20" font-weight="700" fill="#1a1a1a">A receipt's session identity comes from the request headers</text>
+  <text x="40" y="66" font-size="14" fill="#555">Copied, never inferred: an absent header records null, and nothing is derived from the connection.</text>
+
+  <!-- Request headers -->
+  <rect x="40" y="96" width="360" height="96" rx="8" fill="#eef3fb" stroke="#4a6fa5" stroke-width="1.5"/>
+  <text x="60" y="124" font-size="15" font-weight="700" fill="#24405f">Request headers</text>
+  <text x="60" y="150" font-family="monospace" font-size="14" fill="#1a1a1a">X-Reckon-Run-Id: r-abc</text>
+  <text x="60" y="174" font-family="monospace" font-size="14" fill="#1a1a1a">X-Reckon-Session: s-1</text>
+
+  <!-- arrow to decision -->
+  <line x1="220" y1="192" x2="220" y2="234" stroke="#666" stroke-width="1.6"/>
+  <polygon points="220,242 215,232 225,232" fill="#666"/>
+
+  <!-- Decision -->
+  <rect x="70" y="242" width="300" height="96" rx="8" fill="#fff8e6" stroke="#c99b2e" stroke-width="1.5"/>
+  <text x="90" y="270" font-size="15" font-weight="700" fill="#7a5c10">Well-formed short token?</text>
+  <text x="90" y="296" font-size="13" fill="#5c4a1a">non-empty &#183; &#8804; 128 characters</text>
+  <text x="90" y="316" font-size="13" fill="#5c4a1a">no control character</text>
+
+  <!-- accept branch -->
+  <line x1="370" y1="290" x2="470" y2="290" stroke="#2f7d4f" stroke-width="1.6"/>
+  <polygon points="478,290 468,285 468,295" fill="#2f7d4f"/>
+  <text x="404" y="282" font-size="13" font-weight="700" fill="#2f7d4f">yes</text>
+  <rect x="478" y="242" width="422" height="96" rx="8" fill="#eaf6ef" stroke="#2f7d4f" stroke-width="1.5"/>
+  <text x="498" y="270" font-size="15" font-weight="700" fill="#1d5c39">Both fields land on the row</text>
+  <text x="498" y="296" font-family="monospace" font-size="14" fill="#1a1a1a">run_id = "r-abc"</text>
+  <text x="498" y="320" font-family="monospace" font-size="14" fill="#1a1a1a">coordinator_session = "s-1"</text>
+
+  <!-- reject branch -->
+  <line x1="220" y1="338" x2="220" y2="366" stroke="#a23a3a" stroke-width="1.6"/>
+  <polygon points="220,374 215,364 225,364" fill="#a23a3a"/>
+  <text x="230" y="360" font-size="13" font-weight="700" fill="#a23a3a">no</text>
+  <rect x="70" y="374" width="300" height="76" rx="8" fill="#fbeeee" stroke="#a23a3a" stroke-width="1.5"/>
+  <text x="90" y="400" font-size="14" font-weight="700" fill="#7d2c2c">Recorded as null</text>
+  <text x="90" y="422" font-size="13" fill="#5c2a2a">empty &#183; over 128 chars &#183; control char</text>
+  <text x="90" y="441" font-size="13" fill="#5c2a2a">(truncating would collide ids)</text>
+
+  <!-- never-inferred footer -->
+  <rect x="478" y="374" width="422" height="76" rx="8" fill="#f3f3f3" stroke="#888" stroke-width="1.2"/>
+  <text x="498" y="400" font-size="14" font-weight="700" fill="#444">Never inferred</text>
+  <text x="498" y="422" font-family="monospace" font-size="13" fill="#444">caller_hint = peer-ip:port|user-agent</text>
+  <text x="498" y="441" font-size="13" fill="#444">is per connection: 3,651 hints for 23,917 requests.</text>
+</svg>

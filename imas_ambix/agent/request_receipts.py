@@ -28,8 +28,9 @@ import json
 import logging
 import random
 import time
+import unicodedata
 from collections import deque
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -46,6 +47,20 @@ RECEIPTS_FILENAME = "requests.jsonl"
 # merged catalogs. Distinct from every engine origin, so a reader summing
 # traffic per upstream never adds these to a sink's share of it.
 SELF_ANSWERED_UPSTREAM = "(router)"
+
+# The two request headers carrying a session identity into the record. They are
+# absent on most consumers, and are never inferred when absent: a missing value
+# recorded as a deducible one would read exactly like a reported one, and the
+# share of unkeyed requests is itself a published figure. A caller sets them for
+# its workers, and Claude Code forwards every custom header on every request.
+RUN_ID_HEADER = "x-reckon-run-id"
+COORDINATOR_SESSION_HEADER = "x-reckon-session"
+
+# A well-formed identity is a short token. A value longer than this, empty, or
+# carrying a control character is not one this router will publish, and is
+# recorded as absent rather than truncated -- a truncated id would collide with
+# a different session's, which is the whole property the field exists to give.
+MAX_IDENTITY_CHARS = 128
 
 # Bound the parse only where it protects the relay's memory: a single SSE line
 # longer than this is dropped rather than accumulated, and the non-streaming
@@ -75,9 +90,54 @@ STATUS_ABORTED = "aborted"
 STATUS_FAILED = "failed"
 
 
+def _identity_token(raw: bytes) -> str | None:
+    """Read one header value as a session token, or None when it is not one.
+
+    None is the answer for absent, empty, over-long and control-bearing values
+    alike, because all four mean the same thing to a reader: this request
+    carried no usable identity. A caller that sends a malformed value therefore
+    lands in the unkeyed share rather than inventing a key.
+    """
+    if not raw:
+        return None
+    value = raw.decode("utf-8", "replace")
+    if len(value) > MAX_IDENTITY_CHARS:
+        return None
+    if any(unicodedata.category(character) == "Cc" for character in value):
+        return None
+    return value
+
+
+def identity_from_headers(
+    headers: Iterable[tuple[bytes, bytes]],
+) -> tuple[str | None, str | None]:
+    """Return ``(run_id, coordinator_session)`` from a request's raw headers.
+
+    Both are None unless the caller reported them, and a header repeated within
+    one request takes its last value -- the same rule a client library applies
+    when it assembles them.
+    """
+    found: dict[str, str | None] = {
+        RUN_ID_HEADER: None,
+        COORDINATOR_SESSION_HEADER: None,
+    }
+    for name, value in headers or ():
+        key = bytes(name).decode("latin-1").lower()
+        if key in found:
+            found[key] = _identity_token(bytes(value))
+    return found[RUN_ID_HEADER], found[COORDINATOR_SESSION_HEADER]
+
+
 @dataclass(frozen=True, slots=True)
 class RequestReceipt:
-    """One completed request, as it appears in the append-only record."""
+    """One completed request, as it appears in the record.
+
+    Two identities ride beside the connection-level ``caller_hint``: ``run_id``
+    is the crew run that issued the request and ``coordinator_session`` the
+    coordinator session behind it, both None when the caller reported neither.
+    They are copied from request headers and never inferred, so a row's null
+    says the caller was unkeyed rather than that the router failed to read it.
+    """
 
     timestamp: str
     model: str
@@ -91,6 +151,8 @@ class RequestReceipt:
     duration_s: float
     gate_wait_s: float
     caller_hint: str
+    run_id: str | None
+    coordinator_session: str | None
     status: str
     sample_fraction: float
     sampling_rate_per_s: float
@@ -454,6 +516,8 @@ class RequestReceiptSink:
         duration_s: float,
         accounting: StreamAccounting,
         gate_wait_s: float = 0.0,
+        run_id: str | None = None,
+        coordinator_session: str | None = None,
         timestamp: datetime | None = None,
     ) -> RequestReceipt | None:
         """Append one row, or drop it. Returns the row written, or None."""
@@ -474,6 +538,8 @@ class RequestReceiptSink:
             duration_s=round(duration_s, 6),
             gate_wait_s=round(max(0.0, gate_wait_s), 6),
             caller_hint=caller_hint,
+            run_id=run_id,
+            coordinator_session=coordinator_session,
             status=status,
             sample_fraction=round(fraction, 6),
             sampling_rate_per_s=round(rate, 3),
