@@ -698,6 +698,76 @@
     re-derivation on this section remain open.</p>
   </section>
 
+  <section id="repeated-counter-reading">
+    <h2>A repeated engine counter reading is not a stalled lane (2026-09-26)</h2>
+
+    <p><strong>The defect.</strong> With the width at <code>auto</code> the controller
+    stepped the width 14&rarr;12&rarr;10 while the lane was serving normally.
+    <code>lane.json</code>'s <code>width_reason</code> read &ldquo;stepping down: 0.0
+    tokens/s per stream is below the 10 floor&rdquo; at 09:34, 09:42 and 09:50Z, against
+    live samples showing 10&ndash;12 streams at 180&ndash;490 aggregate tok/s with a prefix
+    hit rate near 0.99 (samples under
+    <code>~/.cache/imas-ambix-depth-sweep/window-auto.jsonl</code>). Each down-step
+    additionally queued requests that the width had been admitting.</p>
+
+    <p><strong>Why a zero rate is recorded while generation continues.</strong>
+    <code>_GenerationGate._step_controller</code> in
+    <code>imas_ambix/agent/router.py</code> differences the engine's cumulative
+    <code>generation_tokens</code> odometer between successive lane scrapes and forms
+    a rate as <code>(generation_tokens - previous) / elapsed</code>. A scrape that reads
+    the counter before it has advanced sees <code>generation_tokens</code> equal to its
+    predecessor's value, so the delta is <code>0</code> and the rate is
+    <code>0.0</code> &mdash; a present value, not a missing one. That <code>0.0</code>
+    is passed to <code>_record_health_sample</code>, and
+    <code>_controller_health_sample</code> divides it by <code>running</code> to
+    <code>0.0</code> tokens/s per stream, which <code>_controller_guard</code> counts
+    below <code>GATE_CONTROLLER_PER_STREAM_FLOOR_TOK_S = 10.0</code>. The health watch
+    is satisfied, and the width steps down by <code>GATE_CONTROLLER_STEP = 2</code>.
+    The pre-repair code also advanced <code>_throughput_stamp</code> on a repeated
+    reading, so the interval that the next reading was measured over was the tail of
+    the movement rather than the whole of it. A repeated reading is not a measurement
+    of anything: the lane generating steadily produces several such scrapes whenever
+    the odometer happens to be read between its advancements.</p>
+
+    <p><strong>The repair</strong> (commit <code>17d24ff1</code>). In
+    <code>_step_controller</code>, a reading whose <code>generation_tokens</code>
+    equals its predecessor's is skipped whole: it contributes no rate and no health
+    sample, and neither odometer mark is advanced, so the next reading that does move
+    is measured across the interval its real movement actually covers. The published
+    <code>width_reason</code> records the skip (&ldquo;holding: the decoded-token
+    counter did not move&rdquo;) rather than leaving the last decision stale. Scoring
+    of genuinely new readings is unchanged: a delta that moves still forms a rate over
+    the true interval and still feeds the health sample exactly as before.</p>
+
+    <p><strong>Evidence.</strong> <code>tests/test_agent_router_width_controller.py</code>
+    gains <code>test_width_controller_ignores_a_repeated_counter_reading</code>. It feeds
+    scrapes whose decoded-token counter moves only on some turns over a lane running 10
+    streams at an aggregate the helper advances at about 25 tok/s per stream, then asserts
+    the width never leaves its start and no <code>stepping down:</code> note is written; a
+    second arm advances at 5 tok/s per stream and asserts the width does step down with a
+    per-stream note, so the guard judges real movement rather than being switched off. The
+    declared gate <code>uv run --no-sync pytest -p no:cacheprovider
+    tests/test_agent_router_width_controller.py tests/test_agent_router_gate.py
+    tests/test_agent_router_absent_upstream.py tests/test_agent_router_cut.py</code> ran
+    <strong>46 tests with 0 failures in 24.4 s</strong>, and whole-tree
+    <code>uv run --no-sync ruff check imas_ambix tests</code> exited 0.</p>
+
+    <p><strong>Declared negative control.</strong> The declared string, recorded verbatim as
+    the first line of the red log, is: &ldquo;reverting the repeated-reading skip must make
+    the replayed-failure test step the width down; applied as a scratch edit and
+    restored&rdquo;. As measured, reverting the skip (restoring the committed-predecessor
+    <code>router.py</code> at the same revision) ran the new test to a failing
+    <code>assert 18 == 20</code> &mdash; &ldquo;At index 6 diff: 18 != 20&rdquo;, the width
+    stepping to 18 against the expected 20 &mdash; at <code>EXIT=1</code>. The scratch edit
+    was restored from a copy and verified byte-identical (<code>diff -q</code> clean) before
+    the green gate above ran. The red log's header names the revision, worktree, module and
+    command.</p>
+
+    <p><strong>Not deployed.</strong> No router restart, no write to the gate file, and no
+    serve change. The measured live window was diagnostic input only; the lane keeps its
+    current width until the router bundle deploys under the &sect;17 cycle.</p>
+  </section>
+
   <section id="generation-counter-parser">
     <h2>The SGLang parser retains the cumulative generation-token counter</h2>
     <p>The recorded SGLang fixture contains <code>sglang:generation_tokens_total</code>
