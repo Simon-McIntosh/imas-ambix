@@ -245,6 +245,27 @@ LANE_SERIES: dict[str, dict[str, tuple[str, ...]]] = {
     },
 }
 
+#: Lane roles whose series are cumulative counters rather than gauges, and so
+#: share the label-set arithmetic of ``COUNTER_SERIES`` above. Their engine
+#: spellings differ from the canonical role names and they are not in
+#: ``COUNTER_SERIES``, which is why the two are not the same set.
+#:
+#: A counter carries one running total whose label sets — ``is_streaming``,
+#: ``engine`` rank, a device/``reason`` breakdown that is not filtered — are
+#: contributions to that total, so every one of them sums. A gauge instead
+#: repeats one instantaneous reading on every rank, so its label sets must not
+#: be added. Reading a counter as a gauge takes one series and reports it as the
+#: whole, which is the defect this set exists to prevent.
+LANE_COUNTER_ROLES: frozenset[str] = frozenset(
+    {
+        "preemptions",
+        "external_queries",
+        "external_hits",
+        "offload_written_bytes",
+        "offload_restored_bytes",
+    }
+)
+
 
 def family_of(name: str) -> str | None:
     """The engine family a fully qualified sample name belongs to."""
@@ -634,3 +655,13 @@ def lane_series(role: str, family: str) -> tuple[str, ...]:
     if role in GAUGE_SERIES:
         return GAUGE_SERIES[role][family]
     raise KeyError(role)
+
+
+def role_is_counter(role: str) -> bool:
+    """Whether one lane role's series is cumulative, so its label sets sum.
+
+    True for the canonical counters in ``COUNTER_SERIES`` and for the lane-only
+    cumulative roles in ``LANE_COUNTER_ROLES``; a role absent from both is a
+    gauge, to be read as one value.
+    """
+    return role in COUNTER_SERIES or role in LANE_COUNTER_ROLES

@@ -1845,6 +1845,54 @@
     serve dry-run flag assertion, and the restart default-script assertion. The
     scratch edit was removed and the file is byte-identical to the commit.</p>
   </section>
+
+  <section id="lane-counter-series">
+    <h2>The lane reading sums a counter across all of its label series (2026-09-26)</h2>
+
+    <p><strong>The defect, reproduced live.</strong> At 16:13Z the SGLang serve at
+    <code>http://98dci4-gpu-0003:18810/metrics</code> published the generation counter as two series:
+    <code>sglang:generation_tokens_total{is_streaming="false"} 408.0</code> &mdash; frozen since the
+    16:02Z observation &mdash; and <code>{is_streaming="true"} 4.776209e+06</code>, climbing.
+    <code>_lane_reader</code> in <code>imas_ambix/agent/lane.py</code> resolved every role through
+    <code>engine_metrics.series_first</code>, so <code>fetch_lane_capacity(...).generation_tokens</code>
+    returned <code>408</code>. <code>_GenerationGate</code> in <code>router.py</code> differences that
+    odometer, so the width controller measured the non-streaming shard as the whole and read
+    <code>0.0</code> tokens/s per stream against a climbing engine.</p>
+
+    <p><strong>The repair</strong> (commit <code>45112578</code>). <code>engine_metrics</code> gains
+    <code>LANE_COUNTER_ROLES</code> and <code>role_is_counter</code>, naming the lane-only roles whose
+    series are cumulative: <code>preemptions</code>, <code>external_queries</code>,
+    <code>external_hits</code>, <code>offload_written_bytes</code> and
+    <code>offload_restored_bytes</code>. Together with the canonical <code>COUNTER_SERIES</code> roles
+    (<code>generation_tokens</code>, <code>prefix_cache_queries</code>, <code>prefix_cache_hits</code>)
+    they are the roles the lane reader sums over their label sets, through
+    <code>series_total</code>. Every other role is a gauge and keeps its current reading, through
+    <code>series_first</code>, because its label sets are one instantaneous value repeated on each rank
+    rather than terms of a sum. On the same live body the repaired reader returns <code>4776617</code>,
+    the sum of <code>408</code> and <code>4.776209e+06</code>.</p>
+
+    <p><strong>What the tests measure.</strong> <code>tests/test_agent_lane_counter_series.py</code>
+    holds the two published generation series and asserts their sum; a single-series counter is
+    unchanged; a single-series gauge is unchanged; a gauge repeated on two vLLM engine ranks keeps one
+    reading rather than doubling; and the cumulative lane-only roles (<code>preemptions</code>, the
+    external-cache counters) sum across engine ranks. The declared gate <code>uv run --no-sync pytest -p
+    no:cacheprovider tests/test_agent_lane_counter_series.py tests/test_agent_lane_sglang.py
+    tests/test_agent_router_width_controller.py</code> ran <strong>27 passed, EXIT=0</strong> at commit
+    <code>45112578</code>, and whole-tree <code>uv run --no-sync ruff check imas_ambix tests</code>
+    exited <code>0</code>. The gate log's header names the revision, the worktree, the command, and the
+    imported <code>lane.py</code> path, which resolves to this worktree rather than the main checkout.</p>
+
+    <p><strong>Declared negative control.</strong> The declared string, recorded verbatim as the first
+    line of the red log, is: &ldquo;reverting the reader to take the first series must make the
+    two-series sum test fail with 408; applied as a scratch edit and restored&rdquo;. As measured,
+    reverting <code>_lane_reader</code> to <code>series_first</code> failed the sum test at
+    <code>assert 408 == 4500408.0</code> (<code>1 failed</code>, <code>EXIT=1</code>); the scratch edit
+    was restored and <code>git diff HEAD -- imas_ambix/agent/lane.py</code> is empty.</p>
+
+    <p><strong>Not deployed.</strong> No router restart, no write to <code>deploy/router-gate.json</code>,
+    and no serve change. The live read was read-only; the lane keeps its current behaviour until the
+    router bundle and the engine are next cycled.</p>
+  </section>
 </main>
 </body>
 </html>
