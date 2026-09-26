@@ -1,0 +1,357 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effort": "high",
+    "launch": "cli",
+    "local": true,
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "worktree-full",
+    "usable_input_window": 480000
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "87806e8d78cb92ea7af9fe7f6cd0dc95c16773ca",
+  "boundary_waiver": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "inference_geo": "",
+      "input_tokens": 3746900,
+      "input_tokens_cumulative": 3746900,
+      "output_tokens": 31902,
+      "output_tokens_cumulative": 31902,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": {
+    "added": 15,
+    "files": 2,
+    "removed": 2
+  },
+  "commit_resolution": null,
+  "commits": [
+    "e2e79084e6545a0dc7fb93c851cfffcc2a50ef8e"
+  ],
+  "completed_at": "2026-09-26T18:37:22.237Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-09-26T18:23:21Z",
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": true,
+    "matched_measure": null,
+    "override": false,
+    "role": "implement",
+    "status": "no-execution-measure"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [
+    "plan/evidence"
+  ],
+  "gate": "passed",
+  "gate_check": {
+    "command": "python3 -c \"import json,pathlib as P;f=json.load(open('/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T182312980562-cwp-fenced-mcp-tools/launch/fenced-summary.json'));n=json.load(open('/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T182312980562-cwp-fenced-mcp-tools/launch/fenced-summary--nc.json'));t=[x['name'] for x in json.loads(P.Path(f['first_body_path']).read_text())['tools']];tn=[x['name'] for x in json.loads(P.Path(n['first_body_path']).read_text())['tools']];assert 'mcp__reckon__edit_plan' in t and len(t)==46 and not any(x.startswith('mcp__') for x in tn);print(len(t),'tools fenced; control mcp',0)\"",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T182312980562-cwp-fenced-mcp-tools/gate-coordinator.log"
+  },
+  "impl_move": {
+    "at_complete": null,
+    "at_dispatch": null,
+    "plan": "clive-worker-profiles",
+    "reason": "no-impl-recorded-at-dispatch",
+    "verdict": "exempt"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-09-26T19:08:14.396350+00:00",
+    "horizon_seconds": 2700,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": null,
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-09-26T18:23:14Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 28,
+    "binding_observed": "unknown",
+    "detail": "",
+    "headroom": 7,
+    "mean_context": 125714,
+    "observed_at": "2026-09-26T18:22:46Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-09-26T18:37:22.237Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": true,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T182312980562-cwp-fenced-mcp-tools/manifest.md",
+  "member": "llac-autowidth",
+  "negative_control": {
+    "reason": "node-writes-no-test-path",
+    "verdict": "exempt"
+  },
+  "no_commit": null,
+  "node": "cwp-fenced-mcp-tools",
+  "node_definition": {
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 549,
+          "cached_input_tokens": 613479,
+          "input_tokens": 614032,
+          "output_tokens": 1390,
+          "reasoning_output_tokens": 45,
+          "total_tokens": 615422,
+          "uncached_input_tokens": 4
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "38dec84a-7cb6-4b27-ace6-501cc76dbec0",
+      "session_id": "llac-s14-0925"
+    },
+    "done_when": "Report written to /home/ITER/mcintos/.config/reckon/crew/reports/cwp-fenced-mcp-tools.md (declared write path; the fence now grants it). This run is fenced at reckon head including 6d5ef87b (MCP-servers carry), 3464b851 and 750ac4b4. Reuse the previous measurement exactly: scripts and stub under /home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T145459466287-cwp-fenced-first-request/launch/ (launch_fenced.py, stub_tooluse.py, derive inputs) with CLAUDE_CONFIG_DIR = this run's own harness home and ANTHROPIC_BASE_URL at the 127.0.0.1 stub; negative control = same launch with an empty scratch config dir. Report: (1) the first request's tools array: total count, the mcp__reckon__* and mcp__imas-dd__* names present, and whether mcp__reckon__edit_plan is among them, against the unfenced baseline body /home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T210224385419-cwp-production-baseline/launch/out/bodies/0001.json (26 MCP-related tools the previous fenced run lacked); (2) first-request bytes against unfenced 276,931 and previous fenced 224,560; (3) the harness home .claude.json: mode (must be 0600) and its top-level keys (mcpServers plus only claude's own first-start keys; no projects or oauth keys), shown by stat and a key listing; (4) that the git-safety marker 'Always banned** — commit instead' is still in .messages[0].content[0] and worker_git_guard still denies the stub's git stash call. State plainly any item that fails. The launch runs on the fleet allocation, never the login node. No repository file changes; no plan/evidence HTML and no figure. Pass checkout_path on every reckon MCP call; never write or run git in the main checkout.",
+    "estimated_hours": null,
+    "goal": "Confirm a fenced clive worker launch carries the reckon and imas-dd MCP tools",
+    "id": "cwp-fenced-mcp-tools",
+    "lane_declaration": {
+      "backend": null,
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-09-26T18:23:14Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 28,
+      "binding_observed": "unknown",
+      "detail": "",
+      "headroom": 7,
+      "mean_context": 125714,
+      "observed_at": "2026-09-26T18:22:46Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T182312980562-cwp-fenced-mcp-tools/manifest.md",
+    "negative_control": "the same launch with an empty scratch CLAUDE_CONFIG_DIR must list no mcp__reckon__ tools",
+    "plan": "clive-worker-profiles",
+    "requested_backend": "clive",
+    "requires_decisions": [],
+    "role": "implement",
+    "section": "§3",
+    "spec_level": "exact",
+    "time_budget": "45m",
+    "token_budget": null,
+    "write_paths": [
+      "/home/ITER/mcintos/.config/reckon/crew/reports/cwp-fenced-mcp-tools.md",
+      "docs/evidence/archive/clive-worker-profiles-landed.html",
+      "docs/figures/clive-worker-profiles",
+      "docs/plans/clive-worker-profiles.html"
+    ]
+  },
+  "orientation_input_tokens": 1237294.0,
+  "outcome": "",
+  "plan": "clive-worker-profiles",
+  "promoted_revision": "e2e79084e6545a0dc7fb93c851cfffcc2a50ef8e",
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "scores": {
+      "durability": 17,
+      "evidence": 17,
+      "fit": 16,
+      "goal_fidelity": 19,
+      "scope_discipline": 16
+    },
+    "status": "parsed",
+    "total": 85
+  },
+  "role": "implement",
+  "run_id": "r-20260926T182312980562-cwp-fenced-mcp-tools",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§3",
+  "session_harness": "claude",
+  "session_id": "a6bebd50-3421-4811-86ae-34b92cd4f2ba",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "exact",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 0,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 3746900,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+    "elapsed_seconds": 830.755,
+    "generated_tokens": 31902,
+    "generation_seconds": 808.9,
+    "input_budget_tokens": 480000,
+    "input_utilisation_pct": 27.1,
+    "machine_seconds": 21.855,
+    "peak_input_tokens": 130177,
+    "tokens_per_second": 39.44,
+    "wall_tokens_per_second": 38.4
+  },
+  "time_budget": "45m",
+  "tool_steps": 41.0,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": [
+      {
+        "budget_overrun": false,
+        "budget_overrun_seconds": 0,
+        "budget_seconds": 2700,
+        "classification": "promotable",
+        "commits_beyond_base": 0,
+        "detail": "the worker manifest reports completion; the run is the review it dispatched with, so the review it wrote is its deliverable and no review of this run is required",
+        "effective_phase": "complete",
+        "elapsed_seconds": 1980,
+        "exit_record": {
+          "attempt": 1,
+          "ended_during": "working",
+          "exit_code": 0,
+          "exited_at": "2026-09-26T16:52:22Z",
+          "last_record_type": "result",
+          "launched_at": "2026-09-26T16:19:33Z",
+          "recorded_by": "supervisor",
+          "run_id": "r-20260926T161917012759-review-of-s14-lane-sums-counter-series",
+          "signal": null,
+          "signal_name": null,
+          "stream_records_seen": 12967,
+          "worker_pid": 43286
+        },
+        "external_wait": null,
+        "fleet_verdict": {
+          "detail": "",
+          "lifting_condition": null,
+          "recovery": "promote",
+          "recovery_classification": "promotable",
+          "state": "complete"
+        },
+        "interruption": null,
+        "lifting_condition": null,
+        "liveness_proven": true,
+        "log_age_seconds": 5453,
+        "log_fresh": false,
+        "manifest_commits": [
+          "none: this review node authored no repository commit because both of its writes lie outside every repository and there is nothing inside one to commit"
+        ],
+        "manifest_derived": false,
+        "manifest_digest": "4e6f9b475cdf22f19bb39694b47b024ce73c7eefc90442df92f87d07c94d246f",
+        "manifest_error": null,
+        "manifest_file_present": true,
+        "manifest_fresh": true,
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T161917012759-review-of-s14-lane-sums-counter-series/manifest.md",
+        "manifest_present": true,
+        "manifest_reported_status": "complete",
+        "manifest_status": "complete",
+        "marker": null,
+        "needs_help_complete": null,
+        "next_action": "promote the completed review run once its verdict is read; the run is not itself reviewed",
+        "node": "review-of-s14-lane-sums-counter-series",
+        "phase": "starting",
+        "plan": "local-lane-admission-control",
+        "process_alive": false,
+        "project": "imas-ambix",
+        "recovery": "promote",
+        "recovery_classification": "promotable",
+        "resets_at": null,
+        "review_error": null,
+        "review_present": false,
+        "review_status": null,
+        "run_id": "r-20260926T161917012759-review-of-s14-lane-sums-counter-series",
+        "session": "llac-s14-0925",
+        "terminal_age_seconds": 5534,
+        "terminal_at": "2026-09-26T16:51:01Z",
+        "wait_age_seconds": null,
+        "wait_condition_state": null,
+        "wait_key_defect": null,
+        "wait_observed": null,
+        "wait_overdue": null,
+        "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/llac-s14-0925/review-of-s14-lane-sums-counter-series"
+      }
+    ]
+  },
+  "wall_seconds": 841,
+  "watch_override": {
+    "arming_line": "reckon crew watch --project imas-ambix",
+    "attach_line": "/home/ITER/mcintos/Code/reckon/.venv/bin/reckon crew follow --project imas-ambix --session llac-s14-0925",
+    "requested": true,
+    "session_attached": false,
+    "watcher_live": true
+  },
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-09-26T18:37:22Z",
+    "last_record_type": "result",
+    "launched_at": "2026-09-26T18:23:27Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20260926T182312980562-cwp-fenced-mcp-tools",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 5880,
+    "worker_pid": 487030
+  },
+  "worker_seconds": 818,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
