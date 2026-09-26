@@ -23,11 +23,13 @@ if TYPE_CHECKING:
 # default rather than the release's own budget. The ceiling keeps the window
 # below the full usable input budget (about 480k for a 4xH200 dsv4.1-flash
 # release): with 14 running sessions near their ceiling that budget would hold
-# about 6M KV against a 4M device pool. Compacting near 270k-285k costs far
-# fewer compactions than 200k while the lane's memory cap and prefix-hit guard
-# absorb the larger contexts. A release whose usable budget is smaller than the
-# ceiling compacts at its own budget.
-AUTO_COMPACT_WINDOW_CEILING = 300_000
+# about 6M KV against a 4M device pool. In practice sessions sit far below it --
+# a mean context near 57k held the pool at 0.2-0.5 occupancy with 13 running --
+# so compacting near 360k-380k costs far fewer compactions than 200k, while the
+# width controller's KV guard (a step down at 0.6 occupancy) and prefix-hit
+# guard absorb the larger contexts if they ever bind. A release whose usable
+# budget is smaller than the ceiling compacts at its own budget.
+AUTO_COMPACT_WINDOW_CEILING = 400_000
 
 # The hook-carrying expansion's flag choice is a measurement, not a reading of
 # the help text: Claude Code's help says --bare skips settings hooks, and

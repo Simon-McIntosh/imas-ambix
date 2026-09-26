@@ -241,7 +241,7 @@ def test_auto_compact_window_is_capped_at_the_lane_ceiling(tmp_path):
     # The usable input budget is 524288 - 32000 = 492288, above the lane
     # ceiling, so the window binds at the ceiling rather than the full budget.
     assert environment["CLAUDE_CODE_MAX_CONTEXT_TOKENS"] == "492288"
-    assert environment["CLAUDE_CODE_AUTO_COMPACT_WINDOW"] == "300000"
+    assert environment["CLAUDE_CODE_AUTO_COMPACT_WINDOW"] == "400000"
 
 
 def test_auto_compact_window_uses_a_smaller_release_budget(tmp_path):
