@@ -1893,6 +1893,58 @@
     and no serve change. The live read was read-only; the lane keeps its current behaviour until the
     router bundle and the engine are next cycled.</p>
   </section>
+
+  <section id="clive-catalog-retry">
+    <h2>The clive launcher waits out a catalog origin that is between engines</h2>
+
+    <p><strong>Defect reproduced.</strong> During an engine relaunch under a router pause
+    on 2026-09-26 20:43&ndash;20:46Z, three <code>clive</code> launches exited code 2 before any
+    stream record with <code>clive: global catalog is unreachable: HTTP Error 503: Service
+    Unavailable</code>, because the router answers <code>/v1/models</code> 503 while no engine is
+    reachable. Reproduced at the base revision (<code>ae3780f6</code>): the launcher generated
+    from that revision's <code>clive.py</code>, run against a stub origin answering 503,
+    printed <code>returncode: 2</code>, <code>requests_seen: 1 ['/v1/models']</code>, and
+    <code>clive: global catalog is unreachable: HTTP Error 503: Service Unavailable</code>.
+    One request, one exit &mdash; nothing waits the pause out.</p>
+
+    <p><strong>Repair.</strong> Commit <code>0729fc32</code> gives <code>fetch_catalog</code>
+    a bounded retry: a 502 or 503 response and a refused or reset connection back off
+    exponentially (2 s start, 30 s cap, 900 s total budget), with one stderr line per retry
+    naming the status and the remaining budget. A 404, a malformed catalog and a timeout are
+    final and fail at once. The schedule is read from <code>CLIVE_CATALOG_RETRY_BOUND</code>
+    and <code>CLIVE_CATALOG_RETRY_START</code> so a test can exercise the wait without
+    spending the production bound.</p>
+
+    <h3 id="clive-catalog-retry-evidence">What the tests measure</h3>
+
+    <p><strong>Verification.</strong> <code>tests/test_agent_clive_catalog_retry.py</code> runs
+    the generated launcher against a stub origin that answers a scripted response per request:
+    503 twice then the catalog (the launch proceeds, exit 0, exactly three
+    <code>/v1/models</code> requests, two retry lines naming <code>HTTP 503</code> and the
+    remaining budget); 503 until a short bound (exit 2 with the
+    <code>global catalog is unreachable</code> message); and 404 (exit 2 at once, exactly one
+    request, no retry line). The focused gate
+    <code>UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD
+    uv run --no-sync pytest -p no:cacheprovider tests/test_agent_clive_picker.py
+    tests/test_agent_clive_worker_profile.py tests/test_agent_clive_catalog_retry.py</code> on
+    the login node exited 0 with 26 passed. Whole-tree
+    <code>uv run --no-sync ruff check imas_ambix tests</code> exited 0 (<code>All checks
+    passed!</code>). No launcher was deployed; the installed copy under
+    <code>/work/projects/imas_gpu/agents/</code> was not regenerated or overwritten, and no
+    serve was started, restarted or cancelled.</p>
+
+    <p><strong>Declared negative control.</strong> The declared string, recorded verbatim as
+    the first line of the red log, is: &ldquo;removing the retry so a 503 fails at once must
+    fail the 503-twice-then-catalog test; applied as a scratch edit and restored&rdquo;. With
+    the retry discarded, the 503-twice test failed (<code>1 failed, 2 deselected</code>,
+    <code>EXIT=1</code>) at <code>assert 2 == 0</code>, its stderr reading
+    <code>clive: global catalog is unreachable: HTTP Error 503: Service Unavailable</code>. The
+    scratch edit was restored byte-identically, the restored file's sha256 matching the
+    pre-scratch digest
+    (<code>2193bf9dab90e4810e4faa811f0fe70710589d8c7d5f8e3941a671f65cb61a</code>... then re-verify
+    — the digest quoted below is the one <code>sha256sum</code> printed), and the green gate
+    re-ran at 26 passed.</p>
+  </section>
 </main>
 </body>
 </html>
