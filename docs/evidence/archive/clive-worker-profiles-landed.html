@@ -80,6 +80,18 @@
       <figcaption>The fenced first request is 18.9% smaller than the unfenced one, and the empty-home control is 41.0% smaller again.</figcaption>
     </figure>
     <p><strong>Delivery.</strong> The run is itself fenced — its own harness home carried the hook-bearing <code>settings.json</code> and the <code>CLAUDE.md</code> include, its worktree git directory is writable, and both the main checkout and a peer checkout are read-only. The named report path sits on a read-only mount in this worker's namespace; the report content is preserved in the run's own writable directory. No launcher was deployed and this measurement changes no repository file outside its scope.</p>
+<h2>A fenced worker launch — MCP tools restored under the fence</h2>
+    <p><strong>Measurement.</strong> The previous fenced measurement's review found the fence's harness home dropped 26 MCP-related tools (reckon and imas-dd). Reckon <code>6d5ef87b</code> now carries <code>mcpServers</code> into the harness home. The same launch as that measurement — one Claude Code 2.1.283, clive's argv, the local probe stub on <code>127.0.0.1</code>, the same reused driver and stub, with <code>CLAUDE_CONFIG_DIR</code> set to this run's harness home — was repeated.</p>
+    <h3>Measured contracts</h3>
+    <ul>
+      <li>First request carries the full tool list: 46 tools, 23 <code>mcp__*</code> — 5 <code>mcp__reckon__*</code> (<code>audit</code>, <code>crew</code>, <code>edit_plan</code>, <code>read_plan</code>, <code>roadmap</code>) and 18 <code>mcp__imas-dd__*</code> — equal to the unfenced baseline body's 46 tools and 23 <code>mcp__*</code>, and recovering all 26 MCP-related tools (the 23 <code>mcp__*</code> plus the three built-in resource tools) the previous fenced run lacked.</li>
+      <li>First-request size: 257,265 bytes, against the unfenced baseline's 276,931 and the previous fenced run's 224,560.</li>
+      <li>Harness home <code>.claude.json</code>: mode <code>0600</code>; top-level keys are <code>mcpServers</code> plus claude's own first-start keys, with no <code>projects</code> and no <code>oauth</code> keys; <code>mcpServers</code> carries <code>reckon</code> (stdio, <code>uv run --project /home/ITER/mcintos/Code/reckon reckon mcp</code>) and <code>imas-dd</code> (http, <code>https://imas-dd.iter.org/mcp</code>).</li>
+      <li>Git-safety memory still present: the source bytes <code>Always banned** — commit instead</code> at <code>.messages[0].content[0].text</code>.</li>
+      <li><code>worker_git_guard.py</code> still denies the stub's <code>git stash list</code>: the next request body carries <code>is_error</code> with <code>"permissionDecision": "deny"</code> and <code>mutating git refused</code>. The Stop hook still caps the fixture manifest to <code>status: blocked</code>.</li>
+      <li>Declared negative control (same launch, empty scratch <code>CLAUDE_CONFIG_DIR</code>): no <code>mcp__*</code> tools (20 tools, 0 <code>mcp__</code>), no memory markers, no <code>permissionDecision</code>. The MCP tools are therefore attributable to the harness home's carried <code>mcpServers</code>, not the working directory.</li>
+    </ul>
+    <p><strong>Scope.</strong> This gate measures only its own change; verifying the merged result belongs to a separately dispatched test node. No launcher was deployed. Report: <code>~/.config/reckon/crew/reports/cwp-fenced-mcp-tools.md</code>.</p>
   </main>
 </body>
 </html>
