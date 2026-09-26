@@ -118,6 +118,54 @@ def _drive(
     return widths
 
 
+def _drive_repeating(
+    gate: Any,
+    clock: list[float],
+    *,
+    scrapes: int,
+    start_width: int,
+    aggregate_tok_s: float,
+    running: int,
+    advance_pattern: tuple[bool, ...] = (True, False),
+    waiting: int = 0,
+    prefix_hit_rate: float = 0.99,
+    kv_occupancy: float = 0.30,
+) -> list[int]:
+    """Feed scrapes where the decoded-token counter moves only on some turns.
+
+    ``aggregate_tok_s`` is the rate the engine really generates at, so a scrape
+    that finally reads the odometer sees the whole accrual since the previous
+    reading that moved. A turn whose slot in ``advance_pattern`` is False
+    repeats its predecessor's value, which is what a read that lands before the
+    counter advances returns.
+    """
+    gate.settings()
+    gate._controller_width = start_width
+    gate._effective_width = start_width
+    gate._next_config_refresh_at = 0.0
+    tokens = 10_000_000
+    pending = 0
+    widths: list[int] = []
+    for index in range(scrapes):
+        widths.append(gate.settings().width)
+        clock[0] += WINDOW_SECONDS
+        pending += 1
+        if advance_pattern[index % len(advance_pattern)]:
+            tokens += int(round(aggregate_tok_s * pending * WINDOW_SECONDS))
+            pending = 0
+        gate.observe_lane(
+            4_000_000,
+            20_000,
+            now=clock[0],
+            generation_tokens=tokens,
+            running=running,
+            waiting=waiting,
+            prefix_hit_rate=prefix_hit_rate,
+            kv_occupancy=kv_occupancy,
+        )
+    return widths
+
+
 def _fake_clock(monkeypatch: pytest.MonkeyPatch) -> list[float]:
     clock = [1000.0]
     monkeypatch.setattr(router_mod.time, "monotonic", lambda: clock[0])
@@ -501,3 +549,61 @@ def test_published_gate_block_reports_the_converged_width(
     _drive(gate, clock, random.Random(SEED), scrapes=400)
 
     assert gate.snapshot()["width"] == gate._controller_width
+
+
+def test_width_controller_ignores_a_repeated_counter_reading(
+    tmp_path, monkeypatch
+) -> None:
+    """A scrape that repeats its predecessor's odometer value is not a stall.
+
+    The lane publisher reads the decoded-token counter on a fixed interval, and
+    a read that lands before the counter advances returns its predecessor's
+    value. Read as the difference over the interval, that is a real number --
+    zero -- so scored as a per-stream rate it says every stream has stopped while
+    the lane is decoding normally, and the floor watch steps the width down on
+    it. The lane here generates at about 25 tokens/s per stream with ten streams
+    running, well clear of the floor, and every other scrape repeats the counter.
+
+    The two arms differ only in the rate the counter accrues at, which is what
+    separates a repeated reading from a slow lane: at five tokens/s per stream
+    the same reading shape still steps the width down.
+    """
+    monkeypatch.setattr(router_mod, "GATE_CONTROLLER_WINDOWS", 6)
+    clock = _fake_clock(monkeypatch)
+
+    # The gate holds no waiters, so nothing but the health watch can move the
+    # width and the assertion ranges over that watch alone.
+    fast_file = tmp_path / "fast.json"
+    _write_auto_gate(fast_file, width_floor=4, width_cap=36)
+    fast = router_mod._GenerationGate(fast_file)
+    fast_widths = _drive_repeating(
+        fast,
+        clock,
+        scrapes=2 * router_mod.GATE_CONTROLLER_WINDOWS + 1,
+        start_width=20,
+        aggregate_tok_s=250.0,
+        running=10,
+    )
+
+    assert fast_widths == [20] * (2 * router_mod.GATE_CONTROLLER_WINDOWS + 1)
+    assert fast._controller_width == 20
+    assert not (fast._controller_note or "").startswith("stepping down:")
+
+    # One more advancing scrape than the watch needs, so the step-down is read
+    # after the guard has judged its window.
+    slow_file = tmp_path / "slow.json"
+    _write_auto_gate(slow_file, width_floor=4, width_cap=36)
+    slow = router_mod._GenerationGate(slow_file)
+    _drive_repeating(
+        slow,
+        clock,
+        scrapes=2 * router_mod.GATE_CONTROLLER_WINDOWS - 1,
+        start_width=20,
+        aggregate_tok_s=50.0,
+        running=10,
+    )
+
+    assert slow._controller_width == 18
+    assert slow._controller_note is not None
+    assert slow._controller_note.startswith("stepping down: ")
+    assert "per stream" in slow._controller_note
