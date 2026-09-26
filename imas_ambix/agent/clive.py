@@ -209,12 +209,11 @@ def transient_failure(error):
         # 502 and 503 mean the origin is up but nothing is serving behind it
         # yet. Every other status -- including 404 -- is a settled answer.
         return f"HTTP {error.code}" if error.code in (502, 503) else None
-    if isinstance(error, TimeoutError):
-        # A timeout is not a refusal: waiting on one turns a hung origin into
-        # a hung launch.
-        return None
-    if isinstance(error, OSError):
-        return "connection refused or reset"
+    reason = error.reason if isinstance(error, urllib.error.URLError) else error
+    if isinstance(reason, ConnectionRefusedError):
+        return "connection refused"
+    if isinstance(reason, ConnectionResetError):
+        return "connection reset"
     return None
 
 
@@ -247,6 +246,8 @@ def fetch_catalog(origin):
                 file=sys.stderr,
             )
             time.sleep(wait)
+            if time.monotonic() >= deadline:
+                raise
             delay = min(delay * 2, CATALOG_RETRY_CAP_SECONDS)
 
 
