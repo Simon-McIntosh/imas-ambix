@@ -1,0 +1,287 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effort": "high",
+    "launch": "cli",
+    "local": true,
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "worktree-full",
+    "usable_input_window": 480000
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "fc399416c1ee1c9146c157afb3109568cdeb9f59",
+  "boundary_waiver": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "inference_geo": "",
+      "input_tokens": 10793396,
+      "input_tokens_cumulative": 10793396,
+      "output_tokens": 50783,
+      "output_tokens_cumulative": 50783,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": {
+    "added": 630,
+    "files": 5,
+    "removed": 33
+  },
+  "commit_resolution": null,
+  "commits": [
+    "706919aa130155ba260e6a2d7e550eac7ff6bfa8",
+    "5be23716ed8a1747734cb3f92d9c732e530cc4b3"
+  ],
+  "completed_at": "2026-09-26T07:41:48.097Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-09-26T07:11:46Z",
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": true,
+    "matched_measure": "pytest -p",
+    "override": false,
+    "role": "implement",
+    "status": "compatible"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [
+    "0.2",
+    "0.4"
+  ],
+  "gate": "passed",
+  "gate_check": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider tests/test_agent_router_absent_upstream.py tests/test_agent_router_gate.py tests/test_agent_router_cut.py tests/test_agent_router_admission.py tests/test_agent_router_width_controller.py",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T071140367298-s17-absent-upstream-holds/tests.log"
+  },
+  "impl_move": {
+    "at_complete": 0.9,
+    "at_dispatch": 0.9,
+    "plan": "local-lane-admission-control",
+    "reason": "router fix found by the sweep; impl moves when the sweep and relaunch land",
+    "verdict": "waived"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-09-26T08:11:40.970618+00:00",
+    "horizon_seconds": 3600,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": null,
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-09-26T07:11:40Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 24,
+    "binding_observed": "unknown",
+    "detail": "",
+    "headroom": 0,
+    "mean_context": 6667,
+    "observed_at": "2026-09-26T07:11:16Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-09-26T07:41:48.097Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": true,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T071140367298-s17-absent-upstream-holds/manifest.md",
+  "member": "llac-autowidth",
+  "negative_control": {
+    "declaration": "restoring the immediate 404 for a known model with no owner must fail the held-then-relayed and 529 tests; applied as a scratch edit and restored",
+    "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T071140367298-s17-absent-upstream-holds/negative-control.log",
+    "reason": "the log's first line is the declared mutation with one inserted word ('the declared held-then-relayed'); it names the same scratch edit at 706919aa and records 2 failed of 2 selected, the two tests declared",
+    "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T071140367298-s17-absent-upstream-holds/negative-control.log",
+    "test_paths": [
+      "tests/test_agent_router_absent_upstream.py"
+    ],
+    "verdict": "waived"
+  },
+  "no_commit": null,
+  "node": "s17-absent-upstream-holds",
+  "node_definition": {
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 293,
+          "cached_input_tokens": 346302,
+          "input_tokens": 346597,
+          "output_tokens": 1160,
+          "reasoning_output_tokens": 0,
+          "total_tokens": 347757,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "38dec84a-7cb6-4b27-ace6-501cc76dbec0",
+      "session_id": "llac-s14-0925"
+    },
+    "done_when": "imas_ambix/agent/router.py: when no reachable catalog owns the requested model id (the 'not owners' branch near the 404 'unknown model id') and the id is known (resolved by this router process at least once, or named as the model id of a profile under imas_ambix/agent/profiles/), a request on a generation path waits in the generation gate's FIFO like any other caller, re-resolves the owner each time it would be admitted, and is relayed as soon as an owner appears; if no owner appears within the gate's wait_seconds it receives the same retryable 529 overloaded_error with Retry-After the gate already uses on wait timeout, never a 404; while the gate is paused such a request is held by the pause exactly as a resolvable one is. An id that is not known keeps today's 404. The receipt path records the outcome for held-then-timed-out requests. New tests in tests/test_agent_router_absent_upstream.py (stub upstream catalogs, no network): known model with no upstream is held then relayed when the upstream appears; known model with no upstream past wait_seconds gets 529 with Retry-After and an overloaded_error body; paused gate plus absent upstream holds; unknown model still 404; a profile-named model is known on a fresh router that has resolved nothing. 'uv run --no-sync pytest -p no:cacheprovider tests/test_agent_router_absent_upstream.py tests/test_agent_router_gate.py tests/test_agent_router_cut.py tests/test_agent_router_admission.py tests/test_agent_router_width_controller.py' exits 0 on the login node; 'uv run --no-sync ruff check imas_ambix tests' exits 0; the declared negative control is recorded verbatim with its failing test count at a committed revision named in the log header. Pass checkout_path on every reckon MCP call; never write or run git in the main checkout.",
+    "estimated_hours": null,
+    "goal": "Make the router hold a generation request for a known model whose engine is absent, instead of answering 404",
+    "id": "s17-absent-upstream-holds",
+    "lane_declaration": {
+      "backend": null,
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-09-26T07:11:40Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 24,
+      "binding_observed": "unknown",
+      "detail": "",
+      "headroom": 0,
+      "mean_context": 6667,
+      "observed_at": "2026-09-26T07:11:16Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T071140367298-s17-absent-upstream-holds/manifest.md",
+    "negative_control": "restoring the immediate 404 for a known model with no owner must fail the held-then-relayed and 529 tests; applied as a scratch edit and restored",
+    "plan": "local-lane-admission-control",
+    "requested_backend": "clive",
+    "requires_decisions": [],
+    "role": "implement",
+    "section": "§17",
+    "spec_level": "exact",
+    "time_budget": "60m",
+    "token_budget": null,
+    "write_paths": [
+      "imas_ambix/agent/router.py",
+      "tests/test_agent_router_absent_upstream.py",
+      "docs/evidence/archive/local-lane-admission-control-landed.html",
+      "docs/figures/local-lane-admission-control",
+      "docs/plans/local-lane-admission-control.html"
+    ]
+  },
+  "orientation_input_tokens": 2412443.0,
+  "outcome": "",
+  "plan": "local-lane-admission-control",
+  "plan_impl_at_dispatch": 0.9,
+  "promoted_revision": "5be23716ed8a1747734cb3f92d9c732e530cc4b3",
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "scores": {
+      "durability": 18,
+      "evidence": 19,
+      "fit": 17,
+      "goal_fidelity": 20,
+      "scope_discipline": 20
+    },
+    "status": "parsed",
+    "total": 94
+  },
+  "role": "implement",
+  "run_id": "r-20260926T071140367298-s17-absent-upstream-holds",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§17",
+  "session_harness": "claude",
+  "session_id": "60bcedbc-3662-46e5-85ff-b6127b544111",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "exact",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 5,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 10957216,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+    "elapsed_seconds": 1790.251,
+    "generated_tokens": 58158,
+    "generation_seconds": 1674.25,
+    "input_budget_tokens": 480000,
+    "input_utilisation_pct": 33.9,
+    "machine_seconds": 116.001,
+    "peak_input_tokens": 162520,
+    "tokens_per_second": 34.74,
+    "wall_tokens_per_second": 32.49
+  },
+  "time_budget": "60m",
+  "tool_steps": 89.0,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": []
+  },
+  "wall_seconds": 1802,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-09-26T07:41:48Z",
+    "last_record_type": "result",
+    "launched_at": "2026-09-26T07:11:52Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20260926T071140367298-s17-absent-upstream-holds",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 7875,
+    "worker_pid": 2983736
+  },
+  "worker_seconds": 1469,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
