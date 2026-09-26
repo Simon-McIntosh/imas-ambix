@@ -1,0 +1,224 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effort": "xhigh",
+    "launch": "cli",
+    "local": true,
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "read-only",
+    "usable_input_window": 480000
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "6c299f6ea08168521d6b95a9428e82194462a44a",
+  "boundary_waiver": null,
+  "budget": {
+    "cost_usd": null,
+    "detail": "no events yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": null,
+    "utilisation_pct": null
+  },
+  "changed_lines": null,
+  "commit_resolution": null,
+  "commits": [],
+  "completed_at": "2026-09-26T08:13:46.434Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-09-26T07:42:24Z",
+  "dispute_count": 0,
+  "duration_measurement": {
+    "reason": "model_span_unavailable_at_promotion",
+    "status": "underivable"
+  },
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": false,
+    "matched_measure": null,
+    "override": false,
+    "role": "review",
+    "status": "no-execution-measure"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [],
+  "gate": "passed",
+  "gate_check": {
+    "command": "python3 -c \"import json;d=json.load(open('/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260926T071140367298-s17-absent-upstream-holds.at-5be23716ed8a1747734cb3f92d9c732e530cc4b3.json'));s=d['scores'];assert len(s)==5 and all(0<=v<=20 for v in s.values());print(sum(s.values()))\"",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T074217757726-review-of-s17-absent-upstream-holds/gate.log"
+  },
+  "impl_move": {
+    "at_complete": null,
+    "at_dispatch": 0.9,
+    "plan": "local-lane-admission-control",
+    "reason": "role-not-enforced:review",
+    "verdict": "exempt"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-09-26T08:42:18.394686+00:00",
+    "horizon_seconds": 3600,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": null,
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-09-26T07:42:18Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 26,
+    "binding_observed": "unknown",
+    "detail": "",
+    "headroom": 6,
+    "mean_context": 126667,
+    "observed_at": "2026-09-26T07:41:52Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-09-26T08:13:46.434Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": true,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T074217757726-review-of-s17-absent-upstream-holds/manifest.md",
+  "member": "disposable-r-20260926T074217757726-review-of-s17-absent-upstream-holds",
+  "negative_control": {
+    "reason": "node-writes-no-test-path",
+    "verdict": "exempt"
+  },
+  "no_commit": "review node; delivery is the stored review record",
+  "node": "review-of-s17-absent-upstream-holds",
+  "node_definition": {
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 4188,
+          "cached_input_tokens": 360149,
+          "input_tokens": 364339,
+          "output_tokens": 1072,
+          "reasoning_output_tokens": 327,
+          "total_tokens": 365411,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "38dec84a-7cb6-4b27-ace6-501cc76dbec0",
+      "session_id": "llac-s14-0925"
+    },
+    "done_when": "the review for r-20260926T071140367298-s17-absent-upstream-holds stores a parsed record scoring all 5 dimensions in the range 0..20; the turn ends once that record is stored and the manifest reads complete. Among the findings state (1) whether the id a clive worker sends (the ANTHROPIC_MODEL value clive sets, deepseek-v4.1-flash) is 'known' on a freshly started router with the engine down, citing the profile field and line that make it so; (2) what status the router returns during an engine relaunch for every non-generation path a Claude Code client calls (e.g. count_tokens, /v1/models) and whether any of them is one Claude Code treats as fatal; (3) whether the held request's relay uses the card of the owner that admitted it (output-token clamp included).",
+    "estimated_hours": null,
+    "goal": "attach an independent review to run r-20260926T071140367298-s17-absent-upstream-holds",
+    "id": "review-of-s17-absent-upstream-holds",
+    "lane_declaration": {
+      "backend": null,
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-09-26T07:42:18Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 26,
+      "binding_observed": "unknown",
+      "detail": "",
+      "headroom": 6,
+      "mean_context": 126667,
+      "observed_at": "2026-09-26T07:41:52Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T074217757726-review-of-s17-absent-upstream-holds/manifest.md",
+    "negative_control": "",
+    "plan": "local-lane-admission-control",
+    "requested_backend": null,
+    "requires_decisions": [],
+    "role": "review",
+    "section": "§17",
+    "spec_level": "exact",
+    "time_budget": "60m",
+    "token_budget": null,
+    "write_paths": [
+      "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260926T071140367298-s17-absent-upstream-holds.json",
+      "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260926T071140367298-s17-absent-upstream-holds.at-5be23716ed8a1747734cb3f92d9c732e530cc4b3.json"
+    ]
+  },
+  "orientation_input_tokens": null,
+  "outcome": "",
+  "plan": "local-lane-admission-control",
+  "plan_impl_at_dispatch": 0.9,
+  "promoted_revision": "6c299f6ea08168521d6b95a9428e82194462a44a",
+  "resume_waiver": null,
+  "review": null,
+  "role": "review",
+  "run_id": "r-20260926T074217757726-review-of-s17-absent-upstream-holds",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§17",
+  "session_harness": "claude",
+  "session_id": "2e5d5254-4ad9-492d-9928-e18a54bbf7b3",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "exact",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 0,
+  "time_budget": "60m",
+  "tool_steps": 109.0,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": []
+  },
+  "wall_seconds": 1882,
+  "watch_override": null,
+  "worker_seconds": 1860,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": {
+    "classification": "retained-for-resume",
+    "retained_at": "2026-09-26T08:13:46.434Z",
+    "session_id": "2e5d5254-4ad9-492d-9928-e18a54bbf7b3",
+    "session_source": "stream",
+    "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/llac-s14-0925/review-of-s17-absent-upstream-holds"
+  }
+}
