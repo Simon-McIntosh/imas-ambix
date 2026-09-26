@@ -364,13 +364,21 @@ def _lane_reader(
     Every spelling comes from :mod:`imas_ambix.agent.engine_metrics`, so this
     reader and the receipts recorder cannot disagree about what a family
     publishes; a role the family does not publish resolves to ``None``.
+
+    A cumulative counter is the sum over all of its label series, so an engine
+    that publishes one metric under several labels -- ``is_streaming`` on the
+    generation counter, an engine rank on the preemption counter -- reads as
+    their total rather than whichever series came first. A gauge keeps its
+    current reading, because its label sets are one instantaneous value repeated
+    rather than terms of a sum.
     """
     eligible = engine_metrics.eligible_samples(samples, family)
 
     def read(role: str) -> float | None:
-        return engine_metrics.series_first(
-            eligible, family, engine_metrics.lane_series(role, family)
-        )
+        names = engine_metrics.lane_series(role, family)
+        if engine_metrics.role_is_counter(role):
+            return engine_metrics.series_total(eligible, family, names)
+        return engine_metrics.series_first(eligible, family, names)
 
     return read
 
