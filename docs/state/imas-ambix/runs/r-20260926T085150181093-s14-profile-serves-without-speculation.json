@@ -1,0 +1,274 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effort": "high",
+    "launch": "cli",
+    "local": true,
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "worktree-full",
+    "usable_input_window": 480000
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "053513decf20d76c58c2beac1e5636514d8029a2",
+  "boundary_waiver": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "inference_geo": "",
+      "input_tokens": 8443288,
+      "input_tokens_cumulative": 8443288,
+      "output_tokens": 38664,
+      "output_tokens_cumulative": 38664,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": null,
+  "commit_resolution": null,
+  "commits": [],
+  "completed_at": "2026-09-26T09:24:17.703Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-09-26T08:51:58Z",
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": true,
+    "matched_measure": "pytest -p",
+    "override": false,
+    "role": "implement",
+    "status": "compatible"
+  },
+  "failure_classification": "work-rejected",
+  "follow_on_paths": [
+    "imas_ambix/agent/AGENTS.md"
+  ],
+  "gate": "failed",
+  "gate_check": null,
+  "impl_move": {
+    "at_complete": null,
+    "at_dispatch": 0.9,
+    "plan": "local-lane-admission-control",
+    "reason": "gate-not-passing",
+    "verdict": "exempt"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-09-26T09:31:51.418263+00:00",
+    "horizon_seconds": 2400,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": null,
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-09-26T08:51:51Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 9,
+    "binding_observed": "unknown",
+    "detail": "",
+    "headroom": 8,
+    "mean_context": 100000,
+    "observed_at": "2026-09-26T08:51:42Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-09-26T09:24:17.703Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": true,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T085150181093-s14-profile-serves-without-speculation/manifest.md",
+  "member": "llac-autowidth",
+  "negative_control": {
+    "reason": "node-writes-no-test-path",
+    "verdict": "exempt"
+  },
+  "no_commit": "not merged: the change it made is withdrawn on live evidence",
+  "node": "s14-profile-serves-without-speculation",
+  "node_definition": {
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 429,
+          "cached_input_tokens": 395719,
+          "input_tokens": 396150,
+          "output_tokens": 1301,
+          "reasoning_output_tokens": 66,
+          "total_tokens": 397451,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "38dec84a-7cb6-4b27-ace6-501cc76dbec0",
+      "session_id": "llac-s14-0925"
+    },
+    "done_when": "imas_ambix/agent/profiles/deepseek-v4-1-flash.toml no longer sets speculative_algorithm or speculative_dspark_block_size (removed the way the profile's own rollback comment describes), and its comment block records the measured reason in mechanism terms: on the production serve (2026-09-26, concurrency bench 256-token completions) speculation off gave 371/460/571 aggregate tok/s at 16/24/36 streams against 289/311/329 at DSpark depth 5 and 365/395/434 at depth 3, with depth 3 ahead only below about 12 streams; 'uv run --no-sync imas-ambix agent restart deepseek-v4-1-flash --dry-run' output contains no '--speculative' argument and no '.reckon-worktrees' path (both counts stated in the manifest); any existing test that pins the profile's speculative keys is updated, and 'uv run --no-sync pytest -p no:cacheprovider tests/test_agent_lane_sglang.py tests/test_agent_serve_registry.py' plus any test file that references speculative_dspark_block_size exit 0 on the login node; 'uv run --no-sync ruff check imas_ambix tests' exits 0; the declared negative control is recorded verbatim with its result at a committed revision named in the log header. Do not restart or submit any serve. Pass checkout_path on every reckon MCP call; never write or run git in the main checkout.",
+    "estimated_hours": null,
+    "goal": "Make the deepseek-v4-1-flash profile serve without speculative decoding by default",
+    "id": "s14-profile-serves-without-speculation",
+    "lane_declaration": {
+      "backend": null,
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-09-26T08:51:51Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 9,
+      "binding_observed": "unknown",
+      "detail": "",
+      "headroom": 8,
+      "mean_context": 100000,
+      "observed_at": "2026-09-26T08:51:42Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T085150181093-s14-profile-serves-without-speculation/manifest.md",
+    "negative_control": "restoring the two speculative keys in the profile must make the dry-run script contain '--speculative-algorithm DSPARK'; applied as a scratch edit and restored",
+    "plan": "local-lane-admission-control",
+    "requested_backend": "clive",
+    "requires_decisions": [],
+    "role": "implement",
+    "section": "§14",
+    "spec_level": "exact",
+    "time_budget": "40m",
+    "token_budget": null,
+    "write_paths": [
+      "imas_ambix/agent/profiles/deepseek-v4-1-flash.toml",
+      "tests",
+      "docs/evidence/archive/local-lane-admission-control-landed.html",
+      "docs/figures/local-lane-admission-control",
+      "docs/plans/local-lane-admission-control.html"
+    ]
+  },
+  "orientation_input_tokens": 1409840.0,
+  "outcome": "",
+  "plan": "local-lane-admission-control",
+  "plan_impl_at_dispatch": 0.9,
+  "promoted_revision": "67acf64fd91cf5209eaac41e25f8553ffee60965",
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "scores": {
+      "durability": 20,
+      "evidence": 18,
+      "fit": 20,
+      "goal_fidelity": 20,
+      "scope_discipline": 20
+    },
+    "status": "parsed",
+    "total": 98
+  },
+  "role": "implement",
+  "run_id": "r-20260926T085150181093-s14-profile-serves-without-speculation",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§14",
+  "session_harness": "claude",
+  "session_id": "0e2e7b3e-f966-4396-b2c3-9b1e2ccd96c5",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "exact",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 0,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 8608148,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+    "elapsed_seconds": 1928.889,
+    "generated_tokens": 46789,
+    "generation_seconds": 1903.807,
+    "input_budget_tokens": 480000,
+    "input_utilisation_pct": 34.1,
+    "machine_seconds": 25.082,
+    "peak_input_tokens": 163560,
+    "tokens_per_second": 24.58,
+    "wall_tokens_per_second": 24.26
+  },
+  "time_budget": "40m",
+  "tool_steps": 70.0,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": []
+  },
+  "wall_seconds": 1939,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-09-26T09:24:18Z",
+    "last_record_type": "result",
+    "launched_at": "2026-09-26T08:52:03Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20260926T085150181093-s14-profile-serves-without-speculation",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 18979,
+    "worker_pid": 3093408
+  },
+  "worker_seconds": 1920,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": {
+    "classification": "retained-for-resume",
+    "retained_at": "2026-09-26T09:24:17.703Z",
+    "session_id": "0e2e7b3e-f966-4396-b2c3-9b1e2ccd96c5",
+    "session_source": "stream",
+    "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/llac-s14-0925/s14-profile-serves-without-speculation"
+  }
+}
