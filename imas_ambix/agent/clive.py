@@ -142,6 +142,7 @@ if _CATALOG_RESULT="$(python3 - "$ENDPOINT_DOCUMENT" "$GLOBAL_ORIGIN" "$SELECTOR
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 
@@ -185,12 +186,71 @@ opener = urllib.request.build_opener(
 )
 
 
+def retry_seconds(name, default):
+    try:
+        return float(os.environ.get(name, default))
+    except ValueError:
+        fail(f"{name} must be a number of seconds")
+
+
+# A catalog that answers 503 or drops the connection is an origin that is up
+# with no engine behind it -- the state a serve relaunch puts the router in.
+# Waiting it out is the difference between a launch that rides through the
+# relaunch and one that exits before its first stream record. The budget is
+# bounded well inside a held client's ride-out so a launch that does meet a
+# genuinely dead origin still fails on its own. The two numbers are the
+# schedule; the environment scales them so a test can exercise the wait
+# without spending the bound.
+CATALOG_RETRY_BOUND_SECONDS = retry_seconds("CLIVE_CATALOG_RETRY_BOUND", "900")
+CATALOG_RETRY_START_SECONDS = retry_seconds("CLIVE_CATALOG_RETRY_START", "2")
+CATALOG_RETRY_CAP_SECONDS = 30.0
+
+
+def transient_failure(error):
+    if isinstance(error, urllib.error.HTTPError):
+        # 502 and 503 mean the origin is up but nothing is serving behind it
+        # yet. Every other status -- including 404 -- is a settled answer.
+        return f"HTTP {error.code}" if error.code in (502, 503) else None
+    reason = error.reason if isinstance(error, urllib.error.URLError) else error
+    if isinstance(reason, ConnectionRefusedError):
+        return "connection refused"
+    if isinstance(reason, ConnectionResetError):
+        return "connection reset"
+    return None
+
+
 def fetch_catalog(origin):
-    request = urllib.request.Request(origin + "/v1/models", method="GET")
-    with opener.open(request, timeout=5) as response:
-        if response.status < 200 or response.status >= 300:
-            raise OSError(f"HTTP {response.status}")
-        return json.loads(response.read())
+    deadline = time.monotonic() + CATALOG_RETRY_BOUND_SECONDS
+    delay = CATALOG_RETRY_START_SECONDS
+    while True:
+        try:
+            request = urllib.request.Request(origin + "/v1/models", method="GET")
+            with opener.open(request, timeout=5) as response:
+                if response.status < 200 or response.status >= 300:
+                    raise urllib.error.HTTPError(
+                        request.full_url,
+                        response.status,
+                        "unexpected catalog status",
+                        response.headers,
+                        None,
+                    )
+                return json.loads(response.read())
+        except (urllib.error.HTTPError, urllib.error.URLError, OSError) as error:
+            label = transient_failure(error)
+            remaining = deadline - time.monotonic()
+            if label is None or remaining <= 0:
+                raise
+            wait = min(delay, remaining)
+            print(
+                f"clive: catalog at {origin} is unavailable ({label});"
+                f" retrying in {wait:.0f}s"
+                f" ({remaining:.0f}s of budget remaining)",
+                file=sys.stderr,
+            )
+            time.sleep(wait)
+            if time.monotonic() >= deadline:
+                raise
+            delay = min(delay * 2, CATALOG_RETRY_CAP_SECONDS)
 
 
 def validate_catalog_item(item, *, expected=None):
