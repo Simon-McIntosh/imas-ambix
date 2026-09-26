@@ -293,8 +293,13 @@ class _GenerationGate:
         *,
         default_width: int = DEFAULT_GENERATION_WIDTH,
         default_wait_seconds: float = DEFAULT_GENERATION_WAIT_SECONDS,
+        scrape_interval: float = 30.0,
     ) -> None:
         self.config_path = config_path
+        # How long the lane publisher waits between the readings the width
+        # controller differences. The controller uses it to tell a counter read
+        # before it advanced from one that has genuinely stopped.
+        self._scrape_interval = scrape_interval
         self._defaults = _GateSettings(default_width, default_wait_seconds)
         self._cached_settings = self._defaults
         self._last_integer_width: int | None = None
@@ -617,21 +622,47 @@ class _GenerationGate:
         between two readings divided by the time between them. Everything below
         is that rate, judged over enough readings that its own noise is small
         against a step, with the health watches outranking it. A reading that
-        repeats its predecessor's counter carries no new movement, so it is not
-        a measurement of anything and is skipped whole: a per-stream rate of
-        zero is what a stalled lane looks like, and a scrape that simply read the
-        counter before it advanced would otherwise be judged as one.
+        repeats its predecessor's counter carries no new movement, so it earns
+        no throughput window and neither odometer mark advances -- the next
+        reading that does move is then measured across the whole interval its
+        movement covers rather than the tail of it. It still feeds the health
+        watches, which read the lane's demand, prefix and KV rather than its
+        counter, so a prefix collapse is seen at every scrape rather than every
+        other one. The one exception is a repeat streak long enough to span two
+        scrape intervals while the lane is running: a counter read before it
+        advanced returns within one interval, so a silence that has already
+        lasted two is an engine that has stopped decoding, and it is scored as
+        what it is -- a per-stream rate of zero.
         """
         previous = self._throughput_tokens
         elapsed = stamp - self._throughput_stamp
         if generation_tokens is not None and generation_tokens == previous:
-            # The odometer has not moved, so no rate spans it and no health
-            # sample belongs to it. Both odometer marks stay put, so the next
-            # reading that does move is measured across the whole interval its
-            # movement actually covers rather than the tail of it.
+            # A read that lands before the counter advances returns its
+            # predecessor's value within one scrape interval, so only a silence
+            # spanning two of them is a stalled engine rather than a counter
+            # caught between ticks; only then does the repeat score as a zero
+            # per-stream rate. Either way a health sample is recorded, so the
+            # prefix and KV watches keep sampling every scrape while the
+            # throughput marks stay put.
+            stalled = (
+                running is not None
+                and running > 0
+                and elapsed >= 2.0 * self._scrape_interval
+            )
+            health_guard = self._record_health_sample(
+                rate=0.0 if stalled else None,
+                running=running,
+                prefix_hit_rate=prefix_hit_rate,
+                kv_occupancy=kv_occupancy,
+            )
+            if health_guard is not None:
+                self._controller_rates.clear()
+                self._step_width_down(health_guard)
+                return
             if not (self._controller_note or "").startswith("stepping down:"):
                 self._controller_note = (
-                    "holding: the decoded-token counter did not move"
+                    "holding: the decoded-token counter did not move, or is "
+                    "sampling between advances"
                 )
             return
         rate = (
@@ -1339,7 +1370,8 @@ class RouterApp:
         self._lane_interval = lane_interval
         self._lane_task: asyncio.Task[None] | None = None
         self._generation_gate = _GenerationGate(
-            resolve_gate_path(gate_file, lane_document)
+            resolve_gate_path(gate_file, lane_document),
+            scrape_interval=lane_interval,
         )
         # Model ids this process has resolved an owner for, so a request whose
         # known model has no reachable engine right now waits instead of being

@@ -589,15 +589,17 @@ def test_width_controller_ignores_a_repeated_counter_reading(
     assert fast._controller_width == 20
     assert not (fast._controller_note or "").startswith("stepping down:")
 
-    # One more advancing scrape than the watch needs, so the step-down is read
-    # after the guard has judged its window.
+    # A repeated reading carries no per-stream rate, so the floor watch needs
+    # enough advancing scrapes inside its window to reach its judgement; two
+    # full windows covers the first reading, which has no predecessor to
+    # difference against.
     slow_file = tmp_path / "slow.json"
     _write_auto_gate(slow_file, width_floor=4, width_cap=36)
     slow = router_mod._GenerationGate(slow_file)
     _drive_repeating(
         slow,
         clock,
-        scrapes=2 * router_mod.GATE_CONTROLLER_WINDOWS - 1,
+        scrapes=2 * router_mod.GATE_CONTROLLER_WINDOWS,
         start_width=20,
         aggregate_tok_s=50.0,
         running=10,
@@ -607,3 +609,98 @@ def test_width_controller_ignores_a_repeated_counter_reading(
     assert slow._controller_note is not None
     assert slow._controller_note.startswith("stepping down: ")
     assert "per stream" in slow._controller_note
+
+
+def test_width_controller_backs_off_when_the_counter_is_frozen(
+    tmp_path, monkeypatch
+) -> None:
+    """A counter that stops moving while the lane runs is a stalled engine.
+
+    A scrape that reads the counter before it advances repeats one reading, and
+    the controller must ignore it; a lane that has stopped decoding repeats
+    every reading, and the same silence must not hold the width open for ever.
+    The two are separated by how long the silence lasts, so a counter that goes
+    out once and then never moves still reaches the per-stream floor watch
+    while ten streams are running.
+    """
+    monkeypatch.setattr(router_mod, "GATE_CONTROLLER_WINDOWS", 6)
+    gate_file = tmp_path / "router-gate.json"
+    _write_auto_gate(gate_file, width_floor=4, width_cap=36)
+    clock = _fake_clock(monkeypatch)
+    gate = router_mod._GenerationGate(gate_file)
+    # Fourteen is the width the lane ran at when a frozen counter held it.
+    gate.settings()
+    gate._controller_width = 14
+    gate._effective_width = 14
+    gate._next_config_refresh_at = 0.0
+
+    tokens = 10_000_000
+    widths: list[int] = []
+    for _ in range(2 * router_mod.GATE_CONTROLLER_WINDOWS + 1):
+        widths.append(gate.settings().width)
+        clock[0] += WINDOW_SECONDS
+        # The odometer goes out once, then never moves while ten streams run.
+        gate.observe_lane(
+            4_000_000,
+            20_000,
+            now=clock[0],
+            generation_tokens=tokens,
+            running=10,
+            waiting=4,
+            prefix_hit_rate=0.99,
+            kv_occupancy=0.28,
+        )
+
+    assert gate._controller_width < 14, widths
+    assert gate._controller_note is not None
+    assert gate._controller_note.startswith("stepping down: ")
+    assert "per stream" in gate._controller_note
+
+
+def test_repeated_readings_keep_the_health_watches_cadence(
+    tmp_path, monkeypatch
+) -> None:
+    """A repeated counter reading still carries a fresh health sample.
+
+    The prefix-hit and KV watches read the lane's demand, cache and pool, none
+    of which the counter describes, so skipping a repeated reading whole would
+    halve their cadence. A sustained prefix collapse must therefore step the
+    width on the same scrape whether or not every other reading repeats.
+    """
+    monkeypatch.setattr(router_mod, "GATE_CONTROLLER_WINDOWS", 6)
+    window = router_mod.GATE_CONTROLLER_WINDOWS
+    clock = _fake_clock(monkeypatch)
+
+    steady_file = tmp_path / "steady.json"
+    _write_auto_gate(steady_file, width_floor=4, width_cap=36)
+    steady = router_mod._GenerationGate(steady_file)
+    steady_widths = _drive(
+        steady,
+        clock,
+        random.Random(SEED),
+        scrapes=window,
+        start_width=20,
+        waiting=0,
+        prefix_hit_rate=0.90,
+    )
+
+    repeating_file = tmp_path / "repeating.json"
+    _write_auto_gate(repeating_file, width_floor=4, width_cap=36)
+    repeating = router_mod._GenerationGate(repeating_file)
+    repeating_widths = _drive_repeating(
+        repeating,
+        clock,
+        scrapes=window,
+        start_width=20,
+        aggregate_tok_s=250.0,
+        running=10,
+        waiting=0,
+        prefix_hit_rate=0.90,
+    )
+
+    assert steady_widths == [20] * window
+    assert repeating_widths == [20] * window
+    assert steady._controller_width == 18
+    assert repeating._controller_width == 18
+    assert repeating._controller_note is not None
+    assert repeating._controller_note.startswith("stepping down: prefix hit rate")
