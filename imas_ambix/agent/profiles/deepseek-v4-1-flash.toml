@@ -200,7 +200,14 @@ cuda_graph_max_bs_decode = 36
 # values "EAGLE" and "DSPARK"; lowercase "dspark" is rejected during the
 # model-specific startup resolution.
 speculative_algorithm = "DSPARK"
-speculative_dspark_block_size = 5
+# MEASURED 2026-09-26 on real traffic at width 14, one sequential hour per
+# depth. Engine aggregate at >=13 running: 394 tok/s at depth 3 against 375 at
+# depth 4 and 326 at depth 5; per-stream at 12-15 in flight: 32.9 against 29.6
+# tok/s. Speculation off measured 18-34% slower per stream on the same live
+# receipts. A synthetic short-prompt bench ranked off first and is NOT evidence
+# for serve settings: it issues fresh short prompts while production turns carry
+# ~57k context at ~0.99 prefix hit, which drafts well.
+speculative_dspark_block_size = 3
 # The shared KV pool -- NOT the per-request context window, which stays at the
 # model's native 1,048,576 and cannot usefully go past it without RoPE
 # rescaling. This is how many tokens the engine holds across all concurrent
