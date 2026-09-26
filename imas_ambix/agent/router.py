@@ -616,10 +616,24 @@ class _GenerationGate:
         The counter is an odometer, so the only quantity in it is the difference
         between two readings divided by the time between them. Everything below
         is that rate, judged over enough readings that its own noise is small
-        against a step, with the health watches outranking it.
+        against a step, with the health watches outranking it. A reading that
+        repeats its predecessor's counter carries no new movement, so it is not
+        a measurement of anything and is skipped whole: a per-stream rate of
+        zero is what a stalled lane looks like, and a scrape that simply read the
+        counter before it advanced would otherwise be judged as one.
         """
         previous = self._throughput_tokens
         elapsed = stamp - self._throughput_stamp
+        if generation_tokens is not None and generation_tokens == previous:
+            # The odometer has not moved, so no rate spans it and no health
+            # sample belongs to it. Both odometer marks stay put, so the next
+            # reading that does move is measured across the whole interval its
+            # movement actually covers rather than the tail of it.
+            if not (self._controller_note or "").startswith("stepping down:"):
+                self._controller_note = (
+                    "holding: the decoded-token counter did not move"
+                )
+            return
         rate = (
             (generation_tokens - previous) / elapsed
             if generation_tokens is not None
