@@ -1,0 +1,260 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effort": "xhigh",
+    "launch": "cli",
+    "local": true,
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "read-only",
+    "usable_input_window": 480000
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "e52fc7730535d3e9af6c7482b0e85f0c7b37267d",
+  "boundary_waiver": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "inference_geo": "",
+      "input_tokens": 10354601,
+      "input_tokens_cumulative": 10354601,
+      "output_tokens": 88264,
+      "output_tokens_cumulative": 88264,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": null,
+  "commit_resolution": null,
+  "commits": [],
+  "completed_at": "2026-09-26T16:13:00.070Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-09-26T15:11:47Z",
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": false,
+    "matched_measure": null,
+    "override": false,
+    "role": "review",
+    "status": "no-execution-measure"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [
+    "reckon/crew/promotion.py",
+    "reckon/crew/reports.py"
+  ],
+  "gate": "passed",
+  "gate_check": {
+    "command": "python3 -c \"import json;d=json.load(open('/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260926T135957861490-s14-controller-stall-still-backs-off.json'));s=d['scores'];assert len(s)==5 and all(0<=v<=20 for v in s.values());print(sum(s.values()))\"",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T151140205127-review-of-s14-controller-stall-still-backs-off/gate.log"
+  },
+  "impl_move": {
+    "at_complete": null,
+    "at_dispatch": 0.9,
+    "plan": "local-lane-admission-control",
+    "reason": "role-not-enforced:review",
+    "verdict": "exempt"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-09-26T16:11:40.846848+00:00",
+    "horizon_seconds": 3600,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": null,
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-09-26T15:11:40Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 18,
+    "binding_observed": "unknown",
+    "detail": "",
+    "headroom": -1,
+    "mean_context": 101538,
+    "observed_at": "2026-09-26T15:11:22Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-09-26T16:13:00.070Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": true,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T151140205127-review-of-s14-controller-stall-still-backs-off/manifest.md",
+  "member": "disposable-r-20260926T151140205127-review-of-s14-controller-stall-still-backs-off",
+  "negative_control": {
+    "reason": "node-writes-no-test-path",
+    "verdict": "exempt"
+  },
+  "no_commit": "review node; delivery is the stored review record",
+  "node": "review-of-s14-controller-stall-still-backs-off",
+  "node_definition": {
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 1422,
+          "cached_input_tokens": 541341,
+          "input_tokens": 542765,
+          "output_tokens": 181,
+          "reasoning_output_tokens": 0,
+          "total_tokens": 542946,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "38dec84a-7cb6-4b27-ace6-501cc76dbec0",
+      "session_id": "llac-s14-0925"
+    },
+    "done_when": "the review for r-20260926T135957861490-s14-controller-stall-still-backs-off stores a parsed record scoring all 5 dimensions in the range 0..20; the turn ends once that record is stored and the manifest reads complete",
+    "estimated_hours": null,
+    "goal": "attach an independent review to run r-20260926T135957861490-s14-controller-stall-still-backs-off",
+    "id": "review-of-s14-controller-stall-still-backs-off",
+    "lane_declaration": {
+      "backend": null,
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-09-26T15:11:40Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 18,
+      "binding_observed": "unknown",
+      "detail": "",
+      "headroom": -1,
+      "mean_context": 101538,
+      "observed_at": "2026-09-26T15:11:22Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T151140205127-review-of-s14-controller-stall-still-backs-off/manifest.md",
+    "negative_control": "",
+    "plan": "local-lane-admission-control",
+    "requested_backend": null,
+    "requires_decisions": [],
+    "role": "review",
+    "section": "§14",
+    "spec_level": "exact",
+    "time_budget": "60m",
+    "token_budget": null,
+    "write_paths": [
+      "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260926T135957861490-s14-controller-stall-still-backs-off.json",
+      "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260926T135957861490-s14-controller-stall-still-backs-off.at-7d231b123524f91628c14c611b6b949f100ab5c6.json"
+    ]
+  },
+  "orientation_input_tokens": null,
+  "outcome": "",
+  "plan": "local-lane-admission-control",
+  "plan_impl_at_dispatch": 0.9,
+  "promoted_revision": "e52fc7730535d3e9af6c7482b0e85f0c7b37267d",
+  "resume_waiver": null,
+  "review": null,
+  "role": "review",
+  "run_id": "r-20260926T151140205127-review-of-s14-controller-stall-still-backs-off",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§14",
+  "session_harness": "claude",
+  "session_id": "e52e1b89-e2d1-410a-a829-77bb4e86f14c",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "exact",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 0,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 10687905,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+    "elapsed_seconds": 3664.231,
+    "generated_tokens": 96475,
+    "generation_seconds": 3624.946,
+    "input_budget_tokens": 480000,
+    "input_utilisation_pct": 34.4,
+    "machine_seconds": 39.285,
+    "peak_input_tokens": 165352,
+    "tokens_per_second": 26.61,
+    "wall_tokens_per_second": 26.33
+  },
+  "time_budget": "60m",
+  "tool_steps": 114.0,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": []
+  },
+  "wall_seconds": 3673,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-09-26T16:13:00Z",
+    "last_record_type": "result",
+    "launched_at": "2026-09-26T15:11:52Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20260926T151140205127-review-of-s14-controller-stall-still-backs-off",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 24050,
+    "worker_pid": 4011348
+  },
+  "worker_seconds": 3641,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
