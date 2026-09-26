@@ -32,7 +32,7 @@ def test_profile_declares_the_dspark_drafter_with_its_block_size() -> None:
     profile = load_profile("deepseek-v4-1-flash")
 
     assert profile.engine.speculative_algorithm == "DSPARK"
-    assert profile.engine.speculative_dspark_block_size == 5
+    assert profile.engine.speculative_dspark_block_size == 3
 
 
 def test_dry_run_carries_pool_hicache_and_memory_contract() -> None:
@@ -55,7 +55,7 @@ def test_dry_run_carries_the_two_speculative_flags() -> None:
 
     assert result.exit_code == 0, result.output
     assert "--speculative-algorithm DSPARK" in result.output
-    assert "--speculative-dspark-block-size 5" in result.output
+    assert "--speculative-dspark-block-size 3" in result.output
 
 
 def test_mxfp4_experts_reach_the_fp8_tensor_cores_hopper_has() -> None:

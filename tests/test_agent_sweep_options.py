@@ -327,12 +327,12 @@ def test_restart_dry_run_carries_the_block_size_override(dry_site) -> None:
             _DSPARK_PROFILE,
             "--dry-run",
             "--dspark-block-size",
-            "3",
+            "4",
         ],
     )
 
     assert result.exit_code == 0, result.output
-    assert "--speculative-dspark-block-size 3" in result.output
+    assert "--speculative-dspark-block-size 4" in result.output
     assert dry_site.recorder.destructive == []
 
 
@@ -342,14 +342,14 @@ def test_restart_dry_run_default_script_is_unchanged(dry_site) -> None:
     Guarding the default is half of what this node is for: a sweep tool that
     moved the script when unused would change the baseline it exists to measure.
     Slurm argument rendering is untouched by the option, so the profile's
-    declared ``5`` is what a plain launch carries.
+    declared ``3`` is what a plain launch carries.
     """
     default = CliRunner().invoke(
         main, ["agent", "restart", _DSPARK_PROFILE, "--dry-run"]
     )
     overridden = CliRunner().invoke(
         main,
-        ["agent", "restart", _DSPARK_PROFILE, "--dry-run", "--dspark-block-size", "3"],
+        ["agent", "restart", _DSPARK_PROFILE, "--dry-run", "--dspark-block-size", "5"],
     )
 
     assert default.exit_code == 0, default.output
@@ -358,11 +358,11 @@ def test_restart_dry_run_default_script_is_unchanged(dry_site) -> None:
     default_script = _dry_run_script(default)
     override_script = _dry_run_script(overridden)
 
-    assert "--speculative-dspark-block-size 5" in default_script
+    assert "--speculative-dspark-block-size 3" in default_script
     # The override is exactly one token of the script: everything else, the
     # batch header and every other engine argument, is untouched.
     assert override_script == default_script.replace(
-        "--speculative-dspark-block-size 5", "--speculative-dspark-block-size 3"
+        "--speculative-dspark-block-size 3", "--speculative-dspark-block-size 5"
     )
 
 
