@@ -1,0 +1,319 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effort": "high",
+    "launch": "cli",
+    "local": true,
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "worktree-full",
+    "usable_input_window": 480000
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "82592e02bda87acfd2c38f73980185295f57b77c",
+  "boundary_waiver": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "inference_geo": "",
+      "input_tokens": 9988115,
+      "input_tokens_cumulative": 9988115,
+      "output_tokens": 62888,
+      "output_tokens_cumulative": 62888,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": {
+    "added": 251,
+    "files": 4,
+    "removed": 12
+  },
+  "commit_resolution": null,
+  "commits": [
+    "de56524836f4b2d6186c8fee44d9154786169745",
+    "5ce4cc816eb69f19e8cde3edaf7451d7516929d4"
+  ],
+  "completed_at": "2026-09-26T22:31:39.234Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-09-26T21:44:12Z",
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": true,
+    "matched_measure": "pytest -p",
+    "override": false,
+    "role": "implement",
+    "status": "compatible"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [],
+  "gate": "passed",
+  "gate_check": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider tests/test_agent_clive_picker.py tests/test_agent_clive_worker_profile.py tests/test_agent_clive_catalog_retry.py",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T214404611968-s17-catalog-retry-one-budget/gate.log"
+  },
+  "impl_move": {
+    "at_complete": 0.9,
+    "at_dispatch": 0.9,
+    "plan": "local-lane-admission-control",
+    "reason": "launcher robustness follow-up",
+    "verdict": "waived"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-09-26T22:44:05.565908+00:00",
+    "horizon_seconds": 3600,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": null,
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-09-26T21:44:05Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 4,
+    "binding_observed": "unknown",
+    "detail": "",
+    "headroom": 0,
+    "mean_context": 120000,
+    "observed_at": "2026-09-26T21:44:01Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-09-26T22:31:39.234Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": true,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T214404611968-s17-catalog-retry-one-budget/manifest.md",
+  "member": "llac-autowidth",
+  "negative_control": {
+    "declaration": "restoring a per-call deadline must make the two-absent-origins test exceed one budget; applied as a scratch edit and restored",
+    "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T214404611968-s17-catalog-retry-one-budget/negative-control-two-absent-origins.log",
+    "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T214404611968-s17-catalog-retry-one-budget/negative-control-two-absent-origins.log",
+    "test_paths": [
+      "tests/test_agent_clive_catalog_retry.py"
+    ],
+    "verdict": "matched"
+  },
+  "no_commit": null,
+  "node": "s17-catalog-retry-one-budget",
+  "node_definition": {
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 1110,
+          "cached_input_tokens": 716685,
+          "input_tokens": 717797,
+          "output_tokens": 1345,
+          "reasoning_output_tokens": 129,
+          "total_tokens": 719142,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "38dec84a-7cb6-4b27-ace6-501cc76dbec0",
+      "session_id": "llac-s14-0925"
+    },
+    "done_when": "Review r-20260926T205138354076 (stored at ~/.config/reckon/crew/reviews/imas-ambix/r-20260926T205138354076-s17-clive-catalog-retry.json) found, in imas_ambix/agent/clive.py's generated launcher program: (1) fetch_catalog starts a fresh 900 s deadline per call, and endpoint-document discovery calls it once per engine origin and per routing origin, so N absent origins wait N x 900 s; (2) retry_seconds accepts inf, NaN and non-positive values for CLIVE_CATALOG_RETRY_BOUND / _START; (3) tests cover only HTTP 503/404 on the single-origin route. Fix all three in one change: one deadline for the whole launch shared by every catalog read; the two env overrides must be finite and positive, with the bound no greater than 900, otherwise fail with a message naming the variable; tests/test_agent_clive_catalog_retry.py adds refused-connection and reset-connection retry cases, a timeout that fails without waiting, and an endpoint-document launch with two absent origins that exhausts ONE budget. 'uv run --no-sync pytest -p no:cacheprovider tests/test_agent_clive_picker.py tests/test_agent_clive_worker_profile.py tests/test_agent_clive_catalog_retry.py' exits 0 on the login node; 'uv run --no-sync ruff check imas_ambix tests' exits 0; negative control recorded verbatim with its failing count at a committed revision. Do not touch AUTO_COMPACT_WINDOW_CEILING and do not regenerate the installed launcher. Landing: one line in plan §17; no evidence section, no figure; do not edit plan-version. Pass checkout_path on every reckon MCP call; never write or run git in the main checkout.",
+    "estimated_hours": null,
+    "goal": "Give the clive catalog retry one launch-wide budget, validated scaling and full failure coverage",
+    "id": "s17-catalog-retry-one-budget",
+    "lane_declaration": {
+      "backend": null,
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-09-26T21:44:05Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 4,
+      "binding_observed": "unknown",
+      "detail": "",
+      "headroom": 0,
+      "mean_context": 120000,
+      "observed_at": "2026-09-26T21:44:01Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T214404611968-s17-catalog-retry-one-budget/manifest.md",
+    "negative_control": "restoring a per-call deadline must make the two-absent-origins test exceed one budget; applied as a scratch edit and restored",
+    "plan": "local-lane-admission-control",
+    "requested_backend": "clive",
+    "requires_decisions": [],
+    "role": "implement",
+    "section": "§17",
+    "spec_level": "exact",
+    "time_budget": "60m",
+    "token_budget": null,
+    "write_paths": [
+      "imas_ambix/agent/clive.py",
+      "tests/test_agent_clive_catalog_retry.py",
+      "docs/evidence/archive/local-lane-admission-control-landed.html",
+      "docs/figures/local-lane-admission-control",
+      "docs/plans/local-lane-admission-control.html"
+    ]
+  },
+  "orientation_input_tokens": 1136307.0,
+  "outcome": "",
+  "pace": {
+    "allowance": null,
+    "bar": null,
+    "clocks": {
+      "five_hour": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "five_hour",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null
+      },
+      "seven_day": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "seven_day",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null
+      }
+    },
+    "group": null,
+    "hold": null,
+    "lane": "clive",
+    "member": null,
+    "node": "s17-catalog-retry-one-budget",
+    "policy": {
+      "drain_lead_hours": 12.0,
+      "pace_multiple": 1.1
+    },
+    "reason": "the lane declares no budget group, so no wallet paced it",
+    "recorded_at": "2026-09-26T21:44:11.766205+00:00",
+    "score": 0.56875,
+    "source": null,
+    "state": "unknown"
+  },
+  "plan": "local-lane-admission-control",
+  "plan_impl_at_dispatch": 0.9,
+  "promoted_revision": "5ce4cc816eb69f19e8cde3edaf7451d7516929d4",
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "scores": {
+      "durability": 17,
+      "evidence": 17,
+      "fit": 18,
+      "goal_fidelity": 19,
+      "scope_discipline": 19
+    },
+    "status": "parsed",
+    "total": 90
+  },
+  "role": "implement",
+  "run_id": "r-20260926T214404611968-s17-catalog-retry-one-budget",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§17",
+  "session_harness": "claude",
+  "session_id": "44c142e8-5c94-4af5-967c-7aaaa4da1afa",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "exact",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 5,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 10154939,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+    "elapsed_seconds": 2836.495,
+    "generated_tokens": 69162,
+    "generation_seconds": 2614.433,
+    "input_budget_tokens": 480000,
+    "input_utilisation_pct": 34.5,
+    "machine_seconds": 222.062,
+    "peak_input_tokens": 165524,
+    "tokens_per_second": 26.45,
+    "wall_tokens_per_second": 24.38
+  },
+  "time_budget": "60m",
+  "tool_steps": 83.0,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": []
+  },
+  "wall_seconds": 2847,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-09-26T22:31:39Z",
+    "last_record_type": "result",
+    "launched_at": "2026-09-26T21:44:17Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20260926T214404611968-s17-catalog-retry-one-budget",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 16043,
+    "worker_pid": 1229321
+  },
+  "worker_seconds": 2824,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
