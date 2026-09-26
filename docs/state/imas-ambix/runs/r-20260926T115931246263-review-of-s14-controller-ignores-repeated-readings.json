@@ -1,0 +1,224 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effort": "xhigh",
+    "launch": "cli",
+    "local": true,
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "read-only",
+    "usable_input_window": 480000
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "60e6f13a46159b4e89e334d2ce44217918f65ab7",
+  "boundary_waiver": null,
+  "budget": {
+    "cost_usd": null,
+    "detail": "no events yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": null,
+    "utilisation_pct": null
+  },
+  "changed_lines": null,
+  "commit_resolution": null,
+  "commits": [],
+  "completed_at": "2026-09-26T13:58:54.838Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-09-26T11:59:38Z",
+  "dispute_count": 0,
+  "duration_measurement": {
+    "reason": "model_span_unavailable_at_promotion",
+    "status": "underivable"
+  },
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": false,
+    "matched_measure": null,
+    "override": false,
+    "role": "review",
+    "status": "no-execution-measure"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [],
+  "gate": "passed",
+  "gate_check": {
+    "command": "python3 -c \"import json;d=json.load(open('/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260926T103139259313-s14-controller-ignores-repeated-readings.at-e07eae3fc80bbd6ca95a52b4c5eeae240973baf4.json'));s=d['scores'];assert len(s)==5 and all(0<=v<=20 for v in s.values());print(sum(s.values()))\"",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T115931246263-review-of-s14-controller-ignores-repeated-readings/gate.log"
+  },
+  "impl_move": {
+    "at_complete": null,
+    "at_dispatch": 0.9,
+    "plan": "local-lane-admission-control",
+    "reason": "role-not-enforced:review",
+    "verdict": "exempt"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-09-26T12:44:31.903497+00:00",
+    "horizon_seconds": 2700,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": null,
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-09-26T11:59:31Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 14,
+    "binding_observed": "unknown",
+    "detail": "",
+    "headroom": -15,
+    "mean_context": 97143,
+    "observed_at": "2026-09-26T11:59:17Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-09-26T13:58:54.838Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": true,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T115931246263-review-of-s14-controller-ignores-repeated-readings/manifest.md",
+  "member": "disposable-r-20260926T115931246263-review-of-s14-controller-ignores-repeated-readings",
+  "negative_control": {
+    "reason": "node-writes-no-test-path",
+    "verdict": "exempt"
+  },
+  "no_commit": "review node; delivery is the stored review record",
+  "node": "review-of-s14-controller-ignores-repeated-readings",
+  "node_definition": {
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 3252,
+          "cached_input_tokens": 480087,
+          "input_tokens": 483341,
+          "output_tokens": 962,
+          "reasoning_output_tokens": 275,
+          "total_tokens": 484303,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "38dec84a-7cb6-4b27-ace6-501cc76dbec0",
+      "session_id": "llac-s14-0925"
+    },
+    "done_when": "the review for r-20260926T103139259313-s14-controller-ignores-repeated-readings stores a parsed record scoring all 5 dimensions in the range 0..20; the turn ends once that record is stored and the manifest reads complete. Among the findings state whether the replay against the recorded live samples in /home/ITER/mcintos/.cache/imas-ambix-depth-sweep/window-auto.jsonl (09:26-09:50Z) would no longer step the width down, and whether an engine restart (counter reset to a lower value) is still handled.",
+    "estimated_hours": null,
+    "goal": "attach an independent review to run r-20260926T103139259313-s14-controller-ignores-repeated-readings",
+    "id": "review-of-s14-controller-ignores-repeated-readings",
+    "lane_declaration": {
+      "backend": null,
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-09-26T11:59:31Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 14,
+      "binding_observed": "unknown",
+      "detail": "",
+      "headroom": -15,
+      "mean_context": 97143,
+      "observed_at": "2026-09-26T11:59:17Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T115931246263-review-of-s14-controller-ignores-repeated-readings/manifest.md",
+    "negative_control": "",
+    "plan": "local-lane-admission-control",
+    "requested_backend": null,
+    "requires_decisions": [],
+    "role": "review",
+    "section": "§14",
+    "spec_level": "exact",
+    "time_budget": "45m",
+    "token_budget": null,
+    "write_paths": [
+      "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260926T103139259313-s14-controller-ignores-repeated-readings.json",
+      "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260926T103139259313-s14-controller-ignores-repeated-readings.at-e07eae3fc80bbd6ca95a52b4c5eeae240973baf4.json"
+    ]
+  },
+  "orientation_input_tokens": null,
+  "outcome": "",
+  "plan": "local-lane-admission-control",
+  "plan_impl_at_dispatch": 0.9,
+  "promoted_revision": "60e6f13a46159b4e89e334d2ce44217918f65ab7",
+  "resume_waiver": null,
+  "review": null,
+  "role": "review",
+  "run_id": "r-20260926T115931246263-review-of-s14-controller-ignores-repeated-readings",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§14",
+  "session_harness": "claude",
+  "session_id": "d5551d04-4749-40f5-9a80-be3292102d19",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "exact",
+  "stalled": true,
+  "suite_delta": null,
+  "tests_added": 0,
+  "time_budget": "45m",
+  "tool_steps": 82.0,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": []
+  },
+  "wall_seconds": 7156,
+  "watch_override": null,
+  "worker_seconds": 7066,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": {
+    "classification": "retained-for-resume",
+    "retained_at": "2026-09-26T13:58:54.838Z",
+    "session_id": "d5551d04-4749-40f5-9a80-be3292102d19",
+    "session_source": "stream",
+    "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/llac-s14-0925/review-of-s14-controller-ignores-repeated-readings"
+  }
+}

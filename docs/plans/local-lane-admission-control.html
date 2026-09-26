@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-26">
 <meta name="plan-impl" content="0.9">
-<meta name="plan-version" content="116">
+<meta name="plan-version" content="117">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s14&quot;:&quot;implementable&quot;,&quot;s15&quot;:&quot;implementable&quot;,&quot;s16&quot;:&quot;implementable&quot;,&quot;s17&quot;:&quot;implementable&quot;,&quot;s18&quot;:&quot;implementable&quot;,&quot;s19&quot;:&quot;implementable&quot;,&quot;s20&quot;:&quot;implementable&quot;}">
 <meta name="plan-artifacts" content="docs/evidence/archive/local-lane-admission-control-landed.html">
 <meta name="plan-commits" content="4bb11e8917c6dc9662d6214da6ec7eb595713984,da60421b4267fc7fc6fafb2a7e5dbb242da1cfba,569b91efd9e1e2e0e00c6d86cd589810391752c5,7ecfec3ba6ed3d68d68e03a104bd33e70ba75037,decc190bc301c74e02f2491bc6a557a163f9c744">
@@ -1084,6 +1084,9 @@
 </div>
 <div class="r-comment" data-section="s14" data-id="c-run-r-20260926T103139259313-s14-controller-ignores-repeated-readings" data-who="reckon-build" data-when="2026-09-26T12:15:53.324Z">
     <div class="r-comment-body"><p>repeated counter readings no longer read as zero throughput; review 94: frozen-counter stall no longer backs off and health guards halve cadence under repeats (repair node follows); not deployed</p></div>
+</div>
+<div class="r-comment" data-section="s14" data-id="c-run-r-20260926T115931246263-review-of-s14-controller-ignores-repeated-readings" data-who="reckon-build" data-when="2026-09-26T13:58:54.838Z">
+    <div class="r-comment-body"><p>controller fix review 94/100</p></div>
 </div>
 <div class="r-comment" data-section="s17" data-id="c-run-r-20260925T115355281795-s17-lane-cycle-runbook" data-who="reckon-build" data-when="2026-09-25T12:41:40.000Z">
     <div class="r-comment-body"><p>lane-cycle runbook landed at <code>ops/lane-cycle/AGENTS.md</code> (with the two-line loader beside it): the seven steps each with its exact command, the 15-minute readiness bound measured from the job's RUNNING transition, the rollback to the previous settings, the 40-minute pause ceiling inside the held client's ~56-minute ride-out (11 attempts of 305 s), and a router-restart-versus-engine-relaunch table. Every command was checked against the verbatim output of the four <code>--help</code> screens recorded in the run's manifest; nothing was paused, resumed, restarted or shut down. The lane's draining subsection now points at the runbook and its pool figure reads 4000000 to match the profile.</p></div>
