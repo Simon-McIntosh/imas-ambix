@@ -1657,6 +1657,82 @@
     plus an added test and two strengthened assertions. No router was restarted
     and no job submitted.</p>
   </section>
+
+  <section id="absent-owner-hold">
+    <h2>A known model whose engine is absent waits in the gate, not 404s</h2>
+
+    <p><strong>The gap.</strong> Catalog resolution selected an owner from the
+    reachable catalogs, and an id with none was refused <code>404 unknown model
+    id</code>. That is correct for a typo and wrong for an engine that is merely
+    between launches: a serve restart, a topology rotation or a paused engine
+    opens a window in which every consumer naming a model the deployment can
+    serve reads a transient outage as though the id were meaningless.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/local-lane-admission-control/absent-owner-hold-path.svg"
+           alt="A request resolves an owner; if one is reachable it relays as
+                before, and if not an unknown id is refused 404 while a known id
+                waits in the shared generation gate FIFO, re-resolving its owner
+                every 0.2 s until an owner appears (relay) or the wait budget
+                elapses (529 overloaded_error, Retry-After 5). A paused gate holds
+                the request in the FIFO until resume.">
+      <figcaption>The absent-owner path: the refusal survives only for an id
+      nothing serves; a known id queues, re-resolves at the head, and relays or
+      times out as a retryable 529.</figcaption>
+    </figure>
+
+    <p><strong>What changed.</strong> In <code>imas_ambix/agent/router.py</code>
+    the resolution branch keeps the <code>404</code> for an id that is neither
+    resolvable nor known, and otherwise lets a generation path continue with no
+    owner. <code>_GenerationGate.acquire</code> gained an optional
+    <code>ready</code> predicate: it is awaited <em>outside</em> the condition
+    lock, because re-resolving an owner talks to the engines and holding the
+    queue lock across that would stall every other waiter, and it is re-evaluated
+    at each admission attempt. A head-of-queue request whose predicate reads
+    false sleeps <code>_CUT_POLL_SECONDS</code> (0.2 s) and retests, because an
+    engine appearing is an external event no condition here signals. The
+    predicate caches the owner that admitted the request into a one-element list,
+    so the relay uses that engine rather than resolving a second time. An id
+    becomes known once this process has resolved an owner for it, or when a
+    shipped profile names it as its client-visible <code>served_name</code>; the
+    profile set is read once and cached, so a fresh router that has resolved
+    nothing still recognises a model its own deployment declares. Past the gate's
+    <code>wait_seconds</code> the caller receives the gate's existing wait-expiry
+    answer &mdash; HTTP 529 <code>overloaded_error</code> with
+    <code>Retry-After: 5</code> &mdash; and the receipt records the wait through
+    <code>gate_wait_s</code>. The catalogue listing and
+    <code>/v1/messages/count_tokens</code> bypass the gate and keep
+    today's 404.</p>
+
+    <p><strong>The tests.</strong>
+    <code>tests/test_agent_router_absent_upstream.py</code> drives a stub engine
+    advertising one model id and a resolver whose upstream set a test can change
+    while a call is in flight, with no network. It covers: a known id held once
+    its engine is dropped and relayed when the engine returns; a known id whose
+    engine never appears, answered as 529 with <code>Retry-After: 5</code>, an
+    <code>overloaded_error</code> body and a receipt carrying its
+    <code>gate_wait_s</code>; a paused gate holding an absent-owner request until
+    the pause clears and the engine arrives; an unknown id still refused at once
+    with 404; and a profile-named id recognised as known on a router that has
+    resolved nothing. The declared gate &mdash; the five router suites together
+    &mdash; ran <strong>50 tests with 0 failures</strong> at the committed
+    revision, and whole-tree <code>uv run --no-sync ruff check imas_ambix
+    tests</code> exited 0.</p>
+
+    <p><strong>Evidence that could have failed.</strong> The declared negative
+    control, verbatim as the first line of the red log, is: &ldquo;restoring the
+    immediate 404 for a known model with no owner must fail the declared
+    held-then-relayed and 529 tests; applied as a scratch edit and restored&rdquo;.
+    Reducing the absent-owner branch condition to an unconditional refusal
+    produced <strong>2 failed</strong> of 2 selected &mdash; the held-then-relayed
+    test and the timeout test &mdash; and the scratch edit was then restored
+    byte-identical, <code>git diff</code> empty against the committed revision
+    before the green gate re-ran there.</p>
+
+    <p><strong>What was not done.</strong> No router was restarted, no lane
+    document written and no job submitted or cancelled. The change touches
+    <code>router.py</code> and the new test file only.</p>
+  </section>
 </main>
 </body>
 </html>
