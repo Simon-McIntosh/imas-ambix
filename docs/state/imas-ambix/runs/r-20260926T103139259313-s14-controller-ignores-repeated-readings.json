@@ -1,0 +1,283 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effort": "high",
+    "launch": "cli",
+    "local": true,
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "worktree-full",
+    "usable_input_window": 480000
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "60e6f13a46159b4e89e334d2ce44217918f65ab7",
+  "boundary_waiver": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "inference_geo": "",
+      "input_tokens": 10640675,
+      "input_tokens_cumulative": 10640675,
+      "output_tokens": 58882,
+      "output_tokens_cumulative": 58882,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": {
+    "added": 193,
+    "files": 4,
+    "removed": 1
+  },
+  "commit_resolution": null,
+  "commits": [
+    "17d24ff1dcbdbec3e20851d2a25aabd8af576eb7",
+    "e07eae3fc80bbd6ca95a52b4c5eeae240973baf4"
+  ],
+  "completed_at": "2026-09-26T12:15:53.324Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-09-26T10:31:47Z",
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": true,
+    "matched_measure": "pytest -p",
+    "override": false,
+    "role": "implement",
+    "status": "compatible"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [],
+  "gate": "passed",
+  "gate_check": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider tests/test_agent_router_width_controller.py tests/test_agent_router_gate.py tests/test_agent_router_absent_upstream.py tests/test_agent_router_cut.py",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T103139259313-s14-controller-ignores-repeated-readings/gate.log"
+  },
+  "impl_move": {
+    "at_complete": 0.9,
+    "at_dispatch": 0.9,
+    "plan": "local-lane-admission-control",
+    "reason": "controller repair; impl moves when the controller window passes",
+    "verdict": "waived"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-09-26T11:31:40.117650+00:00",
+    "horizon_seconds": 3600,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": null,
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-09-26T10:31:40Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 9,
+    "binding_observed": "unknown",
+    "detail": "",
+    "headroom": 0,
+    "mean_context": 186667,
+    "observed_at": "2026-09-26T10:31:31Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-09-26T12:15:53.324Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": true,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T103139259313-s14-controller-ignores-repeated-readings/manifest.md",
+  "member": "llac-guard",
+  "negative_control": {
+    "declaration": "reverting the repeated-reading skip must make the replayed-failure test step the width down; applied as a scratch edit and restored",
+    "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T103139259313-s14-controller-ignores-repeated-readings/negative-control.log",
+    "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T103139259313-s14-controller-ignores-repeated-readings/negative-control.log",
+    "test_paths": [
+      "tests/test_agent_router_width_controller.py"
+    ],
+    "verdict": "matched"
+  },
+  "no_commit": null,
+  "node": "s14-controller-ignores-repeated-readings",
+  "node_definition": {
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 520,
+          "cached_input_tokens": 451323,
+          "input_tokens": 451845,
+          "output_tokens": 1403,
+          "reasoning_output_tokens": 0,
+          "total_tokens": 453248,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "38dec84a-7cb6-4b27-ace6-501cc76dbec0",
+      "session_id": "llac-s14-0925"
+    },
+    "done_when": "Live evidence, 2026-09-26 09:26-09:50Z with width auto and the engine serving 10-12 streams at 180-490 aggregate tok/s and prefix hit ~0.99: lane.json width_reason read 'stepping down: 0.0 tokens/s per stream is below the 10 floor' at 09:34, 09:42 and 09:50, walking the width 14->12->10 and queueing requests (samples: /home/ITER/mcintos/.cache/imas-ambix-depth-sweep/window-auto.jsonl). First establish and state in the manifest, from the code (router.py observe_lane near :546, its caller near :1682, _step_controller near :604, _controller_health_sample near :880), why a zero per-stream rate is recorded while generation continues. Then fix it so a reading that carries no new counter information contributes no rate and no health sample, and the per-stream guard judges a rate that spans real counter movement; scoring of genuinely new readings is unchanged. tests/test_agent_router_width_controller.py gains a test replaying the failure: repeated identical readings interleaved with advancing ones at ~25 tok/s per stream with running=10 must not trip the per-stream guard or step the width down, while a genuinely slow lane (advancing readings at 5 tok/s per stream) still steps down. 'uv run --no-sync pytest -p no:cacheprovider tests/test_agent_router_width_controller.py tests/test_agent_router_gate.py tests/test_agent_router_absent_upstream.py tests/test_agent_router_cut.py' exits 0 on the login node; 'uv run --no-sync ruff check imas_ambix tests' exits 0; the declared negative control is recorded verbatim (first line of its log) with its failing test count at a committed revision named in the log header. Keep the landing record to one short paragraph in the plan and one evidence anchor; no figure. Do not write the gate file, restart the router, or change any serve. Pass checkout_path on every reckon MCP call; never write or run git in the main checkout.",
+    "estimated_hours": null,
+    "goal": "Stop the width controller reading a repeated engine counter as zero throughput",
+    "id": "s14-controller-ignores-repeated-readings",
+    "lane_declaration": {
+      "backend": null,
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-09-26T10:31:40Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 9,
+      "binding_observed": "unknown",
+      "detail": "",
+      "headroom": 0,
+      "mean_context": 186667,
+      "observed_at": "2026-09-26T10:31:31Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T103139259313-s14-controller-ignores-repeated-readings/manifest.md",
+    "negative_control": "reverting the repeated-reading skip must make the replayed-failure test step the width down; applied as a scratch edit and restored",
+    "plan": "local-lane-admission-control",
+    "requested_backend": "clive",
+    "requires_decisions": [],
+    "role": "implement",
+    "section": "§14",
+    "spec_level": "exact",
+    "time_budget": "60m",
+    "token_budget": null,
+    "write_paths": [
+      "imas_ambix/agent/router.py",
+      "tests/test_agent_router_width_controller.py",
+      "docs/evidence/archive/local-lane-admission-control-landed.html",
+      "docs/figures/local-lane-admission-control",
+      "docs/plans/local-lane-admission-control.html"
+    ]
+  },
+  "orientation_input_tokens": 1375289.0,
+  "outcome": "",
+  "plan": "local-lane-admission-control",
+  "plan_impl_at_dispatch": 0.9,
+  "promoted_revision": "e07eae3fc80bbd6ca95a52b4c5eeae240973baf4",
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "scores": {
+      "durability": 19,
+      "evidence": 18,
+      "fit": 19,
+      "goal_fidelity": 18,
+      "scope_discipline": 20
+    },
+    "status": "parsed",
+    "total": 94
+  },
+  "role": "implement",
+  "run_id": "r-20260926T103139259313-s14-controller-ignores-repeated-readings",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§14",
+  "session_harness": "claude",
+  "session_id": "d151f188-ef15-4ae0-b279-ed837a81f8f4",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "exact",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 2,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 10807069,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+    "elapsed_seconds": 6236.651,
+    "generated_tokens": 65903,
+    "generation_seconds": 6134.891,
+    "input_budget_tokens": 480000,
+    "input_utilisation_pct": 34.4,
+    "machine_seconds": 101.76,
+    "peak_input_tokens": 165094,
+    "tokens_per_second": 10.74,
+    "wall_tokens_per_second": 10.57
+  },
+  "time_budget": "60m",
+  "tool_steps": 81.0,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": []
+  },
+  "wall_seconds": 6246,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-09-26T12:15:53Z",
+    "last_record_type": "result",
+    "launched_at": "2026-09-26T10:31:52Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20260926T103139259313-s14-controller-ignores-repeated-readings",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 11271,
+    "worker_pid": 3245397
+  },
+  "worker_seconds": 6151,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
