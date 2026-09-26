@@ -1,0 +1,306 @@
+{
+  "agent": {
+    "alias": "sol5.6",
+    "backend": "codex",
+    "effort": "high",
+    "launch": "cli",
+    "model": "gpt-5.6-sol",
+    "sandbox": "read-only"
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "codex",
+  "base_sha": "ae3780f64168e6e3808d2ee2344d734bdd176e3d",
+  "boundary_waiver": null,
+  "budget": {
+    "cost_usd": null,
+    "detail": "backend reports token usage but no headroom",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_write_input_tokens": 0,
+      "cache_write_input_tokens_cumulative": 0,
+      "cached_input_tokens": 8809856,
+      "cached_input_tokens_cumulative": 8809856,
+      "input_tokens": 9014900,
+      "input_tokens_cumulative": 9014900,
+      "output_tokens": 29738,
+      "output_tokens_cumulative": 29738,
+      "reasoning_output_tokens": 11137,
+      "reasoning_output_tokens_cumulative": 11137
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": null,
+  "commit_resolution": null,
+  "commits": [],
+  "completed_at": "2026-09-26T21:42:38Z",
+  "completed_at_source": "stream_mtime",
+  "dispatched_at": "2026-09-26T21:30:13Z",
+  "dispute_count": 0,
+  "duration_measurement": {
+    "reason": "model_span_unavailable_at_promotion",
+    "status": "underivable"
+  },
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": false,
+    "matched_measure": null,
+    "override": false,
+    "role": "review",
+    "status": "no-execution-measure"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [
+    "connection/timeout/multi-origin"
+  ],
+  "gate": "passed",
+  "gate_check": {
+    "command": "python3 -c \"import json;d=json.load(open('/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260926T205138354076-s17-clive-catalog-retry.at-fe33bfbc504e2aa6bf905068a7d75bc157812655.json'));s=d['scores'];assert len(s)==5 and all(0<=v<=20 for v in s.values());print(sum(s.values()))\"",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T213004814578-review-of-s17-clive-catalog-retry/gate.log"
+  },
+  "impl_move": {
+    "at_complete": null,
+    "at_dispatch": 0.9,
+    "plan": "local-lane-admission-control",
+    "reason": "role-not-enforced:review",
+    "verdict": "exempt"
+  },
+  "lane_advisory": {
+    "backend": "codex",
+    "burn_multiple": 0.0,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "no projected exhaustion is available for 'codex'; the burn projection needs a numeric utilisation bounded by a known window, and without one no horizon comparison is made",
+    "horizon_ends_at": "2026-09-26T22:15:06.900756+00:00",
+    "horizon_seconds": 2700,
+    "metered": true,
+    "observed_at": "2026-09-26T21:30:05Z",
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": "2026-10-03T18:41:35Z",
+    "seconds_until_reset": 594689,
+    "state": "quiet",
+    "utilisation_pct": 0.0
+  },
+  "lane_declaration": {
+    "backend": "codex",
+    "headroom": "known",
+    "metered": true,
+    "observed_at": "2026-09-26T21:30:05Z",
+    "read_at": "2026-09-26T21:30:06Z",
+    "resolved_backend": "codex",
+    "utilisation_pct": 0.0
+  },
+  "lane_reading": {
+    "age_seconds": null,
+    "binding_observed": "unknown",
+    "detail": "backend declares no lane document",
+    "headroom": "unknown",
+    "mean_context": "unknown",
+    "observed_at": null,
+    "state": "unknown",
+    "suggested_shelf_life_seconds": null
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-09-26T21:42:38Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "missing_rollout",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": false,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T213004814578-review-of-s17-clive-catalog-retry/manifest.md",
+  "member": "disposable-r-20260926T213004814578-review-of-s17-clive-catalog-retry",
+  "negative_control": {
+    "reason": "node-writes-no-test-path",
+    "verdict": "exempt"
+  },
+  "no_commit": "review node; delivery is the stored review record",
+  "node": "review-of-s17-clive-catalog-retry",
+  "node_definition": {
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 1728,
+          "cached_input_tokens": 695458,
+          "input_tokens": 697188,
+          "output_tokens": 1026,
+          "reasoning_output_tokens": 271,
+          "total_tokens": 698214,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "38dec84a-7cb6-4b27-ace6-501cc76dbec0",
+      "session_id": "llac-s14-0925"
+    },
+    "done_when": "the review for r-20260926T205138354076-s17-clive-catalog-retry stores a parsed record scoring all 5 dimensions in the range 0..20; the turn ends once that record is stored and the manifest reads complete. Review the whole change ae3780f6..fe33bfbc (four commits, including 0729fc32), not only from the manifest's recorded base, which the backend move reset to 0729fc32. State whether the retry covers the exact failure seen live (the router's 503 on /v1/models during an engine relaunch, stderr 'clive: global catalog is unreachable: HTTP Error 503') and whether a 404 or a timeout still fails without waiting.",
+    "estimated_hours": null,
+    "goal": "attach an independent review to run r-20260926T205138354076-s17-clive-catalog-retry",
+    "id": "review-of-s17-clive-catalog-retry",
+    "lane_declaration": {
+      "backend": "codex",
+      "headroom": "known",
+      "metered": true,
+      "observed_at": "2026-09-26T21:30:05Z",
+      "read_at": "2026-09-26T21:30:06Z",
+      "resolved_backend": "codex",
+      "utilisation_pct": 0.0
+    },
+    "lane_reading": {
+      "age_seconds": null,
+      "binding_observed": "unknown",
+      "detail": "backend declares no lane document",
+      "headroom": "unknown",
+      "mean_context": "unknown",
+      "observed_at": null,
+      "state": "unknown",
+      "suggested_shelf_life_seconds": null
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T213004814578-review-of-s17-clive-catalog-retry/manifest.md",
+    "negative_control": "",
+    "plan": "local-lane-admission-control",
+    "requested_backend": "codex",
+    "requires_decisions": [],
+    "role": "review",
+    "section": "§17",
+    "spec_level": "exact",
+    "time_budget": "45m",
+    "token_budget": null,
+    "write_paths": [
+      "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260926T205138354076-s17-clive-catalog-retry.json",
+      "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260926T205138354076-s17-clive-catalog-retry.at-fe33bfbc504e2aa6bf905068a7d75bc157812655.json"
+    ]
+  },
+  "orientation_input_tokens": null,
+  "outcome": "",
+  "pace": {
+    "allowance": {
+      "derived": 0.0420004874893295,
+      "drain_hours": 156.0,
+      "effective_limit": 0.0420004874893295,
+      "elapsed_hours": 53.858328404166656,
+      "group": "codex-sub",
+      "limited_by": "allowance",
+      "pace_multiple": 1.1,
+      "provider_ceiling": null,
+      "remaining_budget": 0.78,
+      "remaining_windows": 20.42833431916667,
+      "utilisation": 0.22
+    },
+    "bar": {
+      "bar": null,
+      "decided_by": null,
+      "margin": null,
+      "name": "review-of-s17-clive-catalog-retry",
+      "score": 0.625,
+      "state": "unknown",
+      "verdict": null,
+      "window_fill": null
+    },
+    "clocks": {
+      "five_hour": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "five_hour",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null
+      },
+      "seven_day": {
+        "age_seconds": 113632.982255,
+        "observed_at": "2026-09-25T13:56:20+00:00",
+        "period": "seven_day",
+        "resets_at": "2026-10-01T15:38:43+00:00",
+        "state": "observed",
+        "utilisation": 0.22
+      }
+    },
+    "group": "codex-sub",
+    "hold": null,
+    "lane": "codex",
+    "member": "codex-luna",
+    "node": "review-of-s17-clive-catalog-retry",
+    "policy": {
+      "drain_lead_hours": 12.0,
+      "pace_multiple": 1.1
+    },
+    "reason": null,
+    "recorded_at": "2026-09-26T21:30:12.982255+00:00",
+    "score": 0.625,
+    "source": "recorded",
+    "state": "observed"
+  },
+  "plan": "local-lane-admission-control",
+  "plan_impl_at_dispatch": 0.9,
+  "promoted_revision": "ae3780f64168e6e3808d2ee2344d734bdd176e3d",
+  "resume_waiver": null,
+  "review": null,
+  "role": "review",
+  "run_id": "r-20260926T213004814578-review-of-s17-clive-catalog-retry",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§17",
+  "session_harness": "codex",
+  "session_id": "01a0dfa0-5209-7621-9297-129b1aca5a0e",
+  "session_model": "gpt-5.6-sol",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "exact",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 0,
+  "throughput": {
+    "cumulative_cached_input_tokens": 8809856,
+    "cumulative_input_tokens": 17824756,
+    "detail": "turn tokens recorded, but no span was supplied to rate them",
+    "generated_tokens": 40875
+  },
+  "time_budget": "45m",
+  "tool_steps": 66.0,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": []
+  },
+  "wall_seconds": 745,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-09-26T21:42:39Z",
+    "last_record_type": "turn.completed",
+    "launched_at": "2026-09-26T21:30:19Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20260926T213004814578-review-of-s17-clive-catalog-retry",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 208,
+    "worker_pid": 1149889
+  },
+  "worker_seconds": 745,
+  "worker_seconds_source": "wall_fallback",
+  "worktree_retention": null
+}
