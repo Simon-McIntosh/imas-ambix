@@ -140,6 +140,7 @@ INTERACTIVE=false
 [[ -t 0 ]] && INTERACTIVE=true
 if _CATALOG_RESULT="$(python3 - "$ENDPOINT_DOCUMENT" "$GLOBAL_ORIGIN" "$SELECTOR" "$LIST_ONLY" "$INTERACTIVE" "$MODE" "$PREFERRED_RELEASE_ID" 3<&0 <<'PY'
 import json
+import math
 import os
 import sys
 import time
@@ -186,23 +187,38 @@ opener = urllib.request.build_opener(
 )
 
 
-def retry_seconds(name, default):
+def retry_seconds(name, default, limit=None):
     try:
-        return float(os.environ.get(name, default))
+        value = float(os.environ.get(name, default))
     except ValueError:
         fail(f"{name} must be a number of seconds")
+    if not math.isfinite(value) or value <= 0:
+        fail(f"{name} must be a finite positive number of seconds")
+    if limit is not None and value > limit:
+        fail(f"{name} must not exceed {limit:g} seconds")
+    return value
 
 
 # A catalog that answers 503 or drops the connection is an origin that is up
 # with no engine behind it -- the state a serve relaunch puts the router in.
 # Waiting it out is the difference between a launch that rides through the
-# relaunch and one that exits before its first stream record. The budget is
-# bounded well inside a held client's ride-out so a launch that does meet a
-# genuinely dead origin still fails on its own. The two numbers are the
-# schedule; the environment scales them so a test can exercise the wait
-# without spending the bound.
-CATALOG_RETRY_BOUND_SECONDS = retry_seconds("CLIVE_CATALOG_RETRY_BOUND", "900")
+# relaunch and one that exits before its first stream record. The two numbers
+# are the schedule; the environment scales them so a test can exercise the wait
+# without spending the bound. A scaled value must still be a real, positive
+# number inside the production ceiling, because a non-finite or oversized
+# override would silently remove the bound rather than scale it: NaN makes every
+# deadline comparison false and infinity never expires one. Discovery reads the
+# catalog of every endpoint and routing origin in the document, so the budget is
+# one deadline for the whole launch rather than one per origin -- otherwise N
+# absent origins would hold a launch for N times the advertised bound.
+CATALOG_RETRY_BOUND_LIMIT_SECONDS = 900
+CATALOG_RETRY_BOUND_SECONDS = retry_seconds(
+    "CLIVE_CATALOG_RETRY_BOUND",
+    str(CATALOG_RETRY_BOUND_LIMIT_SECONDS),
+    limit=CATALOG_RETRY_BOUND_LIMIT_SECONDS,
+)
 CATALOG_RETRY_START_SECONDS = retry_seconds("CLIVE_CATALOG_RETRY_START", "2")
+CATALOG_RETRY_DEADLINE = time.monotonic() + CATALOG_RETRY_BOUND_SECONDS
 CATALOG_RETRY_CAP_SECONDS = 30.0
 
 
@@ -220,7 +236,9 @@ def transient_failure(error):
 
 
 def fetch_catalog(origin):
-    deadline = time.monotonic() + CATALOG_RETRY_BOUND_SECONDS
+    # Every catalog read in the launch shares one deadline, so a document
+    # naming several absent origins cannot multiply the advertised bound.
+    deadline = CATALOG_RETRY_DEADLINE
     delay = CATALOG_RETRY_START_SECONDS
     while True:
         try:
