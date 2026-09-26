@@ -914,13 +914,27 @@ class _GenerationGate:
             return self._controller_width
         return self._effective_width
 
-    async def acquire(self, receive: Receive) -> _Admission:
+    async def acquire(
+        self,
+        receive: Receive,
+        *,
+        ready: Callable[[], Awaitable[bool]] | None = None,
+    ) -> _Admission:
         """Wait in FIFO order, or report timeout/departure without a relay.
 
         A paused gate admits nobody: the width is ignored while the pause holds,
         so an in-flight relay is left to finish and every later caller stays in
         the FIFO. Clearing the pause releases them in arrival order through the
         same head-of-queue test, so a pause needs no separate queue.
+
+        ``ready`` lets a caller reach the head of the queue without being
+        admitted: the predicate is re-evaluated on every admission attempt and
+        only a truthy answer starts the relay. It is how a request whose model
+        is known but whose engine is absent holds its FIFO position, re-resolving
+        the owner each time it would otherwise start, so the caller already
+        waiting is the one that reaches an engine when one appears. It is awaited
+        outside the lock, because resolving an owner talks to the engines and
+        holding the lock across that would stall the whole queue.
         """
         arrived_at = time.monotonic()
         initial = self.settings()
@@ -936,6 +950,7 @@ class _GenerationGate:
             self._condition.notify_all()
         try:
             while True:
+                at_head = False
                 async with self._condition:
                     if disconnect_task.done():
                         return _Admission(
@@ -948,12 +963,13 @@ class _GenerationGate:
                             "bypass",
                             gate_wait_s=max(0.0, time.monotonic() - arrived_at),
                         )
-                    if (
+                    at_head = bool(
                         self._waiters
                         and self._waiters[0][0] is token
                         and not settings.paused
                         and self._in_flight < settings.width
-                    ):
+                    )
+                    if at_head and ready is None:
                         self._waiters.popleft()
                         self._in_flight += 1
                         self._condition.notify_all()
@@ -971,10 +987,40 @@ class _GenerationGate:
                             retry_after_seconds=GENERATION_RETRY_AFTER_SECONDS,
                             gate_wait_s=max(0.0, time.monotonic() - arrived_at),
                         )
+                    wait_timeout = min(_GATE_CONFIG_REFRESH_SECONDS, remaining)
+
+                if at_head:
+                    # Re-tested outside the lock: an owner may have appeared, so
+                    # admitting without a fresh resolution would relay to
+                    # nothing, and a resolution talks to the engines.
+                    if await ready():
+                        async with self._condition:
+                            if (
+                                self._waiters
+                                and self._waiters[0][0] is token
+                                and not self.settings().paused
+                                and self._in_flight < self.settings().width
+                            ):
+                                self._waiters.popleft()
+                                self._in_flight += 1
+                                self._condition.notify_all()
+                                carry_disconnect = True
+                                return _Admission(
+                                    "acquired",
+                                    disconnect_task=disconnect_task,
+                                    gate_wait_s=max(0.0, time.monotonic() - arrived_at),
+                                )
+                    else:
+                        # An owner appearing is an external event nothing here
+                        # signals, so a wakeup has to be produced rather than
+                        # waited on.
+                        await asyncio.sleep(_CUT_POLL_SECONDS)
+                    continue
+
+                async with self._condition:
                     with suppress(TimeoutError):
                         await asyncio.wait_for(
-                            self._condition.wait(),
-                            timeout=min(_GATE_CONFIG_REFRESH_SECONDS, remaining),
+                            self._condition.wait(), timeout=wait_timeout
                         )
         finally:
             async with self._condition:
@@ -1181,6 +1227,27 @@ def _preferred_owner(owners: Sequence[_Owner]) -> _Owner | None:
     return latest[0] if len(latest) == 1 else None
 
 
+def _profile_model_ids() -> frozenset[str]:
+    """Return the client-visible model ids the shipped profiles declare.
+
+    A profile's ``served_name`` is the id a consumer sends, so a model this
+    process has not yet seen an engine advertise may still be one the
+    deployment can serve. The profile layer is imported here rather than at
+    module scope so the router's import surface does not grow with it, and a
+    profile that fails to load is skipped rather than making an id the lane can
+    serve read as unknown.
+    """
+    from imas_ambix.agent.profile import list_profiles, load_profile
+
+    names: set[str] = set()
+    for slug in list_profiles():
+        try:
+            names.add(load_profile(slug).model.served_name)
+        except Exception:  # noqa: BLE001 - a broken profile must not block routing
+            continue
+    return frozenset(names)
+
+
 def _by_model_id(owners: Sequence[_Owner]) -> dict[str, list[_Owner]]:
     """Partition reachable engine cards by the native model id they advertise.
 
@@ -1260,6 +1327,12 @@ class RouterApp:
         self._generation_gate = _GenerationGate(
             resolve_gate_path(gate_file, lane_document)
         )
+        # Model ids this process has resolved an owner for, so a request whose
+        # known model has no reachable engine right now waits instead of being
+        # refused as if the id were meaningless. The profile set is deployment
+        # configuration rather than lane state, so it is read once, lazily.
+        self._known_models: set[str] = set()
+        self._profile_models: frozenset[str] | None = None
         # Opt-in, because it logs one line per routed request. Hashes only.
         self._prefix_diagnostic = (
             os.environ.get("AMBIX_ROUTER_PREFIX_PROBE", "").strip() == "1"
@@ -1342,7 +1415,37 @@ class RouterApp:
             for card in catalog.cards
             if card["id"] == model_id
         ]
-        if not owners:
+        owner: _Owner | None = None
+        if owners:
+            selected = _preferred_owner(owners)
+            if selected is None:
+                await self._json_error(
+                    scope,
+                    receive,
+                    send,
+                    409,
+                    f"duplicate model id: {model_id}",
+                    model_id=model_id,
+                    began=began,
+                )
+                return
+            owner = selected
+            self._known_models.add(model_id)
+            upstream, card = owner
+            if len(owners) > 1:
+                logger.info(
+                    "router preference model=%s candidates=%d origin=%s "
+                    "accelerators=%s",
+                    model_id,
+                    len(owners),
+                    upstream.base_url,
+                    _reported_width(upstream, card),
+                )
+        elif not (
+            path in self._GENERATION_PATHS and self._model_is_known(model_id)
+        ):
+            # An id nothing can serve and no profile names is refused as before:
+            # holding every unknown id would make the router a queue for typos.
             await self._json_error(
                 scope,
                 receive,
@@ -1353,36 +1456,37 @@ class RouterApp:
                 began=began,
             )
             return
-        selected = _preferred_owner(owners)
-        if selected is None:
-            await self._json_error(
-                scope,
-                receive,
-                send,
-                409,
-                f"duplicate model id: {model_id}",
-                model_id=model_id,
-                began=began,
-            )
-            return
-        upstream, card = selected
-        if len(owners) > 1:
-            logger.info(
-                "router preference model=%s candidates=%d origin=%s accelerators=%s",
-                model_id,
-                len(owners),
-                upstream.base_url,
-                _reported_width(upstream, card),
-            )
 
         self._log_prefix_divergence(payload, scope)
         payload, body = self._repair_system_roles(payload, body)
-        relay_body = self._clamp_output_tokens(payload, body, card)
-        admission = (
-            await self._generation_gate.acquire(receive)
-            if path in self._GENERATION_PATHS
-            else _Admission("bypass")
-        )
+
+        # An owner resolved now, or one re-resolved at admission for a model
+        # whose engine is not up yet. Populated by the readiness predicate, so
+        # the owner relayed is the one whose appearance admitted the request.
+        resolved: list[_Owner] = [owner] if owner is not None else []
+
+        async def _owner_ready() -> bool:
+            if resolved:
+                return True
+            found = [
+                (catalog.upstream, card)
+                for catalog in await self._reachable_catalogs()
+                for card in catalog.cards
+                if card["id"] == model_id
+            ]
+            selected = _preferred_owner(found) if found else None
+            if selected is None:
+                return False
+            self._known_models.add(model_id)
+            resolved.append(selected)
+            return True
+
+        if path in self._GENERATION_PATHS:
+            admission = await self._generation_gate.acquire(
+                receive, ready=None if owner is not None else _owner_ready
+            )
+        else:
+            admission = _Admission("bypass")
         if admission.outcome == "disconnected":
             self._record_self_answer(
                 scope,
@@ -1404,6 +1508,22 @@ class RouterApp:
                 gate_wait_s=admission.gate_wait_s,
             )
             return
+        if not resolved:
+            # The gate admits a held request only once its owner resolved, so an
+            # admitted request with none is a defect: relaying it would target
+            # no engine.
+            await self._json_error(
+                scope,
+                receive,
+                send,
+                503,
+                "no upstream catalogs are reachable",
+                model_id=model_id,
+                began=began,
+            )
+            return
+        upstream, card = resolved[0]
+        relay_body = self._clamp_output_tokens(payload, body, card)
 
         try:
             await self._relay(
@@ -1619,6 +1739,21 @@ class RouterApp:
                 connector=aiohttp.TCPConnector(limit=self._connection_limit),
             )
         return self._session
+
+    def _model_is_known(self, model_id: str) -> bool:
+        """Whether the router could ever serve this id with no owner reachable.
+
+        An id is known once this process has resolved an owner for it, or when a
+        shipped profile names it as its client-visible id. The profile set is
+        read once and cached, because it is deployment configuration rather than
+        lane state, so a fresh router that has resolved nothing still recognises
+        a model its own profiles declare.
+        """
+        if model_id in self._known_models:
+            return True
+        if self._profile_models is None:
+            self._profile_models = _profile_model_ids()
+        return model_id in self._profile_models
 
     async def _reachable_catalogs(self) -> list[_Catalog]:
         upstreams = await self._resolver.resolve()
