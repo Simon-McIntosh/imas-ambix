@@ -1690,7 +1690,7 @@ checkpoint, 512,000-token per-request context, keyless port 18810. The 183.1 GiB
 of Engram tables live in host RAM; the device pool is pinned rather than
 auto-sized, at `max_total_tokens = 4000000` (4,000,000 tokens). The committed
 tuning carries DSpark speculative decoding (`speculative_algorithm = "DSPARK"`,
-`speculative_dspark_block_size = 5`), `hicache_ratio = 2.0` and
+`speculative_dspark_block_size = 3`, chosen by a live A/B on real traffic), `hicache_ratio = 2.0` and
 `memory = "600G"`.
 
 #### Launch from the main checkout, never from a generated worktree
