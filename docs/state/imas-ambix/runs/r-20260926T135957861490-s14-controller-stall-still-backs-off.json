@@ -1,0 +1,283 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effort": "high",
+    "launch": "cli",
+    "local": true,
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "worktree-full",
+    "usable_input_window": 480000
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "b97ab0075d86fd8d90d7394cc416be323d2dd5fa",
+  "boundary_waiver": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "inference_geo": "",
+      "input_tokens": 9512123,
+      "input_tokens_cumulative": 9512123,
+      "output_tokens": 55901,
+      "output_tokens_cumulative": 55901,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": {
+    "added": 145,
+    "files": 3,
+    "removed": 14
+  },
+  "commit_resolution": null,
+  "commits": [
+    "665c3e42d05615a0381e71b49829d1bf36242720",
+    "7d231b123524f91628c14c611b6b949f100ab5c6"
+  ],
+  "completed_at": "2026-09-26T15:10:46.699Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-09-26T14:00:04Z",
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": true,
+    "matched_measure": "pytest -p",
+    "override": false,
+    "role": "implement",
+    "status": "compatible"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [],
+  "gate": "passed",
+  "gate_check": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider tests/test_agent_router_width_controller.py tests/test_agent_router_gate.py tests/test_agent_router_absent_upstream.py tests/test_agent_router_cut.py",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T135957861490-s14-controller-stall-still-backs-off/gate-head.log"
+  },
+  "impl_move": {
+    "at_complete": 0.9,
+    "at_dispatch": 0.9,
+    "plan": "local-lane-admission-control",
+    "reason": "controller repair; impl moves when the controller window passes",
+    "verdict": "waived"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-09-26T14:59:58.727991+00:00",
+    "horizon_seconds": 3600,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": null,
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-09-26T13:59:58Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 19,
+    "binding_observed": "unknown",
+    "detail": "",
+    "headroom": -16,
+    "mean_context": 89231,
+    "observed_at": "2026-09-26T13:59:39Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-09-26T15:10:46.699Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": true,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T135957861490-s14-controller-stall-still-backs-off/manifest.md",
+  "member": "llac-guard",
+  "negative_control": {
+    "declaration": "removing the stall rule must make the frozen-counter test hold the width at 14; applied as a scratch edit and restored",
+    "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T135957861490-s14-controller-stall-still-backs-off/negative-control.log",
+    "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T135957861490-s14-controller-stall-still-backs-off/negative-control.log",
+    "test_paths": [
+      "tests/test_agent_router_width_controller.py"
+    ],
+    "verdict": "matched"
+  },
+  "no_commit": null,
+  "node": "s14-controller-stall-still-backs-off",
+  "node_definition": {
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 1353,
+          "cached_input_tokens": 517434,
+          "input_tokens": 518789,
+          "output_tokens": 1346,
+          "reasoning_output_tokens": 88,
+          "total_tokens": 520135,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "38dec84a-7cb6-4b27-ace6-501cc76dbec0",
+      "session_id": "llac-s14-0925"
+    },
+    "done_when": "Review of r-20260926T103139259313 (stored at ~/.config/reckon/crew/reviews/imas-ambix/r-20260926T103139259313-s14-controller-ignores-repeated-readings.json) found two regressions in imas_ambix/agent/router.py _step_controller: (1) a counter frozen while requests run never backs the width off (base walked 14->4, head holds 14); (2) because the repeated reading returns before the health sample, prefix-hit and KV guards sample at half cadence (step at scrape 29 instead of 14). Fix both in one change: a repeated reading still records a health sample for prefix hit and KV (with no per-stream rate), and a counter that stays unchanged across enough consecutive readings while running > 0 to span the controller's normal scrape interval twice over is treated as a stall and contributes a zero per-stream rate, so a genuinely frozen engine still steps the width down. tests/test_agent_router_width_controller.py adds: a frozen counter with running=10 steps the width down within two health windows; a prefix-hit collapse under alternating repeated readings steps down on the same scrape count as with no repeats; the existing repeated-reading test (healthy lane holds 14) still passes. 'uv run --no-sync pytest -p no:cacheprovider tests/test_agent_router_width_controller.py tests/test_agent_router_gate.py tests/test_agent_router_absent_upstream.py tests/test_agent_router_cut.py' exits 0 on the login node; 'uv run --no-sync ruff check imas_ambix tests' exits 0; negative control recorded verbatim with its failing count at a committed revision. Landing record: one short paragraph in plan §14; no evidence section, no figure. Do not write the gate file, restart the router, or change any serve. Pass checkout_path on every reckon MCP call; never write or run git in the main checkout.",
+    "estimated_hours": null,
+    "goal": "Keep the width controller's stall back-off and health cadence while it skips repeated counter readings",
+    "id": "s14-controller-stall-still-backs-off",
+    "lane_declaration": {
+      "backend": null,
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-09-26T13:59:58Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 19,
+      "binding_observed": "unknown",
+      "detail": "",
+      "headroom": -16,
+      "mean_context": 89231,
+      "observed_at": "2026-09-26T13:59:39Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T135957861490-s14-controller-stall-still-backs-off/manifest.md",
+    "negative_control": "removing the stall rule must make the frozen-counter test hold the width at 14; applied as a scratch edit and restored",
+    "plan": "local-lane-admission-control",
+    "requested_backend": "clive",
+    "requires_decisions": [],
+    "role": "implement",
+    "section": "§14",
+    "spec_level": "exact",
+    "time_budget": "60m",
+    "token_budget": null,
+    "write_paths": [
+      "imas_ambix/agent/router.py",
+      "tests/test_agent_router_width_controller.py",
+      "docs/evidence/archive/local-lane-admission-control-landed.html",
+      "docs/figures/local-lane-admission-control",
+      "docs/plans/local-lane-admission-control.html"
+    ]
+  },
+  "orientation_input_tokens": 1568791.0,
+  "outcome": "",
+  "plan": "local-lane-admission-control",
+  "plan_impl_at_dispatch": 0.9,
+  "promoted_revision": "7d231b123524f91628c14c611b6b949f100ab5c6",
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "scores": {
+      "durability": 20,
+      "evidence": 19,
+      "fit": 19,
+      "goal_fidelity": 20,
+      "scope_discipline": 20
+    },
+    "status": "parsed",
+    "total": 98
+  },
+  "role": "implement",
+  "run_id": "r-20260926T135957861490-s14-controller-stall-still-backs-off",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§14",
+  "session_harness": "claude",
+  "session_id": "8fa26477-27e7-4f06-9d25-b4d757978156",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "exact",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 2,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 9679465,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+    "elapsed_seconds": 4233.481,
+    "generated_tokens": 64610,
+    "generation_seconds": 4069.48,
+    "input_budget_tokens": 480000,
+    "input_utilisation_pct": 34.6,
+    "machine_seconds": 164.001,
+    "peak_input_tokens": 166042,
+    "tokens_per_second": 15.88,
+    "wall_tokens_per_second": 15.26
+  },
+  "time_budget": "60m",
+  "tool_steps": 88.0,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": []
+  },
+  "wall_seconds": 4242,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-09-26T15:10:47Z",
+    "last_record_type": "result",
+    "launched_at": "2026-09-26T14:00:09Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20260926T135957861490-s14-controller-stall-still-backs-off",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 12914,
+    "worker_pid": 3800442
+  },
+  "worker_seconds": 4183,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
