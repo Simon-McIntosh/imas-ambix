@@ -65,6 +65,21 @@
       <img src="/imas-ambix/figures/clive-worker-profiles/receipt-exact-agreement.svg" alt="The profile-route argv split into the profile segment, the launcher's fixed --settings pair and the dispatch arguments; the profile segment must equal the receipt's added_arguments element for element">
       <figcaption>The compared slice: the emitted argv with the launcher's fixed pair and the dispatch tail removed, against the receipt's <code>added_arguments</code>.</figcaption>
     </figure>
+    <h2>A fenced worker launch — first request, git-safety memory, guard, Stop hook</h2>
+    <p><strong>Measurement.</strong> One Claude Code 2.1.283 launched the way clive launches a worker (<code>--settings</code>, <code>--append-system-prompt</code>, <code>-p --output-format stream-json --verbose --effort high --dangerously-skip-permissions --add-dir</code>), with <code>CLAUDE_CONFIG_DIR</code> set to the run's own harness home and <code>ANTHROPIC_BASE_URL</code> pointed at a local probe stub on <code>127.0.0.1</code> — no production endpoint contacted. The stub's first reply is a <code>tool_use</code> of <code>Bash</code> running <code>git stash list</code>; later replies are text <code>end_turn</code>. The launched cwd is a foreign imas-ambix worktree, so the run-scoped <code>worker_git_guard.py</code> has an out-of-worktree target and a decision to emit.</p>
+    <h3>Measured contracts</h3>
+    <ul>
+      <li>Git-safety memory present in the first request body: the source file's bytes <code>Always banned** — commit instead</code> at <code>.messages[0].content[0].text</code>, and <code>or path restoration</code> at <code>.messages[0].content[3].text</code>.</li>
+      <li>Stop hook fired, shown by its own side effects: refusal counter <code>.worker_stop_blocks</code> reached <code>3</code>, and the fixture manifest was capped to <code>status: blocked</code> with blocker <code>turn ended without a terminal manifest after 3 refusals</code>. The same hook also refused the measuring node's own turn.</li>
+      <li>PreToolUse guard present in the harness settings (<code>Bash</code> → <code>shell_function_recursion_guard.py</code> and <code>worker_git_guard.py</code>; <code>Agent</code> → <code>native_agent_guard.py</code>) and fired on the stub's <code>git stash</code> call: the next request body carries the hook error — <code>is_error: true</code> with <code>"permissionDecision": "deny"</code> and <code>mutating git refused</code>.</li>
+      <li>First request 224,560 bytes against 276,931 unfenced — minus 52,371 bytes (18.9%). The fence replaces the operator's <code>~/.claude</code> memory and settings with the harness home's, whose <code>CLAUDE.md</code> is a one-line <code>@~/.agents/AGENTS.md</code> include; it adds the global git-safety memory while omitting the operator's accumulated user memory. All four fence surfaces are present, so the smaller body is the fence's size effect, not a stripped guard.</li>
+      <li>Declared negative control (same launch, empty scratch <code>CLAUDE_CONFIG_DIR</code>) holds: the git-safety marker is absent, the Stop-hook counter is absent, the fixture manifest stays <code>in-progress</code>, no hook events appear, and no <code>permissionDecision</code> reaches a later body — first request 132,454 bytes. The global git-safety bytes are therefore attributable to <code>CLAUDE_CONFIG_DIR</code>, not the working directory.</li>
+    </ul>
+    <figure>
+      <img src="/imas-ambix/figures/clive-worker-profiles/fenced-first-request-bytes.svg" alt="First-request body bytes: unfenced 276931, fenced harness home 224560, empty harness home 132454">
+      <figcaption>The fenced first request is 18.9% smaller than the unfenced one, and the empty-home control is 41.0% smaller again.</figcaption>
+    </figure>
+    <p><strong>Delivery.</strong> The run is itself fenced — its own harness home carried the hook-bearing <code>settings.json</code> and the <code>CLAUDE.md</code> include, its worktree git directory is writable, and both the main checkout and a peer checkout are read-only. The named report path sits on a read-only mount in this worker's namespace; the report content is preserved in the run's own writable directory. No launcher was deployed and this measurement changes no repository file outside its scope.</p>
   </main>
 </body>
 </html>

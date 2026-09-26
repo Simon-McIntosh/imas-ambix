@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 310" role="img" aria-label="First-request bytes for three clive worker launches: unfenced 276931, fenced harness home 224560, empty harness home 132454">
+  <style>
+    .t  { font-family: -apple-system, Segoe UI, Roboto, sans-serif; fill: #1b1b1b; }
+    .lbl{ font-size: 14px; font-weight: 600; }
+    .sub{ font-size: 11.5px; fill: #5a5a5a; }
+    .val{ font-size: 13px; font-weight: 700; }
+    .ax { font-size: 11px; fill: #6b6b6b; }
+  </style>
+  <rect x="0" y="0" width="900" height="310" fill="#ffffff"/>
+  <text class="t lbl" x="24" y="30">First-request body bytes — clive worker launch, one launch each</text>
+  <text class="t sub" x="24" y="49">Single launch per row against the local probe stub; no production endpoint contacted. Bar length is the whole request body.</text>
+
+  <g>
+    <text class="t lbl" x="24" y="95">unfenced (real ~/.claude)</text>
+    <text class="t sub" x="24" y="111">baseline r-&#8230;-cwp-production-baseline</text>
+    <rect x="250" y="80" width="640" height="30" rx="3" fill="#c9ccd1"/>
+    <text class="val" x="902" y="100" text-anchor="end" fill="#1b1b1b">276,931</text>
+  </g>
+
+  <g>
+    <text class="t lbl" x="24" y="160">fenced (harness home)</text>
+    <text class="t sub" x="24" y="176">CLAUDE_CONFIG_DIR = run/harness</text>
+    <rect x="250" y="145" width="518.9" height="30" rx="3" fill="#1f6feb"/>
+    <text class="val" x="781" y="165" fill="#1b1b1b">224,560</text>
+  </g>
+
+  <g>
+    <text class="t lbl" x="24" y="225">empty harness home</text>
+    <text class="t sub" x="24" y="241">negative control</text>
+    <rect x="250" y="210" width="306.2" height="30" rx="3" fill="#b7bcc2"/>
+    <text class="val" x="569" y="230" fill="#1b1b1b">132,454</text>
+  </g>
+
+  <line x1="250" y1="258" x2="890" y2="258" stroke="#d5d8dc"/>
+  <text class="ax" x="250" y="276">0</text>
+  <text class="ax" x="527" y="276" text-anchor="middle">120k</text>
+  <text class="ax" x="890" y="276" text-anchor="end" text-anchor="end">276,931 B</text>
+
+  <text class="t sub" x="250" y="300">fenced vs unfenced: &#8722;52,371 B (&#8722;18.9%)   |   empty home vs fenced: &#8722;92,106 B (&#8722;41.0%)</text>
+</svg>
