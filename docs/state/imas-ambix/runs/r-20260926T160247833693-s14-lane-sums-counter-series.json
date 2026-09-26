@@ -1,0 +1,284 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effort": "high",
+    "launch": "cli",
+    "local": true,
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "worktree-full",
+    "usable_input_window": 480000
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "93e3d33a77ee0f2bb6446155ac15c524324f00e7",
+  "boundary_waiver": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "inference_geo": "",
+      "input_tokens": 7106884,
+      "input_tokens_cumulative": 7106884,
+      "output_tokens": 29558,
+      "output_tokens_cumulative": 29558,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": {
+    "added": 200,
+    "files": 5,
+    "removed": 3
+  },
+  "commit_resolution": null,
+  "commits": [
+    "45112578d67bc9e111e74baf50a00aabf9fb5f07",
+    "ee64c8fa7a45f5fe67ec4af0694e5d0b18035ab2"
+  ],
+  "completed_at": "2026-09-26T16:19:16.312Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-09-26T16:02:53Z",
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": true,
+    "matched_measure": "pytest -p",
+    "override": false,
+    "role": "implement",
+    "status": "compatible"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [],
+  "gate": "passed",
+  "gate_check": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider tests/test_agent_lane_counter_series.py tests/test_agent_lane_sglang.py tests/test_agent_router_width_controller.py",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T160247833693-s14-lane-sums-counter-series/gate-green.log"
+  },
+  "impl_move": {
+    "at_complete": 0.9,
+    "at_dispatch": 0.9,
+    "plan": "local-lane-admission-control",
+    "reason": "root-cause fix for the controller; impl moves when the controller window passes",
+    "verdict": "waived"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-09-26T16:47:48.680784+00:00",
+    "horizon_seconds": 2700,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": null,
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-09-26T16:02:48Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 2,
+    "binding_observed": "unknown",
+    "detail": "",
+    "headroom": -1,
+    "mean_context": 123077,
+    "observed_at": "2026-09-26T16:02:46Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-09-26T16:19:16.312Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": true,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T160247833693-s14-lane-sums-counter-series/manifest.md",
+  "member": "llac-guard",
+  "negative_control": {
+    "declaration": "reverting the reader to take the first series must make the two-series sum test fail with 408; applied as a scratch edit and restored",
+    "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T160247833693-s14-lane-sums-counter-series/negative-control.log",
+    "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T160247833693-s14-lane-sums-counter-series/negative-control.log",
+    "test_paths": [
+      "tests/test_agent_lane_counter_series.py"
+    ],
+    "verdict": "matched"
+  },
+  "no_commit": null,
+  "node": "s14-lane-sums-counter-series",
+  "node_definition": {
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 1544,
+          "cached_input_tokens": 574184,
+          "input_tokens": 575730,
+          "output_tokens": 1528,
+          "reasoning_output_tokens": 311,
+          "total_tokens": 577258,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "38dec84a-7cb6-4b27-ace6-501cc76dbec0",
+      "session_id": "llac-s14-0925"
+    },
+    "done_when": "Root cause, measured 2026-09-26 16:02Z: the engine publishes sglang:generation_tokens_total as two series, is_streaming=\"false\" (408, almost never moves) and is_streaming=\"true\" (4.5e6, climbing); imas_ambix.agent.lane.fetch_lane_capacity('http://98dci4-gpu-0003:18810').generation_tokens returned 408, so the width controller has been differencing a near-frozen counter, which read as 0.0 tok/s per stream and stepped the live width down twice today. Fix imas_ambix/agent/lane.py (and imas_ambix/agent/engine_metrics.py only if the reader lives there) so every cumulative counter role (generation_tokens, prefix_cache_queries, prefix_cache_hits, preemptions, external_queries, external_hits, offload bytes) is the SUM over all label series of its metric name, while gauges keep their current reading; state in the manifest which roles are counters and which reader change does it. Tests (new file tests/test_agent_lane_counter_series.py): a metrics text with the two generation_tokens_total series above yields their sum; a single-series counter is unchanged; a gauge with one series is unchanged. 'uv run --no-sync pytest -p no:cacheprovider tests/test_agent_lane_counter_series.py tests/test_agent_lane_sglang.py tests/test_agent_router_width_controller.py' exits 0 on the login node; 'uv run --no-sync ruff check imas_ambix tests' exits 0; negative control recorded verbatim with its failing count at a committed revision. Landing: one short paragraph in plan §14; no evidence section, no figure. Do not restart the router or write the gate file. Pass checkout_path on every reckon MCP call; never write or run git in the main checkout.",
+    "estimated_hours": null,
+    "goal": "Make the lane reading sum a counter across all of its label series",
+    "id": "s14-lane-sums-counter-series",
+    "lane_declaration": {
+      "backend": null,
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-09-26T16:02:48Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 2,
+      "binding_observed": "unknown",
+      "detail": "",
+      "headroom": -1,
+      "mean_context": 123077,
+      "observed_at": "2026-09-26T16:02:46Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T160247833693-s14-lane-sums-counter-series/manifest.md",
+    "negative_control": "reverting the reader to take the first series must make the two-series sum test fail with 408; applied as a scratch edit and restored",
+    "plan": "local-lane-admission-control",
+    "requested_backend": "clive",
+    "requires_decisions": [],
+    "role": "implement",
+    "section": "§14",
+    "spec_level": "exact",
+    "time_budget": "45m",
+    "token_budget": null,
+    "write_paths": [
+      "imas_ambix/agent/lane.py",
+      "imas_ambix/agent/engine_metrics.py",
+      "tests/test_agent_lane_counter_series.py",
+      "docs/evidence/archive/local-lane-admission-control-landed.html",
+      "docs/figures/local-lane-admission-control",
+      "docs/plans/local-lane-admission-control.html"
+    ]
+  },
+  "orientation_input_tokens": 817689.0,
+  "outcome": "lane counters sum all label series; live generation_tokens now 5.55M (was 408, the non-streaming series); review 96",
+  "plan": "local-lane-admission-control",
+  "plan_impl_at_dispatch": 0.9,
+  "promoted_revision": "ee64c8fa7a45f5fe67ec4af0694e5d0b18035ab2",
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "scores": {
+      "durability": 19,
+      "evidence": 19,
+      "fit": 19,
+      "goal_fidelity": 20,
+      "scope_discipline": 19
+    },
+    "status": "parsed",
+    "total": 96
+  },
+  "role": "implement",
+  "run_id": "r-20260926T160247833693-s14-lane-sums-counter-series",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§14",
+  "session_harness": "claude",
+  "session_id": "1f6f76a9-c027-4bf0-afb5-7a0ab3ab3db5",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "exact",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 3,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 7106884,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+    "elapsed_seconds": 973.703,
+    "generated_tokens": 29558,
+    "generation_seconds": 949.368,
+    "input_budget_tokens": 480000,
+    "input_utilisation_pct": 31.8,
+    "machine_seconds": 24.335,
+    "peak_input_tokens": 152544,
+    "tokens_per_second": 31.13,
+    "wall_tokens_per_second": 30.36
+  },
+  "time_budget": "45m",
+  "tool_steps": 67.0,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": []
+  },
+  "wall_seconds": 983,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-09-26T16:19:16Z",
+    "last_record_type": "result",
+    "launched_at": "2026-09-26T16:02:59Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20260926T160247833693-s14-lane-sums-counter-series",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 4305,
+    "worker_pid": 4179516
+  },
+  "worker_seconds": 962,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
