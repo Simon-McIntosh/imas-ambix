@@ -1944,6 +1944,28 @@
     <code>clive: global catalog is unreachable: HTTP Error 503: Service Unavailable</code>. The
     scratch edit was restored byte-identically to commit <code>4ceb3fb6</code>, and the green gate
     re-ran at 26 passed.</p>
+
+    <p id="clive-catalog-retry-one-budget"><strong>One launch-wide budget (commit
+    <code>de565248</code>, 2026-09-27).</strong> The repair above left the deadline per call, so an
+    endpoint document naming several absent origins held a launch for a multiple of the advertised
+    bound, and the two scaling overrides were read without validation. <code>fetch_catalog</code> now
+    takes one deadline for the whole launch, shared by every catalog read, and each override must be
+    a finite positive number of seconds with the two scaling overrides validated so a NaN, infinite or
+    non-positive value fails with a message naming the variable, and the bound may not exceed 900. The
+    declared gate
+    <code>uv run --no-sync pytest -p no:cacheprovider tests/test_agent_clive_picker.py
+    tests/test_agent_clive_worker_profile.py tests/test_agent_clive_catalog_retry.py</code> exited 0
+    with 40 passed at <code>de565248</code> on <code>98d4-clu-2058</code>, and whole-tree
+    <code>uv run --no-sync ruff check imas_ambix tests</code> exited 0. The declared negative control
+    (per-call deadline restored) made the two-absent-origins test fail at
+    <code>assert 8.12196431774646 &lt; 6.0</code> (<code>1 failed, 16 deselected in 8.32s</code>), and
+    the scratch edit was restored byte-identical. The override-validation defect reproduced at the
+    base revision through a scratch copy of the pre-change module, which accepted
+    <code>CLIVE_CATALOG_RETRY_BOUND=0</code> silently. Logs:
+    <code>~/.config/reckon/crew/runs/r-20260926T214404611968-s17-catalog-retry-one-budget/</code>
+    (<code>gate-login-node.txt</code>, <code>ruff-gate.txt</code>,
+    <code>negative-control-two-absent-origins.log</code>, <code>base-arm-env-override.log</code>). No
+    installed launcher was regenerated and no serve was started, restarted or cancelled.</p>
   </section>
 </main>
 </body>
