@@ -1733,6 +1733,48 @@
     document written and no job submitted or cancelled. The change touches
     <code>router.py</code> and the new test file only.</p>
   </section>
+
+  <section id="profile-depth-default">
+    <h2>DSpark depth 3 is the profile default (2026-09-26)</h2>
+
+    <p><code>imas_ambix/agent/profiles/deepseek-v4-1-flash.toml</code> moves
+    <code>speculative_dspark_block_size</code> from 5 to 3 and carries the live
+    A/B as a comment: engine aggregate at &ge;13 running measured <strong>394
+    tok/s at depth 3</strong> against 375 at depth 4 and 326 at depth 5, and
+    per-stream at 12-15 in flight <strong>32.9</strong> against 29.6 tok/s.
+    Speculation off was 18-34% slower per stream on the same live receipts, so the
+    synthetic short-prompt bench that ranked it first is not evidence for serve
+    settings — it issues fresh short prompts while production turns carry about
+    57k context at about 0.99 prefix hit. <code>speculative_algorithm</code> stays
+    <code>DSPARK</code>. Commit <code>7510dc0b</code>.</p>
+
+    <p><strong>Tests.</strong> The two assertions pinning the depth move to 3, and the
+    two sweep override tests now request a depth distinct from the default so a
+    dropped override fails them rather than passing trivially. The declared gate
+    over the three named files passes <strong>35/35</strong> at the committed
+    revision, and whole-tree <code>uv run --no-sync ruff check imas_ambix
+    tests</code> exits 0.</p>
+
+    <p><strong>Generated script and launch root.</strong> <code>agent restart
+    deepseek-v4-1-flash --dry-run</code> renders
+    <code>--speculative-dspark-block-size 3</code> and no
+    <code>--speculative-dspark-block-size 5</code>. Run from this worktree it also
+    carries <strong>7</strong> <code>.reckon-worktrees</code> path references,
+    because the generated script's root is derived from the module location
+    (<code>Path(__file__).resolve().parents[2]</code>); the same command from the
+    main checkout renders <strong>0</strong>. A submitted launch therefore comes
+    from the main checkout, as the deployment rule requires. No serve was
+    restarted, submitted or cancelled, and no engine or router action was taken.</p>
+
+    <p><strong>Declared negative control.</strong> The exact declaration, verbatim
+    as the first line of the red log: &ldquo;setting the block size back to 5 must
+    make the dry-run script carry '--speculative-dspark-block-size 5'; applied as a
+    scratch edit and restored&rdquo;. With the profile set back to 5 the dry-run
+    printed <code>--speculative-dspark-block-size 5</code>, and
+    <strong>3 failed</strong> of 32 selected — the profile-depth assertion, the
+    serve dry-run flag assertion, and the restart default-script assertion. The
+    scratch edit was removed and the file is byte-identical to the commit.</p>
+  </section>
 </main>
 </body>
 </html>
