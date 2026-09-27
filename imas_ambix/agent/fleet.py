@@ -38,8 +38,10 @@ _DRAINING_STATE_PREFIX = "DRAIN"
 def generate_fleet_hold_script(site: SiteConfig) -> str:
     """Generate the whole-node allocation that hosts interactive sessions.
 
-    The allocation takes the site's CPU partition whole and without a wall
-    clock, so it stays up until it is cancelled. The job body points
+    The allocation holds one node of the site's CPU partition exclusively and
+    without a wall clock, so it stays up until it is cancelled; its cgroup
+    stops short of the whole node so slurmd keeps room to answer the
+    controller (see ``SiteConfig.fleet_cpus``). The job body points
     ``TMPDIR`` at ``/tmp`` because a compute node cannot write the per-user
     runtime directory, and the comment token is the scheduler identity the job
     is found by from ``squeue`` alone.

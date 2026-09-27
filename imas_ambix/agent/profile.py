@@ -511,10 +511,19 @@ class SiteConfig(BaseModel):
     # ``grpa``: ``grpa`` carries the GPU reservation's QOS, while ``iter``
     # holds the site-default ``normal`` QOS that a whole-node CPU allocation
     # belongs to.
+    #
+    # The allocation holds the node exclusively but deliberately leaves part of
+    # it outside the job's cgroup. A rigel node has 28 cores and 125 GiB and the
+    # site reserves nothing for the system, so a job taking every core and 120G
+    # leaves slurmd, the kernel and the GPFS daemon about 5 GiB to share with
+    # the page cache. slurmd must answer the controller within SlurmdTimeout
+    # (30 s); a node whose slurmd stalls under memory or IO pressure is declared
+    # failed and every session on it is killed. Two cores and about 15 GiB stay
+    # with the system for that reason.
     fleet_partition: str = "rigel"
     fleet_account: str = "iter"
-    fleet_cpus: int = 28
-    fleet_memory: str = "120G"
+    fleet_cpus: int = 26
+    fleet_memory: str = "110G"
     default_port: int = 18800
     gpu_host: str = "98dci4-gpu-0003"
     global_origin: str = "http://98dci4-gpu-0003:18800"
@@ -608,8 +617,8 @@ class SiteConfig(BaseModel):
             reservation=os.environ.get("AMBIX_AGENT_RESERVATION", "gpu_0003_grpA"),
             fleet_partition=os.environ.get("AMBIX_AGENT_FLEET_PARTITION", "rigel"),
             fleet_account=os.environ.get("AMBIX_AGENT_FLEET_ACCOUNT", "iter"),
-            fleet_cpus=int(os.environ.get("AMBIX_AGENT_FLEET_CPUS", "28")),
-            fleet_memory=os.environ.get("AMBIX_AGENT_FLEET_MEMORY", "120G"),
+            fleet_cpus=int(os.environ.get("AMBIX_AGENT_FLEET_CPUS", "26")),
+            fleet_memory=os.environ.get("AMBIX_AGENT_FLEET_MEMORY", "110G"),
             default_port=int(os.environ.get("AMBIX_AGENT_PORT", "18800")),
             gpu_host=os.environ.get("AMBIX_AGENT_GPU_HOST", "98dci4-gpu-0003"),
             global_origin=os.environ.get(
