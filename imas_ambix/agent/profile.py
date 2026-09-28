@@ -505,26 +505,6 @@ class SiteConfig(BaseModel):
     download_partition: str = "sirius"
     account: str = "grpa"
     reservation: str = "gpu_0003_grpA"
-    # The interactive agent fleet is hosted on a CPU partition, so its
-    # placement is site configuration in its own right rather than a reuse of
-    # the GPU fields above. It charges ``iter`` rather than the GPU account
-    # ``grpa``: ``grpa`` carries the GPU reservation's QOS, while ``iter``
-    # holds the site-default ``normal`` QOS that a whole-node CPU allocation
-    # belongs to.
-    #
-    # The allocation holds the node exclusively but deliberately leaves part of
-    # it outside the job's cgroup. A rigel node has 28 cores and 128,259 MB, the
-    # site reserves nothing for the system, and the GPFS daemon pins about 17 GB
-    # of it, so an idle node offers a job about 107 GB. A cgroup limit above that
-    # can never be reached: a job that grows past what the node holds exhausts
-    # the node instead, swap fills, slurmd stops answering the controller within
-    # SlurmdTimeout (30 s), and the node is declared failed with every session on
-    # it. The limit therefore sits below what the node offers, so the job's own
-    # OOM killer acts first and the node, and slurmd, keep their room.
-    fleet_partition: str = "rigel"
-    fleet_account: str = "iter"
-    fleet_cpus: int = 26
-    fleet_memory: str = "96G"
     default_port: int = 18800
     gpu_host: str = "98dci4-gpu-0003"
     global_origin: str = "http://98dci4-gpu-0003:18800"
@@ -616,10 +596,6 @@ class SiteConfig(BaseModel):
             ),
             account=os.environ.get("AMBIX_AGENT_ACCOUNT", "grpa"),
             reservation=os.environ.get("AMBIX_AGENT_RESERVATION", "gpu_0003_grpA"),
-            fleet_partition=os.environ.get("AMBIX_AGENT_FLEET_PARTITION", "rigel"),
-            fleet_account=os.environ.get("AMBIX_AGENT_FLEET_ACCOUNT", "iter"),
-            fleet_cpus=int(os.environ.get("AMBIX_AGENT_FLEET_CPUS", "26")),
-            fleet_memory=os.environ.get("AMBIX_AGENT_FLEET_MEMORY", "96G"),
             default_port=int(os.environ.get("AMBIX_AGENT_PORT", "18800")),
             gpu_host=os.environ.get("AMBIX_AGENT_GPU_HOST", "98dci4-gpu-0003"),
             global_origin=os.environ.get(

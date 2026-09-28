@@ -179,7 +179,7 @@ def _walk_commands(group: click.Group, prefix: tuple[str, ...] = ()):
     """Yield ``(path, command)`` for every command reachable from ``group``.
 
     Descends through nested groups, so a ``--dry-run`` added to a subcommand of
-    ``agent fleet`` is enumerated exactly as one added directly under ``agent``.
+    a nested group is enumerated exactly as one added directly under ``agent``.
     """
     for name, command in group.commands.items():
         path = prefix + (name,)
@@ -188,23 +188,38 @@ def _walk_commands(group: click.Group, prefix: tuple[str, ...] = ()):
             yield from _walk_commands(command, path)
 
 
+def test_the_command_walk_descends_into_nested_groups() -> None:
+    """A shallow walk would silently stop guarding a nested group's commands."""
+
+    @click.group()
+    def outer() -> None:
+        """A group with one nested group."""
+
+    @outer.group(name="inner")
+    def inner() -> None:
+        """The nested group."""
+
+    @inner.command(name="leaf")
+    def leaf() -> None:
+        """A command only a descending walk reaches."""
+
+    assert {" ".join(path) for path, _ in _walk_commands(outer)} == {
+        "inner",
+        "inner leaf",
+    }
+
+
 def test_every_agent_command_offering_a_dry_run_is_covered() -> None:
     """A newly added ``--dry-run`` command must be added to this file.
 
     Enumerated from the click group rather than from a hand-kept list, so the
     audit cannot drift away from the surface it claims to cover. The walk
-    reaches subcommands of nested groups, so ``agent fleet hold`` is guarded
-    even though ``fleet`` sits below the agent group.
+    reaches subcommands of nested groups (see the case below), so a nested
+    group added under ``agent`` is guarded as well.
     """
     from imas_ambix.agent.cli import agent
 
     commands = dict(_walk_commands(agent))
-
-    # The walk descends into nested groups; a shallow walk would silently stop
-    # guarding them, and every assertion below would still pass.
-    assert {"fleet hold", "fleet place", "fleet status"} <= {
-        " ".join(path) for path in commands
-    }
 
     offering = {
         " ".join(path)

@@ -365,99 +365,6 @@ def agent() -> None:
     """Manage LLM agent deployments on SLURM GPU clusters."""
 
 
-@agent.group(name="fleet")
-def fleet_group() -> None:
-    """Manage the persistent allocation for interactive agent sessions."""
-
-
-@fleet_group.command(name="hold")
-@click.option(
-    "--submit",
-    is_flag=True,
-    help="Submit the allocation instead of printing its SLURM script.",
-)
-def fleet_hold(submit: bool) -> None:
-    """Print or explicitly submit the persistent whole-node allocation."""
-    from imas_ambix.agent.fleet import (
-        generate_fleet_hold_script,
-        submit_fleet_hold,
-    )
-
-    script = generate_fleet_hold_script(SiteConfig.from_env())
-    if not submit:
-        console.print(script, markup=False, highlight=False, soft_wrap=True)
-        return
-
-    try:
-        job_id = submit_fleet_hold(script)
-    except RuntimeError as exc:
-        raise click.ClickException(str(exc)) from exc
-    console.print(f"Submitted fleet allocation job {job_id}.")
-
-
-@fleet_group.command(
-    name="place",
-    context_settings={"ignore_unknown_options": True, "allow_extra_args": True},
-)
-@click.argument("command", nargs=-1, required=True, type=click.UNPROCESSED)
-def fleet_place(command: tuple[str, ...]) -> None:
-    """Run a command as a scheduler step inside the held fleet allocation.
-
-    The wrapped command is carried through unchanged, so a placement moves a
-    worker between hosts without changing which lane serves it. The allocation
-    is resolved from the scheduler by the comment token the hold generator
-    emits, so the job identifier is never written into configuration and a
-    resubmit, a cancel-and-rehold or a move to another node is picked up at
-    launch. Holding no allocation is a refusal rather than a fallback to the
-    login node, because a worker launched here is meant to be placed and one
-    that silently is not runs under the ceiling the placement exists to escape.
-    """
-    from imas_ambix.agent.fleet import find_fleet_allocation, placement_argv
-
-    site = SiteConfig.from_env()
-    allocation = find_fleet_allocation(_running_jobs(site, account=site.fleet_account))
-    if allocation is None:
-        raise click.ClickException(
-            "No fleet allocation is held, so there is nowhere to place "
-            f"{' '.join(command)!r}; the login node is not the fleet's host. "
-            "Hold one with `imas-ambix agent fleet hold --submit`."
-        )
-
-    result = subprocess.run(placement_argv(allocation, command), check=False)
-    if result.returncode != 0:
-        raise SystemExit(result.returncode)
-
-
-@fleet_group.command(name="status")
-def fleet_status() -> None:
-    """Report the held fleet allocation, its node and its remaining lifetime.
-
-    The allocation is found from the scheduler by the comment token the hold
-    generator emits, queried under the account the hold is charged to. A
-    missing allocation is reported in words rather than as an empty table.
-    An allocation with no wall clock reads as unbounded and never warns on
-    time, so the node's own scheduler state is read too: a draining node ends
-    the allocation when the drain completes and is warned about on its own.
-    """
-    from imas_ambix.agent.fleet import (
-        describe_fleet_allocation,
-        find_fleet_allocation,
-    )
-
-    site = SiteConfig.from_env()
-    jobs = _running_jobs(site, account=site.fleet_account)
-    allocation = find_fleet_allocation(jobs)
-    if allocation is None:
-        console.print(
-            "No fleet allocation is held; the interactive fleet has no "
-            "whole-node allocation in the queue."
-        )
-        return
-    node_state = _fleet_node_state(allocation.get("node", ""))
-    for line in describe_fleet_allocation(allocation, node_state=node_state):
-        console.print(line, markup=False, highlight=False)
-
-
 @agent.command(name="list")
 def list_command() -> None:
     """List available model profiles, marking any that are serving."""
@@ -1309,7 +1216,6 @@ def _running_jobs(
     site: SiteConfig,
     *,
     job_ids: tuple[str, ...] = (),
-    account: str | None = None,
 ) -> list[dict[str, str]]:
     """Return Ambix SLURM jobs as a list of field dicts.
 
@@ -1320,11 +1226,6 @@ def _running_jobs(
     leaves the lifetime unknown. With explicit ids the query reconciles shared
     registrations independent of their owner; otherwise it retains the
     operator-scoped status view. Query failure is distinct from an empty queue.
-
-    ``account`` selects the charged account to query, defaulting to the site
-    account. A job charged to a different account is invisible to a query
-    filtered on this one, so a caller looking for such a job must pass the
-    account it is billed to.
     """
     selector = (
         ["-j", ",".join(job_ids)]
@@ -1340,7 +1241,7 @@ def _running_jobs(
             "-h",
             *selector,
             "-A",
-            account if account is not None else site.account,
+            site.account,
             "-o",
             "%i|%j|%T|%M|%R|%b|%k|%L",
         ],
@@ -1368,30 +1269,6 @@ def _running_jobs(
             entry["timeleft"] = parts[7].strip()
         jobs.append(entry)
     return jobs
-
-
-def _fleet_node_state(node: str) -> str | None:
-    """Scheduler state of the node an allocation runs on, or ``None``.
-
-    An allocation with no wall clock is still ended by its node going out of
-    service, and only the node's own state reports that. A value that is not a
-    node name (a pending job reports its reason in that field) or a failed
-    query yields ``None``, which reads as unknown rather than healthy.
-    """
-    from imas_ambix.agent.fleet import parse_node_state
-
-    name = node.strip()
-    if not name or any(char in name for char in " ()"):
-        return None
-    result = subprocess.run(
-        ["scontrol", "show", "node", name],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if result.returncode != 0:
-        return None
-    return parse_node_state(result.stdout)
 
 
 def _serving_slugs(site: SiteConfig) -> set[str]:
