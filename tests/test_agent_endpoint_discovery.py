@@ -355,6 +355,11 @@ def test_unreachable_release_is_dropped_and_malformed_document_fails_closed(tmp_
         )
         document = write_endpoint_document((live, dead), tmp_path / "endpoints.json")
         launcher, environment = _launcher(tmp_path, document)
+        # A refused connection is retried as a relaunch in progress, so without
+        # a short budget the dead release is dropped only after the full
+        # 900-second bound.
+        environment["CLIVE_CATALOG_RETRY_BOUND"] = "2"
+        environment["CLIVE_CATALOG_RETRY_START"] = "0.2"
         result = subprocess.run(
             [str(launcher), "--list"],
             capture_output=True,
