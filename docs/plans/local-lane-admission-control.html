@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-29">
 <meta name="plan-impl" content="0.9">
-<meta name="plan-version" content="139">
+<meta name="plan-version" content="140">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s14&quot;:&quot;implementable&quot;,&quot;s15&quot;:&quot;done&quot;,&quot;s16&quot;:&quot;done&quot;,&quot;s17&quot;:&quot;implementable&quot;,&quot;s18&quot;:&quot;implementable&quot;,&quot;s19&quot;:&quot;implementable&quot;,&quot;s20&quot;:&quot;done&quot;,&quot;s21&quot;:&quot;implementable&quot;}">
 <meta name="plan-artifacts" content="docs/evidence/archive/local-lane-admission-control-landed.html">
 <meta name="plan-commits" content="4bb11e8917c6dc9662d6214da6ec7eb595713984,da60421b4267fc7fc6fafb2a7e5dbb242da1cfba,569b91efd9e1e2e0e00c6d86cd589810391752c5,7ecfec3ba6ed3d68d68e03a104bd33e70ba75037,decc190bc301c74e02f2491bc6a557a163f9c744">
@@ -1295,7 +1295,10 @@
     <div class="r-comment-body"><p>2026-09-29 · review-of-llac-one-occupancy-target · review of run r-20260929T083137462543-llac-one-occupancy-target (head ca4ee22b, base b0e3da79) stored published at the review store's legacy and head-keyed paths · status parsed, five dimensions 19/18/19/19/19, total 94, added_failure_count 0 over 12 base ids and 0 head ids · findings: the reviewed manifest's negative_control_log carries prose after the path so promotion cannot open the red log, the shared occupancy target is shared only at the default under the environment override, and the committed fragment lacks a trailing newline</p></div>
 </div>
 <div class="r-comment" data-section="s21" data-id="c-run-r-20260929T103734405948-llac-occupancy-override-shared" data-who="reckon-build" data-when="2026-09-29T11:00:05.085Z">
-    <div class="r-comment-body"><p>router.DEFAULT_AUTO_OCCUPANCY_TARGET now binds the override-resolved LaneCapacity.OCCUPANCY_TARGET instead of the unresolved module constant, so the estimator and the gate&#x27;s memory-rule default move together under IMAS_AMBIX_LANE_OCCUPANCY_TARGET; the new test re-imports both modules at 0.7 and asserts equality and identity, and the declared gate exited 0 at 47 passed with ruff clean.</p></div>
+    <div class="r-comment-body"><p>router.DEFAULT_AUTO_OCCUPANCY_TARGET now binds the override-resolved LaneCapacity.OCCUPANCY_TARGET instead of the unresolved module constant, so the estimator and the gate's memory-rule default move together under IMAS_AMBIX_LANE_OCCUPANCY_TARGET; the new test re-imports both modules at 0.7 and asserts equality and identity, and the declared gate exited 0 at 47 passed with ruff clean.</p></div>
+</div>
+<div class="r-comment" data-section="s21" data-id="c-run-r-20260929T105741108250-review-of-llac-occupancy-override-shared" data-who="reckon-build" data-when="2026-09-29T11:31:28.164Z">
+    <div class="r-comment-body"><p>2026-09-29 · review-of-llac-occupancy-override-shared · review of run r-20260929T103734405948-llac-occupancy-override-shared (head ab2faca5, base 533155f9) stored at the review store&#x27;s legacy and head-keyed paths · status parsed, five dimensions 20/19/19/20/20, total 98, added_failure_count 0 over 1 base id and 0 head ids · findings: the committed fragment has no trailing newline, and the unarmed run&#x27;s manifest names no baseline or after arm so the count is supplied by this review&#x27;s arms</p></div>
 </div>
 </section>
 </main>
