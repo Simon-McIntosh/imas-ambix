@@ -1,0 +1,298 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effort": "xhigh",
+    "launch": "cli",
+    "local": true,
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "read-only",
+    "usable_input_window": 480000
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "41ef8974aee89b85dc8cd941454ec20ca1a8fc6d",
+  "boundary_waiver": null,
+  "budget": {
+    "cost_usd": null,
+    "detail": "no events yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": null,
+    "utilisation_pct": null
+  },
+  "changed_lines": null,
+  "commit_resolution": null,
+  "commits": [],
+  "completed_at": "2026-09-29T08:16:35.413Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-09-29T07:44:40Z",
+  "dispute_count": 0,
+  "duration_measurement": {
+    "reason": "model_span_unavailable_at_promotion",
+    "status": "underivable"
+  },
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": false,
+    "matched_measure": null,
+    "override": false,
+    "role": "review",
+    "status": "no-execution-measure"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [
+    "imas_ambix/agent/cli.py:2630-2634",
+    "Path.home()/\".local\"/\"share\"/\"ambix\"/\"receipts",
+    "/work/projects/imas_gpu/agents/receipts"
+  ],
+  "gate": "passed",
+  "gate_check": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider tests/test_agent_watch_help.py",
+    "exit_status": 0,
+    "log_digest": "sha256:a84d857b80c64cbc996b218fc18898028a016f9e3fec097d97999c90ff4469da",
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T074434229940-review-of-srw-watch-help-names-its-default/review-after-watch-help.log"
+  },
+  "impl_move": {
+    "at_complete": null,
+    "at_dispatch": 0.0,
+    "plan": "serving-record-warehouse",
+    "reason": "role-not-enforced:review",
+    "verdict": "exempt"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-09-29T08:09:35.133726+00:00",
+    "horizon_seconds": 1500,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": null,
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-09-29T07:44:35Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 9,
+    "binding_observed": "unknown",
+    "detail": "",
+    "generating": 15,
+    "headroom": -4,
+    "mean_context": 130667,
+    "observed_at": "2026-09-29T07:44:26Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45,
+    "throughput": {
+      "age_seconds": null,
+      "aggregate_tokens_per_second": "unknown",
+      "detail": "lane document publishes no 'throughput' block, so the rate its generating population achieved is not measured",
+      "mean_tokens_per_second": "unknown",
+      "observed_at": null,
+      "runs": "unknown",
+      "state": "unknown"
+    },
+    "waiting": 0
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-09-29T08:16:35.413Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": true,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T074434229940-review-of-srw-watch-help-names-its-default/manifest.md",
+  "member": "review-of-the-held-tier-set",
+  "negative_control": {
+    "reason": "node-writes-no-test-path",
+    "verdict": "exempt"
+  },
+  "no_commit": "a review writes only its review record, outside the repository",
+  "node": "review-of-srw-watch-help-names-its-default",
+  "node_definition": {
+    "brief": "",
+    "brief_path": "",
+    "brief_sha256": "",
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 1158,
+          "cached_input_tokens": 415303,
+          "input_tokens": 416463,
+          "output_tokens": 949,
+          "reasoning_output_tokens": 227,
+          "total_tokens": 417412,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "0c4316b2-553f-4a0a-ae02-c42d88de747c",
+      "session_id": "0c4316b2-553f-4a0a-ae02-c42d88de747c"
+    },
+    "done_when": "the review for r-20260929T072914346236-srw-watch-help-names-its-default stores a parsed record scoring all 5 dimensions in the range 0..20, carrying added_failure_count and added_failure_ids derived from the reviewed run's own baseline_suite and after_suite gate logs; the turn ends once that record is stored and the manifest reads complete",
+    "estimated_hours": null,
+    "goal": "attach an independent review to run r-20260929T072914346236-srw-watch-help-names-its-default",
+    "id": "review-of-srw-watch-help-names-its-default",
+    "lane_declaration": {
+      "backend": null,
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-09-29T07:44:35Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 9,
+      "binding_observed": "unknown",
+      "detail": "",
+      "generating": 15,
+      "headroom": -4,
+      "mean_context": 130667,
+      "observed_at": "2026-09-29T07:44:26Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45,
+      "throughput": {
+        "age_seconds": null,
+        "aggregate_tokens_per_second": "unknown",
+        "detail": "lane document publishes no 'throughput' block, so the rate its generating population achieved is not measured",
+        "mean_tokens_per_second": "unknown",
+        "observed_at": null,
+        "runs": "unknown",
+        "state": "unknown"
+      },
+      "waiting": 0
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T074434229940-review-of-srw-watch-help-names-its-default/manifest.md",
+    "negative_control": "",
+    "plan": "serving-record-warehouse",
+    "requested_backend": "clive",
+    "requires_decisions": [],
+    "role": "review",
+    "section": "§10",
+    "spec_level": "exact",
+    "time_budget": "25m",
+    "token_budget": null,
+    "write_paths": [
+      "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260929T072914346236-srw-watch-help-names-its-default.json",
+      "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260929T072914346236-srw-watch-help-names-its-default.at-3c8f86e4fbf9b41d5f7634c35b635075143046e3.json"
+    ]
+  },
+  "orientation_input_tokens": 2053024.0,
+  "outcome": "",
+  "pace": {
+    "allowance": null,
+    "bar": null,
+    "clocks": {
+      "five_hour": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "five_hour",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null
+      },
+      "seven_day": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "seven_day",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null
+      }
+    },
+    "group": null,
+    "hold": null,
+    "lane": "clive",
+    "member": null,
+    "node": "review-of-srw-watch-help-names-its-default",
+    "policy": {
+      "drain_lead_hours": 12.0,
+      "pace_multiple": 1.1
+    },
+    "reason": "the lane declares no budget group, so no wallet paced it",
+    "recorded_at": "2026-09-29T07:44:37.040466+00:00",
+    "score": 0.55,
+    "source": null,
+    "state": "unknown"
+  },
+  "plan": "serving-record-warehouse",
+  "plan_impl_at_dispatch": 0.0,
+  "promoted_revision": "41ef8974aee89b85dc8cd941454ec20ca1a8fc6d",
+  "resume_waiver": null,
+  "review": null,
+  "review_tier": "none",
+  "role": "review",
+  "run_id": "r-20260929T074434229940-review-of-srw-watch-help-names-its-default",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§10",
+  "session_harness": "claude",
+  "session_id": "e597dd9e-3ec5-4b99-9c7f-921b2def3a1d",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "exact",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": null,
+  "time_budget": "25m",
+  "tool_steps": 48.0,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": []
+  },
+  "wall_seconds": 1915,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 137,
+    "exited_at": "2026-09-29T08:16:38Z",
+    "last_record_type": "assistant",
+    "launched_at": "2026-09-29T07:44:48Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20260929T074434229940-review-of-srw-watch-help-names-its-default",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 8153,
+    "worker_pid": 412277
+  },
+  "worker_seconds": 1877,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
