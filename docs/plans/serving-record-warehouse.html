@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-29">
-<meta name="plan-version" content="53">
+<meta name="plan-version" content="54">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;implementable&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -810,7 +810,10 @@
     <div class="r-comment-body"><p>Independent review of r-20260929T072914346236-srw-watch-help-names-its-default at head 3c8f86e4 stored a parsed record scoring goal_fidelity 19, evidence 19, scope_discipline 19, durability 17, fit 18 (total 92) with added_failure_count 0 and no added failure ids; the help-text repair was reproduced green at the head (2 passed) and shown red against the base revision's module (2 failed, stale path quoted from the rendered help), and the claim it makes was confirmed at runtime (default_record_dir() == SiteConfig.receipts_dir == /work/projects/imas_gpu/agents/receipts, 80 record files).</p></div>
 </div>
 <div class="r-comment" data-section="s10" data-id="c-run-r-20260929T081404104870-srw-receipts-help-names-its-default" data-who="reckon-build" data-when="2026-09-29T08:35:38.847Z">
-    <div class="r-comment-body"><p>The agent receipts --output help no longer names ~/.local/share/ambix/receipts; it now states the default is the site&#x27;s receipts directory resolved by watch.default_record_dir, and the command&#x27;s own default resolves through that same helper so the help names where the command actually writes.</p></div>
+    <div class="r-comment-body"><p>The agent receipts --output help no longer names ~/.local/share/ambix/receipts; it now states the default is the site's receipts directory resolved by watch.default_record_dir, and the command's own default resolves through that same helper so the help names where the command actually writes.</p></div>
+</div>
+<div class="r-comment" data-section="s10" data-id="c-run-r-20260929T083420499989-review-of-srw-receipts-help-names-its-default" data-who="reckon-build" data-when="2026-09-29T09:33:13.291Z">
+    <div class="r-comment-body"><p>Independent review of r-20260929T081404104870-srw-receipts-help-names-its-default at head 0bf0b6031182cb26dc4670224e82b1cb9df2fbde over base 7f36237a62e352f27beda581198ea57daa8ae882 stored a parsed record scoring goal_fidelity 19, evidence 19, scope_discipline 19, durability 18, fit 19, fit withheld nowhere else (total 93, item_aggregate 6, added_failure_count 0, no added failure ids). The declared gate was re-run green at the reviewed head (5 passed, 1 passed 8 deselected, ruff All checks passed), the defect was reproduced red from the base revision (2 failed, 3 passed, the stale path quoted from the base blob), and the claim both halves of the change make was confirmed at runtime under a redirected site base: the help names the resolution, default_record_dir() equals SiteConfig.from_env().receipts_dir, and the command handed its recorder /tmp/receipts-default-check/agents/receipts/deepseek-v4-flash.jsonl.</p></div>
 </div>
 <div class="r-comment" data-section="s11" data-id="c-run-r-20260929T072617274722-scout-live-panel-reuse" data-who="reckon-build" data-when="2026-09-29T08:33:34.522Z">
     <div class="r-comment-body"><p>No landing step. The map is an evidence input for a separately dispatched build wave; it is not merged into the repository and needs no review of the merged result.</p></div>
