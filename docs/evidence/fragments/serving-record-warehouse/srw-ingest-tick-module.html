@@ -1,0 +1,32 @@
+<section id="srw-ingest-tick-module" data-reckon="landed">
+  <h2>§5 — The scheduled ingest ticks in its own module</h2>
+
+  <p>Landed <code>imas_ambix/agent/telemetry_ingest.py</code>: the process that
+  owns the telemetry index alone, so a reader only reads. It exposes
+  <code>tick(index, directory, previous=…)</code> — one pass, no clock, no loop —
+  and <code>run(index, directory, cadence=…)</code>, the scheduled loop, with a
+  <code>main</code> entry point that names the index it writes explicitly rather
+  than defaulting to the reader's cache path.</p>
+
+  <p>A tick remembers each source's <code>(inode, size, mtime_ns)</code> from the
+  previous tick and hands the index only the sources whose fingerprint moved, so
+  a source unchanged since the last tick is never opened. The inode is part of
+  the fingerprint so a roll that repoints the live name at a fresh file is read
+  rather than mistaken for the bytes the old name held.</p>
+
+  <p><strong>Measure.</strong> Over a two-source fixture, the first tick appends
+  all three rows (<code>files_read == 2</code>); an immediate second tick reads
+  none (<code>files_read == 0</code>, <code>files_skipped == 2</code>) and opens
+  no source whose mtime and size are unchanged, counted by patching
+  <code>Path.open</code>. The index rebuilt from the receipts equals the appended
+  index row for row, and no receipts file is opened for writing.</p>
+
+  <p><strong>Negative control.</strong> An ingest that discovers and opens every
+  source on every tick fails the open-count assertion; applied as a scratch edit
+  and restored. Console: <code>negative-control.log</code> in the run
+  directory.</p>
+
+  <p><strong>Gate.</strong> <code>pytest tests/test_telemetry_ingest.py
+  tests/test_telemetry_index.py</code> — 58 passed; the serving-interpreter guard
+  — 1 passed; <code>ruff check imas_ambix tests</code> — clean.</p>
+</section>
