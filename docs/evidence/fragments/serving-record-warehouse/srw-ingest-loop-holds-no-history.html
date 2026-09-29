@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="serving-record-warehouse">
+</head>
+<body>
+  <main class="plan-doc">
+    <p>The scheduled ingest loop now runs forever without accumulating a report
+    per tick, and its tests observe the hand-off a tick makes rather than the
+    state the index happens to hold.</p>
+
+    <p><strong>The defect, reproduced before it was repaired.</strong>
+    <code>run()</code> appended every <code>TickReport</code> to one list and
+    kept it for the life of the loop, so the shape a standing service needs --
+    <code>iterations=None</code>, run until the process ends -- grew without
+    bound. Driven 1000 ticks through an injected <code>sleep</code> and counting
+    the reports still strongly reachable from the loop, the unfixed code kept
+    <strong>1000</strong> alive. With the repair it keeps <strong>1</strong>
+    (the latest), and the test asserts the peak live count is at most 1 over the
+    whole run. The count is taken inside the loop at each sleep, not after it
+    returns, because a traceback released after the loop would free an
+    unbounded list and report zero either way -- an instrument that cannot see
+    the defect it exists to catch.</p>
+
+    <p><strong>Zero iterations performs no tick.</strong>
+    <code>run(iterations=0)</code> returns an empty list before entering the
+    loop, so its <code>TelemetryIndex</code> reports
+    <code>sample_count() == 0</code> even though the directory holds a row to
+    ingest, and the injected <code>sleep</code> is never called. A vacuous
+    version would have passed on an empty directory; this one does not.</p>
+
+    <p><strong>The docstring now separates this module's guarantee from the
+    system's.</strong> It states that being the only writer of the index is a
+    property of this code -- nothing here opens a record file in a writing mode
+    -- and that a reader still ingests the record, so the single-writer property
+    holds only while no reader runs. The reader-side change is named as separate
+    work that has not landed.</p>
+
+    <p><strong>The tests observe the hand-off.</strong> A spy on
+    <code>TelemetryIndex.ingest</code> records the sources of every call. On a
+    two-source fixture the first tick hands over both; after one source grows
+    the second tick hands over exactly that one and not the settled neighbour. A
+    spy on <code>sqlite3.connect</code> records every address connected; the
+    assertion that <code>~/.cache/ambix/watch-index.sqlite3</code> is absent is
+    guarded by a positive control that the spy saw the index the ingest
+    legitimately opens, so an absence reads as "never touched" rather than "spy
+    never ran".</p>
+
+    <p><strong>Negative control.</strong> Handing every discovered source to
+    <code>index.ingest</code> instead of only the changed ones (a scratch edit,
+    <code>index.ingest(states)</code> for <code>index.ingest(pending)</code>)
+    fails
+    <code>test_a_tick_hands_the_index_exactly_the_sources_that_changed</code>
+    with the settled source present in the second hand-off; restored and re-run
+    green. The log repeats the declared mutation verbatim.</p>
+
+    <p><strong>Measure.</strong> Gate at commit <code>035c416e</code>: 62 passed
+    over <code>tests/test_telemetry_ingest.py</code> +
+    <code>tests/test_telemetry_index.py</code> (EXIT=0); the serving-interpreter
+    guard 1 passed (EXIT=0); <code>ruff check imas_ambix tests</code> exit 0.
+    This gate measures only this node's own change.</p>
+  </main>
+</body>
+</html>
