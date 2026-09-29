@@ -69,8 +69,11 @@ ADMISSION_FIELDS = ("headroom", "verdict", "waiting", "oldest_wait_seconds")
 
 #: The worker-slot fields the lane block copies when the lane publishes them.
 #: A lane that has not published them leaves them absent, which is a different
-#: fact from a lane that has published zeros.
-WORKER_SLOT_FIELDS = ("live_runs", "requests_per_run", "worker_slots")
+#: fact from a lane that has published zeros. ``unkeyed_share`` travels with
+#: them: it is the share of busy request-seconds whose requests carry no usable
+#: run id, and the run-keyed figures beside it are computed over the remainder,
+#: so without it those figures describe an unstated fraction of the lane.
+WORKER_SLOT_FIELDS = ("live_runs", "requests_per_run", "worker_slots", "unkeyed_share")
 
 #: The engine counters differenced over the window. A run ends when the job
 #: changes or any of these falls below its predecessor.
