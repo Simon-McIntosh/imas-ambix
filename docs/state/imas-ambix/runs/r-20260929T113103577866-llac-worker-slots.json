@@ -1,0 +1,357 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effort": "high",
+    "launch": "cli",
+    "local": true,
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "worktree-full",
+    "usable_input_window": 480000
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "0f7fbbbb421a24259fd361374fe588ed10d8faa9",
+  "boundary_waiver": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "inference_geo": "",
+      "input_tokens": 14010272,
+      "input_tokens_cumulative": 14010272,
+      "output_tokens": 51082,
+      "output_tokens_cumulative": 51082,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": {
+    "added": 377,
+    "files": 3,
+    "removed": 13
+  },
+  "commit_resolution": null,
+  "commits": [
+    "1c0510f46d9e0858731053ddcf6cdb0922aa06ba",
+    "fb5e789d187ee14bfcb60de9298c82541951383c"
+  ],
+  "completed_at": "2026-09-29T12:05:42.594Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-09-29T11:31:13Z",
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": true,
+    "matched_measure": "pytest -p",
+    "override": false,
+    "role": "implement",
+    "status": "compatible"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [
+    "live_panel.py"
+  ],
+  "gate": "passed",
+  "gate_check": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider tests/test_agent_router_worker_slots.py tests/test_agent_router_gate.py tests/test_agent_router_admission.py tests/test_agent_router_lane_publish.py",
+    "exit_status": 0,
+    "log_digest": "sha256:4c7c916b19d8b55bdedd4b631bff55b9a6be472e983fa902dfebc0517471da99",
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T113103577866-llac-worker-slots/gate.log"
+  },
+  "impl_move": {
+    "at_complete": 0.17391304347826086,
+    "at_dispatch": 0.17391304347826086,
+    "plan": "local-lane-admission-control",
+    "reason": "section 21 stays open: the repair and the deploy remain",
+    "verdict": "waived"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-09-29T12:31:04.958112+00:00",
+    "horizon_seconds": 3600,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": null,
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-09-29T11:31:04Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 22,
+    "binding_observed": "unknown",
+    "detail": "",
+    "generating": 12,
+    "headroom": 3,
+    "mean_context": 130000,
+    "observed_at": "2026-09-29T11:30:42Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45,
+    "throughput": {
+      "age_seconds": null,
+      "aggregate_tokens_per_second": "unknown",
+      "detail": "lane document publishes no 'throughput' block, so the rate its generating population achieved is not measured",
+      "mean_tokens_per_second": "unknown",
+      "observed_at": null,
+      "runs": "unknown",
+      "state": "unknown"
+    },
+    "waiting": 0
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-09-29T12:05:42.594Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": true,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T113103577866-llac-worker-slots/manifest.md",
+  "member": "fleet-placement-token",
+  "negative_control": {
+    "added_failure_ids": [
+      "tests/test_agent_router_worker_slots.py::test_live_runs_counts_run_ids_from_the_request_header"
+    ],
+    "baseline_failure_ids": [],
+    "comparison_arm": "baseline_suite",
+    "control_exit_status": 0,
+    "control_failure_ids": [
+      "tests/test_agent_router_worker_slots.py::test_live_runs_counts_run_ids_from_the_request_header"
+    ],
+    "declaration": "counting distinct caller_hint values instead of run ids must fail the live-runs test; applied as a scratch edit and restored",
+    "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T113103577866-llac-worker-slots/negative-control-live-runs.log",
+    "reason": "negative-control-live-runs.log carries pytest's own failure id for the declared mutation (FAILED test_live_runs_counts_run_ids_from_the_request_header, 1 failed) but its last EXIT line is the capturing pipeline's 0, as the independent review found; the repair node is required to record pytest's own status",
+    "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T113103577866-llac-worker-slots/negative-control-live-runs.log",
+    "test_paths": [
+      "tests/test_agent_router_worker_slots.py"
+    ],
+    "verdict": "waived"
+  },
+  "no_commit": null,
+  "node": "llac-worker-slots",
+  "node_definition": {
+    "brief": "",
+    "brief_path": "",
+    "brief_sha256": "",
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 1436,
+          "cached_input_tokens": 827959,
+          "input_tokens": 829397,
+          "output_tokens": 1631,
+          "reasoning_output_tokens": 0,
+          "total_tokens": 831028,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "0c4316b2-553f-4a0a-ae02-c42d88de747c",
+      "session_id": "0c4316b2-553f-4a0a-ae02-c42d88de747c"
+    },
+    "done_when": "Following section 6 of the reuse map at /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/scout-live-panel-reuse/reuse-map.md (the admission copy is at router.py:1759 at 41ef8974) and the plan subsection s21-definitions, which governs wherever the section text leaves room: router tests in tests/test_agent_router_worker_slots.py over stub admissions assert that fourteen run ids whose in-window busy request-seconds sum to 5,940 over a 900 s window publish live_runs 14 and requests_per_run 0.471, and at effective_width 16 with an open verdict worker_slots 19; a congested verdict publishes worker_slots 0; two live runs publish null for both derived fields even while congested; a request admitted before the window contributes only its in-window time and a request still in flight is counted up to publication; a request with no usable X-Reckon-Run-Id raises unkeyed_share, a busy-time share, and leaves requests_per_run unchanged; an empty window publishes live_runs 0 and unkeyed_share null; the 300 s history clock starts at the process's first admission and a fresh router object publishes null before it elapses; the existing gate and admission tests pass; gate: uv run --no-sync pytest -p no:cacheprovider tests/test_agent_router_worker_slots.py tests/test_agent_router_gate.py tests/test_agent_router_admission.py tests/test_agent_router_lane_publish.py passes, pytest tests/test_agent_serve_registry.py -k agent_package_modules_parse_with_serving_python passes, uv run --no-sync ruff check imas_ambix tests exits 0; the gate log's first line names the commit it ran at and each command's exit status is recorded as EXIT=0 or the non-zero status",
+    "estimated_hours": null,
+    "goal": "Publish live runs, requests per run, worker slots and the unkeyed share in the admission object of the lane document",
+    "id": "llac-worker-slots",
+    "lane_declaration": {
+      "backend": null,
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-09-29T11:31:04Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 22,
+      "binding_observed": "unknown",
+      "detail": "",
+      "generating": 12,
+      "headroom": 3,
+      "mean_context": 130000,
+      "observed_at": "2026-09-29T11:30:42Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45,
+      "throughput": {
+        "age_seconds": null,
+        "aggregate_tokens_per_second": "unknown",
+        "detail": "lane document publishes no 'throughput' block, so the rate its generating population achieved is not measured",
+        "mean_tokens_per_second": "unknown",
+        "observed_at": null,
+        "runs": "unknown",
+        "state": "unknown"
+      },
+      "waiting": 0
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T113103577866-llac-worker-slots/manifest.md",
+    "negative_control": "counting distinct caller_hint values instead of run ids must fail the live-runs test; applied as a scratch edit and restored",
+    "plan": "local-lane-admission-control",
+    "requested_backend": "clive",
+    "requires_decisions": [],
+    "role": "implement",
+    "section": "§21",
+    "spec_level": "guided",
+    "time_budget": "60m",
+    "token_budget": null,
+    "write_paths": [
+      "imas_ambix/agent/router.py",
+      "imas_ambix/agent/request_receipts.py",
+      "tests/test_agent_router_worker_slots.py",
+      "docs/evidence/fragments/local-lane-admission-control/llac-worker-slots.html",
+      "docs/figures/local-lane-admission-control/llac-worker-slots"
+    ]
+  },
+  "orientation_input_tokens": 1689562.0,
+  "outcome": "",
+  "pace": {
+    "allowance": null,
+    "bar": null,
+    "clocks": {
+      "five_hour": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "five_hour",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null
+      },
+      "seven_day": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "seven_day",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null
+      }
+    },
+    "group": null,
+    "hold": null,
+    "lane": "clive",
+    "member": null,
+    "node": "llac-worker-slots",
+    "policy": {
+      "drain_lead_hours": 12.0,
+      "pace_multiple": 1.1
+    },
+    "reason": "the lane declares no budget group, so no wallet paced it",
+    "recorded_at": "2026-09-29T11:31:07.823039+00:00",
+    "score": 0.6625,
+    "source": null,
+    "state": "unknown"
+  },
+  "plan": "local-lane-admission-control",
+  "plan_impl_at_dispatch": 0.17391304347826086,
+  "promoted_revision": "fb5e789d187ee14bfcb60de9298c82541951383c",
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "scores": {
+      "durability": 14,
+      "evidence": 18,
+      "fit": 17,
+      "goal_fidelity": 18,
+      "scope_discipline": 20
+    },
+    "status": "parsed",
+    "total": 87
+  },
+  "review_tier": "full",
+  "role": "implement",
+  "run_id": "r-20260929T113103577866-llac-worker-slots",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§21",
+  "session_harness": "claude",
+  "session_id": "abd551fb-f809-49e0-b132-66298c890f20",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "guided",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 9,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 14153071,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+    "elapsed_seconds": 2050.667,
+    "generated_tokens": 57697,
+    "generation_seconds": 1974.618,
+    "input_budget_tokens": 480000,
+    "input_utilisation_pct": 34.5,
+    "machine_seconds": 76.049,
+    "peak_input_tokens": 165767,
+    "tokens_per_second": 29.22,
+    "wall_tokens_per_second": 28.14
+  },
+  "time_budget": "60m",
+  "tool_steps": 116.0,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": []
+  },
+  "wall_seconds": 2069,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-09-29T12:05:43Z",
+    "last_record_type": "result",
+    "launched_at": "2026-09-29T11:31:27Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20260929T113103577866-llac-worker-slots",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 9498,
+    "worker_pid": 2359790
+  },
+  "worker_seconds": 2038,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
