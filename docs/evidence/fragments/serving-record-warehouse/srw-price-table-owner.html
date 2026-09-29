@@ -1,0 +1,21 @@
+<section data-reckon="fragment" data-node="srw-price-table-owner">
+  <p>The provider price table has one owner. A new module
+  <code>imas_ambix/agent/provider_prices.py</code> resolves the table path through
+  the new <code>SiteConfig.price_table</code> property, fetches the OpenRouter
+  models endpoint under a 10 s bound, writes atomically through
+  <code>os.replace</code> of a sibling <code>.tmp</code> onto the path, reads the
+  table's age from its own <code>at</code> field (file mtime only when that field
+  is absent), refreshes only past 24 h, and keeps the cached table with its true
+  age when a fetch fails, times out or returns nothing. The retired
+  <code>~/.cache/gpu-watch/openrouter-prices.json</code> seeds the new path once,
+  and never again once the path exists. <code>watch.py</code> no longer holds a path
+  literal: <code>DEFAULT_PRICE_PATH</code> is removed, <code>load_prices</code>
+  resolves through the module, and the full render path refreshes once and reports
+  the age in the watch JSON document. The <code>--live</code> path carries no
+  price fetch.</p>
+  <p>Measure: <code>tests/test_provider_prices.py</code> 11 passed and
+  <code>tests/test_agent_telemetry_watch.py</code> 14 passed; the serving-interpreter
+  parse guard passed; <code>ruff check imas_ambix tests</code> exits 0. Negative
+  control, applied as a scratch edit and restored: letting a failed fetch overwrite
+  the cached table failed <code>test_a_failed_fetch_keeps_the_cached_table</code>.</p>
+</section>

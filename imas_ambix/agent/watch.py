@@ -63,9 +63,6 @@ def default_record_dir() -> Path:
 #: rather than beside the record it is derived from.
 DEFAULT_INDEX_PATH = Path.home() / ".cache" / "ambix" / "watch-index.sqlite3"
 
-#: Open-market rates, cached on disk by the workstation watcher. Read only.
-DEFAULT_PRICE_PATH = Path.home() / ".cache" / "gpu-watch" / "openrouter-prices.json"
-
 #: The canonical engine section of a receipt row, as settled by
 #: :mod:`imas_ambix.agent.engine_metrics`. These are the names the ledger
 #: integrates; the flat legacy spelling is not consulted, because a reader that
@@ -321,15 +318,21 @@ def match_price(model_id: str, models: Sequence[dict]) -> dict | None:
 
 
 def load_prices(path: str | Path | None = None) -> list[float | dict] | None:
-    """Provider list prices from the local cache, or ``None`` when absent.
+    """Provider list prices from the owned table, or ``None`` when absent.
 
-    The workstation watcher fetches this table; a reader must not, because a
-    network round trip is a probe and the panel would then depend on the
-    provider being reachable. An absent or unreadable cache leaves the cost
-    column dashed for the whole render rather than stalling it.
+    :mod:`imas_ambix.agent.provider_prices` owns the table: it fetches and
+    refreshes it, and this module reads back whatever it last wrote. A reader
+    must not fetch, because a network round trip is a probe and the panel
+    would then depend on the provider being reachable. An absent or
+    unreadable table leaves the cost column dashed for the whole render
+    rather than stalling it.
     """
+    if path is None:
+        from imas_ambix.agent import provider_prices
+
+        path = provider_prices.table_path()
     try:
-        doc = json.loads(Path(path or DEFAULT_PRICE_PATH).read_text(encoding="utf-8"))
+        doc = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
     models = doc.get("models")
@@ -690,6 +693,21 @@ def render_document(
     return "\n".join(blocks)
 
 
+def _owned_prices() -> tuple[list[float | dict] | None, float | None]:
+    """Refresh the owned price table, then read it back.
+
+    The full render path calls this once. The owning module decides whether a
+    fetch is due, so a render waits at most the module's fetch bound and the
+    reader never fetches on its own account. The age returned is the age of
+    the table that was read, so a kept cache is reported at its true age
+    rather than as fresh.
+    """
+    from imas_ambix.agent import provider_prices
+
+    outcome = provider_prices.refresh()
+    return load_prices(outcome.path), outcome.age
+
+
 def watch_text(
     record_dir: str | Path | None = None,
     index_path: str | Path | None = None,
@@ -704,13 +722,14 @@ def watch_text(
     record files under *record_dir*, consumes what has been appended since the
     last pass, and asks the index for every figure the panels show. Nothing
     here probes the serve, and nothing here writes a ledger. *prices* is passed
-    in for a caller that already holds a table; ``None`` reads the local cache.
+    in for a caller that already holds a table; ``None`` refreshes and reads
+    the table the package owns.
     """
     directory = Path(record_dir or default_record_dir())
     target = Path(index_path or DEFAULT_INDEX_PATH)
     target.parent.mkdir(parents=True, exist_ok=True)
     if prices is None:
-        prices = load_prices()
+        prices, _ = _owned_prices()
     sources = discover(directory)
     with TelemetryIndex(target) as index:
         index.ingest(sources)
@@ -723,12 +742,16 @@ def document(
     *,
     now: float | None = None,
     prices: Sequence[dict] | None = None,
+    price_age: float | None = None,
 ) -> dict:
     """The same figures :func:`render_document` prints, as plain data.
 
     The text renderer and this share every query, so a figure a caller reads
     out of the JSON is the figure the panel showed rather than a second
-    derivation that could drift from it.
+    derivation that could drift from it. *price_age* is the age of the price
+    table the figures were priced from, in seconds; it is reported here so a
+    consumer renders cost from the document rather than reaching for the
+    table itself.
     """
     when = time.time() if now is None else now
     reading = _latest_reading(index, when)
@@ -738,6 +761,7 @@ def document(
         "record": reading,
         "ledger": [dataclasses.asdict(row) for row in rows],
         "periods": [row.label for row in rows],
+        "price_age": price_age,
     }
 
 
@@ -747,17 +771,20 @@ def watch_document(
     *,
     now: float | None = None,
     prices: Sequence[dict] | None = None,
+    price_age: float | None = None,
 ) -> dict:
     """Consume the record, then return the panels' figures as plain data."""
     directory = Path(record_dir or default_record_dir())
     target = Path(index_path or DEFAULT_INDEX_PATH)
     target.parent.mkdir(parents=True, exist_ok=True)
     if prices is None:
-        prices = load_prices()
+        prices, age = _owned_prices()
+        if price_age is None:
+            price_age = age
     sources = discover(directory)
     with TelemetryIndex(target) as index:
         index.ingest(sources)
-        return document(index, now=now, prices=prices)
+        return document(index, now=now, prices=prices, price_age=price_age)
 
 
 def _plain(markup: str, *, width: int = 110) -> str:
@@ -789,7 +816,6 @@ def _parse_timestamp(value: Any) -> float | None:
 
 __all__ = [
     "DEFAULT_INDEX_PATH",
-    "DEFAULT_PRICE_PATH",
     "default_record_dir",
     "LEDGER_PERIODS",
     "Period",
