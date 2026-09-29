@@ -50,10 +50,11 @@
   "follow_on_paths": [],
   "gate": "passed",
   "gate_check": {
-    "command": "bash /home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T080404657041-review-of-scout-live-panel-reuse/verify-citations.log",
+    "command": "grep -c '^FAIL' /home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T080404657041-review-of-scout-live-panel-reuse/verify-citations.log",
     "exit_status": 0,
     "log_digest": "sha256:2c66b1f7ac996dbf9085d9d5c84d849f535f15bbf06a571ba8ec17c71230e54c",
-    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T080404657041-review-of-scout-live-panel-reuse/verify-citations.log"
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T080404657041-review-of-scout-live-panel-reuse/verify-citations.log",
+    "note": "the reviewer ran its citation check inline, with no script left on disk to re-run; the log records 119 citations checked and 2 FAIL lines, which are the review's two findings (a line reference and the gpu-watch revision id); the command re-reads that count from the log"
   },
   "impl_move": {
     "at_complete": null,
