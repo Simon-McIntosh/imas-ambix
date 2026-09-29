@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from imas_ambix.agent.cache_estimate import (
     CacheEstimate,
@@ -114,8 +114,8 @@ def test_arrival_is_the_timestamp() -> None:
     first = row("2026-09-05T00:00:00Z", 300, run_id="A", duration_s=0.0)
     second = row("2026-09-05T00:05:50Z", 300, run_id="A", duration_s=100.0)
 
-    assert arrival_of(first) == datetime(2026, 9, 5, 0, 0, 0, tzinfo=timezone.utc)
-    assert arrival_of(second) == datetime(2026, 9, 5, 0, 5, 50, tzinfo=timezone.utc)
+    assert arrival_of(first) == datetime(2026, 9, 5, 0, 0, 0, tzinfo=UTC)
+    assert arrival_of(second) == datetime(2026, 9, 5, 0, 5, 50, tzinfo=UTC)
 
     estimate = estimate_hit_rate([first, second], 300.0)
 
