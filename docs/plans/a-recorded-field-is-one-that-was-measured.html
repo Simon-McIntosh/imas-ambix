@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-29">
 <meta name="plan-impl" content="0.67">
-<meta name="plan-version" content="7">
+<meta name="plan-version" content="8">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;done&quot;}">
 </head>
 <body>
@@ -128,6 +128,9 @@
 </div>
 <div class="r-comment" data-section="s2" data-id="c-run-r-20260929T100652949879-review-of-arf-absent-record-carries-no-reading" data-who="reckon-build" data-when="2026-09-29T10:32:43.981Z">
     <div class="r-comment-body"><p>Stored the parsed review of r-20260929T095604132236 at both granted paths (status parsed, 5 dimensions scored: goal_fidelity 20, evidence 17, scope_discipline 20, durability 18, fit 19; total 94) with added_failure_count 0 and two low-severity findings: the reviewed gate log opens with a stray no-arg uv help dump before its passing pytest session, and no log in the run names the reviewed head ffd7c46f.</p></div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-run-r-20260929T091643377727-review-of-arf-receipt-section-contract-repair" data-who="reckon-build" data-when="2026-09-29T10:42:56.625Z">
+    <div class="r-comment-body"><p>The review record for r-20260929T085554636505-arf-receipt-section-contract-repair is stored at both granted paths with status parsed and all five dimensions scored in 0..20 (goal_fidelity 19, evidence 16, scope_discipline 20, durability 18, fit 19; total 92) plus three findings: the reviewed manifest&#x27;s orientation_base_sha resolves to no object, one hex digit from the true parent of 1c4a3e8e; gate-pytest.log line 1 heads its run with the base revision while collecting 48 items where that revision collects 47; and the new absent-squeue case omits the refused sibling&#x27;s no-count/no-rows set assertion (tests/test_receipt_section_contract.py:135). The reviewed repair lands correctly — this reviewer re-ran the named gate at 3901db33 in the reviewed worktree (48 passed, EXIT=0) and ruff exit 0 — and the change has since been merged to main (f6afcd21) with all three declared paths byte-identical to the reviewed head; the three findings are recorded for the coordinator&#x27;s writeback, not fixed here.</p></div>
 </div>
 </section>
 </main>
