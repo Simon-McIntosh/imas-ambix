@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-29">
-<meta name="plan-version" content="69">
+<meta name="plan-version" content="70">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;implementable&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -797,6 +797,9 @@
 <div class="r-comment" data-section="s8" data-id="c-run-r-20260929T072856792180-srw-compaction-splits-at-restart" data-who="reckon-build" data-when="2026-09-29T08:49:57.699Z">
     <div class="r-comment-body"><p>docs/evidence/fragments/serving-record-warehouse/srw-compaction-splits-at-restart.html</p></div>
 </div>
+<div class="r-comment" data-section="s8" data-id="c-run-r-20260929T084820376618-review-of-srw-compaction-splits-at-restart" data-who="reckon-build" data-when="2026-09-29T11:26:12.266Z">
+    <div class="r-comment-body"><p>not applicable; review node, no source change; the reviewed commit e52d8ca5 and its worktree are untouched</p></div>
+</div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20260924T122840994565-s26-currency-audit" data-who="reckon-ship" data-when="2026-09-24T12:30:00Z">
     <div class="r-comment-body"><p>stopped by the coordinator within a minute of launch: the repository's local-lane budget for the re-plan exercise was reallocated, and the audit was done in-session instead</p></div>
 </div>
@@ -840,7 +843,7 @@
     <div class="r-comment-body"><p>docs/evidence/fragments/serving-record-warehouse/srw-live-panel-blocks.html — added imas_ambix/agent/live_panel.py building the lane and live watch blocks from the lane document and the newest raw receipt file alone, with tests/test_live_panel.py; no figure, the done-when names no artifact.</p></div>
 </div>
 <div class="r-comment" data-section="s11" data-id="c-run-r-20260929T100451669810-review-of-srw-live-panel-blocks" data-who="reckon-build" data-when="2026-09-29T11:22:18.748Z">
-    <div class="r-comment-body"><p>Independent review of r-20260929T090004745703-srw-live-panel-blocks at head 1b79e605f47cfb2d83ee253288e000ee0e4b61a5 over base e039b307bde53a32781c870b3a72c90de1d8c9b2 stored a parsed record scoring goal_fidelity 18, evidence 19, scope_discipline 20, durability 17, fit 19 (total 93, item_* aggregate 6, call_sites none, added_failure_count 0 with no added failure ids, two findings and two follow-ons inside the record). The declared gate was re-run by this review in its own scratch tree at the reviewed head (16 passed for the node&#x27;s own new test file, the serving-interpreter guard 1 passed with 8 deselected, ruff check imas_ambix tests All checks passed), the base arm of the same test file against the base revision is one collection error at the new test file, so the change adds no failing test, and the two findings the scores rest on are the partly-asserted lane copy (tests/test_live_panel.py line 269) and the last-line-only receipt file selection (imas_ambix/../agent/live_panel.py line 162, full path as recorded in the finding).</p></div>
+    <div class="r-comment-body"><p>Independent review of r-20260929T090004745703-srw-live-panel-blocks at head 1b79e605f47cfb2d83ee253288e000ee0e4b61a5 over base e039b307bde53a32781c870b3a72c90de1d8c9b2 stored a parsed record scoring goal_fidelity 18, evidence 19, scope_discipline 20, durability 17, fit 19 (total 93, item_* aggregate 6, call_sites none, added_failure_count 0 with no added failure ids, two findings and two follow-ons inside the record). The declared gate was re-run by this review in its own scratch tree at the reviewed head (16 passed for the node's own new test file, the serving-interpreter guard 1 passed with 8 deselected, ruff check imas_ambix tests All checks passed), the base arm of the same test file against the base revision is one collection error at the new test file, so the change adds no failing test, and the two findings the scores rest on are the partly-asserted lane copy (tests/test_live_panel.py line 269) and the last-line-only receipt file selection (imas_ambix/../agent/live_panel.py line 162, full path as recorded in the finding).</p></div>
 </div>
 <div class="r-comment" data-section="s9" data-id="c-run-r-20260929T072923543423-srw-third-party-hit-rate-measured" data-who="reckon-build" data-when="2026-09-29T08:16:09.318Z">
     <div class="r-comment-body"><p>Measured h = 0.8581679092941827 for deepseek/deepseek-v4.1-flash on OpenRouter from 60 responses (238720 cached prompt tokens over 278174 prompt tokens), spend USD 0.008353, recorded 2026-09-29 against endpoint https://openrouter.ai/api/v1/chat/completions; record at ~/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/third-party-hit-rate/third-party-hit-rate.json.</p></div>
