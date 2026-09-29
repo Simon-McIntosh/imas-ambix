@@ -256,10 +256,11 @@ def _bound(key: str) -> float:
 def _median_from_histogram(rows: list[dict[str, Any]]) -> float | None:
     """The median of the window's time-to-first-token histogram advance.
 
-    The histogram is cumulative since the engine started, so the window's
-    distribution is the difference of the last and first rows' buckets. The
-    median is the upper bound of the bucket whose cumulative advance first
-    reaches half the total; when that bucket is the open tail the mean of the
+    The histogram is cumulative since the engine started: each bucket counts
+    every request at or below its upper bound, so the window's total is the
+    advance of the topmost bucket, not the sum of the bucket advances. The
+    median is interpolated inside the bucket whose cumulative advance first
+    reaches half that total; when that bucket is the open tail the mean of the
     advance is returned instead, because an infinite bound is not a median.
     """
     first = _histogram(rows[0])
@@ -267,23 +268,35 @@ def _median_from_histogram(rows: list[dict[str, Any]]) -> float | None:
     if first is None or last is None:
         return None
     keys = sorted({*first["buckets"], *last["buckets"]}, key=_bound)
-    advances: list[tuple[float, float]] = []
-    for key in keys:
-        delta = last["buckets"].get(key, 0.0) - first["buckets"].get(key, 0.0)
-        if delta > 0:
-            advances.append((_bound(key), delta))
-    total = sum(value for _, value in advances)
+    if not keys:
+        return None
+    advances: list[tuple[float, float]] = [
+        (
+            _bound(key),
+            last["buckets"].get(key, 0.0) - first["buckets"].get(key, 0.0),
+        )
+        for key in keys
+    ]
+    total = advances[-1][1]
     if total <= 0:
         return None
     target = total / 2.0
-    cumulative = 0.0
-    for bound, value in advances:
-        cumulative += value
-        if cumulative >= target:
-            if math.isinf(bound):
-                count = last["count"] - first["count"]
-                return (last["total"] - first["total"]) / count if count > 0 else None
-            return bound
+    lower_bound = 0.0
+    lower_count = 0.0
+    for bound, count in advances:
+        if math.isinf(bound):
+            count_delta = last["count"] - first["count"]
+            return (
+                (last["total"] - first["total"]) / count_delta
+                if count_delta > 0
+                else None
+            )
+        if count >= target:
+            return lower_bound + (target - lower_count) / (count - lower_count) * (
+                bound - lower_bound
+            )
+        lower_bound = bound
+        lower_count = count
     return None
 
 
