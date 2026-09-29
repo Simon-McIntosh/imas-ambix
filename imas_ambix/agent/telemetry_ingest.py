@@ -4,9 +4,9 @@ The durable record is an append-only JSONL file per serve, written on shared
 storage by the on-node recorder. The query side is a disposable SQLite index
 derived from it (:mod:`imas_ambix.agent.telemetry_index`). This module is the
 process that keeps that index current on its own schedule -- one writer, many
-readers -- so a reader such as ``agent watch`` never writes the store it
-queries. A reader that ingested would make the store current only as often as
-somebody looked, and would have two readers contend on one file.
+readers -- so a reader such as ``agent watch`` is not the process that maintains
+the store it queries. A reader that ingested would make the store current only
+as often as somebody looked, and would have two readers contend on one file.
 
 **A tick consults the sources' own metadata before it opens anything.** The
 record is written continuously, and on a network filesystem re-reading a file
@@ -28,11 +28,15 @@ process is scheduled. :func:`run` is that loop: it ticks on a cadence in
 seconds, carrying the source fingerprints from one tick to the next, and stops
 after *iterations* when a caller asks it to.
 
-**The index is written by this process alone and never by a reader.** A tick
-opens record files for reading only; the index file is the sole thing written.
-That is the whole point of moving the ingest out of the reader, and it is a
-property of the code rather than a convention: nothing here opens a record file
-in a writing mode.
+**One writer is this module's own property, and it is not yet the system's.**
+A tick opens record files for reading only; the index file is the sole thing
+written. That is what makes a process started through this module the only
+writer of the index it holds, and it is a property of the code rather than a
+convention: nothing here opens a record file in a writing mode. It says nothing
+about the rest of the system. A reader still ingests the record itself -- the
+reader-side change that would stop it is separate work and has not landed -- so a
+reader running today writes the same index this loop is meant to own, and the
+single-writer guarantee holds only while no reader runs.
 """
 
 from __future__ import annotations
@@ -183,10 +187,13 @@ def run(
 
     The source fingerprints are carried across ticks here, so the loop is the
     only place the previous-tick state lives; a caller that drives
-    :func:`tick` itself threads the same state. With *iterations* ``None`` the
-    loop runs until the process ends, which is the scheduled service; a finite
-    count returns the reports it collected and never sleeps past the last tick,
-    so a caller asking for one tick pays nothing for a cadence it did not use.
+    :func:`tick` itself threads the same state. A finite count returns the
+    reports it collected and never sleeps past the last tick, so a caller asking
+    for one tick pays nothing for a cadence it did not use; a caller asking for
+    zero ticks gets an empty list and touches nothing. With *iterations*
+    ``None`` the loop runs until the process ends, or the injected *sleep*
+    raises, which is the scheduled service; it keeps only the latest report, so
+    a service that runs for months holds no growing history.
 
     *sleep* and *on_tick* are injected so a caller -- a test, or a service that
     wants to log each pass -- can supply its own without the loop knowing.
@@ -195,12 +202,21 @@ def run(
         raise ValueError(f"cadence must be positive seconds, not {cadence!r}")
     if iterations is not None and iterations < 0:
         raise ValueError(f"iterations must not be negative, not {iterations!r}")
+    if iterations == 0:
+        return []
     state = previous
     reports: list[TickReport] = []
     while True:
         report = tick(index, directory, previous=state, pattern=pattern)
         state = report.sources
-        reports.append(report)
+        if iterations is None:
+            # The scheduled service never returns, so a list that grew by one
+            # per tick would grow for the life of the process. Rebind so the
+            # previous list is dropped for collection; the latest report is all
+            # a caller can observe of an endless loop, so it is all that is kept.
+            reports = [report]
+        else:
+            reports.append(report)
         if on_tick is not None:
             on_tick(report)
         if iterations is not None and len(reports) >= iterations:
