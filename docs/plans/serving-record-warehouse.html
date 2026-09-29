@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-29">
-<meta name="plan-version" content="42">
+<meta name="plan-version" content="44">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;implementable&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -770,6 +770,12 @@
 </div>
 <div class="r-comment" data-section="s7" data-id="c-srw-handoff-correction-reader" data-who="reckon-ship" data-when="2026-09-24T12:50:00Z">
     <div class="r-comment-body"><p><strong>Correction to the handoff table above: §3 is not deep, because nothing has ever used it.</strong> The table called §3 deep because it is implemented, tested and reached from <code>imas-ambix agent watch</code>. But that command has never finished rendering. Measured by f6: <code>timeout 420 imas-ambix agent watch</code> exits 124 with zero bytes of output. It runs at about 11% CPU, blocked in GPFS fsync inside a SQLite write transaction against the 1 GB index opened with default pragmas. It is slow rather than hung, and it renders only at the end. So §3 is <em>implemented, tested and wired, but unused in practice</em>. Every warehouse reader figure rests on a reader nobody has seen complete. The diagnosis is tracked as <code>serve-telemetry-spine</code> f-sts-004. It is the first dependency for f-srw-007: once the ingest service is the only writer and readers open the index read-only, <code>agent watch</code> stops holding a write transaction at all. The recorder side is deep and verified: 7,324 of 7,324 relayed inferences carry tokens, against 0 of 87 before.</p></div>
+</div>
+<div class="r-comment" data-section="s10" data-id="c-land-srw-watch-help-names-its-default" data-who="reckon-build" data-when="2026-09-29T08:12:00Z">
+    <div class="r-comment-body"><p>Landed §10 node 1 (run <code>r-20260929T072914346236-srw-watch-help-names-its-default</code>, commit <code>3c8f86e4</code>, merged <code>1fd33adb</code>). The <code>agent watch --record</code> help now states that the default resolves through the site configuration, via <code>watch.default_record_dir</code>, instead of naming the removed <code>~/.local/share/ambix/receipts</code>. Two CliRunner tests pass. The declared negative control, restoring the old string, fails both. Independent review scored 92 with 0 added failures. Its finding is that the test pins the help's wording without asserting that <code>watch.default_record_dir</code> exists. That finding and the worker's follow-on, the <code>receipts --output</code> help at <code>cli.py:2582</code> which still names the same removed default, are folded into one <code>cli.py</code> node. §10 stays open: its gpu-watch node remains.</p></div>
+</div>
+<div class="r-comment" data-section="s10" data-id="c-run-r-20260929T072914346236-srw-watch-help-names-its-default" data-who="reckon-build" data-when="2026-09-29T07:46:25.794Z">
+    <div class="r-comment-body"><p>The agent watch --record help now states its default is resolved by watch.default_record_dir through the site configuration instead of naming the superseded ~/.local/share/ambix/receipts; tests/test_agent_watch_help.py renders the command&#x27;s --help and pins it (2 passed, 0 failed).</p></div>
 </div>
 </section>
 </main>
