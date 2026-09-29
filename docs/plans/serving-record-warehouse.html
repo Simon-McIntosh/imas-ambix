@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-29">
-<meta name="plan-version" content="65">
+<meta name="plan-version" content="66">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;implementable&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -847,6 +847,9 @@
 </div>
 <div class="r-comment" data-section="s9" data-id="c-run-r-20260929T091145692129-review-of-srw-third-party-hit-rate-at-production-size" data-who="reckon-build" data-when="2026-09-29T10:35:21.123Z">
     <div class="r-comment-body"><p>Independent review of r-20260929T081559822960-srw-third-party-hit-rate-at-production-size at head 0cd5d04e against base 7f36237a stored a parsed record scoring goal_fidelity 18, evidence 17, scope_discipline 19, durability 16, fit 17 (total 87) with added_failure_count unmeasured (the reviewed manifest names no gate log: its baseline_suite and after_suite are "none: ...", so no added-failure count was taken) and no added failure ids; five findings, all on the evidence directory's aggregation and the landed fragment rather than on the measurement: h is summed over three guaranteed cold starts (warm-only 0.9768), two structural zeros sit in the gap series, the single clipped gap coincides with the single within-window provider switch and the single warm-turn miss, the comparison stratum's figure is a literal in build_report.py while its record sits beside it, and the fragment points at "the node write path" rather than a resolvable path.</p></div>
+</div>
+<div class="r-comment" data-section="s9" data-id="c-run-r-20260929T090032497747-srw-hit-rate-from-receipt-gaps" data-who="reckon-build" data-when="2026-09-29T10:02:38.769Z">
+    <div class="r-comment-body"><p>Landed imas_ambix/agent/cache_estimate.py with tests/test_cache_estimate.py; the module counts a request as a third-party cache hit when the same caller&#x27;s previous request to the same model arrived strictly within the cache lifetime (arrival is the row timestamp minus its duration; caller is run_id when non-empty, else coordinator_session when non-empty, else none) and returns h as hit prompt tokens over all prompt tokens; over the trailing 7 days of ~/public/imas-ambix/requests.jsonl (124339 rows, caller share 0.456245) h is 0.493952 at Novita&#x27;s published 5-minute default lifetime (300 s) and 0.499214 at its 1-hour tier (3600 s); citation Novita prompt-cache guide, https://novita.ai/docs/guides/llm-prompt-cache, accessed 2026-09-29.</p></div>
 </div>
 <div class="r-comment" data-section="s12" data-id="c-run-r-20260929T090046798107-readback-2-of-serving-record-warehouse" data-who="reckon-build" data-when="2026-09-29T10:14:05.545Z">
     <div class="r-comment-body"><p>read-back of the definitions block in §12 of imas-ambix:serving-record-warehouse — 17 of 17 [build] readings closed, 9 of the block's 43 sentences flagged as carrying two readings (6 build-affecting), the definitions' factual claims verified against the workspace, and three gaps left for the plan's owner under follow_ons.</p></div>
