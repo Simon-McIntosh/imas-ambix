@@ -34,6 +34,20 @@ built from cannot be integrated honestly at the next tier. Compacting the minute
 tier into the hour tier is then just the same weighted mean one level up, which
 is why the operation is associative.
 
+*Each gauge leaf carries its own observation count, and the peak-read leaves
+carry their window's extremes.* A row-wide sample count cannot say that one leaf
+was observed in three of twelve samples while another was observed in all
+twelve, so the row's ``obs`` block names, per gauge leaf, how many source
+samples observed it -- the absent-versus-zero distinction one level down, so a
+mean resting on three samples is legible as one. A leaf whose peak is the
+capacity signal (:data:`PEAK_LEAF_NAMES`: requests running and queued, KV pool
+occupancy, card utilisation and power draw) additionally carries the window's
+minimum and maximum, because an hour at 40% mean occupancy is consistent with a
+flat 40% and with a spike to 100% and only the second is a capacity problem.
+Re-compaction sums the counts and folds the extremes by min and max, so an hour
+built from minute rows carries exactly the counts and peaks an hour built
+straight from raw rows does.
+
 **Classification is by leaf name, not by position.** A numeric leaf is a counter
 when its name ends in ``_total``, when it is a known cumulative quantity
 (:data:`COUNTER_LEAF_NAMES`), or when it lives under a ``histograms`` section
@@ -140,6 +154,26 @@ COUNTER_LEAF_NAMES: frozenset[str] = frozenset(
     }
 )
 
+#: Gauge leaves whose peak, rather than their mean, is the capacity signal. A
+#: window at 40% mean occupancy is consistent with a flat 40% and with a spike
+#: to 100%, and only the second is a capacity problem, so these leaves carry
+#: their window's minimum and maximum beside its mean. Classification is by leaf
+#: name, as elsewhere: the card readings are the leaf names under a ``cards``
+#: section.
+PEAK_LEAF_NAMES: frozenset[str] = frozenset(
+    {
+        "num_requests_running",
+        "num_requests_waiting",
+        "kv_cache_usage_perc",
+        "utilisation_percent",
+        "power_draw_w",
+    }
+)
+
+#: The leaf of a row's ``obs`` block carrying one entry per gauge leaf, keyed by
+#: the leaf's dotted path, naming how many source samples observed it.
+_OBS_LEAVES_KEY = "leaves"
+
 #: Decimal places a gauge mean and an observation weight are rounded to. The
 #: rounding is what makes repeated compaction byte-identical rather than merely
 #: near-identical on floats that differ in their last bit.
@@ -153,14 +187,47 @@ class TelemetryStoreError(ValueError):
 
 @dataclass
 class _Mean:
-    """One gauge leaf's running time-weighted mean while a window accumulates."""
+    """One gauge leaf's running state while a window accumulates.
 
+    Beside the time-weighted mean it carries how many source samples observed
+    the leaf, because a mean resting on three of twelve samples cannot say so
+    from its own value -- the absent-versus-zero distinction, one level down. A
+    leaf whose peak is the capacity signal also carries the window's minimum and
+    maximum, so a mean consistent with both a flat window and a spike can be
+    told apart from the record itself.
+    """
+
+    peak: bool = False
     weighted: float = 0.0
     weight: float = 0.0
+    count: int = 0
+    minimum: float | None = None
+    maximum: float | None = None
 
-    def add(self, value: float, weight: float) -> None:
+    def add(
+        self,
+        value: float,
+        weight: float,
+        *,
+        count: int = 1,
+        minimum: float | None = None,
+        maximum: float | None = None,
+    ) -> None:
+        """Fold one observation in.
+
+        *count* is how many source samples this contribution stands for: one for
+        a raw row, the sum its ``obs`` block declared for a compacted one. The
+        extremes fold by min and max, so a chained compaction carries the same
+        peak as a direct one.
+        """
         self.weighted += value * weight
         self.weight += weight
+        self.count += count
+        if self.peak:
+            low = value if minimum is None else minimum
+            high = value if maximum is None else maximum
+            self.minimum = low if self.minimum is None else min(self.minimum, low)
+            self.maximum = high if self.maximum is None else max(self.maximum, high)
 
     def value(self) -> float:
         if self.weight == 0:
@@ -187,28 +254,41 @@ def _is_counter(path: tuple[str, ...]) -> bool:
     return leaf.endswith("_total") or leaf in COUNTER_LEAF_NAMES
 
 
+def _is_peak_leaf(path: tuple[str, ...]) -> bool:
+    """Whether a leaf at *path* carries its window's extremes beside its mean."""
+    return path[-1] in PEAK_LEAF_NAMES
+
+
 def _merge(
     acc: dict[str, Any],
     node: dict[str, Any],
     weight: float,
     path: tuple[str, ...],
+    declared: dict[str, dict[str, Any]],
 ) -> None:
     """Fold one row's payload *node* into the window accumulator *acc*.
 
     A counter leaf keeps the *latest* value (its endpoint); a gauge leaf folds
-    into a running weighted mean; an identity leaf is overwritten so the window
-    reports the last one seen; a null leaf is recorded only where the window has
-    no value yet, so it cannot discard observations taken earlier in the window.
-    Dicts recurse, and a list of equal-length dicts recurses element-wise so a
-    per-card section is averaged per card rather than replaced.
+    into a running weighted mean, its observation count and -- where its peak is
+    the capacity signal -- its extremes; an identity leaf is overwritten so the
+    window reports the last one seen; a null leaf is recorded only where the
+    window has no value yet, so it cannot discard observations taken earlier in
+    the window. Dicts recurse, and a list of equal-length dicts recurses
+    element-wise so a per-card section is averaged per card rather than replaced.
+    A leaf's dotted path is indexed through lists, so a per-card leaf's count is
+    its own rather than the section's.
+
+    *declared* carries a compacted row's per-leaf observation counts and
+    extremes keyed by dotted path (:func:`_declared_leaf_stats`); it is empty
+    for a raw row, whose every present leaf observed once.
     """
     for key, value in node.items():
         leaf_path = (*path, key)
         if value is None:
             # A null leaf is an absent observation, not an observation of zero,
             # so it is recorded only where the window holds nothing yet. Letting
-            # it overwrite the accumulator would discard every observation taken
-            # before it while still declaring the whole window's weight.
+            # it overwrite the gauge accumulator would discard every observation
+            # taken before it while still declaring the whole window's weight.
             acc.setdefault(key, None)
         elif isinstance(value, (bool, str)):
             acc[key] = value
@@ -218,30 +298,43 @@ def _merge(
             else:
                 entry = acc.get(key)
                 if not isinstance(entry, _Mean):
-                    entry = _Mean()
+                    entry = _Mean(peak=_is_peak_leaf(leaf_path))
                     acc[key] = entry
-                entry.add(float(value), weight)
+                stat = declared.get(".".join(leaf_path))
+                entry.add(
+                    float(value),
+                    weight,
+                    count=stat["n"] if stat else 1,
+                    minimum=stat.get("min") if stat else None,
+                    maximum=stat.get("max") if stat else None,
+                )
         elif isinstance(value, dict):
             sub = acc.get(key)
             if not isinstance(sub, dict):
                 sub = {}
                 acc[key] = sub
-            _merge(sub, value, weight, leaf_path)
+            _merge(sub, value, weight, leaf_path, declared)
         elif isinstance(value, list):
-            acc[key] = _merge_list(acc.get(key), value, weight, leaf_path)
+            acc[key] = _merge_list(acc.get(key), value, weight, leaf_path, declared)
         else:  # pragma: no cover - a payload the recorder does not produce
             acc[key] = value
 
 
 def _merge_list(
-    acc: Any, values: list[Any], weight: float, path: tuple[str, ...]
+    acc: Any,
+    values: list[Any],
+    weight: float,
+    path: tuple[str, ...],
+    declared: dict[str, dict[str, Any]],
 ) -> Any:
     """Compact a list leaf, element-wise when it is a list of dicts.
 
     A list of numeric values is a vector gauge and is averaged per index; a list
-    of dicts (a per-card or per-position section) recurses by index. A ragged or
-    otherwise unusual list is identity and the latest value is kept -- the store
-    reports what it cannot average rather than inventing an alignment.
+    of dicts (a per-card or per-position section) recurses by index, the index
+    entering the leaf's dotted path so each element carries its own observation
+    count. A ragged or otherwise unusual list is identity and the latest value is
+    kept -- the store reports what it cannot average rather than inventing an
+    alignment.
     """
     all_numbers = bool(values) and all(
         isinstance(v, (int, float)) and not isinstance(v, bool) for v in values
@@ -251,17 +344,24 @@ def _merge_list(
             return values
         element = acc
         if not isinstance(element, list) or len(element) != len(values):
-            element = [_Mean() for _ in values]
-        for slot, value in zip(element, values, strict=True):
-            slot.add(float(value), weight)
+            element = [_Mean(peak=_is_peak_leaf(path)) for _ in values]
+        for index, (slot, value) in enumerate(zip(element, values, strict=True)):
+            stat = declared.get(f"{'.'.join(path)}.{index}")
+            slot.add(
+                float(value),
+                weight,
+                count=stat["n"] if stat else 1,
+                minimum=stat.get("min") if stat else None,
+                maximum=stat.get("max") if stat else None,
+            )
         return element
     all_dicts = bool(values) and all(isinstance(v, dict) for v in values)
     if all_dicts:
         element = acc
         if not isinstance(element, list) or len(element) != len(values):
             element = [{} for _ in values]
-        for slot, value in zip(element, values, strict=True):
-            _merge(slot, value, weight, path)
+        for index, (slot, value) in enumerate(zip(element, values, strict=True)):
+            _merge(slot, value, weight, (*path, str(index)), declared)
         return element
     return values
 
@@ -275,6 +375,64 @@ def _finalise(node: Any) -> Any:
     if isinstance(node, list):
         return [_finalise(value) for value in node]
     return node
+
+
+def _leaf_stats(node: Any, prefix: str, out: dict[str, dict[str, Any]]) -> None:
+    """Collect a window accumulator's per-gauge-leaf statistics.
+
+    Each gauge leaf records how many source samples observed it; a leaf whose
+    peak is the capacity signal records the window's minimum and maximum as
+    well. The path is dotted and indexed through lists, matching the path
+    :func:`_merge` keys a declared value on, so a later compaction reads a leaf's
+    own count rather than its section's. Counters are not _Mean accumulators and
+    are passed over: a counter compacts by endpoint, and its opening block
+    already carries what integration needs.
+    """
+    if isinstance(node, dict):
+        for key, value in node.items():
+            _leaf_stats(value, f"{prefix}.{key}" if prefix else str(key), out)
+    elif isinstance(node, list):
+        for index, value in enumerate(node):
+            _leaf_stats(value, f"{prefix}.{index}", out)
+    elif isinstance(node, _Mean):
+        entry: dict[str, Any] = {"n": node.count}
+        if node.peak:
+            entry["min"] = (
+                None
+                # A peak leaf carries both extremes once it has an observation;
+                # a count-only entry arises only where the accumulator never saw
+                # one, which cannot happen for a leaf that reached the payload.
+                if node.minimum is None
+                else round(node.minimum, _GAUGE_PLACES)
+            )
+            entry["max"] = (
+                None
+                if node.maximum is None else round(node.maximum, _GAUGE_PLACES)
+            )
+        out[prefix] = entry
+
+
+def _declared_leaf_stats(row: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """The per-leaf observation counts a compacted row declares, by dotted path.
+
+    A raw row carries no ``obs`` block and returns an empty mapping, so its every
+    present leaf is counted once. A compacted row's ``leaves`` block is what lets
+    a second compaction level *sum* the raw-tier counts and *fold* the extremes
+    rather than counting its own coarser rows.
+    """
+    obs = row.get(_OBS_KEY)
+    if not isinstance(obs, dict):
+        return {}
+    block = obs.get(_OBS_LEAVES_KEY)
+    if not isinstance(block, dict):
+        return {}
+    return {
+        path: entry
+        for path, entry in block.items()
+        if isinstance(entry, dict)
+        and isinstance(entry.get("n"), int)
+        and not isinstance(entry.get("n"), bool)
+    }
 
 
 def _parse_timestamp(row: dict[str, Any]) -> _dt.datetime:
@@ -583,12 +741,20 @@ def _compact_run(
         window.samples += samples
         window.seconds += weight
         window.endpoint = stamp
-        _merge(window.payload, _row_payload(row), weight, ())
+        _merge(
+            window.payload,
+            _row_payload(row),
+            weight,
+            (),
+            _declared_leaf_stats(row),
+        )
         seen.update(reading)
 
     compacted: list[dict[str, Any]] = []
     for bucket in order:
         window = windows[bucket]
+        leaf_stats: dict[str, dict[str, Any]] = {}
+        _leaf_stats(window.payload, "", leaf_stats)
         row: dict[str, Any] = {
             _TIER_KEY: tier,
             _HOST_KEY: host,
@@ -598,6 +764,7 @@ def _compact_run(
             _OBS_KEY: {
                 "samples": window.samples,
                 "seconds": round(window.seconds, _WEIGHT_PLACES),
+                _OBS_LEAVES_KEY: leaf_stats,
             },
             _OPEN_KEY: openings[bucket],
         }
