@@ -2580,9 +2580,11 @@ def bench(
     type=click.Path(),
     default=None,
     help=(
-        "Receipts file path (default: the site's receipts directory, resolved "
-        "by watch.default_record_dir through the site configuration, under "
-        "<slug>.jsonl)."
+        "Receipts file path (default: the site's receipts directory, "
+        "$AMBIX_AGENT_BASE_DIR/agents/receipts, resolved by "
+        "watch.default_record_dir through the site configuration; "
+        "AMBIX_AGENT_BASE_DIR itself defaults to /work/projects/imas_gpu, and "
+        "the file is named <slug>.jsonl)."
     ),
 )
 def receipts(
@@ -2666,7 +2668,9 @@ def receipts(
     default=None,
     help=(
         "Receipts directory to read (default: the site's receipts directory, "
-        "resolved by watch.default_record_dir through the site configuration)."
+        "$AMBIX_AGENT_BASE_DIR/agents/receipts, resolved by "
+        "watch.default_record_dir through the site configuration; "
+        "AMBIX_AGENT_BASE_DIR itself defaults to /work/projects/imas_gpu)."
     ),
 )
 @click.option(
@@ -2743,7 +2747,9 @@ def watch(
     default=None,
     help=(
         "Receipts directory to ingest (default: the site's receipts directory, "
-        "resolved by watch.default_record_dir through the site configuration)."
+        "$AMBIX_AGENT_BASE_DIR/agents/receipts, resolved by "
+        "watch.default_record_dir through the site configuration; "
+        "AMBIX_AGENT_BASE_DIR itself defaults to /work/projects/imas_gpu)."
     ),
 )
 @click.option(

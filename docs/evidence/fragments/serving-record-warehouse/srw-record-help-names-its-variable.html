@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="serving-record-warehouse">
+</head>
+<body>
+  <main class="plan-doc">
+    <p>The <code>--output</code> help of <code>agent receipts</code> and the
+    <code>--record</code> help of <code>agent watch</code> and
+    <code>agent ingest</code> now each name the default directory as
+    <code>$AMBIX_AGENT_BASE_DIR/agents/receipts</code>, with the variable's
+    <code>/work/projects/imas_gpu</code> default stated for the help reader. The
+    variable is the only thing that relocates the directory, so a reader or
+    recorder is no longer left looking for a site path the help never named.</p>
+
+    <p><strong>Measure.</strong> <code>tests/test_agent_watch_help.py</code> holds
+    the three help texts to the variable and its default by reading each
+    command's <code>--help</code> output; a fourth test sets
+    <code>AMBIX_AGENT_BASE_DIR</code> to a scratch tree and asserts
+    <code>agent receipts</code> resolves its default output file at
+    <code>&lt;base&gt;/agents/receipts/&lt;slug&gt;.jsonl</code> through
+    <code>watch.default_record_dir</code>, with the sampler stubbed so nothing is
+    fetched. The gate is green: 14 passed in
+    <code>tests/test_agent_watch_help.py tests/test_agent_ingest_cli.py</code>,
+    and <code>agent ingest</code> now asserts its dry-run script carries the
+    literal <code>#SBATCH --time=0</code>.</p>
+
+    <p><strong>The guarded thing was made to happen.</strong> Reverting the
+    receipts <code>--output</code> help to its previous wording as a scratch edit
+    fails
+    <code>test_receipts_help_names_the_base_dir_variable_and_its_default</code>
+    (<code>1 failed, 3 passed</code>), so the new help test is shown to fire on
+    the exact regression it exists to catch.</p>
+  </main>
+</body>
+</html>

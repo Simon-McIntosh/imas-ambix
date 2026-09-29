@@ -11,6 +11,8 @@ else looks. These pin the help to the mechanism so it cannot drift back.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from click.testing import CliRunner
 
 from imas_ambix.agent import cli, watch
@@ -53,6 +55,64 @@ def test_receipts_help_names_the_site_configuration_source() -> None:
     text = _help("receipts")
     assert "watch.default_record_dir" in text
     assert "site configuration" in text
+
+
+def test_receipts_help_names_the_base_dir_variable_and_its_default() -> None:
+    """The output help names the variable that relocates the default."""
+    text = _help("receipts")
+    assert "AMBIX_AGENT_BASE_DIR/agents/receipts" in text
+    assert "/work/projects/imas_gpu" in text
+
+
+def test_watch_help_names_the_base_dir_variable_and_its_default() -> None:
+    """The reader's --record help names the variable that relocates it."""
+    text = _help("watch")
+    assert "AMBIX_AGENT_BASE_DIR/agents/receipts" in text
+    assert "/work/projects/imas_gpu" in text
+
+
+def test_ingest_help_names_the_base_dir_variable_and_its_default() -> None:
+    """The ingest's --record help names the variable that relocates it."""
+    text = _help("ingest")
+    assert "AMBIX_AGENT_BASE_DIR/agents/receipts" in text
+    assert "/work/projects/imas_gpu" in text
+
+
+def test_receipts_default_output_follows_the_base_dir_variable(
+    tmp_path, monkeypatch
+) -> None:
+    """Relocating the base relocates the recorder's default file.
+
+    The help claims AMBIX_AGENT_BASE_DIR moves the directory, so this holds it
+    to that: with the base set to a scratch tree, ``agent receipts`` resolves
+    its default output file under ``<base>/agents/receipts`` through the same
+    ``watch.default_record_dir`` the reader uses. The sampler is replaced with a
+    stub, so no network poll runs and nothing is fetched.
+    """
+    from imas_ambix.agent import serving_receipts
+
+    monkeypatch.setenv("AMBIX_AGENT_BASE_DIR", str(tmp_path))
+    # No profile and no key file, so the command takes the bare --url path and
+    # reads nothing from the environment beyond the base directory under test.
+    monkeypatch.setattr(cli, "_default_profile", lambda: None)
+    monkeypatch.setattr(cli, "_resolve_api_key", lambda _value: None)
+
+    captured: list[Path] = []
+
+    def fake_record(base_url, path, **kwargs):
+        captured.append(Path(path))
+        return 0
+
+    monkeypatch.setattr(serving_receipts, "record_receipts", fake_record)
+
+    result = CliRunner().invoke(
+        cli.agent, ["receipts", "--url", "http://localhost:18800", "--duration", "0"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert watch.default_record_dir() == tmp_path / "agents" / "receipts"
+    assert captured == [tmp_path / "agents" / "receipts" / "endpoint.jsonl"]
+    assert captured[0].parent == watch.default_record_dir()
 
 
 def test_default_record_dir_is_callable_and_resolves_to_the_site_config() -> None:
