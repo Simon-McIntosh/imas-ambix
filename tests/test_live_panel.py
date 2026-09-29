@@ -38,10 +38,14 @@ def _histogram(buckets: dict, count: float, total: float) -> dict:
 _TTFT_START = _histogram(
     {"0.1": 0.0, "0.2": 0.0, "0.4": 0.0, "0.6": 0.0, "0.8": 0.0, "1.0": 0.0}, 0.0, 0.0
 )
-# The delayed counts are 2/4/6/4/4 and total 20; the first bucket whose running
-# total reaches half of it (10) is 0.6, which is the window median.
+# Cumulative since engine start: 0/2/6/14/18/20 requests at or below each
+# bound. The window total is the advance of the topmost bucket (20), and half
+# of it (10) is first reached inside the 0.6 bucket, so the median interpolates
+# between 0.4 (6 requests) and 0.6 (14): 0.4 + (10-6)/(14-6) * 0.2 = 0.5.
 _TTFT_END = _histogram(
-    {"0.1": 0.0, "0.2": 2.0, "0.4": 4.0, "0.6": 6.0, "0.8": 4.0, "1.0": 4.0}, 20.0, 12.0
+    {"0.1": 0.0, "0.2": 2.0, "0.4": 6.0, "0.6": 14.0, "0.8": 18.0, "1.0": 20.0},
+    20.0,
+    12.0,
 )
 _ITL_START = _histogram({"0.01": 0.0, "0.05": 0.0, "0.1": 0.0, "inf": 0.0}, 0.0, 0.0)
 _ITL_END = _histogram({"0.01": 1.0, "0.05": 1.0, "0.1": 3.0, "inf": 0.0}, 5.0, 0.42)
@@ -151,7 +155,50 @@ def test_live_block_publishes_every_windowed_figure(tmp_path: Path):
 
     assert block["prefill_toks_per_s"] == pytest.approx(100.0)
     assert block["cache_hit_rate"] == pytest.approx(0.5)
-    assert block["median_time_to_first_token_s"] == pytest.approx(0.6)
+    assert block["median_time_to_first_token_s"] == pytest.approx(0.5)
+
+
+_REAL_TTFT_FIRST = _histogram(
+    {
+        "0.4": 46.0,
+        "0.6": 9386.0,
+        "0.8": 22300.0,
+        "1.0": 26210.0,
+        "2.0": 28895.0,
+        "inf": 29940.0,
+    },
+    29940.0,
+    0.0,
+)
+# A second recorder row of the same run, 100 requests later, each of them above
+# 0.4 s. Every bucket advance is therefore the same 100: the window total is
+# that 100 and the median lies inside the 0.4-0.6 bucket.
+_REAL_TTFT_SECOND = _histogram(
+    {
+        "0.4": 46.0,
+        "0.6": 9486.0,
+        "0.8": 22400.0,
+        "1.0": 26310.0,
+        "2.0": 28995.0,
+        "inf": 30040.0,
+    },
+    30040.0,
+    0.0,
+)
+
+
+def test_median_interpolates_inside_a_cumulative_bucket(tmp_path: Path):
+    """A real cumulative bucket pair, read as cumulative rather than disjoint."""
+    rows = _one_run_rows()
+    rows[0]["engine"]["histograms"]["time_to_first_token"] = _REAL_TTFT_FIRST
+    rows[-1]["engine"]["histograms"]["time_to_first_token"] = _REAL_TTFT_SECOND
+    _write(tmp_path, "deepseek-v4-1-flash-4811.jsonl", rows)
+    block = live_block(tmp_path, now=BASE + timedelta(seconds=10))
+    median = block["median_time_to_first_token_s"]
+    # The window holds 100 requests, all in (0.4, 0.6]; half the total is first
+    # reached there, so the median is 0.4 + (50-0)/(100-0) * (0.6-0.4).
+    assert median == pytest.approx(0.5)
+    assert 0.4 < median < 0.6
 
 
 def test_per_stream_rate_is_not_a_median_inter_token_latency_reciprocal(
