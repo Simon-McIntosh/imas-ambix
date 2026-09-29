@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-29">
-<meta name="plan-version" content="85">
+<meta name="plan-version" content="86">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -801,6 +801,9 @@
 <div class="r-comment" data-section="s8" data-id="c-run-r-20260929T084820376618-review-of-srw-compaction-splits-at-restart" data-who="reckon-build" data-when="2026-09-29T11:26:12.266Z">
     <div class="r-comment-body"><p>not applicable; review node, no source change; the reviewed commit e52d8ca5 and its worktree are untouched</p></div>
 </div>
+<div class="r-comment" data-section="s8" data-id="c-run-r-20260929T111511601344-srw-tiers-carry-openings" data-who="reckon-build" data-when="2026-09-29T11:56:00.230Z">
+    <div class="r-comment-body"><p>telemetry_store now opens an hour window at the tier below&#x27;s opening rather than its closing, and telemetry_index.partitioned_total differences each run between its carried opening and its closing, so a window totalled from raw, minute or hour files alone all give 520,000 for a restart window and 600 for a null-rich stretch (three new tests, 90-test telemetry gate green, ruff clean).</p></div>
+</div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20260924T122840994565-s26-currency-audit" data-who="reckon-ship" data-when="2026-09-24T12:30:00Z">
     <div class="r-comment-body"><p>stopped by the coordinator within a minute of launch: the repository's local-lane budget for the re-plan exercise was reallocated, and the audit was done in-session instead</p></div>
 </div>
@@ -865,7 +868,7 @@
     <div class="r-comment-body"><p>imas_ambix/agent/live_panel.py — _median_from_histogram now reads the receipt's time-to-first-token buckets as cumulative (window total is the advance of the topmost bucket, not the sum of bucket advances) and linearly interpolates inside the bucket whose cumulative advance first reaches half that total; replayed on the real recorded pair the old code returned 1.0 s and the fixed code returns 0.5 s; tests/test_live_panel.py 18 passed, serving parse guard 1 passed, ruff exits 0.</p></div>
 </div>
 <div class="r-comment" data-section="s11" data-id="c-run-r-20260929T120012417756-review-of-srw-live-ttft-median-reads-cumulative-buckets" data-who="reckon-build" data-when="2026-09-29T12:41:56.170Z">
-    <div class="r-comment-body"><p>none — a review lands nothing; the reviewed run&#x27;s own merge is the coordinator&#x27;s</p></div>
+    <div class="r-comment-body"><p>none — a review lands nothing; the reviewed run's own merge is the coordinator's</p></div>
 </div>
 <div class="r-comment" data-section="s9" data-id="c-run-r-20260929T072923543423-srw-third-party-hit-rate-measured" data-who="reckon-build" data-when="2026-09-29T08:16:09.318Z">
     <div class="r-comment-body"><p>Measured h = 0.8581679092941827 for deepseek/deepseek-v4.1-flash on OpenRouter from 60 responses (238720 cached prompt tokens over 278174 prompt tokens), spend USD 0.008353, recorded 2026-09-29 against endpoint https://openrouter.ai/api/v1/chat/completions; record at ~/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/third-party-hit-rate/third-party-hit-rate.json.</p></div>
