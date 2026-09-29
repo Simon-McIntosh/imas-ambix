@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-29">
 <meta name="plan-impl" content="0.9">
-<meta name="plan-version" content="131">
+<meta name="plan-version" content="133">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s14&quot;:&quot;implementable&quot;,&quot;s15&quot;:&quot;done&quot;,&quot;s16&quot;:&quot;done&quot;,&quot;s17&quot;:&quot;implementable&quot;,&quot;s18&quot;:&quot;implementable&quot;,&quot;s19&quot;:&quot;implementable&quot;,&quot;s20&quot;:&quot;done&quot;,&quot;s21&quot;:&quot;implementable&quot;}">
 <meta name="plan-artifacts" content="docs/evidence/archive/local-lane-admission-control-landed.html">
 <meta name="plan-commits" content="4bb11e8917c6dc9662d6214da6ec7eb595713984,da60421b4267fc7fc6fafb2a7e5dbb242da1cfba,569b91efd9e1e2e0e00c6d86cd589810391752c5,7ecfec3ba6ed3d68d68e03a104bd33e70ba75037,decc190bc301c74e02f2491bc6a557a163f9c744">
@@ -902,6 +902,21 @@
 <p><strong>Done when</strong> (the worker-slot node): router tests over stub admissions assert the following. Fourteen run ids whose admitted request-seconds sum to 5,940 over a 900 s window publish <code>live_runs</code> 14 and <code>requests_per_run</code> 0.471 (rounded to 3 decimals). At width 16 with the gate open, that publishes <code>worker_slots</code> 19. A congested gate publishes 0. Two live runs publish null for both derived fields. A request still in flight counts its elapsed time. A request without a run id raises <code>unkeyed_share</code> and leaves the ratio unchanged. The existing gate and admission tests pass. The declared negative control counts distinct <code>caller_hint</code> values instead of run ids, and it must fail the live-runs test.</p>
 <p><strong>Done when</strong> (the deploy): after the restart, <code>lane.json</code> carries all three fields. The published <code>worker_slots</code> equals the formula applied to the document's own width, <code>requests_per_run</code> and <code>live_runs</code>, and the top-level headroom equals the admission headroom whenever memory does not bind.</p>
 
+<h3 id="s21-definitions">Definitions fixed after the read-back, 2026-09-29</h3>
+<p>A read-back of this section found thirteen sentences that two readers could build differently. These definitions govern where the text above leaves room.</p>
+<ul>
+<li><strong>What the knee sentence licenses.</strong> The throughput knee is held by the gate's width, which the operator sets or §14's controller moves. The lane estimator therefore needs no second reserve for the knee. Nothing in this section changes §14's controller, its floor or its health guards.</li>
+<li><strong>How the two headrooms compose.</strong> The top-level <code>headroom</code> stays the smaller of <code>engine_headroom</code> and <code>admission.headroom</code>, and neither figure is ever raised to meet the other. Memory binds when <code>engine_headroom</code> is below <code>admission.headroom</code>. At the shared target that happens only when the resident contexts would not fit the gate's width.</li>
+<li><strong>Which requests are in the window.</strong> A request is in scope when its interval from admission to release intersects the trailing 900 s window. A request still in flight counts as released at the moment of publication. Its busy time is that interval clipped to the window, so no request contributes more than 900 s. <code>live_runs</code> counts the distinct run ids among in-scope requests. The same done-when fixture phrase, "a request still in flight counts its elapsed time", means elapsed time within the window.</li>
+<li><strong>Which width.</strong> The width in <code>worker_slots</code> is the width in force: the <code>effective_width</code> the gate block publishes.</li>
+<li><strong>The clamp, and null before clamp.</strong> <code>worker_slots</code> is the additional workers the lane can take, not a total. It is never negative. It is 0 whenever the verdict is congested, full or paused, and otherwise max(0, floor(<code>effective_width</code> ÷ <code>requests_per_run</code>) − <code>live_runs</code>). Insufficient evidence takes precedence over the clamp: below 3 live runs, or with less than 300 s since this router process first admitted a request, <code>requests_per_run</code> and <code>worker_slots</code> are null even while the gate is congested. <code>live_runs</code> and <code>unkeyed_share</code> are published whenever the window holds a request, and <code>live_runs</code> is 0 when it holds none.</li>
+<li><strong><code>unkeyed_share</code> is a share of busy time.</strong> It is the busy request-seconds of in-scope requests without a usable run id, divided by all in-scope busy request-seconds. A usable run id follows the receipt rule already in <code>identity_from_headers</code>: an absent, empty, over-long or control-bearing header is unkeyed.</li>
+<li><strong>One publisher.</strong> The router is the lane document's only publisher. The deploy first confirms that no lane-refresher job is running, because such a job writes the same document without the admission block.</li>
+<li><strong>The deploy waits for the lead.</strong> "The lead authorises it" names a go-ahead still to be given. The deploy node does not run until the lead gives it.</li>
+<li><strong>Readers substitute; they do not take the smaller.</strong> When <code>worker_slots</code> is non-null, a dispatcher counts workers against it instead of against <code>headroom</code>. It falls back to <code>headroom</code> only when <code>worker_slots</code> is null. Taking the smaller of the two would reinstate the request-unit cap this section removes.</li>
+<li><strong>0.90, not 0.85.</strong> §6 recorded two readings of its occupancy measurement. The median rule returned 0.90, and the collapse tail argued for about 0.85, which §6 left unadjudicated. The router's memory rule has served at 0.90 since it landed. This section unifies the estimator at that in-force value rather than moving the router. The collapse tail stays guarded where §14 put it: the controller steps the width down when the prefix hit rate falls below 0.95 and holds a 0.6 KV cap. The gate's width, not the memory estimate, binds at today's 144k mean context. At 0.90 the done-when figures are 25 and 20; at 0.85 they would be 23 and 18.</li>
+</ul>
+
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
 <div class="r-dec" data-key="binding-point" data-choice="both" data-by="reckon-ship (lead-approved deploy)" data-when="2026-09-23T11:15:12+00:00">
@@ -1266,6 +1281,9 @@
 </div>
 <div class="r-comment" data-section="s15" data-id="c-run-r-20260925T234403764911-review-of-s15-resolution-wording-and-asserts" data-who="reckon-build" data-when="2026-09-25T23:49:48.400Z">
     <div class="r-comment-body"><p>wording repair review 97/100</p></div>
+</div>
+<div class="r-comment" data-section="s21" data-id="c-run-r-20260929T072848264171-readback-of-local-lane-admission-control" data-who="reckon-build" data-when="2026-09-29T08:26:58.486Z">
+    <div class="r-comment-body"><p>Readback of section 21 restates the intent, the four numbered changes, all three nodes and all three done-whens, and names 25 sentences carrying two readings (13 material, 12 editorial), each quoted verbatim; the load-bearing items are the window-membership and clip rules ([32]/[33]/[34]), the clamp/null precedence and which width the formula reads ([36]/[37]), and [25] adopting 0.90 while section 6 records an un-adjudicated choice between 0.90 and about 0.85.</p></div>
 </div>
 </section>
 </main>
