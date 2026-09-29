@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import datetime as _dt
 import json
+import sqlite3
+import weakref
 from pathlib import Path
 
 import pytest
@@ -183,9 +185,7 @@ def test_the_ingest_opens_no_receipt_file_for_writing(tmp_path, monkeypatch):
     opened: list[tuple[Path, str]] = []
     _record_opens(monkeypatch, opened)
     with TelemetryIndex(tmp_path / "index.db") as index:
-        reports = run(
-            index, tmp_path, cadence=0.01, iterations=2, sleep=lambda _: None
-        )
+        reports = run(index, tmp_path, cadence=0.01, iterations=2, sleep=lambda _: None)
 
     assert [report.ingest.rows_inserted for report in reports] == [2, 0]
     # The record was read, so the write check below is not vacuous.
@@ -210,9 +210,7 @@ def test_run_ticks_on_its_cadence_and_carries_the_state_between_ticks(tmp_path):
     slept: list[float] = []
 
     with TelemetryIndex(tmp_path / "index.db") as index:
-        reports = run(
-            index, tmp_path, cadence=2.5, iterations=3, sleep=slept.append
-        )
+        reports = run(index, tmp_path, cadence=2.5, iterations=3, sleep=slept.append)
 
     assert [report.ingest.rows_inserted for report in reports] == [1, 0, 0]
     assert slept == [2.5, 2.5]
@@ -230,3 +228,92 @@ def test_main_takes_a_single_tick_when_asked(tmp_path):
     assert main(["--record", str(tmp_path), "--index", str(index_file), "--once"]) == 0
     with TelemetryIndex(index_file) as index:
         assert index.sample_count() == 1
+
+
+def test_a_tick_hands_the_index_exactly_the_sources_that_changed(tmp_path, monkeypatch):
+    grown = tmp_path / "serve-1001.jsonl"
+    settled = tmp_path / "serve-1002.jsonl"
+    _write(grown, [_row(0)])
+    _write(settled, [_row(1)])
+
+    handed: list[list[Path]] = []
+    real_ingest = TelemetryIndex.ingest
+
+    def spy(self, sources):
+        handed.append([Path(source) for source in sources])
+        return real_ingest(self, sources)
+
+    monkeypatch.setattr(TelemetryIndex, "ingest", spy)
+
+    with TelemetryIndex(tmp_path / "index.db") as index:
+        opening = tick(index, tmp_path)
+        assert set(handed[0]) == {grown, settled}
+
+        _write(grown, [_row(5)])
+        later = tick(index, tmp_path, previous=opening.sources)
+
+    # The first hand-off is every discovered source, so the second is not an
+    # empty hand-off read as an absence.
+    assert later.files_read == 1
+    assert handed[1] == [grown]
+
+
+def test_the_ingest_never_connects_the_reader_cache_index(tmp_path, monkeypatch):
+    _write(tmp_path / "serve-1001.jsonl", [_row(0)])
+    reader_index = Path.home() / ".cache" / "ambix" / "watch-index.sqlite3"
+
+    connected: list[str] = []
+    real_connect = sqlite3.connect
+
+    def spy(address, *args: object, **kwargs: object):
+        connected.append(str(address))
+        return real_connect(address, *args, **kwargs)
+
+    monkeypatch.setattr(sqlite3, "connect", spy)
+
+    with TelemetryIndex(tmp_path / "index.db") as index:
+        tick(index, tmp_path)
+
+    # The spy has to see the index this ingest legitimately opens, or the
+    # absence below is a spy that never ran rather than a path never touched.
+    assert connected
+    assert str(reader_index) not in connected
+
+
+def test_a_loop_without_iterations_keeps_at_most_the_latest_report(tmp_path):
+    _write(tmp_path / "serve-1001.jsonl", [_row(0)])
+    target_ticks = 1000
+    references: list[weakref.ReferenceType] = []
+    live: list[int] = []
+
+    class _EnoughError(Exception):
+        pass
+
+    def note(report):
+        references.append(weakref.ref(report))
+
+    def stop_sleep(_seconds):
+        live.append(sum(1 for reference in references if reference() is not None))
+        if len(references) >= target_ticks:
+            raise _EnoughError
+
+    with TelemetryIndex(tmp_path / "index.db") as index, pytest.raises(_EnoughError):
+        run(index, tmp_path, sleep=stop_sleep, on_tick=note)
+
+    assert len(live) == target_ticks
+    # Only the latest report stays strongly reachable. A list that grew with the
+    # loop would keep every report alive and push this figure to the tick count.
+    assert max(live) <= 1
+
+
+def test_zero_iterations_takes_no_tick(tmp_path):
+    _write(tmp_path / "serve-1001.jsonl", [_row(0)])
+    slept: list[float] = []
+
+    with TelemetryIndex(tmp_path / "index.db") as index:
+        reports = run(index, tmp_path, iterations=0, sleep=slept.append)
+
+        assert reports == []
+        assert index.sample_count() == 0
+
+    assert slept == []
