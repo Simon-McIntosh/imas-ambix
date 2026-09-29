@@ -79,6 +79,31 @@
     "plan": "serving-record-warehouse",
     "verdict": "moved"
   },
+  "integrated_gate_check": {
+    "base_verdict": "passed",
+    "changed_paths_differing": null,
+    "checkout_descends_from_integrated_revision": false,
+    "checkout_on_integrated_revision": true,
+    "checkout_revision": "3affc34b3a707a10cfc7087720370e677e5efdf8",
+    "exit_status": null,
+    "finding": {
+      "base_verdict": "passed",
+      "exit_status": null,
+      "integrated_revision": "3affc34b3a707a10cfc7087720370e677e5efdf8",
+      "integrated_verdict": "not-run",
+      "message": "the gate passed at the worker's base but reports not-run on the integrated revision 3affc34b3a70: the merge changes what this node's gate proves, so a base-green run alone is not enough to push. Re-run the node's gate on the merged tree, land the code the merged tree requires, or record explicitly why this finding is accepted",
+      "reason": "the gate did not finish within the 300s re-run bound"
+    },
+    "gate_command": "uv run --no-sync pytest -p no:cacheprovider tests/test_telemetry_store.py tests/test_telemetry_index.py tests/test_agent_telemetry_watch.py tests/test_telemetry_compaction_runs.py",
+    "gate_command_source": "stored",
+    "integrated_revision": "3affc34b3a707a10cfc7087720370e677e5efdf8",
+    "integrated_verdict": "not-run",
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T111511601344-srw-tiers-carry-openings/verify-gate.log",
+    "ran": true,
+    "reason": "the gate did not finish within the 300s re-run bound",
+    "timed_out": true,
+    "worktree_roots_rewritten": []
+  },
   "lane_advisory": {
     "backend": "clive",
     "burn_multiple": null,
