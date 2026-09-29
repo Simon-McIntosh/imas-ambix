@@ -765,6 +765,35 @@ def document(
     }
 
 
+def live_document(
+    record_dir: str | Path | None = None,
+    lane_path: str | Path | None = None,
+    *,
+    now: _dt.datetime | None = None,
+) -> dict:
+    """The ``lane`` and ``live`` blocks alone, without opening the index.
+
+    This is the ``--live`` path: two published sources already carry every live
+    serving figure, and neither needs the telemetry index. It reads the
+    published lane document and the tail of one raw receipt file, so a consumer
+    can call it on a short cadence while index work elsewhere is unfinished.
+
+    Nothing here constructs a :class:`TelemetryIndex`, and nothing here reads or
+    refreshes the price table -- a live panel shows what the serve is doing now,
+    not what a token cost, and the price fetch lives only on the full document
+    path. The two blocks are the ones :func:`watch_document` appends, so a
+    consumer rendering the live panel and one rendering the whole document read
+    one implementation rather than two that could disagree.
+    """
+    from imas_ambix.agent.live_panel import live_panel
+
+    return live_panel(
+        receipts_dir=Path(record_dir) if record_dir else None,
+        lane_path=lane_path,
+        now=now,
+    )
+
+
 def watch_document(
     record_dir: str | Path | None = None,
     index_path: str | Path | None = None,
@@ -773,7 +802,15 @@ def watch_document(
     prices: Sequence[dict] | None = None,
     price_age: float | None = None,
 ) -> dict:
-    """Consume the record, then return the panels' figures as plain data."""
+    """Consume the record, then return the panels' figures as plain data.
+
+    The full document carries the index-derived ``record``, ``ledger``, ``live``
+    and ``price_age`` fields alongside the ``lane`` and ``live`` blocks, so a
+    consumer that wants every figure reads one document rather than reaching
+    into the index on its own. The two blocks come from :func:`live_document`,
+    which reads the published sources and never touches what this path built.
+    """
+    when = time.time() if now is None else now
     directory = Path(record_dir or default_record_dir())
     target = Path(index_path or DEFAULT_INDEX_PATH)
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -784,7 +821,14 @@ def watch_document(
     sources = discover(directory)
     with TelemetryIndex(target) as index:
         index.ingest(sources)
-        return document(index, now=now, prices=prices, price_age=price_age)
+        payload = document(index, now=when, prices=prices, price_age=price_age)
+    payload.update(
+        live_document(
+            record_dir=directory,
+            now=_dt.datetime.fromtimestamp(when, _dt.UTC),
+        )
+    )
+    return payload
 
 
 def _plain(markup: str, *, width: int = 110) -> str:
@@ -826,11 +870,13 @@ __all__ = [
     "fmt_usd",
     "ledger",
     "ledger_cost",
+    "live_document",
     "load_prices",
     "match_price",
     "observed_fraction",
     "period_row",
     "price_at",
     "render_document",
+    "watch_document",
     "watch_text",
 ]

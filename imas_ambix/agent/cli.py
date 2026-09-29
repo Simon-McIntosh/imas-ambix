@@ -2676,16 +2676,29 @@ def receipts(
     default=None,
     help="Index file to query (default: ~/.cache/ambix/watch-index.sqlite3).",
 )
-@click.option("--json", "as_json", is_flag=True, help="Emit the figures as JSON.")
-def watch(record_dir: str | None, index_path: str | None, as_json: bool) -> None:
+@click.option("--json", "as_json", help="Emit the figures as JSON.", is_flag=True)
+@click.option(
+    "--live",
+    "as_live",
+    is_flag=True,
+    help=(
+        "With --json, emit only the lane and live blocks, read from the "
+        "published lane document and one receipt tail without opening the index."
+    ),
+)
+def watch(
+    record_dir: str | None,
+    index_path: str | None,
+    as_json: bool,
+    as_live: bool,
+) -> None:
     """Render the serving panels from the recorded receipts.
 
     The panels are derived from the append-only receipt record, never from a
     live probe: this reads what the recorder already wrote and queries it
     through a disposable local index, so it neither spawns a sampler for the
     serve's cards nor keeps a ledger of its own. Running it twice over the
-    same record produces the same figures, and deleting the index only costs
-    the rebuild.
+    same record produces the index-derived figures unchanged.
 
     \b
     Read the local record:
@@ -2694,12 +2707,24 @@ def watch(record_dir: str | None, index_path: str | None, as_json: bool) -> None
     \b
     Read a specific record, and emit the figures as JSON:
         imas-ambix agent watch --record /path/to/receipts --json
+
+    \b
+    Emit only the lane and live blocks, without opening the index:
+        imas-ambix agent watch --json --live
     """
     from imas_ambix.agent import watch as watch_mod
 
-    if as_json:
-        import json as _json
+    if as_live and not as_json:
+        raise click.UsageError("--live requires --json")
 
+    import json as _json
+
+    if as_live:
+        click.echo(
+            _json.dumps(watch_mod.live_document(record_dir=record_dir), indent=2)
+        )
+        return
+    if as_json:
         click.echo(
             _json.dumps(
                 watch_mod.watch_document(record_dir=record_dir, index_path=index_path),
