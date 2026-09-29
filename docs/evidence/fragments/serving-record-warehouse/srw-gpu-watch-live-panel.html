@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="serving-record-warehouse">
+</head>
+<body>
+  <main class="plan-doc">
+    <p>gpu-watch's serve panel, router row and slots row are rendered from
+    <code>agent watch --json --live</code> instead of a direct scrape of the
+    engine. The copy lives at
+    <code>~/.config/reckon/crew/reports/imas-ambix/&hellip;/srw-gpu-watch-live-panel/gpu-watch</code>
+    and was edited only there; <code>~/Code/dotfiles/bin/gpu-watch</code> is
+    untouched.</p>
+
+    <p><strong>The measure.</strong> One one-shot run of the copy
+    (<code>capture.txt</code>, 14:44:21 +0200) and a live document
+    (<code>live.json</code>, 14:44:22 +0200) agree on running, router width, in
+    flight, router queue and headroom:</p>
+    <table>
+      <thead><tr><th>figure</th><th>panel</th><th>live.json</th><th>agree</th></tr></thead>
+      <tbody>
+        <tr><td>running</td><td>11.0</td><td>11.0</td><td>yes</td></tr>
+        <tr><td>router width</td><td>16</td><td>16</td><td>yes</td></tr>
+        <tr><td>in flight</td><td>12</td><td>12</td><td>yes</td></tr>
+        <tr><td>router queue</td><td>0</td><td>0</td><td>yes</td></tr>
+        <tr><td>headroom</td><td>3</td><td>3</td><td>yes</td></tr>
+      </tbody>
+    </table>
+    <p><strong>Negative control.</strong> Pointing the slots row at
+    <code>engine_headroom</code> instead of <code>headroom</code>
+    (<code>gpu-watch.control</code>) was captured against a live lane document
+    whose two fields differed (<code>control_live.json</code>: headroom 5,
+    engine_headroom 7): the control's slots row reads 7 and disagrees, while the
+    unmutated copy on the same fixed document reads 5. Files beside the copy:
+    <code>capture.txt</code>, <code>live.json</code>, <code>control.txt</code>,
+    <code>control_live.json</code>, <code>control_positive_from_doc.txt</code>,
+    <code>control_negative_from_doc.txt</code>, <code>comparison.md</code>,
+    <code>gpu-watch.diff</code>.</p>
+  </main>
+</body>
+</html>
