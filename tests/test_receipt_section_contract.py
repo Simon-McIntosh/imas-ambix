@@ -123,6 +123,11 @@ def test_an_absent_squeue_is_absent_from_neither_refused_nor_not_due():
     and not-yet-due. An absent command that serialised to the refused read's row
     would erase that distinction, and one that omitted the key would read as a
     tick where the read was simply not due.
+
+    The absent marker must arrive alone, exactly as the refused one does: no
+    ``count`` and no ``jobs`` rows, because either would read as a table that
+    answered. Naming the marker at section level is not enough -- a reader meets
+    the key set, so the absence of a measurement has to hold there.
     """
     refused = _row_json(_probe_with_refused_jobs().sample(0.0))
 
@@ -132,4 +137,9 @@ def test_an_absent_squeue_is_absent_from_neither_refused_nor_not_due():
 
     assert absent != refused
     assert absent != not_due
-    assert absent["jobs"][node_probe.UNREAD_KEY] == node_probe.COMMAND_ABSENT
+
+    jobs = absent["jobs"]
+    assert jobs[node_probe.UNREAD_KEY] == node_probe.COMMAND_ABSENT
+    assert "count" not in jobs
+    assert "jobs" not in jobs
+    assert set(jobs) == {"hostname", node_probe.UNREAD_KEY}
