@@ -2735,6 +2735,123 @@ def watch(
     console.print(watch_mod.watch_text(record_dir=record_dir, index_path=index_path))
 
 
+@agent.command(name="ingest")
+@click.option(
+    "--record",
+    "record_dir",
+    type=click.Path(),
+    default=None,
+    help=(
+        "Receipts directory to ingest (default: the site's receipts directory, "
+        "resolved by watch.default_record_dir through the site configuration)."
+    ),
+)
+@click.option(
+    "--index",
+    "index_path",
+    type=click.Path(),
+    default=None,
+    help="Index file to write (default: ~/.cache/ambix/watch-index.sqlite3).",
+)
+@click.option(
+    "--cadence",
+    type=float,
+    default=None,
+    help="Seconds between ticks in the loop (default: 5).",
+)
+@click.option(
+    "--once",
+    is_flag=True,
+    help="Take one tick and exit rather than loop on the cadence.",
+)
+@click.option(
+    "--submit",
+    is_flag=True,
+    help="Submit the ingest as a scheduled CPU-only SLURM service.",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Print the scheduled-service SLURM script without submitting it.",
+)
+def ingest(
+    record_dir: str | None,
+    index_path: str | None,
+    cadence: float | None,
+    once: bool,
+    submit: bool,
+    dry_run: bool,
+) -> None:
+    """Keep the telemetry index current from the recorded receipts.
+
+    This is the one writer of the telemetry index: one writer, many readers. It
+    scans the receipts directory, appends what is new from each source at its
+    recorded offset, and exits -- on its own schedule, so a reader such as
+    ``agent watch`` is never the process that maintains the store it queries.
+    The index is disposable, so it stays under the user's cache while the
+    receipts it derives from live on shared storage.
+
+    \b
+    Loop on the default five-second cadence:
+        imas-ambix agent ingest
+
+    \b
+    Take one tick and exit, against a specific record and index:
+        imas-ambix agent ingest --once --record /path/to/receipts
+
+    \b
+    Print the scheduled SLURM service script, then submit it:
+        imas-ambix agent ingest --dry-run
+        imas-ambix agent ingest --submit
+    """
+    from imas_ambix.agent import telemetry_ingest
+    from imas_ambix.agent.telemetry_index import TelemetryIndex
+    from imas_ambix.agent.watch import DEFAULT_INDEX_PATH, default_record_dir
+
+    resolved_record = (
+        Path(record_dir).expanduser() if record_dir else default_record_dir()
+    )
+    resolved_index = (
+        Path(index_path).expanduser() if index_path else DEFAULT_INDEX_PATH
+    )
+
+    if dry_run or submit:
+        from imas_ambix.agent.slurm import generate_ingest_script, submit_script
+
+        script = generate_ingest_script(
+            SiteConfig.from_env(),
+            record_dir=resolved_record,
+            index_path=resolved_index,
+        )
+        if dry_run:
+            console.print(script, markup=False, highlight=False, soft_wrap=True)
+            return
+        try:
+            job_id = submit_script(script)
+        except RuntimeError as exc:
+            raise click.ClickException(str(exc)) from exc
+        console.print(
+            f"Submitted ingest job {job_id} at {resolved_index}, watching "
+            f"{resolved_record}."
+        )
+        return
+
+    index = TelemetryIndex(resolved_index)
+    try:
+        telemetry_ingest.run(
+            index,
+            resolved_record,
+            cadence=(
+                cadence
+                if cadence is not None
+                else telemetry_ingest.DEFAULT_CADENCE_SECONDS
+            ),
+            iterations=1 if once else None,
+        )
+    finally:
+        index.close()
+
+
 def _render_report(report: BenchReport, model: str, repeat: int = 1) -> None:
     """Render benchmark results as rich tables to the console."""
     from rich.table import Table as RichTable
