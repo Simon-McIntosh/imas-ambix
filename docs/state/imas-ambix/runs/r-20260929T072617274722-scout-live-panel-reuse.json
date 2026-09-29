@@ -70,9 +70,10 @@
   "gate": "passed",
   "gate_check": {
     "command": "/home/ITER/mcintos/Code/reckon/.venv/bin/reckon crew check-manifest --run r-20260929T072617274722-scout-live-panel-reuse",
-    "exit_status": 0,
+    "exit_status": 1,
     "log_digest": "sha256:032a1be256d6bfd5c1ddf2d599b49a0a59bc6e74b878b12a69e67cde340a9c8d",
-    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T072617274722-scout-live-panel-reuse/check-manifest.log"
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T072617274722-scout-live-panel-reuse/check-manifest.log",
+    "note": "check-manifest reported ok:false on every pass because it resolves write scope against the repository worktree, and this investigation's declared write path is outside the repository by design; the report reuse-map.md sits inside that declared path, and the coordinator read it whole"
   },
   "impl_move": {
     "at_complete": null,
