@@ -78,6 +78,14 @@ _CARDS_NAMELESS = (
     "0, [N/A], 0, 41, 12.62, 72.00, 210, 405, 726, 23034\n"
 )
 
+#: The same shape whose name column carries a comma, which ``nvidia-smi``
+#: quotes. A positional comma split cuts the name in two and shifts every
+#: later column left by one, so the name must be read whole and the numerics
+#: must land where the query put them.
+_CARDS_QUOTED_NAME = (
+    '0, "NVIDIA H200, NVL", 0, 41, 12.62, 72.00, 210, 405, 726, 23034\n'
+)
+
 _PROC_STAT = (
     "cpu  421386254 154911551 255295798 17248277704 32872591 14077891 11015351 0 0 0\n"
     "cpu0 11715061 7506393 5333306 350540839 768710 393261 1147375 0 0 0\n"
@@ -293,6 +301,29 @@ def test_a_card_that_reports_no_name_omits_the_key():
 
     assert "name" not in card
     assert card["temperature_c"] == 41.0
+    assert card["memory_total_mib"] == 23034.0
+
+
+def test_a_quoted_comma_in_the_name_does_not_shift_the_numeric_columns():
+    """``nvidia-smi`` quotes a name carrying a comma; the row keeps its shape.
+
+    A positional comma split cuts the quoted name into two cells, so the model
+    reads truncated and every later column lands one field early -- the
+    temperature becomes the utilisation, the draw becomes the temperature, and
+    the last column falls off the end. The quoted row is the same card as the
+    unquoted one and must read as the same values apart from the name.
+    """
+    section = node_probe.read_cards(_runner({"nvidia-smi": _CARDS_QUOTED_NAME}), env={})
+    card = section["cards"][0]
+
+    assert card["name"] == "NVIDIA H200, NVL"
+    assert card["utilisation_percent"] == 0.0
+    assert card["temperature_c"] == 41.0
+    assert card["power_draw_w"] == 12.62
+    assert card["power_cap_w"] == 72.0
+    assert card["sm_clock_mhz"] == 210.0
+    assert card["mem_clock_mhz"] == 405.0
+    assert card["memory_used_mib"] == 726.0
     assert card["memory_total_mib"] == 23034.0
 
 

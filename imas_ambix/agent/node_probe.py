@@ -99,6 +99,7 @@ cadence and omitted from the ticks in between, where its reading was not taken.
 
 from __future__ import annotations
 
+import csv
 import os
 import subprocess
 from dataclasses import dataclass, field
@@ -377,8 +378,8 @@ def parse_cards(
     why it is kept apart from the numeric fields.
     """
     cards: list[dict[str, Any]] = []
-    for line in text.splitlines():
-        row = [cell.strip() for cell in line.strip().split(",")]
+    for fields in csv.reader(text.splitlines(), skipinitialspace=True):
+        row = [cell.strip() for cell in fields]
         if len(row) < len(CARD_QUERY_FIELDS):
             continue
         try:
