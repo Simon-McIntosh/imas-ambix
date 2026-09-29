@@ -1,28 +1,4 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="docs-project" content="imas-ambix">
-  <meta name="reckon-type" content="evidence">
-  <meta name="plan-slug" content="serving-record-warehouse">
-  <meta name="plan-title" content="Serving Record Warehouse — Third-party hit-rate measurement">
-  <meta name="plan-summary" content="Measured prompt-cache hit rate deepseek/deepseek-v4.1-flash receives from OpenRouter when recorded agent turns are re-sent.">
-  <meta name="plan-evidence-for" content="serving-record-warehouse">
-  <meta name="plan-owner" content="Simon McIntosh">
-  <title>Third-party Hit Rate Measured | imas-ambix</title>
-  <link rel="stylesheet" href="/_shared/foundation.css">
-  <link rel="stylesheet" href="/_shared/dashboard.css">
-</head>
-<body>
-  <main class="plan-doc">
-    <h2 id="s9-third-party-hit-rate-measured">§9 — Third-party hit rate measured</h2>
-    <p data-node="srw-third-party-hit-rate-measured">h = 0.8581679092941827 from 60 responses to
-    deepseek/deepseek-v4.1-flash on OpenRouter (238720 cached prompt tokens over
-    278174 prompt tokens), spend USD 0.008353; measured by re-sending recorded
-    agent sessions as growing prefixes with their recorded inter-request gaps
-    preserved; negative control h = 0.9745257027641288 from the local serve's own
-    cached-token counters.</p>
-  </main>
-</body>
-</html>
+<section data-reckon="fragment" data-node="srw-third-party-hit-rate-measured">
+  <p>Small-turn stratum: <em>h</em> = 0.858 from 60 responses to <code>deepseek/deepseek-v4.1-flash</code> on OpenRouter (238,720 cached prompt tokens over 278,174 prompt tokens), spend 0.008353 USD. It was measured by re-sending the opening sixteen turns of four recorded agent sessions as growing prefixes, with their recorded inter-request gaps preserved. The negative control, the local serve's own cached-token counters, gives 0.9745.</p>
+  <p>Caveats from the independent review (85). Every replayed gap was 16.3 s or less, with a median of 0.93 s, so this stratum says nothing about cache retention across gaps of minutes. The denominator is the prompt count in OpenRouter's usage block. On seven sampled calls, the provider's own generation receipts report fewer prompt tokens with identical cached counts, which puts the ratio anywhere from 0.810 to 0.957 depending on the surface. This stratum is evidence only. The printed estimate uses the production-size stratum (node <code>srw-third-party-hit-rate-at-production-size</code>).</p>
+</section>
