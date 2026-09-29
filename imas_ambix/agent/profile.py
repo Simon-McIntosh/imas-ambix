@@ -685,6 +685,18 @@ class SiteConfig(BaseModel):
         return Path(self.base_dir) / "agents" / "receipts"
 
     @property
+    def price_table(self) -> Path:
+        """Where the provider price table in force is read and written.
+
+        Beside the recorder's receipts under the project base, so the
+        refresher, the reader and every figure priced from the table resolve
+        one file by construction rather than by two constants agreeing. A
+        reader holding its own spelling finds a table nothing refreshes and
+        reports every cost as unpriced.
+        """
+        return Path(self.base_dir) / "agents" / "openrouter-prices.json"
+
+    @property
     def api_key_file(self) -> Path:
         """Shared API key file for model serving authentication."""
         return Path(self.base_dir) / "agents" / ".env"
