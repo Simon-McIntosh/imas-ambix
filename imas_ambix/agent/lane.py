@@ -33,8 +33,12 @@ from imas_ambix.agent import engine_metrics
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
 
-#: Fraction of the pool the advertised ceiling is allowed to plan against.
-DEFAULT_OCCUPANCY_TARGET = 0.5
+#: Fraction of the pool the advertised capacity plans against. One value serves
+#: both this estimator and the router's memory rule, so the capacity published
+#: here and the width the gate sizes can never describe one pool differently.
+#: What holds the throughput knee is the gate's width; this figure carries no
+#: second reserve for it.
+DEFAULT_OCCUPANCY_TARGET = 0.90
 
 OCCUPANCY_TARGET_ENV = "IMAS_AMBIX_LANE_OCCUPANCY_TARGET"
 
@@ -129,13 +133,12 @@ class LaneCapacity:
     # physical limit rather than a preference -- a consumer of this figure must
     # stay under it whatever the target is set to.
     #
-    # The default lands the advertised ceiling at 23-24 concurrent for the
-    # 81.7k-86.5k mean context observed on a 4M pool, which is very nearly the
-    # measured throughput knee of ~22 workers. Past that knee the engine
-    # absorbs pressure as slower generation rather than as a queue, so waiting
-    # stays 0 and the hit rate stays high while aggregate throughput falls --
-    # no cheap signal reddens. Raising the target needs a fresh throughput
-    # curve, not an absence of refusals.
+    # This is the same target the router's memory rule sizes the gate against,
+    # so the capacity advertised here and the admitted width move together over
+    # one pool. The throughput knee needs no reserve of its own here: the gate's
+    # width is what holds it, moved by an operator or the controller, so
+    # engine headroom binds only when the resident contexts genuinely would not
+    # fit that width rather than at every reading.
     #
     # Read once at import: the figure must not change under a lane that is
     # already serving from it.

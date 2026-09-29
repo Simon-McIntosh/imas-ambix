@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 import aiohttp
 
+from imas_ambix.agent.lane import DEFAULT_OCCUPANCY_TARGET as _LANE_OCCUPANCY_TARGET
 from imas_ambix.agent.request_receipts import (
     DEFAULT_MAX_ROWS_PER_S,
     DEFAULT_WINDOW_S,
@@ -146,7 +147,10 @@ async def _open_upstream(
 # running ceiling, which the gate must never advertise past because the engine
 # cannot admit more than it regardless.
 GATE_AUTO_WIDTH = "auto"
-DEFAULT_AUTO_OCCUPANCY_TARGET = 0.90
+# The memory rule sizes the pool against the same object the lane estimator
+# publishes its capacity from, so an operator moving one figure cannot leave the
+# two describing the same pool differently.
+DEFAULT_AUTO_OCCUPANCY_TARGET = _LANE_OCCUPANCY_TARGET
 DEFAULT_AUTO_WIDTH_FLOOR = 16
 DEFAULT_AUTO_WIDTH_CAP = 36
 # The context estimate is deliberately slow: one reading that happens to catch
