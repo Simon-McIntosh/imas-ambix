@@ -1,0 +1,4 @@
+<section data-reckon="fragment" data-node="srw-receipts-help-names-its-default">
+  <p>The <code>agent receipts --output</code> help no longer names <code>~/.local/share/ambix/receipts</code>; it states the default is resolved by <code>watch.default_record_dir</code> through the site configuration. The command's own default is resolved through that same helper, so the help names the directory the command actually writes to rather than a stale constant.</p>
+  <p>Measure: <code>tests/test_agent_watch_help.py</code> 5 passed; the serving-interpreter parse guard passed; <code>ruff check imas_ambix tests</code> exits 0. Negative control: restoring the old help string reddens both receipts help tests.</p>
+</section>
