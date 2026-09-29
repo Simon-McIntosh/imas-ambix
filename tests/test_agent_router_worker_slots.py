@@ -1,16 +1,17 @@
 """Worker-slot figures published in the router's admission block.
 
 The lane's admission block answers a dispatcher's question in the unit the
-dispatcher works in: how many runs share the lane, how many requests one of the
-requests one of them holds, and how many more it can take. These tests drive the
-ledger the figures are computed from with stub admissions, and one test drives
-the real request path so the run identity is the one the caller declared in its
-header rather than anything the router infers from the connection.
+dispatcher works in: how many runs share the lane, how many requests one of them
+holds, and how many more it can take. These tests drive the ledger the figures
+are computed from with stub admissions, and one test drives the real request path
+so the run identity is the one the caller declared in its header rather than
+anything the router infers from the connection.
 """
 
 from __future__ import annotations
 
 import asyncio
+import math
 from typing import Any
 
 from imas_ambix.agent.request_receipts import RUN_ID_HEADER
@@ -45,6 +46,52 @@ def test_fleet_publishes_live_runs_ratio_and_worker_slots() -> None:
     assert snapshot["window_seconds"] == 900.0
     assert snapshot["samples"] == 14
     assert snapshot["unkeyed_share"] == 0.0
+
+
+def test_published_slots_follow_from_the_published_ratio() -> None:
+    """A dispatcher's own arithmetic on the published figures is the figure.
+
+    Three runs each hold 720.009 s in the window. The busy seconds divide to
+    0.80001 requests per run, published as 0.8; at width 16 the formula applied
+    to the published ratio gives 17 slots, where the unrounded ratio would give
+    16. So the count a reader derives from the two published figures is exactly
+    the count the router published.
+    """
+    now = _NOW
+    ledger = _AdmissionLedger()
+    for index in range(3):
+        busy = ledger.admit(f"r-{index}", now=now - 800.0)
+        ledger.release(busy, now=now - 800.0 + 720.009)
+    snapshot = ledger.snapshot(now=now, effective_width=16, verdict="open")
+    assert snapshot["live_runs"] == 3
+    assert snapshot["requests_per_run"] == 0.8
+    assert snapshot["worker_slots"] == 17
+    published = snapshot["requests_per_run"]
+    assert snapshot["worker_slots"] == max(
+        0, math.floor(16 / published) - snapshot["live_runs"]
+    )
+
+
+def test_request_opened_before_the_window_contributes_only_its_in_window_time() -> None:
+    """The clip at the window start bounds a request's contribution.
+
+    Each request opens 100 s before the window and closes 50 s inside it, so
+    exactly 50 s falls within the window. Without the clip each would carry the
+    full 150 s and the ratio would be three times larger, so the published
+    ratio is the evidence that the clip is in force.
+    """
+    now = _NOW
+    ledger = _AdmissionLedger()
+    for index in range(3):
+        busy = ledger.admit(f"r-{index}", now=now - 1000.0)
+        ledger.release(busy, now=now - 850.0)
+    snapshot = ledger.snapshot(now=now, effective_width=16, verdict="open")
+    assert snapshot["live_runs"] == 3
+    assert snapshot["requests_per_run"] == round(3 * 50.0 / 900.0 / 3, 3)
+    assert snapshot["worker_slots"] == max(
+        0,
+        math.floor(16 / snapshot["requests_per_run"]) - snapshot["live_runs"],
+    )
 
 
 def test_congested_verdict_clamps_worker_slots_to_zero() -> None:
@@ -161,5 +208,43 @@ def test_live_runs_counts_run_ids_from_the_request_header() -> None:
 
         assert snapshot["live_runs"] == 14
         assert snapshot["samples"] == 14
+
+    asyncio.run(exercise())
+
+
+def test_unreadable_run_id_header_sequence_is_recorded_unkeyed() -> None:
+    """A header the reader cannot use leaves the request in the unkeyed share.
+
+    Every request carries a run id, but it is over-long, so it is not a usable
+    identity. Each must land in ``unkeyed_share`` rather than being attributed
+    to a run the caller never correctly declared, and with no keyed run the
+    derived ratio stays null.
+    """
+    unreadable = b"r-" + b"9" * 200
+
+    async def exercise() -> None:
+        engine = _sse_engine()
+        async with (
+            _server(engine) as engine_url,
+            _router_with_receipts([Upstream(engine_url)], None) as app,
+        ):
+            for _ in range(3):
+                response = await _invoke(
+                    app,
+                    "POST",
+                    "/v1/chat/completions",
+                    _request_body(),
+                    headers=[
+                        (b"content-type", b"application/json"),
+                        (RUN_ID_HEADER.encode(), unreadable),
+                    ],
+                )
+                assert _status(response) == 200
+            snapshot: dict[str, Any] = app._generation_gate.admission_document()
+
+        assert snapshot["live_runs"] == 0
+        assert snapshot["samples"] == 3
+        assert snapshot["unkeyed_share"] == 1.0
+        assert snapshot["requests_per_run"] is None
 
     asyncio.run(exercise())
