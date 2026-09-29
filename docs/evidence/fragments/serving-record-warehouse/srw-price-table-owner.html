@@ -11,8 +11,11 @@
   and never again once the path exists. <code>watch.py</code> no longer holds a path
   literal: <code>DEFAULT_PRICE_PATH</code> is removed, <code>load_prices</code>
   resolves through the module, and the full render path refreshes once and reports
-  the age in the watch JSON document. The <code>--live</code> path carries no
-  price fetch.</p>
+  the age in the watch JSON document. No <code>--live</code> path exists at this
+  revision; keeping it clear of the price fetch belongs to §11's wire node.
+  Review (95) found that a fetch failure outside the caught exception tuple, such
+  as a truncated body or a JSON array, escaped into the render. A repair node
+  owns that.</p>
   <p>Measure: <code>tests/test_provider_prices.py</code> 11 passed and
   <code>tests/test_agent_telemetry_watch.py</code> 14 passed; the serving-interpreter
   parse guard passed; <code>ruff check imas_ambix tests</code> exits 0. Negative
