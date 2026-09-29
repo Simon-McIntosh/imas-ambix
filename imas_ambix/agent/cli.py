@@ -2579,7 +2579,11 @@ def bench(
     "output_path",
     type=click.Path(),
     default=None,
-    help="Receipts file path (default: ~/.local/share/ambix/receipts/<slug>.jsonl).",
+    help=(
+        "Receipts file path (default: the site's receipts directory, resolved "
+        "by watch.default_record_dir through the site configuration, under "
+        "<slug>.jsonl)."
+    ),
 )
 def receipts(
     slug: str | None,
@@ -2629,9 +2633,13 @@ def receipts(
     if output_path:
         receipts_path = Path(output_path)
     else:
-        receipts_dir = Path.home() / ".local" / "share" / "ambix" / "receipts"
+        # Resolve as the launched recorder and the reader do, so the manual
+        # path and the discovered record are one directory by construction
+        # rather than two spellings that happen to agree.
+        from imas_ambix.agent.watch import default_record_dir
+
         name = profile.slug if profile is not None else "endpoint"
-        receipts_path = receipts_dir / f"{name}.jsonl"
+        receipts_path = default_record_dir() / f"{name}.jsonl"
     receipts_path.parent.mkdir(parents=True, exist_ok=True)
 
     console.print(
