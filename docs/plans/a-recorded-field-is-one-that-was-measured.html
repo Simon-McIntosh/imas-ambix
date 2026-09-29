@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-29">
 <meta name="plan-impl" content="0.33">
-<meta name="plan-version" content="3">
+<meta name="plan-version" content="4">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;done&quot;}">
 </head>
 <body>
@@ -115,7 +115,10 @@
     <div class="r-comment-body"><p>The recorder docstring and ROW_SECTIONS comment now name the job table's failed-read marker (`unread`) as the one exception to "a present key is a measurement"; new tests/test_receipt_section_contract.py (3 cases) proves a refused squeue read and an absent source serialise to different rows and the marker arrives with no count and no rows (2 of the 3 go red under the mutant); gate 46 passed + 1 parse passed + ruff exit 0; commit d048dc5a.</p></div>
 </div>
 <div class="r-comment" data-section="s2" data-id="c-run-r-20260929T075116580931-review-of-arf-receipt-section-contract" data-who="reckon-build" data-when="2026-09-29T08:59:04.171Z">
-    <div class="r-comment-body"><p>The review record for the reviewed run is stored at both granted paths with status parsed and all five dimensions scored (goal_fidelity 18, evidence 16, scope_discipline 20, durability 17, fit 19; total 90) and three findings: the evidence fragment cites a gate log that names the base revision while claiming the committed one (arf-receipt-section-contract.html:73), the ReceiptRow docstring still states the superseded contract (serving_receipts.py:183), and the command-absent marker is asserted at section level only (test_receipt_section_contract.py:75). The reviewed change lands correctly and I reproduced its gate green at d048dc5a; the three findings are recorded for the coordinator&#x27;s writeback, not fixed here.</p></div>
+    <div class="r-comment-body"><p>The review record for the reviewed run is stored at both granted paths with status parsed and all five dimensions scored (goal_fidelity 18, evidence 16, scope_discipline 20, durability 17, fit 19; total 90) and three findings: the evidence fragment cites a gate log that names the base revision while claiming the committed one (arf-receipt-section-contract.html:73), the ReceiptRow docstring still states the superseded contract (serving_receipts.py:183), and the command-absent marker is asserted at section level only (test_receipt_section_contract.py:75). The reviewed change lands correctly and I reproduced its gate green at d048dc5a; the three findings are recorded for the coordinator's writeback, not fixed here.</p></div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-run-r-20260929T085554636505-arf-receipt-section-contract-repair" data-who="reckon-build" data-when="2026-09-29T09:16:44.607Z">
+    <div class="r-comment-body"><p>ReceiptRow docstring no longer states a section is None whenever its source produced no reading and now names node_probe.UNREAD_KEY as the jobs section&#x27;s failed-read marker exception, matching the module docstring and the ROW_SECTIONS comment already corrected; tests/test_receipt_section_contract.py gains test_an_absent_squeue_is_absent_from_neither_refused_nor_not_due, driving an absent squeue (COMMAND_ABSENT, the FileNotFoundError resolution) through build_receipt_row and asserting it serialises to a record different from both the refused-read record and the not-due record; gate 48 passed (test_receipt_section_contract.py 4 + test_node_probe.py 44) + 1 parse passed + ruff exit 0 at repair commit 1c4a3e8e; negative control 1 failed.</p></div>
 </div>
 </section>
 </main>
