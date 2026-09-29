@@ -22,6 +22,10 @@
   <title>A recorded field is one that was measured | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-09-29">
+<meta name="plan-impl" content="0.33">
+<meta name="plan-version" content="1">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;done&quot;}">
 </head>
 <body>
   <main class="plan-doc">
@@ -83,26 +87,31 @@
     is recorded in the evidence record so the column is not removed on a single-file sample.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">&sect;</span> Decisions</h2>
-      <div class="r-dec" data-key="unparsed-key-disposition" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">What should a key whose value was never parsed do?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="omit">Omit the key, so its absence is the signal</button>
-          <button class="r-opt" data-value="explicit-gap">Carry an explicit gap marker distinguishable from a measured null</button>
-          <button class="r-opt" data-value="parse">Parse it, and treat a failure to parse as a recording error</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-    </section>
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="unparsed-key-disposition" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">What should a key whose value was never parsed do?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="omit">Omit the key, so its absence is the signal</button>
+      <button class="r-opt" data-value="explicit-gap">Carry an explicit gap marker distinguishable from a measured null</button>
+      <button class="r-opt" data-value="parse">Parse it, and treat a failure to parse as a recording error</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">&sect;</span> Followups</h2>
-      <article class="r-fu" data-id="f-rfm-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-09-24">
-        <h4 class="r-fu-title">Give the vLLM reader a recorded fixture and a mutation that breaks it</h4>
-        <div class="r-fu-body"><p>Take §3 first: it is the only one of the three where the current state reports a protection that does not exist. Record a real vLLM exposition under <code>tests/data/</code>, assert the family reader against it, and prove the assertion can fail by mutating a namespace or label shape in the recorded body. §2 and §4 are smaller and may follow in either order.</p></div>
-        <pre class="r-fu-prompt">/reckon-build a-recorded-field-is-one-that-was-measured</pre>
-      </article>
-    </section>
-  </main>
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-rfm-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-09-24" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Give the vLLM reader a recorded fixture and a mutation that breaks it</h4>
+    <div class="r-fu-body"><p>Take §3 first: it is the only one of the three where the current state reports a protection that does not exist. Record a real vLLM exposition under <code>tests/data/</code>, assert the family reader against it, and prove the assertion can fail by mutating a namespace or label shape in the recorded body. §2 and §4 are smaller and may follow in either order.</p></div>
+    <pre class="r-fu-prompt">/reckon-build a-recorded-field-is-one-that-was-measured</pre>
+    </article>
+</section>
+  <section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="s4" data-id="c-currency-2026-09-29-card-name" data-who="reckon-build" data-when="2026-09-29T07:50:00Z">
+    <div class="r-comment-body"><p>Currency audit, 2026-09-29: §4 landed in <code>6d7617a7</code> (merge <code>122f67c7</code>), which parses each card's model name from the probe output. The live record confirms it: the row at 07:08:45Z names four cards <code>NVIDIA H200 NVL</code>. The flat-column measurement the section asks to carry forward is already recorded in this plan's §4 prose. The open decision on unparsed keys is left to the lead: the card name is now parsed, so no key of that kind remains to decide for. §2 and §3 remain.</p></div>
+</div>
+</section>
+</main>
 </body>
 </html>

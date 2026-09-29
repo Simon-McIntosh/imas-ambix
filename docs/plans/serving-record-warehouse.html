@@ -22,9 +22,9 @@
   <title>Serving Record Warehouse | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-09-24">
-<meta name="plan-version" content="38">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;}">
+<meta name="plan-modified" content="2026-09-29">
+<meta name="plan-version" content="42">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;implementable&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
 <body>
@@ -72,6 +72,7 @@
     the whole.</p>
 
     <h2 id="s2">§2 — What the store must be</h2>
+<section data-reckon="section" data-id="s2" data-effort-hours="3.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-attempts="0" data-status="implementable" data-links=""></section>
 
     <p><strong>The receipts are the record and are never rewritten.</strong> The
     recorder appends; nothing else writes to a receipts file. Every correction,
@@ -131,6 +132,7 @@
     </figure>
 
     <h2 id="s4">§4 — Per-model and per-caller, and the honest limit on "user"</h2>
+<section data-reckon="section" data-id="s4" data-effort-hours="7.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-attempts="0" data-status="implementable" data-links=""></section>
 
     <p>The serve recorder answers <em>per model</em> already: every row carries
     <code>served_name</code>, <code>profile_slug</code>, <code>gpus</code> and
@@ -197,6 +199,7 @@
     nothing recorded here can.</p>
 
     <h2 id="s5">§5 — Who runs the ingest, and why it is not the recorder</h2>
+<section data-reckon="section" data-id="s5" data-effort-hours="2.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-attempts="0" data-status="implementable" data-links=""></section>
 
     <p>The ingest belongs to <strong>neither</strong> the recorder nor the
     watcher, and the reasons are measured rather than stylistic.</p>
@@ -228,6 +231,7 @@
     seconds-scale bound the repository sets for interactive work.</p>
 
     <h2 id="s6">§6 — Queries the store must answer</h2>
+<section data-reckon="section" data-id="s6" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-attempts="0" data-status="implementable" data-links=""></section>
 
     <p>Each of these is a gate, and each must state the coverage behind its
     answer under the §3 rule:</p>
@@ -248,6 +252,7 @@
     </ul>
 
     <h2 id="s7">§7 — Sequencing</h2>
+<section data-reckon="section" data-id="s7" data-effort-hours="0.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-attempts="0" data-status="implementable" data-links=""></section>
 
     <p>The aggregation rule comes first, because every reported figure is wrong
     until it holds and because it is testable against the existing record
@@ -309,6 +314,7 @@
     &sect;1 measures the cost of.</p>
 
     <h2 id="s9">&sect;9 — The cost figure a reader sees is the realistic third-party price</h2>
+<section data-reckon="section" data-id="s9" data-effort-hours="5.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-attempts="0" data-status="implementable" data-links=""></section>
 
     <p><strong>What the cost column is for.</strong> It answers one question:
     what would this traffic have cost if a third-party provider had served the
@@ -413,7 +419,44 @@
     carries <em>h</em> formatted as a percentage, the source kind and the
     citation from the fixture record.</p>
 
+    <h3 id="s9-rewired">Rewired 2026-09-29: the receipt-gap source is ready, and the lead restated the requirement</h3>
+
+    <p><strong>The requirement, restated by the lead on 2026-09-29.</strong> Every
+    price a surface displays is a realistic market estimate at a real-world
+    cache rate. Our own hit rate is never that rate: it runs above 0.99 because
+    every request reaches one server we control. Both surfaces still price our
+    own cached count today: <code>watch.ledger_cost</code>, and gpu-watch's copy
+    of it. Against the price row the table resolves for the served model
+    (<code>deepseek/deepseek-v4.1-flash</code>: $0.30 per million prompt tokens,
+    $0.006 cache read, $1.20 completion), the cache-read rate is one fiftieth of
+    the prompt rate. The printed figure therefore sits far below what a provider
+    would charge.</p>
+
+    <p><strong>A prerequisite has since been met.</strong> The relay was
+    restarted onto the recording build on 2026-09-26. Request receipts at
+    <code>~/public/imas-ambix/requests.jsonl</code> now carry
+    <code>run_id</code> and <code>coordinator_session</code>
+    (<code>local-lane-admission-control</code> §16), and 97% of the 3,000 most
+    recent rows carry a <code>run_id</code>. So the receipt-gap source no longer
+    waits on a relay restart. Its node runs beside the measurement node, not
+    after it. For the gap rule the caller is the request's <code>run_id</code>,
+    or its <code>coordinator_session</code> when <code>run_id</code> is null. A
+    request carrying neither is never counted as a hit. Precedence is
+    unchanged: a recorded measurement wins over the derived figure, and the
+    derived figure wins over a published one.</p>
+
+    <p><strong>Where the estimate record lives.</strong> It sits beside the
+    provider price table, whose path §12 resolves through
+    <code>SiteConfig</code>, under the filename
+    <code>third-party-cache-rate.json</code>. The measurement node and the
+    receipt-gap node each write their own report under
+    <code>~/.config/reckon/crew/reports/imas-ambix/</code> and never write
+    the record itself. The printing node installs the preferred source's
+    figure at the record path, and <code>agent watch</code> reads it through
+    one function.</p>
+
     <h2 id="s8">§8 — Compaction must integrate, not drop</h2>
+<section data-reckon="section" data-id="s8" data-effort-hours="3.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-attempts="0" data-status="implementable" data-links=""></section>
 
     <p><strong>Retiring raw is only safe once a coarser row carries what the raw
     rows carried in aggregate. It does not.</strong> Measured 2026-09-23 by
@@ -495,6 +538,7 @@
     compaction cover is answered from both.</p>
 
     <h2 id="s10">&sect;10 — gpu-watch reads the recorder: one source for every serving figure</h2>
+<section data-reckon="section" data-id="s10" data-effort-hours="2.75" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-attempts="0" data-status="implementable" data-links=""></section>
 
     <p><strong>What is wrong.</strong> <code>gpu-watch</code> lives in the
     dotfiles repository at <code>bin/gpu-watch</code>. It still computes every
@@ -562,6 +606,57 @@
     the node job table. The declared negative control is to restore the
     private ledger read for the period table; the token comparison must then
     disagree, and the log is recorded.</p>
+
+    <p><strong>Rewired 2026-09-29.</strong> Two gaps sat under this section.
+    First, the serve panel has no source in <code>agent watch</code>: the watch
+    command has no live-window figures, and the telemetry spine recorded that
+    as an accepted non-gap. §11 now supplies them. Second, the price table
+    the repository command reads is fetched only by gpu-watch, so deleting
+    gpu-watch's price fetch would leave nothing refreshing it. §12 moves that
+    fetch into the package first. The gpu-watch node of this section therefore
+    runs after §11's gpu-watch node, which writes the same file, and after
+    §12, in addition to §5 and the §9 printing node.</p>
+
+    <h2 id="s11">§11 — The live panel reads the lane document and the recorder, and shows the router&#x27;s queue</h2>
+<section data-reckon="section" data-id="s11" data-effort-hours="3.75" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-attempts="0" data-status="implementable" data-links=""></section>
+<p><strong>Measured, 2026-09-29 07:13Z.</strong> gpu-watch's serve panel scrapes the engine's <code>/metrics</code> directly at <code>98dci4-gpu-0003:18810</code>, and it resolves that address correctly from <code>endpoints.json</code>. The panel's own arithmetic was replayed against the live engine over 55 s. It read 7 running, 0 queued in the engine, 363 tok/s aggregate output, a 99.2% cache hit and a 0.56 s median time to first token. The recorder's counters over the preceding two hours agree: 320–380 tok/s at 5–9 running. So the aggregate the panel prints is right, and three other things it shows are wrong or missing:</p>
+<ul>
+<li><strong>"tok/s each" is not a per-stream rate.</strong> It is the reciprocal of the median inter-token latency, which read 76.5. The aggregate divided by the running count was 363 ÷ 7 = 52. Under speculative decoding one step can emit several tokens, so the latency histogram does not describe a stream's rate, and the panel overstates it by about half.</li>
+<li><strong>"workers" counts running requests, not workers.</strong> Router receipts over the previous 15 minutes carried 14 distinct run ids against 6.6 mean requests in flight. A worker holds a request about half the time and spends the rest running tools.</li>
+<li><strong>The router's queue and the orchestrators' figure are absent.</strong> Requests held by the generation gate (<code>router_generation_gate.waiting</code>) never reach the engine, so the engine's queue reads 0 while the gate holds work. The headroom that orchestrators dispatch against, the top-level <code>headroom</code> in <code>lane.json</code>, appears nowhere on the panel.</li>
+</ul>
+<p>The direct scrape will also stop working. Once the engine binds loopback (<code>local-lane-admission-control</code> §9), the panel would read "serve unreachable" while the serve is healthy.</p>
+<p><strong>The design.</strong> Two published sources already carry every live figure. One is the lane document the router rewrites every 30 s; it is exactly what reckon's lane reader and every orchestrator consume. The other is the recorder's raw receipts: one row per serve every 5 s. <code>imas-ambix agent watch --json</code> gains two blocks computed from them. Neither block opens the index.</p>
+<ul>
+<li><code>lane</code> copies the lane document's own fields rather than recomputing them: <code>observed_at</code> with its age, <code>state</code>, the top-level <code>headroom</code> (the figure orchestrators read), <code>engine_headroom</code>, the <code>admission</code> block (headroom, verdict, waiting, oldest wait) and the <code>router_generation_gate</code> block (width, effective width, in flight, waiting, paused, width mode and reason). It also copies the worker-slot fields whenever the lane publishes them (<code>local-lane-admission-control</code> §21). A document older than its own <code>suggested_shelf_life_seconds</code> is reported as stale, with its age, and never as current.</li>
+<li><code>live</code> is computed from the rows of the newest raw receipt file that fall in the trailing 45 s. All of them must belong to one run: the same job, and no counter below its predecessor. It carries mean running, the engine queue, and aggregate output tok/s as the generation counter's advance over elapsed time. Per-stream tok/s is that aggregate divided by mean running. Prefill tok/s comes from the advance in uncached prompt tokens, and the cache hit from the prompt and uncached advances. The median time to first token comes from the histogram's advance, and pool occupancy is the latest reading. If the window holds fewer than two rows of one run, every rate is null, not zero.</li>
+</ul>
+<p>A <code>--live</code> flag emits only those two blocks. It reads only the lane document and the tail of one receipt file, and never opens the index, so gpu-watch can call it every five seconds while the index work of §5 is unfinished. gpu-watch then renders its serve panel from that document and deletes its engine scrape. Its first band reads <em>running</em> instead of workers. It gains a router row (width, in flight, queued at the router with the oldest wait, verdict) and a slots row. The slots row carries the lane's top-level <code>headroom</code> in requests and, when the lane publishes them, its worker slots.</p>
+<table>
+<caption>Nodes for this section.</caption>
+<thead><tr><th>Node</th><th>Runs after</th><th>Effort</th></tr></thead>
+<tbody>
+<tr><td>Build the <code>lane</code> and <code>live</code> blocks in a module of their own, <code>imas_ambix/agent/live_panel.py</code></td><td>&mdash;</td><td>1.5 h</td></tr>
+<tr><td>Wire <code>--live</code> and both blocks into <code>agent watch --json</code></td><td>the build; every other node writing <code>watch.py</code> or <code>cli.py</code>, one at a time</td><td>0.75 h</td></tr>
+<tr><td>gpu-watch renders its serve panel, router row and slots row from <code>agent watch --json --live</code>, and its engine scrape is deleted</td><td>the wire node</td><td>1.5 h</td></tr>
+</tbody>
+</table>
+<p><strong>Done when</strong> (the build): tests use a fixture receipt tail and a fixture lane document. They assert every field above by literal. The per-stream figure equals the aggregate divided by mean running. Every rate is null for a window holding one row, and for a window holding rows from two jobs. A stale document is reported stale, with its age. The declared negative control computes per-stream as the reciprocal of the median inter-token latency, and it must fail the per-stream test.</p>
+<p><strong>Done when</strong> (the wire node): run against the real record, <code>imas-ambix agent watch --json --live</code> returns both blocks in under 2 s, measured three times. A test asserts the <code>--live</code> path never constructs a <code>TelemetryIndex</code>, and the serving-interpreter guard passes. The declared negative control routes <code>--live</code> through the full document path, and it must fail the no-index test.</p>
+<p><strong>Done when</strong> (the gpu-watch node, written in the dotfiles repository): a grep of <code>bin/gpu-watch</code> finds no <code>/metrics</code> fetch and no <code>_scrape_serve</code>. One live capture is taken beside <code>agent watch --json --live</code> within the same minute, and both show the same running count, router width, in flight, router queue and headroom. The band's first label is <em>running</em>, and the card rows and job table are unchanged. The declared negative control points the slots row at <code>engine_headroom</code> instead of <code>headroom</code>. With it applied, the captured slots figure must disagree with the lane document whenever the two fields differ, and that capture is recorded.</p>
+
+    <h2 id="s12">§12 — The package owns the provider price table</h2>
+<section data-reckon="section" data-id="s12" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-attempts="0" data-status="implementable" data-links=""></section>
+<p><strong>What is wrong.</strong> Every cost figure uses a price table that only gpu-watch fetches, into <code>~/.cache/gpu-watch/openrouter-prices.json</code>, and <code>watch.DEFAULT_PRICE_PATH</code> reads that same file. §10 deletes gpu-watch's price fetch. The repository command would then read a table that nothing refreshes. That is the same shape as the reader that pointed where nothing writes. So the fetch moves into the package before §10 removes it.</p>
+<p><strong>The change.</strong> One module in the package owns the provider price table. It fetches the OpenRouter models endpoint and writes the table atomically. It resolves the table's path through <code>SiteConfig</code>, so every reader and gpu-watch agree on which file is in force. <code>agent watch</code> refreshes the table when it is older than 24 h, with a fetch bounded at 10 s. If the fetch fails, the cached table stays in use and its age is reported, and a render is never blocked. The §9 estimate record lives beside the table and never inside it. The existing file is copied to the new path once, so no price history is lost.</p>
+<table>
+<caption>Node for this section.</caption>
+<thead><tr><th>Node</th><th>Runs after</th><th>Effort</th></tr></thead>
+<tbody>
+<tr><td>The price table is owned by the package and refreshed by <code>agent watch</code></td><td>other nodes writing <code>watch.py</code>, one at a time</td><td>1.0 h</td></tr>
+</tbody>
+</table>
+<p><strong>Done when</strong>: tests over a stub fetch assert the following. The table path resolves through <code>SiteConfig</code>. A table older than 24 h is refreshed, and a younger one is not. A failed or timed-out fetch leaves the cached table in use and reports its age. The write is atomic: a scratch file is renamed onto the path. <code>watch.DEFAULT_PRICE_PATH</code> no longer names <code>gpu-watch</code>, and the serving-interpreter guard passes. The declared negative control lets a failed fetch overwrite the cached table, and it must fail the fallback test.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
