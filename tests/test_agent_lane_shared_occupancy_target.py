@@ -16,6 +16,7 @@ shared object that has quietly moved.
 
 from __future__ import annotations
 
+import importlib
 import json
 
 from imas_ambix.agent import lane, router
@@ -105,3 +106,33 @@ def test_the_environment_override_still_wins():
 
     assert override == 0.75
     assert override != lane.DEFAULT_OCCUPANCY_TARGET
+
+
+def test_the_override_moves_the_memory_rule_default_with_the_estimator(monkeypatch):
+    """An override must move the router's memory-rule default, not only the
+    estimator's published capacity.
+
+    The estimator resolves ``IMAS_AMBIX_LANE_OCCUPANCY_TARGET`` at import into
+    ``LaneCapacity.OCCUPANCY_TARGET``; the memory rule's default must follow that
+    resolved figure. Binding it to the unresolved module constant instead leaves
+    an override that moves the published capacity while the gate keeps sizing the
+    pool at the default -- the two-targets-on-one-pool disagreement this file
+    exists to prevent. Both modules are re-imported under the override, and the
+    environment is restored afterwards so no later reader sees it.
+    """
+    monkeypatch.setenv(lane.OCCUPANCY_TARGET_ENV, "0.7")
+    try:
+        importlib.reload(lane)
+        importlib.reload(router)
+
+        estimator_target = lane.LaneCapacity.OCCUPANCY_TARGET
+        memory_rule_default = router.DEFAULT_AUTO_OCCUPANCY_TARGET
+
+        assert estimator_target == 0.7
+        assert memory_rule_default == 0.7
+        assert memory_rule_default is estimator_target
+        assert router._GenerationGate(None).settings().occupancy_target == 0.7
+    finally:
+        monkeypatch.delenv(lane.OCCUPANCY_TARGET_ENV, raising=False)
+        importlib.reload(lane)
+        importlib.reload(router)
