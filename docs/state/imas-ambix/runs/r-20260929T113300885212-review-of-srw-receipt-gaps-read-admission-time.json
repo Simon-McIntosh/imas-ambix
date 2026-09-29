@@ -1,0 +1,373 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effort": "xhigh",
+    "launch": "cli",
+    "local": true,
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "read-only",
+    "usable_input_window": 480000
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "158b2275f656e56ec1a8e05504ae9798e76b8643",
+  "boundary_waiver": null,
+  "budget": {
+    "cost_usd": null,
+    "detail": "no events yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": null,
+    "utilisation_pct": null
+  },
+  "changed_lines": null,
+  "commit_resolution": null,
+  "commits": [],
+  "completed_at": "2026-09-29T12:10:44.841Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-09-29T11:33:08Z",
+  "dispute_count": 0,
+  "duration_measurement": {
+    "reason": "model_span_unavailable_at_promotion",
+    "status": "underivable"
+  },
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": false,
+    "matched_measure": null,
+    "override": false,
+    "role": "review",
+    "status": "no-execution-measure"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [
+    "docs/evidence/fragments/serving-record-warehouse/srw-receipt-gaps-read-admission-time.html",
+    "0.930"
+  ],
+  "gate": "passed",
+  "gate_check": {
+    "command": "python3 -c \"import json;d=json.load(open('/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260929T110951289347-srw-receipt-gaps-read-admission-time.json'));s=d['scores'];assert len(s)==5 and all(0<=v<=20 for v in s.values());print('scores',s,'total',d.get('total'))\"",
+    "exit_status": 0,
+    "log_digest": "sha256:0464b6d37ff0a888f43b8e47670727fb1a2e480feb16f2fc44491d3b10e13258",
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T113300885212-review-of-srw-receipt-gaps-read-admission-time/coordinator-review-check.log"
+  },
+  "impl_move": {
+    "at_complete": null,
+    "at_dispatch": 0.034482758620689655,
+    "plan": "serving-record-warehouse",
+    "reason": "role-not-enforced:review",
+    "verdict": "exempt"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-09-29T12:13:01.529007+00:00",
+    "horizon_seconds": 2400,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": null,
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-09-29T11:33:01Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 19,
+    "binding_observed": "unknown",
+    "detail": "",
+    "generating": 11,
+    "headroom": 3,
+    "mean_context": 138182,
+    "observed_at": "2026-09-29T11:32:42Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45,
+    "throughput": {
+      "age_seconds": null,
+      "aggregate_tokens_per_second": "unknown",
+      "detail": "lane document publishes no 'throughput' block, so the rate its generating population achieved is not measured",
+      "mean_tokens_per_second": "unknown",
+      "observed_at": null,
+      "runs": "unknown",
+      "state": "unknown"
+    },
+    "waiting": 0
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-09-29T12:10:44.841Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": true,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T113300885212-review-of-srw-receipt-gaps-read-admission-time/manifest.md",
+  "member": "disposable-r-20260929T113300885212-review-of-srw-receipt-gaps-read-admission-time",
+  "negative_control": {
+    "reason": "node-writes-no-test-path",
+    "verdict": "exempt"
+  },
+  "no_commit": "a review writes only its review record, outside the repository",
+  "node": "review-of-srw-receipt-gaps-read-admission-time",
+  "node_definition": {
+    "brief": "",
+    "brief_path": "",
+    "brief_sha256": "",
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 507,
+          "cached_input_tokens": 835807,
+          "input_tokens": 836316,
+          "output_tokens": 866,
+          "reasoning_output_tokens": 608,
+          "total_tokens": 837182,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "0c4316b2-553f-4a0a-ae02-c42d88de747c",
+      "session_id": "0c4316b2-553f-4a0a-ae02-c42d88de747c"
+    },
+    "done_when": "the review for r-20260929T110951289347-srw-receipt-gaps-read-admission-time stores a parsed record scoring all 5 dimensions in the range 0..20, carrying added_failure_count and added_failure_ids derived from the reviewed run's own baseline_suite and after_suite gate logs; the turn ends once that record is stored and the manifest reads complete",
+    "estimated_hours": null,
+    "goal": "attach an independent review to run r-20260929T110951289347-srw-receipt-gaps-read-admission-time",
+    "id": "review-of-srw-receipt-gaps-read-admission-time",
+    "lane_declaration": {
+      "backend": null,
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-09-29T11:33:01Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 19,
+      "binding_observed": "unknown",
+      "detail": "",
+      "generating": 11,
+      "headroom": 3,
+      "mean_context": 138182,
+      "observed_at": "2026-09-29T11:32:42Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45,
+      "throughput": {
+        "age_seconds": null,
+        "aggregate_tokens_per_second": "unknown",
+        "detail": "lane document publishes no 'throughput' block, so the rate its generating population achieved is not measured",
+        "mean_tokens_per_second": "unknown",
+        "observed_at": null,
+        "runs": "unknown",
+        "state": "unknown"
+      },
+      "waiting": 0
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T113300885212-review-of-srw-receipt-gaps-read-admission-time/manifest.md",
+    "negative_control": "",
+    "plan": "serving-record-warehouse",
+    "requested_backend": null,
+    "requires_decisions": [],
+    "role": "review",
+    "section": "§9",
+    "spec_level": "exact",
+    "time_budget": "40m",
+    "token_budget": null,
+    "write_paths": [
+      "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260929T110951289347-srw-receipt-gaps-read-admission-time.json",
+      "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260929T110951289347-srw-receipt-gaps-read-admission-time.at-ebd46b089a91f40e8bf7ecd43559e431a4d75a59.json"
+    ]
+  },
+  "orientation_input_tokens": null,
+  "outcome": "",
+  "pace": {
+    "allowance": null,
+    "bar": null,
+    "clocks": {
+      "five_hour": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "five_hour",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null
+      },
+      "seven_day": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "seven_day",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null
+      }
+    },
+    "group": null,
+    "hold": null,
+    "lane": "clive",
+    "member": null,
+    "node": "review-of-srw-receipt-gaps-read-admission-time",
+    "policy": {
+      "drain_lead_hours": 12.0,
+      "pace_multiple": 1.1
+    },
+    "reason": "the lane declares no budget group, so no wallet paced it",
+    "recorded_at": "2026-09-29T11:33:04.393254+00:00",
+    "score": 0.625,
+    "source": null,
+    "state": "unknown"
+  },
+  "plan": "serving-record-warehouse",
+  "plan_impl_at_dispatch": 0.034482758620689655,
+  "promoted_revision": "158b2275f656e56ec1a8e05504ae9798e76b8643",
+  "resume_waiver": null,
+  "review": null,
+  "review_tier": "full",
+  "role": "review",
+  "run_id": "r-20260929T113300885212-review-of-srw-receipt-gaps-read-admission-time",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§9",
+  "session_harness": "claude",
+  "session_id": "b9e2a3a6-d0ff-466f-a25b-cc3009431ecf",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "exact",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": null,
+  "time_budget": "40m",
+  "tool_steps": 62.0,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": [
+      {
+        "budget_overrun": false,
+        "budget_overrun_seconds": 0,
+        "budget_seconds": 2400,
+        "classification": "scoring",
+        "commits_beyond_base": 0,
+        "detail": "the worker manifest reports completion, but no independent review is attached; an independent review must be produced before promotion",
+        "effective_phase": "complete",
+        "elapsed_seconds": 1828,
+        "exit_record": {
+          "attempt": 1,
+          "ended_during": "working",
+          "exit_code": 0,
+          "exited_at": "2026-09-29T11:18:05Z",
+          "last_record_type": "result",
+          "launched_at": "2026-09-29T11:02:44Z",
+          "recorded_by": "supervisor",
+          "run_id": "r-20260929T110225277014-srw-live-panel-asserts-every-field",
+          "signal": null,
+          "signal_name": null,
+          "stream_records_seen": 3476,
+          "worker_pid": 1826403
+        },
+        "external_wait": null,
+        "fleet_verdict": {
+          "detail": "",
+          "lifting_condition": null,
+          "recovery": "review",
+          "recovery_classification": "scoring",
+          "state": "completed_unpromoted"
+        },
+        "interruption": null,
+        "lifting_condition": null,
+        "liveness_proven": false,
+        "log_age_seconds": 898,
+        "log_fresh": true,
+        "manifest_commits": [
+          "1121eda1482e94d2227e9b75bd70e49f57e4b9e3"
+        ],
+        "manifest_derived": false,
+        "manifest_digest": "ead0d4f9a1d7980c86413aa11915222d784888c0fff51d7ef7a41ecf49fced27",
+        "manifest_error": null,
+        "manifest_file_present": true,
+        "manifest_fresh": true,
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T110225277014-srw-live-panel-asserts-every-field/manifest.md",
+        "manifest_present": true,
+        "manifest_reported_status": "complete",
+        "manifest_status": "complete",
+        "marker": null,
+        "needs_help_complete": null,
+        "next_action": "reckon crew dispatch --project imas-ambix --plan serving-record-warehouse --section '§11' --role review --spec-level exact --node review-of-srw-live-panel-asserts-every-field --goal 'attach an independent review to run r-20260929T110225277014-srw-live-panel-asserts-every-field' --done-when 'the review for r-20260929T110225277014-srw-live-panel-asserts-every-field stores a parsed record scoring all 5 dimensions in the range 0..20, carrying added_failure_count and added_failure_ids derived from the reviewed run'\"'\"'s own baseline_suite and after_suite gate logs; the turn ends once that record is stored and the manifest reads complete' --write-path /home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260929T110225277014-srw-live-panel-asserts-every-field.json --write-path /home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260929T110225277014-srw-live-panel-asserts-every-field.at-1121eda1482e94d2227e9b75bd70e49f57e4b9e3.json --time-budget 40m --session 0c4316b2-553f-4a0a-ae02-c42d88de747c --allow-unreconciled-runs --local",
+        "node": "srw-live-panel-asserts-every-field",
+        "phase": "complete",
+        "plan": "serving-record-warehouse",
+        "process_alive": false,
+        "process_descendant_alive": null,
+        "project": "imas-ambix",
+        "recovery": "review",
+        "recovery_classification": "scoring",
+        "resets_at": null,
+        "review_error": null,
+        "review_present": false,
+        "review_status": null,
+        "run_id": "r-20260929T110225277014-srw-live-panel-asserts-every-field",
+        "session": "0c4316b2-553f-4a0a-ae02-c42d88de747c",
+        "stored_phase": "starting",
+        "terminal_age_seconds": 963,
+        "terminal_at": "2026-09-29T11:17:00Z",
+        "wait_age_seconds": null,
+        "wait_condition_state": null,
+        "wait_key_defect": null,
+        "wait_observed": null,
+        "wait_overdue": null,
+        "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-live-panel-asserts-every-field"
+      }
+    ]
+  },
+  "wall_seconds": 2256,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 137,
+    "exited_at": "2026-09-29T12:11:10Z",
+    "last_record_type": "system",
+    "launched_at": "2026-09-29T11:33:15Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20260929T113300885212-review-of-srw-receipt-gaps-read-admission-time",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 11457,
+    "worker_pid": 2414761
+  },
+  "worker_seconds": 2230,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
