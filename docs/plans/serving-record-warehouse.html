@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-29">
-<meta name="plan-version" content="81">
+<meta name="plan-version" content="82">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -687,6 +687,7 @@
 <li><strong>The price-path constant.</strong> <code>DEFAULT_PRICE_PATH</code> is removed, as the §12 node landed it. Its done-when clause is met when <code>watch.py</code> holds no literal path to the table.</li>
 <li><strong>The table's age.</strong> The age is the current time minus the table's <code>at</code> field, a Unix timestamp. It is not the timestamp itself.</li>
 </ul></li>
+<li><strong>What §11's gpu-watch node removes, and what §10's removes (fixed 2026-09-29).</strong> gpu-watch's private period ledger is fed by the same <code>/metrics</code> scrape the serve panel uses (<code>ledger_record</code> is called from <code>_serve_state_tail</code>). The ledger's replacement, periods from <code>agent watch --json</code>, cannot land until §5's read-only index is deployed, because the full path still ingests on read and takes minutes. So §11's gpu-watch node takes the serve panel entirely off the scrape: it renders from <code>agent watch --json --live</code>, and the scrape remains only as the ledger's feeder. §10's gpu-watch node deletes the scrape and the ledger together. §11's grep clause therefore reads: no <code>/metrics</code> fetch and no <code>_scrape_serve</code> call remains on the serve panel's path. §10's clause, no <code>/metrics</code> anywhere in the file, stands as written. gpu-watch finds the CLI through the <code>IMAS_AMBIX_CLI</code> environment variable, falling back to the main checkout's <code>.venv/bin/imas-ambix</code>, because the command is not on <code>PATH</code>.</li>
 </ul>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
