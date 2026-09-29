@@ -24,6 +24,22 @@ def _probe_with_refused_jobs() -> node_probe.NodeProbe:
     return node_probe.NodeProbe(run=run, env={}, hostname="n", job_interval_s=60.0)
 
 
+def _probe_with_absent_jobs() -> node_probe.NodeProbe:
+    """A probe on a node carrying no ``squeue`` at all.
+
+    A missing program raises ``FileNotFoundError`` from the spawn, which is the
+    only place the two kinds of non-answer are separable -- a refused query
+    reports no output just as a missing command does.
+    """
+
+    def run(argv, *, timeout_s):
+        if argv[0] == "squeue":
+            raise FileNotFoundError(argv[0])
+        return None
+
+    return node_probe.NodeProbe(run=run, env={}, hostname="n", job_interval_s=60.0)
+
+
 def _snapshot() -> dict:
     return {"gauges": {}, "counters": {}, "engine": None}
 
@@ -97,3 +113,23 @@ def test_an_answered_job_read_records_a_measurement_the_marker_case_lacks():
     assert node_probe.UNREAD_KEY not in jobs
     assert jobs["count"] == 1
     assert len(jobs["jobs"]) == 1
+
+
+def test_an_absent_squeue_is_absent_from_neither_refused_nor_not_due():
+    """A node with no ``squeue`` is a third record, distinct from the other two.
+
+    A refused query is worth retrying and a missing command never is, so the
+    row must keep the three cases apart at the record boundary: refused, absent,
+    and not-yet-due. An absent command that serialised to the refused read's row
+    would erase that distinction, and one that omitted the key would read as a
+    tick where the read was simply not due.
+    """
+    refused = _row_json(_probe_with_refused_jobs().sample(0.0))
+
+    probe = _probe_with_absent_jobs()
+    absent = _row_json(probe.sample(0.0))
+    not_due = _row_json(probe.sample(1.0))
+
+    assert absent != refused
+    assert absent != not_due
+    assert absent["jobs"][node_probe.UNREAD_KEY] == node_probe.COMMAND_ABSENT
