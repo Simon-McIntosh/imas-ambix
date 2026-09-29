@@ -2656,7 +2656,10 @@ def receipts(
     "record_dir",
     type=click.Path(),
     default=None,
-    help="Receipts directory to read (default: ~/.local/share/ambix/receipts).",
+    help=(
+        "Receipts directory to read (default: the site's receipts directory, "
+        "resolved by watch.default_record_dir through the site configuration)."
+    ),
 )
 @click.option(
     "--index",
