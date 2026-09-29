@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="a-recorded-field-is-one-that-was-measured">
+</head>
+<body>
+  <main class="plan-doc">
+    <p>Repaired the <code>ReceiptRow</code> docstring phrase "each is None when its
+    source did not produce a reading on this tick" — the sentence the job table
+    breaks — to name <code>node_probe.UNREAD_KEY</code> as the one key whose
+    presence is not a measurement, matching the module docstring and the
+    <code>ROW_SECTIONS</code> comment. Added
+    <code>test_an_absent_squeue_is_absent_from_neither_refused_nor_not_due
+    </code>, driving an absent <code>squeue</code> command
+    (<code>COMMAND_ABSENT</code>) through <code>build_receipt_row</code> and
+    asserting it differs from both the refused-read and not-due records — gate 48
+    passed + 1 parse passed + ruff exit 0; negative control 1 failed. Commit
+    1c4a3e8e.</p>
+  </main>
+</body>
+</html>

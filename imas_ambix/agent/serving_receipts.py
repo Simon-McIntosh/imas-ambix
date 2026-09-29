@@ -180,12 +180,18 @@ def _serving_snapshot(text: str) -> dict[str, Any]:
 class ReceiptRow:
     """One sample in the append-only serving receipts record.
 
-    The sections at the end are sparse: each is ``None`` when its source did
-    not produce a reading on this tick, and :meth:`to_json` omits it rather
-    than writing a null. The flat fields above keep their established meaning,
-    ``None`` included -- they are a fixed vocabulary where a null has always
-    said *not observed*, and a reader resolving through them is entitled to
-    see the key. Prefix-cache and speculative-decode quantities have no flat
+    The sections at the end are sparse: :meth:`to_json` omits a section the
+    tick did not fill rather than writing it as a null, so an absent key never
+    reads as a measured zero and a reader never has to tell a measured zero
+    from a section nothing measured. The one key whose presence is not that
+    assertion is ``jobs``: a tick whose read was due but whose ``squeue`` did
+    not answer carries :data:`~imas_ambix.agent.node_probe.UNREAD_KEY`, a marker
+    that the table could not be read -- neither a measured zero nor the same
+    record as a tick where the read was not due, which omits the key entirely.
+    The flat fields above keep their established meaning, ``None`` included --
+    they are a fixed vocabulary where a null has always said *not observed*,
+    and a reader resolving through them is entitled to see the key.
+    Prefix-cache and speculative-decode quantities have no flat
     field: the ``engine`` section carries them under their canonical names,
     and its own rule (absent rather than null) then applies to them.
     """
