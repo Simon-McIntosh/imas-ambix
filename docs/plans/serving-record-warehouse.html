@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-29">
-<meta name="plan-version" content="48">
+<meta name="plan-version" content="49">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;implementable&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -776,7 +776,7 @@
     <div class="r-comment-body"><p>parse_cards now reads each nvidia-smi card line with the csv module (skipinitialspace) instead of a positional comma split, so a quoted comma in a card name no longer truncates the name or shifts the numeric columns: before the fix a row named "NVIDIA H200, NVL" read name '"NVIDIA H200' with temperature_c=0.0, power_draw_w=41.0 and memory_total_mib absent; after, the name reads whole and all eight numeric fields equal the row's values; tests/test_node_probe.py passes 44 (one new).</p></div>
 </div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20260929T074321886843-review-of-srw-card-row-reads-quoted-names" data-who="reckon-build" data-when="2026-09-29T08:26:54.929Z">
-    <div class="r-comment-body"><p>Reviewed run r-20260929T072905403549 at base 41ef8974 / head f8ded1dc: the csv card-row parse is correct at the head (name whole, all eight numeric fields at the query&#x27;s columns) and the base blob reproduces the positional-split shift; scores goal_fidelity 20, evidence 17, scope_discipline 20, durability 19, fit 20 = 96, with two recording findings (the manifest&#x27;s quoted base-arm values at line 15, and the gate logs naming the base revision because they ran 3-5 minutes before the commit); the review record is stored head-keyed and legacy.</p></div>
+    <div class="r-comment-body"><p>Reviewed run r-20260929T072905403549 at base 41ef8974 / head f8ded1dc: the csv card-row parse is correct at the head (name whole, all eight numeric fields at the query's columns) and the base blob reproduces the positional-split shift; scores goal_fidelity 20, evidence 17, scope_discipline 20, durability 19, fit 20 = 96, with two recording findings (the manifest's quoted base-arm values at line 15, and the gate logs naming the base revision because they ran 3-5 minutes before the commit); the review record is stored head-keyed and legacy.</p></div>
 </div>
 <div class="r-comment" data-section="s10" data-id="c-land-srw-watch-help-names-its-default" data-who="reckon-build" data-when="2026-09-29T08:12:00Z">
     <div class="r-comment-body"><p>Landed §10 node 1 (run <code>r-20260929T072914346236-srw-watch-help-names-its-default</code>, commit <code>3c8f86e4</code>, merged <code>1fd33adb</code>). The <code>agent watch --record</code> help now states that the default resolves through the site configuration, via <code>watch.default_record_dir</code>, instead of naming the removed <code>~/.local/share/ambix/receipts</code>. Two CliRunner tests pass. The declared negative control, restoring the old string, fails both. Independent review scored 92 with 0 added failures. Its finding is that the test pins the help's wording without asserting that <code>watch.default_record_dir</code> exists. That finding and the worker's follow-on, the <code>receipts --output</code> help at <code>cli.py:2582</code> which still names the same removed default, are folded into one <code>cli.py</code> node. §10 stays open: its gpu-watch node remains.</p></div>
@@ -786,6 +786,9 @@
 </div>
 <div class="r-comment" data-section="s10" data-id="c-run-r-20260929T074434229940-review-of-srw-watch-help-names-its-default" data-who="reckon-build" data-when="2026-09-29T08:16:35.413Z">
     <div class="r-comment-body"><p>Independent review of r-20260929T072914346236-srw-watch-help-names-its-default at head 3c8f86e4 stored a parsed record scoring goal_fidelity 19, evidence 19, scope_discipline 19, durability 17, fit 18 (total 92) with added_failure_count 0 and no added failure ids; the help-text repair was reproduced green at the head (2 passed) and shown red against the base revision's module (2 failed, stale path quoted from the rendered help), and the claim it makes was confirmed at runtime (default_record_dir() == SiteConfig.receipts_dir == /work/projects/imas_gpu/agents/receipts, 80 record files).</p></div>
+</div>
+<div class="r-comment" data-section="s11" data-id="c-run-r-20260929T072617274722-scout-live-panel-reuse" data-who="reckon-build" data-when="2026-09-29T08:33:34.522Z">
+    <div class="r-comment-body"><p>No landing step. The map is an evidence input for a separately dispatched build wave; it is not merged into the repository and needs no review of the merged result.</p></div>
 </div>
 </section>
 </main>
