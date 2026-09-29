@@ -1,20 +1,34 @@
 """Draw the watch cost figure: the tiers, and the period priced three ways.
 
-Run from anywhere with the repository's own interpreter; it writes
-``cost-by-rendering.png`` beside itself. The two panels are the mechanism and
-its consequence: left, the input tier gap that makes the split matter at all;
-right, the same recorded period priced by the three candidate renderings, two
-of which the watch command must never print.
+Run with the repository's own interpreter; it writes ``cost-by-rendering.png``
+beside itself. The two panels are the mechanism and its consequence: left, the
+input tier gap that makes the split matter at all; right, the same recorded
+period priced by the three candidate renderings, two of which the watch command
+must never print. The third-party rate is read from the installed estimate
+record through the very reader the watch command uses, so the figure moves with
+the record rather than with a constant copied into it.
 """
 
+import sys
 from pathlib import Path
 
-import matplotlib
+REPO = Path(__file__).resolve().parents[4]
+if str(REPO) not in sys.path:
+    sys.path.insert(0, str(REPO))
+
+import matplotlib  # noqa: E402
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
+from imas_ambix.agent import watch  # noqa: E402
+
 OUT = Path(__file__).with_name("cost-by-rendering.png")
+
+#: The installed estimate record lives beside the price table in this directory;
+#: :func:`watch.load_estimate` joins the table's directory with the record
+#: filename, so reading a table path here reads the record installed with it.
+INSTALLED_TABLE = Path("/work/projects/imas_gpu/agents/openrouter-prices.json")
 
 # Per-token rates, in dollars per million tokens.
 PROMPT = 10.0
@@ -30,8 +44,17 @@ TOKENS_OUT = 40_000.0
 #: tier, and it is higher than any hosted endpoint would reach.
 H_OWN = 0.9745
 
-#: The installed third-party estimate, on the small-turn stratum.
-H_ESTIMATE = 0.858
+
+def installed_rate() -> tuple[float, Path]:
+    """The third-party hit rate the watch command would price at, and its record."""
+    record = watch.estimate_path(INSTALLED_TABLE)
+    estimate = watch.load_estimate(INSTALLED_TABLE)
+    if estimate is None:
+        raise SystemExit(
+            f"no estimate record at {record}; install one before drawing this "
+            "figure, because the third-party rate is read from it"
+        )
+    return estimate.rate, record
 
 
 def usd(tokens_millions: float, rate: float) -> float:
@@ -39,17 +62,17 @@ def usd(tokens_millions: float, rate: float) -> float:
 
 
 def main() -> None:
+    h_estimate, record = installed_rate()
+
     def bill(hit_rate: float) -> float:
-        cached = hit_rate * TOKENS_IN
-        uncached = (1.0 - hit_rate) * TOKENS_IN
         return (
-            usd(cached / 1e6, CACHE_OWN)
-            + usd(uncached / 1e6, PROMPT)
+            usd(hit_rate * TOKENS_IN / 1e6, CACHE_OWN)
+            + usd((1.0 - hit_rate) * TOKENS_IN / 1e6, PROMPT)
             + usd(TOKENS_OUT / 1e6, COMPLETION)
         )
 
     own = bill(H_OWN)
-    estimate = bill(H_ESTIMATE)
+    estimate = bill(h_estimate)
     no_cache = bill(0.0)
 
     fig, (ax_rate, ax_cost) = plt.subplots(1, 2, figsize=(11.0, 4.4))
@@ -79,8 +102,8 @@ def main() -> None:
     ax_rate.set_ylim(0, 23)
 
     renderings = [
-        "our own\ncached split (h=0.97)",
-        "third-party\nestimate (h=0.858)",
+        f"our own\ncached split (h={H_OWN:.3f})",
+        f"third-party\nestimate (h={h_estimate:.3f})",
         "no cache\n(h=0)",
     ]
     costs = [own, estimate, no_cache]
@@ -118,7 +141,7 @@ def main() -> None:
     )
     fig.tight_layout(rect=(0, 0, 1, 0.94))
     fig.savefig(OUT, dpi=150)
-    print(f"wrote {OUT}")
+    print(f"wrote {OUT}; h={h_estimate:.6f} read from {record}")
 
 
 if __name__ == "__main__":

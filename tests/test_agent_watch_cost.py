@@ -23,7 +23,7 @@ from pathlib import Path
 
 import pytest
 
-from imas_ambix.agent import watch
+from imas_ambix.agent import provider_prices, watch
 from imas_ambix.agent.telemetry_index import TelemetryIndex, discover
 
 #: A fixture price row whose rates land the candidate figures at distinct cents,
@@ -91,8 +91,8 @@ def _row(
     }
 
 
-def _fixture_index(tmp_path: Path, now: float) -> TelemetryIndex:
-    """An index whose one-hour period carries the fixture token totals."""
+def _write_receipts(tmp_path: Path, now: float) -> Path:
+    """The fixture receipts directory, for a caller that builds its own index."""
     directory = tmp_path / "receipts"
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / "serve.jsonl"
@@ -108,6 +108,12 @@ def _fixture_index(tmp_path: Path, now: float) -> TelemetryIndex:
     with path.open("w", encoding="utf-8") as fh:
         for row in rows:
             fh.write(json.dumps(row) + "\n")
+    return directory
+
+
+def _fixture_index(tmp_path: Path, now: float) -> TelemetryIndex:
+    """An index whose one-hour period carries the fixture token totals."""
+    directory = _write_receipts(tmp_path, now)
     index = TelemetryIndex(tmp_path / "index.sqlite3")
     index.ingest(discover(directory))
     return index
@@ -119,6 +125,19 @@ def _estimate_record(tmp_path: Path) -> Path:
     table.write_text(json.dumps({"models": [PRICE_ROW]}), encoding="utf-8")
     record = table.parent / watch.ESTIMATE_FILENAME
     record.write_text(json.dumps(ESTIMATE_RECORD), encoding="utf-8")
+    return table
+
+
+def _install_fixture_table(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Wire the fixture record into the readers through the table they resolve.
+
+    ``watch_text`` and ``watch_document`` find both the price table and the
+    estimate record through :func:`provider_prices.table_path`, so pointing
+    that at the fixture table is what makes them read the fixture record
+    without an *estimate* argument being passed in.
+    """
+    table = _estimate_record(tmp_path)
+    monkeypatch.setattr(provider_prices, "table_path", lambda *a, **k: table)
     return table
 
 
@@ -257,3 +276,77 @@ def test_a_missing_record_prints_a_dash_and_says_so(tmp_path: Path) -> None:
     # The cost column, and only it, dashes: the token columns remain.
     assert "$" not in text
     index.close()
+
+
+def test_watch_text_prices_from_the_installed_record(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The text panel reads the record the table's directory holds.
+
+    No *estimate* is passed, so the figure can only arrive through the reader
+    path: the table the panel resolves holds the fixture row and its directory
+    holds the fixture record. Replacing the installed-record read with ``None``
+    dashes the cost and reddens this test, which is the mutation this wiring
+    exists to catch.
+    """
+    now = _dt.datetime.now(_dt.UTC).timestamp()
+    _install_fixture_table(tmp_path, monkeypatch)
+    directory = _write_receipts(tmp_path, now)
+    text = watch.watch_text(directory, tmp_path / "text.sqlite3", now=now)
+    assert watch.fmt_usd(ESTIMATED_COST) in text
+    assert "55.0%" in text
+    assert "measured" in text
+    assert "2026-09-29" in text
+
+
+def test_watch_document_prices_from_the_installed_record(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The JSON document reads the same installed record and carries its label.
+
+    *estimate* is not passed here either, so the period row's ``cost`` and
+    ``cost_label`` both depend on the installed-record read.
+    """
+    now = _dt.datetime.now(_dt.UTC).timestamp()
+    _install_fixture_table(tmp_path, monkeypatch)
+    directory = _write_receipts(tmp_path, now)
+    payload = watch.watch_document(directory, tmp_path / "doc.sqlite3", now=now)
+    row = payload["ledger"][0]
+    assert row["cost"] == pytest.approx(ESTIMATED_COST)
+    assert "55.0%" in row["cost_label"]
+    assert "measured" in row["cost_label"]
+
+
+@pytest.mark.parametrize(
+    "value",
+    [-0.01, 1.01, 2.0, "0.5", None, True, False, {"h": 0.5}, [0.5]],
+)
+def test_load_estimate_declines_a_rate_the_unit_interval_excludes(
+    tmp_path: Path, value: object
+) -> None:
+    """A record whose h is out of range, non-numeric or boolean is refused.
+
+    The reader declines the whole record rather than clamping what it holds, so
+    no cost is priced from a rate the record could not support.
+    """
+    table = _estimate_record(tmp_path)
+    record = table.parent / watch.ESTIMATE_FILENAME
+    doc = dict(ESTIMATE_RECORD)
+    doc["h"] = value
+    record.write_text(json.dumps(doc), encoding="utf-8")
+    assert watch.load_estimate(table) is None
+
+
+@pytest.mark.parametrize("value", [0.0, 1.0])
+def test_load_estimate_accepts_the_unit_interval_bounds(
+    tmp_path: Path, value: float
+) -> None:
+    """Positive control: the bounds the decline rule names are themselves kept."""
+    table = _estimate_record(tmp_path)
+    record = table.parent / watch.ESTIMATE_FILENAME
+    doc = dict(ESTIMATE_RECORD)
+    doc["h"] = value
+    record.write_text(json.dumps(doc), encoding="utf-8")
+    estimate = watch.load_estimate(table)
+    assert estimate is not None
+    assert estimate.rate == pytest.approx(value)
