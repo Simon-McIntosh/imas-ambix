@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-29">
-<meta name="plan-version" content="73">
+<meta name="plan-version" content="74">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -847,6 +847,9 @@
 </div>
 <div class="r-comment" data-section="s11" data-id="c-s11-ttft-median-cumulative" data-who="reckon-build" data-when="2026-09-29T11:37:00Z">
     <div class="r-comment-body"><p><strong>Defect found in the landed live panel, owned by the next §11 repair node.</strong> <code>live_panel._median_from_histogram</code> treats the receipt's time-to-first-token buckets as disjoint counts. The recorder writes them cumulatively: each <code>le</code> bucket counts every request at or below it, and the real record reads <code>0.6: 9386 … inf: 29940</code>. So the function sums cumulative advances, overstates the total, and lands the median in a high bucket. It also returns a bucket's upper edge instead of interpolating. Observed on the real record at 11:34Z: <code>agent watch --json --live</code> reported a median of exactly 20.0 s. gpu-watch's own interpolating reader measured 0.56 s at 07:13Z. Done when a test built from a real cumulative bucket set asserts the interpolated median, and the declared control (summing cumulative bucket advances as disjoint counts) fails it.</p></div>
+</div>
+<div class="r-comment" data-section="s11" data-id="c-run-r-20260929T110225277014-srw-live-panel-asserts-every-field" data-who="reckon-build" data-when="2026-09-29T11:18:05.104Z">
+    <div class="r-comment-body"><p>docs/evidence/fragments/serving-record-warehouse/srw-live-panel-asserts-every-field.html — made newest_raw_receipt judge the newest receipt file by its last parseable row so a half-written final line no longer drops the file, and asserted every copied lane field by literal (admission.waiting; gate width, in_flight, waiting, reason; worker_slots live_runs/requests_per_run/worker_slots) from a fixture lane document that publishes them; tests/test_live_panel.py 17 passed, serving parse guard passed, ruff exits 0.</p></div>
 </div>
 <div class="r-comment" data-section="s9" data-id="c-run-r-20260929T072923543423-srw-third-party-hit-rate-measured" data-who="reckon-build" data-when="2026-09-29T08:16:09.318Z">
     <div class="r-comment-body"><p>Measured h = 0.8581679092941827 for deepseek/deepseek-v4.1-flash on OpenRouter from 60 responses (238720 cached prompt tokens over 278174 prompt tokens), spend USD 0.008353, recorded 2026-09-29 against endpoint https://openrouter.ai/api/v1/chat/completions; record at ~/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/third-party-hit-rate/third-party-hit-rate.json.</p></div>
