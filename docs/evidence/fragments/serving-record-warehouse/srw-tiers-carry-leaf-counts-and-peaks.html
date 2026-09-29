@@ -1,0 +1,65 @@
+<section class="evidence-fragment" data-reckon="evidence" id="srw-tiers-carry-leaf-counts-and-peaks">
+  <header>
+    <h3>Each compacted row carries its gauge leaves' counts and their peaks</h3>
+    <p class="meta">
+      Node <code>srw-tiers-carry-leaf-counts-and-peaks</code> &middot;
+      date 2026-09-29 &middot;
+      worktree <code>imas-ambix-0405601943d2/srw-tiers-carry-leaf-counts-and-peaks</code>
+    </p>
+  </header>
+
+  <p>
+    A compacted row declared one sample count for the whole window, so a gauge
+    observed in three of twelve samples was indistinguishable from one observed
+    in all twelve, and no row could say whether a 40% mean occupancy was flat or
+    one spike to 100%. Each gauge leaf now records its own observed count in the
+    row's <code>obs.leaves</code> block, and the peak-read leaves also carry the
+    window's minimum and maximum. Re-compaction sums the counts and folds the
+    extremes by min and max, so the tier chain preserves what the raw tier
+    measured.
+  </p>
+
+  <h4>What changed</h4>
+  <ul>
+    <li>
+      <code>imas_ambix/agent/telemetry_store.py</code>: <code>_Mean</code>
+      carries an observation count and, for the leaves named by
+      <code>PEAK_LEAF_NAMES</code> (requests running and queued, KV pool
+      occupancy, card utilisation and power draw), the window's extremes. A
+      window writes them to <code>obs.leaves</code> keyed by the leaf's
+      <code>_merge</code> path, and reads a source row's declared block back so
+      a second level sums rather than recounts.
+    </li>
+    <li>
+      <code>tests/test_telemetry_compaction_leaves.py</code>: the counts, the
+      peak through both tier chains, and the count-summing on re-compaction.
+    </li>
+  </ul>
+
+  <h4>Measured</h4>
+  <table>
+    <caption>Asserted figures, at commit 48a908a8.</caption>
+    <thead>
+      <tr><th>case</th><th>figure</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>gauge null in 9 of 12 samples</td><td>observed count <strong>3</strong>, row samples 12</td></tr>
+      <tr><td>non-peak gauge over 4 samples</td><td>entry keys <code>{n}</code> only, no extremes</td></tr>
+      <tr><td>KV spike to 1.0 in a 0.4 minute, raw&rarr;hour and raw&rarr;minute&rarr;hour</td><td>min <strong>0.4</strong>, max <strong>1.0</strong>, count 12, mean 0.45, both chains</td></tr>
+      <tr><td>two minutes of 6 observations, chained to the hour</td><td>minute counts [6, 6], hour count <strong>12</strong> (direct and chained agree)</td></tr>
+    </tbody>
+  </table>
+
+  <h4>Negative control</h4>
+  <p>
+    The declared mutation &mdash; combining per-leaf counts by taking the
+    latest instead of the sum on re-compaction, applied as the scratch edit
+    <code>self.count += count</code> &rarr; <code>self.count = count</code> in
+    <code>_Mean.add</code> &mdash; fails
+    <code>test_re_compaction_sums_leaf_counts_rather_than_taking_the_latest</code>
+    as a scratch edit and is restored. Red log:
+    <code>runs/r-20260929T124929797725-srw-tiers-carry-leaf-counts-and-peaks/negative-control.log</code>
+    &middot; gate log:
+    <code>runs/r-20260929T124929797725-srw-tiers-carry-leaf-counts-and-peaks/gate-48a908a8.log</code>.
+  </p>
+</section>
