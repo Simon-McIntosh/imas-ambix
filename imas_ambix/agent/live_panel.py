@@ -81,6 +81,12 @@ COUNTER_NAMES = ("generation_tokens", "prompt_tokens", "uncached_prompt_tokens")
 #: still covered, and small enough that a large file is never read whole.
 TAIL_LINES = 1024
 
+#: Lines read from a candidate's tail when choosing the newest receipt file.
+#: The recorder appends one row per atomic write, so a file caught mid-append
+#: holds at most one incomplete final line; eight puts the last parseable row
+#: well inside the read even if a few trailing lines are unreadable.
+SELECTION_TAIL_LINES = 8
+
 
 def _now(now: datetime | None) -> datetime:
     return now if now is not None else datetime.now(UTC)
@@ -144,11 +150,15 @@ def _tier_names(directory: Path) -> set[Path]:
 
 
 def newest_raw_receipt(directory: str | Path) -> Path | None:
-    """The raw receipt file whose last row carries the latest timestamp.
+    """The raw receipt file whose last parseable row carries the latest stamp.
 
-    The tiers a receipts directory also holds are excluded by their names,
-    which :func:`~imas_ambix.agent.serving_receipts.tier_paths` derives from the
-    raw files' own suffixes. Ties are broken by path name so the choice is
+    A file caught mid-append holds an incomplete final line, so the choice is
+    made on the last row that parses rather than on the final line: a writer
+    part-way through a row must not make its file invisible while every row
+    before it is intact. The tiers a receipts directory also holds are excluded
+    by their own names, which
+    :func:`~imas_ambix.agent.serving_receipts.tier_paths` derives from the raw
+    files' suffixes. Ties are broken by path name so the choice is
     deterministic rather than dependent on directory order.
     """
     base = Path(directory)
@@ -159,7 +169,7 @@ def newest_raw_receipt(directory: str | Path) -> Path | None:
     for candidate in base.glob("*.jsonl"):
         if candidate in tiers:
             continue
-        rows = _read_rows(candidate, limit=1)
+        rows = _read_rows(candidate, limit=SELECTION_TAIL_LINES)
         if not rows:
             continue
         stamp = _parse_stamp(rows[-1].get("timestamp"))

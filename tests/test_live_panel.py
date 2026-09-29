@@ -218,6 +218,24 @@ def test_newest_raw_receipt_ignores_tiers_and_picks_the_latest_tail(tmp_path: Pa
     assert newest_raw_receipt(tmp_path) == newer
 
 
+def test_newest_raw_receipt_survives_a_half_written_final_line(tmp_path: Path):
+    """A file caught mid-append is chosen on its last parseable row.
+
+    The recorder writes one row per append, so a reader that judges a file by
+    its final line alone loses the whole file while the writer is part-way
+    through a row, even though every row before that one is intact. The final
+    line below is a real row truncated mid-write.
+    """
+    path = tmp_path / "deepseek-v4-1-flash-4811.jsonl"
+    torn = '{"timestamp": "2026-09-29T12:00:15Z", "job_'
+    path.write_text(json.dumps(_one_run_rows()[-1]) + "\n" + torn, encoding="utf-8")
+    assert newest_raw_receipt(tmp_path) == path
+    block = live_block(tmp_path, now=BASE + timedelta(seconds=10))
+    assert block["file"] == "deepseek-v4-1-flash-4811.jsonl"
+    assert block["job_id"] == 4811
+    assert block["served_name"] == "deepseek-v4-1-flash"
+
+
 def test_live_block_reads_only_the_chosen_file(tmp_path: Path):
     _write(tmp_path, "deepseek-v4-1-flash-0001.jsonl", _one_run_rows())
     _write(tmp_path, "deepseek-v4-1-flash-0002.jsonl", _one_run_rows())
@@ -247,6 +265,9 @@ def test_lane_block_copies_the_published_fields():
             "verdict": "admit",
             "waiting": 0,
             "oldest_wait_seconds": 0.0,
+            "live_runs": 5,
+            "requests_per_run": 0.8,
+            "worker_slots": 18,
         },
         "router_generation_gate": {
             "width": 4,
@@ -268,10 +289,21 @@ def test_lane_block_copies_the_published_fields():
     assert block["headroom_is_upper_bound"] is False
     assert block["admission"]["headroom"] == 7
     assert block["admission"]["verdict"] == "admit"
+    assert block["admission"]["waiting"] == 0
     assert block["admission"]["oldest_wait_seconds"] == 0.0
+    # The worker-slot fields travel with the admission block when the lane
+    # publishes them, so a reader gets the slot count and the two figures it
+    # divides from without recomputing either.
+    assert block["worker_slots"]["live_runs"] == 5
+    assert block["worker_slots"]["requests_per_run"] == 0.8
+    assert block["worker_slots"]["worker_slots"] == 18
+    assert block["router_generation_gate"]["width"] == 4
     assert block["router_generation_gate"]["effective_width"] == 3
+    assert block["router_generation_gate"]["in_flight"] == 2
+    assert block["router_generation_gate"]["waiting"] == 0
     assert block["router_generation_gate"]["width_mode"] == "auto"
     assert block["router_generation_gate"]["paused"] is False
+    assert block["router_generation_gate"]["reason"] == "within width"
 
 
 def test_lane_block_keeps_headroom_is_upper_bound_with_its_figure():
