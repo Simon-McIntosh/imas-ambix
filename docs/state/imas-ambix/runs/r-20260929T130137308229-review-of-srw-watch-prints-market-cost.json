@@ -1,0 +1,326 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effort": "xhigh",
+    "launch": "cli",
+    "local": true,
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "read-only",
+    "usable_input_window": 480000
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "985866412fe6a464df4dc3eafe75166d2abea639",
+  "boundary_waiver": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "inference_geo": "",
+      "input_tokens": 9511058,
+      "input_tokens_cumulative": 9511058,
+      "output_tokens": 81630,
+      "output_tokens_cumulative": 81630,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": null,
+  "commit_resolution": null,
+  "commits": [],
+  "completed_at": "2026-09-29T13:53:14.539Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-09-29T13:01:44Z",
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": false,
+    "matched_measure": null,
+    "override": false,
+    "role": "review",
+    "status": "no-execution-measure"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [
+    "imas_ambix/agent/watch.py:893",
+    "watch_text/watch_document",
+    "imas_ambix/agent/watch.py:487",
+    "docs/evidence/fragments/serving-record-warehouse/srw-watch-prints-market-cost.html:21",
+    "docs/figures/serving-record-warehouse/srw-watch-prints-market-cost/cost_by_rendering.py:34",
+    "dotfiles/bin/gpu-watch:309"
+  ],
+  "gate": "passed",
+  "gate_check": {
+    "command": "python3 -c \"import json;d=json.load(open('/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260929T122208570050-srw-watch-prints-market-cost.json'));s=d['scores'];assert len(s)==5 and all(0<=v<=20 for v in s.values());print('scores',s,'total',d.get('total'))\"",
+    "exit_status": 0,
+    "log_digest": "sha256:2fa47c39701a4b3205fd2384c82d802f8c16f6f185b54439740a83ee38175fcc",
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T130137308229-review-of-srw-watch-prints-market-cost/coordinator-review-check.log"
+  },
+  "impl_move": {
+    "at_complete": null,
+    "at_dispatch": 0.034482758620689655,
+    "plan": "serving-record-warehouse",
+    "reason": "role-not-enforced:review",
+    "verdict": "exempt"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-09-29T14:01:37.675613+00:00",
+    "horizon_seconds": 3600,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": null,
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-09-29T13:01:37Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 7,
+    "binding_observed": "unknown",
+    "detail": "",
+    "generating": 9,
+    "headroom": 7,
+    "mean_context": 124444,
+    "observed_at": "2026-09-29T13:01:30Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45,
+    "throughput": {
+      "age_seconds": null,
+      "aggregate_tokens_per_second": "unknown",
+      "detail": "lane document publishes no 'throughput' block, so the rate its generating population achieved is not measured",
+      "mean_tokens_per_second": "unknown",
+      "observed_at": null,
+      "runs": "unknown",
+      "state": "unknown"
+    },
+    "waiting": 0
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-09-29T13:53:14.539Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": true,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T130137308229-review-of-srw-watch-prints-market-cost/manifest.md",
+  "member": "disposable-r-20260929T130137308229-review-of-srw-watch-prints-market-cost",
+  "negative_control": {
+    "reason": "node-writes-no-test-path",
+    "verdict": "exempt"
+  },
+  "no_commit": "a review writes only its review record, outside the repository",
+  "node": "review-of-srw-watch-prints-market-cost",
+  "node_definition": {
+    "brief": "",
+    "brief_path": "",
+    "brief_sha256": "",
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 3018,
+          "cached_input_tokens": 953926,
+          "input_tokens": 956946,
+          "output_tokens": 565,
+          "reasoning_output_tokens": 376,
+          "total_tokens": 957511,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "0c4316b2-553f-4a0a-ae02-c42d88de747c",
+      "session_id": "0c4316b2-553f-4a0a-ae02-c42d88de747c"
+    },
+    "done_when": "the review for r-20260929T122208570050-srw-watch-prints-market-cost stores a parsed record scoring all 5 dimensions in the range 0..20, carrying added_failure_count and added_failure_ids derived from the reviewed run's own baseline_suite and after_suite gate logs; the turn ends once that record is stored and the manifest reads complete",
+    "estimated_hours": null,
+    "goal": "attach an independent review to run r-20260929T122208570050-srw-watch-prints-market-cost",
+    "id": "review-of-srw-watch-prints-market-cost",
+    "lane_declaration": {
+      "backend": null,
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-09-29T13:01:37Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 7,
+      "binding_observed": "unknown",
+      "detail": "",
+      "generating": 9,
+      "headroom": 7,
+      "mean_context": 124444,
+      "observed_at": "2026-09-29T13:01:30Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45,
+      "throughput": {
+        "age_seconds": null,
+        "aggregate_tokens_per_second": "unknown",
+        "detail": "lane document publishes no 'throughput' block, so the rate its generating population achieved is not measured",
+        "mean_tokens_per_second": "unknown",
+        "observed_at": null,
+        "runs": "unknown",
+        "state": "unknown"
+      },
+      "waiting": 0
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T130137308229-review-of-srw-watch-prints-market-cost/manifest.md",
+    "negative_control": "",
+    "plan": "serving-record-warehouse",
+    "requested_backend": null,
+    "requires_decisions": [],
+    "role": "review",
+    "section": "§9",
+    "spec_level": "exact",
+    "time_budget": "60m",
+    "token_budget": null,
+    "write_paths": [
+      "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260929T122208570050-srw-watch-prints-market-cost.json",
+      "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20260929T122208570050-srw-watch-prints-market-cost.at-c19bdbd50c4f21cf44a9a3f530dd2bb1ad074d4f.json"
+    ]
+  },
+  "orientation_input_tokens": null,
+  "outcome": "",
+  "pace": {
+    "allowance": null,
+    "bar": null,
+    "clocks": {
+      "five_hour": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "five_hour",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null
+      },
+      "seven_day": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "seven_day",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null
+      }
+    },
+    "group": null,
+    "hold": null,
+    "lane": "clive",
+    "member": null,
+    "node": "review-of-srw-watch-prints-market-cost",
+    "policy": {
+      "drain_lead_hours": 12.0,
+      "pace_multiple": 1.1
+    },
+    "reason": "the lane declares no budget group, so no wallet paced it",
+    "recorded_at": "2026-09-29T13:01:40.366979+00:00",
+    "score": 0.625,
+    "source": null,
+    "state": "unknown"
+  },
+  "plan": "serving-record-warehouse",
+  "plan_impl_at_dispatch": 0.034482758620689655,
+  "promoted_revision": "985866412fe6a464df4dc3eafe75166d2abea639",
+  "resume_waiver": null,
+  "review": null,
+  "review_tier": "full",
+  "role": "review",
+  "run_id": "r-20260929T130137308229-review-of-srw-watch-prints-market-cost",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§9",
+  "session_harness": "claude",
+  "session_id": "b076d7af-dca6-4be9-9b4c-d58dc7c3b8e4",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "exact",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": null,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 9677689,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+    "elapsed_seconds": 3077.407,
+    "generated_tokens": 89636,
+    "generation_seconds": 2932.516,
+    "input_budget_tokens": 480000,
+    "input_utilisation_pct": 34.4,
+    "machine_seconds": 144.891,
+    "peak_input_tokens": 165331,
+    "tokens_per_second": 30.57,
+    "wall_tokens_per_second": 29.13
+  },
+  "time_budget": "60m",
+  "tool_steps": 103.0,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": []
+  },
+  "wall_seconds": 3090,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-09-29T13:53:15Z",
+    "last_record_type": "result",
+    "launched_at": "2026-09-29T13:01:52Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20260929T130137308229-review-of-srw-watch-prints-market-cost",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 17350,
+    "worker_pid": 55706
+  },
+  "worker_seconds": 3065,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
