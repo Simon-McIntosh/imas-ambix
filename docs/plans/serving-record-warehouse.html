@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-29">
-<meta name="plan-version" content="74">
+<meta name="plan-version" content="75">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -850,6 +850,9 @@
 </div>
 <div class="r-comment" data-section="s11" data-id="c-run-r-20260929T110225277014-srw-live-panel-asserts-every-field" data-who="reckon-build" data-when="2026-09-29T11:18:05.104Z">
     <div class="r-comment-body"><p>docs/evidence/fragments/serving-record-warehouse/srw-live-panel-asserts-every-field.html — made newest_raw_receipt judge the newest receipt file by its last parseable row so a half-written final line no longer drops the file, and asserted every copied lane field by literal (admission.waiting; gate width, in_flight, waiting, reason; worker_slots live_runs/requests_per_run/worker_slots) from a fixture lane document that publishes them; tests/test_live_panel.py 17 passed, serving parse guard passed, ruff exits 0.</p></div>
+</div>
+<div class="r-comment" data-section="s11" data-id="c-run-r-20260929T111740918362-review-of-srw-live-panel-asserts-every-field" data-who="reckon-build" data-when="2026-09-29T11:46:13.904Z">
+    <div class="r-comment-body"><p>Independent review of r-20260929T110225277014-srw-live-panel-asserts-every-field at head 1121eda1482e94d2227e9b75bd70e49f57e4b9e3 over base 4dc0a3def206d8bf11202eea15f465744ff699bc stored a parsed record scoring goal_fidelity 20, evidence 20, scope_discipline 20, durability 19, fit 19 (total 98, item_aggregate 6, call_sites none, added_failure_count 0 with no added failure ids, no findings, one follow-on). Both limbs of the reviewed node&#x27;s declared evidence are delivered and were verified by an independent two-arm re-run: the lane test now asserts by literal admission.waiting, the generation gate&#x27;s width, in_flight, waiting and reason, and the worker-slot fields live_runs, requests_per_run and worker_slots from a fixture that publishes them, and newest_raw_receipt judges a candidate receipt file by its last parseable row rather than its final line, with a mid-append case that fails at the base revision (exit 1, the defect reproduced) and passes at the head.</p></div>
 </div>
 <div class="r-comment" data-section="s9" data-id="c-run-r-20260929T072923543423-srw-third-party-hit-rate-measured" data-who="reckon-build" data-when="2026-09-29T08:16:09.318Z">
     <div class="r-comment-body"><p>Measured h = 0.8581679092941827 for deepseek/deepseek-v4.1-flash on OpenRouter from 60 responses (238720 cached prompt tokens over 278174 prompt tokens), spend USD 0.008353, recorded 2026-09-29 against endpoint https://openrouter.ai/api/v1/chat/completions; record at ~/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/third-party-hit-rate/third-party-hit-rate.json.</p></div>
