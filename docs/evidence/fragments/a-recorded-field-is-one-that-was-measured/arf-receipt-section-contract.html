@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="a-recorded-field-is-one-that-was-measured">
+  <meta name="plan-title" content="A recorded field is one that was measured — the recorder's section contract">
+  <meta name="plan-summary" content="The recorder docstring named the job table's failed-read marker as the one exception to 'a present key is a measurement', with a record-boundary test that holds the distinction.">
+  <meta name="plan-tags" content="serving,telemetry">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <title>Recorder section contract — job-table failed-read marker | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2>What changed</h2>
+    <p><code>imas_ambix/agent/serving_receipts.py</code> stated a contract its own row
+    no longer kept. The module docstring, the <code>ReceiptRow</code> section and the
+    <code>ROW_SECTIONS</code> comment all said that a probe which failed, is absent, or
+    did not run contributes no key at all, and that a present key always means a
+    measurement. The <code>jobs</code> section breaks both sentences deliberately: a tick
+    whose <code>squeue</code> read was due but refused carries a <code>jobs</code> key
+    holding the failed-read marker (<code>unread</code>) with no <code>count</code> and no
+    rows. The behaviour was right and the contract was stale — the dangerous ordering,
+    because a reader who trusts the removed sentence would treat a marker as a
+    measurement. Both statements now name the marker as the one exception.</p>
+
+    <h2>The recorded defect, and its reproduction</h2>
+    <p>The stale contract was the defect; the <em>behaviour</em> was already correct and
+    already covered in <code>tests/test_node_probe.py</code> at the section level. What
+    was missing is the assertion a receipt reader depends on, at the record boundary.
+    The two removed sentences, quoted before the edit:</p>
+    <pre>"a probe that failed, is absent, or did not run this tick contributes no key at all"
+"a present key always means a measurement and an absent one never reads as a zero"</pre>
+    <p>Against those, the recorder already produced, for a refused read, a record whose
+    <code>jobs</code> key carries <code>{"hostname": ..., "unread": "command-failed"}</code>
+    — the very shape the docstring said could not exist.</p>
+
+    <h2>Measure</h2>
+    <p>New test file <code>tests/test_receipt_section_contract.py</code>, three cases over
+    the serialized row:</p>
+    <ul>
+      <li><code>test_a_refused_job_read_and_an_absent_source_are_different_records</code> —
+      a tick whose <code>squeue</code> refused and a tick where the read was not due
+      serialize to different rows; the failed-read row holds <code>jobs</code>, the
+      not-due row does not.</li>
+      <li><code>test_the_refused_job_read_carries_the_marker_not_a_measurement</code> —
+      the marker arrives alone: no <code>count</code>, no rows; the key set is exactly
+      <code>{hostname, unread}</code>.</li>
+      <li><code>test_an_answered_job_read_records_a_measurement_the_marker_case_lacks</code>
+      — a positive control: an answered read carries <code>count</code> and rows and no
+      marker, so the marker assertion cannot pass vacuously.</li>
+    </ul>
+
+    <h2>Negative control</h2>
+    <p>Declared mutation: making a failed <code>squeue</code> read omit the job-table
+    section exactly as an absent source does. Applied as a scratch edit to
+    <code>build_receipt_row</code> (drop the <code>jobs</code> section when it bears the
+    marker) and restored. Under it the two contract tests fail
+    (<code>2 failed, 1 passed</code>), which is the guard firing; the log's first line
+    repeats the mutation verbatim. Red log:
+    <code>logs/negative_control.txt</code>.</p>
+
+    <h2>Gate</h2>
+    <p><code>uv run --no-sync pytest -p no:cacheprovider
+    tests/test_receipt_section_contract.py tests/test_node_probe.py</code> → 46 passed;
+    <code>pytest tests/test_agent_serve_registry.py -k
+    agent_package_modules_parse_with_serving_python</code> → 1 passed;
+    <code>uv run --no-sync ruff check imas_ambix tests</code> → exit 0. All three exit 0
+    on the committed revision. Gate log: <code>logs/gate.txt</code>.</p>
+
+  </main>
+</body>
+</html>

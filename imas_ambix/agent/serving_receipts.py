@@ -35,13 +35,23 @@ the launcher, because a value the engine reports is the one in force while a
 launcher's is the one requested; a caller may pass values the engine did not
 report, and they fill gaps only.
 
-**A section is omitted rather than nulled.** The node sections and the serve
+**A section is omitted rather than nulled, and a present key is a measurement
+-- with one exception, the job table.** The node sections and the serve
 configuration are sparse in the same way the engine section is: a probe that
 failed, is absent, or did not run this tick contributes no key at all, and a
 setting the engine did not report is absent from ``serve_config`` rather than
 present as a null. A reader therefore never has to tell a measured zero from a
-section nothing measured. That rule is enforced at the point of serialization,
-which is the only place it can be enforced for a fixed-schema row.
+section nothing measured. The ``jobs`` section is the one key whose presence
+does not assert a measurement: a tick whose ``jobs`` read was due but whose
+``squeue`` refused carries ``jobs`` holding
+:data:`~imas_ambix.agent.node_probe.UNREAD_KEY` (``unread``) with no ``count``
+and no rows -- a marker that the table could not be read, which is neither a
+measured zero nor the same record as a tick where the read was not due (that
+tick omits the key entirely). Naming the marker here is what keeps the two
+apart: without it, a failed read and an absent source would be one record and a
+reader could not tell which it held. That rule is enforced at the point of
+serialization, which is the only place it can be enforced for a fixed-schema
+row.
 
 Between samples the recorder also compacts its own record down through
 :mod:`imas_ambix.agent.telemetry_store`'s resolution tiers. The recorder is
@@ -102,7 +112,10 @@ ROW_SCHEMA_VERSION = 4
 
 #: The row's sparse sections. A section whose probe did not run is *omitted*
 #: from the serialized payload rather than written as ``null``, so a present
-#: key always means a measurement and an absent one never reads as a zero.
+#: key is a measurement and an absent one never reads as a zero -- except
+#: ``jobs``, whose failed-read marker
+#: (:data:`~imas_ambix.agent.node_probe.UNREAD_KEY`) is present without being a
+#: measurement of anything but the read itself.
 ROW_SECTIONS: tuple[str, ...] = ("engine", "cards", "host", "jobs", "serve_config")
 
 #: The serve settings a row records, under the names the engine reports them.
