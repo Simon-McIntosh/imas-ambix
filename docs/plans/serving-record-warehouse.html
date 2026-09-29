@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-29">
-<meta name="plan-version" content="49">
+<meta name="plan-version" content="50">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;implementable&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -657,6 +657,28 @@
 </tbody>
 </table>
 <p><strong>Done when</strong>: tests over a stub fetch assert the following. The table path resolves through <code>SiteConfig</code>. A table older than 24 h is refreshed, and a younger one is not. A failed or timed-out fetch leaves the cached table in use and reports its age. The write is atomic: a scratch file is renamed onto the path. <code>watch.DEFAULT_PRICE_PATH</code> no longer names <code>gpu-watch</code>, and the serving-interpreter guard passes. The declared negative control lets a failed fetch overwrite the cached table, and it must fail the fallback test.</p>
+<h3 id="definitions-2026-09-29">Definitions fixed after the read-back of §9, §10, §11 and §12, 2026-09-29</h3>
+<p>A read-back found seventeen sentences in these four passages that two builders could build differently. These definitions govern where the text leaves room.</p>
+<ul>
+<li><strong>§9, when the receipt-gap node runs.</strong> It runs concurrently with the measurement nodes. The relay restart that the §9 node table names as its predecessor happened on 2026-09-26, so that predecessor is met.</li>
+<li><strong>§9, the caller.</strong> A request's caller is its <code>run_id</code> when that is a non-empty string. Otherwise it is its <code>coordinator_session</code> when that is a non-empty string. A request with neither has no caller and is never counted as a hit.</li>
+<li><strong>§9, where the record lives.</strong> The record's path is the directory of the resolved price table joined with <code>third-party-cache-rate.json</code>. The two files share one directory, and no path is resolved separately for the record.</li>
+<li><strong>§9, which measurement is installed.</strong> The first measurement replayed the opening sixteen turns of four sessions: prompts of 82 to 14,034 tokens, with gaps mostly under 16 s. It measured <em>h</em> 0.858 from 60 responses. Production turns carry about 120,000 to 140,000 tokens, and minutes of tool time between them. A second measurement at prompts of at least 80,000 tokens (node <code>srw-third-party-hit-rate-at-production-size</code>) is therefore the figure the printing node installs once it exists. The small-turn figure is kept as evidence and is never printed.</li>
+<li><strong>§10, the shared file.</strong> "Which writes the same file" means <code>~/Code/dotfiles/bin/gpu-watch</code>. The §11 and §10 gpu-watch nodes edit it one at a time and never run concurrently.</li>
+<li><strong>§11, what changes on the panel.</strong> There are four changes: the per-stream figure, the first band's label, a router row and a slots row. The "three" in the measured paragraph counts the router queue and the missing headroom as one item.</li>
+<li><strong>§11, per-stream.</strong> Per-stream tok/s is the window's aggregate divided by the window's mean running count. The measured 52 used the instantaneous count of 7; the build uses the mean.</li>
+<li><strong>§11, which receipt file.</strong> The newest raw receipt file is the one whose last row carries the latest timestamp, with ties broken by path name. The <code>live</code> block also names the file, job and served model it read, so a reader can see which serve the figures describe.</li>
+<li><strong>§11, a window that spans a restart.</strong> The window is the chosen file's rows within the trailing 45 s. If those rows span more than one run, every rate is null and the block states the reason, so a restart inside the window is reported, not filtered away. Spanning more than one run means the job changes, or any of the generation, prompt or uncached-prompt counters falls below its predecessor. Within a single run, fewer than two rows also leaves every rate null.</li>
+<li><strong>§11, the no-index property is permanent.</strong> <code>--live</code> never opens the index, whether or not §5 has landed.</li>
+<li><strong>§11, the router row's fields.</strong> Width, in flight and queued come from <code>router_generation_gate</code>; width means <code>effective_width</code>. The oldest wait and the verdict come from the <code>admission</code> block, the only place they are published.</li>
+<li><strong>§11, the timing bound.</strong> All three measured runs must finish in under 2 s.</li>
+<li><strong>§11, the gpu-watch control.</strong> The control's capture must come from a lane document whose <code>headroom</code> and <code>engine_headroom</code> differ, and the record shows both values. If the live lane offers no such moment within the node's budget, the control runs against a fixture lane document in which they differ, and the record says so.</li>
+<li><strong>§12, who touches the table.</strong> gpu-watch never reads the price table; it renders cost from <code>agent watch --json</code>. The JSON document gains the table's age, not its path. <code>agent watch</code> calls the owning module's refresh function, and only that module writes the table.</li>
+<li><strong>§12, blocking.</strong> A render may wait for a fetch up to the 10 s bound, and never longer. The <code>--live</code> path never fetches prices.</li>
+<li><strong>§12, the table's age.</strong> The table's age is the fetch time recorded inside the table, its <code>at</code> field, which the existing file already carries. File modification time is used only when that field is absent.</li>
+<li><strong>§12, the migration.</strong> When the new path does not exist and the old gpu-watch path does, the old file is copied once. Once the new path exists, it is never copied again.</li>
+<li><strong>§12, one owner.</strong> <code>watch.py</code> holds no literal path for the table. It obtains the path from the owning module's resolver, and <code>DEFAULT_PRICE_PATH</code> either becomes that resolver's result or is removed.</li>
+</ul>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
