@@ -234,12 +234,143 @@ class _GateSettings:
     reason: str | None = None
 
 
+# The window the worker-slot figures average over. It is the horizon long
+# enough to see a fleet's turn cadence rather than one request, and short
+# enough that a fleet which has stopped is not still counted as live. Its
+# length is published beside the figures so a reader never has to assume it.
+ADMISSION_WINDOW_SECONDS = 900.0
+# Below this many live runs the per-run ratio is a ratio of one or two points,
+# and one long turn swings it by half. The figures are withheld rather than
+# guessed, because a wrong slot count is dispatched against as if it were right.
+MIN_LIVE_RUNS = 3
+# The ratio also needs a window's worth of history behind it: a process that has
+# been admitting for a few seconds has counted nothing like the traffic the same
+# width will see. It runs from this process's first admission and is never read
+# from the receipts file, which outlives any one router process.
+MIN_HISTORY_SECONDS = 300.0
+
+
+class _BusyInterval:
+    """One admitted request's occupancy of the lane, from admission to release.
+
+    ``ended`` is None while the request is still in flight, and publication
+    treats such a request as released at the moment of publication, so its
+    elapsed time within the window counts.
+    """
+
+    __slots__ = ("run_id", "started", "ended")
+
+    def __init__(self, run_id: str | None, started: float) -> None:
+        self.run_id = run_id
+        self.started = started
+        self.ended: float | None = None
+
+
+class _AdmissionLedger:
+    """Busy request-seconds over a trailing window, keyed by the request's run.
+
+    The three figures it derives answer the question a dispatcher actually asks.
+    ``live_runs`` is how many runs share the lane, ``requests_per_run`` is how
+    many requests one of them holds in flight on average, and ``worker_slots``
+    is how many more the gate's width can take. The ratio is a share of keyed
+    busy time: a request carrying no usable run id cannot be attributed to a
+    run, so it is excluded from the ratio and reported separately as
+    ``unkeyed_share`` -- itself a share of busy time, because an unkeyed
+    consumer that holds the lane is what a dispatcher needs to see.
+    """
+
+    def __init__(
+        self,
+        *,
+        window_seconds: float = ADMISSION_WINDOW_SECONDS,
+        min_live_runs: int = MIN_LIVE_RUNS,
+        min_history_seconds: float = MIN_HISTORY_SECONDS,
+    ) -> None:
+        self._window = window_seconds
+        self._min_live_runs = min_live_runs
+        self._min_history = min_history_seconds
+        self._intervals: list[_BusyInterval] = []
+        self._first_admission: float | None = None
+
+    def admit(self, run_id: str | None, *, now: float) -> _BusyInterval:
+        """Record one admitted request and return the handle that releases it."""
+        if self._first_admission is None:
+            self._first_admission = now
+        interval = _BusyInterval(run_id, now)
+        self._intervals.append(interval)
+        self._prune(now)
+        return interval
+
+    def release(self, interval: _BusyInterval, *, now: float) -> None:
+        """Stamp a request's release. Idempotent, so a double release cannot lie."""
+        if interval.ended is None:
+            interval.ended = max(now, interval.started)
+
+    def _prune(self, now: float) -> None:
+        cutoff = now - self._window
+        self._intervals = [
+            interval
+            for interval in self._intervals
+            if interval.ended is None or interval.ended > cutoff
+        ]
+
+    def snapshot(
+        self, *, now: float, effective_width: int, verdict: str
+    ) -> dict[str, object]:
+        window_start = now - self._window
+        keyed_runs: set[str] = set()
+        keyed_busy = 0.0
+        unkeyed_busy = 0.0
+        total_busy = 0.0
+        samples = 0
+        for interval in self._intervals:
+            end = now if interval.ended is None else interval.ended
+            start = max(interval.started, window_start)
+            if start >= end:
+                continue
+            busy = end - start
+            samples += 1
+            total_busy += busy
+            if interval.run_id:
+                keyed_runs.add(interval.run_id)
+                keyed_busy += busy
+            else:
+                unkeyed_busy += busy
+        live_runs = len(keyed_runs)
+        fields: dict[str, object] = {
+            "window_seconds": self._window,
+            "samples": samples,
+            "live_runs": live_runs,
+            "unkeyed_share": (unkeyed_busy / total_busy) if total_busy > 0 else None,
+        }
+        history_ready = (
+            self._first_admission is not None
+            and now - self._first_admission >= self._min_history
+        )
+        if live_runs < self._min_live_runs or not history_ready or keyed_busy <= 0:
+            fields["requests_per_run"] = None
+            fields["worker_slots"] = None
+            return fields
+        requests_per_run = keyed_busy / self._window / live_runs
+        fields["requests_per_run"] = round(requests_per_run, 3)
+        if verdict in ("congested", "full", "paused"):
+            fields["worker_slots"] = 0
+        else:
+            fields["worker_slots"] = max(
+                0, math.floor(effective_width / requests_per_run) - live_runs
+            )
+        return fields
+
+
 @dataclass(frozen=True, slots=True)
 class _Admission:
     outcome: str
     disconnect_task: asyncio.Task[None] | None = None
     retry_after_seconds: int = 1
     gate_wait_s: float = 0.0
+    # The lane occupancy this admission opened, released by the caller when the
+    # relay ends. None for every outcome that never took a slot.
+    busy: _BusyInterval | None = None
 
 
 def resolve_gate_path(
@@ -317,6 +448,10 @@ class _GenerationGate:
         self._condition = asyncio.Condition()
         self._waiters: deque[tuple[object, float]] = deque()
         self._in_flight = 0
+        # The admitted requests the worker-slot figures are computed from,
+        # recorded here because acquire/release is the one place that brackets a
+        # request's occupancy of the lane exactly.
+        self._admissions = _AdmissionLedger()
         # Automatic width state, fed only by fresh measured readings. The
         # estimate starts undefined so the first reading seeds it whole rather
         # than being averaged against a guess, and the last computed width is
@@ -353,8 +488,8 @@ class _GenerationGate:
     def waiting(self) -> int:
         return len(self._waiters)
 
-    def admission_snapshot(self) -> dict[str, object]:
-        """Return the queue's demand signal independently of engine capacity."""
+    def _queue_snapshot(self) -> tuple[dict[str, object], _GateSettings, str]:
+        """Return the queue's demand signal, its settings and its verdict."""
         settings = self.settings()
         if self._waiters:
             oldest_wait_seconds: float | None = max(
@@ -372,12 +507,40 @@ class _GenerationGate:
             verdict = "full"
         else:
             verdict = "open"
-        return {
-            "headroom": headroom,
-            "oldest_wait_seconds": oldest_wait_seconds,
-            "waiting": self.waiting,
-            "verdict": verdict,
-        }
+        return (
+            {
+                "headroom": headroom,
+                "oldest_wait_seconds": oldest_wait_seconds,
+                "waiting": self.waiting,
+                "verdict": verdict,
+            },
+            settings,
+            verdict,
+        )
+
+    def admission_snapshot(self) -> dict[str, object]:
+        """Return the queue's demand signal independently of engine capacity."""
+        return self._queue_snapshot()[0]
+
+    def admission_document(self) -> dict[str, object]:
+        """Return the admission object the lane document publishes.
+
+        The queue's demand signal plus the lane's occupancy in the unit a
+        dispatcher works in: how many runs share it, how many requests one of
+        them holds, and how many more it can take. The slot count is derived
+        from the width in force so it and the headroom describe the same gate,
+        and both derived figures are withheld rather than guessed when the
+        window is too thin to support them.
+        """
+        queue, settings, verdict = self._queue_snapshot()
+        queue.update(
+            self._admissions.snapshot(
+                now=time.monotonic(),
+                effective_width=settings.width,
+                verdict=verdict,
+            )
+        )
+        return queue
 
     def settings(self) -> _GateSettings:
         """Read changed configuration and otherwise return the cached settings."""
@@ -971,6 +1134,7 @@ class _GenerationGate:
         self,
         receive: Receive,
         *,
+        run_id: str | None = None,
         ready: Callable[[], Awaitable[bool]] | None = None,
     ) -> _Admission:
         """Wait in FIFO order, or report timeout/departure without a relay.
@@ -1031,6 +1195,7 @@ class _GenerationGate:
                             "acquired",
                             disconnect_task=disconnect_task,
                             gate_wait_s=max(0.0, time.monotonic() - arrived_at),
+                            busy=self._admissions.admit(run_id, now=time.monotonic()),
                         )
 
                     remaining = deadline - asyncio.get_running_loop().time()
@@ -1062,6 +1227,9 @@ class _GenerationGate:
                                     "acquired",
                                     disconnect_task=disconnect_task,
                                     gate_wait_s=max(0.0, time.monotonic() - arrived_at),
+                                    busy=self._admissions.admit(
+                                        run_id, now=time.monotonic()
+                                    ),
                                 )
                     else:
                         # An owner appearing is an external event nothing here
@@ -1086,8 +1254,17 @@ class _GenerationGate:
                 disconnect_task.cancel()
                 await asyncio.gather(disconnect_task, return_exceptions=True)
 
-    async def release(self) -> None:
-        """Return one acquired slot and wake the FIFO head."""
+    async def release(self, busy: _BusyInterval | None = None) -> None:
+        """Return one acquired slot and wake the FIFO head.
+
+        ``busy`` is the occupancy the matching admission opened, if any, so the
+        released request's time is attributed to its run rather than to the
+        process as a whole. It is optional so a caller that holds no handle --
+        a test, or a slot taken through a path predating the ledger -- still
+        releases correctly, recording no occupancy.
+        """
+        if busy is not None:
+            self._admissions.release(busy, now=time.monotonic())
         async with self._condition:
             if self._in_flight <= 0:
                 raise RuntimeError("generation gate released without an acquired slot")
@@ -1537,7 +1714,9 @@ class RouterApp:
 
         if path in self._GENERATION_PATHS:
             admission = await self._generation_gate.acquire(
-                receive, ready=None if owner is not None else _owner_ready
+                receive,
+                run_id=self._request_run_id(scope),
+                ready=None if owner is not None else _owner_ready,
             )
         else:
             admission = _Admission("bypass")
@@ -1595,7 +1774,7 @@ class RouterApp:
             )
         finally:
             if admission.outcome == "acquired":
-                await self._generation_gate.release()
+                await self._generation_gate.release(admission.busy)
 
     async def _lifespan(self, receive: Receive, send: Send) -> None:
         while True:
@@ -1654,6 +1833,22 @@ class RouterApp:
             len(flat),
             " ".join(digests),
         )
+
+    @staticmethod
+    def _request_run_id(scope: Mapping[str, Any]) -> str | None:
+        """The crew run id the request declared, or None when it declared none.
+
+        The same reader the receipt uses, called once at admission so the run's
+        occupancy is attributed when it starts rather than when it ends. A
+        header sequence that is not pairs of bytes is read as absent, matching
+        the receipt rule, so an unreadable header lands in ``unkeyed_share``
+        instead of raising into the relay.
+        """
+        try:
+            run_id, _ = identity_from_headers(scope.get("headers") or ())
+        except (TypeError, ValueError):
+            return None
+        return run_id
 
     @staticmethod
     def _caller_hint(scope: Mapping[str, Any]) -> str:
@@ -1762,7 +1957,7 @@ class RouterApp:
             if not isinstance(document, dict):
                 raise ValueError("lane document root is not an object")
             gate_snapshot = self._generation_gate.snapshot()
-            admission = self._generation_gate.admission_snapshot()
+            admission = self._generation_gate.admission_document()
             document["router_generation_gate"] = gate_snapshot
             document["admission"] = admission
             engine_headroom = document.get("headroom")
