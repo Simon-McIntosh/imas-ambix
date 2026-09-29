@@ -351,13 +351,24 @@ class _AdmissionLedger:
             fields["requests_per_run"] = None
             fields["worker_slots"] = None
             return fields
-        requests_per_run = keyed_busy / self._window / live_runs
-        fields["requests_per_run"] = round(requests_per_run, 3)
+        published_ratio = round(keyed_busy / self._window / live_runs, 3)
+        if published_ratio <= 0:
+            # A ratio that rounds to zero would divide by zero in the slot
+            # arithmetic and describes no request a run can actually hold, so
+            # it is withheld on the same rule as a thin window rather than
+            # published as a figure no reader can apply.
+            fields["requests_per_run"] = None
+            fields["worker_slots"] = None
+            return fields
+        fields["requests_per_run"] = published_ratio
         if verdict in ("congested", "full", "paused"):
             fields["worker_slots"] = 0
         else:
+            # From the published ratio, not the unrounded one, so the slot
+            # count a dispatcher derives from the two published figures is the
+            # figure the router published.
             fields["worker_slots"] = max(
-                0, math.floor(effective_width / requests_per_run) - live_runs
+                0, math.floor(effective_width / published_ratio) - live_runs
             )
         return fields
 
