@@ -106,4 +106,5 @@
     &middot; gate log:
     <code>runs/r-20260929T072856792180-srw-compaction-splits-at-restart/gate.log</code>
   </p>
+  <p><strong>What this does not yet license (review 79).</strong> The 520,000 equality is between the raw rows' partitioned total and this node's own re-derivation over the compacted rows. <code>TelemetryIndex.partitioned_total</code> does not yet read a compacted row's opening, so a window answered from a compacted tier alone still under-reports across a restart. Re-compacting minute rows into an hour row takes the first minute row's closing counter as the hour's opening. With one job counting 0, 1000, 1000, 2000, the hour row therefore opens at 1000, not 0. Deleting raw files stays forbidden until the next §8 node makes the tier chain and the query layer carry openings and asserts the equality through <code>partitioned_total</code>.</p>
 </section>
