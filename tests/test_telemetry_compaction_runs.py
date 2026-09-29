@@ -22,7 +22,12 @@ import pytest
 
 import imas_ambix.agent.telemetry_index as telemetry_index
 from imas_ambix.agent.telemetry_index import TelemetryIndex
-from imas_ambix.agent.telemetry_store import TIER_MINUTE, compact_rows
+from imas_ambix.agent.telemetry_store import (
+    TIER_HOUR,
+    TIER_MINUTE,
+    compact_rows,
+    run_compaction,
+)
 
 _BASE = _dt.datetime(2026, 9, 20, 6, 0, 0, tzinfo=_dt.UTC)
 _COUNTER = "requests_served_total"
@@ -175,3 +180,95 @@ def test_compaction_and_query_share_one_run_boundary_predicate(tmp_path, monkeyp
     assert len(calls) > after_compaction, (
         "partitioned_total did not consult the run boundary"
     )
+
+
+def test_an_hour_opening_carries_the_runs_opening_through_the_tier_chain():
+    """An hour takes its opening from the tier below's opening, not its closing.
+
+    One job counting 0, 1000, 1000, 2000 inside one hour must give the same hour
+    opening and closing whether the raw rows are compacted straight to the hour
+    or raw to minute and then to the hour. A second level that took the hour's
+    margin from the first minute row's closing would drop the entire first
+    window of the run -- the loss the opening block exists to prevent.
+    """
+    rows = [
+        _row(0, job="4001", counter=0),
+        _row(15, job="4001", counter=1_000),
+        _row(30, job="4001", counter=1_000),
+        _row(45, job="4001", counter=2_000),
+    ]
+
+    direct = compact_rows(rows, tier=TIER_HOUR)
+    chained = compact_rows(compact_rows(rows, tier=TIER_MINUTE), tier=TIER_HOUR)
+
+    assert len(direct) == 1
+    assert len(chained) == 1
+    assert direct[0]["open"][_COUNTER] == 0
+    assert direct[0][_COUNTER] == 2_000
+    assert chained[0]["open"] == direct[0]["open"]
+    assert chained[0][_COUNTER] == direct[0][_COUNTER]
+
+
+def _tier_total(tmp_path, rows: list[dict], name: str, tag: str) -> float:
+    """A window's total read through the index of each tier's own file alone."""
+    raw_path = tmp_path / f"{tag}-raw.jsonl"
+    minute_path = tmp_path / f"{tag}-minute.jsonl"
+    hour_path = tmp_path / f"{tag}-hour.jsonl"
+    _write(raw_path, rows)
+    run_compaction(raw_path, minute_path, hour_path)
+
+    totals: list[float] = []
+    for index_name, source in (
+        ("raw", raw_path),
+        ("minute", minute_path),
+        ("hour", hour_path),
+    ):
+        with TelemetryIndex(tmp_path / f"{tag}-{index_name}.db") as index:
+            index.ingest([source])
+            total = index.partitioned_total(name, _at(0), _at(60))
+        totals.append(total.total)
+    return totals
+
+
+def test_every_tier_file_totals_a_restart_window_the_same(tmp_path):
+    """Raw, minute and hour files each total each run as closing minus opening.
+
+    Read through the index built from one tier's file alone, no neighbour row is
+    available to difference against, so a compacted row has to carry the two
+    endpoints its window spans. The two serves contribute 500,000 and 20,000,
+    and every tier must reproduce 520,000.
+    """
+    rows = [
+        _row(0, job="1001", counter=1_000_000),
+        _row(30, job="1002", counter=0),
+        _row(55, job="1002", counter=20_000),
+    ]
+    rows.insert(1, _row(15, job="1001", counter=1_500_000))
+
+    raw, minute, hour = _tier_total(tmp_path, rows, _COUNTER, "restart")
+
+    assert raw == pytest.approx(520_000.0)
+    assert minute == pytest.approx(520_000.0)
+    assert hour == pytest.approx(520_000.0)
+
+
+def test_every_tier_file_totals_a_null_rich_window_the_same(tmp_path):
+    """An absent observation is neither an endpoint nor a zero at any tier.
+
+    A counter null in part of a window keeps its last observed value, so the
+    window's advance is measured between observed readings alone -- through the
+    index of each tier's own file, the raw, minute and hour totals must agree.
+    """
+    rows = [
+        _row(0, job="5001", counter=100),
+        _row(10, job="5001", counter=None),
+        _row(25, job="5001", counter=300),
+        _row(35, job="5001", counter=None),
+        _row(50, job="5001", counter=700),
+    ]
+
+    raw, minute, hour = _tier_total(tmp_path, rows, _COUNTER, "nulls")
+
+    assert raw == pytest.approx(600.0)
+    assert minute == pytest.approx(600.0)
+    assert hour == pytest.approx(600.0)

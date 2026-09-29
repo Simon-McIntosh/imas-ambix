@@ -131,6 +131,12 @@ _BOOT_ID_KEY = "boot_id"
 #: itself to a reader instead of looking like the keyed case.
 _KEY_KIND_KEY = "key_kind"
 
+#: The record key a compacted row states the opening value of its own window
+#: under, per cumulative counter. A measurement extracted from that block is
+#: stored under this prefix, which is how the query layer reaches a compacted
+#: row's opening without a second table.
+_OPEN_MEASUREMENT_PREFIX = "open."
+
 #: Key-scope markers, stored beside every key so a row says which identity it
 #: was keyed by. ``BOOT_SCOPE`` means the key carried a boot identity and two
 #: such rows may be differenced; ``HOST_SCOPE`` means the boot was unknown, so
@@ -599,10 +605,12 @@ def counter_run_continues(
 
 def _counter_runs(
     rows: Iterable[Any],
-) -> list[list[tuple[float, float]]]:
+) -> list[list[tuple[float, float, float | None]]]:
     """Partition counter readings into contiguous runs, in time order.
 
-    Each reading is ``(ts_epoch, host, boot_id, job_id, value)``. A run is one
+    Each reading becomes ``(ts_epoch, closing, opening)``, where *opening* is
+    the value a compacted row declares for the start of its own window and is
+    ``None`` for a raw reading. A run is one
     serving process on one host over one boot, and it ends where the key moves
     or where the counter falls -- the latter being a restart the key did not
     announce. Both are decided by :func:`counter_run_continues`, the one
@@ -611,7 +619,7 @@ def _counter_runs(
     and a window's total is the sum of its runs rather than the difference of
     its two outermost readings.
     """
-    runs: list[list[tuple[float, float]]] = []
+    runs: list[list[tuple[float, float, float | None]]] = []
     previous: tuple[tuple[Any, ...], Mapping[str, float]] | None = None
     for row in rows:
         key = (row["host"], row["boot_id"], row["job_id"])
@@ -619,21 +627,30 @@ def _counter_runs(
         current = (key, {"value": value})
         if not counter_run_continues(previous, current):
             runs.append([])
-        runs[-1].append((float(row["ts"]), value))
+        raw_open = row["open_value"]
+        opening = (
+            float(raw_open)
+            if isinstance(raw_open, (int, float)) and not isinstance(raw_open, bool)
+            else None
+        )
+        runs[-1].append((float(row["ts"]), value, opening))
         previous = current
     return runs
 
 
 def _run_opening(
-    run: list[tuple[float, float]], start: float, end: float
-) -> tuple[float, float] | None:
+    run: list[tuple[float, float, float | None]], start: float, end: float
+) -> tuple[float, float, float | None] | None:
     """A run's endpoint at or before the window, or its first inside it.
 
     The opening reading is the last at or before ``start`` so a difference
     counts the traffic served from that reading onward, and a window whose own
-    first sample already carries the counter needs no earlier row.
+    first sample already carries the counter needs no earlier row. The entry
+    carries the opening a compacted row declares as well as its closing, so the
+    caller can tell a first-in-window compacted row -- which spans its own
+    window and so has two endpoints -- from a lone raw reading.
     """
-    opening: tuple[float, float] | None = None
+    opening: tuple[float, float, float | None] | None = None
     for entry in run:
         if entry[0] <= start:
             opening = entry
@@ -648,10 +665,10 @@ def _run_opening(
 
 
 def _run_closing(
-    run: list[tuple[float, float]], end: float
-) -> tuple[float, float] | None:
+    run: list[tuple[float, float, float | None]], end: float
+) -> tuple[float, float, float | None] | None:
     """A run's latest reading strictly before the window's end."""
-    closing: tuple[float, float] | None = None
+    closing: tuple[float, float, float | None] | None = None
     for entry in run:
         if entry[0] < end:
             closing = entry
@@ -1189,10 +1206,14 @@ class TelemetryIndex:
         belongs to the new run, and differencing the pair yields a number no
         counter ever advanced. The window is therefore partitioned into
         contiguous runs -- one serving process, on one host, over one boot --
-        each run is differenced between its own endpoints inside the window, and
-        the differences are summed. A run ends where the recording source moves
-        (host, boot or job changes), or where the counter falls, which is a
-        restart visible even when the source key does not move.
+        each run is differenced between its own endpoints inside the rewritten
+        window, and the differences are summed. A run ends where the recording
+        source moves (host, boot or job changes), or where the counter falls,
+        which is a restart visible even when the source key does not move. A
+        compacted row states the opening of its own window, and that is the
+        endpoint used where the window's first sample is such a row -- so a
+        window answered from compacted files totals each run as its closing
+        minus its opening, the same figure the raw rows would give.
 
         The ``coverage`` returned beside the total is the union of the
         contributing runs' spans, clipped to the window, because a window the
@@ -1201,11 +1222,13 @@ class TelemetryIndex:
         """
         rows = self._conn.execute(
             "SELECT s.ts_epoch AS ts, s.host AS host, s.boot_id AS boot_id, "
-            "       s.job_id AS job_id, m.value AS value "
+            "       s.job_id AS job_id, m.value AS value, "
+            "       (SELECT o.value FROM measurement o "
+            "        WHERE o.sample_id = s.id AND o.name = ?) AS open_value "
             "FROM measurement m JOIN sample s ON s.id = m.sample_id "
             "WHERE m.name = ? AND s.ts_epoch IS NOT NULL AND s.ts_epoch < ? "
             "ORDER BY s.ts_epoch, s.offset, s.host, s.boot_id",
-            (name, end),
+            (f"{_OPEN_MEASUREMENT_PREFIX}{name}", name, end),
         ).fetchall()
 
         total: float | None = None
@@ -1218,13 +1241,19 @@ class TelemetryIndex:
             closing = _run_closing(run, end)
             if closing is None or closing[0] < start:
                 continue
-            # One reading differenced against itself has no second endpoint, so
-            # the run contributes nothing rather than a zero: an absent figure
-            # and a measured zero are different answers and the caller reports
-            # them differently.
-            if closing is opening:
+            # A compacted row carries its own window's opening, so a run whose
+            # only sample inside the window is such a row still has two
+            # endpoints: the opening it declares and its closing. A reading at
+            # or before the window's start gives only its closing, so its
+            # difference counts the traffic served from that reading onward. A
+            # lone raw reading with neither gives no second endpoint, and the
+            # run contributes nothing rather than a measured zero, because an
+            # absent figure and a measured zero are different answers.
+            carried = opening[2] if opening[0] > start else None
+            if closing is opening and carried is None:
                 continue
-            total = (0.0 if total is None else total) + (closing[1] - opening[1])
+            base = carried if carried is not None else opening[1]
+            total = (0.0 if total is None else total) + (closing[1] - base)
             spans.append((max(opening[0], start), min(closing[0], end)))
             contributing += 1
         return PartitionedTotal(name, total, _union_length(spans), contributing)

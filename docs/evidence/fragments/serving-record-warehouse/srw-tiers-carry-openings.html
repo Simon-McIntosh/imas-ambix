@@ -1,0 +1,125 @@
+<section class="evidence-fragment" data-reckon="evidence" id="srw-tiers-carry-openings">
+  <header>
+    <h3>Each tier carries a run's opening into the query layer</h3>
+    <p class="meta">
+      Node <code>srw-tiers-carry-openings</code> &middot;
+      date 2026-09-29 &middot;
+      worktree <code>imas-ambix-0405601943d2/srw-tiers-carry-openings</code>
+    </p>
+  </header>
+
+  <p>
+    A compacted row states the opening value of each counter at the start of
+    the run's contribution to its window. That opening was reaching the minute
+    tier only. Re-compacting minute rows into an hour took the first minute
+    row's closing value as the hour's opening, so the whole first window of a
+    run was dropped from the figure; and the query layer's
+    <code>partitioned_total</code> ignored the <code>open</code> block
+    entirely, so a window answered from compacted files alone totalled
+    nothing. This closes the tier chain and the query path together, so a
+    window totalled from any single tier's file gives the figure the raw rows
+    would have given, and deleting a raw file no longer changes a total.
+  </p>
+
+  <h4>What changed</h4>
+  <ul>
+    <li>
+      <code>imas_ambix/agent/telemetry_store.py</code> reads a source row's
+      <code>open</code> block when a compaction stride opens its first window
+      for a counter, so an hour takes the opening the minute tier carried
+      rather than the first minute row's closing. Raw-to-hour and
+      raw-to-minute-to-hour now agree.
+    </li>
+    <li>
+      <code>imas_ambix/agent/telemetry_index.py</code> reads a compacted row's
+      opening measurement (<code>open.&lt;path&gt;</code>) alongside its
+      closing value in <code>partitioned_total</code>, and differences each
+      run between them. <code>_counter_runs</code> carries the opening through
+      with the reading, so a run whose first sample is a compacted row still
+      totalises as closing minus opening.
+    </li>
+    <li>
+      <code>tests/test_telemetry_compaction_runs.py</code> asserts the tier
+      chain and the per-tier totals, each through a
+      <code>TelemetryIndex</code> built from one tier's file alone.
+    </li>
+  </ul>
+
+  <h4>Evidence</h4>
+  <table>
+    <thead>
+      <tr><th>Measure</th><th>Result</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>
+          One job counting 0, 1000, 1000, 2000 inside one hour, compacted
+          raw&rarr;hour and raw&rarr;minute&rarr;hour
+        </td>
+        <td>both open 0 and close 2,000; opens and closings equal</td>
+      </tr>
+      <tr>
+        <td>
+          A restart window (job 1001 rising 1,000,000&rarr;1,500,000; job 1,002
+          rising 0&rarr;20,000) totalled through the index of each tier's file
+          alone
+        </td>
+        <td>raw, minute and hour all 520,000</td>
+      </tr>
+      <tr>
+        <td>
+          A null-rich stretch (counter 100, null, 300, null, 700) totalled
+          through the index of each tier's file alone
+        </td>
+        <td>raw, minute and hour all 600</td>
+      </tr>
+      <tr>
+        <td>
+          <code>uv run --no-sync pytest -p no:cacheprovider tests/test_telemetry_store.py
+          tests/test_telemetry_index.py tests/test_agent_telemetry_watch.py
+          tests/test_telemetry_compaction_runs.py</code>
+        </td>
+        <td>90 passed</td>
+      </tr>
+      <tr>
+        <td>
+          <code>pytest tests/test_agent_serve_registry.py
+          -k agent_package_modules_parse_with_serving_python</code>
+        </td>
+        <td>1 passed</td>
+      </tr>
+      <tr>
+        <td><code>ruff check imas_ambix tests</code></td>
+        <td>exit 0</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>Negative control</h4>
+  <p>
+    Making the second compaction level take the first source row's closing as
+    the hour's opening &mdash; a scratch edit &mdash; fails the three
+    tier-chain tests: the chained hour opens at 2,000 where the direct hour
+    opens at 0, and the hour file's total collapses to 0 against the 520,000
+    and 600 the raw and minute files give. The raw and minute assertions stay
+    green, so the mutation isolates the second level and the query layer's
+    opening read rather than the record as a whole. The scratch edit was
+    reverted; the fix was restored before the gate above ran.
+  </p>
+  <p>
+    Red log:
+    <code>runs/r-20260929T111511601344-srw-tiers-carry-openings/negative-control.log</code>
+    &middot; gate logs:
+    <code>runs/r-20260929T111511601344-srw-tiers-carry-openings/gate-*.log</code>
+  </p>
+  <p>
+    <strong>What this closes (review 79).</strong> The predecessor node's
+    residual caveat was that the 520,000 equality held only for its own
+    re-derivation over compacted rows, because
+    <code>partitioned_total</code> did not read a compacted row's opening and
+    an hour opened at the first minute row's closing. Both are now fixed and
+    asserted through <code>partitioned_total</code> at every tier, so the
+    equality between a raw window and the compacted file that replaces it no
+    longer depends on a neighbouring row being present.
+  </p>
+</section>
