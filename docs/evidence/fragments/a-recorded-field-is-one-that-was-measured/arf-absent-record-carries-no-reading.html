@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="a-recorded-field-is-one-that-was-measured">
+</head>
+<body>
+  <main class="plan-doc">
+    <p>Extended the absent-command case with the assertion the refused-read case
+    already carried: the absent <code>squeue</code>'s jobs section must serialise
+    to the marker-only key set <code>{"hostname", unread}</code>, with no
+    <code>count</code> and no <code>jobs</code> rows. Previously the absent record
+    was asserted at section level only (the <code>COMMAND_ABSENT</code> marker
+    value), so a count or rows added to that record would have changed what a
+    reader meets without failing any assertion — the reading the failed-read
+    marker exists to make impossible. Gate 4 passed in
+    <code>tests/test_receipt_section_contract.py</code> + ruff exit 0; negative
+    control 1 failed (a scratch count key on the absent branch trips the new
+    <code>assert "count" not in jobs</code>). Commit 4586753d.</p>
+  </main>
+</body>
+</html>
