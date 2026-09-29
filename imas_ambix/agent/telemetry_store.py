@@ -349,6 +349,29 @@ def _counter_reading(row: dict[str, Any]) -> dict[str, float]:
     return out
 
 
+def _open_reading(row: dict[str, Any]) -> dict[str, float]:
+    """The opening block a compacted row carries, keyed by dotted path.
+
+    A compacted row declares, per cumulative counter, the value the run had at
+    the start of the row's own window -- which for the run's first window is the
+    run's opening reading. Reading it here is what lets a second compaction level
+    take the opening from the tier below rather than from that tier's closing:
+    differencing against the closing would drop the whole first window of the
+    run, which is the loss this block exists to prevent.
+
+    A raw row carries no such block, so an empty mapping leaves the caller
+    falling back to the row's own reading.
+    """
+    block = row.get(_OPEN_KEY)
+    if not isinstance(block, dict):
+        return {}
+    return {
+        name: float(value)
+        for name, value in block.items()
+        if isinstance(value, (int, float)) and not isinstance(value, bool)
+    }
+
+
 def _row_weights(rows: list[dict[str, Any]], window_seconds: int) -> list[float]:
     """The observation duration each row stands for.
 
@@ -525,8 +548,12 @@ def _compact_run(
     the next row of the run, so the gap is never inferred across a boundary the
     run does not cross. Each window also records, per cumulative counter, the
     run's opening value -- the value carried in from the window before, or the
-    first observed inside it -- and both are what let a window be totalled on
-    its own without the previous window and without spanning a restart.
+    first observed inside it. A row that is itself compacted declares its window's
+    opening in its ``open`` block, so that block is the run's opening for the
+    window the row opens: the value is taken from there rather than from the
+    row's closing reading, which is what lets compacting minute rows into an hour
+    carry the hour's opening through from the raw tier instead of dropping the
+    run's first window.
     """
     weights = _row_weights(rows, window_seconds)
     sample_counts = _row_samples(rows)
@@ -539,19 +566,20 @@ def _compact_run(
         epoch = stamp.timestamp()
         bucket = math.floor(epoch / window_seconds) * window_seconds
         reading = _counter_reading(row)
+        row_open = _open_reading(row)
         window = windows.get(bucket)
         if window is None:
             window = _Window(start=_dt.datetime.fromtimestamp(bucket, tz=_dt.UTC))
             windows[bucket] = window
-            opening = dict(seen)
-            for name, value in reading.items():
-                opening.setdefault(name, value)
-            openings[bucket] = opening
+            openings[bucket] = dict(seen)
             order.append(bucket)
-        else:
-            opening = openings[bucket]
-            for name, value in reading.items():
-                opening.setdefault(name, seen.get(name, value))
+        opening = openings[bucket]
+        for name, value in reading.items():
+            baseline = seen.get(name)
+            if baseline is not None:
+                opening.setdefault(name, baseline)
+                continue
+            opening.setdefault(name, row_open.get(name, value))
         window.samples += samples
         window.seconds += weight
         window.endpoint = stamp
