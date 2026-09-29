@@ -31,6 +31,14 @@ _ACCELERATOR_FAMILY = "H200"
 # on a schedule nobody is watching.
 _SUPPORTING_SERVICE_TIME_LIMIT = "0"
 
+# The shared finite walltime a scheduled supporting service carries. The ingest
+# runs its own pass and exits, so unlike the standing services above it is not
+# meant to live for the whole allocation; a finite limit lets the scheduler
+# reclaim the node between passes. One hour matches the ceiling a debug
+# partition enforces, so the job is long enough to finish a pass over the whole
+# record and short enough to hand the node back.
+_SCHEDULED_SERVICE_TIME_LIMIT = "01:00:00"
+
 _MODEL_DIR_TOKEN = "__AMBIX_MODEL_DIR__"
 _PORT_TOKEN = "__AMBIX_PORT__"
 _CATALOG_MIDDLEWARE = "imas_ambix.agent.vllm_catalog.GlobalModelCatalogMiddleware"
@@ -1053,6 +1061,74 @@ def generate_router_script(
     )
     body_lines.append(f"exec {command}")
     script_body = "\n".join(body_lines)
+    return "\n".join([*headers, "", script_body, ""])
+
+
+def generate_ingest_script(
+    site: SiteConfig,
+    *,
+    record_dir: str | Path,
+    index_path: str | Path,
+) -> str:
+    """Generate a CPU-only SLURM script for the scheduled telemetry ingest.
+
+    The ingest owns the telemetry index alone -- one writer, many readers -- so
+    it is its own service rather than a tenant of the relay that serves
+    requests or of the recorder that writes the record. Placement follows the
+    other supporting services: the site's partition, account and reservation,
+    and no GPU. Its size and walltime come from what the pass costs, not from a
+    round number: one core and 4 GB run a tick at a few percent duty cycle, and
+    it carries the shared finite limit for a scheduled supporting service
+    rather than the standing services' unlimited allocation.
+
+    *record_dir* and *index_path* are embedded as absolute paths so the
+    submitted job writes exactly the store the submitter chose, and a reader
+    auditing the job reads the target off the script rather than inferring it
+    from the environment the job happened to inherit.
+    """
+    if not str(record_dir).strip():
+        raise ValueError("record_dir must not be empty")
+    if not str(index_path).strip():
+        raise ValueError("index_path must not be empty")
+
+    headers = _sbatch_headers(
+        job_name="ambix-ingest",
+        partition=site.partition,
+        account=site.account,
+        reservation=site.reservation,
+        gpus=0,
+        cpus=1,
+        memory="4G",
+        time_limit=_SCHEDULED_SERVICE_TIME_LIMIT,
+        output_name="ambix-ingest-%j.log",
+    )
+    headers.append("#SBATCH --comment=ambix-ingest")
+    repo_root = Path(__file__).resolve().parents[2]
+    command = shlex.join(
+        [
+            str(site.python_path("vllm")),
+            "-c",
+            "from imas_ambix.cli import main; main()",
+            "agent",
+            "ingest",
+            "--record",
+            str(record_dir),
+            "--index",
+            str(index_path),
+        ]
+    )
+    script_body = dedent(
+        f"""
+        set -euo pipefail
+
+        export TMPDIR=/scratch_local/$SLURM_JOB_ID
+        mkdir -p "$TMPDIR"
+        export PYTHONPATH={shlex.quote(str(repo_root))}:${{PYTHONPATH:-}}
+
+        echo "[$(date)] Ingesting the recorded receipts into {index_path}"
+        exec {command}
+        """
+    ).strip()
     return "\n".join([*headers, "", script_body, ""])
 
 

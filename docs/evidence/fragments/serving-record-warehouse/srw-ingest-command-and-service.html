@@ -1,0 +1,39 @@
+<section id="srw-ingest-command-and-service" data-reckon="landed">
+  <h2>§5 — The ingest runs as an agent command and a scheduled service</h2>
+
+  <p>Landed <code>imas_ambix/agent/cli.py</code> and
+  <code>imas_ambix/agent/slurm.py</code>. <code>imas-ambix agent ingest</code>
+  runs <code>imas_ambix.agent.telemetry_ingest.run</code> against
+  <code>watch.default_record_dir()</code> and the watch index path at a 5 s
+  default cadence, with <code>--once</code> for a single tick and
+  <code>--cadence</code> to override it. <code>generate_ingest_script</code>
+  models the scheduled service on <code>generate_router_script</code>'s placement
+  parameters — one CPU, 4 GB, no GPU, a job comment prefixed
+  <code>ambix-ingest</code> — and <code>agent ingest --dry-run</code> prints that
+  script while <code>--submit</code> hands it to <code>sbatch</code>.</p>
+
+  <p>The scheduled service carries a finite walltime rather than the standing
+  router and lane-refresher services' <code>--time=0</code>. Those run for the
+  life of the allocation; an ingest pass runs and exits, so a finite limit lets
+  the scheduler reclaim the node between passes. The limit is a separate finite
+  constant used only by the ingest generator, leaving the standing services'
+  unlimited value intact.</p>
+
+  <p><strong>Measure.</strong> <code>--once</code> reaches the loop as a single
+  iteration through a stub (<code>iterations == 1</code>, cadence
+  <code>5.0</code>); <code>--cadence 0.5</code> reaches it as <code>0.5</code>;
+  the dry-run script carries <code>--cpus-per-task=1</code>,
+  <code>--mem=4G</code>, <code>--comment=ambix-ingest</code>, no
+  <code>--gres=gpu</code>, and <code>--time=01:00:00</code>. The one test that
+  exercises <code>--submit</code> replaces the submitter with a stub, so no real
+  <code>sbatch</code> runs under a test.</p>
+
+  <p><strong>Negative control.</strong> Emitting <code>time_limit</code> 0
+  (unlimited) in the ingest script fails the dry-run test; applied as a scratch
+  edit and restored. Console: <code>negative-control.log</code> in the run
+  directory.</p>
+
+  <p><strong>Gate.</strong> <code>pytest tests/test_agent_ingest_cli.py
+  tests/test_telemetry_ingest.py</code> — 19 passed; the serving-interpreter guard
+  — 1 passed; <code>ruff check imas_ambix tests</code> — clean.</p>
+</section>
