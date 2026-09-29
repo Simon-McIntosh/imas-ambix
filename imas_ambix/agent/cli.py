@@ -2767,12 +2767,12 @@ def watch(
 @click.option(
     "--submit",
     is_flag=True,
-    help="Submit the ingest as a scheduled CPU-only SLURM service.",
+    help="Submit the ingest as a standing CPU-only SLURM service.",
 )
 @click.option(
     "--dry-run",
     is_flag=True,
-    help="Print the scheduled-service SLURM script without submitting it.",
+    help="Print the standing-service SLURM script without submitting it.",
 )
 def ingest(
     record_dir: str | None,
@@ -2800,7 +2800,7 @@ def ingest(
         imas-ambix agent ingest --once --record /path/to/receipts
 
     \b
-    Print the scheduled SLURM service script, then submit it:
+    Print the standing SLURM service script, then submit it:
         imas-ambix agent ingest --dry-run
         imas-ambix agent ingest --submit
     """
@@ -2810,10 +2810,10 @@ def ingest(
 
     resolved_record = (
         Path(record_dir).expanduser() if record_dir else default_record_dir()
-    )
+    ).resolve()
     resolved_index = (
         Path(index_path).expanduser() if index_path else DEFAULT_INDEX_PATH
-    )
+    ).resolve()
 
     if dry_run or submit:
         from imas_ambix.agent.slurm import generate_ingest_script, submit_script

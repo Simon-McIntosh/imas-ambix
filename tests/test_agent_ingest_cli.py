@@ -90,9 +90,48 @@ def test_dry_run_prints_the_service_script_without_submitting(tmp_path, monkeypa
     assert "#SBATCH --mem=4G" in result.output
     assert "#SBATCH --comment=ambix-ingest" in result.output
     assert "#SBATCH --gres=gpu" not in result.output
-    # A finite walltime, not the standing services' unlimited --time=0.
-    assert "#SBATCH --time=01:00:00" in result.output
-    assert "#SBATCH --time=0\n" not in result.output
+    # The standing supporting services' shared walltime, not a finite one-hour
+    # limit that would end the service on a schedule nobody is watching.
+    assert (
+        f"#SBATCH --time={slurm_mod._SUPPORTING_SERVICE_TIME_LIMIT}" in result.output
+    )
+    assert "#SBATCH --time=01:00:00" not in result.output
+    # The exec line names the absolute record and index the submitter chose, so
+    # a reader auditing the job reads the target off the script.
+    record_abs = str((tmp_path / "receipts").resolve())
+    index_abs = str((tmp_path / "watch-index.sqlite3").resolve())
+    exec_line = next(
+        line for line in result.output.splitlines() if line.startswith("exec ")
+    )
+    assert f"--record {record_abs}" in exec_line
+    assert f"--index {index_abs}" in exec_line
+
+
+def test_relative_paths_resolve_against_the_scratch_directory(tmp_path, monkeypatch):
+    """A relative --record/--index is emitted as the absolute path it resolves to."""
+    monkeypatch.chdir(tmp_path)
+
+    result = CliRunner().invoke(
+        main,
+        [
+            "agent",
+            "ingest",
+            "--dry-run",
+            "--record",
+            "receipts",
+            "--index",
+            "watch-index.sqlite3",
+        ],
+    )
+
+    assert result.exit_code == 0
+    exec_line = next(
+        line for line in result.output.splitlines() if line.startswith("exec ")
+    )
+    assert f"--record {(tmp_path / 'receipts').resolve()}" in exec_line
+    assert f"--index {(tmp_path / 'watch-index.sqlite3').resolve()}" in exec_line
+    # The bare relative path must not reach the script unresolved.
+    assert "--record receipts" not in exec_line
 
 
 def test_submit_hands_the_script_to_sbatch_through_a_stub(tmp_path, monkeypatch):
