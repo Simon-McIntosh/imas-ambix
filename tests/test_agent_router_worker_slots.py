@@ -155,6 +155,28 @@ def test_unkeyed_request_raises_share_and_leaves_ratio_unchanged() -> None:
     assert snapshot["unkeyed_share"] == 900.0 / (5940.0 + 900.0)
 
 
+def test_ratio_rounding_to_zero_withholds_both_derived_figures() -> None:
+    """A ratio that rounds to zero is withheld, withholds both derived figures.
+
+    Three live runs each hold 0.1 s inside the window, so keyed busy time is
+    0.3 s over a 900 s window for three runs -- 0.0001, which rounds to 0.0 at
+    three decimals. A published 0.0 would divide by zero in the slot
+    arithmetic, so ``requests_per_run`` and ``worker_slots`` are both withheld
+    while ``live_runs`` still reports the three runs sharing the lane.
+    """
+    now = _NOW
+    ledger = _AdmissionLedger()
+    for index in range(3):
+        busy = ledger.admit(f"r-{index}", now=now - 600.0)
+        ledger.release(busy, now=now - 600.0 + 0.1)
+    snapshot = ledger.snapshot(now=now, effective_width=16, verdict="open")
+    assert snapshot["window_seconds"] == 900.0
+    assert round(3 * 0.1 / snapshot["window_seconds"] / 3, 3) == 0.0
+    assert snapshot["live_runs"] == 3
+    assert snapshot["requests_per_run"] is None
+    assert snapshot["worker_slots"] is None
+
+
 def test_empty_window_publishes_zero_runs_and_null_share() -> None:
     ledger = _AdmissionLedger()
     snapshot = ledger.snapshot(now=_NOW, effective_width=16, verdict="open")
