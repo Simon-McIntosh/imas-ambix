@@ -89,11 +89,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from imas_ambix.agent import telemetry_index
 from imas_ambix.agent.telemetry_index import (
     local_boot_id,
     resolve_boot_id,
     row_boot_id,
     row_host,
+    row_job_id,
 )
 
 TIER_RAW = "raw"
@@ -118,6 +120,8 @@ _WINDOW_START_KEY = "window_start"
 _OBS_KEY = "obs"
 _HOST_KEY = "host"
 _BOOT_KEY = "boot_id"
+_JOB_KEY = "job_id"
+_OPEN_KEY = "open"
 
 #: Canonical cumulative quantities whose leaf name does not end in ``_total``.
 #: The engine section spells cumulative token counters bare (``prompt_tokens``),
@@ -289,10 +293,11 @@ def _parse_timestamp(row: dict[str, Any]) -> _dt.datetime:
 def _row_payload(row: dict[str, Any]) -> dict[str, Any]:
     """A row's own readings, without the keys that describe the row's grouping.
 
-    The host and the boot are the window's identity rather than readings of it,
-    so they are excluded here and written back by the window that owns them;
-    merged as leaves they would be overwritten by whichever row of the window
-    happened to be last.
+    The host, the boot and the job are the window's identity rather than
+    readings of it, so they are excluded here and written back by the window
+    that owns them; merged as leaves they would be overwritten by whichever row
+    of the window happened to be last. The opening block is excluded for the
+    same reason and recomputed per window.
     """
     return {
         key: value
@@ -305,8 +310,43 @@ def _row_payload(row: dict[str, Any]) -> dict[str, Any]:
             _OBS_KEY,
             _HOST_KEY,
             _BOOT_KEY,
+            _JOB_KEY,
+            _OPEN_KEY,
         )
     }
+
+
+def _counter_leaves(node: Any, prefix: str, out: dict[str, float]) -> None:
+    """Collect a payload's cumulative leaves as ``{dotted path: value}``.
+
+    Only numeric leaves that :func:`_is_counter` classifies as counters are
+    kept, because a gauge has no opening to carry -- it compacts to a mean whose
+    own observation weight is the honest denominator. A null, a string or a
+    boolean is not an observation and is left out rather than read as zero.
+    """
+    if isinstance(node, dict):
+        for key, value in node.items():
+            path = f"{prefix}.{key}" if prefix else str(key)
+            _counter_leaves(value, path, out)
+    elif isinstance(node, list):
+        for index, value in enumerate(node):
+            _counter_leaves(value, f"{prefix}.{index}", out)
+    elif isinstance(node, bool) or node is None:
+        return
+    elif isinstance(node, int | float) and _is_counter(tuple(prefix.split("."))):
+        out[prefix] = float(node)
+
+
+def _counter_reading(row: dict[str, Any]) -> dict[str, float]:
+    """The cumulative leaves one row carries, keyed by their dotted paths.
+
+    Taken over the row's payload rather than the whole row, so the grouping
+    keys and the opening block a compacted row carries are not mistaken for
+    readings of it.
+    """
+    out: dict[str, float] = {}
+    _counter_leaves(_row_payload(row), "", out)
+    return out
 
 
 def _row_weights(rows: list[dict[str, Any]], window_seconds: int) -> list[float]:
@@ -388,19 +428,24 @@ def compact_rows(
     than reordering a record whose order is itself evidence.
 
     A window is per host, so two machines' readings in one window compact to two
-    rows rather than to a mean belonging to neither, and per boot, so a window
+    rows rather than to a mean belonging to neither, per boot, so a window
     holding both sides of a reboot compacts to two rows rather than to a
-    difference taken across counters that never met. A row is grouped under the
-    host and boot it names
+    difference taken across counters that never met, and per serving job, so a
+    window holding both sides of a serve restart compacts to two rows rather
+    than to a counter difference that spans the restart. A row is grouped under
+    the host, boot and job it names
     (:func:`~imas_ambix.agent.telemetry_index.row_host`,
-    :func:`~imas_ambix.agent.telemetry_index.row_boot_id`); *host* and *boot_id*
+    :func:`~imas_ambix.agent.telemetry_index.row_boot_id`,
+    :func:`~imas_ambix.agent.telemetry_index.row_job_id`); *host* and *boot_id*
     are what a row naming neither is attributed to, defaulting to this node's
     own nodename and boot.
 
-    Returns the compacted rows, each carrying ``tier``, its recording ``host``
-    and ``boot_id``, the window's ``timestamp`` (its endpoint observation),
-    ``window_start``, an ``obs`` block naming the samples and seconds behind its
-    means, and the compacted payload under the same keys a raw row uses.
+    Returns the compacted rows, each carrying ``tier``, its recording ``host``,
+    ``boot_id`` and ``job_id``, the window's ``timestamp`` (its endpoint
+    observation), ``window_start``, an ``obs`` block naming the samples and
+    seconds behind its means, an ``open`` block carrying each counter's value at
+    the start of the run's contribution to the window, and the compacted payload
+    under the same keys a raw row uses.
     """
     if tier not in TIER_WINDOW_SECONDS:
         raise TelemetryStoreError(f"no compaction window for tier {tier!r}")
@@ -408,15 +453,17 @@ def compact_rows(
         return []
     fallback_host = host or os.uname().nodename
     fallback_boot, _ = resolve_boot_id(local_boot_id() if boot_id is None else boot_id)
-    strides: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    strides: dict[tuple[str, str, str | None], list[dict[str, Any]]] = {}
     for row in rows:
         recorded = row_host(row) or fallback_host
         boot, _ = resolve_boot_id(row_boot_id(row) or fallback_boot)
-        strides.setdefault((recorded, boot), []).append(row)
+        strides.setdefault((recorded, boot, row_job_id(row)), []).append(row)
     compacted: list[dict[str, Any]] = []
-    for (recorded, boot), stride in strides.items():
+    for (recorded, boot, job), stride in strides.items():
         compacted.extend(
-            _compact_stride(stride, tier, recorded, boot, TIER_WINDOW_SECONDS[tier])
+            _compact_stride(
+                stride, tier, recorded, boot, job, TIER_WINDOW_SECONDS[tier]
+            )
         )
     return compacted
 
@@ -426,33 +473,90 @@ def _compact_stride(
     tier: str,
     host: str,
     boot_id: str,
+    job_id: str | None,
     window_seconds: int,
 ) -> list[dict[str, Any]]:
-    """Compact one host's boot's rows, in time order, into one row per window.
+    """Compact one run's rows, in time order, into one row per window.
 
-    The rows are one recording machine's over one boot, which is what lets a raw
-    row's duration be read as the cadence gap it is: a raw row stands for the
+    The rows are one recording machine's over one boot and one serving job,
+    which is what lets a raw row's duration be read as the cadence gap it is: a
+    raw row stands for the
     interval running to the next row of the same source, so durations inferred
-    across two interleaved machines -- or across a reboot, where the cadence
-    genuinely stops -- would be a fraction of the truth for both.
+    across two interleaved machines -- or across a reboot or a serve restart,
+    where the cadence genuinely stops -- would be a fraction of the truth for
+    both.
+
+    The stride is further split into unbroken counter runs by the predicate the
+    query layer totals with
+    (:func:`~imas_ambix.agent.telemetry_index.counter_run_continues`), so a
+    counter that restarts within one boot and job -- a fall the recorded
+    identity cannot see -- ends the run there and opens a new one rather than
+    being read as a difference across the join.
+    """
+    key = (host, boot_id, job_id)
+    runs: list[Any] = []
+    previous: tuple[tuple[Any, ...], dict[str, float]] | None = None
+    for row in rows:
+        current = (key, _counter_reading(row))
+        if not telemetry_index.counter_run_continues(previous, current):
+            runs.append([])
+        runs[-1].append(row)
+        previous = current
+
+    compacted: list[dict[str, Any]] = []
+    for run in runs:
+        compacted.extend(
+            _compact_run(run, tier, host, boot_id, job_id, window_seconds)
+        )
+    return compacted
+
+
+def _compact_run(
+    rows: list[dict[str, Any]],
+    tier: str,
+    host: str,
+    boot_id: str,
+    job_id: str | None,
+    window_seconds: int,
+) -> list[dict[str, Any]]:
+    """Compact one unbroken counter run into one row per window.
+
+    A run's rows bound the weights: a raw row's duration is the cadence gap to
+    the next row of the run, so the gap is never inferred across a boundary the
+    run does not cross. Each window also records, per cumulative counter, the
+    run's opening value -- the value carried in from the window before, or the
+    first observed inside it -- and both are what let a window be totalled on
+    its own without the previous window and without spanning a restart.
     """
     weights = _row_weights(rows, window_seconds)
     sample_counts = _row_samples(rows)
     windows: dict[int, _Window] = {}
+    openings: dict[int, dict[str, float]] = {}
     order: list[int] = []
+    seen: dict[str, float] = {}
     for row, weight, samples in zip(rows, weights, sample_counts, strict=True):
         stamp = _parse_timestamp(row)
         epoch = stamp.timestamp()
         bucket = math.floor(epoch / window_seconds) * window_seconds
+        reading = _counter_reading(row)
         window = windows.get(bucket)
         if window is None:
             window = _Window(start=_dt.datetime.fromtimestamp(bucket, tz=_dt.UTC))
             windows[bucket] = window
+            opening = dict(seen)
+            for name, value in reading.items():
+                opening.setdefault(name, value)
+            openings[bucket] = opening
             order.append(bucket)
+        else:
+            opening = openings[bucket]
+            for name, value in reading.items():
+                opening.setdefault(name, seen.get(name, value))
         window.samples += samples
         window.seconds += weight
         window.endpoint = stamp
         _merge(window.payload, _row_payload(row), weight, ())
+        seen.update(reading)
 
     compacted: list[dict[str, Any]] = []
     for bucket in order:
@@ -467,7 +571,10 @@ def _compact_stride(
                 "samples": window.samples,
                 "seconds": round(window.seconds, _WEIGHT_PLACES),
             },
+            _OPEN_KEY: openings[bucket],
         }
+        if job_id is not None:
+            row[_JOB_KEY] = job_id
         row.update(_finalise(window.payload))
         compacted.append(row)
     return compacted

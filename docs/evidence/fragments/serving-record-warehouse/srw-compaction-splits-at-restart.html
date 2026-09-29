@@ -1,0 +1,109 @@
+<section class="evidence-fragment" data-reckon="evidence" id="srw-compaction-splits-at-restart">
+  <header>
+    <h3>Compaction splits a window at a serve restart</h3>
+    <p class="meta">
+      Node <code>srw-compaction-splits-at-restart</code> &middot;
+      date 2026-09-29 &middot;
+      worktree <code>imas-ambix-0405601943d2/srw-compaction-splits-at-restart</code>
+    </p>
+  </header>
+
+  <p>
+    A cumulative counter restarts whenever its serving process is replaced, and
+    that replacement happens inside one compaction window, on one host, over one
+    boot. Grouping a compaction stride by host and boot alone therefore merged
+    the two serves in one window into a single row whose counter was not real.
+    Compaction now splits a stride at exactly the place the query layer already
+    partitions a total: a shared run-boundary predicate that both
+    <code>compact_rows</code> and <code>TelemetryIndex.partitioned_total</code>
+    call. The compacted row also carries an <code>open</code> block giving each
+    counter's value at the start of its run's contribution to the window, so a
+    window can be totalled onwards without reading the window before it.
+  </p>
+
+  <h4>What changed</h4>
+  <ul>
+    <li>
+      <code>imas_ambix/agent/telemetry_index.py</code> exposes
+      <code>counter_run_continues</code> — the run-boundary predicate — and
+      <code>row_job_id</code>. <code>_counter_runs</code> is refactored to call
+      the predicate, so the run boundary is defined once.
+    </li>
+    <li>
+      <code>imas_ambix/agent/telemetry_store.py</code> groups compaction strides
+      by <code>(host, boot, job)</code> and splits each stride into runs with
+      <code>telemetry_index.counter_run_continues</code>. Each compacted row now
+      carries <code>job_id</code> and a flat <code>open</code> block of dotted
+      counter paths to their opening values.
+    </li>
+    <li>
+      <code>tests/test_telemetry_compaction_runs.py</code> holds the two layers
+      to that one boundary.
+    </li>
+  </ul>
+
+  <h4>Evidence</h4>
+  <table>
+    <thead>
+      <tr><th>Measure</th><th>Result</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>
+          Two serves restarting inside one minute of one boot (job 1001 counter
+          1,000,000 then 1,500,000; job 1002 counter 0 then 20,000) compact to
+          two rows, one per job, each carrying its opening and closing counter
+        </td>
+        <td>2 rows; openings 1,000,000 and 0, closings 1,500,000 and 20,000</td>
+      </tr>
+      <tr>
+        <td>
+          The run-partitioned total over the compacted rows equals the
+          partitioned total over the raw rows they replace
+        </td>
+        <td>520,000 over the restart window; 200 the plain difference with no restart</td>
+      </tr>
+      <tr>
+        <td>
+          Both callers consult one shared predicate (patched
+          <code>counter_run_continues</code> observed in each)
+        </td>
+        <td>both callers observed</td>
+      </tr>
+      <tr>
+        <td>
+          <code>uv run --no-sync pytest -p no:cacheprovider tests/test_telemetry_store.py
+          tests/test_telemetry_index.py tests/test_agent_telemetry_watch.py
+          tests/test_telemetry_compaction_runs.py</code>
+        </td>
+        <td>87 passed</td>
+      </tr>
+      <tr>
+        <td>
+          <code>pytest tests/test_agent_serve_registry.py
+          -k agent_package_modules_parse_with_serving_python</code>
+        </td>
+        <td>1 passed</td>
+      </tr>
+      <tr>
+        <td><code>ruff check imas_ambix tests</code></td>
+        <td>exit 0</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>Negative control</h4>
+  <p>
+    Restoring the host-and-boot-only grouping — a scratch edit that merges the
+    stride and disables the run split — makes the two-rows test fail with a
+    single merged row (<code>assert 1 == 2</code>), confirming the guard is
+    load-bearing rather than vacuous. The scratch edit was reverted. The log
+    records the run and the failure assertion.
+  </p>
+  <p>
+    Red log:
+    <code>runs/r-20260929T072856792180-srw-compaction-splits-at-restart/negative-control.log</code>
+    &middot; gate log:
+    <code>runs/r-20260929T072856792180-srw-compaction-splits-at-restart/gate.log</code>
+  </p>
+</section>

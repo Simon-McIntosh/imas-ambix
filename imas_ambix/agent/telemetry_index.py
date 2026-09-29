@@ -317,6 +317,19 @@ def row_boot_id(row: Mapping[str, Any]) -> str | None:
     return _section_text(row, _BOOT_ID_KEY)
 
 
+def row_job_id(row: Mapping[str, Any]) -> str | None:
+    """The serving job a record row says it belongs to, or ``None``.
+
+    A run is one serving process, and the SLURM job that started it is what
+    names that process when a serve restarts within one boot: the job id moves
+    even where the host and boot do not. A row naming no job is a row whose
+    process identity was not recorded -- a synthetic or legacy record -- and it
+    belongs to no job rather than to the reader's own.
+    """
+    value = row.get("job_id")
+    return value if isinstance(value, str) and value else None
+
+
 def resolve_boot_id(candidate: str | None) -> tuple[str, str]:
     """``(stored boot identity, key scope)`` for a candidate boot identity.
 
@@ -554,6 +567,36 @@ def discover(directory: str | Path, pattern: str | None = None) -> list[Path]:
     )
 
 
+def counter_run_continues(
+    previous: tuple[tuple[Any, ...], Mapping[str, float]] | None,
+    current: tuple[tuple[Any, ...], Mapping[str, float]],
+) -> bool:
+    """Whether a counter reading continues the run its predecessor was in.
+
+    One predicate defines a run for both the compactor and the query, so the
+    two cannot drift apart and discard an endpoint again. A run is one serving
+    process on one host over one boot -- *current*'s key -- whose cumulative
+    counters never fall. So a reading continues it only while the key is
+    unchanged and no counter it carries is below the value the previous reading
+    gave for the same counter; a key that moves, or a counter that resets without
+    the key announcing it, opens a new run. The first reading of a sequence opens
+    one, since it has no predecessor to continue.
+
+    Each argument pairs a run key with the counter values the reading carries,
+    keyed by a name that is stable within the sequence so values are compared
+    like for like. A counter present in one reading and absent from the other is
+    not compared rather than read as a fall to zero.
+    """
+    if previous is None or previous[0] != current[0]:
+        return False
+    before = previous[1]
+    for name, value in current[1].items():
+        prior = before.get(name)
+        if prior is not None and value < prior:
+            return False
+    return True
+
+
 def _counter_runs(
     rows: Iterable[Any],
 ) -> list[list[tuple[float, float]]]:
@@ -562,21 +605,22 @@ def _counter_runs(
     Each reading is ``(ts_epoch, host, boot_id, job_id, value)``. A run is one
     serving process on one host over one boot, and it ends where the key moves
     or where the counter falls -- the latter being a restart the key did not
-    announce. Readings within a run are therefore non-decreasing, so a run
-    differences to a non-negative figure and a window's total is the sum of its
-    runs rather than the difference of its two outermost readings.
+    announce. Both are decided by :func:`counter_run_continues`, the one
+    predicate the compactor also splits its strides on. Readings within a run
+    are therefore non-decreasing, so a run differences to a non-negative figure
+    and a window's total is the sum of its runs rather than the difference of
+    its two outermost readings.
     """
     runs: list[list[tuple[float, float]]] = []
-    key: tuple[Any, Any, Any] | None = None
-    previous: float | None = None
+    previous: tuple[tuple[Any, ...], Mapping[str, float]] | None = None
     for row in rows:
-        current = (row["host"], row["boot_id"], row["job_id"])
+        key = (row["host"], row["boot_id"], row["job_id"])
         value = float(row["value"])
-        if key != current or (previous is not None and value < previous):
+        current = (key, {"value": value})
+        if not counter_run_continues(previous, current):
             runs.append([])
-            key = current
         runs[-1].append((float(row["ts"]), value))
-        previous = value
+        previous = current
     return runs
 
 
@@ -1314,6 +1358,7 @@ __all__ = [
     "UNKNOWN_HOST_SCOPE",
     "IngestReport",
     "TelemetryIndex",
+    "counter_run_continues",
     "discover",
     "key_scope",
     "local_boot_id",
@@ -1324,4 +1369,5 @@ __all__ = [
     "resolve_host",
     "row_boot_id",
     "row_host",
+    "row_job_id",
 ]
