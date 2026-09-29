@@ -27,6 +27,14 @@ by time of day, so a period billed at one instant's rate is wrong by the
 peak-to-off-peak ratio. Prices are read from the local cache the workstation
 watcher already maintains; this reader never fetches, because a reader derives.
 With no cached table the cost column is dashed rather than guessed.
+
+**The cost printed is the realistic third-party estimate.** Our own cache is
+ours: one large prefix cache we control, which a hosted endpoint serving the
+same model would not have. So the figure prices input at the estimated
+third-party hit rate -- cached input at the cache-read tier, the remainder at
+the prompt tier -- using the estimate record installed beside the price table.
+Our own cached count enters the token columns but never the bill, and no band
+is printed beside the estimate: a band invites the reader to pick an endpoint.
 """
 
 from __future__ import annotations
@@ -123,6 +131,13 @@ MIN_PERIOD_COVERAGE = 0.25
 #: column so a temperature coloured against an unstated ceiling is not judged.
 THROTTLE_C = 84.0
 
+#: The estimate record the coordinator installs beside the price table. It is a
+#: small record of its own -- the third-party hit rate, which of the three
+#: sources produced it, and that source's citation -- kept beside the table and
+#: never inside it, because the table is refetched and overwritten on its
+#: refresh interval while the estimate must survive it.
+ESTIMATE_FILENAME = "third-party-cache-rate.json"
+
 
 @dataclasses.dataclass(frozen=True)
 class Period:
@@ -136,6 +151,11 @@ class Period:
     tokens_out: float | None
     utilisation: float | None
     cost: float | None
+    #: The label printed beside the cost figure: the estimated third-party hit
+    #: rate as a percentage, its source kind and its citation, or why no
+    #: estimate is installed. Carried on the row so the JSON document and the
+    #: text panel label the same figure the same way.
+    cost_label: str | None = None
 
     @property
     def cached_share(self) -> float | None:
@@ -143,6 +163,16 @@ class Period:
         if self.tokens_in is None or self.cached is None or self.tokens_in <= 0:
             return None
         return 100.0 * self.cached / self.tokens_in
+
+
+@dataclasses.dataclass(frozen=True)
+class CacheRateEstimate:
+    """The installed third-party prompt-cache hit rate and its provenance."""
+
+    rate: float
+    source_kind: str
+    citation: dict[str, Any]
+    observed_at: str | None = None
 
 
 # ── formatting ───────────────────────────────────────────────────────
@@ -368,6 +398,103 @@ def ledger_cost(total: dict, price: dict) -> float | None:
     )
 
 
+def estimated_cost(total: dict, price: dict, rate: float) -> float | None:
+    """The best-effort market cost of one period at a third-party cache rate.
+
+    A hosted endpoint serving the same model would not have our own prefix
+    cache, so the estimate prices *rate* of the input at the cache-read tier
+    and the remainder at the prompt tier -- the two differ by a factor of
+    fifty, so assuming our own cache would understate the figure by an order
+    of magnitude. Our own cached count never enters the bill: the input split
+    is the estimated third-party rate, not what we measured.
+
+    A total the record did not carry is not a zero, so a period whose input or
+    output was never recorded is declined and the row dashes rather than
+    publishing a cost for traffic nothing measured.
+    """
+    tokens_in = total.get("in")
+    tokens_out = total.get("out")
+    if tokens_in is None or tokens_out is None:
+        return None
+    hit = max(0.0, min(1.0, float(rate)))
+    prompt_in = max(0.0, float(tokens_in))
+    return (
+        hit * prompt_in * price["cache_read"]
+        + (1.0 - hit) * prompt_in * price["prompt"]
+        + max(0.0, float(tokens_out)) * price["completion"]
+    )
+
+
+def citation_text(citation: dict[str, Any]) -> str:
+    """One citation's values as a single line, in the record's own order."""
+    parts: list[str] = []
+    for value in citation.values():
+        if isinstance(value, (list, tuple)):
+            parts.append("..".join(str(item) for item in value))
+        elif value not in (None, ""):
+            parts.append(str(value))
+    return " ".join(parts)
+
+
+def cost_label(estimate: CacheRateEstimate | None) -> str:
+    """The label beside the single estimate, or why there is no estimate.
+
+    Installing the estimate record is a deploy step, so a render
+    reports its absence plainly rather than falling back to a rate of its own:
+    a rate invented to fill the gap is a measurement nobody took.
+    """
+    if estimate is None:
+        return "no third-party estimate installed"
+    percent = f"{100.0 * estimate.rate:.1f}%"
+    cited = citation_text(estimate.citation)
+    label = f"third-party cache hit h={percent} ({estimate.source_kind})"
+    return f"{label} {cited}".strip()
+
+
+def estimate_path(price_path: str | Path | None = None) -> Path:
+    """The estimate record's path: the price table's directory, one filename.
+
+    The record is kept beside the table rather than inside it, so a refresh
+    that overwrites the table never destroys the estimate, and no path is
+    resolved separately for the record.
+    """
+    if price_path is None:
+        from imas_ambix.agent import provider_prices
+
+        price_path = provider_prices.table_path()
+    return Path(price_path).parent / ESTIMATE_FILENAME
+
+
+def load_estimate(
+    price_path: str | Path | None = None,
+) -> CacheRateEstimate | None:
+    """Read the installed third-party cache-rate record, or ``None``.
+
+    One function reads the record and one record answers for every surface, so
+    the rate is never a constant repeated inside two tools. An absent or
+    unreadable record, or one carrying no usable rate, reports ``None`` and the
+    panel prints no estimate rather than a guess.
+    """
+    try:
+        doc = json.loads(estimate_path(price_path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(doc, dict):
+        return None
+    rate = doc.get("h")
+    if not isinstance(rate, (int, float)) or isinstance(rate, bool):
+        return None
+    if not 0.0 <= float(rate) <= 1.0:
+        return None
+    citation = doc.get("citation")
+    return CacheRateEstimate(
+        rate=float(rate),
+        source_kind=str(doc.get("source_kind") or "unstated"),
+        citation=citation if isinstance(citation, dict) else {},
+        observed_at=doc.get("observation_time"),
+    )
+
+
 # ── the ledger, as queries over the index ────────────────────────────
 
 
@@ -471,6 +598,7 @@ def period_row(
     now: float,
     prices: Sequence[dict] | None = None,
     model: str | None = None,
+    estimate: CacheRateEstimate | None = None,
 ) -> Period | None:
     """One ledger row derived from the record, or ``None`` when unbacked.
 
@@ -491,12 +619,13 @@ def period_row(
     cached = _cached_span(index, start, end)
 
     cost = None
-    if prices:
+    if prices and estimate is not None:
         price = match_price(model or "", prices)
         if price is not None:
-            cost = ledger_cost(
-                {"in": tokens_in, "cached": cached, "out": tokens_out},
+            cost = estimated_cost(
+                {"in": tokens_in, "out": tokens_out},
                 price_at(price, now),
+                estimate.rate,
             )
 
     covered = min(period, in_partition.coverage)
@@ -509,6 +638,7 @@ def period_row(
         tokens_out=tokens_out,
         utilisation=card_utilisation(index, start, end),
         cost=cost,
+        cost_label=cost_label(estimate),
     )
 
 
@@ -519,6 +649,7 @@ def ledger(
     periods: Sequence[tuple[float, str]] = LEDGER_PERIODS,
     prices: Sequence[dict] | None = None,
     model: str | None = None,
+    estimate: CacheRateEstimate | None = None,
 ) -> list[Period]:
     """Every period the record spans, longest last.
 
@@ -539,6 +670,7 @@ def ledger(
             now=when,
             prices=prices,
             model=model,
+            estimate=estimate,
         )
         if row is None:
             continue
@@ -650,8 +782,19 @@ def render_cards(
     return lines
 
 
-def render_ledger_rows(rows: Sequence[Period], prices: bool) -> list[str]:
-    """The ledger, one line per period, in one column grid."""
+def render_ledger_rows(
+    rows: Sequence[Period],
+    prices: bool,
+    estimate: CacheRateEstimate | None = None,
+) -> list[str]:
+    """The ledger, one line per period, in one column grid.
+
+    One cost figure is printed per period row and one label beside the ledger:
+    the estimated third-party hit rate as a percentage, its source kind and its
+    citation, or the reason no estimate is installed. The label is stated once
+    because one installed record answers for every row, and repeating its
+    citation on each line would bury the figures it explains.
+    """
     lines = [
         "[bold]ledger[/]  "
         + ("[dim]period · covered · in · cached · out · cards · cost[/]")
@@ -672,6 +815,8 @@ def render_ledger_rows(rows: Sequence[Period], prices: bool) -> list[str]:
         )
     if not prices:
         lines.append("[dim]cost: no cached price table[/]")
+    else:
+        lines.append(f"[dim]cost: {cost_label(estimate)}[/]")
     return lines
 
 
@@ -680,16 +825,23 @@ def render_document(
     *,
     now: float | None = None,
     prices: Sequence[dict] | None = None,
+    estimate: CacheRateEstimate | None = None,
 ) -> str:
     """The whole reading as one text document, in rich markup."""
     when = time.time() if now is None else now
     reading = _latest_reading(index, when)
-    rows = ledger(index, now=when, prices=prices, model=reading.get("model_id"))
+    rows = ledger(
+        index,
+        now=when,
+        prices=prices,
+        model=reading.get("model_id"),
+        estimate=estimate,
+    )
     blocks = [render_rail(reading)]
     cards = render_cards(index, when)
     if cards:
         blocks.append("\n".join(cards))
-    blocks.extend(render_ledger_rows(rows, prices is not None))
+    blocks.extend(render_ledger_rows(rows, prices is not None, estimate))
     return "\n".join(blocks)
 
 
@@ -708,12 +860,18 @@ def _owned_prices() -> tuple[list[float | dict] | None, float | None]:
     return load_prices(outcome.path), outcome.age
 
 
+def _installed_estimate() -> CacheRateEstimate | None:
+    """The estimate record installed beside the price table in force."""
+    return load_estimate()
+
+
 def watch_text(
     record_dir: str | Path | None = None,
     index_path: str | Path | None = None,
     *,
     now: float | None = None,
     prices: Sequence[dict] | None = None,
+    estimate: CacheRateEstimate | None = None,
     width: int = 110,
 ) -> str:
     """Ingest the record, query the index, and return the rendered panels.
@@ -723,17 +881,20 @@ def watch_text(
     last pass, and asks the index for every figure the panels show. Nothing
     here probes the serve, and nothing here writes a ledger. *prices* is passed
     in for a caller that already holds a table; ``None`` refreshes and reads
-    the table the package owns.
+    the table the package owns. *estimate* is passed in the same way; ``None``
+    reads the record installed beside that table.
     """
     directory = Path(record_dir or default_record_dir())
     target = Path(index_path or DEFAULT_INDEX_PATH)
     target.parent.mkdir(parents=True, exist_ok=True)
     if prices is None:
         prices, _ = _owned_prices()
+    if estimate is None:
+        estimate = _installed_estimate()
     sources = discover(directory)
     with TelemetryIndex(target) as index:
         index.ingest(sources)
-        document = render_document(index, now=now, prices=prices)
+        document = render_document(index, now=now, prices=prices, estimate=estimate)
     return _plain(document, width=width)
 
 
@@ -743,6 +904,7 @@ def document(
     now: float | None = None,
     prices: Sequence[dict] | None = None,
     price_age: float | None = None,
+    estimate: CacheRateEstimate | None = None,
 ) -> dict:
     """The same figures :func:`render_document` prints, as plain data.
 
@@ -751,12 +913,20 @@ def document(
     derivation that could drift from it. *price_age* is the age of the price
     table the figures were priced from, in seconds; it is reported here so a
     consumer renders cost from the document rather than reaching for the
-    table itself.
+    table itself. Each period row carries its ``cost`` figure and the
+    ``cost_label`` beside it, so a JSON consumer labels the figure the way the
+    panel does.
     """
     when = time.time() if now is None else now
     reading = _latest_reading(index, when)
     reading.pop("row", None)
-    rows = ledger(index, now=when, prices=prices, model=reading.get("model_id"))
+    rows = ledger(
+        index,
+        now=when,
+        prices=prices,
+        model=reading.get("model_id"),
+        estimate=estimate,
+    )
     return {
         "record": reading,
         "ledger": [dataclasses.asdict(row) for row in rows],
@@ -801,11 +971,12 @@ def watch_document(
     now: float | None = None,
     prices: Sequence[dict] | None = None,
     price_age: float | None = None,
+    estimate: CacheRateEstimate | None = None,
 ) -> dict:
     """Consume the record, then return the panels' figures as plain data.
 
-    The full document carries the index-derived ``record``, ``ledger``, ``live``
-    and ``price_age`` fields alongside the ``lane`` and ``live`` blocks, so a
+    The full document carries the index-derived ``record``, ``ledger`` and
+    ``price_age`` fields alongside the ``lane`` and ``live`` blocks, so a
     consumer that wants every figure reads one document rather than reaching
     into the index on its own. The two blocks come from :func:`live_document`,
     which reads the published sources and never touches what this path built.
@@ -818,10 +989,18 @@ def watch_document(
         prices, age = _owned_prices()
         if price_age is None:
             price_age = age
+    if estimate is None:
+        estimate = _installed_estimate()
     sources = discover(directory)
     with TelemetryIndex(target) as index:
         index.ingest(sources)
-        payload = document(index, now=when, prices=prices, price_age=price_age)
+        payload = document(
+            index,
+            now=when,
+            prices=prices,
+            price_age=price_age,
+            estimate=estimate,
+        )
     payload.update(
         live_document(
             record_dir=directory,
@@ -860,17 +1039,24 @@ def _parse_timestamp(value: Any) -> float | None:
 
 __all__ = [
     "DEFAULT_INDEX_PATH",
+    "ESTIMATE_FILENAME",
+    "CacheRateEstimate",
     "default_record_dir",
     "LEDGER_PERIODS",
     "Period",
     "bar",
     "card_utilisation",
+    "citation_text",
+    "cost_label",
+    "estimate_path",
+    "estimated_cost",
     "fmt_span",
     "fmt_tokens",
     "fmt_usd",
     "ledger",
     "ledger_cost",
     "live_document",
+    "load_estimate",
     "load_prices",
     "match_price",
     "observed_fraction",
