@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-29">
 <meta name="plan-impl" content="0.33">
-<meta name="plan-version" content="1">
+<meta name="plan-version" content="2">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;done&quot;}">
 </head>
 <body>
@@ -110,6 +110,9 @@
   <section data-reckon="comments" id="comments" class="r-comments">
 <div class="r-comment" data-section="s4" data-id="c-currency-2026-09-29-card-name" data-who="reckon-build" data-when="2026-09-29T07:50:00Z">
     <div class="r-comment-body"><p>Currency audit, 2026-09-29: §4 landed in <code>6d7617a7</code> (merge <code>122f67c7</code>), which parses each card's model name from the probe output. The live record confirms it: the row at 07:08:45Z names four cards <code>NVIDIA H200 NVL</code>. The flat-column measurement the section asks to carry forward is already recorded in this plan's §4 prose. The open decision on unparsed keys is left to the lead: the card name is now parsed, so no key of that kind remains to decide for. §2 and §3 remain.</p></div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-run-r-20260929T072941745023-arf-receipt-section-contract" data-who="reckon-build" data-when="2026-09-29T07:52:32.062Z">
+    <div class="r-comment-body"><p>The recorder docstring and ROW_SECTIONS comment now name the job table&#x27;s failed-read marker (`unread`) as the one exception to &quot;a present key is a measurement&quot;; new tests/test_receipt_section_contract.py (3 cases) proves a refused squeue read and an absent source serialise to different rows and the marker arrives with no count and no rows (2 of the 3 go red under the mutant); gate 46 passed + 1 parse passed + ruff exit 0; commit d048dc5a.</p></div>
 </div>
 </section>
 </main>
