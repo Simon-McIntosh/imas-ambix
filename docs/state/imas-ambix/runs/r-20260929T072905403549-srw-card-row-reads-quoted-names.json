@@ -1,0 +1,348 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effort": "high",
+    "launch": "cli",
+    "local": true,
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "worktree-full",
+    "usable_input_window": 480000
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "41ef8974aee89b85dc8cd941454ec20ca1a8fc6d",
+  "boundary_waiver": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "inference_geo": "",
+      "input_tokens": 6662118,
+      "input_tokens_cumulative": 6662118,
+      "output_tokens": 20535,
+      "output_tokens_cumulative": 20535,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": {
+    "added": 34,
+    "files": 2,
+    "removed": 2
+  },
+  "commit_resolution": null,
+  "commits": [
+    "f8ded1dc080340113ccaaff9a9f979c65fcaad4d"
+  ],
+  "completed_at": "2026-09-29T07:45:35.223Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-09-29T07:29:12Z",
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": true,
+    "matched_measure": "pytest -p",
+    "override": false,
+    "role": "implement",
+    "status": "compatible"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [],
+  "gate": "passed",
+  "gate_check": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider tests/test_node_probe.py",
+    "exit_status": 0,
+    "log_digest": "sha256:cae04fbaf113998c14403f56a30687a7e7876e83657d52e8a5d61ab19ea08615",
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T072905403549-srw-card-row-reads-quoted-names/gate-pytest-node_probe.log"
+  },
+  "impl_move": {
+    "at_complete": 0.0,
+    "at_dispatch": 0.0,
+    "plan": "serving-record-warehouse",
+    "reason": "f-srw-004 is a followup-owned node attached to section 7, which has no landable scope of its own; section impl does not move",
+    "verdict": "waived"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-09-29T08:09:06.497611+00:00",
+    "horizon_seconds": 2400,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": null,
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-09-29T07:29:06Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 13,
+    "binding_observed": "unknown",
+    "detail": "",
+    "generating": 5,
+    "headroom": 9,
+    "mean_context": 137143,
+    "observed_at": "2026-09-29T07:28:53Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45,
+    "throughput": {
+      "age_seconds": null,
+      "aggregate_tokens_per_second": "unknown",
+      "detail": "lane document publishes no 'throughput' block, so the rate its generating population achieved is not measured",
+      "mean_tokens_per_second": "unknown",
+      "observed_at": null,
+      "runs": "unknown",
+      "state": "unknown"
+    },
+    "waiting": 0
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-09-29T07:45:35.223Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": true,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T072905403549-srw-card-row-reads-quoted-names/manifest.md",
+  "member": "fleet-host-read",
+  "negative_control": {
+    "added_failure_ids": [
+      "tests/test_node_probe.py::test_a_quoted_comma_in_the_name_does_not_shift_the_numeric_columns"
+    ],
+    "baseline_failure_ids": [],
+    "comparison_arm": "baseline_suite",
+    "control_exit_status": 1,
+    "control_failure_ids": [
+      "tests/test_node_probe.py::test_a_quoted_comma_in_the_name_does_not_shift_the_numeric_columns"
+    ],
+    "declaration": "restoring the positional str.split(',') parse must fail the quoted-comma test; applied as a scratch edit and restored",
+    "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T072905403549-srw-card-row-reads-quoted-names/negative-control.log",
+    "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T072905403549-srw-card-row-reads-quoted-names/negative-control.log",
+    "test_paths": [
+      "tests/test_node_probe.py"
+    ],
+    "verdict": "matched"
+  },
+  "no_commit": null,
+  "node": "srw-card-row-reads-quoted-names",
+  "node_definition": {
+    "brief": "",
+    "brief_path": "",
+    "brief_sha256": "",
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 4144,
+          "cached_input_tokens": 388847,
+          "input_tokens": 392993,
+          "output_tokens": 463,
+          "reasoning_output_tokens": 170,
+          "total_tokens": 393456,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "0c4316b2-553f-4a0a-ae02-c42d88de747c",
+      "session_id": "0c4316b2-553f-4a0a-ae02-c42d88de747c"
+    },
+    "done_when": "tests/test_node_probe.py drives a card row whose name field is the quoted string \"NVIDIA H200, NVL\" and asserts the name is read whole and temperature_c, power_draw_w and every other numeric field equal the row's values; an existing unquoted row parses unchanged; gate: uv run --no-sync pytest -p no:cacheprovider tests/test_node_probe.py passes, pytest tests/test_agent_serve_registry.py -k agent_package_modules_parse_with_serving_python passes, uv run --no-sync ruff check imas_ambix tests exits 0",
+    "estimated_hours": null,
+    "goal": "Parse the nvidia-smi card row with the csv module so a quoted comma in a card name cannot shift the numeric columns",
+    "id": "srw-card-row-reads-quoted-names",
+    "lane_declaration": {
+      "backend": null,
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-09-29T07:29:06Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 13,
+      "binding_observed": "unknown",
+      "detail": "",
+      "generating": 5,
+      "headroom": 9,
+      "mean_context": 137143,
+      "observed_at": "2026-09-29T07:28:53Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45,
+      "throughput": {
+        "age_seconds": null,
+        "aggregate_tokens_per_second": "unknown",
+        "detail": "lane document publishes no 'throughput' block, so the rate its generating population achieved is not measured",
+        "mean_tokens_per_second": "unknown",
+        "observed_at": null,
+        "runs": "unknown",
+        "state": "unknown"
+      },
+      "waiting": 0
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T072905403549-srw-card-row-reads-quoted-names/manifest.md",
+    "negative_control": "restoring the positional str.split(',') parse must fail the quoted-comma test; applied as a scratch edit and restored",
+    "plan": "serving-record-warehouse",
+    "requested_backend": "clive",
+    "requires_decisions": [],
+    "role": "implement",
+    "section": "§7",
+    "spec_level": "exact",
+    "time_budget": "40m",
+    "token_budget": null,
+    "write_paths": [
+      "imas_ambix/agent/node_probe.py",
+      "tests/test_node_probe.py",
+      "docs/evidence/fragments/serving-record-warehouse/srw-card-row-reads-quoted-names.html",
+      "docs/figures/serving-record-warehouse/srw-card-row-reads-quoted-names"
+    ]
+  },
+  "orientation_input_tokens": 1890457.0,
+  "outcome": "",
+  "pace": {
+    "allowance": null,
+    "bar": null,
+    "clocks": {
+      "five_hour": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "five_hour",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null
+      },
+      "seven_day": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "seven_day",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null
+      }
+    },
+    "group": null,
+    "hold": null,
+    "lane": "clive",
+    "member": null,
+    "node": "srw-card-row-reads-quoted-names",
+    "policy": {
+      "drain_lead_hours": 12.0,
+      "pace_multiple": 1.1
+    },
+    "reason": "the lane declares no budget group, so no wallet paced it",
+    "recorded_at": "2026-09-29T07:29:08.010917+00:00",
+    "score": 0.56875,
+    "source": null,
+    "state": "unknown"
+  },
+  "plan": "serving-record-warehouse",
+  "plan_impl_at_dispatch": 0.0,
+  "promoted_revision": "f8ded1dc080340113ccaaff9a9f979c65fcaad4d",
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "scores": {
+      "durability": 19,
+      "evidence": 17,
+      "fit": 20,
+      "goal_fidelity": 20,
+      "scope_discipline": 20
+    },
+    "status": "parsed",
+    "total": 96
+  },
+  "review_tier": "light",
+  "role": "implement",
+  "run_id": "r-20260929T072905403549-srw-card-row-reads-quoted-names",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§7",
+  "session_harness": "claude",
+  "session_id": "902f403b-f2b2-49ab-8d3f-91675cf3d291",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "exact",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 1,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 6662118,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+    "elapsed_seconds": 972.055,
+    "generated_tokens": 20535,
+    "generation_seconds": 919.798,
+    "input_budget_tokens": 480000,
+    "input_utilisation_pct": 28.4,
+    "machine_seconds": 52.257,
+    "peak_input_tokens": 136241,
+    "tokens_per_second": 22.33,
+    "wall_tokens_per_second": 21.13
+  },
+  "time_budget": "40m",
+  "tool_steps": 60.0,
+  "unreconciled_override": null,
+  "wall_seconds": 983,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-09-29T07:45:35Z",
+    "last_record_type": "result",
+    "launched_at": "2026-09-29T07:29:19Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20260929T072905403549-srw-card-row-reads-quoted-names",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 3126,
+    "worker_pid": 333312
+  },
+  "worker_seconds": 962,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
