@@ -55,10 +55,10 @@ def test_budget_is_derived_from_the_engines_own_pool_size():
     assert capacity.pool_tokens == _POOL
     assert capacity.model_id == "deepseek-v4-flash"
     assert capacity.mean_context == pytest.approx(58_747, abs=50)
-    # Half the pool, because the other half must hold the prefixes these
-    # requests will reuse on their next turn.
-    assert capacity.concurrent_requests == 18
-    assert capacity.headroom == 8
+    # Nine tenths of the pool, because the remainder must hold the prefixes
+    # these requests will reuse on their next turn.
+    assert capacity.concurrent_requests == 33
+    assert capacity.headroom == 23
 
 
 def test_a_heavier_workload_yields_a_smaller_budget_from_the_same_pool():
@@ -74,8 +74,8 @@ def test_a_heavier_workload_yields_a_smaller_budget_from_the_same_pool():
     assert heavy.mean_context is not None
     assert light.mean_context is not None
     assert heavy.mean_context > light.mean_context
-    assert heavy.concurrent_requests == 11
-    assert light.concurrent_requests == 18
+    assert heavy.concurrent_requests == 20
+    assert light.concurrent_requests == 33
 
 
 def test_an_idle_lane_reports_no_measurement_but_still_answers():
@@ -152,7 +152,7 @@ def test_published_document_carries_its_observation_time(tmp_path):
     document = json.loads(path.read_text(encoding="utf-8"))
 
     assert document["observed_at"].endswith("Z")
-    assert document["concurrent_requests"] == 18
+    assert document["concurrent_requests"] == 33
     assert document["binding_observed"] is False
     assert document["pool_tokens"] == _POOL
 
@@ -175,7 +175,7 @@ def test_published_document_names_its_own_denominators(tmp_path):
     assert derived["running_at_observation"] == 10
     assert "(pool_tokens * occupancy_target) // mean_context" in derived["formula"]
     # The occupancy target is a denominator too, and it was the one the recorded
-    # formula omitted: the published figure has always been halved by it, so a
+    # formula omitted: the published figure has always been scaled by it, so a
     # reader re-deriving from the stated arithmetic got twice the real budget.
     # Naming pool and context while silently dropping the factor between them is
     # the exact failure this test exists to catch.
@@ -239,7 +239,7 @@ def test_a_stale_reading_keeps_its_figure_rather_than_becoming_unavailable(tmp_p
 
     assert fresh == "measured"
     assert old == "stale"
-    assert document["concurrent_requests"] == 18, "the figure survives staleness"
+    assert document["concurrent_requests"] == 33, "the figure survives staleness"
 
 
 def test_an_unreadable_stamp_is_unavailable_not_silently_fresh():
@@ -321,16 +321,16 @@ def test_advertised_capacity_reserves_room_for_the_prefixes_it_will_reuse():
 
     Reproduces a reading taken 2026-09-15: pool 2,557,835, four running at 38%
     occupancy, mean context 243k. Published against the whole pool that was 10
-    concurrent; against the half that keeps prefixes resident it is 5, which is
-    what an independent re-derivation from the same advice produced.
+    concurrent; against the share the target keeps for resident prefixes it is
+    9, which is what an independent re-derivation from the same advice produced.
     """
     capacity = parse_lane_capacity(
         _metrics(running=4, occupancy=0.3804, pool=2_557_835)
     )
 
     assert capacity.mean_context == pytest.approx(243_250, abs=500)
-    assert capacity.concurrent_requests == 5, "half the pool, not all of it"
-    assert capacity.headroom == 1
+    assert capacity.concurrent_requests == 9, "the target's share, not the pool"
+    assert capacity.headroom == 5
 
 
 def test_a_shrinking_context_cannot_advertise_past_the_safety_ceiling():
@@ -341,9 +341,12 @@ def test_a_shrinking_context_cannot_advertise_past_the_safety_ceiling():
     configuration rather than the traffic, so it caps what is published.
     """
     tiny = parse_lane_capacity(_metrics(running=1, occupancy=0.0061))
+    mean_context = tiny.mean_context
+    assert mean_context is not None
+    uncapped = int(tiny.pool_tokens * LaneCapacity.OCCUPANCY_TARGET) // mean_context
 
-    assert tiny.concurrent_requests <= tiny.max_concurrent
-    assert tiny.concurrent_requests == 81
+    assert uncapped > tiny.max_concurrent, "the pool term alone would overshoot"
+    assert tiny.concurrent_requests == tiny.max_concurrent
 
 
 def test_an_idle_lane_answers_with_the_ceiling_rather_than_nothing():
@@ -388,8 +391,8 @@ def test_windowed_budget_survives_an_excursion_a_single_sample_cannot():
 
     The four readings below are what two sessions independently measured on
     2026-09-15 inside a single 120-second shelf life, with every one of them
-    current. Sized from any single sample the budget reads 57, 4, 78 or 21 --
-    a seventeenfold swing in a figure a coordinator uses to size a wave, where
+    current. Sized from any single sample the budget reads 96, 8, 96 or 38 --
+    a twelvefold swing in a figure a coordinator uses to size a wave, where
     too low stalls a fleet and too high is the failure the module exists to
     prevent.
     """
@@ -597,13 +600,13 @@ def test_an_idle_lane_refuses_instead_of_publishing_the_ceiling():
 def test_the_published_literals_assume_the_default_occupancy_target():
     """The arithmetic above is written out, so it rests on one number.
 
-    Seven assertions in this module carry a concurrency literal computed at a
-    half-pool target. If the environment overrides that target, every one of
+    Several assertions in this module carry a concurrency literal computed at
+    the default target. If the environment overrides that target, every one of
     them fails as an unexplained arithmetic mismatch -- this names the cause
     once instead.
     """
     assert LaneCapacity.OCCUPANCY_TARGET == DEFAULT_OCCUPANCY_TARGET
-    assert DEFAULT_OCCUPANCY_TARGET == 0.5
+    assert DEFAULT_OCCUPANCY_TARGET == 0.90
 
 
 def test_an_unset_target_is_the_default_and_a_set_one_is_honoured():
@@ -657,8 +660,8 @@ def test_a_non_default_target_moves_the_advertised_ceiling():
     mean_context = capacity.mean_context
     assert mean_context is not None
 
-    at_half = int(capacity.pool_tokens * 0.5) // mean_context
+    at_default = int(capacity.pool_tokens * 0.90) // mean_context
     at_third = int(capacity.pool_tokens * 0.35) // mean_context
 
-    assert capacity.budget_for(mean_context) == at_half
-    assert at_third < at_half, "a smaller target advertises a smaller ceiling"
+    assert capacity.budget_for(mean_context) == at_default
+    assert at_third < at_default, "a smaller target advertises a smaller ceiling"
