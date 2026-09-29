@@ -1,0 +1,46 @@
+<section data-reckon="fragment" data-node="srw-watch-prints-market-cost">
+  <p><code>imas-ambix agent watch</code> now prices each period at a third-party
+  cache-hit estimate rather than at our own recorded cached split. The old
+  figure billed the input our prefix cache absorbed at the cache-read tier,
+  and that cache is ours -- one large store shared by the fleet -- which a
+  hosted endpoint serving the same model would not have. So the printed figure
+  was the cheapest of the three possible readings, and the panel said nothing
+  about it. The command now reads one estimate record through one reader,
+  resolves it from the price table's own directory joined with the record
+  filename, and bills each period as <em>h</em> of the same total input at the
+  cache-read rate plus the remainder at the prompt rate plus output at the
+  completion rate, at the rate in force. Our own cached count still occupies
+  its token column and never enters the bill.</p>
+  <figure>
+    <img src="/imas-ambix/figures/serving-record-warehouse/srw-watch-prints-market-cost/cost-by-rendering.png" alt="Two panels. Left: price tiers per million tokens, prompt $10, cache read $1, completion $20, with the input tiers a factor of ten apart. Right: one recorded period of 278,174 prompt and 40,000 generated tokens priced three ways -- our own cached split (h=0.97) $1.14, the third-party estimate (h=0.858) $1.43 marked print this one, and no cache (h=0) $3.58.">
+    <figcaption>The input tiers sit a factor of ten apart, so which share of the
+    input is billed at the cheap tier decides the figure. Our own cache absorbs
+    97.5% of it and the installed third-party estimate is 85.8%, so the panel
+    had been printing the lowest of the three readings.</figcaption>
+  </figure>
+  <p>The figure and its label print once per period row: <em>h</em> as a
+  percentage, the source kind, and the citation, or the plain statement that no
+  estimate is installed. <code>h</code> is capped to 0..1 on read. No band and
+  no second figure is printed beside the estimate, because two costs on one row
+  invite the reader to pick an endpoint the command was never asked to name.
+  The same figure and label are carried in the <code>--json</code> period rows,
+  so a consumer renders the same figure the panel showed rather than deriving
+  its own. Installing the estimate record beside the price table is a deploy
+  step, not part of this change: with no record installed the cost column dashes
+  and the label states that no estimate is installed.</p>
+  <p>Measure: <code>tests/test_agent_watch_cost.py tests/test_agent_telemetry_watch.py tests/test_agent_watch_live.py</code>
+  26 passed; the serving-interpreter parse guard
+  (<code>test_agent_serve_registry.py -k agent_package_modules_parse_with_serving_python</code>)
+  passed; <code>ruff check imas_ambix tests</code> exits 0. The estimate's
+  <code>h</code> and the resulting figure are pinned by literal, and the tests
+  assert that neither the own-cache figure (<code>ledger_cost</code>) nor the
+  h=0 figure appears in the rendered output, so a revert to our own split fails
+  a test rather than passing a figure that merely looks like a cost. Negative
+  control: splitting the input by the period's own recorded cached count --
+  which equals <code>ledger_cost</code> -- was applied as a scratch edit and
+  reddened the pinned-figure test, then restored.</p>
+  <p>Caveat: the estimate record itself was measured by a sibling node; this
+  node only reads it, and installing it is a deploy step. The rates the figure
+  is priced from are the price table's, at the time-of-day rate in force at the
+  moment of rendering.</p>
+</section>
