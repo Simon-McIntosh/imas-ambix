@@ -1,0 +1,32 @@
+<section data-reckon="fragment" data-node="srw-price-fetch-never-escapes">
+  <p>The price-table repair. <code>provider_prices.refresh</code> caught only
+  <code>(OSError, ValueError, KeyError, TypeError)</code> around the models
+  fetch, so two provider faults escaped into the render. A response cut off
+  mid-body raises <code>http.client.IncompleteRead</code>, and
+  <code>IncompleteRead</code> is an <code>HTTPException</code>, not an
+  <code>OSError</code>. A valid-JSON body that is a list rather than an object
+  fails at <code>json.loads(body).get("data")</code> with
+  <code>AttributeError: 'list' object has no attribute 'get'</code>. Neither is
+  in the caught tuple, so both left the cached table in place but ended the
+  caller instead of reporting the stale age — the escaped-exception path the
+  <code>srw-price-table-owner</code> review (95) flagged.</p>
+  <p><strong>The change.</strong> The fetch call in
+  <code>refresh</code> now catches <code>Exception</code>, so every exception
+  raised while fetching or parsing the models table is contained and reported
+  through the existing <code>Refresh.error</code> field while the cached table
+  and its true age stay in force. The write step keeps its
+  <code>OSError</code> catch; the containment is scoped to fetch and parse, as
+  the node's done-when states. Two tests were added, driving a stub fetch
+  raising <code>IncompleteRead</code> and a stub response body of a bare
+  <code>[]</code>, each asserting <code>refresh</code> returns with
+  <code>refreshed is False</code>, a non-<code>None</code> error, the cached
+  table's age, and byte-identical cached content.</p>
+  <p>Measure: <code>tests/test_provider_prices.py</code> 13 passed (11 before);
+  <code>tests/test_agent_serve_registry.py -k agent_package_modules_parse_with_serving_python</code>
+  1 passed; <code>ruff check imas_ambix tests</code> exits 0; each at commit
+  <code>518fe803</code>, recorded in the node's gate log. Negative control,
+  applied as a scratch edit and restored: narrowing the caught tuple back to
+  <code>(OSError, ValueError, KeyError, TypeError)</code> fails both new tests
+  — <code>IncompleteRead</code> and <code>AttributeError</code> respectively —
+  and passes with the widened catch.</p>
+</section>

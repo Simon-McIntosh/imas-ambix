@@ -13,8 +13,10 @@ once and never again.
 
 from __future__ import annotations
 
+import http.client
 import json
 import os
+import urllib.request
 from pathlib import Path
 
 import pytest
@@ -44,6 +46,26 @@ def _config(tmp_path: Path) -> SiteConfig:
 
 def _offline(url: str, timeout: float) -> list[dict]:
     raise TimeoutError("provider unreachable")
+
+
+def _truncated(url: str, timeout: float) -> list[dict]:
+    raise http.client.IncompleteRead(b'{"data": [', 41)
+
+
+class _StubResponse:
+    """The HTTP response ``fetch_models`` reads, carrying *body* verbatim."""
+
+    def __init__(self, body: bytes) -> None:
+        self._body = body
+
+    def __enter__(self) -> _StubResponse:
+        return self
+
+    def __exit__(self, *exc: object) -> bool:
+        return False
+
+    def read(self) -> bytes:
+        return self._body
 
 
 def test_table_path_resolves_through_site_config(tmp_path: Path, monkeypatch) -> None:
@@ -143,6 +165,43 @@ def test_an_empty_fetch_does_not_overwrite_the_cached_table(
     )
     assert outcome.refreshed is False
     assert outcome.error is not None
+    assert path.read_bytes() == before
+
+
+def test_a_truncated_body_keeps_the_cached_table(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """A response cut off mid-body is a failed fetch, not a fetch that escapes."""
+    monkeypatch.setattr(provider_prices, "LEGACY_PRICE_PATH", tmp_path / "absent.json")
+    config = _config(tmp_path)
+    path = provider_prices.table_path(config)
+    _write(path, NOW - DAY * 3, [_priced("cached")])
+    before = path.read_bytes()
+
+    outcome = provider_prices.refresh(config=config, fetch=_truncated, now=NOW)
+    assert outcome.refreshed is False
+    assert outcome.error is not None
+    assert outcome.age == pytest.approx(DAY * 3, abs=1.0)
+    assert path.read_bytes() == before
+
+
+def test_a_json_array_body_keeps_the_cached_table(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """A valid-JSON body that is a list, not an object, is a failed fetch."""
+    monkeypatch.setattr(provider_prices, "LEGACY_PRICE_PATH", tmp_path / "absent.json")
+    config = _config(tmp_path)
+    path = provider_prices.table_path(config)
+    _write(path, NOW - DAY * 3, [_priced("cached")])
+    before = path.read_bytes()
+
+    monkeypatch.setattr(
+        urllib.request, "urlopen", lambda url, timeout: _StubResponse(b"[]")
+    )
+    outcome = provider_prices.refresh(config=config, now=NOW)
+    assert outcome.refreshed is False
+    assert outcome.error is not None
+    assert outcome.age == pytest.approx(DAY * 3, abs=1.0)
     assert path.read_bytes() == before
 
 

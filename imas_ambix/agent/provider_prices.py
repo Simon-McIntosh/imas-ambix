@@ -180,6 +180,11 @@ def refresh(
     cached table in use and reports its age; a fetch that returns nothing is
     treated as a failure rather than overwriting a good table with an empty
     one.
+
+    Every exception raised while fetching or parsing the models table is
+    contained here -- an unreachable host, an expired socket, a body cut off
+    mid-response, a body that parses to something other than an object -- so a
+    provider fault degrades the render to a stale table rather than ending it.
     """
     target = Path(path) if path is not None else table_path(config)
     migrate_legacy(target)
@@ -191,7 +196,7 @@ def refresh(
     fetcher = fetch if fetch is not None else fetch_models
     try:
         models = fetcher(PRICE_URL, FETCH_TIMEOUT)
-    except (OSError, ValueError, KeyError, TypeError) as exc:
+    except Exception as exc:
         return Refresh(target, age, False, f"{type(exc).__name__}: {exc}")
     if not models:
         return Refresh(target, age, False, "empty model list")
