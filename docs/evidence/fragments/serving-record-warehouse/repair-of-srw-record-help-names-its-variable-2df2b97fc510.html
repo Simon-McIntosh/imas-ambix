@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="serving-record-warehouse">
+</head>
+<body>
+  <main class="plan-doc">
+    <p>The finding names a defect in the reviewed run's coordination record, not
+    in the repository: the record's <code>negative_control_log</code> field and
+    the second entry of its <code>test_logs</code> named
+    <code>negative_control.log</code> (underscore), while the log the worker
+    wrote on disk is <code>negative-control.log</code> (hyphen), so both fields
+    named a file no reader could open. The defect is reproduced from the record
+    as the review read it
+    (<code>manifest.md.asdelivered</code>): both lines carry
+    <code>.../negative_control.log</code>, and no such file exists beside the
+    record. The live record now carries the hyphen path
+    (<code>.../negative-control.log</code>), which resolves to the log the
+    reviewed worker wrote and which this review's own arm independently
+    reproduced.</p>
+
+    <p>The record is not part of the repository and is read-only from this
+    node, so no repository change answers the finding. This node verifies the
+    correction rather than reimplementing a record fix already present: both
+    <code>negative_control_log</code> and the second <code>test_logs</code>
+    entry resolve to an existing file, and the reviewed run's own two-file gate
+    re-runs green at the reviewed head.</p>
+  </main>
+</body>
+</html>
