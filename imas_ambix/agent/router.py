@@ -11,7 +11,7 @@ import os
 import sys
 import time
 from collections import deque
-from collections.abc import Awaitable, Callable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
 from contextlib import suppress
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
@@ -248,6 +248,20 @@ MIN_LIVE_RUNS = 3
 # width will see. It runs from this process's first admission and is never read
 # from the receipts file, which outlives any one router process.
 MIN_HISTORY_SECONDS = 300.0
+# How long a session keeps claiming a share of the lane after its last request.
+# It is deliberately short of the window: a session whose wave has ended stops
+# counting within minutes, so the sessions still working are the same ones the
+# fair share is divided between.
+WORKING_HORIZON_SECONDS = 180.0
+# The session a run carrying a session-less identity is grouped under. Every run
+# with a run id but no declared session shares one group, because a dispatcher
+# working without a session identity still shares the lane with the sessions
+# that have one.
+UNATTRIBUTED_SESSION = "unattributed"
+# How many free slots a session at or above its share must leave for each other
+# working session below its share, so a session that falls behind recovers as
+# the borrower's runs finish.
+BORROW_RESERVE = 2
 
 
 class _BusyInterval:
@@ -255,13 +269,19 @@ class _BusyInterval:
 
     ``ended`` is None while the request is still in flight, and publication
     treats such a request as released at the moment of publication, so its
-    elapsed time within the window counts.
+    elapsed time within the window counts. ``session`` is the coordinator
+    session the request declared, or None when it declared none, and it is what
+    the per-session share divides between. It is carried as declared rather than
+    resolved here, so the share is computed from what the caller reported.
     """
 
-    __slots__ = ("run_id", "started", "ended")
+    __slots__ = ("run_id", "session", "started", "ended")
 
-    def __init__(self, run_id: str | None, started: float) -> None:
+    def __init__(
+        self, run_id: str | None, session: str | None, started: float
+    ) -> None:
         self.run_id = run_id
+        self.session = session
         self.started = started
         self.ended: float | None = None
 
@@ -292,11 +312,17 @@ class _AdmissionLedger:
         self._intervals: list[_BusyInterval] = []
         self._first_admission: float | None = None
 
-    def admit(self, run_id: str | None, *, now: float) -> _BusyInterval:
+    def admit(
+        self,
+        run_id: str | None,
+        *,
+        session: str | None = None,
+        now: float,
+    ) -> _BusyInterval:
         """Record one admitted request and return the handle that releases it."""
         if self._first_admission is None:
             self._first_admission = now
-        interval = _BusyInterval(run_id, now)
+        interval = _BusyInterval(run_id, session, now)
         self._intervals.append(interval)
         self._prune(now)
         return interval
@@ -361,6 +387,7 @@ class _AdmissionLedger:
         if live_runs < self._min_live_runs or not history_ready or keyed_busy <= 0:
             fields["requests_per_run"] = None
             fields["worker_slots"] = None
+            self._withhold_session_figures(fields)
             return fields
         published_ratio = round(keyed_busy / observed / live_runs, 3)
         if published_ratio <= 0:
@@ -370,18 +397,141 @@ class _AdmissionLedger:
             # published as a figure no reader can apply.
             fields["requests_per_run"] = None
             fields["worker_slots"] = None
+            self._withhold_session_figures(fields)
             return fields
         fields["requests_per_run"] = published_ratio
+        # The capacity the per-session share divides, from the published ratio so
+        # a reader's own arithmetic on the two published figures is the figure
+        # the router published.
+        capacity = math.floor(effective_width / published_ratio)
         if verdict in ("congested", "full", "paused"):
             fields["worker_slots"] = 0
         else:
-            # From the published ratio, not the unrounded one, so the slot
-            # count a dispatcher derives from the two published figures is the
-            # figure the router published.
-            fields["worker_slots"] = max(
-                0, math.floor(effective_width / published_ratio) - live_runs
+            fields["worker_slots"] = max(0, capacity - live_runs)
+        fields.update(
+            self._session_figures(
+                now=now,
+                capacity=capacity,
+                global_slots=fields["worker_slots"],
             )
+        )
         return fields
+
+    @staticmethod
+    def _withhold_session_figures(fields: dict[str, object]) -> None:
+        """Publish the per-session figures as null, beside a null slot count.
+
+        A figure derived from a withheld ratio is withheld with it, so a reader
+        sees the refusal rather than a per-session count computed from a
+        denominator the router declined to publish.
+        """
+        fields["active_sessions"] = None
+        fields["fair_share"] = None
+        fields["borrow_reserve"] = None
+        fields["new_session_worker_slots"] = None
+        fields["sessions"] = None
+
+    def _session_figures(
+        self, *, now: float, capacity: int, global_slots: int
+    ) -> dict[str, object]:
+        """Divide the lane's slots between the sessions still working.
+
+        A session is working while one of its requests is in flight or was
+        admitted within ``WORKING_HORIZON_SECONDS``, and its workers are the
+        distinct run ids it holds in that state. One session working alone takes
+        the whole server; two or more divide the capacity fairly, and a session
+        below its share recovers as the runs ahead of it finish.
+        """
+        horizon_start = now - WORKING_HORIZON_SECONDS
+        workers: dict[str, set[str]] = {}
+        for interval in self._intervals:
+            if not interval.run_id:
+                continue
+            if interval.ended is not None and interval.started < horizon_start:
+                continue
+            session = interval.session or UNATTRIBUTED_SESSION
+            workers.setdefault(session, set()).add(interval.run_id)
+        active_sessions = len(workers)
+
+        if active_sessions <= 1:
+            fair_share = capacity
+            sessions = {
+                session: {"live_runs": len(runs), "worker_slots": global_slots}
+                for session, runs in workers.items()
+            }
+        else:
+            fair_share = capacity // active_sessions
+            sessions = {
+                session: {
+                    "live_runs": len(runs),
+                    "worker_slots": self._borrowed_slots(
+                        u=len(runs),
+                        fair_share=fair_share,
+                        others=(
+                            len(other) for name, other in workers.items()
+                            if name != session
+                        ),
+                        global_slots=global_slots,
+                    ),
+                }
+                for session, runs in workers.items()
+            }
+        return {
+            "active_sessions": active_sessions,
+            "fair_share": fair_share,
+            "borrow_reserve": BORROW_RESERVE,
+            "new_session_worker_slots": self._new_session_slots(
+                workers, capacity=capacity, global_slots=global_slots
+            ),
+            "sessions": sessions,
+        }
+
+    @staticmethod
+    def _borrowed_slots(
+        *,
+        u: int,
+        fair_share: int,
+        others: Iterable[int],
+        global_slots: int,
+    ) -> int:
+        """The slots one session is offered under a fair share.
+
+        A session below its share may grow to it while slots are free. A session
+        at or above its share may borrow free slots beyond it, but leaves each
+        other working session that is below its share room to add
+        ``BORROW_RESERVE`` workers at once, so a session that falls behind
+        recovers its share as the borrower's runs finish. Nothing is preempted,
+        so the offer is bounded by the global slot count and by zero.
+        """
+        own_room = max(0, fair_share - u)
+        reserve = sum(
+            min(max(0, fair_share - other), BORROW_RESERVE) for other in others
+        )
+        return max(0, min(global_slots, max(own_room, global_slots - reserve)))
+
+    def _new_session_slots(
+        self,
+        workers: dict[str, set[str]],
+        *,
+        capacity: int,
+        global_slots: int,
+    ) -> int:
+        """The figure for a session the router has not yet seen working.
+
+        It is computed as one more working session with no workers of its own,
+        using the sessions in the share, and published separately because the
+        router cannot list a session it has not seen.
+        """
+        active_sessions = len(workers)
+        if active_sessions <= 0:
+            return global_slots
+        fair_share = capacity // (active_sessions + 1)
+        return self._borrowed_slots(
+            u=0,
+            fair_share=fair_share,
+            others=(len(runs) for runs in workers.values()),
+            global_slots=global_slots,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -1157,6 +1307,7 @@ class _GenerationGate:
         receive: Receive,
         *,
         run_id: str | None = None,
+        session: str | None = None,
         ready: Callable[[], Awaitable[bool]] | None = None,
     ) -> _Admission:
         """Wait in FIFO order, or report timeout/departure without a relay.
@@ -1217,7 +1368,9 @@ class _GenerationGate:
                             "acquired",
                             disconnect_task=disconnect_task,
                             gate_wait_s=max(0.0, time.monotonic() - arrived_at),
-                            busy=self._admissions.admit(run_id, now=time.monotonic()),
+                            busy=self._admissions.admit(
+                                run_id, session=session, now=time.monotonic()
+                            ),
                         )
 
                     remaining = deadline - asyncio.get_running_loop().time()
@@ -1250,7 +1403,7 @@ class _GenerationGate:
                                     disconnect_task=disconnect_task,
                                     gate_wait_s=max(0.0, time.monotonic() - arrived_at),
                                     busy=self._admissions.admit(
-                                        run_id, now=time.monotonic()
+                                        run_id, session=session, now=time.monotonic()
                                     ),
                                 )
                     else:
@@ -1735,9 +1888,11 @@ class RouterApp:
             return True
 
         if path in self._GENERATION_PATHS:
+            run_id, session = self._request_identity(scope)
             admission = await self._generation_gate.acquire(
                 receive,
-                run_id=self._request_run_id(scope),
+                run_id=run_id,
+                session=session,
                 ready=None if owner is not None else _owner_ready,
             )
         else:
@@ -1857,20 +2012,21 @@ class RouterApp:
         )
 
     @staticmethod
-    def _request_run_id(scope: Mapping[str, Any]) -> str | None:
-        """The crew run id the request declared, or None when it declared none.
+    def _request_identity(
+        scope: Mapping[str, Any],
+    ) -> tuple[str | None, str | None]:
+        """The run id and coordinator session the request declared.
 
         The same reader the receipt uses, called once at admission so the run's
-        occupancy is attributed when it starts rather than when it ends. A
-        header sequence that is not pairs of bytes is read as absent, matching
-        the receipt rule, so an unreadable header lands in ``unkeyed_share``
-        instead of raising into the relay.
+        occupancy and the session it shares the lane with are attributed when it
+        starts rather than when it ends. A header sequence that is not pairs of
+        bytes is read as absent, matching the receipt rule, so an unreadable
+        header lands in ``unkeyed_share`` instead of raising into the relay.
         """
         try:
-            run_id, _ = identity_from_headers(scope.get("headers") or ())
+            return identity_from_headers(scope.get("headers") or ())
         except (TypeError, ValueError):
-            return None
-        return run_id
+            return None, None
 
     @staticmethod
     def _caller_hint(scope: Mapping[str, Any]) -> str:

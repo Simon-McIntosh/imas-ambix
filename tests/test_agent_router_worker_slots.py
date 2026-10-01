@@ -14,7 +14,10 @@ import asyncio
 import math
 from typing import Any
 
-from imas_ambix.agent.request_receipts import RUN_ID_HEADER
+from imas_ambix.agent.request_receipts import (
+    COORDINATOR_SESSION_HEADER,
+    RUN_ID_HEADER,
+)
 from imas_ambix.agent.router import Upstream, _AdmissionLedger
 from tests.test_agent_router import _invoke, _server, _status
 from tests.test_request_receipts import (
@@ -321,5 +324,189 @@ def test_unreadable_run_id_header_sequence_is_recorded_unkeyed() -> None:
         assert snapshot["samples"] == 3
         assert snapshot["unkeyed_share"] == 1.0
         assert snapshot["requests_per_run"] is None
+
+    asyncio.run(exercise())
+
+
+# --- The per-session fair share -------------------------------------------
+#
+# Slots are partitioned only when more than one session is working, so a session
+# working alone takes the whole global figure. These ledgers are built directly,
+# at effective width 12 and a published ratio of 0.5, so capacity is 24. Each
+# session's in-flight runs contribute 450 busy seconds into a 900 s observed
+# window, which is what makes the logistics work out to a clean ratio.
+_CAPACITY = 24
+
+
+def _session_ledger(
+    now: float,
+    *,
+    workers: dict[str | None, int],
+    idle: float | None = None,
+) -> _AdmissionLedger:
+    """A ledger holding ``workers[session]`` in-flight runs started 450 s ago.
+
+    The zero-duration filler admission 900 s before ``now`` starts the observed
+    span at the full window. When ``idle`` is given, one extra run is admitted
+    and released ``idle`` seconds before ``now``, so its session claims a share
+    only while that age is inside the working horizon.
+    """
+    ledger = _AdmissionLedger()
+    filler = ledger.admit("r-intro", session="filler", now=now - 900.0)
+    ledger.release(filler, now=now - 900.0)
+    index = 0
+    for session, count in workers.items():
+        for _ in range(count):
+            ledger.admit(f"r{index}", session=session, now=now - 450.0)
+            index += 1
+    if idle is not None:
+        released = ledger.admit("idle-0", session="idle", now=now - idle)
+        ledger.release(released, now=now - idle)
+    return ledger
+
+
+def test_one_working_session_is_offered_the_whole_global_figure() -> None:
+    """A session working alone takes the server, and the fair share is capacity.
+
+    Ten in-flight runs at width 12 and ratio 0.5 give the global figure
+    24 - 10 = 14. One working session is not partitioned, so the session's
+    figure is the global figure rather than a fixed fraction of capacity.
+    """
+    ledger = _session_ledger(_NOW, workers={"A": 10})
+    snapshot = ledger.snapshot(now=_NOW, effective_width=12, verdict="open")
+    assert snapshot["worker_slots"] == 14
+    assert snapshot["active_sessions"] == 1
+    assert snapshot["fair_share"] == _CAPACITY
+    assert snapshot["borrow_reserve"] == 2
+    assert snapshot["sessions"] == {"A": {"live_runs": 10, "worker_slots": 14}}
+    assert snapshot["sessions"]["A"]["worker_slots"] == snapshot["worker_slots"]
+
+
+def test_two_working_sessions_divide_the_capacity_and_borrow_around_it() -> None:
+    """With two sessions the fair share is floor(24 / 2) = 12.
+
+    Session A holds 2 workers and B holds 12, so the global figure is
+    24 - 14 = 10. A is below its share and grows to the share, which the global
+    figure caps at 10. B is above its share and may borrow beyond it, but must
+    leave A room to add 2 workers at once, which caps B at 10 - 2 = 8. A new
+    session is computed as a third with no workers, so its share is 8 and it is
+    offered 8.
+    """
+    ledger = _session_ledger(_NOW, workers={"A": 2, "B": 12})
+    snapshot = ledger.snapshot(now=_NOW, effective_width=12, verdict="open")
+    assert snapshot["worker_slots"] == 10
+    assert snapshot["active_sessions"] == 2
+    assert snapshot["fair_share"] == 12
+    assert snapshot["borrow_reserve"] == 2
+    assert snapshot["sessions"]["A"] == {"live_runs": 2, "worker_slots": 10}
+    assert snapshot["sessions"]["B"] == {"live_runs": 12, "worker_slots": 8}
+    assert snapshot["new_session_worker_slots"] == 8
+
+
+def test_session_idle_past_the_horizon_stops_claiming_a_share() -> None:
+    """A session whose last admission was 200 s ago stops counting.
+
+    The idle session is 200 s old at the snapshot, and at 180 s the working
+    horizon is short of the window, so only B is working and it is offered the
+    global figure. The control at 100 s shows the same session inside the
+    horizon is counted, so the boundary is the horizon and not the request.
+    """
+    expired = _session_ledger(_NOW, workers={"B": 4}, idle=200.0)
+    snapshot = expired.snapshot(now=_NOW, effective_width=12, verdict="open")
+    assert snapshot["active_sessions"] == 1
+    assert set(snapshot["sessions"]) == {"B"}
+    assert snapshot["sessions"]["B"]["worker_slots"] == snapshot["worker_slots"]
+
+    live = _session_ledger(_NOW, workers={"B": 4}, idle=100.0)
+    assert live.snapshot(now=_NOW, effective_width=12, verdict="open")[
+        "active_sessions"
+    ] == 2
+
+
+def test_session_less_runs_form_one_unattributed_session() -> None:
+    """Runs declared with no session are grouped under one session.
+
+    Three runs with no session header still share the lane with any session
+    that has one, so they are grouped together as ``unattributed`` rather than
+    left out of the share. They are working alone here, so they take the whole
+    global figure of 24 - 3 = 21.
+    """
+    ledger = _session_ledger(_NOW, workers={None: 3})
+    snapshot = ledger.snapshot(now=_NOW, effective_width=12, verdict="open")
+    assert snapshot["active_sessions"] == 1
+    assert snapshot["sessions"] == {
+        "unattributed": {"live_runs": 3, "worker_slots": 21}
+    }
+    assert snapshot["worker_slots"] == 21
+
+
+def test_congested_verdict_zeroes_every_per_session_figure() -> None:
+    """A congested verdict clamps the global figure, and each share with it."""
+    ledger = _session_ledger(_NOW, workers={"A": 2, "B": 12})
+    snapshot = ledger.snapshot(now=_NOW, effective_width=12, verdict="congested")
+    assert snapshot["worker_slots"] == 0
+    for session in snapshot["sessions"].values():
+        assert session["worker_slots"] == 0
+    assert snapshot["sessions"]["A"]["live_runs"] == 2
+    assert snapshot["new_session_worker_slots"] == 0
+
+
+def test_session_figures_are_null_when_the_ratio_is_withheld() -> None:
+    """A withheld ratio withholds every figure derived from it.
+
+    Two live runs are below the minimum the ratio rests on, so the ratio and the
+    global figure are withheld -- and the session figures, which divide a
+    capacity derived from that ratio, are withheld with it rather than computed
+    from a denominator the router declined to publish.
+    """
+    ledger = _session_ledger(_NOW, workers={"A": 2})
+    withheld = ledger.snapshot(now=_NOW, effective_width=12, verdict="open")
+    assert withheld["live_runs"] == 2
+    assert withheld["requests_per_run"] is None
+    for key in (
+        "active_sessions",
+        "fair_share",
+        "borrow_reserve",
+        "new_session_worker_slots",
+        "sessions",
+    ):
+        assert withheld[key] is None
+
+
+def test_session_share_is_keyed_from_the_caller_declared_headers() -> None:
+    """The session a request declared is the session its run is grouped under.
+
+    The request path reads both identities from the caller's own headers, so
+    the session that shares the lane is the one the caller named rather than
+    anything the router infers from the connection. The history floor is
+    lowered only so a router a second old still publishes a share to read.
+    """
+
+    async def exercise() -> None:
+        engine = _sse_engine()
+        async with (
+            _server(engine) as engine_url,
+            _router_with_receipts([Upstream(engine_url)], None) as app,
+        ):
+            for index in range(3):
+                response = await _invoke(
+                    app,
+                    "POST",
+                    "/v1/chat/completions",
+                    _request_body(),
+                    headers=[
+                        (b"content-type", b"application/json"),
+                        (RUN_ID_HEADER.encode(), f"r-{index}".encode()),
+                        (COORDINATOR_SESSION_HEADER.encode(), b"s-alpha"),
+                    ],
+                )
+                assert _status(response) == 200
+            app._generation_gate._admissions._min_history = 0.0
+            snapshot: dict[str, Any] = app._generation_gate.admission_document()
+
+        assert snapshot["requests_per_run"] is not None
+        assert set(snapshot["sessions"]) == {"s-alpha"}
+        assert snapshot["sessions"]["s-alpha"]["live_runs"] == 3
+        assert snapshot["active_sessions"] == 1
 
     asyncio.run(exercise())

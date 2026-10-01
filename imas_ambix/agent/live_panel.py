@@ -85,6 +85,22 @@ WORKER_SLOT_FIELDS = (
     "unkeyed_share",
 )
 
+#: The per-session share fields the lane block copies when the lane publishes
+#: them. They answer a dispatcher's second question: not how many slots the lane
+#: has, but how many belong to the session dispatching. ``sessions`` maps each
+#: working session to its run count and its slot figure, and
+#: ``new_session_worker_slots`` is the figure for a session the router has not
+#: yet seen. They are copied beside the worker-slot fields rather than in place
+#: of them, and only when the lane published them, so a lane that has not
+#: published a share leaves it absent rather than null.
+SESSION_SLOT_FIELDS = (
+    "active_sessions",
+    "fair_share",
+    "borrow_reserve",
+    "new_session_worker_slots",
+    "sessions",
+)
+
 #: The engine counters differenced over the window. A run ends when the job
 #: changes or any of these falls below its predecessor.
 COUNTER_NAMES = ("generation_tokens", "prompt_tokens", "uncached_prompt_tokens")
@@ -447,7 +463,9 @@ def lane_block(
     if isinstance(admission, dict):
         block["admission"] = {key: admission.get(key) for key in ADMISSION_FIELDS}
         slots = {
-            key: admission.get(key) for key in WORKER_SLOT_FIELDS if key in admission
+            key: admission.get(key)
+            for key in (*WORKER_SLOT_FIELDS, *SESSION_SLOT_FIELDS)
+            if key in admission
         }
         if slots:
             block["worker_slots"] = slots
