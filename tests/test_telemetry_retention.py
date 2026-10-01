@@ -26,12 +26,12 @@ _NOW = _dt.datetime(2026, 10, 1, 12, 0, 0, tzinfo=_dt.UTC).timestamp()
 _OFFSETS = (600, 1800, 3000, 4200, 5400, 6600)
 
 
-def _row(epoch: float, generation: float) -> dict:
+def _row(epoch: float, generation: float, job_id: str = "1278105") -> dict:
     """One recorder sample with the canonical engine counters populated."""
     return {
         "timestamp": _dt.datetime.fromtimestamp(epoch, tz=_dt.UTC).isoformat(),
         "hostname": "98dci4-gpu-0003",
-        "job_id": "1278105",
+        "job_id": job_id,
         "engine": {
             "generation_tokens": generation,
             "prompt_tokens": generation * 2,
@@ -60,7 +60,10 @@ def _build_job(
     cadence ensures in production.
     """
     hour = int((_NOW - age_days * 86400) // 3600) * 3600
-    rows = [_row(hour + offset, 100.0 * index) for index, offset in enumerate(_OFFSETS)]
+    rows = [
+        _row(hour + offset, 100.0 * index, job_id)
+        for index, offset in enumerate(_OFFSETS)
+    ]
     raw = directory / f"{slug}-{job_id}.jsonl"
     _write_rows(raw, rows)
     minute, hour_path = retention.tier_paths(raw)
@@ -85,6 +88,55 @@ def _listing(directory: Path, *, age_days: float = 14.0) -> retention.ScanResult
 def _verdict_for(result: retention.ScanResult, raw: Path) -> retention.FileVerdict:
     by_path = {verdict.path: verdict for verdict in result.files}
     return by_path[raw]
+
+
+def test_a_raw_file_whose_opening_row_carries_its_job_id_is_a_candidate(tmp_path):
+    """The row check admits a genuine raw file, so its refusals carry weight."""
+    raw, _minute, _hour = _build_job(tmp_path)
+
+    assert retention.is_raw_receipt(raw) is True
+    assert raw.name in {verdict.path.name for verdict in _listing(tmp_path).files}
+
+
+def test_a_request_rotation_named_like_a_raw_file_is_not_a_candidate(tmp_path):
+    """A router request file whose name has the raw shape is not a raw receipt.
+
+    ``requests-2026-10-01.jsonl`` matches the raw name shape and its ``01``
+    parses as a job id, so a name-only test would list it. Its rows are router
+    requests carrying no ``job_id``, so reading the opening row refuses it.
+    """
+    requests_path = tmp_path / "requests-2026-10-01.jsonl"
+    _write_rows(
+        requests_path,
+        [
+            {
+                "timestamp": _dt.datetime.fromtimestamp(_NOW, tz=_dt.UTC).isoformat(),
+                "caller": "clive",
+                "model": "deepseek-v4-flash",
+                "outcome": "ok",
+            }
+        ],
+    )
+
+    result = _listing(tmp_path)
+
+    assert retention.is_raw_receipt(requests_path) is False
+    assert requests_path.name not in {verdict.path.name for verdict in result.files}
+
+
+def test_a_raw_name_whose_opening_row_job_id_differs_is_not_a_candidate(tmp_path):
+    """The name and the opening row must agree on the job id.
+
+    A file named for one job whose first row carries another is not the raw
+    receipt its name claims, so it is never listed and never deleted.
+    """
+    raw = tmp_path / "deepseek-v4-1-flash-1278105.jsonl"
+    _write_rows(raw, [_row(_NOW, 100.0, job_id="1278999")])
+
+    result = _listing(tmp_path)
+
+    assert retention.is_raw_receipt(raw) is False
+    assert raw.name not in {verdict.path.name for verdict in result.files}
 
 
 def test_a_running_jobs_file_is_listed_ineligible(tmp_path):
