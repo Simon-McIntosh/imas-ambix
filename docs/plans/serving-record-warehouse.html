@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-10-01">
-<meta name="plan-version" content="114">
+<meta name="plan-version" content="117">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -229,6 +229,14 @@
     on the login node when the corpus is large — so a short scheduled CPU job,
     with the login node acceptable only while the whole scan stays under the
     seconds-scale bound the repository sets for interactive work.</p>
+
+    <h3 id="s5-placement-2026-10-01">Placement decided by the lead, 2026-10-01</h3>
+    <p>The ingest is a standing loop, not a pass that exits: <code>imas-ambix agent ingest</code> runs one tick every 60 s and never stops on its own. The fleet allocation's supervisor starts it and keeps it running. That is the batch step of the CPU fleet job, which already owns the node sampler and every agent session. It is not a SLURM job on the GPU server's reservation, which spends a CPU slot beside the serve for work that needs no GPU. A recorded steady tick costs 0.29 s, so the loop holds about 0.5% of one core. It ends with the fleet allocation and starts again when the allocation does.</p>
+    <ul>
+    <li><strong>Who changes what.</strong> The fleet supervisor belongs to reckon. Reckon gains a generic way to start declared standing services, the same way it starts the node sampler. imas-ambix declares the ingest as one such service.</li>
+    <li><strong>What leaves the repository.</strong> The ingest's SLURM service generator and its <code>--submit</code> and <code>--dry-run</code> options are removed, because a second, unused placement invites the wrong deploy.</li>
+    <li><strong>What readers do once it runs.</strong> <code>agent watch</code> opens the index read-only and never ingests on a read. That is what removes the cold catch-up that took over 300 s on 2026-09-29.</li>
+    </ul>
 
     <h2 id="s6">§6 — Queries the store must answer</h2>
 <section data-reckon="section" data-id="s6" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-attempts="0" data-status="implementable" data-links=""></section>
@@ -537,6 +545,15 @@
     from. A reader asking for a window that both a raw file and its minute
     compaction cover is answered from both.</p>
 
+    <h3 id="s8-retention-2026-10-01">Retention, authorised by the lead on 2026-10-01</h3>
+    <p>The lead has authorised deleting raw serving receipts. Deletion cannot be undone, so these rules bind every node that deletes, and they run in this order.</p>
+    <ol>
+    <li><strong>The index reads one tier per job first.</strong> For each serve job, the index ingests exactly one of its files: the raw file when it exists, otherwise the minute tier, otherwise the hour tier. A window that a raw file and its compaction both cover is then counted once. When a raw file is later deleted, the index moves to that job's minute tier, and the totals do not change.</li>
+    <li><strong>Tiers are rebuilt from raw before anything is deleted.</strong> Every job's minute and hour files are regenerated from its raw file under the current compaction code, so each compacted row declares its per-leaf counts. The rebuild is checked per job: the partitioned totals of generation, prompt and uncached prompt tokens from raw, from minute and from hour must be equal.</li>
+    <li><strong>What may be deleted.</strong> A raw receipt file (<code>&lt;job&gt;.jsonl</code>) is eligible only if all three hold: its serve job is not running, its last row is more than 14 days old, and its rebuilt tiers passed the check in rule 2. Compacted tier files and the router's request receipts are never deleted. Neither is the file of a running job, whatever its age.</li>
+    <li><strong>How it is deleted.</strong> One command lists every eligible file before anything is removed: the job, the last row's time, the size and the check result. A second run with an explicit apply flag deletes exactly that list and prints each file as it removes it. The live sessions are told before the apply run.</li>
+    </ol>
+
     <h2 id="s10">&sect;10 — gpu-watch reads the recorder: one source for every serving figure</h2>
 <section data-reckon="section" data-id="s10" data-effort-hours="2.75" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-attempts="0" data-status="implementable" data-links=""></section>
 
@@ -702,14 +719,14 @@
       </p>
     <p class="r-dec-rat">The channel already exists and already carries a value on every request, which was not known when the options were written. The generated launcher sets ANTHROPIC_AUTH_TOKEN to the fixed string clive-no-auth on every session, because the harness requires the variable to be set, and the router forwards every header it receives except host, content-length and transfer-encoding. So a client-declared identity needs no new transport, no key management and no change to the keyless posture: the launcher stamps what only it knows -- which consumer, which session, which worker node -- and the router records it. What it buys is attribution of workload, not authentication of a principal: any client can claim any value, and on a single-user workstation the OS user is the same for all of them, so the report must say caller and never user. The alternative that would authenticate, a key per consumer, ends the keyless lane for every consumer to gain a distinction nothing here needs. The two rejected options are refuted rather than merely dispreferred: host-only and the process hint were both tried as an admission key in the router until 2026-09-14, and every harness process on one login node collapsed into a single bucket -- 402 of 1,075 requests refused, 37.4%, while the engine sat at 0.0% KV occupancy.</p>
     </div>
-<div class="r-dec" data-key="ingest-cadence" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="ingest-cadence" data-choice="every-60s-under-fleet-supervisor" data-by="Simon McIntosh (lead)" data-when="2026-10-01T20:49:07+00:00">
     <p class="r-dec-q">How often does the scheduled ingest run?</p>
     <p class="r-dec-opts">
       <button class="r-opt" data-value="hourly">Hourly — a report is at most an hour stale</button>
       <button class="r-opt" data-value="on-serve-exit">On serve exit, plus a daily sweep — ingest a file when it stops growing</button>
       <button class="r-opt" data-value="daily">Daily — cheapest, and a day stale</button>
       </p>
-    <p class="r-dec-rat">Deferred until the append path is measured on the real corpus: the right cadence depends on what an incremental pass actually costs against 258,594 rows and 20 sources, which is not yet known.</p>
+    <p class="r-dec-rat">Lead decision 2026-10-01: a standing loop at a 60 s cadence, started and kept alive by the fleet allocation&#x27;s supervisor on the CPU fleet node, not a SLURM job on the GPU server&#x27;s reservation. The recorded steady pass is 0.29 s, so a 60 s cadence costs about 0.5% of one core, keeps the ledger at most a minute stale, and stats the receipts directory twelve times less often than the 5 s default would.</p>
     </div>
 </section>
 
