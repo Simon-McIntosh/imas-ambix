@@ -470,19 +470,32 @@ def one_tier_per_job(paths: Iterable[str | Path]) -> tuple[list[Path], dict[str,
 
 
 def _holds_a_record_line(path: Path) -> bool:
-    """Whether *path* carries at least one non-blank line, read lazily.
+    """Whether *path* carries at least one line that parses as a record.
 
     A file the recorder has opened but not yet written to, a compaction that
     wrote nothing, and a file of only blank separators all hold no record line.
-    The scan stops at the first non-blank line, so a settled record costs one
-    line rather than the whole file; a file that cannot be opened holds nothing
-    this can read, which is also what an absent one offers.
+    A line that is present but does not parse as a JSON object holds no record
+    either: the recorder writes one JSON object per line, so a file whose every
+    line fails to parse offers the job nothing to read, exactly as a blank one
+    does. The scan stops at the first line that parses, so a settled record
+    costs one line rather than the whole file; a file that cannot be opened
+    holds nothing this can read, which is also what an absent one offers.
     """
     try:
         with path.open("rb") as handle:
-            return any(raw.strip() for raw in handle)
+            for raw in handle:
+                text = raw.decode("utf-8", errors="replace").strip()
+                if not text:
+                    continue
+                try:
+                    parsed = json.loads(text)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(parsed, Mapping):
+                    return True
     except OSError:
         return False
+    return False
 
 
 def receipts_host(path: str | Path) -> str:
@@ -1018,15 +1031,18 @@ class TelemetryIndex:
 
         The recorder creates a job's raw file and writes its first row a moment
         later, and a compaction can leave an empty file behind, so a raw file
-        of zero bytes or only blank lines offers the job nothing to read. It is
-        not a tier the job offers: selecting it as the finest tier would leave
-        the job's window uncovered while a coarser file held its samples, so the
-        caller drops it and the selection falls through.
+        of zero bytes or only blank lines offers the job nothing to read. A
+        raw file whose every line fails to parse as a record offers it nothing
+        either, because a recorder writes one JSON object per line and a line
+        that is not one carries no sample. Neither is a tier the job offers:
+        selecting either as the finest tier would leave the job's window
+        uncovered while a coarser file held its samples, so the caller drops it
+        and the selection falls through.
 
         A file already consumed whole carried rows when it was read, so it is
-        not reopened to prove that here. A line that is present but unreadable
-        is not blank, so it counts as offered and the read refuses it in place:
-        the fall-through is for an absent tier, not for corrupt data.
+        not reopened to prove that here. A file holding at least one parseable
+        record is offered, and a later unreadable line in it is refused in
+        place by the read rather than hidden by the fall-through.
         """
         info = receipts_tier(path)
         if info is None or info[1] != _RAW_TIER:

@@ -1577,11 +1577,38 @@ def test_a_job_whose_raw_file_is_empty_is_answered_from_its_minute_tier(tmp_path
         assert _held_tiers(index) == {"minute"}
 
 
+def test_a_job_whose_raw_file_has_no_parseable_row_is_answered_from_minute(
+    tmp_path,
+):
+    """A raw file with no record line is absent, so the job reads from minute.
+
+    The recorder writes one JSON object per line, so a raw file holding a
+    non-blank line that is not a record carries no sample. Such a file offers
+    the job nothing, is dropped from the selection, and the job reads from its
+    minute tier with the minute totals.
+    """
+    raw, minute, hour = _tier_fixture(tmp_path)
+    expected = {
+        "engine.generation_tokens": pytest.approx(2000.0),
+        "engine.prompt_tokens": pytest.approx(1000.0),
+        "engine.uncached_prompt_tokens": pytest.approx(800.0),
+    }
+    raw.write_text(
+        '{"timestamp": "2026-09-20T06:00:05+00:00" \n', encoding="utf-8"
+    )
+
+    with TelemetryIndex(tmp_path / "index.db") as index:
+        tick(index, tmp_path)
+
+        assert _token_totals(index) == expected
+        assert _held_tiers(index) == {"minute"}
+
+
 def test_a_job_keeps_its_minute_samples_when_its_selected_raw_file_raises(tmp_path):
     """A tier is dropped only after the selected one has been read.
 
-    A job held on its minute tier keeps those samples when a raw file appears
-    that the read refuses. Dropping the minute samples before the raw read
+    A job held on its minute tier keeps those samples when a row in a raw file
+    is refused by the read. Dropping the minute samples before the raw read
     would strip the job for a replacement that never arrived.
     """
     raw, minute, hour = _tier_fixture(tmp_path)
@@ -1597,11 +1624,13 @@ def test_a_job_keeps_its_minute_samples_when_its_selected_raw_file_raises(tmp_pa
         assert _held_tiers(index) == {"minute"}
         assert _token_totals(index) == expected
 
-        # The raw file reappears carrying a line the read refuses. It is the
-        # finest tier, so it is the raw file that is selected, and the raise
-        # must leave the minute samples the job already held in place.
+        # The raw file reappears carrying a parseable record and then a line the
+        # read refuses, so it is offered, selected as the finest tier, and the
+        # raise must leave the minute samples the job already held in place.
         raw.write_text(
-            '{"timestamp": "2026-09-20T06:00:05+00:00" \n', encoding="utf-8"
+            '{"timestamp": "2026-09-20T06:00:00+00:00"}\n'
+            '{"timestamp": "2026-09-20T06:00:05+00:00" \n',
+            encoding="utf-8",
         )
         with pytest.raises(ValueError, match="invalid record JSON"):
             tick(index, tmp_path)
