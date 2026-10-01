@@ -413,9 +413,10 @@ def estimated_cost(total: dict, price: dict, rate: float) -> float | None:
     ``deepseek/deepseek-v4.1-flash`` -- $0.30 per million prompt tokens, $0.006
     cache read, $1.20 completion -- the input term at *h* 0.93 is about twice
     the input term at our own 0.975, because the prompt rate is fifty times the
-    cache-read rate. The total ratio depends on the period's output share: on a
-    recorded period of 278,174 input and 40,000 output tokens at those prices,
-    output dominates the bill and the total rises only about 1.07 times. So the
+    cache-read rate. The total ratio depends on the period's output share: from
+    the 278,174 input tokens the small-turn third-party hit-rate record carries,
+    plus an assumed 40,000 output tokens, output dominates the bill and the
+    total rises only about 1.07 times. So the
     total can look close to unmoved while the input is priced quite
     differently, and assuming our own cache understates what a provider would
     charge.
