@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-10-01">
 <meta name="plan-impl" content="0.9">
-<meta name="plan-version" content="148">
+<meta name="plan-version" content="149">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s14&quot;:&quot;implementable&quot;,&quot;s15&quot;:&quot;done&quot;,&quot;s16&quot;:&quot;done&quot;,&quot;s17&quot;:&quot;implementable&quot;,&quot;s18&quot;:&quot;implementable&quot;,&quot;s19&quot;:&quot;implementable&quot;,&quot;s20&quot;:&quot;done&quot;,&quot;s21&quot;:&quot;implementable&quot;}">
 <meta name="plan-artifacts" content="docs/evidence/archive/local-lane-admission-control-landed.html">
 <meta name="plan-commits" content="4bb11e8917c6dc9662d6214da6ec7eb595713984,da60421b4267fc7fc6fafb2a7e5dbb242da1cfba,569b91efd9e1e2e0e00c6d86cd589810391752c5,7ecfec3ba6ed3d68d68e03a104bd33e70ba75037,decc190bc301c74e02f2491bc6a557a163f9c744">
@@ -915,6 +915,14 @@
 <li><strong>The deploy waits for the lead.</strong> "The lead authorises it" names a go-ahead still to be given. The deploy node does not run until the lead gives it.</li>
 <li><strong>Readers substitute; they do not take the smaller.</strong> When <code>worker_slots</code> is non-null, a dispatcher counts workers against it instead of against <code>headroom</code>. It falls back to <code>headroom</code> only when <code>worker_slots</code> is null. Taking the smaller of the two would reinstate the request-unit cap this section removes.</li>
 <li><strong>0.90, not 0.85.</strong> §6 recorded two readings of its occupancy measurement. The median rule returned 0.90, and the collapse tail argued for about 0.85, which §6 left unadjudicated. The router's memory rule has served at 0.90 since it landed. This section unifies the estimator at that in-force value rather than moving the router. The collapse tail stays guarded where §14 put it: the controller steps the width down when the prefix hit rate falls below 0.95 and holds a 0.6 KV cap. The gate's width, not the memory estimate, binds at today's 144k mean context. At 0.90 the done-when figures are 25 and 20; at 0.85 they would be 23 and 18.</li>
+</ul>
+
+<h3 id="s21-definitions-addendum">Addendum after the deploy, 2026-10-01</h3>
+<p>The deploy measured two behaviours the definitions above leave unstated. Where this addendum and the list above disagree, the addendum governs.</p>
+<ul>
+<li><strong>The divisor is the observed span.</strong> <code>requests_per_run</code> is the keyed busy request-seconds divided by the observed span, then by <code>live_runs</code>. The observed span is the smaller of the 900 s window and the time since this router process first admitted a request. It is published as <code>admission.observed_seconds</code> beside <code>window_seconds</code>. Dividing by the full window from a router's start understated the ratio: at 320 s of history the router published 0.224 and 57 slots against about 0.63 and 11.</li>
+<li><strong>A third null.</strong> When the ratio rounds to 0.000 at three decimals, <code>requests_per_run</code> and <code>worker_slots</code> are null, on the same footing as fewer than three live runs or under 300 s of history, because the slot formula would divide by zero. Insufficient evidence still takes precedence over the clamp.</li>
+<li><strong>Readers pass the published figures through unchanged.</strong> <code>agent watch --json --live</code> copies the admission fields into <code>lane.worker_slots</code> as one object, and gpu-watch prints that object's <code>worker_slots</code> member, or a dash when it is absent or null.</li>
 </ul>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
