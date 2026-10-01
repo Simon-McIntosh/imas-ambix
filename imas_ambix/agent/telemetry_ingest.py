@@ -1,12 +1,12 @@
-"""A scheduled ingest that owns the index, so a reader only reads.
+"""A standing ingest that owns the index, so a reader only reads.
 
 The durable record is an append-only JSONL file per serve, written on shared
 storage by the on-node recorder. The query side is a disposable SQLite index
 derived from it (:mod:`imas_ambix.agent.telemetry_index`). This module is the
-process that keeps that index current on its own schedule -- one writer, many
+process that keeps that index current as a standing loop -- one writer, many
 readers -- so a reader such as ``agent watch`` is not the process that maintains
-the store it queries. A reader that ingested would make the store current only
-as often as somebody looked, and would have two readers contend on one file.
+the store it queries. The fleet allocation's supervisor starts the loop and
+keeps it running, so it ends with the allocation and starts again with it.
 
 **A tick hands the index the whole directory, and the index opens none of it
 unnecessarily.** The record is written continuously, and on a network
@@ -54,11 +54,12 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
     from pathlib import Path
 
-#: Default cadence, in seconds, between ticks of the scheduled loop. It matches
-#: the recorder's own sampling interval, so the index is at most one recorded
-#: row behind the record without the ingest spinning faster than the record
-#: grows.
-DEFAULT_CADENCE_SECONDS = 5.0
+#: Default cadence, in seconds, between ticks of the standing loop. The record
+#: is written continuously, so a minute is short enough that the index is never
+#: far behind it, and long enough that a pass over the whole directory is not
+#: the loop's whole cost. The fleet allocation's supervisor starts the loop and
+#: keeps it running; it ends with the allocation and starts again with it.
+DEFAULT_CADENCE_SECONDS = 60.0
 
 
 @dataclasses.dataclass(frozen=True)
@@ -218,8 +219,9 @@ def run(
     for one tick pays nothing for a cadence it did not use; a caller asking for
     zero ticks gets an empty list and touches nothing. With *iterations*
     ``None`` the loop runs until the process ends, or the injected *sleep*
-    raises, which is the scheduled service; it keeps only the latest report, so
-    a service that runs for months holds no growing history.
+    raises, which is the standing service the fleet supervisor runs; it keeps
+    only the latest report, so a service that runs for months holds no growing
+    history.
 
     *sleep* and *on_tick* are injected so a caller -- a test, or a service that
     wants to log each pass -- can supply its own without the loop knowing.
@@ -283,12 +285,15 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Run the scheduled ingest: one tick, or a loop on the cadence.
+    """Run the standing ingest the fleet supervisor keeps up: a tick or a loop.
 
-    This is the entry point the scheduled job runs. It names the index it
-    writes explicitly rather than defaulting to a reader's cache path, so the
-    service that owns the store is never pointed at the one ``agent watch``
-    queries by accident.
+    The default is the loop the fleet allocation's supervisor starts and keeps
+    running, so the store stays current for a reader that has not run yet; it
+    ends with the allocation and starts again when the allocation does. A
+    caller with ``--once`` takes a single tick instead. Either way the entry
+    point names the index it writes explicitly rather than defaulting to a
+    reader's cache path, so the process that owns the store is never pointed at
+    the one ``agent watch`` queries by accident.
     """
     args = _parser().parse_args(argv)
     index = TelemetryIndex(args.index_path)

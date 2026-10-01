@@ -1554,6 +1554,62 @@ def test_a_job_falls_to_its_hour_tier_when_the_finer_tiers_are_gone(tmp_path):
         assert _held_tiers(index) == {"hour"}
 
 
+def test_a_job_whose_raw_file_is_empty_is_answered_from_its_minute_tier(tmp_path):
+    """A raw file with no record line is absent, so the job reads from minute.
+
+    The recorder creates a job's raw file and writes its first row a moment
+    later, so the file can exist while holding nothing at all. Counting it as
+    the finest tier would pin the job to a file with no samples and its window
+    would read as uncovered, even though the minute tier holds them.
+    """
+    raw, minute, hour = _tier_fixture(tmp_path)
+    expected = {
+        "engine.generation_tokens": pytest.approx(2000.0),
+        "engine.prompt_tokens": pytest.approx(1000.0),
+        "engine.uncached_prompt_tokens": pytest.approx(800.0),
+    }
+    raw.write_text("", encoding="utf-8")
+
+    with TelemetryIndex(tmp_path / "index.db") as index:
+        tick(index, tmp_path)
+
+        assert _token_totals(index) == expected
+        assert _held_tiers(index) == {"minute"}
+
+
+def test_a_job_keeps_its_minute_samples_when_its_selected_raw_file_raises(tmp_path):
+    """A tier is dropped only after the selected one has been read.
+
+    A job held on its minute tier keeps those samples when a raw file appears
+    that the read refuses. Dropping the minute samples before the raw read
+    would strip the job for a replacement that never arrived.
+    """
+    raw, minute, hour = _tier_fixture(tmp_path)
+    expected = {
+        "engine.generation_tokens": pytest.approx(2000.0),
+        "engine.prompt_tokens": pytest.approx(1000.0),
+        "engine.uncached_prompt_tokens": pytest.approx(800.0),
+    }
+    raw.unlink()
+
+    with TelemetryIndex(tmp_path / "index.db") as index:
+        tick(index, tmp_path)
+        assert _held_tiers(index) == {"minute"}
+        assert _token_totals(index) == expected
+
+        # The raw file reappears carrying a line the read refuses. It is the
+        # finest tier, so it is the raw file that is selected, and the raise
+        # must leave the minute samples the job already held in place.
+        raw.write_text(
+            '{"timestamp": "2026-09-20T06:00:05+00:00" \n', encoding="utf-8"
+        )
+        with pytest.raises(ValueError, match="invalid record JSON"):
+            tick(index, tmp_path)
+
+        assert _held_tiers(index) == {"minute"}
+        assert _token_totals(index) == expected
+
+
 def test_receipts_tier_reads_the_job_and_the_tier_from_the_name():
     """The job id and the tier are both in the name, and a roll does not move them."""
     assert receipts_tier("deepseek-v4-1-flash-1273253.jsonl") == ("1273253", "raw")

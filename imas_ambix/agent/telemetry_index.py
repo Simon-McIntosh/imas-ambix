@@ -469,6 +469,22 @@ def one_tier_per_job(paths: Iterable[str | Path]) -> tuple[list[Path], dict[str,
     return selected, chosen
 
 
+def _holds_a_record_line(path: Path) -> bool:
+    """Whether *path* carries at least one non-blank line, read lazily.
+
+    A file the recorder has opened but not yet written to, a compaction that
+    wrote nothing, and a file of only blank separators all hold no record line.
+    The scan stops at the first non-blank line, so a settled record costs one
+    line rather than the whole file; a file that cannot be opened holds nothing
+    this can read, which is also what an absent one offers.
+    """
+    try:
+        with path.open("rb") as handle:
+            return any(raw.strip() for raw in handle)
+    except OSError:
+        return False
+
+
 def receipts_host(path: str | Path) -> str:
     """The node a receipts file was written on, from the job id in its name.
 
@@ -869,11 +885,14 @@ class TelemetryIndex:
         its minute and hour compactions carry the same window at three
         resolutions. Only the finest tier offered for a job is read
         (:func:`one_tier_per_job`), so a window covered by both a raw file and
-        its compaction is counted once, and samples an earlier pass stored from
-        a job's now-deselected tier are removed before the selected tier is
-        read. A source already consumed to its end whose length and modification
-        time have not moved is left unopened, so offering the directory whole on
-        every pass does not re-read it.
+        its compaction is counted once. A raw file with no record line is not a
+        tier the job offers, so the selection falls through to the next one that
+        holds rows. Samples an earlier pass stored from a job's now-deselected
+        tier are removed only after the selected tier has been read, so a read
+        that raises on the selected file leaves the job's previously held
+        samples in place. A source already consumed to its end whose length and
+        modification time have not moved is left unopened, so offering the
+        directory whole on every pass does not re-read it.
 
         A source is read from its recorded offset; a file whose consumed region
         no longer carries the bytes this index read there was rebuilt in place,
@@ -886,8 +905,13 @@ class TelemetryIndex:
         with the bytes it holds only where the caller handles it deliberately.
         """
         offered = [Path(source) for source in sources]
-        selected, chosen = one_tier_per_job(offered)
-        self._drop_deselected_tiers(chosen)
+        # A raw file the recorder has created but not yet written a row to is
+        # not a tier the job offers: selecting it would pin the job to a file
+        # with no samples, and its window would read as uncovered while the
+        # minute or hour file that holds them went unread. Dropping it here
+        # lets the selection fall through to the finest tier carrying rows.
+        offering = [path for path in offered if not self._raw_has_no_row(path)]
+        selected, chosen = one_tier_per_job(offering)
         scanned = inserted = duplicate = malformed = read = 0
         for path in selected:
             try:
@@ -976,6 +1000,11 @@ class TelemetryIndex:
                 )
         with self._conn:
             self._conn.commit()
+        # The deselected tier is dropped only once the selected tier has been
+        # read. A read that raises -- a corrupt selected file, say -- then
+        # leaves the job's previously held samples in place rather than
+        # stripping them for a replacement that never arrived.
+        self._drop_deselected_tiers(chosen)
         return IngestReport(
             files_scanned=scanned,
             rows_inserted=inserted,
@@ -983,6 +1012,34 @@ class TelemetryIndex:
             malformed=malformed,
             bytes_read=read,
         )
+
+    def _raw_has_no_row(self, path: Path) -> bool:
+        """Whether *path* is a raw receipts file that carries no record line.
+
+        The recorder creates a job's raw file and writes its first row a moment
+        later, and a compaction can leave an empty file behind, so a raw file
+        of zero bytes or only blank lines offers the job nothing to read. It is
+        not a tier the job offers: selecting it as the finest tier would leave
+        the job's window uncovered while a coarser file held its samples, so the
+        caller drops it and the selection falls through.
+
+        A file already consumed whole carried rows when it was read, so it is
+        not reopened to prove that here. A line that is present but unreadable
+        is not blank, so it counts as offered and the read refuses it in place:
+        the fall-through is for an absent tier, not for corrupt data.
+        """
+        info = receipts_tier(path)
+        if info is None or info[1] != _RAW_TIER:
+            return False
+        try:
+            stat = path.stat()
+        except OSError:
+            return False
+        if not path.is_file():
+            return False
+        if self._consumed_whole_and_untouched(path, stat):
+            return False
+        return not _holds_a_record_line(path)
 
     def _drop_deselected_tiers(self, chosen: Mapping[str, str]) -> None:
         """Drop samples held from a tier a job no longer selects.
