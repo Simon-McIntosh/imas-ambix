@@ -1,0 +1,87 @@
+<section class="evidence-fragment" data-reckon="evidence" id="srw-index-counts-each-job-from-one-tier">
+  <header>
+    <h3>The index counts each serve job from one receipt tier</h3>
+    <p class="meta">
+      Node <code>srw-index-counts-each-job-from-one-tier</code> &middot;
+      date 2026-10-01 &middot;
+      worktree <code>imas-ambix-0405601943d2/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-index-counts-each-job-from-one-tier</code>
+    </p>
+  </header>
+
+  <p>
+    A serve job leaves a raw receipts file beside its minute and hour
+    compactions, each naming the same job id and carrying the same window at a
+    coarser resolution. The index ingested every file it was offered, and its
+    <code>key_kind</code> column names how a host and boot were resolved rather
+    than which tier a row came from, so a window covered by both a raw file and
+    its compaction was answered from both &mdash; the same traffic counted once
+    per tier. This node makes the index read <em>one</em> tier per job: the raw
+    file when it exists, else the minute tier, else the hour.
+  </p>
+
+  <h4>What changed</h4>
+  <ul>
+    <li>
+      <code>imas_ambix/agent/telemetry_index.py</code>: new
+      <code>receipts_tier</code> reads <code>(job id, tier)</code> from a
+      receipts filename, and <code>one_tier_per_job</code> selects the finest
+      tier offered per job. <code>TelemetryIndex.ingest</code> reads only the
+      selected tier and drops, before reading, any samples an earlier pass
+      stored from a job's now-deselected tier (with their source rows), so the
+      switch from raw to minute is not counted from both.
+    </li>
+    <li>
+      <code>imas_ambix/agent/telemetry_ingest.py</code>: a tick offers the index
+      the whole discovered directory rather than only the files whose metadata
+      moved, because which tier to read depends on which of a job's files
+      exist. The index still leaves an unchanged source unopened, so this node
+      did not cost the schedule its re-read avoidance.
+    </li>
+    <li>
+      <code>tests/test_telemetry_index.py</code>,
+      <code>tests/test_telemetry_ingest.py</code>: the counted-once fixture, the
+      fall-through-the-tier-chain assertions, and the tick-handoff contract.
+    </li>
+  </ul>
+
+  <h4>Evidence</h4>
+  <table>
+    <thead>
+      <tr><th>Measure</th><th>Result</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>
+          One job's window (generation 2000, prompt 1000, uncached prompt 800)
+          offered as raw, minute and hour files together
+        </td>
+        <td>
+          totals equal those of the raw file alone; the index holds the raw
+          tier only
+        </td>
+      </tr>
+      <tr>
+        <td>
+          The raw file deleted and the ingest ticked again
+        </td>
+        <td>
+          totals unchanged; the index holds the minute tier only
+        </td>
+      </tr>
+      <tr>
+        <td>Negative control: selection disabled (all tiers ingested)</td>
+        <td>
+          <code>test_a_job_is_counted_once_even_when_its_raw_and_compacted_files_overlap</code>
+          and <code>test_deleting_the_raw_file_moves_the_job_to_its_minute_tier_unchanged</code>
+          both fail; held tiers read <code>{raw, minute, hour}</code>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          Gate at <code>76c6bd0397abc528de0040ee51739ff1848595e9</code>
+        </td>
+        <td>87 passed; parse guard 1 passed; ruff exit 0</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
