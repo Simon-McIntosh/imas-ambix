@@ -2822,6 +2822,89 @@ def ingest(
         index.close()
 
 
+@agent.command(name="retire-raw")
+@click.option(
+    "--record",
+    "record_dir",
+    type=click.Path(),
+    default=None,
+    help=(
+        "Receipts directory to list (default: the site's receipts directory, "
+        "$AMBIX_AGENT_BASE_DIR/agents/receipts, resolved by "
+        "watch.default_record_dir through the site configuration; "
+        "AMBIX_AGENT_BASE_DIR itself defaults to /work/projects/imas_gpu)."
+    ),
+)
+@click.option(
+    "--older-than-days",
+    type=float,
+    default=14.0,
+    show_default=True,
+    help="A raw file qualifies only where its last row is older than this.",
+)
+@click.option(
+    "--apply",
+    "apply_manifest",
+    type=click.Path(),
+    default=None,
+    help=(
+        "Delete exactly the files a previous listing's manifest names, after "
+        "re-checking each. Without it, list and write a manifest."
+    ),
+)
+@click.option(
+    "--manifest-dir",
+    type=click.Path(),
+    default=None,
+    help="Where a listing writes its manifest.",
+)
+def retire_raw(
+    record_dir: str | None,
+    older_than_days: float,
+    apply_manifest: str | None,
+    manifest_dir: str | None,
+) -> None:
+    """List raw serving receipts eligible for retirement, then delete that list.
+
+    A raw receipt file is a candidate once its serve job has ended, its last row
+    is old enough and its minute and hour compactions reproduce its own totals
+    window by window. The default run lists every candidate and writes a
+    manifest of the eligible ones; ``--apply`` deletes exactly that manifest's
+    files, re-checking each file and its compactions are unchanged before it is
+    removed. Only raw receipt files are ever removed: a compacted tier and a
+    request log are never candidates.
+
+    \b
+    List against the local record and write a manifest:
+        imas-ambix agent retire-raw
+
+    \b
+    Delete exactly a reviewed manifest's files:
+        imas-ambix agent retire-raw --apply <manifest.json>
+    """
+    from imas_ambix.agent import telemetry_retention as retention
+    from imas_ambix.agent.watch import default_record_dir
+
+    if apply_manifest:
+        report = retention.apply_manifest(Path(apply_manifest).expanduser())
+        for path in report.removed:
+            click.echo(f"removed {path}")
+        for path, reason in report.skipped:
+            click.echo(f"skipped {path}: {reason}")
+        return
+
+    resolved_record = (
+        Path(record_dir).expanduser() if record_dir else default_record_dir()
+    )
+    result = retention.scan(resolved_record, older_than_days=older_than_days)
+    click.echo(retention.render_listing(result), nl=False)
+    manifest_kwargs = (
+        {"manifest_dir": Path(manifest_dir).expanduser()} if manifest_dir else {}
+    )
+    manifest = retention.write_manifest(result, **manifest_kwargs)
+    click.echo(str(manifest))
+
+
 def _render_report(report: BenchReport, model: str, repeat: int = 1) -> None:
     """Render benchmark results as rich tables to the console."""
     from rich.table import Table as RichTable
