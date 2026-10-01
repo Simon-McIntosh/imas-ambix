@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-10-01">
-<meta name="plan-version" content="104">
+<meta name="plan-version" content="105">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -896,6 +896,9 @@
 </div>
 <div class="r-comment" data-section="s11" data-id="c-run-r-20260929T125936785604-review-of-srw-gpu-watch-live-panel" data-who="reckon-build" data-when="2026-09-29T14:03:40.074Z">
     <div class="r-comment-body"><p>Independent review of r-20260929T122155089389-srw-gpu-watch-live-panel at head a25aba4f5a976021bb0dd158434c939f024a5907 over base 1a7811ec8fe83c92effb9eed1b679d275825df99 stored a parsed record scoring goal_fidelity 17, evidence 17, scope_discipline 20, durability 18, fit 18 (total 90, item_aggregate 6, call_sites 2, added_failure_count 0 with no added failure ids, three findings, five follow-ons). The serve panel is delivered as the section asks: the first band reads running, the router row carries width, in flight, router queue, oldest wait and verdict, the slots row carries the lane's own headroom, and all of it renders from `agent watch --json --live` -- reproduced independently against a fresh document at 15:13:45 with every figure agreeing. Three defects are recorded against the delivered copy rather than its panel rows: the engine scrape is not gone (a second /metrics fetch feeds a card row, so the plan's own done-when grep fails and the manifest's claim that only the ledger feeder reaches it is false), the lane's published stale and age_seconds are never read so a 300 s document draws as current, and the first band's med prompt cell is a dash on every path.</p></div>
+</div>
+<div class="r-comment" data-section="s11" data-id="c-run-r-20260929T135925206288-srw-gpu-watch-marks-a-stale-lane" data-who="reckon-build" data-when="2026-09-29T14:26:40.988Z">
+    <div class="r-comment-body"><p>gpu-watch serve panel marks the router and slots rows with the lane document age in seconds when it is past its shelf life, prints no mark when fresh, and drops the med prompt column; fixture captures show 2 marks (stale 412s) on the stale document, 0 on the fresh one, and 0 under the unpublished-key control.</p></div>
 </div>
 <div class="r-comment" data-section="s9" data-id="c-run-r-20260929T072923543423-srw-third-party-hit-rate-measured" data-who="reckon-build" data-when="2026-09-29T08:16:09.318Z">
     <div class="r-comment-body"><p>Measured h = 0.8581679092941827 for deepseek/deepseek-v4.1-flash on OpenRouter from 60 responses (238720 cached prompt tokens over 278174 prompt tokens), spend USD 0.008353, recorded 2026-09-29 against endpoint https://openrouter.ai/api/v1/chat/completions; record at ~/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/third-party-hit-rate/third-party-hit-rate.json.</p></div>
