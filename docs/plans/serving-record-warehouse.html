@@ -22,8 +22,8 @@
   <title>Serving Record Warehouse | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-10-01">
-<meta name="plan-version" content="125">
+<meta name="plan-modified" content="2026-10-02">
+<meta name="plan-version" content="126">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -878,6 +878,9 @@
 <div class="r-comment" data-section="s8" data-id="c-run-r-20261001T214215927793-readback-2-of-srw-retention" data-who="reckon-build" data-when="2026-10-01T21:49:34.059Z">
     <div class="r-comment-body"><p>restated the §8 retention block and its settled-readings list in own words, judged three example raw files (running → not deletable; ended/20-day/passed → deletable; ended/20-day/one hour-window counter failed → not deletable), and listed 13 sentences with two or more readings that change the deleted set (5 still open).</p></div>
 </div>
+<div class="r-comment" data-section="s8" data-id="c-run-r-20261001T210936451430-srw-index-counts-each-job-from-one-tier" data-who="reckon-build" data-when="2026-10-01T21:55:00.476Z">
+    <div class="r-comment-body"><p>Rule 1 of the Retention block is implemented — the index reads each serve job&#x27;s receipts from exactly one tier (raw, else minute, else hour), dropping samples from a job&#x27;s deselected tier in the same pass; the counted-once fixture returns the same generation/prompt/uncached-prompt totals with raw+minute+hour offered together as with the raw file alone (2000/1000/800), and deleting the raw file and ticking again leaves those totals unchanged, read from the minute tier.</p></div>
+</div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20260924T122840994565-s26-currency-audit" data-who="reckon-ship" data-when="2026-09-24T12:30:00Z">
     <div class="r-comment-body"><p>stopped by the coordinator within a minute of launch: the repository's local-lane budget for the re-plan exercise was reallocated, and the audit was done in-session instead</p></div>
 </div>
@@ -1071,7 +1074,7 @@
     <div class="r-comment-body"><p>The ingest CLI now offers one placement: it removed --submit and --dry-run and the slurm.generate_ingest_script generator behind them, raised the --cadence default from 5 s to the locked 60 s, and its help now describes the standing loop the fleet allocation's supervisor keeps; tests/test_agent_* suites pass 29/29 with ruff clean (pytest tests/test_agent_ingest_cli.py tests/test_telemetry_ingest.py tests/test_agent_watch_help.py 29 passed; serve-registry parse 1 passed; ruff check imas_ambix tests: All checks passed).</p></div>
 </div>
 <div class="r-comment" data-section="s5" data-id="c-run-r-20261001T212913084959-review-of-srw-ingest-has-one-placement" data-who="reckon-build" data-when="2026-10-01T21:50:44.374Z">
-    <div class="r-comment-body"><p>Independent review of r-20261001T210923116681-srw-ingest-has-one-placement at head 14e4ef3c over base 2c4ab78f, stored as a parsed record scoring goal_fidelity 18 / evidence 17 / scope_discipline 19 / durability 15 / fit 16, total 85, added_failure_count 0 from this review&#x27;s own base/head arms of the declared three-file gate (the reviewed run was dispatched unarmed), one finding recorded (the module retains a second runnable ingest entry point with a five-second cadence default and &quot;scheduled&quot; framing) and one follow-on (the landed evidence fragment still documents the removed generator).</p></div>
+    <div class="r-comment-body"><p>Independent review of r-20261001T210923116681-srw-ingest-has-one-placement at head 14e4ef3c over base 2c4ab78f, stored as a parsed record scoring goal_fidelity 18 / evidence 17 / scope_discipline 19 / durability 15 / fit 16, total 85, added_failure_count 0 from this review's own base/head arms of the declared three-file gate (the reviewed run was dispatched unarmed), one finding recorded (the module retains a second runnable ingest entry point with a five-second cadence default and "scheduled" framing) and one follow-on (the landed evidence fragment still documents the removed generator).</p></div>
 </div>
 </section>
 </main>
