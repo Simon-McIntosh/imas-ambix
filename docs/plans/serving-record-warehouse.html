@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-10-02">
-<meta name="plan-version" content="127">
+<meta name="plan-version" content="128">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -883,6 +883,9 @@
 </div>
 <div class="r-comment" data-section="s8" data-id="c-run-r-20261001T215619828543-review-of-srw-index-counts-each-job-from-one-tier" data-who="reckon-build" data-when="2026-10-01T22:33:54.822Z">
     <div class="r-comment-body"><p>review 83 of the one-tier index; empty-raw fall-through and drop-before-read ordering routed to srw-index-tier-choice-survives-empty-and-failed-reads</p></div>
+</div>
+<div class="r-comment" data-section="s8" data-id="c-run-r-20261001T214729620362-srw-retire-raw-lists-then-applies-a-frozen-manifest" data-who="reckon-build" data-when="2026-10-01T22:42:51.767Z">
+    <div class="r-comment-body"><p>Added imas_ambix/agent/telemetry_retention.py and an `imas-ambix agent retire-raw` command that lists raw serving receipts and, under --apply MANIFEST, deletes exactly that frozen list only when every UTC hour&#x27;s partitioned totals agree across raw, minute and hour for generation, prompt and uncached-prompt tokens; gate: 18 passed + 1 serving-python parse passed + ruff exit 0; negative control (grand-totals-only comparison) fails the altered-minute-window test.</p></div>
 </div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20260924T122840994565-s26-currency-audit" data-who="reckon-ship" data-when="2026-09-24T12:30:00Z">
     <div class="r-comment-body"><p>stopped by the coordinator within a minute of launch: the repository's local-lane budget for the re-plan exercise was reallocated, and the audit was done in-session instead</p></div>
