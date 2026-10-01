@@ -1,0 +1,97 @@
+<section class="evidence-fragment" data-reckon="evidence" id="srw-index-tier-choice-survives-empty-and-failed-reads">
+  <header>
+    <h3>The index's one-tier choice survives an empty raw file and a failed read</h3>
+    <p class="meta">
+      Node <code>srw-index-tier-choice-survives-empty-and-failed-reads</code> &middot;
+      date 2026-10-02 &middot;
+      worktree <code>imas-ambix-0405601943d2/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-index-tier-choice-survives-empty-and-failed-reads</code>
+    </p>
+  </header>
+
+  <p>
+    The retention block's reading that &ldquo;an empty or unreadable raw file
+    counts as absent&rdquo; was not satisfied by the tier selection, which chose
+    the finest tier by filename alone. A raw receipts file the recorder has
+    created but not yet written to therefore pinned the job to a file holding no
+    sample, and its window read as uncovered while the minute tier that held the
+    rows went unread. The samples dropped when a job moved off a tier were also
+    removed <em>before</em> the newly selected tier was read, so a read that
+    raised stripped the job's held samples for a replacement that never arrived.
+  </p>
+
+  <h4>What changed</h4>
+  <ul>
+    <li>
+      <code>imas_ambix/agent/telemetry_index.py</code>: <code>ingest</code>
+      drops from the offered set any raw file carrying no record line
+      (<code>_raw_has_no_row</code>, reading the first non-blank line lazily
+      through <code>_holds_a_record_line</code>), so the per-job selection falls
+      through to the finest tier that holds rows. The drop of a job's
+      deselected tier moves to after the read loop, so a read that raises leaves
+      the previously held samples in place.
+    </li>
+    <li>
+      <code>imas_ambix/agent/telemetry_ingest.py</code>: the standing loop's
+      <code>DEFAULT_CADENCE_SECONDS</code> is 60.0, and the module and its entry
+      point describe the loop the fleet allocation's supervisor keeps running
+      rather than a scheduled pass.
+    </li>
+    <li>
+      <code>tests/test_telemetry_index.py</code>,
+      <code>tests/test_telemetry_ingest.py</code>: the empty-raw fall-through,
+      the failed-read retention, and the sixty-second default.
+    </li>
+  </ul>
+
+  <h4>Evidence</h4>
+  <table>
+    <thead>
+      <tr><th>Measure</th><th>Result</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>
+          Job's raw file emptied, minute and hour files holding the rows
+        </td>
+        <td>
+          answered from minute; totals 2000 / 1000 / 800; held tier
+          <code>{minute}</code>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          Job held on its minute tier; a raw file appears carrying a line the
+          read refuses
+        </td>
+        <td>
+          the ingest raises, and the minute samples are still held (totals and
+          held tier unchanged)
+        </td>
+      </tr>
+      <tr>
+        <td>
+          Default cadence at the loop
+        </td>
+        <td>
+          <code>run</code> without a cadence sleeps 60.0 between ticks
+        </td>
+      </tr>
+      <tr>
+        <td>
+          Negative control: deselected tier dropped before the read (scratch
+          edit, restored)
+        </td>
+        <td>
+          <code>test_a_job_keeps_its_minute_samples_when_its_selected_raw_file_raises</code>
+          fails, <code>EXIT=1</code>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          Gate at <code>3d14085ccf659ab694f3e67e33ed1c885b8364fa</code>
+        </td>
+        <td>95 passed; parse guard 1 passed; ruff exit 0</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
