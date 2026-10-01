@@ -1,0 +1,403 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effective_input_window": 480000,
+    "effort": "high",
+    "launch": "cli",
+    "local": true,
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "worktree-full",
+    "usable_input_window": 480000
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "509f12367effe3c4633cd2ecdcf753fbc9dbf0db",
+  "boundary_waiver": null,
+  "brief": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "fallback_credit": null,
+      "inference_geo": "",
+      "input_tokens": 4044273,
+      "input_tokens_cumulative": 4044273,
+      "output_tokens": 26917,
+      "output_tokens_cumulative": 26917,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": {
+    "added": 100,
+    "files": 2,
+    "removed": 8
+  },
+  "clone_matches": [
+    {
+      "existing_function": {
+        "line": 395,
+        "name": "test_serve_refuses_a_port_held_by_running_router",
+        "path": "tests/test_agent.py"
+      },
+      "run_function": {
+        "line": 101,
+        "name": "test_a_request_rotation_named_like_a_raw_file_is_not_a_candidate",
+        "path": "tests/test_telemetry_retention.py"
+      },
+      "window_line": 114
+    },
+    {
+      "existing_function": {
+        "line": 1275,
+        "name": "test_status_shows_router_as_preferred_consumer_origin",
+        "path": "tests/test_agent.py"
+      },
+      "run_function": {
+        "line": 101,
+        "name": "test_a_request_rotation_named_like_a_raw_file_is_not_a_candidate",
+        "path": "tests/test_telemetry_retention.py"
+      },
+      "window_line": 114
+    },
+    {
+      "existing_function": {
+        "line": 709,
+        "name": "test_status_warns_when_published_document_disagrees_with_live_serves",
+        "path": "tests/test_agent_endpoint_discovery.py"
+      },
+      "run_function": {
+        "line": 101,
+        "name": "test_a_request_rotation_named_like_a_raw_file_is_not_a_candidate",
+        "path": "tests/test_telemetry_retention.py"
+      },
+      "window_line": 114
+    }
+  ],
+  "commit_resolution": null,
+  "commits": [
+    "59a51cb1f4b7ea75c1be6493e26d45e3190ffcdc"
+  ],
+  "completed_at": "2026-10-01T23:26:27.639Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-10-01T23:07:47Z",
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": true,
+    "matched_measure": "pytest -p",
+    "override": false,
+    "role": "implement",
+    "status": "compatible"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [],
+  "gate": "passed",
+  "gate_check": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider tests/test_telemetry_retention.py",
+    "exit_status": 0,
+    "log_digest": "sha256:ea06e151e2c03f0e53b9184fc2d5ad523f5aa476121e0dd538cc2e167b7919d5",
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T230739532031-srw-retire-raw-checks-the-job-id-inside-the-file/gate.log"
+  },
+  "impl_move": {
+    "at_complete": 0.15,
+    "at_dispatch": 0.15,
+    "plan": "serving-record-warehouse",
+    "reason": "section 8 retention tool hardening",
+    "verdict": "waived"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-10-01T23:37:40.721116+00:00",
+    "horizon_seconds": 1800,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": null,
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-10-01T23:07:40Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 2,
+    "binding_observed": "unknown",
+    "detail": "",
+    "generating": 12,
+    "headroom": 4,
+    "mean_context": 143333,
+    "observed_at": "2026-10-01T23:07:38Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45,
+    "throughput": {
+      "age_seconds": null,
+      "aggregate_tokens_per_second": "unknown",
+      "detail": "lane document publishes no 'throughput' block, so the rate its generating population achieved is not measured",
+      "mean_tokens_per_second": "unknown",
+      "observed_at": null,
+      "runs": "unknown",
+      "state": "unknown"
+    },
+    "waiting": 0
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-10-01T23:26:27.639Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": true,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T230739532031-srw-retire-raw-checks-the-job-id-inside-the-file/manifest.md",
+  "member": "fleet-review-baseline",
+  "negative_control": {
+    "added_failure_ids": [
+      "tests/test_telemetry_retention.py::test_a_raw_name_whose_opening_row_job_id_differs_is_not_a_candidate",
+      "tests/test_telemetry_retention.py::test_a_request_rotation_named_like_a_raw_file_is_not_a_candidate"
+    ],
+    "baseline_failure_ids": [],
+    "comparison_arm": "baseline_suite",
+    "control_exit_status": 1,
+    "control_failure_ids": [
+      "tests/test_telemetry_retention.py::test_a_raw_name_whose_opening_row_job_id_differs_is_not_a_candidate",
+      "tests/test_telemetry_retention.py::test_a_request_rotation_named_like_a_raw_file_is_not_a_candidate"
+    ],
+    "declaration": "deciding candidacy by filename alone again must fail the requests-rotation test; applied as a scratch edit and restored",
+    "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T230739532031-srw-retire-raw-checks-the-job-id-inside-the-file/negative-control.log",
+    "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T230739532031-srw-retire-raw-checks-the-job-id-inside-the-file/negative-control.log",
+    "test_paths": [
+      "tests/test_telemetry_retention.py"
+    ],
+    "verdict": "matched"
+  },
+  "no_commit": null,
+  "node": "srw-retire-raw-checks-the-job-id-inside-the-file",
+  "node_definition": {
+    "brief": "",
+    "brief_path": "",
+    "brief_sha256": "",
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 1666,
+          "cached_input_tokens": 820089,
+          "input_tokens": 821757,
+          "output_tokens": 2523,
+          "reasoning_output_tokens": 734,
+          "total_tokens": 824280,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "0c4316b2-553f-4a0a-ae02-c42d88de747c",
+      "session_id": "0c4316b2-553f-4a0a-ae02-c42d88de747c"
+    },
+    "done_when": "In imas_ambix/agent/telemetry_retention.py a file is a raw serving receipt candidate only when its name matches the raw pattern and its first parseable row's job_id field equals the job id parsed from the name. A file failing either test is never listed eligible and never deleted, and the listing reports it as not a raw receipt. The module docstring no longer claims a request receipt carries no job id, and states the row check instead. Tests in tests/test_telemetry_retention.py assert that a file named requests-2026-10-01.jsonl holding router request rows is not a candidate, and that a file named deepseek-v4-1-flash-1278105.jsonl whose first row carries job_id 1278999 is not a candidate. Gate: uv run --no-sync pytest -p no:cacheprovider tests/test_telemetry_retention.py passes, pytest tests/test_agent_serve_registry.py -k agent_package_modules_parse_with_serving_python passes, uv run --no-sync ruff check imas_ambix tests exits 0; the gate log's first line names the commit it ran at and each command's exit status is recorded as EXIT=0 or the non-zero status; any evidence fragment written ends with a trailing newline",
+    "estimated_hours": null,
+    "goal": "Make retire-raw treat a file as a raw serving receipt only when its first row carries the job id its name claims",
+    "id": "srw-retire-raw-checks-the-job-id-inside-the-file",
+    "lane_declaration": {
+      "backend": null,
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-10-01T23:07:40Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 2,
+      "binding_observed": "unknown",
+      "detail": "",
+      "generating": 12,
+      "headroom": 4,
+      "mean_context": 143333,
+      "observed_at": "2026-10-01T23:07:38Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45,
+      "throughput": {
+        "age_seconds": null,
+        "aggregate_tokens_per_second": "unknown",
+        "detail": "lane document publishes no 'throughput' block, so the rate its generating population achieved is not measured",
+        "mean_tokens_per_second": "unknown",
+        "observed_at": null,
+        "runs": "unknown",
+        "state": "unknown"
+      },
+      "waiting": 0
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T230739532031-srw-retire-raw-checks-the-job-id-inside-the-file/manifest.md",
+    "negative_control": "deciding candidacy by filename alone again must fail the requests-rotation test; applied as a scratch edit and restored",
+    "plan": "serving-record-warehouse",
+    "requested_backend": "clive",
+    "requires_decisions": [],
+    "role": "implement",
+    "section": "§8",
+    "spec_level": "exact",
+    "time_budget": "30m",
+    "token_budget": null,
+    "write_paths": [
+      "imas_ambix/agent/telemetry_retention.py",
+      "tests/test_telemetry_retention.py",
+      "docs/evidence/fragments/serving-record-warehouse/srw-retire-raw-checks-the-job-id-inside-the-file.html",
+      "docs/figures/serving-record-warehouse/srw-retire-raw-checks-the-job-id-inside-the-file"
+    ]
+  },
+  "orientation_input_tokens": 859195.0,
+  "outcome": "",
+  "pace": {
+    "allowance": null,
+    "bar": null,
+    "clocks": {
+      "five_hour": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "five_hour",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null
+      },
+      "seven_day": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "seven_day",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null
+      }
+    },
+    "group": null,
+    "hold": null,
+    "lane": "clive",
+    "member": null,
+    "node": "srw-retire-raw-checks-the-job-id-inside-the-file",
+    "policy": {
+      "drain_lead_hours": 12.0,
+      "pace_multiple": 1.1
+    },
+    "reason": "the lane declares no budget group, so no wallet paced it",
+    "recorded_at": "2026-10-01T23:07:42.539122+00:00",
+    "score": 0.49375,
+    "source": null,
+    "state": "unknown"
+  },
+  "plan": "serving-record-warehouse",
+  "plan_impl_at_dispatch": 0.15,
+  "plan_link": null,
+  "promoted_revision": "59a51cb1f4b7ea75c1be6493e26d45e3190ffcdc",
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "reviewed_base_sha": "509f12367effe3c4633d2ecdcf753fbc9dbf0db",
+    "reviewed_head_sha": "59a51cb1f4b7ea75c1be6493e26d45e3190ffcdc",
+    "scores": {
+      "durability": 19,
+      "evidence": 18,
+      "fit": 20,
+      "goal_fidelity": 20,
+      "scope_discipline": 20
+    },
+    "status": "parsed",
+    "total": 97
+  },
+  "review_tier": "full",
+  "role": "implement",
+  "run_id": "r-20261001T230739532031-srw-retire-raw-checks-the-job-id-inside-the-file",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§8",
+  "session": "0c4316b2-553f-4a0a-ae02-c42d88de747c",
+  "session_harness": "claude",
+  "session_id": "664ddf9c-089f-4733-b5fc-c1237dfc29b4",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "exact",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 3,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 4044273,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+    "elapsed_seconds": 1113.227,
+    "generated_tokens": 26917,
+    "generation_seconds": 898.328,
+    "input_budget_tokens": 480000,
+    "input_utilisation_pct": 30.1,
+    "machine_seconds": 214.899,
+    "peak_input_tokens": 144548,
+    "tokens_per_second": 29.96,
+    "wall_tokens_per_second": 24.18
+  },
+  "time_budget": "30m",
+  "tool_steps": 36.0,
+  "unplanned_reason": null,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": []
+  },
+  "wall_seconds": 1120,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-10-01T23:26:29Z",
+    "last_record_type": "result",
+    "launched_at": "2026-10-01T23:07:50Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20261001T230739532031-srw-retire-raw-checks-the-job-id-inside-the-file",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 5413,
+    "worker_pid": 232004
+  },
+  "worker_seconds": 1098,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
