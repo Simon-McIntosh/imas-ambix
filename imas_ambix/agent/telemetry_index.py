@@ -83,6 +83,17 @@ whole pass with it or, worse, a roll whose bytes are counted as nothing. A
 compressed roll is refused by name with its reason rather than read as text, so a
 pass that meets one fails where the operator can see which file caused it.
 
+**A serve job is counted from one tier of its files, because the tiers overlap.**
+One job leaves a raw receipts file and, beside it, its minute and hour
+compactions, each naming the same job id and carrying the same window at a
+coarser resolution. Ingesting all of them answers a window covered by both a raw
+file and its compaction from both, so the same traffic is counted once per tier.
+:meth:`TelemetryIndex.ingest` therefore reads only the finest tier offered for a
+job -- the raw file when it exists, else the minute tier, else the hour -- and
+drops the samples an earlier pass stored from a job's now-deselected tier. The
+deletion is what lets a retention policy remove a raw file: the next pass falls
+back to that job's minute tier, and the totals do not move.
+
 Aggregation of receipt intervals is not reimplemented here.
 :mod:`imas_ambix.agent.receipt_bins` already owns it, and
 :meth:`TelemetryIndex.receipt_bins` calls
@@ -163,6 +174,20 @@ UNKNOWN_BOOT_ID = ""
 #: ``<slug>-<job id>.jsonl``. A roll suffix or a compression suffix trails the
 #: ``.jsonl`` and does not move the digits.
 _JOB_ID_IN_NAME = re.compile(r"-(\d+)\.jsonl(?:\.\d+)?(?:\.gz)?\Z")
+
+#: A receipts filename whose tier the recorder states between the job id and the
+#: suffix, as ``<slug>-<job id>.minute...`` is a sibling of the raw file rather
+#: than the record itself: the raw file reads ``<slug>-<job id>.jsonl`` and its
+#: compactions insert ``.minute`` or ``.hour`` before the suffix.
+_TIER_IN_NAME = re.compile(r"-(\d+)\.(minute|hour)\.jsonl(?:\.\d+)?(?:\.gz)?\Z")
+
+#: The resolution tiers a serve job's receipts roll through, ranked so the finest
+#: is the smallest. A job is counted from the finest tier it offers, so these
+#: ranks are what "raw when it exists, otherwise minute, otherwise hour" means.
+_TIER_RANKS = {"raw": 0, "minute": 1, "hour": 2}
+
+#: The tier a receipts filename carries when it names no coarser one of its own.
+_RAW_TIER = "raw"
 
 #: What ``sacct`` prints in place of a node name when the field carries none.
 #: These are words rather than machines, and ``scontrol`` echoes each one back
@@ -388,6 +413,60 @@ def receipts_job_id(path: str | Path) -> str | None:
     """
     match = _JOB_ID_IN_NAME.search(Path(path).name)
     return None if match is None else match.group(1)
+
+
+def receipts_tier(path: str | Path) -> tuple[str, str] | None:
+    """``(job id, tier)`` for a receipts file, or ``None``.
+
+    A serve job's raw receipts file is ``<slug>-<job id>.jsonl`` and its
+    compactions insert ``.minute`` or ``.hour`` before the suffix, so all three
+    name the same job id and differ only in the tier between it and the suffix.
+    A roll or compression suffix trails them and does not move either field. A
+    name carrying no job id is not one of a serve job's tiered files -- a
+    summary written beside the record, say -- and takes no tier, which is how a
+    caller knows it is not part of a selection.
+    """
+    name = Path(path).name
+    match = _TIER_IN_NAME.search(name)
+    if match is not None:
+        return match.group(1), match.group(2)
+    job_id = receipts_job_id(name)
+    return None if job_id is None else (job_id, _RAW_TIER)
+
+
+def one_tier_per_job(paths: Iterable[str | Path]) -> tuple[list[Path], dict[str, str]]:
+    """``(selected paths, {job id: selected tier})`` keeping one tier per job.
+
+    A serve job offers its record at up to three resolutions at once -- the raw
+    receipts file and its minute and hour compactions -- and each carries the
+    same counters, so reading more than one counts the same window once per
+    tier. The finest tier offered for a job is therefore the only one selected
+    for it: the raw file wherever one is offered, else the minute tier, else the
+    hour. The returned map names that choice per job, so a caller can drop
+    samples a previous selection left behind -- a job that fell back to its
+    minute tier because its raw file was deleted still holds the raw samples.
+
+    A path naming no job takes no tier and is always selected, because it is not
+    one of a job's tiered siblings and no rule applies to it.
+    """
+    tiers: dict[Path, tuple[str, str] | None] = {}
+    chosen: dict[str, str] = {}
+    for source in paths:
+        path = Path(source)
+        info = receipts_tier(path)
+        tiers[path] = info
+        if info is None:
+            continue
+        job, tier = info
+        current = chosen.get(job)
+        if current is None or _TIER_RANKS[tier] < _TIER_RANKS[current]:
+            chosen[job] = tier
+    selected = [
+        path
+        for path in tiers
+        if tiers[path] is None or tiers[path][1] == chosen[tiers[path][0]]
+    ]
+    return selected, chosen
 
 
 def receipts_host(path: str | Path) -> str:
@@ -783,7 +862,18 @@ class TelemetryIndex:
     # ── ingest ───────────────────────────────────────────────────────
 
     def ingest(self, sources: Iterable[str | Path]) -> IngestReport:
-        """Consume every byte appended to *sources* since the last pass.
+        """Consume every byte appended to *sources* since the record last moved.
+
+        *sources* is offered whole -- every file the caller discovered, changed
+        or not -- because a serve job's files overlap: its raw receipts file and
+        its minute and hour compactions carry the same window at three
+        resolutions. Only the finest tier offered for a job is read
+        (:func:`one_tier_per_job`), so a window covered by both a raw file and
+        its compaction is counted once, and samples an earlier pass stored from
+        a job's now-deselected tier are removed before the selected tier is
+        read. A source already consumed to its end whose length and modification
+        time have not moved is left unopened, so offering the directory whole on
+        every pass does not re-read it.
 
         A source is read from its recorded offset; a file whose consumed region
         no longer carries the bytes this index read there was rebuilt in place,
@@ -795,9 +885,11 @@ class TelemetryIndex:
         the parser it is one long malformed line at best, and it is reported
         with the bytes it holds only where the caller handles it deliberately.
         """
+        offered = [Path(source) for source in sources]
+        selected, chosen = one_tier_per_job(offered)
+        self._drop_deselected_tiers(chosen)
         scanned = inserted = duplicate = malformed = read = 0
-        for source in sources:
-            path = Path(source)
+        for path in selected:
             try:
                 stat = path.stat()
             except OSError:
@@ -891,6 +983,43 @@ class TelemetryIndex:
             malformed=malformed,
             bytes_read=read,
         )
+
+    def _drop_deselected_tiers(self, chosen: Mapping[str, str]) -> None:
+        """Drop samples held from a tier a job no longer selects.
+
+        A job's selected tier can move between passes: its raw file is deleted
+        and the minute tier is the finest left, or a compaction first appears
+        beside it. The samples of the tier left behind carry the same counters
+        as the selected tier's, so leaving them in place would count the window
+        once per tier -- the overlap the selection exists to remove. Every
+        stored source whose job is in *chosen* at a different tier is dropped,
+        with its samples, in the pass that selected the new tier.
+
+        Only jobs whose selection this pass computed are touched. A job the
+        caller did not offer has no new choice, so nothing it holds is judged
+        against a tier nobody selected, and a source whose name carries no job
+        takes no tier and is never dropped.
+        """
+        rows = self._conn.execute(
+            "SELECT host, path, inode FROM source"
+        ).fetchall()
+        with self._conn:
+            for row in rows:
+                info = receipts_tier(row["path"])
+                if info is None:
+                    continue
+                job, tier = info
+                selected = chosen.get(job)
+                if selected is None or tier == selected:
+                    continue
+                self._conn.execute(
+                    "DELETE FROM sample WHERE host = ? AND inode = ?",
+                    (row["host"], row["inode"]),
+                )
+                self._conn.execute(
+                    "DELETE FROM source WHERE host = ? AND path = ? AND inode = ?",
+                    (row["host"], row["path"], row["inode"]),
+                )
 
     def _resumed_row(self, path: Path, inode: int) -> sqlite3.Row | None:
         """The source row this file resumes from, or ``None`` if it has none.
@@ -1392,8 +1521,10 @@ __all__ = [
     "key_scope",
     "local_boot_id",
     "measure_row",
+    "one_tier_per_job",
     "receipts_host",
     "receipts_job_id",
+    "receipts_tier",
     "resolve_boot_id",
     "resolve_host",
     "row_boot_id",
