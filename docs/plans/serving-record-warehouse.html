@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-10-01">
-<meta name="plan-version" content="117">
+<meta name="plan-version" content="120">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -236,6 +236,15 @@
     <li><strong>Who changes what.</strong> The fleet supervisor belongs to reckon. Reckon gains a generic way to start declared standing services, the same way it starts the node sampler. imas-ambix declares the ingest as one such service.</li>
     <li><strong>What leaves the repository.</strong> The ingest's SLURM service generator and its <code>--submit</code> and <code>--dry-run</code> options are removed, because a second, unused placement invites the wrong deploy.</li>
     <li><strong>What readers do once it runs.</strong> <code>agent watch</code> opens the index read-only and never ingests on a read. That is what removes the cold catch-up that took over 300 s on 2026-09-29.</li>
+    </ul>
+    <p><strong>Readings settled after the read-back.</strong> This placement replaces the placement paragraph above it, which proposed a short scheduled job.</p>
+    <ul>
+    <li>The ingest is never submitted to SLURM, on any partition. It runs only as a process inside the fleet allocation.</li>
+    <li>The supervisor relaunches it whenever it exits, with a backoff of 5 s doubling to 300 s that resets after 10 minutes of steady running. It never kills a long tick for being slow, because a catch-up after a requeue can take 862 s.</li>
+    <li>The service declaration lives in <code>~/.config/fleet/services.json</code>, and the mechanism lives in reckon. No launcher is written in imas-ambix.</li>
+    <li>It needs no allocation or memory reservation of its own, because it runs inside the fleet allocation.</li>
+    <li>The 5 s figure compared above is the ingest command's former default. Its default is now 60 s.</li>
+    <li>"Read-only" means a read-only handle. With no index, <code>agent watch</code> says so and creates none. A stale index is read as it is, and its last-ingest time is shown.</li>
     </ul>
 
     <h2 id="s6">§6 — Queries the store must answer</h2>
@@ -553,6 +562,18 @@
     <li><strong>What may be deleted.</strong> A raw receipt file (<code>&lt;job&gt;.jsonl</code>) is eligible only if all three hold: its serve job is not running, its last row is more than 14 days old, and its rebuilt tiers passed the check in rule 2. Compacted tier files and the router's request receipts are never deleted. Neither is the file of a running job, whatever its age.</li>
     <li><strong>How it is deleted.</strong> One command lists every eligible file before anything is removed: the job, the last row's time, the size and the check result. A second run with an explicit apply flag deletes exactly that list and prints each file as it removes it. The live sessions are told before the apply run.</li>
     </ol>
+    <p><strong>Readings settled after the read-back.</strong> These govern wherever the rules above leave room.</p>
+    <ul>
+    <li><strong>Order.</strong> Rule 1 is merged and running in the ingest before any file is deleted. Rules 2 and 3 apply job by job: a job's raw file may be deleted once that job's own rebuild has passed. No global rebuild-everything gate is needed.</li>
+    <li><strong>Which compaction code.</strong> "Current" means the corrected compaction now on main: one shared run predicate, strides split at a job change, openings carried through the tiers, and per-leaf counts and peak extremes. A rebuild under that code is what makes each row declare its counts.</li>
+    <li><strong>The check is per window, not per job total.</strong> For every UTC hour the job spans, and for each of generation, prompt and uncached-prompt tokens, the partitioned total from raw, from minute and from hour must be equal exactly. A job fails if any one window or any one counter differs.</li>
+    <li><strong>Which file the index reads.</strong> A raw file present on disk is the one the index reads, including a running job's growing file. A job with none of its three files has no data, and coverage reports its window as uncovered.</li>
+    <li><strong>"Not running."</strong> The job id appears in no <code>squeue</code> state for the account, and the raw file has not been modified in the last 24 hours. Either sign of life makes the file ineligible.</li>
+    <li><strong>"Older than 14 days."</strong> Measured from the timestamp of the file's last parseable row, not from its modification time.</li>
+    <li><strong>The listing.</strong> For each eligible file it prints the job, the last row's time, the size, and the three totals per counter with pass or fail.</li>
+    <li><strong>The listing is frozen.</strong> The listing run writes a manifest of the eligible files: path, size, SHA-256 and last row time. The apply run takes that manifest and deletes exactly its files. Before deleting each one, it confirms the file is still eligible and its SHA-256 is unchanged. A file that fails either test is skipped and reported, never deleted.</li>
+    <li><strong>Who tells the sessions.</strong> The coordinator messages the live sessions before the apply run. The tool neither notifies anyone nor waits for acknowledgement.</li>
+    </ul>
 
     <h2 id="s10">&sect;10 — gpu-watch reads the recorder: one source for every serving figure</h2>
 <section data-reckon="section" data-id="s10" data-effort-hours="2.75" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-attempts="0" data-status="implementable" data-links=""></section>
@@ -725,6 +746,7 @@
       <button class="r-opt" data-value="hourly">Hourly — a report is at most an hour stale</button>
       <button class="r-opt" data-value="on-serve-exit">On serve exit, plus a daily sweep — ingest a file when it stops growing</button>
       <button class="r-opt" data-value="daily">Daily — cheapest, and a day stale</button>
+      <button class="r-opt chosen" data-value="every-60s-under-fleet-supervisor">Every 60 s — a standing loop the fleet supervisor runs and restarts</button>
       </p>
     <p class="r-dec-rat">Lead decision 2026-10-01: a standing loop at a 60 s cadence, started and kept alive by the fleet allocation&#x27;s supervisor on the CPU fleet node, not a SLURM job on the GPU server&#x27;s reservation. The recorded steady pass is 0.29 s, so a 60 s cadence costs about 0.5% of one core, keeps the ledger at most a minute stale, and stats the receipts directory twelve times less often than the 5 s default would.</p>
     </div>
@@ -768,10 +790,11 @@
     <pre class="r-fu-prompt">/reckon-build serving-record-warehouse §9</pre>
     <p class="r-fu-outcome"><p>Measured on 2026-09-29 against <code>deepseek/deepseek-v4.1-flash</code> on OpenRouter, for a total spend of $0.14 of the $5 authorised. A small-turn stratum gave h = 0.858. The production-size stratum gave <strong>h = 0.930</strong>, or 0.977 for warm turns only: 60 responses with prompts of 80k tokens or more, served by AtlasCloud and Together, at a spend of $0.134. The production-size record is installed as <code>/work/projects/imas_gpu/agents/third-party-cache-rate.json</code> (source_kind measured, with citation and observation time) beside the price table. <code>agent watch</code> reads it through <code>load_estimate</code>, and the cost evidence figure was regenerated at 0.930. Our own serve measures 0.975, so the input term priced at 0.93 is about twice our own at the 2026-09-29 prices. On 2026-10-01 OpenRouter's price for the model fell to $0.0155/M prompt, $0.00285/M cache read and $0.396/M completion. The prompt to cache-read ratio is therefore about 5 rather than 50, and the hit rate now moves the bill far less.</p></p>
     </article>
-<article class="r-fu" data-id="f-srw-007" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-ship" data-written-at="2026-09-24 14:45" data-recommends-skill="/reckon-build serving-record-warehouse §5" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-srw-007" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-ship" data-written-at="2026-09-24 14:45" data-recommends-skill="/reckon-build serving-record-warehouse §5" data-resolved-at="2026-10-01T21:34:24+00:00" data-resolved-by="reckon-build">
     <h4 class="r-fu-title">Build the scheduled ingest service so readers stop writing the store</h4>
     <div class="r-fu-body"><p>§5 and the placement comment fix the design: a standing SLURM service, a sibling of the relay (never its tenant), with one core, 4 GB, a 5 s cadence, and discovery bounded to sources modified since the previous tick. Today <code>watch.py:716</code> and <code>:759</code> ingest on every read. <strong>Done when:</strong> the service is the only writer of the index; <code>agent watch</code> opens it read-only; a test shows a rebuild from the receipts equal to the appended store; and one tick over the real corpus is measured on a debug partition under the 0.29 s steady pass already recorded. Do not rebuild the live 1 GB index casually. The cold build costs 862 s.</p></div>
     <pre class="r-fu-prompt">/reckon-build serving-record-warehouse §5</pre>
+    <p class="r-fu-outcome"><p>Superseded by the lead's placement decision of 2026-10-01. The ingest is not a SLURM service on the GPU server and does not run at 5 s. It is a standing 60 s loop under the fleet allocation's supervisor (the locked ingest-cadence decision, and §5's placement block). The SLURM service path was removed. The remaining work, a read-only <code>agent watch</code> once the loop runs, moves to f-srw-010.</p></p>
     </article>
 <article class="r-fu" data-id="f-srw-008" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-ship" data-written-at="2026-09-24 14:45" data-recommends-skill="/reckon-build serving-record-warehouse §10" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Move gpu-watch&#x27;s serving panels onto agent watch --json</h4>
@@ -782,6 +805,11 @@
     <h4 class="r-fu-title">Retire raw receipts past the raw tier — needs the lead&#x27;s authority</h4>
     <div class="r-fu-body"><p>Retention deletes raw receipts, which cannot be undone, so it waits on the lead's explicit go-ahead rather than on the equality alone. Two prerequisites come first. <strong>Rebuild the compacted tiers from raw under the current code:</strong> rows compacted before per-leaf counts landed declare no <code>obs.leaves</code>, and chaining one counts a single observation per source row rather than per raw sample; while every raw file is still on disk the tiers can be rebuilt exactly, and after retention they cannot. <strong>Decide the index's handling of overlapping tiers:</strong> the index ingests raw and compacted files into one sample table and now also indexes the <code>obs.leaves</code> counts and extremes as measurements, so a window covered by both a raw file and its compaction is answered from both.</p></div>
     <pre class="r-fu-prompt">/reckon-build serving-record-warehouse §8 — retention. Before any deletion: (1) confirm the lead has authorised retiring raw receipts, quoting the authorisation; (2) rebuild the minute and hour tiers from raw under the current compaction code so every compacted row declares obs.leaves, and assert the tier-equality tests over the rebuilt files; (3) decide whether the index excludes compacted files for windows raw still covers, or tags rows by tier, and pin the choice with a test. Only then implement retention of raw files older than the raw tier, with a dry-run listing of every file it would delete, printed and reviewed before the first real run.</pre>
+    </article>
+<article class="r-fu" data-id="f-srw-010" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-build" data-written-at="2026-10-01" data-recommends-skill="/reckon-build serving-record-warehouse §5" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Start the fleet-supervised ingest and make agent watch read-only</h4>
+    <div class="r-fu-body"><p>Waits on reckon's declared-services change merging (the-fleet-supervisor-runs-declared-services §1). Then:</p><ol><li>Write <code>~/.config/fleet/services.json</code> with <code>ambix-ingest</code> = the main checkout's <code>.venv/bin/imas-ambix agent ingest --cadence 60</code>.</li><li>Message every local session.</li><li>Send the fleet supervisor <code>reload</code>.</li><li>Confirm the service log at <code>~/.local/state/fleet/services/ambix-ingest.log</code> shows ticks.</li></ol><p>Only after that, <code>agent watch</code> opens the index with a read-only handle and never ingests. With no index it says so and prints no ledger. It never creates one. A stale index is read as it is, and its last-ingest time is shown.</p></div>
+    <pre class="r-fu-prompt">/reckon-build serving-record-warehouse §5 — after reckon&#x27;s declared-services change merges: install the ambix-ingest service declaration, message every session, reload the fleet supervisor, confirm ticks in its service log, then make agent watch open the index read-only (no ingest on read, a missing index reported rather than created, a stale index shown with its last-ingest time).</pre>
     </article>
 </section>
 
