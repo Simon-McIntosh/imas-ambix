@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-10-02">
-<meta name="plan-version" content="126">
+<meta name="plan-version" content="127">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -879,7 +879,10 @@
     <div class="r-comment-body"><p>restated the §8 retention block and its settled-readings list in own words, judged three example raw files (running → not deletable; ended/20-day/passed → deletable; ended/20-day/one hour-window counter failed → not deletable), and listed 13 sentences with two or more readings that change the deleted set (5 still open).</p></div>
 </div>
 <div class="r-comment" data-section="s8" data-id="c-run-r-20261001T210936451430-srw-index-counts-each-job-from-one-tier" data-who="reckon-build" data-when="2026-10-01T21:55:00.476Z">
-    <div class="r-comment-body"><p>Rule 1 of the Retention block is implemented — the index reads each serve job&#x27;s receipts from exactly one tier (raw, else minute, else hour), dropping samples from a job&#x27;s deselected tier in the same pass; the counted-once fixture returns the same generation/prompt/uncached-prompt totals with raw+minute+hour offered together as with the raw file alone (2000/1000/800), and deleting the raw file and ticking again leaves those totals unchanged, read from the minute tier.</p></div>
+    <div class="r-comment-body"><p>Rule 1 of the Retention block is implemented — the index reads each serve job's receipts from exactly one tier (raw, else minute, else hour), dropping samples from a job's deselected tier in the same pass; the counted-once fixture returns the same generation/prompt/uncached-prompt totals with raw+minute+hour offered together as with the raw file alone (2000/1000/800), and deleting the raw file and ticking again leaves those totals unchanged, read from the minute tier.</p></div>
+</div>
+<div class="r-comment" data-section="s8" data-id="c-run-r-20261001T215619828543-review-of-srw-index-counts-each-job-from-one-tier" data-who="reckon-build" data-when="2026-10-01T22:33:54.822Z">
+    <div class="r-comment-body"><p>review 83 of the one-tier index; empty-raw fall-through and drop-before-read ordering routed to srw-index-tier-choice-survives-empty-and-failed-reads</p></div>
 </div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20260924T122840994565-s26-currency-audit" data-who="reckon-ship" data-when="2026-09-24T12:30:00Z">
     <div class="r-comment-body"><p>stopped by the coordinator within a minute of launch: the repository's local-lane budget for the re-plan exercise was reallocated, and the audit was done in-session instead</p></div>
