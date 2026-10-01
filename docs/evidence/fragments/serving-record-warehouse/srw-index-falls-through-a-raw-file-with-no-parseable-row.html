@@ -1,0 +1,79 @@
+<section class="evidence-fragment" data-reckon="evidence" id="srw-index-falls-through-a-raw-file-with-no-parseable-row">
+  <header>
+    <h3>The index's tier fall-through skips a raw file with no parseable row</h3>
+    <p class="meta">
+      Node <code>srw-index-falls-through-a-raw-file-with-no-parseable-row</code> &middot;
+      date 2026-10-02 &middot;
+      worktree <code>imas-ambix-0405601943d2/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-index-falls-through-a-raw-file-with-no-parseable-row</code>
+    </p>
+  </header>
+
+  <p>
+    The tier fall-through keyed absence on a non-blank line alone, so a raw
+    receipts file holding a line that was present but not a record was still
+    offered as the finest tier. The job was pinned to a file carrying no sample,
+    and its window read as uncovered while the minute tier that held its rows
+    went unread. The predicate now judges a line by whether it parses as a JSON
+    object, mirroring the reader's own record grammar, so a raw file whose every
+    line fails to parse is absent exactly as a blank one is. A raw file holding
+    at least one parseable record is still offered, so a later unreadable line
+    is refused in place by the read rather than hidden.
+  </p>
+
+  <h4>Evidence</h4>
+  <table>
+    <thead>
+      <tr><th>Measure</th><th>Result</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>
+          Base reproduction: an unparseable-only raw file against
+          <code>_holds_a_record_line</code>
+        </td>
+        <td>
+          returned <code>True</code> at <code>0bfbf46a</code> (line counted as a
+          record), so the fall-through did not fire
+        </td>
+      </tr>
+      <tr>
+        <td>
+          Job whose raw file holds only one non-blank unparseable line and whose
+          minute file holds the rows
+        </td>
+        <td>
+          answered from minute; totals 2000 / 1000 / 800; held tier
+          <code>{minute}</code>
+        </td>
+      </tr>
+      <tr>
+        <td>Existing empty-raw fall-through test</td>
+        <td>still passes (71 passed with the full index and ingest files)</td>
+      </tr>
+      <tr>
+        <td>Failed-read retention test</td>
+        <td>
+          raw file now carries a parseable record before the refused line and
+          still raises, so the minute samples are retained
+        </td>
+      </tr>
+      <tr>
+        <td>
+          Negative control: absence keyed on blank lines alone again (scratch
+          edit, restored)
+        </td>
+        <td>
+          <code>test_a_job_whose_raw_file_has_no_parseable_row_is_answered_from_minute</code>
+          fails with <code>ValueError: invalid record JSON</code>,
+          <code>EXIT=1</code>
+        </td>
+      </tr>
+      <tr>
+        <td>Gate at <code>1c719858a2e68541720c7cb23bdcdcf645f5e7fe</code></td>
+        <td>
+          71 passed; serving-python parse guard 1 passed; ruff exit 0
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</section>
