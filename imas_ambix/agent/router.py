@@ -318,6 +318,16 @@ class _AdmissionLedger:
         self, *, now: float, effective_width: int, verdict: str
     ) -> dict[str, object]:
         window_start = now - self._window
+        # The ledger's clock starts at its first admission, so a router younger
+        # than the window has observed only part of it. Divide by that span, not
+        # the full window, or a short history understates requests_per_run and
+        # overstates the slots the lane can take. Before the first admission
+        # nothing has been observed, so the span is zero rather than the window.
+        observed = (
+            0.0
+            if self._first_admission is None
+            else min(self._window, max(0.0, now - self._first_admission))
+        )
         keyed_runs: set[str] = set()
         keyed_busy = 0.0
         unkeyed_busy = 0.0
@@ -339,6 +349,7 @@ class _AdmissionLedger:
         live_runs = len(keyed_runs)
         fields: dict[str, object] = {
             "window_seconds": self._window,
+            "observed_seconds": observed,
             "samples": samples,
             "live_runs": live_runs,
             "unkeyed_share": (unkeyed_busy / total_busy) if total_busy > 0 else None,
@@ -351,7 +362,7 @@ class _AdmissionLedger:
             fields["requests_per_run"] = None
             fields["worker_slots"] = None
             return fields
-        published_ratio = round(keyed_busy / self._window / live_runs, 3)
+        published_ratio = round(keyed_busy / observed / live_runs, 3)
         if published_ratio <= 0:
             # A ratio that rounds to zero would divide by zero in the slot
             # arithmetic and describes no request a run can actually hold, so

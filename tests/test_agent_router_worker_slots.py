@@ -32,8 +32,10 @@ _FLEET_LENGTHS = [424.0] * 13 + [428.0]
 def _fleet(now: float) -> _AdmissionLedger:
     ledger = _AdmissionLedger()
     for index, length in enumerate(_FLEET_LENGTHS):
-        busy = ledger.admit(f"r-{index}", now=now - 600.0)
-        ledger.release(busy, now=now - 600.0 + length)
+        # Each interval opens exactly one window before ``now`` so the ledger
+        # has observed the full window and the ratio divides by 900 s.
+        busy = ledger.admit(f"r-{index}", now=now - 900.0)
+        ledger.release(busy, now=now - 900.0 + length)
     return ledger
 
 
@@ -48,6 +50,29 @@ def test_fleet_publishes_live_runs_ratio_and_worker_slots() -> None:
     assert snapshot["unkeyed_share"] == 0.0
 
 
+def test_ratio_averages_over_the_observed_span_not_the_full_window() -> None:
+    """A ledger younger than the window divides by the span it has observed.
+
+    The first admission is 320 s before the snapshot, so the divisor is the
+    320 s observed, not the 900 s window: fourteen runs holding 2822.4 busy
+    request-seconds publish 2822.4 / 320 / 14 = 0.63 requests per run and
+    floor(16 / 0.63) - 14 = 11 worker slots. Dividing by the full window would
+    publish 0.224 and 57, understating the per-run load and overstating the
+    lane's capacity on every router younger than its window.
+    """
+    now = _NOW
+    ledger = _AdmissionLedger()
+    for index in range(14):
+        busy = ledger.admit(f"r-{index}", now=now - 320.0)
+        ledger.release(busy, now=now - 320.0 + 201.6)
+    snapshot = ledger.snapshot(now=now, effective_width=16, verdict="open")
+    assert snapshot["window_seconds"] == 900.0
+    assert snapshot["observed_seconds"] == 320.0
+    assert snapshot["live_runs"] == 14
+    assert snapshot["requests_per_run"] == 0.63
+    assert snapshot["worker_slots"] == 11
+
+
 def test_published_slots_follow_from_the_published_ratio() -> None:
     """A dispatcher's own arithmetic on the published figures is the figure.
 
@@ -60,8 +85,8 @@ def test_published_slots_follow_from_the_published_ratio() -> None:
     now = _NOW
     ledger = _AdmissionLedger()
     for index in range(3):
-        busy = ledger.admit(f"r-{index}", now=now - 800.0)
-        ledger.release(busy, now=now - 800.0 + 720.009)
+        busy = ledger.admit(f"r-{index}", now=now - 900.0)
+        ledger.release(busy, now=now - 900.0 + 720.009)
     snapshot = ledger.snapshot(now=now, effective_width=16, verdict="open")
     assert snapshot["live_runs"] == 3
     assert snapshot["requests_per_run"] == 0.8
@@ -140,8 +165,11 @@ def test_request_in_flight_counts_its_elapsed_time_to_publication() -> None:
         ledger.admit(f"r-{index}", now=now - 600.0)
     snapshot = ledger.snapshot(now=now, effective_width=16, verdict="open")
     assert snapshot["live_runs"] == 3
-    # Three 600 s occupancies over a 900 s window, one per run.
-    assert snapshot["requests_per_run"] == round(3 * 600.0 / 900.0 / 3, 3)
+    # The ledger is 600 s old, so each in-flight request counts its full elapsed
+    # 600 s into an observed span of 600 s: three full-span occupancies for three
+    # runs is 1.0.
+    assert snapshot["observed_seconds"] == 600.0
+    assert snapshot["requests_per_run"] == round(3 * 600.0 / 600.0 / 3, 3)
 
 
 def test_unkeyed_request_raises_share_and_leaves_ratio_unchanged() -> None:
