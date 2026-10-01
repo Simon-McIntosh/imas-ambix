@@ -1,0 +1,44 @@
+<section data-reckon="fragment" data-node="srw-estimated-cost-refuses-an-out-of-range-rate">
+  <p><code>watch.estimated_cost</code> now refuses a cache-hit rate it cannot
+  price. A boolean, a non-numeric value, or a rate outside 0..1 raises
+  <code>ValueError</code> naming the rate, so no caller can obtain a negative
+  or inflated figure. The guard is the function's own: previously only
+  <code>load_estimate</code>, the record reader, declined an out-of-range
+  <em>h</em>, and a caller reaching <code>estimated_cost</code> directly with
+  any float got a figure back.</p>
+  <p><strong>The defect, reproduced.</strong> At the base revision the guard
+  was absent: with it removed as a scratch edit the new parametrised test runs
+  <code>4 failed, 20 deselected</code> with all four parameters red
+  (<code>EXIT=1</code>); restored, green. The removed guard priced every rate
+  it was handed rather than declining.</p>
+  <p><strong>What changed.</strong>
+  <code>imas_ambix/agent/watch.py</code>: <code>estimated_cost</code> raises
+  <code>ValueError</code> for a boolean or non-numeric rate and for a rate
+  outside 0..1, naming it, before any price is read.
+  <code>tests/test_agent_watch_cost.py</code>: one parametrised test over
+  1.2, 2.0, -0.5 and <code>True</code> pins the refusal.</p>
+  <p><strong>The docstring.</strong> It no longer states a fixed total
+  multiplier. It states that at the 2026-09-29 prices for
+  <code>deepseek/deepseek-v4.1-flash</code> ($0.30/M prompt, $0.006 cache
+  read, $1.20 completion) the input term at <em>h</em> 0.93 is about twice the
+  input term at our own 0.975, because the prompt rate is fifty times the
+  cache-read rate; that the total ratio depends on the period's output share;
+  and, citing the input and output tokens of the period it quotes, that on a
+  recorded period of 278,174 input and 40,000 output tokens the total rises
+  only about 1.07 times. Verified: input-term ratio 1.991, total ratio 1.071.</p>
+  <p>Measure: <code>uv run --no-sync pytest -p no:cacheprovider
+  tests/test_agent_watch_cost.py tests/test_agent_telemetry_watch.py
+  tests/test_agent_watch_live.py</code> 43 passed, <code>EXIT=0</code>;
+  <code>uv run --no-sync pytest tests/test_agent_serve_registry.py -k
+  agent_package_modules_parse_with_serving_python</code> 1 passed, 8
+  deselected, <code>EXIT=0</code>; <code>uv run --no-sync ruff check imas_ambix
+  tests</code> all checks passed, <code>EXIT=0</code>. Each ran at
+  <code>e2827f32</code> in the node's worktree.</p>
+  <p>Gate log:
+  <code>~/.config/reckon/crew/runs/r-20261001T042425021081-srw-estimated-cost-refuses-an-out-of-range-rate/gate.log</code>.
+  Negative control log:
+  <code>~/.config/reckon/crew/runs/r-20261001T042425021081-srw-estimated-cost-refuses-an-out-of-range-rate/negative-control.log</code>.</p>
+  <p>Caveat: this node measures only its own change. Verifying the merged
+  result belongs to a separately dispatched test node, and no failure outside
+  this node's scope was triaged here.</p>
+</section>
