@@ -1,6 +1,9 @@
-"""``imas-ambix agent ingest`` runs the scheduled ingest and submits its service.
+"""``imas-ambix agent ingest`` runs the standing ingest service and submits it.
 
-Each test drives the CLI and observes the seam the command crosses -- the
+The ingest is a standing service rather than a scheduled or finite job: it keeps
+the telemetry index current from the recorded receipts for as long as it runs, so
+the tests here pin the unlimited walltime it is placed with rather than a finite
+limit. Each test drives the CLI and observes the seam the command crosses -- the
 ingest loop it calls, or the SLURM script it hands to ``sbatch`` -- rather than
 what the index happens to hold. Nothing here submits a job: the one test that
 exercises ``--submit`` replaces the submitter with a stub, so a real ``sbatch``
@@ -71,7 +74,7 @@ def test_cadence_overrides_the_default(tmp_path, monkeypatch):
 
 
 def test_dry_run_prints_the_service_script_without_submitting(tmp_path, monkeypatch):
-    """The dry-run script carries the finite placement and never submits."""
+    """The dry-run script carries the standing-service placement, never submits."""
     submitted: list[str] = []
 
     def refuse(script: str) -> str:
@@ -95,6 +98,10 @@ def test_dry_run_prints_the_service_script_without_submitting(tmp_path, monkeypa
     assert (
         f"#SBATCH --time={slurm_mod._SUPPORTING_SERVICE_TIME_LIMIT}" in result.output
     )
+    # The unlimited walltime is pinned by its literal, not only against the
+    # shared constant, so a change that moved the constant would move the
+    # service's placement with it unnoticed.
+    assert "#SBATCH --time=0" in result.output
     assert "#SBATCH --time=01:00:00" not in result.output
     # The exec line names the absolute record and index the submitter chose, so
     # a reader auditing the job reads the target off the script.
