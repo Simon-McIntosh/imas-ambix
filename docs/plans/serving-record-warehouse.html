@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-10-02">
-<meta name="plan-version" content="132">
+<meta name="plan-version" content="133">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -897,7 +897,10 @@
     <div class="r-comment-body"><p>Independent review of run r-20261001T222734001211-srw-index-tier-choice-survives-empty-and-failed-reads (base 1c871e0f, head e7fa17da) stored as a parsed record scoring goal_fidelity 17, evidence 18, scope_discipline 20, durability 17, fit 18 (total 90, item_aggregate 6), added_failure_count 0 with no added failure ids, one finding and no follow-ons.</p></div>
 </div>
 <div class="r-comment" data-section="s8" data-id="c-run-r-20261001T230739532031-srw-retire-raw-checks-the-job-id-inside-the-file" data-who="reckon-build" data-when="2026-10-01T23:26:27.639Z">
-    <div class="r-comment-body"><p>is_raw_receipt in imas_ambix/agent/telemetry_retention.py now reads a raw file&#x27;s first parseable row and requires its job_id to equal the job id its name claims, so a router request rotation such as requests-2026-10-01.jsonl is never listed or deleted; gate: 10 passed retention + 1 serving-python parse guard + ruff check imas_ambix tests exit 0; negative control (filename-only candidacy) reddens the requests-rotation test.</p></div>
+    <div class="r-comment-body"><p>is_raw_receipt in imas_ambix/agent/telemetry_retention.py now reads a raw file's first parseable row and requires its job_id to equal the job id its name claims, so a router request rotation such as requests-2026-10-01.jsonl is never listed or deleted; gate: 10 passed retention + 1 serving-python parse guard + ruff check imas_ambix tests exit 0; negative control (filename-only candidacy) reddens the requests-rotation test.</p></div>
+</div>
+<div class="r-comment" data-section="s8" data-id="c-run-r-20261001T232713290533-review-of-srw-retire-raw-checks-the-job-id-inside-the-file" data-who="reckon-build" data-when="2026-10-01T23:52:35.461Z">
+    <div class="r-comment-body"><p>review of r-20261001T230739532031 stores a parsed record scoring all 5 dimensions in 0..20 -- goal_fidelity 20, evidence 18, scope_discipline 20, durability 19, fit 20, total 97 -- reviewed_base_sha 509f12367effe3c4633d2ecdcf753fbc9dbf0db, reviewed_head_sha 59a51cb1f4b7ea75c1be6493e26d45e3190ffcdc, added_failure_count 0; the fix was verified correct and reproduced (base 2 failed vs head 10 passed), with one follow-on finding: the node&#x27;s required evidence fragment was never committed.</p></div>
 </div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20260924T122840994565-s26-currency-audit" data-who="reckon-ship" data-when="2026-09-24T12:30:00Z">
     <div class="r-comment-body"><p>stopped by the coordinator within a minute of launch: the repository's local-lane budget for the re-plan exercise was reallocated, and the audit was done in-session instead</p></div>
