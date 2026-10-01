@@ -425,6 +425,42 @@ def test_lane_block_omits_observed_seconds_when_the_lane_does_not_publish_it():
     assert block["worker_slots"]["unkeyed_share"] == 0.25
 
 
+def test_lane_block_copies_the_per_session_share_fields():
+    """The per-session share rides beside the worker-slot fields it divides.
+
+    A dispatcher needs its own session's figure, not only the lane's total, so
+    the lane block copies the share fields into the same object. Each is copied
+    as the lane published it, so a lane that published no sessions leaves the
+    object without them -- which the omission tests above pin.
+    """
+    document = {
+        "observed_at": _stamp(0.0),
+        "admission": {
+            "headroom": 7,
+            "verdict": "open",
+            "waiting": 0,
+            "oldest_wait_seconds": 0.0,
+            "live_runs": 14,
+            "observed_seconds": 900.0,
+            "requests_per_run": 0.5,
+            "worker_slots": 10,
+            "unkeyed_share": 0.0,
+            "active_sessions": 2,
+            "fair_share": 12,
+            "borrow_reserve": 2,
+            "new_session_worker_slots": 8,
+            "sessions": {"A": {"live_runs": 2, "worker_slots": 10}},
+        },
+    }
+    slots = lane_block(document, now=BASE)["worker_slots"]
+    assert slots["active_sessions"] == 2
+    assert slots["fair_share"] == 12
+    assert slots["borrow_reserve"] == 2
+    assert slots["new_session_worker_slots"] == 8
+    assert slots["sessions"] == {"A": {"live_runs": 2, "worker_slots": 10}}
+    assert slots["worker_slots"] == 10
+
+
 def test_lane_block_keeps_headroom_is_upper_bound_with_its_figure():
     document = {
         "observed_at": _stamp(0.0),
