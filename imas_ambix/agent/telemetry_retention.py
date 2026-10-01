@@ -17,6 +17,10 @@ A raw file is named ``<profile slug>-<job id>.jsonl``; its compacted siblings
 are the same stem with a ``.minute`` and an ``.hour`` tier inserted before the
 suffix. A file qualifies only where every one of these holds:
 
+* its first parseable row's ``job_id`` equals the job id its name claims, so a
+  name alone never makes a file a raw receipt -- a router request rotation such
+  as ``requests-2026-10-01.jsonl`` has the raw name shape and carries no such
+  row;
 * its job appears in no ``squeue`` state for the account, so a running serve's
   growing file is never a candidate;
 * it was not modified in the last day, because a serve the scheduler cannot see
@@ -230,18 +234,54 @@ def _iso(stamp: float | None) -> str | None:
     return _dt.datetime.fromtimestamp(stamp, tz=_dt.UTC).isoformat()
 
 
+def _first_row(path: Path) -> dict | None:
+    """The first parseable JSON object in *path*, or ``None``.
+
+    Read tolerantly line by line, as :func:`row_span` is: a trailing line still
+    being written is not a row, and a blank or malformed line before the data
+    must not refuse the whole file. The first line that parses to an object is
+    the file's opening row, which carries the identity a raw receipt is judged
+    on.
+    """
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(row, dict):
+                    return row
+    except OSError:
+        return None
+    return None
+
+
 def is_raw_receipt(path: str | Path) -> bool:
     """Whether *path* is a raw receipt file rather than a tier or a request log.
 
-    A raw file is the ``<slug>-<job id>.jsonl`` the recorder appends to; a
-    compacted tier carries a ``.minute`` or ``.hour`` marker, and a request
-    receipt carries no job id at all. Neither is ever a retirement candidate, so
-    the guard refuses them by name rather than trusting the manifest.
+    A raw file is the ``<slug>-<job id>.jsonl`` the recorder appends to, and in a
+    raw file that job id is also the one its first parseable row carries. A
+    compacted tier carries a ``.minute`` or ``.hour`` marker, and a router
+    request file carries no such row however its name reads: a rotation such as
+    ``requests-2026-10-01.jsonl`` has the raw name shape and its ``01`` parses
+    as a job id, so a name alone would admit it. Neither is ever a retirement
+    candidate, so the guard reads the opening row and refuses whatever does not
+    carry the id its name claims, rather than trusting the manifest.
     """
     name = Path(path).name
     if any(marker in name for marker in _TIER_MARKERS):
         return False
-    return receipts_job_id(path) is not None
+    job = receipts_job_id(path)
+    if job is None:
+        return False
+    row = _first_row(Path(path))
+    if row is None:
+        return False
+    return str(row.get("job_id")) == job
 
 
 def raw_receipt_files(record_dir: str | Path) -> list[Path]:
