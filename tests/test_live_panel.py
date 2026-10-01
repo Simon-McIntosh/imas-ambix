@@ -313,6 +313,7 @@ def test_lane_block_copies_the_published_fields():
             "waiting": 0,
             "oldest_wait_seconds": 0.0,
             "live_runs": 5,
+            "observed_seconds": 320.0,
             "requests_per_run": 0.8,
             "worker_slots": 18,
             "unkeyed_share": 0.25,
@@ -343,6 +344,10 @@ def test_lane_block_copies_the_published_fields():
     # publishes them, so a reader gets the slot count and the two figures it
     # divides from without recomputing either.
     assert block["worker_slots"]["live_runs"] == 5
+    # The observed span travels beside the ratio it divides: a reader that wants
+    # to reconcile requests_per_run with the busy seconds behind it needs the
+    # span the router divided by, which is not the full window on a young router.
+    assert block["worker_slots"]["observed_seconds"] == 320.0
     assert block["worker_slots"]["requests_per_run"] == 0.8
     assert block["worker_slots"]["worker_slots"] == 18
     # The unkeyed share rides with the run-keyed figures it bounds: the ratio

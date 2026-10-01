@@ -73,6 +73,31 @@ def test_ratio_averages_over_the_observed_span_not_the_full_window() -> None:
     assert snapshot["worker_slots"] == 11
 
 
+def test_observed_span_is_capped_at_the_window_from_above() -> None:
+    """A router older than its window publishes the window, not its age.
+
+    The first admission is 1200 s before the snapshot, so the process has
+    observed more than its 900 s window. The published span is the window, and
+    the ratio divides keyed busy request-seconds by that 900 s span: fourteen
+    in-flight runs each holding the full window are 12600 busy seconds, so the
+    ratio is round(12600 / 900 / 14, 3) = 1.0. Dividing by the 1200 s of process
+    age instead would publish 0.75 and overstate the slots the lane can take,
+    which is the defect the cap guards against, so the cap is pinned from above
+    by the 1200 s first admission.
+    """
+    now = _NOW
+    ledger = _AdmissionLedger()
+    keyed_busy = 0.0
+    for index in range(14):
+        ledger.admit(f"r-{index}", now=now - 1200.0)
+        keyed_busy += 900.0
+    snapshot = ledger.snapshot(now=now, effective_width=16, verdict="open")
+    assert snapshot["observed_seconds"] == snapshot["window_seconds"] == 900.0
+    assert snapshot["live_runs"] == 14
+    assert snapshot["requests_per_run"] == round(keyed_busy / 900.0 / 14, 3)
+    assert snapshot["requests_per_run"] != round(keyed_busy / 1200.0 / 14, 3)
+
+
 def test_published_slots_follow_from_the_published_ratio() -> None:
     """A dispatcher's own arithmetic on the published figures is the figure.
 
