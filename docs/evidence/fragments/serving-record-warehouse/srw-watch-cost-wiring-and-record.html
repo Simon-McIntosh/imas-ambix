@@ -1,0 +1,64 @@
+<section data-reckon="fragment" data-node="srw-watch-cost-wiring-and-record">
+  <p>Repairs the previous node's cost evidence so it matches the installed
+  record and the code it describes. Four things were wrong between the printing
+  command and the fragment standing for it, and each is now pinned by a test or
+  corrected in place: the production wiring that reads the installed estimate
+  record had no test that failed when that read was removed; the fragment said
+  the rate is clamped on read where the single reader declines an out-of-range
+  record; the fragment said the label prints once per period row where the text
+  panel prints the label once beneath the ledger; and the figure was drawn from
+  the small-turn figure 0.858 rather than the record the node installs, which
+  measures 0.9299.</p>
+  <p><strong>The wiring.</strong> <code>tests/test_agent_watch_cost.py</code> now
+  drives <code>watch.watch_text</code> and <code>watch.watch_document</code> over
+  the fixture receipts with the fixture price table installed through
+  <code>provider_prices.table_path</code> and the fixture estimate record beside
+  it, and no <em>estimate</em> argument passed. Both readers therefore reach the
+  estimate only through their own installed-record read, and each test asserts
+  the pinned literal (<code>$7.05</code>), the percentage, the source kind and
+  the citation on its output. Replacing <code>watch_text</code>'s
+  <code>estimate = _installed_estimate()</code> with <code>estimate = None</code>
+  as a scratch edit dashes the cost and reddens exactly that test
+  (<code>1 failed, 1 passed, 18 deselected</code>), then restored.</p>
+  <p><strong>The gap, stated as measured.</strong>
+  <code>estimated_cost</code>'s docstring no longer calls the gap an order of
+  magnitude. At <em>h</em> 0.93 against our own 0.975 the input term roughly
+  doubles and the total period cost rises about 1.6 times on our own traffic.
+  The docstring and this fragment both state that the single reader
+  <code>load_estimate</code> declines a record whose <em>h</em> is outside 0..1,
+  non-numeric or boolean, rather than clamping it on read.</p>
+  <p>The reader's decline rule is pinned by one parametrised test over values the
+  unit interval excludes (<em>h</em> = -0.01, 1.01, 2.0, the string
+  <code>"0.5"</code>, <code>null</code>, the booleans <code>true</code> and
+  <code>false</code>, an object and a list), with a positive control that the
+  bounds 0.0 and 1.0 are themselves kept. The clamp was removed from
+  <code>estimated_cost</code>: the loader is the guard, and a clamped read would
+  silently reshape a record the loader had refused.</p>
+  <p><strong>The label placement.</strong> The fragment now says the figure
+  prints once per period row and the label prints once beneath the ledger -- one
+  installed record answers for every period -- while each JSON row carries its
+  own <code>cost</code> and <code>cost_label</code>. The text panel does this at
+  <code>render_ledger_rows</code>, where the single <code>cost:</code> label is
+  appended after the row loop.</p>
+  <p><strong>The figure.</strong>
+  <code>docs/figures/serving-record-warehouse/srw-watch-prints-market-cost/cost_by_rendering.py</code>
+  reads <em>h</em> through <code>watch.load_estimate</code> from the installed
+  record <code>/work/projects/imas_gpu/agents/third-party-cache-rate.json</code>
+  (<em>h</em> 0.9298553736359844, <code>source_kind</code> measured) instead of a
+  hard-coded 0.858, and fails loudly if the record is absent. Regenerated, the
+  period prices to $1.14 for our own cached split, $1.25 for the installed
+  estimate and $3.58 for no cache; the figure's caption names the installed
+  record.</p>
+  <p>Measure: <code>uv run --no-sync pytest -p no:cacheprovider
+  tests/test_agent_watch_cost.py tests/test_agent_telemetry_watch.py
+  tests/test_agent_watch_live.py</code> 39 passed;
+  <code>pytest tests/test_agent_serve_registry.py -k
+  agent_package_modules_parse_with_serving_python</code> passed; <code>uv run
+  --no-sync ruff check imas_ambix tests</code> exits 0. Gate log:
+  <code>~/.config/reckon/crew/runs/r-20260929T135846035407-srw-watch-cost-wiring-and-record/gate.log</code>.
+  Negative control log:
+  <code>~/.config/reckon/crew/runs/r-20260929T135846035407-srw-watch-cost-wiring-and-record/negative-control.log</code>.</p>
+  <p>Caveat: this node repairs the evidence and the wiring guard; it does not
+  re-measure the estimate, which a sibling node measured, nor verify the merged
+  result, which a separately dispatched test node owns.</p>
+</section>

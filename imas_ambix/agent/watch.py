@@ -401,12 +401,24 @@ def ledger_cost(total: dict, price: dict) -> float | None:
 def estimated_cost(total: dict, price: dict, rate: float) -> float | None:
     """The best-effort market cost of one period at a third-party cache rate.
 
-    A hosted endpoint serving the same model would not have our own prefix
-    cache, so the estimate prices *rate* of the input at the cache-read tier
-    and the remainder at the prompt tier -- the two differ by a factor of
-    fifty, so assuming our own cache would understate the figure by an order
-    of magnitude. Our own cached count never enters the bill: the input split
-    is the estimated third-party rate, not what we measured.
+    *rate* is the installed third-party estimate's hit rate: the share of the
+    input a hosted endpoint would serve from its own prefix cache. The estimate
+    prices that share at the cache-read tier and the remainder at the prompt
+    tier. Our own cached count never enters the bill: the input split is the
+    estimated third-party rate, not what we measured, because our own cache --
+    one large store shared by the fleet -- reaches a hit rate no moving
+    endpoint does.
+
+    The gap is what makes the split matter. The two tiers differ by a factor of
+    fifty, so at h 0.93 against our own 0.975 the input term roughly doubles
+    and the total period cost rises about 1.6 times, measured on our own
+    traffic. Assuming our own cache therefore understates what a provider would
+    charge; the two readings are close in total only because output, not input,
+    dominates our bill.
+
+    The rate is never clamped here. The one reader, :func:`load_estimate`,
+    declines a record whose *h* is outside 0..1, non-numeric or a boolean, so
+    this function is handed a rate the record's own guard already accepted.
 
     A total the record did not carry is not a zero, so a period whose input or
     output was never recorded is declined and the row dashes rather than
@@ -416,11 +428,10 @@ def estimated_cost(total: dict, price: dict, rate: float) -> float | None:
     tokens_out = total.get("out")
     if tokens_in is None or tokens_out is None:
         return None
-    hit = max(0.0, min(1.0, float(rate)))
     prompt_in = max(0.0, float(tokens_in))
     return (
-        hit * prompt_in * price["cache_read"]
-        + (1.0 - hit) * prompt_in * price["prompt"]
+        float(rate) * prompt_in * price["cache_read"]
+        + (1.0 - float(rate)) * prompt_in * price["prompt"]
         + max(0.0, float(tokens_out)) * price["completion"]
     )
 

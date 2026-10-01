@@ -12,33 +12,46 @@
   completion rate, at the rate in force. Our own cached count still occupies
   its token column and never enters the bill.</p>
   <figure>
-    <img src="/imas-ambix/figures/serving-record-warehouse/srw-watch-prints-market-cost/cost-by-rendering.png" alt="Two panels. Left: price tiers per million tokens, prompt $10, cache read $1, completion $20, with the input tiers a factor of ten apart. Right: one recorded period of 278,174 prompt and 40,000 generated tokens priced three ways -- our own cached split (h=0.97) $1.14, the third-party estimate (h=0.858) $1.43 marked print this one, and no cache (h=0) $3.58.">
+    <img src="/imas-ambix/figures/serving-record-warehouse/srw-watch-prints-market-cost/cost-by-rendering.png" alt="Two panels. Left: price tiers per million tokens, prompt $10, cache read $1, completion $20, with the input tiers a factor of ten apart. Right: one recorded period of 278,174 prompt and 40,000 generated tokens priced three ways -- our own cached split (h=0.975) $1.14, the third-party estimate (h=0.930, the installed record's rate) $1.25 marked print this one, and no cache (h=0) $3.58.">
     <figcaption>The input tiers sit a factor of ten apart, so which share of the
     input is billed at the cheap tier decides the figure. Our own cache absorbs
-    97.5% of it and the installed third-party estimate is 85.8%, so the panel
-    had been printing the lowest of the three readings.</figcaption>
+    97.5% of it, while the installed estimate record
+    (<code>third-party-cache-rate.json</code>, measured on OpenRouter) gives
+    93.0%. The panel had been printing the lowest of the three readings, our own
+    cached split; the rate in the figure is read from that installed record
+    through the same reader the command uses, so the figure moves with the
+    record rather than with a constant copied into it.</figcaption>
   </figure>
-  <p>The figure and its label print once per period row: <em>h</em> as a
-  percentage, the source kind, and the citation, or the plain statement that no
-  estimate is installed. <code>h</code> is capped to 0..1 on read. No band and
-  no second figure is printed beside the estimate, because two costs on one row
-  invite the reader to pick an endpoint the command was never asked to name.
-  The same figure and label are carried in the <code>--json</code> period rows,
-  so a consumer renders the same figure the panel showed rather than deriving
-  its own. Installing the estimate record beside the price table is a deploy
-  step, not part of this change: with no record installed the cost column dashes
-  and the label states that no estimate is installed.</p>
+  <p>The figure prints once per period row, and the label prints once beneath
+  the ledger rather than on every row, because one installed record answers for
+  every period: the label gives <em>h</em> as a percentage, the source kind and
+  the citation, or the plain statement that no estimate is installed. The single
+  reader declines a record whose <code>h</code> is outside 0..1, non-numeric or
+  a boolean, rather than clamping what it holds. No band and no second figure is
+  printed beside the estimate, because two costs on one row invite the reader to
+  pick an endpoint the command was never asked to name. The same figure and
+  label are carried in the <code>--json</code> period rows -- each row carries
+  its own <code>cost</code> and <code>cost_label</code> -- so a consumer renders
+  the same figure the panel showed rather than deriving its own. Installing the
+  estimate record beside the price table is a deploy step, not part of this
+  change: with no record installed the cost column dashes and the label states
+  that no estimate is installed.</p>
   <p>Measure: <code>tests/test_agent_watch_cost.py tests/test_agent_telemetry_watch.py tests/test_agent_watch_live.py</code>
-  26 passed; the serving-interpreter parse guard
+  39 passed; the serving-interpreter parse guard
   (<code>test_agent_serve_registry.py -k agent_package_modules_parse_with_serving_python</code>)
   passed; <code>ruff check imas_ambix tests</code> exits 0. The estimate's
   <code>h</code> and the resulting figure are pinned by literal, and the tests
   assert that neither the own-cache figure (<code>ledger_cost</code>) nor the
   h=0 figure appears in the rendered output, so a revert to our own split fails
-  a test rather than passing a figure that merely looks like a cost. Negative
-  control: splitting the input by the period's own recorded cached count --
-  which equals <code>ledger_cost</code> -- was applied as a scratch edit and
-  reddened the pinned-figure test, then restored.</p>
+  a test rather than passing a figure that merely looks like a cost. The wiring
+  is pinned too: <code>watch_text</code> and <code>watch_document</code> are
+  driven with the fixture table and fixture record installed and no
+  <em>estimate</em> passed, so replacing the installed-record read with
+  <code>None</code> dashes the cost and reddens the wiring test. Negative
+  controls, both scratch edits restored afterwards: splitting the input by the
+  period's own recorded cached count -- which equals <code>ledger_cost</code> --
+  reddened the pinned-figure test, and replacing the installed-record read with
+  <code>None</code> reddened the wiring test.</p>
   <p>Caveat: the estimate record itself was measured by a sibling node; this
   node only reads it, and installing it is a deploy step. The rates the figure
   is priced from are the price table's, at the time-of-day rate in force at the
