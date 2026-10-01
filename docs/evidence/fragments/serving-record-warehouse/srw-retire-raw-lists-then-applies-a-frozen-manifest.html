@@ -1,0 +1,21 @@
+<section class="evidence-fragment" data-reckon="evidence" id="srw-retire-raw-lists-then-applies-a-frozen-manifest">
+  <header>
+    <h3>Retiring raw serving receipts behind a proven tier equality</h3>
+    <p class="meta">
+      Node <code>srw-retire-raw-lists-then-applies-a-frozen-manifest</code> &middot;
+      date 2026-10-02 &middot;
+      worktree <code>imas-ambix-0405601943d2/srw-retire-raw-lists-then-applies-a-frozen-manifest</code>
+    </p>
+  </header>
+  <p>
+    New module <code>imas_ambix/agent/telemetry_retention.py</code> and an
+    <code>imas-ambix agent retire-raw</code> command. The default run lists every
+    raw receipt file with per-counter raw/minute/hour totals and writes a
+    manifest of the eligible ones under
+    <code>~/.local/state/ambix/retention/</code>; <code>--apply MANIFEST</code>
+    deletes exactly that frozen list, re-checking liveness, age and the digests
+    of the file and its compacted siblings, and never removes a compacted tier
+    or a request log. Gate: 18 passed, 1 passed (serving-python parse), ruff
+    exit 0 (commit 23a26f10).
+  </p>
+</section>
