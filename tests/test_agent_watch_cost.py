@@ -353,7 +353,7 @@ def test_load_estimate_accepts_the_unit_interval_bounds(
     assert estimate.rate == pytest.approx(value)
 
 
-@pytest.mark.parametrize("value", [1.2, 2.0, -0.5, True])
+@pytest.mark.parametrize("value", [1.2, 2.0, -0.5, "0.5", True])
 def test_estimated_cost_refuses_a_rate_outside_the_unit_interval(
     value: object,
 ) -> None:
