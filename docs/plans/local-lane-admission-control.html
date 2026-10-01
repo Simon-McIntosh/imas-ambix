@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-10-02">
 <meta name="plan-impl" content="0.9">
-<meta name="plan-version" content="169">
+<meta name="plan-version" content="170">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s14&quot;:&quot;implementable&quot;,&quot;s15&quot;:&quot;done&quot;,&quot;s16&quot;:&quot;done&quot;,&quot;s17&quot;:&quot;implementable&quot;,&quot;s18&quot;:&quot;implementable&quot;,&quot;s19&quot;:&quot;implementable&quot;,&quot;s20&quot;:&quot;done&quot;,&quot;s21&quot;:&quot;implementable&quot;,&quot;s22&quot;:&quot;implementable&quot;}">
 <meta name="plan-artifacts" content="docs/evidence/archive/local-lane-admission-control-landed.html">
 <meta name="plan-commits" content="4bb11e8917c6dc9662d6214da6ec7eb595713984,da60421b4267fc7fc6fafb2a7e5dbb242da1cfba,569b91efd9e1e2e0e00c6d86cd589810391752c5,7ecfec3ba6ed3d68d68e03a104bd33e70ba75037,decc190bc301c74e02f2491bc6a557a163f9c744">
@@ -1371,7 +1371,10 @@
     <div class="r-comment-body"><p>§22 reviewed and restated readback complete at base 2c4ab78f; promotion attaches this as a comment on section id=s22.</p></div>
 </div>
 <div class="r-comment" data-section="s22" data-id="c-run-r-20261001T210558231717-llac-router-shares-slots-between-working-sessions" data-who="reckon-build" data-when="2026-10-01T21:54:56.732Z">
-    <div class="r-comment-body"><p>The admission ledger now records each admitted request&#x27;s coordinator session beside its run id and the admission object publishes active_sessions, fair_share (capacity when one session works, else floor(capacity/N)), borrow_reserve 2, new_session_worker_slots and a per-session {live_runs, worker_slots} map; one working session takes the global figure, two or more borrow around the fair share leaving each below-share session room for 2, a session idle beyond 180 s stops counting, session-less runs form one unattributed session, and a congested verdict zeroes every per-session figure. live_panel copies the five published fields into lane.worker_slots. Gate at 2dfeffcd: 58 passed, serving-interpreter parse passed, ruff clean; negative control (borrow term removed) fails the B==8 assertion. Evidence: docs/evidence/fragments/local-lane-admission-control/llac-router-shares-slots-between-working-sessions.html</p></div>
+    <div class="r-comment-body"><p>The admission ledger now records each admitted request's coordinator session beside its run id and the admission object publishes active_sessions, fair_share (capacity when one session works, else floor(capacity/N)), borrow_reserve 2, new_session_worker_slots and a per-session {live_runs, worker_slots} map; one working session takes the global figure, two or more borrow around the fair share leaving each below-share session room for 2, a session idle beyond 180 s stops counting, session-less runs form one unattributed session, and a congested verdict zeroes every per-session figure. live_panel copies the five published fields into lane.worker_slots. Gate at 2dfeffcd: 58 passed, serving-interpreter parse passed, ruff clean; negative control (borrow term removed) fails the B==8 assertion. Evidence: docs/evidence/fragments/local-lane-admission-control/llac-router-shares-slots-between-working-sessions.html</p></div>
+</div>
+<div class="r-comment" data-section="s22" data-id="c-run-r-20261001T215552753067-review-of-llac-router-shares-slots-between-working-sessions" data-who="reckon-build" data-when="2026-10-01T22:21:09.921Z">
+    <div class="r-comment-body"><p>pass</p></div>
 </div>
 </section>
 </main>
