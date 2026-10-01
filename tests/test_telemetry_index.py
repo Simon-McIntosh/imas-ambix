@@ -13,6 +13,7 @@ import pytest
 
 import imas_ambix.agent.telemetry_index as telemetry_index
 from imas_ambix.agent.receipt_bins import summarise_receipt_rows
+from imas_ambix.agent.serving_receipts import tier_paths
 from imas_ambix.agent.telemetry_index import (
     BOOT_SCOPE,
     HOST_SCOPE,
@@ -24,12 +25,16 @@ from imas_ambix.agent.telemetry_index import (
     key_scope,
     local_boot_id,
     measure_row,
+    one_tier_per_job,
     receipts_host,
     receipts_job_id,
+    receipts_tier,
     resolve_boot_id,
     resolve_host,
     row_boot_id,
 )
+from imas_ambix.agent.telemetry_ingest import tick
+from imas_ambix.agent.telemetry_store import run_compaction
 
 _BASE = _dt.datetime(2026, 9, 20, 6, 0, 0, tzinfo=_dt.UTC)
 
@@ -1422,3 +1427,159 @@ def test_a_row_written_before_the_time_was_recorded_is_not_assumed_unchanged(tmp
         index._conn.execute("UPDATE source SET mtime_ns = NULL")
         index._conn.commit()
         assert index.ingest([source]).files_scanned == 1, "trusted an unrecorded time"
+
+
+_TOKEN_COUNTERS = (
+    "engine.generation_tokens",
+    "engine.prompt_tokens",
+    "engine.uncached_prompt_tokens",
+)
+
+
+def _token_row(
+    seconds: float, *, generation: float, prompt: float, uncached: float
+) -> dict:
+    """A recorder sample carrying the three cumulative token counters."""
+    return _row(
+        seconds,
+        engine={
+            "family": "sglang",
+            "generation_tokens": generation,
+            "prompt_tokens": prompt,
+            "uncached_prompt_tokens": uncached,
+        },
+    )
+
+
+def _tier_fixture(tmp_path: Path) -> tuple[Path, Path, Path]:
+    """A raw receipts file and the minute and hour tiers it compacts to."""
+    raw = tmp_path / "deepseek-v4-1-flash-1273253.jsonl"
+    _write(
+        raw,
+        [
+            _token_row(0, generation=1000.0, prompt=500.0, uncached=400.0),
+            _token_row(30, generation=3000.0, prompt=1500.0, uncached=1200.0),
+        ],
+    )
+    minute, hour = tier_paths(raw)
+    run_compaction(raw, minute, hour)
+    return raw, minute, hour
+
+
+def _token_totals(index: TelemetryIndex) -> dict[str, float | None]:
+    return {
+        name: index.partitioned_total(name, _at(0), _at(60)).total
+        for name in _TOKEN_COUNTERS
+    }
+
+
+def _held_tiers(index: TelemetryIndex) -> set[str]:
+    """The tiers the index holds, read from the paths of its own sources."""
+    return {
+        receipts_tier(row["path"])[1]
+        for row in index._conn.execute("SELECT DISTINCT path FROM source")
+    }
+
+
+def test_a_job_is_counted_once_even_when_its_raw_and_compacted_files_overlap(
+    tmp_path,
+):
+    """A window offered at three tiers is counted once, from the finest.
+
+    A raw receipts file and its minute and hour compactions carry the same
+    counters for the same window, so ingesting all of them answers the window
+    once per tier -- three times the traffic. Only the finest tier offered is
+    read, and the totals are those of the raw file alone.
+    """
+    raw, minute, hour = _tier_fixture(tmp_path)
+    expected = {
+        "engine.generation_tokens": pytest.approx(2000.0),
+        "engine.prompt_tokens": pytest.approx(1000.0),
+        "engine.uncached_prompt_tokens": pytest.approx(800.0),
+    }
+
+    with TelemetryIndex(tmp_path / "raw-only.db") as alone:
+        alone.ingest([raw])
+        assert _token_totals(alone) == expected
+
+    with TelemetryIndex(tmp_path / "index.db") as index:
+        tick(index, tmp_path)
+        assert _token_totals(index) == expected
+        assert _held_tiers(index) == {"raw"}
+
+
+def test_deleting_the_raw_file_moves_the_job_to_its_minute_tier_unchanged(
+    tmp_path,
+):
+    """Removing the finest tier moves a job down without moving its totals.
+
+    A retention policy deletes the raw file, so the job's samples must come from
+    its minute tier instead. The raw samples already stored are removed in the
+    pass that selects the minute tier, so the window is not counted from both,
+    and the totals are unchanged because the tiers preserve them.
+    """
+    raw, minute, hour = _tier_fixture(tmp_path)
+    expected = {
+        "engine.generation_tokens": pytest.approx(2000.0),
+        "engine.prompt_tokens": pytest.approx(1000.0),
+        "engine.uncached_prompt_tokens": pytest.approx(800.0),
+    }
+
+    with TelemetryIndex(tmp_path / "index.db") as index:
+        tick(index, tmp_path)
+        assert _held_tiers(index) == {"raw"}
+
+        raw.unlink()
+        tick(index, tmp_path)
+
+        assert _token_totals(index) == expected
+        assert _held_tiers(index) == {"minute"}
+
+
+def test_a_job_falls_to_its_hour_tier_when_the_finer_tiers_are_gone(tmp_path):
+    """Raw gone and minute gone leaves the hour tier as the finest offered."""
+    raw, minute, hour = _tier_fixture(tmp_path)
+    expected = {
+        "engine.generation_tokens": pytest.approx(2000.0),
+        "engine.prompt_tokens": pytest.approx(1000.0),
+        "engine.uncached_prompt_tokens": pytest.approx(800.0),
+    }
+
+    with TelemetryIndex(tmp_path / "index.db") as index:
+        raw.unlink()
+        minute.unlink()
+        tick(index, tmp_path)
+
+        assert _token_totals(index) == expected
+        assert _held_tiers(index) == {"hour"}
+
+
+def test_receipts_tier_reads_the_job_and_the_tier_from_the_name():
+    """The job id and the tier are both in the name, and a roll does not move them."""
+    assert receipts_tier("deepseek-v4-1-flash-1273253.jsonl") == ("1273253", "raw")
+    assert receipts_tier("/shared/receipts/serve-9.jsonl.1") == ("9", "raw")
+    assert receipts_tier("serve-9.jsonl.1.gz") == ("9", "raw")
+    assert receipts_tier("serve-1273253.minute.jsonl") == ("1273253", "minute")
+    assert receipts_tier("serve-1273253.hour.jsonl") == ("1273253", "hour")
+    # A name carrying no job id is not one of a job's tiered files.
+    assert receipts_tier("summary.jsonl") is None
+
+
+def test_one_tier_per_job_keeps_the_finest_and_ignores_unkeyed_names():
+    """The finest tier a job offers is selected; a name with no job is always kept."""
+    raw = Path("serve-1001.jsonl")
+    minute = Path("serve-1001.minute.jsonl")
+    hour = Path("serve-1001.hour.jsonl")
+    notes = Path("notes.jsonl")
+
+    selected, chosen = one_tier_per_job([hour, minute, raw, notes])
+    assert set(selected) == {raw, notes}
+    assert chosen == {"1001": "raw"}
+
+    selected, chosen = one_tier_per_job([hour, minute])
+    assert set(selected) == {minute}
+    assert chosen == {"1001": "minute"}
+
+    selected, chosen = one_tier_per_job([hour, notes])
+    assert set(selected) == {hour, notes}
+    assert chosen == {"1001": "hour"}

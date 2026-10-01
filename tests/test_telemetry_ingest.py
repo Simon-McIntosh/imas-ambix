@@ -230,7 +230,18 @@ def test_main_takes_a_single_tick_when_asked(tmp_path):
         assert index.sample_count() == 1
 
 
-def test_a_tick_hands_the_index_exactly_the_sources_that_changed(tmp_path, monkeypatch):
+def test_a_tick_offers_the_whole_directory_but_rereads_only_what_changed(
+    tmp_path, monkeypatch
+):
+    """The index is offered every file so a job's tier choice sees them all.
+
+    Offering only what moved would leave a job's tier selection blind to a
+    sibling that did not change -- a compaction appearing beside the raw file,
+    or the raw file's deletion leaving the minute tier as the finest that
+    remains -- so the whole set is handed over every tick. What the metadata
+    decision buys is that an unchanged source is never re-read, which is the
+    cost the schedule is measured in.
+    """
     grown = tmp_path / "serve-1001.jsonl"
     settled = tmp_path / "serve-1002.jsonl"
     _write(grown, [_row(0)])
@@ -252,10 +263,14 @@ def test_a_tick_hands_the_index_exactly_the_sources_that_changed(tmp_path, monke
         _write(grown, [_row(5)])
         later = tick(index, tmp_path, previous=opening.sources)
 
-    # The first hand-off is every discovered source, so the second is not an
-    # empty hand-off read as an absence.
-    assert later.files_read == 1
-    assert handed[1] == [grown]
+        # The whole directory is offered on the second tick too, so the pass
+        # that reads one source is not a pass that saw only that source.
+        assert set(handed[1]) == {grown, settled}
+        # Only the source whose metadata moved is re-read; the settled one is
+        # handed over and left unopened, which the index's own count confirms.
+        assert later.files_read == 1
+        assert later.ingest.files_scanned == 1
+        assert later.ingest.rows_inserted == 1
 
 
 def test_the_ingest_never_connects_the_reader_cache_index(tmp_path, monkeypatch):

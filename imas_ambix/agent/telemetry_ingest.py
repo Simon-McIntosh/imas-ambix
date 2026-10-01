@@ -8,19 +8,21 @@ readers -- so a reader such as ``agent watch`` is not the process that maintains
 the store it queries. A reader that ingested would make the store current only
 as often as somebody looked, and would have two readers contend on one file.
 
-**A tick consults the sources' own metadata before it opens anything.** The
-record is written continuously, and on a network filesystem re-reading a file
-to discover it has not changed costs the whole file. The ingest inside the
-index already declines to re-read a source it has consumed to its end whose
-length and modification time have not moved, but that decision is only reachable
-once the file has been handed to it and its identity looked up. A tick
-remembers each source's ``(inode, size, mtime)`` from the previous tick and
-hands the index only the sources whose metadata has moved, so an unchanged
-source is never opened at all -- which is the cost the schedule is measured in.
-The fingerprint is the same metadata the index itself trusts for the same
-decision, so a rewrite that leaves both length and modification time untouched
-escapes this check exactly as it escapes the index's own; neither the recorder,
-a roll nor a compaction can produce one, because each of them writes.
+**A tick hands the index the whole directory, and the index opens none of it
+unnecessarily.** The record is written continuously, and on a network
+filesystem re-reading a file to discover it has not changed costs the whole
+file. Offering only what moved would make a job's tier selection blind: a serve
+job offers its window at several resolutions -- a raw receipts file and its
+minute and hour compactions -- and which one to read depends on which of them
+exist, so the whole set has to be seen even when only one file changed. The
+ingest therefore receives every discovered source, and declines to re-read a
+source it has consumed to its end whose length and modification time have not
+moved. A tick still fingerprints each source's ``(inode, size, mtime)`` from the
+previous tick and reports the metadata decision, so a caller can see what moved
+without a second scan. The fingerprint also catches a rewrite that leaves both
+length and modification time untouched, exactly as it escapes the index's own;
+neither the recorder, a roll nor a compaction can produce one, because each of
+them writes.
 
 **The tick is a pure step over one pass.** It holds no clock and no loop of its
 own, so a test can drive it directly and a caller can wrap it however the
@@ -134,18 +136,38 @@ def pending_sources(
     *pattern* is passed through to :func:`~imas_ambix.agent.telemetry_index.discover`;
     the default roll-aware rule is the right one for a receipts directory.
     """
+    pending, states, _ = _scan(directory, previous, pattern=pattern)
+    return pending, states
+
+
+def _scan(
+    directory: str | Path,
+    previous: Mapping[str, SourceFingerprint] | None,
+    *,
+    pattern: str | None,
+) -> tuple[list[Path], SourceStates, list[Path]]:
+    """``(pending, state, discovered)`` for one pass over *directory*.
+
+    The discovered list is what a tick offers the index: every file under the
+    directory, not only what moved. A serve job is counted from one of several
+    files that carry the same window at different resolutions, and the choice
+    depends on which of them exist, so the whole directory has to be seen for
+    the selection to be right even when only one of a job's files changed.
+    """
     known = previous or {}
     states: SourceStates = {}
     pending: list[Path] = []
+    discovered: list[Path] = []
     for path in discover(directory, pattern):
         fingerprint = SourceFingerprint.of(path)
         if fingerprint is None:
             continue
+        discovered.append(path)
         key = str(path)
         states[key] = fingerprint
         if known.get(key) != fingerprint:
             pending.append(path)
-    return pending, states
+    return pending, states, discovered
 
 
 def tick(
@@ -155,14 +177,18 @@ def tick(
     previous: Mapping[str, SourceFingerprint] | None = None,
     pattern: str | None = None,
 ) -> TickReport:
-    """Append the rows new to every changed source under *directory*.
+    """Append the rows new to every source under *directory* since *previous*.
 
-    Only the sources whose fingerprint moved are handed to the index, so a
-    second tick over an unchanged record opens nothing. The report's ``sources``
-    is what a caller threads into the next tick's *previous*.
+    The whole discovered set is handed to the index, not only what moved, so a
+    job's tier selection sees every file it offers -- a raw file and its
+    compactions -- and reads the finest tier of them rather than counting each.
+    The index leaves an unchanged file unopened, so offering the directory whole
+    does not re-read it, and ``files_read`` and ``files_skipped`` report the
+    metadata decision alone. The report's ``sources`` is what a caller threads
+    into the next tick's *previous*.
     """
-    pending, states = pending_sources(directory, previous, pattern=pattern)
-    report = index.ingest(pending)
+    pending, states, discovered = _scan(directory, previous, pattern=pattern)
+    report = index.ingest(discovered)
     return TickReport(
         files_discovered=len(states),
         files_read=len(pending),
