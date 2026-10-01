@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-10-01">
-<meta name="plan-version" content="105">
+<meta name="plan-version" content="106">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -899,6 +899,9 @@
 </div>
 <div class="r-comment" data-section="s11" data-id="c-run-r-20260929T135925206288-srw-gpu-watch-marks-a-stale-lane" data-who="reckon-build" data-when="2026-09-29T14:26:40.988Z">
     <div class="r-comment-body"><p>gpu-watch serve panel marks the router and slots rows with the lane document age in seconds when it is past its shelf life, prints no mark when fresh, and drops the med prompt column; fixture captures show 2 marks (stale 412s) on the stale document, 0 on the fresh one, and 0 under the unpublished-key control.</p></div>
+</div>
+<div class="r-comment" data-section="s11" data-id="c-run-r-20261001T035737232700-review-of-srw-gpu-watch-marks-a-stale-lane" data-who="reckon-build" data-when="2026-10-01T04:24:06.412Z">
+    <div class="r-comment-body"><p>independent review of r-20260929T135925206288-srw-gpu-watch-marks-a-stale-lane at head 199419626ed241b2c5b81db74b58e4f6b68adb00 over base 449389066494359a8f5353a4e6d83c25c4a82221 stored a parsed record scoring goal_fidelity 20, evidence 18, scope_discipline 20, durability 10, fit 19 (total 87, item_aggregate 6, call_sites 2, added_failure_count 0 with no added failure ids, three follow-on findings, three follow-ons). The section-11 repair is delivered and independently reproduced: _lane_age_stale at the copy&#x27;s line 1030 returns the lane document&#x27;s age when it publishes stale true or an age_seconds above suggested_shelf_life_seconds, and _stale_mark is appended to the router and slots rows at :1215 and :1229 while the prefill band drops its dead med prompt column; the delivered gpu-watch.diff applied to the dotfiles original 54dc23b reproduces the copy byte for byte, the stale and fresh and control captures reproduce byte for byte, and the declared negative control reproduced -- mutating the copy to read the unpublished lane_age_seconds and lane_stale keys leaves the stale fixture unmarked. Durability is the node&#x27;s weak dimension: no test pins the mark and the diff is unlanded, so the operator&#x27;s gpu-watch still draws a stale lane as current.</p></div>
 </div>
 <div class="r-comment" data-section="s9" data-id="c-run-r-20260929T072923543423-srw-third-party-hit-rate-measured" data-who="reckon-build" data-when="2026-09-29T08:16:09.318Z">
     <div class="r-comment-body"><p>Measured h = 0.8581679092941827 for deepseek/deepseek-v4.1-flash on OpenRouter from 60 responses (238720 cached prompt tokens over 278174 prompt tokens), spend USD 0.008353, recorded 2026-09-29 against endpoint https://openrouter.ai/api/v1/chat/completions; record at ~/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/third-party-hit-rate/third-party-hit-rate.json.</p></div>
