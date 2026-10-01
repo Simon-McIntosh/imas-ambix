@@ -409,29 +409,41 @@ def estimated_cost(total: dict, price: dict, rate: float) -> float | None:
     one large store shared by the fleet -- reaches a hit rate no moving
     endpoint does.
 
-    The gap is what makes the split matter. The two tiers differ by a factor of
-    fifty, so at h 0.93 against our own 0.975 the input term roughly doubles
-    and the total period cost rises about 1.6 times, measured on our own
-    traffic. Assuming our own cache therefore understates what a provider would
-    charge; the two readings are close in total only because output, not input,
-    dominates our bill.
+    The gap is what makes the split matter. At the 2026-09-29 prices for
+    ``deepseek/deepseek-v4.1-flash`` -- $0.30 per million prompt tokens, $0.006
+    cache read, $1.20 completion -- the input term at *h* 0.93 is about twice
+    the input term at our own 0.975, because the prompt rate is fifty times the
+    cache-read rate. The total ratio depends on the period's output share: on a
+    recorded period of 278,174 input and 40,000 output tokens at those prices,
+    output dominates the bill and the total rises only about 1.07 times. So the
+    total can look close to unmoved while the input is priced quite
+    differently, and assuming our own cache understates what a provider would
+    charge.
 
-    The rate is never clamped here. The one reader, :func:`load_estimate`,
-    declines a record whose *h* is outside 0..1, non-numeric or a boolean, so
-    this function is handed a rate the record's own guard already accepted.
+    *rate* is required to be a number in 0..1. A boolean, a non-numeric value,
+    or a rate outside the unit interval raises :class:`ValueError` naming the
+    rate. Clamping would silently reshape a value the caller's own guard
+    refused, and pricing outside the interval would hand back a negative or
+    inflated figure no cache rate supports.
 
     A total the record did not carry is not a zero, so a period whose input or
     output was never recorded is declined and the row dashes rather than
     publishing a cost for traffic nothing measured.
     """
+    if isinstance(rate, bool) or not isinstance(rate, (int, float)):
+        raise ValueError(f"cache hit rate must be a number in 0..1, got {rate!r}")
+    hit_rate = float(rate)
+    if not 0.0 <= hit_rate <= 1.0:
+        raise ValueError(f"cache hit rate must lie in 0..1, got {rate!r}")
+
     tokens_in = total.get("in")
     tokens_out = total.get("out")
     if tokens_in is None or tokens_out is None:
         return None
     prompt_in = max(0.0, float(tokens_in))
     return (
-        float(rate) * prompt_in * price["cache_read"]
-        + (1.0 - float(rate)) * prompt_in * price["prompt"]
+        hit_rate * prompt_in * price["cache_read"]
+        + (1.0 - hit_rate) * prompt_in * price["prompt"]
         + max(0.0, float(tokens_out)) * price["completion"]
     )
 

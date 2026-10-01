@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import datetime as _dt
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -350,3 +351,18 @@ def test_load_estimate_accepts_the_unit_interval_bounds(
     estimate = watch.load_estimate(table)
     assert estimate is not None
     assert estimate.rate == pytest.approx(value)
+
+
+@pytest.mark.parametrize("value", [1.2, 2.0, -0.5, True])
+def test_estimated_cost_refuses_a_rate_outside_the_unit_interval(
+    value: object,
+) -> None:
+    """A rate outside 0..1, non-numeric or boolean is refused, not priced.
+
+    The guard names the rate it refused, so no caller -- direct or through the
+    loader -- can obtain a negative or inflated figure by handing this
+    function a value the unit interval excludes.
+    """
+    price = {"prompt": 1e-5, "cache_read": 1e-6, "completion": 2e-5}
+    with pytest.raises(ValueError, match=re.escape(repr(value))):
+        watch.estimated_cost({"in": TOKENS_IN, "out": TOKENS_OUT}, price, value)
