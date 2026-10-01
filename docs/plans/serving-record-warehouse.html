@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-10-01">
-<meta name="plan-version" content="122">
+<meta name="plan-version" content="123">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -573,6 +573,10 @@
     <li><strong>The listing.</strong> For each eligible file it prints the job, the last row's time, the size, and the three totals per counter with pass or fail.</li>
     <li><strong>The listing is frozen.</strong> The listing run writes a manifest of the eligible files: path, size, SHA-256 and last row time. The apply run takes that manifest and deletes exactly its files. Before deleting each one, it confirms the file is still eligible and its SHA-256 is unchanged. A file that fails either test is skipped and reported, never deleted.</li>
     <li><strong>Who tells the sessions.</strong> The coordinator messages the live sessions before the apply run. The tool neither notifies anyone nor waits for acknowledgement.</li>
+    <li><strong>An empty or unreadable raw file counts as absent.</strong> A raw file with no parseable row does not stop the fall-through, so the index reads that job's minute tier.</li>
+    <li><strong>The re-check clock cannot add files.</strong> A file older than 14 days at listing is older still at apply. The apply re-check can only drop a file, never add one.</li>
+    <li><strong>Request receipts</strong> means the router's request files: <code>requests.jsonl</code> and its rotations under <code>~/public/imas-ambix/</code>. The retention command never opens the directory those live in.</li>
+    <li><strong><code>squeue</code> knows only live jobs.</strong> A job that has ended is absent from it. That is the intended reading: absence from <code>squeue</code>, together with 24 hours without a write, is the definition of not running.</li>
     </ul>
 
     <h2 id="s10">&sect;10 — gpu-watch reads the recorder: one source for every serving figure</h2>
@@ -1061,7 +1065,7 @@
     <div class="r-comment-body"><p>The finding f2d2663dd76 names a pointer defect in the reviewed run's coordination record (a negative_control.log path that does not exist, against the hyphen log the worker wrote), not in the repository, so it cites no repository path and the round is decline-only; the record pre-existed this node corrected and is read-only here, so no repository change answers it. This node declined it and verified the record now names the hyphen path on both lines (original preserved as manifest.md.asdelivered), committing the evidence fragment recording the reproduction and verification; measure: the reviewed node's two-file gate is green at the reviewed head (14 passed, EXIT=0) and the reviewed help test goes red (1 failed, 8 passed, EXIT=1) when its answering help change is reverted.</p></div>
 </div>
 <div class="r-comment" data-section="s5" data-id="c-run-r-20261001T210923116681-srw-ingest-has-one-placement" data-who="reckon-build" data-when="2026-10-01T21:28:47.966Z">
-    <div class="r-comment-body"><p>The ingest CLI now offers one placement: it removed --submit and --dry-run and the slurm.generate_ingest_script generator behind them, raised the --cadence default from 5 s to the locked 60 s, and its help now describes the standing loop the fleet allocation&#x27;s supervisor keeps; tests/test_agent_* suites pass 29/29 with ruff clean (pytest tests/test_agent_ingest_cli.py tests/test_telemetry_ingest.py tests/test_agent_watch_help.py 29 passed; serve-registry parse 1 passed; ruff check imas_ambix tests: All checks passed).</p></div>
+    <div class="r-comment-body"><p>The ingest CLI now offers one placement: it removed --submit and --dry-run and the slurm.generate_ingest_script generator behind them, raised the --cadence default from 5 s to the locked 60 s, and its help now describes the standing loop the fleet allocation's supervisor keeps; tests/test_agent_* suites pass 29/29 with ruff clean (pytest tests/test_agent_ingest_cli.py tests/test_telemetry_ingest.py tests/test_agent_watch_help.py 29 passed; serve-registry parse 1 passed; ruff check imas_ambix tests: All checks passed).</p></div>
 </div>
 </section>
 </main>
