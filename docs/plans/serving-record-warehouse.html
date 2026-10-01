@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-10-01">
-<meta name="plan-version" content="110">
+<meta name="plan-version" content="111">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -948,6 +948,9 @@
 </div>
 <div class="r-comment" data-section="s9" data-id="c-run-r-20261001T034928811652-review-of-srw-watch-cost-wiring-and-record" data-who="reckon-build" data-when="2026-10-01T04:20:55.784Z">
     <div class="r-comment-body"><p>review of run r-20260929T135846035407-srw-watch-cost-wiring-and-record at head 63a538d95bd0a713527ed5bf9301c9c731a823bd over base 449389066494359a8f5353a4e6d83c25c4a82221 stores a parsed record scoring goal_fidelity 20, evidence 17, scope_discipline 20, durability 16, fit 18 (total 91, item_aggregate 6, five production call sites, added_failure_count 0 with no added failure ids, one finding, two follow-ons).</p></div>
+</div>
+<div class="r-comment" data-section="s9" data-id="c-run-r-20261001T042425021081-srw-estimated-cost-refuses-an-out-of-range-rate" data-who="reckon-build" data-when="2026-10-01T04:48:52.797Z">
+    <div class="r-comment-body"><p>watch.estimated_cost now refuses a cache-hit rate it cannot price -- a boolean, non-numeric value, or rate outside 0..1 raises ValueError naming the rate -- so no caller can obtain a negative or inflated figure, pinned by a parametrised test over 1.2, 2.0, -0.5 and True; its docstring no longer states a fixed total multiplier but cites the period it quotes (278,174 input, 40,000 output tokens): at the 2026-09-29 prices the input term at h 0.93 is about twice the input term at our own 0.975 (ratio 1.991) while the total rises only about 1.07 times. Measure: gate at e2827f32 -- 43 passed EXIT=0, serving-interpreter parse guard 1 passed EXIT=0, ruff all checks passed EXIT=0; negative control (guard removed) 4 failed EXIT=1.</p></div>
 </div>
 <div class="r-comment" data-section="s12" data-id="c-run-r-20260929T090046798107-readback-2-of-serving-record-warehouse" data-who="reckon-build" data-when="2026-09-29T10:14:05.545Z">
     <div class="r-comment-body"><p>read-back of the definitions block in §12 of imas-ambix:serving-record-warehouse — 17 of 17 [build] readings closed, 9 of the block's 43 sentences flagged as carrying two readings (6 build-affecting), the definitions' factual claims verified against the workspace, and three gaps left for the plan's owner under follow_ons.</p></div>
