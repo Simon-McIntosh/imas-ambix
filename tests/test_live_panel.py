@@ -390,6 +390,41 @@ def test_lane_block_omits_unkeyed_share_when_the_lane_does_not_publish_it():
     assert "unkeyed_share" not in block["worker_slots"]
 
 
+def test_lane_block_omits_observed_seconds_when_the_lane_does_not_publish_it():
+    """A lane that has not published the observed span leaves it absent, not null.
+
+    The other four worker-slot fields are present here, so this pins the span
+    itself: a lane publishing slots but no observed span is not the same as a
+    lane publishing a span of zero, and the ratio beside it must be copied
+    rather than recomputed from a window the lane never named.
+    """
+    document = {
+        "observed_at": _stamp(0.0),
+        "admission": {
+            "headroom": 7,
+            "verdict": "admit",
+            "waiting": 0,
+            "oldest_wait_seconds": 0.0,
+            "live_runs": 5,
+            "requests_per_run": 0.8,
+            "worker_slots": 18,
+            "unkeyed_share": 0.25,
+        },
+    }
+    block = lane_block(document, now=BASE)
+    assert "observed_seconds" not in block["worker_slots"]
+    assert set(block["worker_slots"]) == {
+        "live_runs",
+        "requests_per_run",
+        "worker_slots",
+        "unkeyed_share",
+    }
+    assert block["worker_slots"]["live_runs"] == 5
+    assert block["worker_slots"]["requests_per_run"] == 0.8
+    assert block["worker_slots"]["worker_slots"] == 18
+    assert block["worker_slots"]["unkeyed_share"] == 0.25
+
+
 def test_lane_block_keeps_headroom_is_upper_bound_with_its_figure():
     document = {
         "observed_at": _stamp(0.0),
