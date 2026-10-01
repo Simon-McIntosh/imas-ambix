@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-10-02">
-<meta name="plan-version" content="130">
+<meta name="plan-version" content="131">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -891,7 +891,10 @@
     <div class="r-comment-body"><p>reviewed run r-20261001T214729620362-srw-retire-raw-lists-then-applies-a-frozen-manifest at base 56713e79 / head 1a1670f6: 92/100 (goal_fidelity 18, evidence 18, scope_discipline 20, durability 18, fit 18), added_failure_count 0; one follow-on finding (is_raw_receipt's by-name guard reads a date-suffixed request-receipt rotation as raw receipt job '01') and two follow-ons (rotated/compressed raw receipts are never enumerated; eligibility cannot distinguish a rebuilt tier from a pre-per-leaf-counts one, so rule 2 must precede apply).</p></div>
 </div>
 <div class="r-comment" data-section="s8" data-id="c-run-r-20261001T222734001211-srw-index-tier-choice-survives-empty-and-failed-reads" data-who="reckon-build" data-when="2026-10-01T22:54:44.167Z">
-    <div class="r-comment-body"><p>The index now drops a raw receipts file carrying no record line before its per-job tier choice, so a job whose raw file is empty is read from its minute tier with the minute totals (2000/1000/800) instead of reading as uncovered; samples from a job&#x27;s deselected tier are removed only after the selected tier has been read, so a read that raises leaves the job&#x27;s previously held minute samples in place; and the standing ingest loop&#x27;s DEFAULT_CADENCE_SECONDS is 60.0 with its entry point describing the supervisor&#x27;s standing loop. Gate at 3d14085c: 95 passed, parse guard 1 passed, ruff exit 0.</p></div>
+    <div class="r-comment-body"><p>The index now drops a raw receipts file carrying no record line before its per-job tier choice, so a job whose raw file is empty is read from its minute tier with the minute totals (2000/1000/800) instead of reading as uncovered; samples from a job's deselected tier are removed only after the selected tier has been read, so a read that raises leaves the job's previously held minute samples in place; and the standing ingest loop's DEFAULT_CADENCE_SECONDS is 60.0 with its entry point describing the supervisor's standing loop. Gate at 3d14085c: 95 passed, parse guard 1 passed, ruff exit 0.</p></div>
+</div>
+<div class="r-comment" data-section="s8" data-id="c-run-r-20261001T225554066993-review-of-srw-index-tier-choice-survives-empty-and-failed-reads" data-who="reckon-build" data-when="2026-10-01T23:25:07.486Z">
+    <div class="r-comment-body"><p>Independent review of run r-20261001T222734001211-srw-index-tier-choice-survives-empty-and-failed-reads (base 1c871e0f, head e7fa17da) stored as a parsed record scoring goal_fidelity 17, evidence 18, scope_discipline 20, durability 17, fit 18 (total 90, item_aggregate 6), added_failure_count 0 with no added failure ids, one finding and no follow-ons.</p></div>
 </div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20260924T122840994565-s26-currency-audit" data-who="reckon-ship" data-when="2026-09-24T12:30:00Z">
     <div class="r-comment-body"><p>stopped by the coordinator within a minute of launch: the repository's local-lane budget for the re-plan exercise was reallocated, and the audit was done in-session instead</p></div>
