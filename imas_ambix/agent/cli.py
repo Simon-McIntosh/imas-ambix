@@ -2762,53 +2762,42 @@ def watch(
 @click.option(
     "--cadence",
     type=float,
-    default=None,
-    help="Seconds between ticks in the loop (default: 5).",
+    default=60.0,
+    show_default=True,
+    help="Seconds between ticks in the loop.",
 )
 @click.option(
     "--once",
     is_flag=True,
     help="Take one tick and exit rather than loop on the cadence.",
 )
-@click.option(
-    "--submit",
-    is_flag=True,
-    help="Submit the ingest as a standing CPU-only SLURM service.",
-)
-@click.option(
-    "--dry-run",
-    is_flag=True,
-    help="Print the standing-service SLURM script without submitting it.",
-)
 def ingest(
     record_dir: str | None,
     index_path: str | None,
-    cadence: float | None,
+    cadence: float,
     once: bool,
-    submit: bool,
-    dry_run: bool,
 ) -> None:
     """Keep the telemetry index current from the recorded receipts.
 
     This is the one writer of the telemetry index: one writer, many readers. It
     scans the receipts directory, appends what is new from each source at its
-    recorded offset, and exits -- on its own schedule, so a reader such as
+    recorded offset, and ticks on its cadence -- so a reader such as
     ``agent watch`` is never the process that maintains the store it queries.
     The index is disposable, so it stays under the user's cache while the
     receipts it derives from live on shared storage.
 
+    This is a standing loop, not a pass that exits: the fleet allocation's
+    supervisor starts it and keeps it running, so the store stays current for a
+    reader who has not run yet. It ends with the allocation and starts again
+    when the allocation does.
+
     \b
-    Loop on the default five-second cadence:
+    Run the standing loop on the default sixty-second cadence:
         imas-ambix agent ingest
 
     \b
     Take one tick and exit, against a specific record and index:
         imas-ambix agent ingest --once --record /path/to/receipts
-
-    \b
-    Print the standing SLURM service script, then submit it:
-        imas-ambix agent ingest --dry-run
-        imas-ambix agent ingest --submit
     """
     from imas_ambix.agent import telemetry_ingest
     from imas_ambix.agent.telemetry_index import TelemetryIndex
@@ -2821,37 +2810,12 @@ def ingest(
         Path(index_path).expanduser() if index_path else DEFAULT_INDEX_PATH
     ).resolve()
 
-    if dry_run or submit:
-        from imas_ambix.agent.slurm import generate_ingest_script, submit_script
-
-        script = generate_ingest_script(
-            SiteConfig.from_env(),
-            record_dir=resolved_record,
-            index_path=resolved_index,
-        )
-        if dry_run:
-            console.print(script, markup=False, highlight=False, soft_wrap=True)
-            return
-        try:
-            job_id = submit_script(script)
-        except RuntimeError as exc:
-            raise click.ClickException(str(exc)) from exc
-        console.print(
-            f"Submitted ingest job {job_id} at {resolved_index}, watching "
-            f"{resolved_record}."
-        )
-        return
-
     index = TelemetryIndex(resolved_index)
     try:
         telemetry_ingest.run(
             index,
             resolved_record,
-            cadence=(
-                cadence
-                if cadence is not None
-                else telemetry_ingest.DEFAULT_CADENCE_SECONDS
-            ),
+            cadence=cadence,
             iterations=1 if once else None,
         )
     finally:
