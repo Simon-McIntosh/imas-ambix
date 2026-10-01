@@ -1,4 +1,4 @@
-"""The scheduled ingest appends the record once and re-reads only what changed.
+"""The standing ingest appends the record once and re-reads only what changed.
 
 Every assertion here is about what a tick *did* -- the rows it added and the
 filesystem calls it made -- rather than what the index happens to hold. A second
@@ -18,6 +18,7 @@ import pytest
 
 from imas_ambix.agent.telemetry_index import TelemetryIndex, discover
 from imas_ambix.agent.telemetry_ingest import (
+    DEFAULT_CADENCE_SECONDS,
     SourceFingerprint,
     main,
     pending_sources,
@@ -219,6 +220,23 @@ def test_run_ticks_on_its_cadence_and_carries_the_state_between_ticks(tmp_path):
 def test_a_non_positive_cadence_is_refused(tmp_path):
     with TelemetryIndex(tmp_path / "index.db") as index, pytest.raises(ValueError):
         run(index, tmp_path, cadence=0.0, iterations=1, sleep=lambda _: None)
+
+
+def test_the_default_cadence_is_sixty_seconds(tmp_path):
+    """The standing loop ticks on the locked sixty-second default.
+
+    The default is a module constant rather than a literal at the call site, so
+    the value is asserted where the loop reads it and the run below proves the
+    constant is what a caller that names no cadence actually gets.
+    """
+    assert DEFAULT_CADENCE_SECONDS == 60.0
+
+    _write(tmp_path / "serve-1001.jsonl", [_row(0)])
+    slept: list[float] = []
+    with TelemetryIndex(tmp_path / "index.db") as index:
+        run(index, tmp_path, iterations=3, sleep=slept.append)
+
+    assert slept == [60.0, 60.0]
 
 
 def test_main_takes_a_single_tick_when_asked(tmp_path):
