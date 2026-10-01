@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-10-01">
-<meta name="plan-version" content="124">
+<meta name="plan-version" content="125">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -1069,6 +1069,9 @@
 </div>
 <div class="r-comment" data-section="s5" data-id="c-run-r-20261001T210923116681-srw-ingest-has-one-placement" data-who="reckon-build" data-when="2026-10-01T21:28:47.966Z">
     <div class="r-comment-body"><p>The ingest CLI now offers one placement: it removed --submit and --dry-run and the slurm.generate_ingest_script generator behind them, raised the --cadence default from 5 s to the locked 60 s, and its help now describes the standing loop the fleet allocation's supervisor keeps; tests/test_agent_* suites pass 29/29 with ruff clean (pytest tests/test_agent_ingest_cli.py tests/test_telemetry_ingest.py tests/test_agent_watch_help.py 29 passed; serve-registry parse 1 passed; ruff check imas_ambix tests: All checks passed).</p></div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-run-r-20261001T212913084959-review-of-srw-ingest-has-one-placement" data-who="reckon-build" data-when="2026-10-01T21:50:44.374Z">
+    <div class="r-comment-body"><p>Independent review of r-20261001T210923116681-srw-ingest-has-one-placement at head 14e4ef3c over base 2c4ab78f, stored as a parsed record scoring goal_fidelity 18 / evidence 17 / scope_discipline 19 / durability 15 / fit 16, total 85, added_failure_count 0 from this review&#x27;s own base/head arms of the declared three-file gate (the reviewed run was dispatched unarmed), one finding recorded (the module retains a second runnable ingest entry point with a five-second cadence default and &quot;scheduled&quot; framing) and one follow-on (the landed evidence fragment still documents the removed generator).</p></div>
 </div>
 </section>
 </main>
