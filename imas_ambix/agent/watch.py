@@ -550,26 +550,38 @@ def _cached_span(index: TelemetryIndex, start: float, end: float) -> float | Non
 
 
 def _timestamps(index: TelemetryIndex, start: float, end: float) -> list[float]:
-    """Sample epochs in the window, ascending."""
-    stamps: list[float] = []
-    for row in index.rows(start, end):
-        epoch = _parse_timestamp(row.get("timestamp"))
-        if epoch is not None:
-            stamps.append(epoch)
-    return sorted(stamps)
+    """Sample epochs in the window, ascending.
+
+    Read from the store's own ``ts_epoch`` column rather than decoded one by
+    one from the samples' payloads: the column is what the window filters on
+    and the index orders, and decoding a payload to re-derive a value the store
+    already carries is what made each period's stamps cost seconds.
+    """
+    return index.timestamps(start, end)
 
 
-def observed_fraction(index: TelemetryIndex, start: float, end: float) -> float:
+def observed_fraction(
+    index: TelemetryIndex,
+    start: float,
+    end: float,
+    *,
+    stamps: Sequence[float] | None = None,
+) -> float:
     """Fraction of the window the record actually speaks for.
 
     Each sample stands for the interval running to the next one, capped by
     :data:`SAMPLE_SPEAKS_FOR`, so a gap while nothing was recording contributes
     nothing, and coverage is the total time the record accounts for over the
     window's length.
+
+    *stamps* lets a caller that already read the window's epochs hand them in,
+    so a period's stamps are fetched once and shared with its utilisation
+    rather than read a second time for the same window.
     """
     if end <= start:
         return 0.0
-    stamps = _timestamps(index, start, end)
+    if stamps is None:
+        stamps = _timestamps(index, start, end)
     if len(stamps) < 2:
         return 0.0
     weight = 0.0
@@ -578,7 +590,13 @@ def observed_fraction(index: TelemetryIndex, start: float, end: float) -> float:
     return weight / (end - start)
 
 
-def card_utilisation(index: TelemetryIndex, start: float, end: float) -> float | None:
+def card_utilisation(
+    index: TelemetryIndex,
+    start: float,
+    end: float,
+    *,
+    stamps: Sequence[float] | None = None,
+) -> float | None:
     """Mean busy fraction of the serve's cards across the window.
 
     This is what ``nvidia-smi`` reported for those cards, recorded beside the
@@ -592,7 +610,7 @@ def card_utilisation(index: TelemetryIndex, start: float, end: float) -> float |
     fraction that happened to be recorded as if it were the whole of it is
     reading the watcher's habits as the deployment's load.
     """
-    if observed_fraction(index, start, end) < OBSERVED_ENOUGH:
+    if observed_fraction(index, start, end, stamps=stamps) < OBSERVED_ENOUGH:
         return None
     readings = []
     for prefix in CARD_PREFIXES:
@@ -661,7 +679,7 @@ def period_row(
         tokens_in=tokens_in,
         cached=cached,
         tokens_out=tokens_out,
-        utilisation=card_utilisation(index, start, end),
+        utilisation=card_utilisation(index, start, end, stamps=stamps),
         cost=cost,
         cost_label=cost_label(estimate),
     )
@@ -1139,20 +1157,6 @@ def _plain(markup: str, *, width: int = 110) -> str:
         markup, soft_wrap=False
     )
     return buffer.getvalue()
-
-
-def _parse_timestamp(value: Any) -> float | None:
-    """Epoch seconds from a record's ISO timestamp, or ``None`` if unusable."""
-    if not isinstance(value, str) or not value:
-        return None
-    text = value[:-1] + "+00:00" if value.endswith("Z") else value
-    try:
-        parsed = _dt.datetime.fromisoformat(text)
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=_dt.UTC)
-    return parsed.timestamp()
 
 
 __all__ = [

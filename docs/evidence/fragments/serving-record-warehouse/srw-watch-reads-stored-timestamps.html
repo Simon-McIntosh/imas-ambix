@@ -1,0 +1,46 @@
+<section class="evidence-fragment" data-reckon="evidence" id="srw-watch-reads-stored-timestamps">
+  <header>
+    <h3>Watch reads sample times from the stored epoch, not every payload</h3>
+    <p class="meta">
+      Node <code>srw-watch-reads-stored-timestamps</code> &middot;
+      date 2026-10-02 &middot;
+      worktree <code>imas-ambix-0405601943d2/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-watch-reads-stored-timestamps</code>
+    </p>
+  </header>
+
+  <p>
+    Implementing the recommendation of the read-cost profile: the period table
+    decoded every sample payload to recover a timestamp the index already
+    stored, and fetched each period's samples twice.
+    <code>TelemetryIndex.timestamps</code> now returns the window's epochs from
+    the <code>ts_epoch</code> column through the existing <code>sample_time</code>
+    index, <code>watch._timestamps</code> uses it, and <code>period_row</code>
+    computes a period's stamps once and shares them with
+    <code>card_utilisation</code>/<code>observed_fraction</code>. Rows with
+    <code>ts_epoch IS NULL</code> stay excluded as before.
+  </p>
+
+  <h4>Measure, on the fleet allocation against the read-only snapshot</h4>
+  <ul>
+    <li>
+      <code>watch_document</code> wall: base <strong>100.0 / 101.7 s</strong>
+      &rarr; head <strong>50.7 / 52.3 s</strong>.
+    </li>
+    <li>
+      peak RSS: base <strong>2.90 GiB</strong> &rarr; head <strong>126 MiB</strong>.
+    </li>
+    <li>
+      <code>record</code>, <code>periods</code> and every <code>ledger</code>
+      field identical field by field (<code>compare.json</code>).
+    </li>
+  </ul>
+
+  <p class="meta">
+    Gate: 108 passed in <code>tests/test_agent_telemetry_watch.py</code>,
+    <code>test_agent_watch_live.py</code>, <code>test_agent_watch_cost.py</code>,
+    <code>test_telemetry_index.py</code>; serving-python parse test passed;
+    <code>ruff check imas_ambix tests</code> clean. Negative control: restoring
+    the payload-decoding <code>_timestamps</code> fails the no-payload-decode
+    test.
+  </p>
+</section>

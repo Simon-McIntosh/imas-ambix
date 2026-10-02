@@ -220,6 +220,57 @@ def test_utilisation_declines_on_thin_coverage(tmp_path: Path) -> None:
     index.close()
 
 
+def test_sample_times_are_read_from_the_stored_epoch_column(tmp_path: Path) -> None:
+    """The window's epochs come from the store's column, matching the payload parse.
+
+    The stored ``ts_epoch`` is what the ingest wrote from the record's own
+    timestamp, so reading it must return exactly what re-decoding each payload
+    and parsing its timestamp would: same values, same window, same order. That
+    equivalence is what makes the cheaper read a substitution rather than a
+    second answer, and the period it backs is asserted unchanged beside it.
+    """
+    from imas_ambix.agent.telemetry_index import _parse_timestamp as parse_iso
+
+    now = _dt.datetime.now(_dt.UTC).timestamp()
+    index = _index(tmp_path, _dense_rows(now, steps=40, spacing=60.0))
+
+    start, end = now - HOUR, now
+    from_payloads = sorted(
+        epoch
+        for row in index.rows(start, end)
+        if (epoch := parse_iso(row["timestamp"])) is not None
+    )
+    assert index.timestamps(start, end) == from_payloads
+    assert all(isinstance(stamp, float) for stamp in index.timestamps(start, end))
+
+    period = watch.ledger(index, now=now, periods=((HOUR, "1 hour"),))[0]
+    assert period.utilisation == pytest.approx(50.0)
+    index.close()
+
+
+def test_computing_a_period_decodes_no_sample_payload(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A period's stamps are the stored epochs, so no payload is decoded.
+
+    The payload parser is made to raise rather than return: a period whose
+    stamps come from the ``ts_epoch`` column still renders, and one that read a
+    payload would fail here with the refusal instead of quietly passing on a
+    fixture too small to show the cost.
+    """
+    now = _dt.datetime.now(_dt.UTC).timestamp()
+    index = _index(tmp_path, _dense_rows(now, steps=40, spacing=60.0))
+
+    def _refuse(row: sqlite3.Row) -> dict:  # reached only on a payload read
+        raise AssertionError("a sample payload was decoded to compute a period")
+
+    monkeypatch.setattr(TelemetryIndex, "_keyed_row", staticmethod(_refuse))
+    period = watch.ledger(index, now=now, periods=((HOUR, "1 hour"),))[0]
+    assert period.utilisation == pytest.approx(50.0)
+    assert period.tokens_in is not None
+    index.close()
+
+
 def test_bars_are_drawn_for_every_percentage(tmp_path: Path) -> None:
     """Every proportion on the panel is a bar and a figure, or a dash."""
     drawn = watch.bar(50.0)
