@@ -45,6 +45,8 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import datetime as _dt
+import sqlite3
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -199,6 +201,26 @@ def tick(
     )
 
 
+def _is_lock_error(error: sqlite3.OperationalError) -> bool:
+    """Whether an ``OperationalError`` is SQLite reporting a locked or busy file."""
+    message = str(error).lower()
+    return "locked" in message or "busy" in message
+
+
+def _announce_failed_tick(error: sqlite3.OperationalError) -> None:
+    """Print one flushed line naming a failed tick and its error message.
+
+    The line is the default *on_error*: the failure is announced where the
+    standing service's operator can see it, and the loop carries on rather than
+    ending on a condition that clears itself. The message's newlines are
+    flattened to spaces so the announcement stays one line whatever SQLite put
+    in it.
+    """
+    stamp = _dt.datetime.now(_dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    message = " ".join(str(error).splitlines())
+    print(f"{stamp} ingest tick failed: {message}", flush=True)
+
+
 def run(
     index: TelemetryIndex,
     directory: str | Path,
@@ -207,6 +229,7 @@ def run(
     iterations: int | None = None,
     sleep: Callable[[float], None] = time.sleep,
     on_tick: Callable[[TickReport], None] | None = None,
+    on_error: Callable[[sqlite3.OperationalError], None] | None = None,
     previous: Mapping[str, SourceFingerprint] | None = None,
     pattern: str | None = None,
 ) -> list[TickReport]:
@@ -223,8 +246,17 @@ def run(
     only the latest report, so a service that runs for months holds no growing
     history.
 
-    *sleep* and *on_tick* are injected so a caller -- a test, or a service that
-    wants to log each pass -- can supply its own without the loop knowing.
+    *sleep*, *on_tick* and *on_error* are injected so a caller -- a test, or a
+    service that wants to log each pass or each failure -- can supply its own
+    without the loop knowing. A tick that raises SQLite's lock error is not a
+    fault in the record: another process holds the index file for a moment, so
+    the loop discards the failed tick's open transaction, keeps the source
+    fingerprints it started that tick from -- so the rows it did not read are
+    still pending -- hands the message to *on_error* (which by default prints
+    one flushed line), and ticks again on the next cadence. Every other
+    exception is not self-clearing and propagates. A failed tick counts as one
+    of *iterations*, so a finite caller cannot loop forever on a lock that never
+    clears.
     """
     if cadence <= 0:
         raise ValueError(f"cadence must be positive seconds, not {cadence!r}")
@@ -234,20 +266,35 @@ def run(
         return []
     state = previous
     reports: list[TickReport] = []
+    ticks = 0
     while True:
-        report = tick(index, directory, previous=state, pattern=pattern)
-        state = report.sources
-        if iterations is None:
-            # The scheduled service never returns, so a list that grew by one
-            # per tick would grow for the life of the process. Rebind so the
-            # previous list is dropped for collection; the latest report is all
-            # a caller can observe of an endless loop, so it is all that is kept.
-            reports = [report]
+        ticks += 1
+        try:
+            report = tick(index, directory, previous=state, pattern=pattern)
+        except sqlite3.OperationalError as error:
+            if not _is_lock_error(error):
+                # A non-lock OperationalError is a fault in the store itself,
+                # not transient contention, so it ends the process as before.
+                raise
+            # A locked index clears on its own: drop the failed tick's open
+            # transaction, keep the fingerprints this tick began from so the
+            # rows it did not read are still pending, and tick again.
+            index.rollback()
+            (on_error or _announce_failed_tick)(error)
         else:
-            reports.append(report)
-        if on_tick is not None:
-            on_tick(report)
-        if iterations is not None and len(reports) >= iterations:
+            state = report.sources
+            if iterations is None:
+                # The scheduled service never returns, so a list that grew by
+                # one per tick would grow for the life of the process. Rebind so
+                # the previous list is dropped for collection; the latest report
+                # is all a caller can observe of an endless loop, so it is all
+                # that is kept.
+                reports = [report]
+            else:
+                reports.append(report)
+            if on_tick is not None:
+                on_tick(report)
+        if iterations is not None and ticks >= iterations:
             break
         sleep(cadence)
     return reports
