@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-10-02">
-<meta name="plan-version" content="157">
+<meta name="plan-version" content="158">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -1004,6 +1004,9 @@
 </div>
 <div class="r-comment" data-section="s10" data-id="c-run-r-20261002T102026193913-review-of-srw-watch-read-cost-profile" data-who="reckon-build" data-when="2026-10-02T10:41:47.890Z">
     <div class="r-comment-body"><p>Independent review of r-20261002T093925022271-srw-watch-read-cost-profile (imas-ambix §10 support node profiling watch.watch_document) scored goal_fidelity 19 / evidence 19 / scope_discipline 20 / durability 16 / fit 19, total 93, reviewed at base=head d0cdc32ff612eb8bdf2b6b2be246e6641111e6a5; read the report and its six evidence artefacts and independently reproduced the central facts (live index journal_mode=delete and 4,799,336,448 bytes; sample.ts_epoch column and sample_time index present so the recommended projection is behaviour-preserving; both _parse_timestamp bodies byte-identical; cprofile.txt 117.447 s / json.loads 47.999 s); one non-blocking finding: report.md:236-242 and run_all.py:3 cite the node-local scratch path /tmp/srw-cost-profile, so the reproduction does not re-run from the durable copies saved beside the report.</p></div>
+</div>
+<div class="r-comment" data-section="s10" data-id="c-run-r-20261002T102143653458-srw-watch-reads-stored-timestamps" data-who="reckon-build" data-when="2026-10-02T10:55:15.881Z">
+    <div class="r-comment-body"><p>Make agent watch read sample times from the stored ts_epoch column, not decoded payloads: TelemetryIndex.timestamps returns a window&#x27;s epochs via sample_time, watch._timestamps uses it, and period_row computes a period&#x27;s stamps once for card_utilisation/observed_fraction; on the read-only snapshot watch_document falls from 100.0/101.7 s and 2.90 GiB to 50.7/52.3 s and 126 MiB, with record, periods and every ledger field identical field by field; fragment docs/evidence/fragments/serving-record-warehouse/srw-watch-reads-stored-timestamps.html</p></div>
 </div>
 <div class="r-comment" data-section="s11" data-id="c-run-r-20260929T072617274722-scout-live-panel-reuse" data-who="reckon-build" data-when="2026-09-29T08:33:34.522Z">
     <div class="r-comment-body"><p>No landing step. The map is an evidence input for a separately dispatched build wave; it is not merged into the repository and needs no review of the merged result.</p></div>
