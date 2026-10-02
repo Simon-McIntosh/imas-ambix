@@ -835,6 +835,37 @@ class TelemetryIndex:
         self._conn.executescript(_SCHEMA)
         self._migrate()
 
+    @classmethod
+    def readonly(
+        cls,
+        path: str | Path,
+        *,
+        host: str | None = None,
+        boot_id: str | None = None,
+    ) -> TelemetryIndex:
+        """Open an existing index read-only, creating nothing.
+
+        This is the reader's handle: it opens the file through a SQLite URI in
+        ``mode=ro`` with a five-second busy timeout, so a read never blocks
+        behind the standing writer and never writes to the file itself. It runs
+        neither the schema script nor a migration and creates neither the file
+        nor its parent directory -- a path with no file raises
+        :class:`sqlite3.OperationalError` rather than materialising an empty
+        index, because a reader that created its own store would report an
+        empty record for one whose ingest has simply not run yet. Every query
+        is available; only the writers (:meth:`ingest`, :meth:`rebuild`) are
+        refused, and an attempt to write is refused by the handle itself.
+        """
+        target = Path(path)
+        index = cls.__new__(cls)
+        index.path = target
+        index.host = resolve_host(host)
+        index.boot_id = UNKNOWN_BOOT_ID if boot_id is None else boot_id
+        uri = target.resolve().as_uri() + "?mode=ro"
+        index._conn = sqlite3.connect(uri, uri=True, timeout=5.0)
+        index._conn.row_factory = sqlite3.Row
+        return index
+
     def _migrate(self) -> None:
         """Add columns an index written by an earlier pass does not carry.
 

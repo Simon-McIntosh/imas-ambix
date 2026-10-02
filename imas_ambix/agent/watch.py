@@ -46,7 +46,7 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from imas_ambix.agent.telemetry_index import TelemetryIndex, discover
+from imas_ambix.agent.telemetry_index import TelemetryIndex
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -844,6 +844,49 @@ def render_ledger_rows(
     return lines
 
 
+def index_status(path: str | Path, now: float) -> dict:
+    """The index file's presence and last-ingest time, read from its metadata.
+
+    No index file is no index. The reader opens the index read-only, so a read
+    never builds one: if the path is absent the caller reports that, rather
+    than materialising an empty store and showing an empty record for a fleet
+    whose ingest has not run yet. With a file present, the last-ingest time is
+    the file's own modification time in UTC to the second -- only an ingest
+    pass writes the index, so its modification time is when that pass last
+    wrote -- and its age is how long ago that was, so a stale index reads as
+    stale rather than as current.
+    """
+    target = Path(path)
+    try:
+        info = target.stat()
+    except OSError:
+        return {"path": str(target), "exists": False}
+    written = _dt.datetime.fromtimestamp(info.st_mtime, _dt.UTC).replace(
+        microsecond=0
+    )
+    return {
+        "path": str(target),
+        "exists": True,
+        "last_ingest_at": written.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "age_seconds": round(now - info.st_mtime),
+    }
+
+
+def render_index(status: dict) -> str:
+    """The index block: where it is, or that it is not there and who keeps it."""
+    if not status["exists"]:
+        return (
+            f"[bold]index[/]  [dim]none at[/] {status['path']}\n"
+            "[dim]the fleet's ingest service (imas-ambix agent ingest) "
+            "maintains it[/]"
+        )
+    return (
+        f"[bold]index[/]  {status['path']}  "
+        f"[dim]last ingest {status['last_ingest_at']} "
+        f"({fmt_span(status['age_seconds'])} ago)[/]"
+    )
+
+
 def render_document(
     index: TelemetryIndex,
     *,
@@ -861,7 +904,7 @@ def render_document(
         model=reading.get("model_id"),
         estimate=estimate,
     )
-    blocks = [render_rail(reading)]
+    blocks = [render_index(index_status(index.path, when)), render_rail(reading)]
     cards = render_cards(index, when)
     if cards:
         blocks.append("\n".join(cards))
@@ -898,27 +941,29 @@ def watch_text(
     estimate: CacheRateEstimate | None = None,
     width: int = 110,
 ) -> str:
-    """Ingest the record, query the index, and return the rendered panels.
+    """Query the index read-only and return the rendered panels.
 
-    This is the whole subcommand minus argument parsing: it discovers the
-    record files under *record_dir*, consumes what has been appended since the
-    last pass, and asks the index for every figure the panels show. Nothing
-    here probes the serve, and nothing here writes a ledger. *prices* is passed
-    in for a caller that already holds a table; ``None`` refreshes and reads
-    the table the package owns. *estimate* is passed in the same way; ``None``
-    reads the record installed beside that table.
+    This is the whole subcommand minus argument parsing: it opens the index the
+    fleet's ingest service maintains, through a read-only handle, and asks it
+    for every figure the panels show. It never ingests on a read and never
+    creates an index: with no index file it says so and prints no figures,
+    because the store is current for a reader that has not run yet and this
+    command is not what makes it so. *prices* is passed in for a caller that
+    already holds a table; ``None`` refreshes and reads the table the package
+    owns. *estimate* is passed in the same way; ``None`` reads the record
+    installed beside that table.
     """
-    directory = Path(record_dir or default_record_dir())
+    when = time.time() if now is None else now
     target = Path(index_path or DEFAULT_INDEX_PATH)
-    target.parent.mkdir(parents=True, exist_ok=True)
+    status = index_status(target, when)
+    if not status["exists"]:
+        return _plain(render_index(status), width=width)
     if prices is None:
         prices, _ = _owned_prices()
     if estimate is None:
         estimate = _installed_estimate()
-    sources = discover(directory)
-    with TelemetryIndex(target) as index:
-        index.ingest(sources)
-        document = render_document(index, now=now, prices=prices, estimate=estimate)
+    with TelemetryIndex.readonly(target) as index:
+        document = render_document(index, now=when, prices=prices, estimate=estimate)
     return _plain(document, width=width)
 
 
@@ -997,34 +1042,44 @@ def watch_document(
     price_age: float | None = None,
     estimate: CacheRateEstimate | None = None,
 ) -> dict:
-    """Consume the record, then return the panels' figures as plain data.
+    """Query the index read-only, then return the panels' figures as data.
 
     The full document carries the index-derived ``record``, ``ledger`` and
     ``price_age`` fields alongside the ``lane`` and ``live`` blocks, so a
     consumer that wants every figure reads one document rather than reaching
-    into the index on its own. The two blocks come from :func:`live_document`,
-    which reads the published sources and never touches what this path built.
+    into the index on its own. It never ingests on a read and never creates an
+    index: with no index file the ``index`` block reports it absent and the
+    period rows are empty, because a read is not what keeps the store current.
+    The ``lane`` and ``live`` blocks come from :func:`live_document`, which
+    reads the published sources and never touches the index.
     """
     when = time.time() if now is None else now
     directory = Path(record_dir or default_record_dir())
     target = Path(index_path or DEFAULT_INDEX_PATH)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    if prices is None:
-        prices, age = _owned_prices()
-        if price_age is None:
-            price_age = age
-    if estimate is None:
-        estimate = _installed_estimate()
-    sources = discover(directory)
-    with TelemetryIndex(target) as index:
-        index.ingest(sources)
-        payload = document(
-            index,
-            now=when,
-            prices=prices,
-            price_age=price_age,
-            estimate=estimate,
-        )
+    status = index_status(target, when)
+    if status["exists"]:
+        if prices is None:
+            prices, age = _owned_prices()
+            if price_age is None:
+                price_age = age
+        if estimate is None:
+            estimate = _installed_estimate()
+        with TelemetryIndex.readonly(target) as index:
+            payload = document(
+                index,
+                now=when,
+                prices=prices,
+                price_age=price_age,
+                estimate=estimate,
+            )
+    else:
+        payload = {
+            "record": {},
+            "ledger": [],
+            "periods": [],
+            "price_age": price_age,
+        }
+    payload["index"] = status
     payload.update(
         live_document(
             record_dir=directory,

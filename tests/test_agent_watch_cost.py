@@ -120,6 +120,17 @@ def _fixture_index(tmp_path: Path, now: float) -> TelemetryIndex:
     return index
 
 
+def _build_index(directory: Path, index_path: Path) -> None:
+    """Build *index_path* from *directory*, as the standing ingest does.
+
+    The watch read is read-only, so a test that calls it must lay the index
+    down first; this stands in for the fleet's ingest pass.
+    """
+    index = TelemetryIndex(index_path)
+    index.ingest(discover(directory))
+    index.close()
+
+
 def _estimate_record(tmp_path: Path) -> Path:
     """Write the fixture estimate record beside a fixture price table."""
     table = tmp_path / "openrouter-prices.json"
@@ -293,7 +304,9 @@ def test_watch_text_prices_from_the_installed_record(
     now = _dt.datetime.now(_dt.UTC).timestamp()
     _install_fixture_table(tmp_path, monkeypatch)
     directory = _write_receipts(tmp_path, now)
-    text = watch.watch_text(directory, tmp_path / "text.sqlite3", now=now)
+    index_path = tmp_path / "text.sqlite3"
+    _build_index(directory, index_path)
+    text = watch.watch_text(directory, index_path, now=now)
     assert watch.fmt_usd(ESTIMATED_COST) in text
     assert "55.0%" in text
     assert "measured" in text
@@ -311,6 +324,7 @@ def test_watch_document_prices_from_the_installed_record(
     now = _dt.datetime.now(_dt.UTC).timestamp()
     _install_fixture_table(tmp_path, monkeypatch)
     directory = _write_receipts(tmp_path, now)
+    _build_index(directory, tmp_path / "doc.sqlite3")
     payload = watch.watch_document(directory, tmp_path / "doc.sqlite3", now=now)
     row = payload["ledger"][0]
     assert row["cost"] == pytest.approx(ESTIMATED_COST)
