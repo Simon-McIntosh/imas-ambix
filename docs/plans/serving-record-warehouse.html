@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-10-02">
-<meta name="plan-version" content="191">
+<meta name="plan-version" content="192">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -1130,7 +1130,7 @@
     <div class="r-comment-body"><p>independent review of run r-20261002T172728758497-srw-agent-publishes-the-watch-document (serving-record-warehouse section 10, node srw-agent-publishes-the-watch-document) at base 92850b4d1f306be3aba04e4ae332c67eb4ea0dde head 68bb9bf57882a145b87883192ec089ed3908c38d: stored total 93/100 (goal_fidelity 19, evidence 18, scope_discipline 20, durability 17, fit 19), added_failure_count 0 with no ids derived from the reviewed run's own baseline_suite/after_suite fields (both name negative_control.log, so the read-path set difference is empty); the declared gate re-ran green at the head in a scratch export and the declared negative control was reproduced red; two follow-on findings, no blocking findings.</p></div>
 </div>
 <div class="r-comment" data-section="s10" data-id="c-run-r-20261002T183017653657-srw-publish-watch-writes-a-readable-file" data-who="reckon-build" data-when="2026-10-02T18:48:21.260Z">
-    <div class="r-comment-body"><p>The published watch document is now world-readable: _write_atomic sets the mkstemp temporary to 0644 with os.fchmod before the rename over the target, so ~/public/imas-ambix/watch.json matches mode of lane.json beside it instead of mkstemp&#x27;s 0600; tests in tests/test_agent_publish_watch.py assert the mode is 0644 after --once and drive run() for three iterations where the second watch_document raises (three lines wrote/failed/wrote; the failed iteration leaves the first write byte-for-byte and the third replaces it). Measure: head arm 7 passed vs 5 at base, zero added failures.</p></div>
+    <div class="r-comment-body"><p>The published watch document is now world-readable: _write_atomic sets the mkstemp temporary to 0644 with os.fchmod before the rename over the target, so ~/public/imas-ambix/watch.json matches mode of lane.json beside it instead of mkstemp's 0600; tests in tests/test_agent_publish_watch.py assert the mode is 0644 after --once and drive run() for three iterations where the second watch_document raises (three lines wrote/failed/wrote; the failed iteration leaves the first write byte-for-byte and the third replaces it). Measure: head arm 7 passed vs 5 at base, zero added failures.</p></div>
 </div>
 <div class="r-comment" data-section="s11" data-id="c-run-r-20260929T072617274722-scout-live-panel-reuse" data-who="reckon-build" data-when="2026-09-29T08:33:34.522Z">
     <div class="r-comment-body"><p>No landing step. The map is an evidence input for a separately dispatched build wave; it is not merged into the repository and needs no review of the merged result.</p></div>
@@ -1335,6 +1335,9 @@
 </div>
 <div class="r-comment" data-section="s5" data-id="c-run-r-20261002T181215921664-srw-ingest-survives-a-locked-index" data-who="reckon-build" data-when="2026-10-02T18:38:05.784Z">
     <div class="r-comment-body"><p>standing ingest survives a locked index: run catches a lock/busy OperationalError from a tick, rolls back via the new public TelemetryIndex.rollback, keeps the pre-tick source fingerprints, prints one flushed failure line of the form '&lt;UTC&gt;Z ingest tick failed: database is locked', continues to the next tick; any other error still propagates; a failed tick counts as an iteration. Gate: 87 passed + serving-interpreter parse 1 passed + whole-tree ruff clean, all EXIT=0.</p></div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-run-r-20261002T184030460381-review-of-srw-ingest-survives-a-locked-index" data-who="reckon-build" data-when="2026-10-02T19:19:26.575Z">
+    <div class="r-comment-body"><p>Independent review of srw-ingest-survives-a-locked-index stored (parsed, 5 dimensions, total 88): two-arm gate reproduces (base 175631f8 84 passed, head e95b68ad 87 passed, both EXIT=0), the guarded behaviour was made to happen and independently falsified, one finding + one follow-on recorded on the non-load-bearing TelemetryIndex.rollback and the fragment&#x27;s overstated need for it.</p></div>
 </div>
 </section>
 </main>
