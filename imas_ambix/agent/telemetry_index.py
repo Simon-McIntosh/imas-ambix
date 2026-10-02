@@ -912,9 +912,19 @@ class TelemetryIndex:
         exists for: a rewrite that leaves both length and modification time
         untouched is not something the recorder, a roll or a compaction can
         produce, because each of them writes.
+
+        The row read is the one that recorded the file's end, which is not
+        necessarily the only row the file has. One receipts file spanning a
+        reboot is keyed by two boots, so a batched pass writes a pre-reboot row
+        at its batch boundary and a post-reboot row at the file's end; the
+        earlier row's offset is below its size and answers ``False`` on its own.
+        The highest offset is taken instead, exactly as the resume lookup does,
+        so the file is judged by where it was last consumed rather than by
+        whichever row the query returned first.
         """
         row = self._conn.execute(
-            "SELECT size, offset, mtime_ns FROM source WHERE path = ? AND inode = ?",
+            "SELECT size, offset, mtime_ns FROM source "
+            "WHERE path = ? AND inode = ? ORDER BY offset DESC LIMIT 1",
             (str(path), stat.st_ino),
         ).fetchone()
         if row is None or row["mtime_ns"] is None:
