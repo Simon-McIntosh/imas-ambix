@@ -1,0 +1,82 @@
+<section class="evidence-fragment" data-reckon="evidence" id="srw-ingest-commits-in-batches">
+  <header>
+    <h3>The ingest commits in bounded batches, not once per row</h3>
+    <p class="meta">
+      Node <code>srw-ingest-commits-in-batches</code> &middot;
+      date 2026-10-02 &middot;
+      worktree <code>imas-ambix-0405601943d2/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-ingest-commits-in-batches</code>
+    </p>
+  </header>
+
+  <p>
+    <code>TelemetryIndex.ingest</code> committed once per sample:
+    <code>_insert</code> opened a transaction around every row, so a 1000-row
+    source paid SQLite's journal and fsync cost a thousand times. The index is
+    built by scanning receipts on shared storage, where that cost dominates,
+    and it is a rebuildable derivation of the record, so the commit boundary is
+    free to move.
+  </p>
+
+  <h4>What changed</h4>
+  <ul>
+    <li>
+      <code>imas_ambix/agent/telemetry_index.py</code>: <code>_insert</code> no
+      longer opens a transaction. <code>ingest</code> accumulates up to
+      <code>DEFAULT_BATCH_ROWS</code> (1000) lines and then commits them
+      together with the source row that advances its offset, size,
+      modification time and prefix digest to the end of the batch's last line.
+      The digest is extended incrementally from the region already consumed, so
+      a batched pass records the same byte-region identity an unbatched one
+      does. <code>ingest</code> takes <code>batch_rows</code> so tests can
+      lower the boundary; an uncommitted batch is rolled back when the pass
+      raises, so no half-written state survives and the next pass resumes at
+      the last committed batch.
+    </li>
+  </ul>
+
+  <h4>Measure</h4>
+  <table>
+    <thead>
+      <tr><th>Run</th><th>Result</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Cold ingest of the first 20 MB of
+          <code>deepseek-v4-1-flash-1273253.jsonl</code> (20,971,461 bytes,
+          31,888 lines) at base 4516e26e</td>
+        <td>169.937 s, 31,888 rows, 187.6 rows/s</td>
+      </tr>
+      <tr>
+        <td>The same cut at head 27ab3e34</td>
+        <td>2.979 s, 31,888 rows, 10,703.9 rows/s &mdash; ~57&times;</td>
+      </tr>
+      <tr>
+        <td>Negative control: <code>batch_rows</code> set to one row</td>
+        <td>
+          <code>test_ingest_commits_once_per_batch_not_once_per_row</code>
+          fails (<code>assert 1000 &lt;= 6</code>), EXIT=1
+        </td>
+      </tr>
+      <tr>
+        <td>Gate at 27ab3e34</td>
+        <td>97 passed; serving-interpreter parse guard 1 passed; ruff check exit 0</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>
+    The instrument first: the commit count is read from the connection's own
+    <code>set_trace_callback</code>, so it counts the <code>COMMIT</code>
+    statements the store issued rather than the source's intent; a 1000-row
+    source at <code>batch_rows=250</code> issues 4 commits, against the bound of
+    6. The resume test makes <code>_insert</code> raise on its 501st call, so
+    the pass dies inside the third batch: the source offset is asserted equal
+    to the end of the second batch's last line, and the second pass is asserted
+    to insert exactly the remaining 500 rows with zero duplicates &mdash; both
+    halves, because a resume that re-read the whole file would also end at 1000
+    samples while counting 500 duplicates. The digest test asserts the batched
+    pass's <code>prefix_sha</code> equals an unbatched pass's and the whole
+    file's own sha256. The measurement ran on the fleet allocation (SLURM job
+    1277272), never the login node; evidence in the run report directory.
+  </p>
+</section>
