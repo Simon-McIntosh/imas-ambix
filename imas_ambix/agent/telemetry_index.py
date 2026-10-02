@@ -842,12 +842,16 @@ class TelemetryIndex:
         *,
         host: str | None = None,
         boot_id: str | None = None,
+        timeout: float = 5.0,
     ) -> TelemetryIndex:
         """Open an existing index read-only, creating nothing.
 
         This is the reader's handle: it opens the file through a SQLite URI in
-        ``mode=ro`` with a five-second busy timeout, so a read never blocks
-        behind the standing writer and never writes to the file itself. It runs
+        ``mode=ro`` and never writes to the file itself. A read waits at most
+        *timeout* seconds, five by default, for the writer's lock and then
+        raises an error; the wait is bounded because a reader that stood behind
+        a long writer's transaction without limit would be indistinguishable
+        from one that had hung. It runs
         neither the schema script nor a migration and creates neither the file
         nor its parent directory -- a path with no file raises
         :class:`sqlite3.OperationalError` rather than materialising an empty
@@ -862,7 +866,7 @@ class TelemetryIndex:
         index.host = resolve_host(host)
         index.boot_id = UNKNOWN_BOOT_ID if boot_id is None else boot_id
         uri = target.resolve().as_uri() + "?mode=ro"
-        index._conn = sqlite3.connect(uri, uri=True, timeout=5.0)
+        index._conn = sqlite3.connect(uri, uri=True, timeout=timeout)
         index._conn.row_factory = sqlite3.Row
         return index
 
@@ -1105,9 +1109,7 @@ class TelemetryIndex:
         against a tier nobody selected, and a source whose name carries no job
         takes no tier and is never dropped.
         """
-        rows = self._conn.execute(
-            "SELECT host, path, inode FROM source"
-        ).fetchall()
+        rows = self._conn.execute("SELECT host, path, inode FROM source").fetchall()
         with self._conn:
             for row in rows:
                 info = receipts_tier(row["path"])
