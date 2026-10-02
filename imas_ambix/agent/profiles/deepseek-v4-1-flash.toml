@@ -451,7 +451,30 @@ hicache_mem_layout = "page_first"
 #
 # Every figure above is single-stream. Concurrent large prefills are the
 # untested corner; raise nothing further until that is measured.
-context_length = 512000
+#
+# 262,144 on 2026-10-02, lowered from 512,000 because on Hopper this cap is
+# also the width every decode step pays for, whatever a request's real length.
+# The SM90 decode indexer runs inside the decode CUDA graph, which needs a
+# static width, so each verify row scores, top-k's and sorts
+# context_length / ratio positions on each of the eight index-source layers
+# (three at ratio 2, five at ratio 1): 512,000 positions per ratio-1 layer
+# while the median live request held ~130k. Measured on one H200 with this
+# container's own fp4 logits kernel, eight layers per step:
+#   width      16 rows   64 rows   per row
+#   512,000    16.1 ms   61.5 ms   0.95 ms
+#   393,216    12.6 ms   47.9 ms   0.74 ms
+#   262,144     8.8 ms   32.2 ms   0.49 ms
+#   131,072     4.9 ms   16.8 ms   0.25 ms
+# The live serve's decode step fitted 22.2 ms + 4.61 ms per running request at
+# DSpark depth 3 (four verify rows a request) and was flat in real context from
+# 16k to 500k, so the indexer was ~85% of the per-request cost. Predicted at
+# this cap: +22% aggregate decode at 4 running, +44% at 16. Prefill is not
+# affected: its torch indexer scans each request's real length.
+#
+# The price is the context window. The engine refuses prompt + max_tokens above
+# the cap, so the launcher's derived input budget falls to 230,144 and workers
+# compact near it; 1.2% of requests served at 512,000 had prompts above 262,144.
+context_length = 262144
 trust_remote_code = true
 
 # "auto" resolves to this architecture's own parsers rather than a generic
