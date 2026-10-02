@@ -484,9 +484,7 @@ def test_a_watch_read_never_ingests_a_source(tmp_path: Path) -> None:
         name="later-serve.jsonl",
     )
 
-    watch.watch_text(
-        record_dir=directory, index_path=index_path, now=now, prices=[]
-    )
+    watch.watch_text(record_dir=directory, index_path=index_path, now=now, prices=[])
     watch.watch_document(
         record_dir=directory, index_path=index_path, now=now, prices=[]
     )
@@ -576,3 +574,81 @@ def test_the_read_only_handle_refuses_a_write(tmp_path: Path) -> None:
             "(host, boot_id, key_kind, path, inode, size, offset, rows) "
             "VALUES ('h', 'b', 'k', 'p', 1, 0, 0, 0)"
         )
+
+
+# ── an index that cannot be read is reported, never raised ───────────────
+
+
+def test_a_zero_byte_index_is_reported_unreadable(tmp_path: Path) -> None:
+    """A file the writer has opened but not written reads as unreadable.
+
+    The file exists, so the reader does not report it absent; but it carries no
+    table, so the first query raises ``no such table``. Both surfaces must say
+    so rather than let the traceback reach the operator, and the read must
+    leave the file it cannot read: a read never creates or mutates an index.
+    """
+    index_path = tmp_path / "zero.sqlite3"
+    index_path.write_bytes(b"")
+    record_dir = tmp_path / "receipts"
+
+    text = watch.watch_text(
+        record_dir=record_dir, index_path=index_path, prices=[], width=400
+    )
+    assert "could not be read" in text
+    assert "no such table" in text
+    assert str(index_path) in text
+    # No period or ledger rows accompany a report that could not be read.
+    assert "ledger" not in text
+    assert index_path.read_bytes() == b""
+
+    payload = watch.watch_document(
+        record_dir=record_dir, index_path=index_path, prices=[]
+    )
+    assert payload["index"]["exists"] is True
+    assert payload["index"]["readable"] is False
+    assert "no such table" in payload["index"]["error"]
+    assert payload["record"] == {}
+    assert payload["ledger"] == []
+    assert payload["periods"] == []
+    assert index_path.read_bytes() == b""
+
+
+def test_a_locked_index_is_reported_with_a_short_timeout(tmp_path: Path) -> None:
+    """A writer's lock past the timeout is reported, not waited out.
+
+    A second connection holds an exclusive lock, so the reader cannot take the
+    shared lock its first query needs. The report names the lock rather than
+    stalling: the read is bounded by the timeout the caller passes, and the
+    test passes a short one so it proves the bound instead of waiting five
+    seconds for it.
+    """
+    now = _dt.datetime.now(_dt.UTC).timestamp()
+    directory = _write(tmp_path, _dense_rows(now, steps=4, spacing=60.0))
+    index_path = tmp_path / "locked.sqlite3"
+    built = TelemetryIndex(index_path)
+    built.ingest(discover(directory))
+    built.close()
+
+    lock = sqlite3.connect(str(index_path))
+    lock.execute("BEGIN EXCLUSIVE")
+    try:
+        text = watch.watch_text(
+            record_dir=directory,
+            index_path=index_path,
+            prices=[],
+            width=400,
+            timeout=0.25,
+        )
+        assert "database is locked" in text
+        assert "could not be read" in text
+        assert "ledger" not in text
+
+        payload = watch.watch_document(
+            record_dir=directory, index_path=index_path, prices=[], timeout=0.25
+        )
+        assert payload["index"]["readable"] is False
+        assert "database is locked" in payload["index"]["error"]
+        assert payload["periods"] == []
+    finally:
+        lock.rollback()
+        lock.close()

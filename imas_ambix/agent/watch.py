@@ -42,6 +42,7 @@ from __future__ import annotations
 import dataclasses
 import datetime as _dt
 import json
+import sqlite3
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -861,9 +862,7 @@ def index_status(path: str | Path, now: float) -> dict:
         info = target.stat()
     except OSError:
         return {"path": str(target), "exists": False}
-    written = _dt.datetime.fromtimestamp(info.st_mtime, _dt.UTC).replace(
-        microsecond=0
-    )
+    written = _dt.datetime.fromtimestamp(info.st_mtime, _dt.UTC).replace(microsecond=0)
     return {
         "path": str(target),
         "exists": True,
@@ -873,12 +872,17 @@ def index_status(path: str | Path, now: float) -> dict:
 
 
 def render_index(status: dict) -> str:
-    """The index block: where it is, or that it is not there and who keeps it."""
+    """The index block: where it is, or that it is not there or unreadable."""
     if not status["exists"]:
         return (
             f"[bold]index[/]  [dim]none at[/] {status['path']}\n"
             "[dim]the fleet's ingest service (imas-ambix agent ingest) "
             "maintains it[/]"
+        )
+    if status.get("readable") is False:
+        return (
+            f"[bold]index[/]  {status['path']}\n"
+            f"[dim]could not be read:[/] {status['error']}"
         )
     return (
         f"[bold]index[/]  {status['path']}  "
@@ -940,6 +944,7 @@ def watch_text(
     prices: Sequence[dict] | None = None,
     estimate: CacheRateEstimate | None = None,
     width: int = 110,
+    timeout: float = 5.0,
 ) -> str:
     """Query the index read-only and return the rendered panels.
 
@@ -951,7 +956,14 @@ def watch_text(
     command is not what makes it so. *prices* is passed in for a caller that
     already holds a table; ``None`` refreshes and reads the table the package
     owns. *estimate* is passed in the same way; ``None`` reads the record
-    installed beside that table.
+    installed beside that table. *timeout* is how long the read waits for the
+    writer's lock before giving up.
+
+    An index file that exists but cannot be read -- a zero-byte file the writer
+    has opened and not yet written, or one whose lock is held past *timeout* --
+    is reported as unreadable with the error it raised, and no period or ledger
+    rows are printed: a traceback would name the reader's internals rather than
+    the store an operator can go and look at.
     """
     when = time.time() if now is None else now
     target = Path(index_path or DEFAULT_INDEX_PATH)
@@ -962,8 +974,16 @@ def watch_text(
         prices, _ = _owned_prices()
     if estimate is None:
         estimate = _installed_estimate()
-    with TelemetryIndex.readonly(target) as index:
-        document = render_document(index, now=when, prices=prices, estimate=estimate)
+    try:
+        with TelemetryIndex.readonly(target, timeout=timeout) as index:
+            document = render_document(
+                index, now=when, prices=prices, estimate=estimate
+            )
+    except sqlite3.DatabaseError as error:
+        status["readable"] = False
+        status["error"] = str(error)
+        return _plain(render_index(status), width=width)
+    status["readable"] = True
     return _plain(document, width=width)
 
 
@@ -1041,8 +1061,9 @@ def watch_document(
     prices: Sequence[dict] | None = None,
     price_age: float | None = None,
     estimate: CacheRateEstimate | None = None,
+    timeout: float = 5.0,
 ) -> dict:
-    """Query the index read-only, then return the panels' figures as data.
+    """Query the full document read-only, then return the panels' figures as data.
 
     The full document carries the index-derived ``record``, ``ledger`` and
     ``price_age`` fields alongside the ``lane`` and ``live`` blocks, so a
@@ -1052,26 +1073,44 @@ def watch_document(
     period rows are empty, because a read is not what keeps the store current.
     The ``lane`` and ``live`` blocks come from :func:`live_document`, which
     reads the published sources and never touches the index.
+
+    An index file that exists but cannot be read -- a zero-byte file the writer
+    has opened and not yet written, or one whose lock is held past *timeout* --
+    is reported in the ``index`` block as unreadable with the error it raised,
+    and ``record``, ``ledger`` and ``periods`` are left empty rather than a
+    traceback reaching the caller. *timeout* is how long the read waits for the
+    writer's lock before giving up.
     """
     when = time.time() if now is None else now
     directory = Path(record_dir or default_record_dir())
     target = Path(index_path or DEFAULT_INDEX_PATH)
     status = index_status(target, when)
     if status["exists"]:
-        if prices is None:
-            prices, age = _owned_prices()
-            if price_age is None:
-                price_age = age
-        if estimate is None:
-            estimate = _installed_estimate()
-        with TelemetryIndex.readonly(target) as index:
-            payload = document(
-                index,
-                now=when,
-                prices=prices,
-                price_age=price_age,
-                estimate=estimate,
-            )
+        try:
+            with TelemetryIndex.readonly(target, timeout=timeout) as index:
+                if prices is None:
+                    prices, age = _owned_prices()
+                    if price_age is None:
+                        price_age = age
+                if estimate is None:
+                    estimate = _installed_estimate()
+                payload = document(
+                    index,
+                    now=when,
+                    prices=prices,
+                    price_age=price_age,
+                    estimate=estimate,
+                )
+            status["readable"] = True
+        except sqlite3.DatabaseError as error:
+            status["readable"] = False
+            status["error"] = str(error)
+            payload = {
+                "record": {},
+                "ledger": [],
+                "periods": [],
+                "price_age": price_age,
+            }
     else:
         payload = {
             "record": {},
