@@ -1805,3 +1805,76 @@ def test_a_batched_ingest_records_the_whole_region_digest(tmp_path):
 
     assert batched_offset == batched_size == source.stat().st_size
     assert batched == single == whole
+
+
+def test_a_reboot_spanning_source_consumed_to_its_end_is_not_read_again(
+    tmp_path, monkeypatch
+):
+    """A file keyed by two boots is skipped once it is consumed to its end.
+
+    One receipts file spanning a reboot is keyed by two boots, so a batched pass
+    writes a pre-reboot source row at its batch boundary beside a post-reboot
+    row at the file's end. Reading an arbitrary one of the two sees a file
+    consumed only to the boundary -- the pre-reboot row's offset is below its
+    size -- so the fast path declines and the pass re-digests the whole consumed
+    region on every pass forever. The file is judged by the row that recorded
+    its end, so the skip fires and the second pass neither opens nor digests it.
+    """
+    source = tmp_path / "serve.jsonl"
+    source_bytes = [
+        _row(0, host="node-a", boot_id=_BOOT_BEFORE),
+        _row(5, host="node-a", boot_id=_BOOT_BEFORE),
+        _row(10, host="node-a", boot_id=_BOOT_AFTER),
+        _row(15, host="node-a", boot_id=_BOOT_AFTER),
+    ]
+    _write(source, source_bytes)
+    index_path = tmp_path / "index.db"
+
+    opened: list[str] = []
+    digested: list[int] = []
+    real_open = Path.open
+    real_digest = telemetry_index._digest_of
+
+    def counting_open(self, *args, **kwargs):
+        opened.append(str(self))
+        return real_open(self, *args, **kwargs)
+
+    def counting_digest(path, end, *args, **kwargs):
+        digested.append(end)
+        return real_digest(path, end, *args, **kwargs)
+
+    with TelemetryIndex(index_path) as index:
+        # Two rows under the first boot, then two under the second, with a
+        # batch of two: the first boot's rows end exactly on a batch boundary,
+        # so the pre-reboot row sits at the boundary and the post-reboot row
+        # lands at the file's end. The premise is asserted, because a file that
+        # did not split this way would not exercise the skip.
+        index.ingest([source], batch_rows=2)
+        rows = index._conn.execute(
+            "SELECT boot_id, offset, size FROM source ORDER BY offset"
+        ).fetchall()
+        assert [row["boot_id"] for row in rows] == [_BOOT_BEFORE, _BOOT_AFTER]
+        assert rows[0]["offset"] < rows[0]["size"], "the file did not span two boots"
+        assert rows[1]["offset"] == rows[1]["size"] == source.stat().st_size
+
+        monkeypatch.setattr(Path, "open", counting_open)
+        monkeypatch.setattr(telemetry_index, "_digest_of", counting_digest)
+        second = index.ingest([source], batch_rows=2)
+
+    assert second.files_scanned == 0, "re-read a source consumed to its end"
+    assert opened == [], f"opened a consumed source: {opened}"
+    assert digested == [], f"re-digested a consumed source up to {digested}"
+
+    appended = _row(20, host="node-a", boot_id=_BOOT_AFTER)
+    with real_open(source, "a", encoding="utf-8") as handle:
+        handle.write(json.dumps(appended) + "\n")
+    new_line_bytes = len((json.dumps(appended) + "\n").encode())
+
+    with TelemetryIndex(index_path) as index:
+        third = index.ingest([source], batch_rows=2)
+
+        assert third.files_scanned == 1
+        assert third.rows_inserted == 1, "the appended line was not the only row read"
+        assert third.rows_duplicate == 0, "the third pass re-read a committed row"
+        assert third.bytes_read == new_line_bytes, "read more than the new line"
+        assert index.sample_count() == 5
