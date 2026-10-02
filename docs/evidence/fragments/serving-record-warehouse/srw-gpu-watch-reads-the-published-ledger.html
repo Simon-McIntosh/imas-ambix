@@ -1,0 +1,53 @@
+<section class="evidence-fragment" data-reckon="evidence" id="srw-gpu-watch-reads-the-published-ledger">
+  <header>
+    <h3>gpu-watch copy: the period ledger renders from the published watch document</h3>
+    <p class="meta">
+      Node <code>srw-gpu-watch-reads-the-published-ledger</code> &middot;
+      date 2026-10-02 &middot;
+      plan <code>serving-record-warehouse</code> &sect;10 &middot;
+      dotfiles <code>bin/gpu-watch</code> at 5718a80, edited as a copy under the run report directory
+    </p>
+  </header>
+
+  <p>
+    The period ledger panel of the <code>gpu-watch</code> copy now renders from
+    the document the fleet publishes at <code>~/public/imas-ambix/watch.json</code>
+    (and <code>published_at</code> older than 600&nbsp;s is shown beside the
+    figures). The private ledger was deleted: a grep of the copy finds no
+    definition of <code>ledger_cost</code>, <code>match_price</code>,
+    <code>price_at</code>, <code>ledger_integrate</code> or
+    <code>ledger_record</code>, and no reference to
+    <code>serve-ledger.jsonl</code> or <code>openrouter.ai</code>. The live
+    panel keeps calling <code>imas-ambix agent watch --json --live</code>; the
+    card rows and node job table are unchanged.
+  </p>
+
+  <h4>Measure, one-shot run on the fleet allocation (job 1277272)</h4>
+  <ul>
+    <li>
+      Every period row's printed tokens in, cached&nbsp;%, tokens out,
+      utilisation&nbsp;% and cost equal <code>watch-read.json</code>'s value at
+      the printed precision (4 rows; <code>compare.md</code>).
+    </li>
+    <li>
+      The capture carries the serve card rows, the <code>mean</code> row and the
+      A/B node job table.
+    </li>
+    <li>
+      Negative control: restoring the private-ledger read for the period table
+      makes the &ldquo;1 hour&rdquo; row print 128M versus the document's 90.9M
+      (<code>negative-control.txt</code>).
+    </li>
+  </ul>
+
+  <p class="meta">
+    Artifacts in the run report directory <code>srw-gpu-watch-reads-the-published-ledger/</code>:
+    <code>gpu-watch</code> (the edited copy), <code>_gpu_sample.py</code>,
+    <code>capture.txt</code>, <code>watch-read.json</code>,
+    <code>compare.md</code>, <code>gpu-watch.diff</code>,
+    <code>negative-control.txt</code>.
+    Card rows rendered: 4 &mdash; the serve holds 4 H200s (group A); the other
+    four are cgroup-hidden group-B cards, so an eight-card capture is not
+    attainable from this node state.
+  </p>
+</section>
