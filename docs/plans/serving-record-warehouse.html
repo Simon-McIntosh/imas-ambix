@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-10-02">
-<meta name="plan-version" content="162">
+<meta name="plan-version" content="163">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -1022,6 +1022,9 @@
 </div>
 <div class="r-comment" data-section="s10" data-id="c-run-r-20261002T112610955737-srw-watch-suite-slow-tests" data-who="reckon-build" data-when="2026-10-02T11:55:49.247Z">
     <div class="r-comment-body"><p>Report at /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-watch-suite-slow-tests/report.md: the watch suite's 178.98 s is one fsync'ed commit per sample row in TelemetryIndex._insert (imas_ambix/agent/telemetry_index.py:1284); the ten slowest tests are 90.57 s (50.6 %) and all are index-build bound; batching the commits re-runs the heaviest file at 9.29 s (was &gt;=80.5 s in-suite) and the one-file change is expected to bring the suite to ~30 s.</p></div>
+</div>
+<div class="r-comment" data-section="s10" data-id="c-run-r-20261002T115629703718-review-of-srw-watch-suite-slow-tests" data-who="reckon-build" data-when="2026-10-02T12:08:44.404Z">
+    <div class="r-comment-body"><p>Independent review of r-20261002T112610955737-srw-watch-suite-slow-tests stored at reviews/imas-ambix/r-20261002T112610955737-srw-watch-suite-slow-tests.json (parsed, total 91/100: goal_fidelity 19, evidence 18, scope_discipline 20, durability 16, fit 18); reviewed_base_sha == reviewed_head_sha == 539a09cb, added_failure_count 0, added_failure_ids []; one follow-on finding: the report&#x27;s declared-control headline sum is stated as 90.57 s where the ten tabulated durations sum to 90.77 s, conclusion unchanged.</p></div>
 </div>
 <div class="r-comment" data-section="s11" data-id="c-run-r-20260929T072617274722-scout-live-panel-reuse" data-who="reckon-build" data-when="2026-09-29T08:33:34.522Z">
     <div class="r-comment-body"><p>No landing step. The map is an evidence input for a separately dispatched build wave; it is not merged into the repository and needs no review of the merged result.</p></div>
