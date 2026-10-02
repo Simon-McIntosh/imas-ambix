@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-10-02">
-<meta name="plan-version" content="185">
+<meta name="plan-version" content="186">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -1053,6 +1053,9 @@
 </div>
 <div class="r-comment" data-section="s8" data-id="c-run-r-20261002T091503124988-review-of-srw-job-1273253-failing-hour" data-who="reckon-build" data-when="2026-10-02T09:37:01.687Z">
     <div class="r-comment-body"><p>an independent review of the srw-job-1273253-failing-hour investigation scores 94/100 across five dimensions and confirms its central finding against a parser the reviewer wrote itself.</p></div>
+</div>
+<div class="r-comment" data-section="s8" data-id="c-run-r-20261002T172700096366-srw-retention-compares-hour-counter-pairs" data-who="reckon-build" data-when="2026-10-02T18:05:56.832Z">
+    <div class="r-comment-body"><p>compare_tiers now works on (hour, counter) pairs: a pair absent in every tier is skipped, present-in-some-absent-in-others is a disagreement, present in all three agrees when the raw, minute and hour totals are equal; a file is eligible only with at least one compared pair and a file with none is kept with reason &quot;no hour carries the counters&quot;; the listing and manifest print the compared-pair and compared-hour counts; gate 17 retention tests + 1 serving-python parse guard + ruff exit 0, the hybrid fixture is eligible at 6 compared pairs over 2 hours</p></div>
 </div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20260924T122840994565-s26-currency-audit" data-who="reckon-ship" data-when="2026-09-24T12:30:00Z">
     <div class="r-comment-body"><p>stopped by the coordinator within a minute of launch: the repository's local-lane budget for the re-plan exercise was reallocated, and the audit was done in-session instead</p></div>
