@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+import stat
 from datetime import UTC, datetime
 
 from click.testing import CliRunner
@@ -58,6 +59,17 @@ def test_once_writes_content_and_both_added_keys(tmp_path, monkeypatch) -> None:
     assert written["ledger"] == document["ledger"]
     assert written["published_at"] == FROZEN_STAMP
     assert isinstance(written["compute_seconds"], float)
+
+
+def test_once_publishes_a_world_readable_file(tmp_path, monkeypatch) -> None:
+    """The published document is world-readable, not mkstemp's owner-only mode."""
+    _stub_document(monkeypatch, lambda **kwargs: {"record": {}})
+    _freeze_clock(monkeypatch)
+
+    result, target = _run_once(tmp_path)
+
+    assert result.exit_code == 0, result.output
+    assert stat.S_IMODE(target.stat().st_mode) == 0o644
 
 
 def test_failure_with_newline_prints_one_line_and_keeps_the_target_unchanged(
@@ -145,6 +157,44 @@ def test_loop_sleeps_between_iterations_and_not_after_the_last(
     assert all(_ok_line(text) for text in writes)
     assert flushes == ["write", "flush", "write", "flush", "write", "flush"]
     assert slept == [300.0, 300.0]
+
+
+def test_loop_keeps_the_first_write_on_a_failed_middle_iteration(
+    tmp_path, monkeypatch
+) -> None:
+    """A failure on the second of three iterations leaves the first write intact."""
+    calls: list[int] = []
+
+    def document(**_kwargs):
+        calls.append(len(calls) + 1)
+        if len(calls) == 2:
+            raise RuntimeError("mid-loop failure")
+        return {"record": {"iteration": len(calls)}}
+
+    _stub_document(monkeypatch, document)
+    _freeze_clock(monkeypatch)
+    target = tmp_path / "watch.json"
+    stream = _RecordingStream()
+    between: list[bytes] = []
+
+    watch_publish.run(
+        target,
+        cadence=300.0,
+        iterations=3,
+        sleep=lambda _seconds: between.append(target.read_bytes()),
+        stream=stream,
+    )
+
+    writes = [text for kind, text in stream.calls if kind == "write"]
+    assert len(writes) == 3, writes
+    assert writes[0].startswith(FROZEN_STAMP + " publish-watch wrote ")
+    assert "publish-watch failed: mid-loop failure" in writes[1]
+    assert writes[2].startswith(FROZEN_STAMP + " publish-watch wrote ")
+    # The injected sleep runs once after iteration 1 and once after iteration 2.
+    assert len(between) == 2, between
+    first_bytes = between[0]
+    assert between[1] == first_bytes
+    assert target.read_bytes() != first_bytes
 
 
 def _ok_line(text: str) -> bool:
