@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="serving-record-warehouse">
+</head>
+<body>
+  <main class="plan-doc">
+    <p><code>agent watch</code> now reads the telemetry index read-only. Its
+    report is no longer what keeps the store current: the standing
+    <code>agent ingest</code> service owns the write, and a report reads what
+    that service has already written. This removes the cold catch-up a reader
+    used to pay -- over 300 s on 2026-09-29 -- because a read no longer scans
+    the whole record to bring the index up before answering.</p>
+
+    <p><strong>The defect, reproduced before it was repaired.</strong>
+    <code>watch_text</code> and <code>watch_document</code> each called
+    <code>discover(directory)</code> and <code>index.ingest(sources)</code>
+    before rendering, so a read appended whatever the record had gained since
+    the last pass. A fixture index was built from a receipts directory, a
+    second source was then written into that directory, and the watch call was
+    pointed at it. Under the old path the index's own file bytes and its
+    <code>sample_count()</code> both moved -- the read had ingested the new
+    source. With the repair both are exactly what the ingest pass left.</p>
+
+    <p><strong>The read-only handle.</strong>
+    <code>TelemetryIndex.readonly</code> opens an existing index through a
+    SQLite URI in <code>mode=ro</code> with a five-second busy timeout. It runs
+    neither the schema script nor a migration, and creates neither the file nor
+    its parent directory: a path with no file raises
+    <code>sqlite3.OperationalError</code> rather than materialising an empty
+    index, because a reader that created its own store would report an empty
+    record for a fleet whose ingest has simply not run yet. A write attempted
+    through the handle is refused by SQLite itself, which the tests assert with
+    <code>pytest.raises(sqlite3.OperationalError)</code> around an INSERT.</p>
+
+    <p><strong>What the outputs now say.</strong> With a file present, both the
+    text and the JSON document carry the index's path and its last-ingest time,
+    taken as the file's modification time in UTC to the second, with its age in
+    seconds. The test sets that modification time through
+    <code>os.utime</code> and asserts the reported
+    <code>last_ingest_at</code> equals the literal
+    <code>2027-01-15T08:00:00Z</code>. With no file, the text states that no
+    index exists at that path and that the fleet's ingest service
+    (<code>imas-ambix agent ingest</code>) maintains it, prints no period or
+    ledger rows, and the JSON document carries <code>index.exists = false</code>
+    with the path and empty period rows. The path and its parent are still
+    absent afterwards. The <code>--live</code> path is untouched and still
+    constructs no index.</p>
+
+    <p><strong>Negative control.</strong> Restoring
+    <code>index.ingest(discover(directory))</code> in
+    <code>watch_document</code> (a scratch edit, re-importing
+    <code>discover</code> and ingesting before the render) fails
+    <code>test_a_watch_read_never_ingests_a_source</code> on the assertion that
+    the index bytes are unchanged; restored and re-run green. The log repeats
+    the declared mutation verbatim. Head arm: 113 passed (EXIT=0); base arm
+    over the same targets in a scratch extraction of <code>01147152</code>: 109
+    passed (EXIT=0), so no failure was added.</p>
+
+    <p><strong>Measure.</strong> Gate at commit <code>5b563948</code>: 113
+    passed over <code>tests/test_agent_telemetry_watch.py</code> +
+    <code>test_agent_watch_live.py</code> + <code>test_agent_watch_cost.py</code>
+    + <code>test_agent_watch_help.py</code> + <code>test_telemetry_index.py</code>
+    (EXIT=0); the serving-interpreter guard 1 passed (EXIT=0);
+    <code>ruff check imas_ambix tests</code> exit 0. This gate measures only
+    this node's own change.</p>
+  </main>
+</body>
+</html>
