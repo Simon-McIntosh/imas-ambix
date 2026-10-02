@@ -15,12 +15,14 @@ from __future__ import annotations
 
 import datetime as _dt
 import json
+import os
+import sqlite3
 from pathlib import Path
 
 import pytest
 
 from imas_ambix.agent import watch
-from imas_ambix.agent.telemetry_index import TelemetryIndex
+from imas_ambix.agent.telemetry_index import TelemetryIndex, discover
 
 HOUR = 3600.0
 MONTH = 2592000.0
@@ -239,14 +241,19 @@ def test_rendering_never_probes_a_live_endpoint(tmp_path: Path) -> None:
     """The panels come from the record even with nothing serving.
 
     Reads through the subcommand's own entry point rather than the renderer,
-    so the discovery-and-ingest path is exercised too: a watcher that reached
-    for a socket would have nothing to answer it here.
+    so a watcher that reached for a socket would have nothing to answer it
+    here. The index is built by an ingest pass up front, because the read no
+    longer ingests -- this fixture stands in for the fleet's standing ingest.
     """
     now = _dt.datetime.now(_dt.UTC).timestamp()
     directory = _write(tmp_path, _dense_rows(now, steps=40, spacing=60.0))
+    index_path = tmp_path / "i.sqlite3"
+    built = TelemetryIndex(index_path)
+    built.ingest(discover(directory))
+    built.close()
     text = watch.watch_text(
         record_dir=directory,
-        index_path=tmp_path / "i.sqlite3",
+        index_path=index_path,
         now=now,
         prices=[],
     )
@@ -396,6 +403,9 @@ def test_the_subcommand_renders_the_record_it_is_pointed_at(tmp_path: Path) -> N
     now = _dt.datetime.now(_dt.UTC).timestamp()
     directory = _write(tmp_path, _dense_rows(now, steps=40, spacing=60.0))
     index_path = str(tmp_path / "cli.sqlite3")
+    built = TelemetryIndex(index_path)
+    built.ingest(discover(directory))
+    built.close()
 
     runner = CliRunner()
     text = runner.invoke(
@@ -442,3 +452,127 @@ def test_latest_reading_prefers_the_engine_rate_gauge(tmp_path: Path) -> None:
     reading = watch._latest_reading(index, now)
 
     assert reading["hit_rate"] == pytest.approx(0.41)
+
+
+# ── read-only reads: the index is read, never built ──────────────────────
+
+
+def test_a_watch_read_never_ingests_a_source(tmp_path: Path) -> None:
+    """A read leaves the index exactly as the ingest pass left it.
+
+    The receipts directory gains a source the index has never seen, so a read
+    that ingested on the way would consume it and the file would grow. Both
+    the file's own bytes and its sample count must be what the ingest pass
+    left: the standing ingest is what keeps the store current, and a reader
+    that built it would make a report the thing that maintains the record.
+    """
+    now = _dt.datetime.now(_dt.UTC).timestamp()
+    directory = _write(tmp_path, _dense_rows(now, steps=40, spacing=60.0))
+    index_path = tmp_path / "i.sqlite3"
+    built = TelemetryIndex(index_path)
+    built.ingest(discover(directory))
+    built.close()
+
+    before = index_path.read_bytes()
+    with TelemetryIndex.readonly(index_path) as reader:
+        samples = reader.sample_count()
+
+    # A source the index has not been offered, written after the pass ran.
+    _write(
+        tmp_path,
+        [_row(now, prompt_tokens=999_999, generation_tokens=999)],
+        name="later-serve.jsonl",
+    )
+
+    watch.watch_text(
+        record_dir=directory, index_path=index_path, now=now, prices=[]
+    )
+    watch.watch_document(
+        record_dir=directory, index_path=index_path, now=now, prices=[]
+    )
+
+    assert index_path.read_bytes() == before
+    with TelemetryIndex.readonly(index_path) as reader:
+        assert reader.sample_count() == samples
+
+
+def test_a_missing_index_is_reported_and_not_created(tmp_path: Path) -> None:
+    """With no index the reader says so, creates nothing, and shows no rows."""
+    now = _dt.datetime.now(_dt.UTC).timestamp()
+    index_path = tmp_path / "absent" / "index.sqlite3"
+    record_dir = tmp_path / "receipts"
+
+    text = watch.watch_text(
+        record_dir=record_dir, index_path=index_path, now=now, width=400
+    )
+    assert "none at" in text
+    assert str(index_path) in text
+    assert "imas-ambix agent ingest" in text
+    # No period or ledger rows: the message stands alone.
+    assert "ledger" not in text
+    assert not index_path.exists()
+    assert not index_path.parent.exists()
+
+    payload = watch.watch_document(
+        record_dir=record_dir, index_path=index_path, now=now
+    )
+    assert payload["index"] == {"path": str(index_path), "exists": False}
+    assert payload["periods"] == []
+    assert payload["ledger"] == []
+    assert not index_path.exists()
+    assert not index_path.parent.exists()
+
+
+def test_last_ingest_at_is_the_index_files_modification_time(
+    tmp_path: Path,
+) -> None:
+    """The last-ingest time is the index file's mtime, in UTC to the second."""
+    now = _dt.datetime.now(_dt.UTC).timestamp()
+    directory = _write(tmp_path, _dense_rows(now, steps=40, spacing=60.0))
+    index_path = tmp_path / "i.sqlite3"
+    built = TelemetryIndex(index_path)
+    built.ingest(discover(directory))
+    built.close()
+
+    written = 1_800_000_000.0  # 2027-01-15T08:00:00Z
+    os.utime(index_path, (written, written))
+
+    payload = watch.watch_document(
+        record_dir=directory,
+        index_path=index_path,
+        now=written + 90.0,
+        prices=[],
+    )
+    assert payload["index"]["exists"] is True
+    assert payload["index"]["path"] == str(index_path)
+    assert payload["index"]["last_ingest_at"] == "2027-01-15T08:00:00Z"
+    assert payload["index"]["age_seconds"] == 90
+
+    text = watch.watch_text(
+        record_dir=directory,
+        index_path=index_path,
+        now=written + 90.0,
+        prices=[],
+        width=400,
+    )
+    assert "last ingest 2027-01-15T08:00:00Z" in text
+
+
+def test_the_read_only_handle_refuses_a_write(tmp_path: Path) -> None:
+    """The reader's handle is read-only: a write through it is refused."""
+    now = _dt.datetime.now(_dt.UTC).timestamp()
+    directory = _write(tmp_path, _dense_rows(now, steps=2, spacing=60.0))
+    index_path = tmp_path / "i.sqlite3"
+    built = TelemetryIndex(index_path)
+    built.ingest(discover(directory))
+    built.close()
+
+    with (
+        TelemetryIndex.readonly(index_path) as reader,
+        pytest.raises(sqlite3.OperationalError),
+    ):
+        reader._conn.execute(
+            "INSERT INTO source "
+            "(host, boot_id, key_kind, path, inode, size, offset, rows) "
+            "VALUES ('h', 'b', 'k', 'p', 1, 0, 0, 0)"
+        )
