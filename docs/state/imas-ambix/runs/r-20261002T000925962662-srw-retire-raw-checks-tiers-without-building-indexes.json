@@ -1,0 +1,405 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effective_input_window": 480000,
+    "effort": "high",
+    "launch": "cli",
+    "local": true,
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "worktree-full",
+    "usable_input_window": 480000
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "ce90ad058de33298bce25ca590ab0776748b3974",
+  "boundary_waiver": null,
+  "brief": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "fallback_credit": null,
+      "inference_geo": "",
+      "input_tokens": 12260041,
+      "input_tokens_cumulative": 12260041,
+      "output_tokens": 52803,
+      "output_tokens_cumulative": 52803,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": {
+    "added": 1,
+    "files": 1,
+    "removed": 1
+  },
+  "clone_matches": [
+    {
+      "existing_function": {
+        "line": 395,
+        "name": "test_serve_refuses_a_port_held_by_running_router",
+        "path": "tests/test_agent.py"
+      },
+      "run_function": {
+        "line": 110,
+        "name": "test_a_request_rotation_named_like_a_raw_file_is_not_a_candidate",
+        "path": "tests/test_telemetry_retention.py"
+      },
+      "window_line": 123
+    },
+    {
+      "existing_function": {
+        "line": 1275,
+        "name": "test_status_shows_router_as_preferred_consumer_origin",
+        "path": "tests/test_agent.py"
+      },
+      "run_function": {
+        "line": 110,
+        "name": "test_a_request_rotation_named_like_a_raw_file_is_not_a_candidate",
+        "path": "tests/test_telemetry_retention.py"
+      },
+      "window_line": 123
+    },
+    {
+      "existing_function": {
+        "line": 709,
+        "name": "test_status_warns_when_published_document_disagrees_with_live_serves",
+        "path": "tests/test_agent_endpoint_discovery.py"
+      },
+      "run_function": {
+        "line": 110,
+        "name": "test_a_request_rotation_named_like_a_raw_file_is_not_a_candidate",
+        "path": "tests/test_telemetry_retention.py"
+      },
+      "window_line": 123
+    }
+  ],
+  "commit_resolution": null,
+  "commits": [
+    "182dffcfa743206d1d12d64b45d48c0ce502f942"
+  ],
+  "completed_at": "2026-10-02T00:40:26.800Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-10-02T00:09:35Z",
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": true,
+    "matched_measure": "pytest -p",
+    "override": false,
+    "role": "implement",
+    "status": "compatible"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [
+    "telemetry_index.py",
+    "/",
+    "telemetry_store.py"
+  ],
+  "gate": "passed",
+  "gate_check": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider tests/test_telemetry_retention.py tests/test_telemetry_compaction_runs.py",
+    "exit_status": 0,
+    "log_digest": "sha256:4d00a647ed6188f8e252a6c9f3cd17cc64bae025ea37bdfdb2ac9d54e6fb9f30",
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T000925962662-srw-retire-raw-checks-tiers-without-building-indexes/logs/gate-e18d24b5.log"
+  },
+  "impl_move": {
+    "at_complete": 0.15,
+    "at_dispatch": 0.15,
+    "plan": "serving-record-warehouse",
+    "reason": "section 8 retention check performance",
+    "verdict": "waived"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-10-02T00:54:27.943878+00:00",
+    "horizon_seconds": 2700,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": null,
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-10-02T00:09:27Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 2,
+    "binding_observed": "unknown",
+    "detail": "",
+    "generating": 9,
+    "headroom": 6,
+    "mean_context": 160000,
+    "observed_at": "2026-10-02T00:09:25Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45,
+    "throughput": {
+      "age_seconds": null,
+      "aggregate_tokens_per_second": "unknown",
+      "detail": "lane document publishes no 'throughput' block, so the rate its generating population achieved is not measured",
+      "mean_tokens_per_second": "unknown",
+      "observed_at": null,
+      "runs": "unknown",
+      "state": "unknown"
+    },
+    "waiting": 0
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-10-02T00:40:26.800Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": true,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T000925962662-srw-retire-raw-checks-tiers-without-building-indexes/manifest.md",
+  "member": "fleet-review-baseline",
+  "negative_control": {
+    "added_failure_ids": [
+      "tests/test_telemetry_retention.py::test_an_absent_counter_is_absent_not_zero"
+    ],
+    "baseline_failure_ids": [],
+    "comparison_arm": "baseline_suite",
+    "control_exit_status": 1,
+    "control_failure_ids": [
+      "tests/test_telemetry_retention.py::test_an_absent_counter_is_absent_not_zero"
+    ],
+    "declaration": "treating an absent counter as zero must fail the new absent-versus-zero test; applied as a scratch edit and restored",
+    "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T000925962662-srw-retire-raw-checks-tiers-without-building-indexes/logs/negative-control-absent-as-zero.txt",
+    "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T000925962662-srw-retire-raw-checks-tiers-without-building-indexes/logs/negative-control-absent-as-zero.txt",
+    "test_paths": [
+      "tests/test_telemetry_retention.py"
+    ],
+    "verdict": "matched"
+  },
+  "no_commit": null,
+  "node": "srw-retire-raw-checks-tiers-without-building-indexes",
+  "node_definition": {
+    "brief": "",
+    "brief_path": "",
+    "brief_sha256": "",
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 3302,
+          "cached_input_tokens": 858857,
+          "input_tokens": 862161,
+          "output_tokens": 2223,
+          "reasoning_output_tokens": 936,
+          "total_tokens": 864384,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "0c4316b2-553f-4a0a-ae02-c42d88de747c",
+      "session_id": "0c4316b2-553f-4a0a-ae02-c42d88de747c"
+    },
+    "done_when": "In imas_ambix/agent/telemetry_retention.py compare_tiers no longer builds a TelemetryIndex. It reads raw, minute and hour rows, buckets them by UTC hour, and compares telemetry_store's partitioned totals of engine.generation_tokens, engine.prompt_tokens and engine.uncached_prompt_tokens per hour and counter, giving the same verdicts as before. A counter absent from every row of a tier in an hour is reported as absent, not as zero; a tier holding a value where raw holds none is a failure. Tests in tests/test_telemetry_retention.py keep every existing verdict test passing; add one asserting the absent-versus-zero rule; add one asserting the check over a synthetic raw file of 20,000 rows and its compactions completes in under 10 s. The manifest reports, for the real raw file /work/projects/imas_gpu/agents/receipts/deepseek-v4-1-flash-1271709.jsonl and its staged tiers in /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-rebuild-tiers-from-raw-staged/tiers/ (read-only), what raw, minute and hour each hold for engine.generation_tokens in hour 2026-09-15T19:00Z: absent, null, or the number. The worker writes nothing under /work/projects/imas_gpu/agents/receipts. Gate: uv run --no-sync pytest -p no:cacheprovider tests/test_telemetry_retention.py tests/test_telemetry_compaction_runs.py passes, pytest tests/test_agent_serve_registry.py -k agent_package_modules_parse_with_serving_python passes, uv run --no-sync ruff check imas_ambix tests exits 0; the gate log's first line names the commit it ran at and each command's exit status is recorded as EXIT=0 or the non-zero status; any evidence fragment written ends with a trailing newline",
+    "estimated_hours": null,
+    "goal": "Make the retention tier check compute per-hour totals directly from rows so it scales to the real record",
+    "id": "srw-retire-raw-checks-tiers-without-building-indexes",
+    "lane_declaration": {
+      "backend": null,
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-10-02T00:09:27Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 2,
+      "binding_observed": "unknown",
+      "detail": "",
+      "generating": 9,
+      "headroom": 6,
+      "mean_context": 160000,
+      "observed_at": "2026-10-02T00:09:25Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45,
+      "throughput": {
+        "age_seconds": null,
+        "aggregate_tokens_per_second": "unknown",
+        "detail": "lane document publishes no 'throughput' block, so the rate its generating population achieved is not measured",
+        "mean_tokens_per_second": "unknown",
+        "observed_at": null,
+        "runs": "unknown",
+        "state": "unknown"
+      },
+      "waiting": 0
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T000925962662-srw-retire-raw-checks-tiers-without-building-indexes/manifest.md",
+    "negative_control": "treating an absent counter as zero must fail the new absent-versus-zero test; applied as a scratch edit and restored",
+    "plan": "serving-record-warehouse",
+    "requested_backend": "clive",
+    "requires_decisions": [],
+    "role": "implement",
+    "section": "§8",
+    "spec_level": "exact",
+    "time_budget": "45m",
+    "token_budget": null,
+    "write_paths": [
+      "imas_ambix/agent/telemetry_retention.py",
+      "tests/test_telemetry_retention.py",
+      "docs/evidence/fragments/serving-record-warehouse/srw-retire-raw-checks-tiers-without-building-indexes.html",
+      "docs/figures/serving-record-warehouse/srw-retire-raw-checks-tiers-without-building-indexes"
+    ]
+  },
+  "orientation_input_tokens": 2105559.0,
+  "outcome": "",
+  "pace": {
+    "allowance": null,
+    "bar": null,
+    "clocks": {
+      "five_hour": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "five_hour",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null
+      },
+      "seven_day": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "seven_day",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null
+      }
+    },
+    "group": null,
+    "hold": null,
+    "lane": "clive",
+    "member": null,
+    "node": "srw-retire-raw-checks-tiers-without-building-indexes",
+    "policy": {
+      "drain_lead_hours": 12.0,
+      "pace_multiple": 1.1
+    },
+    "reason": "the lane declares no budget group, so no wallet paced it",
+    "recorded_at": "2026-10-02T00:09:30.106219+00:00",
+    "score": 0.56875,
+    "source": null,
+    "state": "unknown"
+  },
+  "plan": "serving-record-warehouse",
+  "plan_impl_at_dispatch": 0.15,
+  "plan_link": null,
+  "promoted_revision": "182dffcfa743206d1d12d64b45d48c0ce502f942",
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "reviewed_base_sha": "ce90ad058de33298bce25ca590ab0776748b3974",
+    "reviewed_head_sha": "182dffcfa743206d1d12d64b45d48c0ce502f942",
+    "scores": {
+      "durability": 18,
+      "evidence": 18,
+      "fit": 19,
+      "goal_fidelity": 20,
+      "scope_discipline": 20
+    },
+    "status": "parsed",
+    "total": 95
+  },
+  "review_tier": "none",
+  "role": "implement",
+  "run_id": "r-20261002T000925962662-srw-retire-raw-checks-tiers-without-building-indexes",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§8",
+  "session": "0c4316b2-553f-4a0a-ae02-c42d88de747c",
+  "session_harness": "claude",
+  "session_id": "9e4fc94a-4535-4df7-8fae-77442e32c293",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "exact",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 2,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 12260041,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+    "elapsed_seconds": 1843.188,
+    "generated_tokens": 52803,
+    "generation_seconds": 1724.533,
+    "input_budget_tokens": 480000,
+    "input_utilisation_pct": 43.4,
+    "machine_seconds": 118.655,
+    "peak_input_tokens": 208519,
+    "tokens_per_second": 30.62,
+    "wall_tokens_per_second": 28.65
+  },
+  "time_budget": "45m",
+  "tool_steps": 71.0,
+  "unplanned_reason": null,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": []
+  },
+  "wall_seconds": 1851,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-10-02T00:40:27Z",
+    "last_record_type": "result",
+    "launched_at": "2026-10-02T00:09:39Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20261002T000925962662-srw-retire-raw-checks-tiers-without-building-indexes",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 11497,
+    "worker_pid": 602000
+  },
+  "worker_seconds": 1830,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
