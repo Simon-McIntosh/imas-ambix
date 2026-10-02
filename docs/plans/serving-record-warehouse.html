@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-10-02">
-<meta name="plan-version" content="136">
+<meta name="plan-version" content="137">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -910,6 +910,9 @@
 </div>
 <div class="r-comment" data-section="s8" data-id="c-run-r-20261002T000021021285-srw-index-falls-through-any-tier-with-no-parseable-row" data-who="reckon-build" data-when="2026-10-02T00:15:03.519Z">
     <div class="r-comment-body"><p>The per-job tier choice now judges absence on the file, not its resolution: any tier file, raw or minute, with no parseable record line is dropped so the selection falls through to the finest tier carrying rows; the new test answers a job with no raw file and an unparseable minute file from hour at totals 2000/1000/800, and the declared mutation (re-restricting the check to raw) reddens it with EXIT=1.</p></div>
+</div>
+<div class="r-comment" data-section="s8" data-id="c-run-r-20261002T001521345208-review-of-srw-index-falls-through-any-tier-with-no-parseable-row" data-who="reckon-build" data-when="2026-10-02T00:36:07.857Z">
+    <div class="r-comment-body"><p>Attached an independent review to r-20261002T000021021285-srw-index-falls-through-any-tier-with-no-parseable-row at head c43e59e: the landed change makes the index&#x27;s per-job tier choice judge absence on the file itself (`_tier_has_no_row`, renamed from `_raw_has_no_row`) so any tier with no parseable row is dropped and the selection falls through; the review reproduces the defect from the base source (base + head test reddens, EXIT=1), rebuilt both gate arms (base 71 passed, head 72 passed), and stored a parsed 5-dimension record (goal_fidelity 19, evidence 18, scope_discipline 20, durability 18, fit 19, total 94) with added_failure_count 0.</p></div>
 </div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20260924T122840994565-s26-currency-audit" data-who="reckon-ship" data-when="2026-09-24T12:30:00Z">
     <div class="r-comment-body"><p>stopped by the coordinator within a minute of launch: the repository's local-lane budget for the re-plan exercise was reallocated, and the audit was done in-session instead</p></div>
