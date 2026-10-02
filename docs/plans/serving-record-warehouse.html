@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-10-02">
-<meta name="plan-version" content="177">
+<meta name="plan-version" content="178">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -1292,7 +1292,10 @@
     <div class="r-comment-body"><p>Independent review of r-20261002T112535151253-srw-index-size-breakdown: parsed record, total 81/100 (goal_fidelity 17, evidence 13, scope_discipline 19, durability 15, fit 17); every headline figure reproduces exactly from the surviving snapshot, but the recorded gate receipt is false (the manifest says the sqlite3 step exited 0 while raw_results.err ends EXIT=1), the named gate script index_size_breakdown.py crashes under the interpreter gate.log records and lacks the page-count fallback, the string-duplication arithmetic is wrong in every written form, and the recorded negative control cannot be exercised by the delivered scratch script.</p></div>
 </div>
 <div class="r-comment" data-section="s5" data-id="c-run-r-20261002T123509368875-srw-ingest-commits-in-batches" data-who="reckon-build" data-when="2026-10-02T13:21:32.245Z">
-    <div class="r-comment-body"><p>TelemetryIndex.ingest now commits in bounded batches of DEFAULT_BATCH_ROWS (1000) with the source row advanced to the batch&#x27;s last line, so a cold 20 MB (31,888-row) receipts cut ingests in 2.979 s at head against 169.937 s at base, ~57x faster, with resume-after-kill, digest-identity and no-double-count all asserted.</p></div>
+    <div class="r-comment-body"><p>TelemetryIndex.ingest now commits in bounded batches of DEFAULT_BATCH_ROWS (1000) with the source row advanced to the batch's last line, so a cold 20 MB (31,888-row) receipts cut ingests in 2.979 s at head against 169.937 s at base, ~57x faster, with resume-after-kill, digest-identity and no-double-count all asserted.</p></div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-run-r-20261002T163643597825-review-of-srw-ingest-commits-in-batches" data-who="reckon-build" data-when="2026-10-02T17:15:53.784Z">
+    <div class="r-comment-body"><p>Review of r-20261002T123509368875-srw-ingest-commits-in-batches at head 6bbea311 over base 4516e26e stored as a parsed record, total 90/100 (goal_fidelity 19, evidence 17, scope_discipline 20, durability 16, fit 18) with added_failure_count 0 and no added ids derived from this review&#x27;s own base(94 passed)/head(97 passed) arms of the node&#x27;s declared gate because the reviewed run was dispatched unarmed; three follow-on findings: a reproduced regression where a single receipts file spanning a reboot now commits a second source row and is no longer recognised as consumed-whole so its whole region is re-digested every pass; the gate log&#x27;s second command names a selector that collects no test; and the recorded negative control names no mutation target though forcing per-row commits in production reddens the same test.</p></div>
 </div>
 </section>
 </main>
