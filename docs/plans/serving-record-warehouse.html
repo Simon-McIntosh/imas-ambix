@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-10-02">
-<meta name="plan-version" content="176">
+<meta name="plan-version" content="177">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -1290,6 +1290,9 @@
 </div>
 <div class="r-comment" data-section="s5" data-id="c-run-r-20261002T120253357301-review-of-srw-index-size-breakdown" data-who="reckon-build" data-when="2026-10-02T12:33:02.201Z">
     <div class="r-comment-body"><p>Independent review of r-20261002T112535151253-srw-index-size-breakdown: parsed record, total 81/100 (goal_fidelity 17, evidence 13, scope_discipline 19, durability 15, fit 17); every headline figure reproduces exactly from the surviving snapshot, but the recorded gate receipt is false (the manifest says the sqlite3 step exited 0 while raw_results.err ends EXIT=1), the named gate script index_size_breakdown.py crashes under the interpreter gate.log records and lacks the page-count fallback, the string-duplication arithmetic is wrong in every written form, and the recorded negative control cannot be exercised by the delivered scratch script.</p></div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-run-r-20261002T123509368875-srw-ingest-commits-in-batches" data-who="reckon-build" data-when="2026-10-02T13:21:32.245Z">
+    <div class="r-comment-body"><p>TelemetryIndex.ingest now commits in bounded batches of DEFAULT_BATCH_ROWS (1000) with the source row advanced to the batch&#x27;s last line, so a cold 20 MB (31,888-row) receipts cut ingests in 2.979 s at head against 169.937 s at base, ~57x faster, with resume-after-kill, digest-identity and no-double-count all asserted.</p></div>
 </div>
 </section>
 </main>
