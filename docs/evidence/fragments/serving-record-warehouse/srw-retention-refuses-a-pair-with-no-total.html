@@ -1,0 +1,51 @@
+<section class="evidence-fragment" data-reckon="evidence" id="srw-retention-refuses-a-pair-with-no-total">
+  <header>
+    <h3>The retention check refuses a pair whose tiers all yield no total</h3>
+    <p class="meta">
+      Node <code>srw-retention-refuses-a-pair-with-no-total</code> &middot;
+      date 2026-10-02
+    </p>
+  </header>
+
+  <p>
+    <code>compare_tiers</code> decided agreement with a three-way equality, so a
+    pair present in all three tiers whose window totals were all <code>None</code>
+    satisfied <code>None == None == None</code> and was counted in
+    <code>compared_pairs</code> with <code>agrees=True</code>. A lone row in the
+    hour offers one endpoint and no earlier opening to difference against, so
+    <code>_run_window_total</code> answers <code>None</code> for every tier; a
+    file whose only present pairs read that way would have been eligible on no
+    evidence. The pair is now skipped when no tier yields a total, exactly as an
+    all-absent pair is, and is a disagreement when a total is present in some tiers
+    and absent in others. A pair is compared only when present in all three tiers
+    with a total in each.
+  </p>
+
+  <table>
+    <thead>
+      <tr><th>Measure</th><th>Result</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Retention suite at base <code>25e2d4c7</code></td>
+        <td>17 passed, EXIT=0</td>
+      </tr>
+      <tr>
+        <td>Retention suite at head <code>31f64ead</code></td>
+        <td>19 passed, EXIT=0</td>
+      </tr>
+      <tr>
+        <td>Serving-python parse guard</td>
+        <td>1 passed, 8 deselected, EXIT=0</td>
+      </tr>
+      <tr>
+        <td><code>ruff check imas_ambix tests</code></td>
+        <td>All checks passed, EXIT=0</td>
+      </tr>
+      <tr>
+        <td>Negative control: <code>None == None</code> comparison restored</td>
+        <td><code>test_a_file_whose_only_present_pairs_yield_no_total_is_kept</code> fails, EXIT=1</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
