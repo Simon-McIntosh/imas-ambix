@@ -1,0 +1,393 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effective_input_window": 480000,
+    "effort": "high",
+    "launch": "cli",
+    "local": true,
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "worktree-full",
+    "usable_input_window": 480000
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "26c56e20b07b13ae63cdf13dd92df03c64997865",
+  "boundary_waiver": null,
+  "brief": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "fallback_credit": null,
+      "inference_geo": "",
+      "input_tokens": 6089041,
+      "input_tokens_cumulative": 6089041,
+      "output_tokens": 29170,
+      "output_tokens_cumulative": 29170,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": {
+    "added": 56,
+    "files": 2,
+    "removed": 0
+  },
+  "clone_matches": [
+    {
+      "existing_function": {
+        "line": 100,
+        "name": "test_failed_replace_keeps_the_target_unchanged",
+        "path": "tests/test_agent_publish_watch.py"
+      },
+      "run_function": {
+        "line": 75,
+        "name": "test_failure_with_newline_prints_one_line_and_keeps_the_target_unchanged",
+        "path": "tests/test_agent_publish_watch.py"
+      },
+      "window_line": 89
+    },
+    {
+      "existing_function": {
+        "line": 75,
+        "name": "test_failure_with_newline_prints_one_line_and_keeps_the_target_unchanged",
+        "path": "tests/test_agent_publish_watch.py"
+      },
+      "run_function": {
+        "line": 100,
+        "name": "test_failed_replace_keeps_the_target_unchanged",
+        "path": "tests/test_agent_publish_watch.py"
+      },
+      "window_line": 113
+    }
+  ],
+  "commit_resolution": null,
+  "commits": [
+    "798af3ecb78e17f66038a9abdf63bd1025ebe878"
+  ],
+  "completed_at": "2026-10-02T18:48:21.260Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-10-02T18:30:26Z",
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": true,
+    "matched_measure": "pytest -p",
+    "override": false,
+    "role": "implement",
+    "status": "compatible"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [],
+  "gate": "passed",
+  "gate_check": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider tests/test_agent_publish_watch.py",
+    "exit_status": 0,
+    "log_digest": "sha256:1da09c4561b29e40eb1d5522e031012dd9d209fb7e2b97113c8cafbc856a6d08",
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T183017653657-srw-publish-watch-writes-a-readable-file/logs/head_gate.log"
+  },
+  "impl_move": {
+    "at_complete": 0.15,
+    "at_dispatch": 0.15,
+    "plan": "serving-record-warehouse",
+    "reason": "A repair to f-srw-019, a §10 prerequisite.",
+    "verdict": "waived"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-10-02T19:05:18.556125+00:00",
+    "horizon_seconds": 2100,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": null,
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-10-02T18:30:18Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 10,
+    "binding_observed": "unknown",
+    "detail": "",
+    "generating": 13,
+    "headroom": 4,
+    "mean_context": 156667,
+    "observed_at": "2026-10-02T18:30:08Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45,
+    "throughput": {
+      "age_seconds": null,
+      "aggregate_tokens_per_second": "unknown",
+      "detail": "lane document publishes no 'throughput' block, so the rate its generating population achieved is not measured",
+      "mean_tokens_per_second": "unknown",
+      "observed_at": null,
+      "runs": "unknown",
+      "state": "unknown"
+    },
+    "waiting": 0
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-10-02T18:48:21.260Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": true,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T183017653657-srw-publish-watch-writes-a-readable-file/manifest.md",
+  "member": "disposable-r-20261002T183017653657-srw-publish-watch-writes-a-readable-file",
+  "negative_control": {
+    "added_failure_ids": [
+      "tests/test_agent_publish_watch.py::test_once_publishes_a_world_readable_file"
+    ],
+    "baseline_failure_ids": [],
+    "comparison_arm": "after_suite",
+    "control_exit_status": 1,
+    "control_failure_ids": [
+      "tests/test_agent_publish_watch.py::test_once_publishes_a_world_readable_file"
+    ],
+    "declaration": "removing the chmod must fail the mode test; applied as a scratch edit and restored",
+    "head_failure_ids": [],
+    "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T183017653657-srw-publish-watch-writes-a-readable-file/logs/negative_control_no_chmod.log",
+    "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T183017653657-srw-publish-watch-writes-a-readable-file/logs/negative_control_no_chmod.log",
+    "test_paths": [
+      "tests/test_agent_publish_watch.py"
+    ],
+    "verdict": "matched"
+  },
+  "no_commit": null,
+  "node": "srw-publish-watch-writes-a-readable-file",
+  "node_definition": {
+    "brief": "",
+    "brief_path": "",
+    "brief_sha256": "",
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 371,
+          "cached_input_tokens": 669320,
+          "input_tokens": 669695,
+          "output_tokens": 351,
+          "reasoning_output_tokens": 0,
+          "total_tokens": 670046,
+          "uncached_input_tokens": 4
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "0c4316b2-553f-4a0a-ae02-c42d88de747c",
+      "session_id": "0c4316b2-553f-4a0a-ae02-c42d88de747c"
+    },
+    "done_when": "In imas_ambix/agent/watch_publish.py the temporary file is set to mode 0644 before it is renamed over the target, so ~/public/imas-ambix/watch.json carries the same mode as lane.json beside it rather than mkstemp's 0600; tests in tests/test_agent_publish_watch.py assert the published file's mode is 0644 after --once, and drive run() for three iterations with an injected sleep whose second iteration's watch_document raises, asserting three printed lines in order (wrote, failed, wrote), that after the second iteration the target's bytes equal those the first wrote, and that the third iteration's write replaces them; gate: uv run --no-sync pytest -p no:cacheprovider tests/test_agent_publish_watch.py passes, uv run --no-sync pytest -p no:cacheprovider tests/test_agent_serve_registry.py -k agent_package_modules_parse_with_serving_python passes with exactly 1 test selected, uv run --no-sync ruff check imas_ambix tests exits 0; the gate log's first line names the commit it ran at, each command is logged verbatim beside its own summary and EXIT=N, the manifest's baseline_suite and after_suite name two different logs (the base revision's run and the head's), and the gate runs in the foreground to its summary before the manifest is finalised",
+    "estimated_hours": null,
+    "goal": "Make the published watch document world-readable and test a failing iteration inside the publish loop",
+    "id": "srw-publish-watch-writes-a-readable-file",
+    "lane_declaration": {
+      "backend": null,
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-10-02T18:30:18Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 10,
+      "binding_observed": "unknown",
+      "detail": "",
+      "generating": 13,
+      "headroom": 4,
+      "mean_context": 156667,
+      "observed_at": "2026-10-02T18:30:08Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45,
+      "throughput": {
+        "age_seconds": null,
+        "aggregate_tokens_per_second": "unknown",
+        "detail": "lane document publishes no 'throughput' block, so the rate its generating population achieved is not measured",
+        "mean_tokens_per_second": "unknown",
+        "observed_at": null,
+        "runs": "unknown",
+        "state": "unknown"
+      },
+      "waiting": 0
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T183017653657-srw-publish-watch-writes-a-readable-file/manifest.md",
+    "negative_control": "removing the chmod must fail the mode test; applied as a scratch edit and restored",
+    "plan": "serving-record-warehouse",
+    "requested_backend": null,
+    "requires_decisions": [],
+    "role": "implement",
+    "section": "§10",
+    "spec_level": "exact",
+    "time_budget": "35m",
+    "token_budget": null,
+    "write_paths": [
+      "imas_ambix/agent/watch_publish.py",
+      "tests/test_agent_publish_watch.py",
+      "docs/evidence/fragments/serving-record-warehouse/srw-publish-watch-writes-a-readable-file.html",
+      "docs/figures/serving-record-warehouse/srw-publish-watch-writes-a-readable-file"
+    ]
+  },
+  "orientation_input_tokens": 1146715.0,
+  "outcome": "",
+  "pace": {
+    "allowance": null,
+    "bar": null,
+    "clocks": {
+      "five_hour": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "five_hour",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      },
+      "seven_day": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "seven_day",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      }
+    },
+    "group": null,
+    "hold": null,
+    "lane": "clive",
+    "member": null,
+    "node": "srw-publish-watch-writes-a-readable-file",
+    "policy": {
+      "drain_lead_hours": 12.0,
+      "pace_multiple": 1.1
+    },
+    "reason": "the lane declares no budget group, so no wallet paced it",
+    "recorded_at": "2026-10-02T18:30:21.092718+00:00",
+    "score": 0.49375,
+    "source": null,
+    "state": "unknown"
+  },
+  "picker_selection": null,
+  "plan": "serving-record-warehouse",
+  "plan_impl_at_dispatch": 0.15,
+  "plan_link": null,
+  "promoted_by": null,
+  "promoted_revision": "798af3ecb78e17f66038a9abdf63bd1025ebe878",
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "reviewed_base_sha": "26c56e20b07b13ae63cdf13dd92df03c64997865",
+    "reviewed_head_sha": "798af3ecb78e17f66038a9abdf63bd1025ebe878",
+    "scores": {
+      "durability": 20,
+      "evidence": 20,
+      "fit": 19,
+      "goal_fidelity": 20,
+      "scope_discipline": 20
+    },
+    "status": "parsed",
+    "total": 99
+  },
+  "review_tier": "full",
+  "role": "implement",
+  "run_id": "r-20261002T183017653657-srw-publish-watch-writes-a-readable-file",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§10",
+  "session": "0c4316b2-553f-4a0a-ae02-c42d88de747c",
+  "session_harness": "claude",
+  "session_id": "420c8fe0-47e2-4949-b1a5-01cbcb17ca25",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "exact",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 2,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 6089041,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+    "elapsed_seconds": 1065.057,
+    "generated_tokens": 29170,
+    "generation_seconds": 1006.647,
+    "input_budget_tokens": 480000,
+    "input_utilisation_pct": 31.2,
+    "machine_seconds": 58.41,
+    "peak_input_tokens": 149872,
+    "tokens_per_second": 28.98,
+    "wall_tokens_per_second": 27.39
+  },
+  "time_budget": "35m",
+  "tool_steps": 52.0,
+  "unplanned_reason": null,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": []
+  },
+  "wall_seconds": 1075,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-10-02T18:48:22Z",
+    "last_record_type": "result",
+    "launched_at": "2026-10-02T18:30:31Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20261002T183017653657-srw-publish-watch-writes-a-readable-file",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 5057,
+    "worker_pid": 3333660
+  },
+  "worker_seconds": 1047,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
