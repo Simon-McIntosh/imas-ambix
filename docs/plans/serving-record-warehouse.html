@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-10-02">
-<meta name="plan-version" content="187">
+<meta name="plan-version" content="188">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -1056,6 +1056,9 @@
 </div>
 <div class="r-comment" data-section="s8" data-id="c-run-r-20261002T172700096366-srw-retention-compares-hour-counter-pairs" data-who="reckon-build" data-when="2026-10-02T18:05:56.832Z">
     <div class="r-comment-body"><p>compare_tiers now works on (hour, counter) pairs: a pair absent in every tier is skipped, present-in-some-absent-in-others is a disagreement, present in all three agrees when the raw, minute and hour totals are equal; a file is eligible only with at least one compared pair and a file with none is kept with reason "no hour carries the counters"; the listing and manifest print the compared-pair and compared-hour counts; gate 17 retention tests + 1 serving-python parse guard + ruff exit 0, the hybrid fixture is eligible at 6 compared pairs over 2 hours</p></div>
+</div>
+<div class="r-comment" data-section="s8" data-id="c-run-r-20261002T180959766773-review-of-srw-retention-compares-hour-counter-pairs" data-who="reckon-build" data-when="2026-10-02T18:26:56.499Z">
+    <div class="r-comment-body"><p>Reviewed r-20261002T172700096366-srw-retention-compares-hour-counter-pairs (plan imas-ambix:serving-record-warehouse §8, f-srw-018) at head 25e2d4c7 on base 92850b4d; scores goal_fidelity 19, evidence 18, scope_discipline 20, durability 18, fit 19, total 94; the (hour, counter) pair rule is implemented as specified and every branch is exercised by a committed test, zero added failures, and the sole finding is a follow-on strictness gap (an all-None-totals pair counted as compared and agreeing).</p></div>
 </div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20260924T122840994565-s26-currency-audit" data-who="reckon-ship" data-when="2026-09-24T12:30:00Z">
     <div class="r-comment-body"><p>stopped by the coordinator within a minute of launch: the repository's local-lane budget for the re-plan exercise was reallocated, and the audit was done in-session instead</p></div>
