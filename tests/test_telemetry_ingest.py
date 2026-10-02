@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import datetime as _dt
 import json
+import re
 import sqlite3
 import weakref
 from pathlib import Path
@@ -350,3 +351,96 @@ def test_zero_iterations_takes_no_tick(tmp_path):
         assert index.sample_count() == 0
 
     assert slept == []
+
+
+#: The one line the default error callback prints, with the UTC stamp and the
+#: SQLite message the lock produces. The whole line is matched, so a second
+#: line -- a traceback, or a second announcement -- fails the check.
+_FAILURE_LINE = re.compile(
+    r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z ingest tick failed: database is locked"
+)
+
+
+def test_a_locked_index_fails_one_tick_and_the_next_ingests_what_was_pending(
+    tmp_path, capsys
+):
+    """A lock held across one tick is announced and skipped, not fatal.
+
+    The lock is taken by a second connection so the ingest's own read is
+    refused with SQLite's lock error exactly as it is when another process is
+    mid-commit. The failed tick must print one line and return; the tick after
+    the lock clears must still read the source, because the failed pass kept
+    the fingerprints it began from and the rows it never read stayed pending
+    rather than being marked seen.
+    """
+    source = tmp_path / "serve-1001.jsonl"
+    _write(source, [_row(0), _row(5)])
+    index_file = tmp_path / "index.db"
+
+    with TelemetryIndex(index_file, timeout=0.05) as index:
+        locker = sqlite3.connect(str(index_file), timeout=0.05, isolation_level=None)
+        locker.execute("BEGIN EXCLUSIVE")
+        released: list[bool] = []
+
+        def sleep_then_release(_seconds: float) -> None:
+            # The lock is held across the first tick and released before the
+            # second, so the loop meets both a refused tick and a free one.
+            if not released:
+                locker.execute("COMMIT")
+                released.append(True)
+
+        reports = run(index, tmp_path, iterations=3, sleep=sleep_then_release)
+        locker.close()
+
+        assert released == [True]
+        # The failed tick produced no report; the two that followed did.
+        assert [report.ingest.rows_inserted for report in reports] == [2, 0]
+        # None lost (2 inserted once the lock cleared) and none duplicated
+        # (the tick after that adds nothing).
+        assert index.sample_count() == 2
+
+    failure_lines = capsys.readouterr().out.splitlines()
+    assert len(failure_lines) == 1
+    assert _FAILURE_LINE.fullmatch(failure_lines[0])
+
+
+def test_a_lock_that_never_clears_still_ends_a_finite_loop(tmp_path, capsys):
+    """A failed tick counts as an iteration, so a finite caller cannot spin.
+
+    With the lock held for the whole run and ``iterations=1``, the loop takes
+    its one tick, announces the failure, and returns rather than sleeping out
+    the cadence for an attempt it never promised.
+    """
+    _write(tmp_path / "serve-1001.jsonl", [_row(0)])
+    index_file = tmp_path / "index.db"
+
+    with TelemetryIndex(index_file, timeout=0.05) as index:
+        locker = sqlite3.connect(str(index_file), timeout=0.05, isolation_level=None)
+        locker.execute("BEGIN EXCLUSIVE")
+        slept: list[float] = []
+        reports = run(index, tmp_path, iterations=1, sleep=slept.append)
+        locker.close()
+
+        assert reports == []
+        assert index.sample_count() == 0
+
+    assert slept == []
+    assert len(capsys.readouterr().out.splitlines()) == 1
+
+
+def test_an_operational_error_that_is_not_a_lock_still_ends_the_process(
+    tmp_path, monkeypatch
+):
+    """Only the self-clearing lock error is survived; any other fault propagates."""
+    _write(tmp_path / "serve-1001.jsonl", [_row(0)])
+
+    def explode(self, sources):
+        raise sqlite3.OperationalError("disk I/O error")
+
+    monkeypatch.setattr(TelemetryIndex, "ingest", explode)
+
+    with (
+        TelemetryIndex(tmp_path / "index.db") as index,
+        pytest.raises(sqlite3.OperationalError, match="disk I/O error"),
+    ):
+        run(index, tmp_path, iterations=2, sleep=lambda _: None)

@@ -835,11 +835,18 @@ class TelemetryIndex:
         *,
         host: str | None = None,
         boot_id: str | None = None,
+        timeout: float = 5.0,
     ) -> None:
+        """Open the index for writing, waiting at most *timeout* for its lock.
+
+        *timeout* bounds how long a write waits on another connection holding
+        the file before SQLite raises its lock error, matching
+        :meth:`readonly`'s parameter of the same name.
+        """
         self.path = Path(path)
         self.host = resolve_host(host)
         self.boot_id = UNKNOWN_BOOT_ID if boot_id is None else boot_id
-        self._conn = sqlite3.connect(str(self.path))
+        self._conn = sqlite3.connect(str(self.path), timeout=timeout)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA foreign_keys = ON")
         self._conn.executescript(_SCHEMA)
@@ -936,6 +943,19 @@ class TelemetryIndex:
 
     def close(self) -> None:
         self._conn.close()
+
+    def rollback(self) -> None:
+        """Discard the open transaction, leaving every committed batch in place.
+
+        A pass that raises already rolls back the batch in flight as it unwinds,
+        but a lock error can surface from a statement outside that guard -- the
+        resume and tier lookups a pass makes before it opens a source's lines --
+        so a caller that means to tick again after a locked index leaves the
+        handle with no transaction open rather than one carried into the next
+        pass. Committed batches are untouched, so the rollback loses only what
+        the failed tick had not yet committed.
+        """
+        self._conn.rollback()
 
     def __enter__(self) -> TelemetryIndex:
         return self
