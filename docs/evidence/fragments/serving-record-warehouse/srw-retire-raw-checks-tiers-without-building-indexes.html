@@ -1,0 +1,91 @@
+<section class="evidence-fragment" data-reckon="evidence" id="srw-retire-raw-checks-tiers-without-building-indexes">
+  <header>
+    <h3>The retention tier check totals tiers from their rows, without an index</h3>
+    <p class="meta">
+      Node <code>srw-retire-raw-checks-tiers-without-building-indexes</code> &middot;
+      date 2026-10-02 &middot;
+      worktree <code>imas-ambix-0405601943d2/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-retire-raw-checks-tiers-without-building-indexes</code>
+    </p>
+  </header>
+
+  <p>
+    <code>compare_tiers</code> judged a raw receipt against its compactions by
+    building a <code>TelemetryIndex</code> for each of the three tiers and
+    ingesting the files into it, then asking each index for a partitioned total
+    per UTC hour. The index reads and digests the whole file to build a local
+    SQLite store, which is the wrong instrument for a comparison that only
+    needs the rows in front of it: a raw receipt grows about 8.7&nbsp;MB a day and
+    never rolls. This node reads the rows directly, buckets them by UTC hour,
+    and reproduces the same partitioned-total arithmetic &mdash; one run per
+    two-serve restart, a compacted row's carried opening as the base where a run
+    begins inside the window &mdash; so the verdicts are unchanged and no index
+    is built.
+  </p>
+
+  <h4>What changed</h4>
+  <ul>
+    <li>
+      <code>imas_ambix/agent/telemetry_retention.py</code>:
+      <code>compare_tiers</code> no longer builds a <code>TelemetryIndex</code>.
+      New helpers read a tier's rows (<code>_read_tier_rows</code>), extract a
+      dotted counter (<code>_counter_value</code>) and a compacted row's carried
+      opening (<code>_counter_opening</code>), partition the same run predicate
+      the compactor uses (<code>_counter_runs</code>), and total a run over a
+      window (<code>_run_window_total</code>). A counter absent from every row
+      of a tier in an hour totals <code>None</code>, not <code>0.0</code>; a
+      tier holding a value where raw holds none is a disagreement.
+    </li>
+    <li>
+      <code>tests/test_telemetry_retention.py</code>: one test asserting the
+      absent-versus-zero rule, and one asserting the check over a 20,000-row
+      synthetic raw file and its compactions completes in under 10&nbsp;s.
+    </li>
+  </ul>
+
+  <h4>Evidence</h4>
+  <table>
+    <thead>
+      <tr><th>Measure</th><th>Result</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Existing verdict tests</td>
+        <td>every one passes unchanged (12 passed)</td>
+      </tr>
+      <tr>
+        <td>
+          Absent counter: raw rows carry no <code>engine.uncached_prompt_tokens</code>,
+          minute and hour do
+        </td>
+        <td>
+          <code>raw=None</code> (absent, not <code>0.0</code>),
+          <code>minute=hour=250.0</code>, <code>agrees=False</code>
+        </td>
+      </tr>
+      <tr>
+        <td>20,000 raw rows and their minute/hour compactions</td>
+        <td>checked in about 0.5&nbsp;s (well under 10&nbsp;s), all counters agree</td>
+      </tr>
+      <tr>
+        <td>
+          Real raw file <code>deepseek-v4-1-flash-1271709.jsonl</code> and its
+          staged tiers, <code>engine.generation_tokens</code> in hour
+          2026-09-15T19:00Z
+        </td>
+        <td>
+          raw <em>absent</em>, minute <em>absent</em>, hour <em>absent</em> &mdash;
+          the counter appears in no row of any tier (the file predates the
+          <code>engine</code> section), so it is reported absent rather than zero
+        </td>
+      </tr>
+      <tr>
+        <td>Negative control: an absent counter totalled as zero</td>
+        <td><code>test_an_absent_counter_is_absent_not_zero</code> fails, EXIT=1</td>
+      </tr>
+      <tr>
+        <td>Gate</td>
+        <td>12 passed retention + compaction-run gate</td>
+      </tr>
+    </tbody>
+  </table>
+</section>

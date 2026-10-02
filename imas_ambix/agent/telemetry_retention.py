@@ -41,14 +41,19 @@ import hashlib
 import json
 import os
 import subprocess
-import tempfile
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
 from imas_ambix.agent.serving_receipts import tier_paths
-from imas_ambix.agent.telemetry_index import TelemetryIndex, receipts_job_id
+from imas_ambix.agent.telemetry_index import (
+    counter_run_continues,
+    receipts_job_id,
+    row_boot_id,
+    row_host,
+    row_job_id,
+)
 
 #: Where a listing pass writes the manifest an apply pass consumes. Kept under
 #: the user's state directory; the manifest is the frozen list and a durable
@@ -318,6 +323,169 @@ def _sum_or_none(values: list[float | None]) -> float | None:
     return sum(value for value in values if value is not None)
 
 
+def _read_tier_rows(path: Path) -> list[dict]:
+    """Every row a tier file holds, in time order.
+
+    Read tolerantly, as :func:`row_span` is: a trailing line still being written
+    is not a row, and a line that does not parse as an object is skipped rather
+    than refusing the whole file. Rows are ordered by their own timestamp, ties
+    keeping the file's own order, so the run partition is stable across passes.
+    A file that cannot be opened holds no rows, which is the same thing an
+    absent tier offers.
+    """
+    rows: list[dict] = []
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(row, dict):
+                    rows.append(row)
+    except OSError:
+        return []
+    rows.sort(key=lambda row: _timestamp_of(row) or 0.0)
+    return rows
+
+
+def _counter_value(row: dict, name: str) -> float | None:
+    """The value of the cumulative counter *name* on *row*, or ``None``.
+
+    *name* is the dotted path the record spells the counter under
+    (``engine.generation_tokens``). A leaf the row does not carry, a null and a
+    non-numeric leaf each answer ``None``. That is deliberate: a quantity the
+    record does not carry is absent, and an absent reading must not be summed as
+    a measured zero.
+    """
+    node: object = row
+    for part in name.split("."):
+        if not isinstance(node, dict):
+            return None
+        node = node.get(part)
+    if isinstance(node, bool) or not isinstance(node, (int, float)):
+        return None
+    return float(node)
+
+
+def _counter_opening(row: object, name: str) -> float | None:
+    """The opening a compacted row declares for its own window, or ``None``.
+
+    A compacted row carries an ``open`` block naming, per cumulative counter, the
+    value the run held at the start of the row's own window. Reading it back is
+    what lets a window be totalled from any tier: differencing a compacted row
+    against its carried opening gives the same figure the raw rows would. A raw
+    row has no such block and answers ``None``, so the run's own reading is the
+    window's opening.
+    """
+    if not isinstance(row, dict):
+        return None
+    block = row.get("open")
+    if not isinstance(block, dict):
+        return None
+    value = block.get(name)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value)
+
+
+def _run_opening(
+    run: list[tuple[float, float, float | None]], start: float, end: float
+) -> tuple[float, float, float | None] | None:
+    """A run's endpoint at or before the window, or its first inside it.
+
+    The opening reading is the last at or before *start* so a difference counts
+    the traffic served from that reading onward, and a window whose own first
+    sample already carries the counter needs no earlier row. The entry carries
+    the opening a compacted row declares as well as its closing, so the caller
+    can tell a first-in-window compacted row -- which spans its own window and so
+    has two endpoints -- from a compacted row whose opening lies earlier.
+    """
+    opening: tuple[float, float, float | None] | None = None
+    for entry in run:
+        if entry[0] <= start:
+            opening = entry
+        else:
+            break
+    if opening is not None:
+        return opening
+    for entry in run:
+        if start <= entry[0] < end:
+            return entry
+    return None
+
+
+def _run_closing(
+    run: list[tuple[float, float, float | None]], end: float
+) -> tuple[float, float, float | None] | None:
+    """A run's latest reading strictly before the window's end."""
+    closing: tuple[float, float, float | None] | None = None
+    for entry in run:
+        if entry[0] < end:
+            closing = entry
+        else:
+            break
+    return closing
+
+
+def _counter_runs(
+    rows: list[dict], name: str
+) -> list[list[tuple[float, float, float | None]]]:
+    """Partition a tier's rows into contiguous runs for one counter.
+
+    Each entry is ``(ts_epoch, closing, opening)``: *opening* is the value the
+    row declares its own window opened at (``None`` for a raw row). A run is one
+    serving process on one host over one boot whose counter never fell -- the
+    predicate the compactor also splits its strides on -- so a window is totalled
+    per run and a restart inside a window is not differenced across.
+    """
+    runs: list[list[tuple[float, float, float | None]]] = []
+    previous: tuple[tuple[object, ...], dict[str, float]] | None = None
+    for row in rows:
+        value = _counter_value(row, name)
+        if value is None:
+            continue
+        stamp = _timestamp_of(row)
+        if stamp is None:
+            continue
+        key = (row_host(row), row_boot_id(row), row_job_id(row))
+        current = (key, {"value": value})
+        if previous is None or not counter_run_continues(previous, current):
+            runs.append([])
+        runs[-1].append((stamp, value, _counter_opening(row, name)))
+        previous = current
+    return runs
+
+
+def _run_window_total(
+    runs: list[list[tuple[float, float, float | None]]], start: float, end: float
+) -> float | None:
+    """One counter's total over ``[start, end)``, summed over its runs.
+
+    Each run contributes its closing minus its opening, in the same shape the
+    record warehouse's partitioned total uses. ``None`` when no run contributed
+    a second endpoint, which is not the same answer as ``0.0`` for a run that was
+    observed and did not advance.
+    """
+    total: float | None = None
+    for run in runs:
+        opening = _run_opening(run, start, end)
+        if opening is None:
+            continue
+        closing = _run_closing(run, end)
+        if closing is None or closing[0] < start:
+            continue
+        carried = opening[2] if opening[0] > start else None
+        if closing is opening and carried is None:
+            continue
+        base = carried if carried is not None else opening[1]
+        total = (0.0 if total is None else total) + (closing[1] - base)
+    return total
+
+
 def compare_tiers(
     raw_path: Path,
     minute_path: Path,
@@ -326,56 +494,49 @@ def compare_tiers(
 ) -> tuple[CounterComparison, ...]:
     """Per-counter agreement between the raw file and its two compactions.
 
-    Each tier is read through the same partitioned-total query the record
-    warehouse answers with, so the triple is compared on the one figure whose
-    equality licenses deletion. The comparison is per window and per counter:
-    every window must agree for every counter, or the tuple carries a
-    ``CounterComparison`` whose ``agrees`` is false.
+    Each tier's rows are read directly and totalled per UTC hour with the
+    partitioned-total arithmetic the record warehouse answers with -- one run per
+    serving process, a compacted row's carried opening used as the base where the
+    run begins inside the window -- so the same comparison is made without
+    building an index for either tier. The comparison is per window and per
+    counter: every window must agree for every counter, or the tuple carries a
+    ``CounterComparison`` whose ``agrees`` is false. A counter a tier holds in no
+    row of a window is reported absent (``None``), and a tier holding a value
+    where the raw file holds none is a disagreement.
     """
-    with tempfile.TemporaryDirectory(prefix="ambix-retention-") as scratch:
-        scratch_path = Path(scratch)
-        raw_index = TelemetryIndex(scratch_path / "raw.sqlite3")
-        minute_index = TelemetryIndex(scratch_path / "minute.sqlite3")
-        hour_index = TelemetryIndex(scratch_path / "hour.sqlite3")
-        try:
-            raw_index.ingest([raw_path])
-            minute_index.ingest([minute_path])
-            hour_index.ingest([hour_path])
-            comparisons: list[CounterComparison] = []
-            for name in COUNTER_NAMES:
-                raw_by_window: list[float | None] = []
-                minute_index_by_window: list[float | None] = []
-                hour_by_window: list[float | None] = []
-                agrees = True
-                for begin, end in windows:
-                    raw_total = raw_index.partitioned_total(name, begin, end).total
-                    minute_total = minute_index.partitioned_total(
-                        name, begin, end
-                    ).total
-                    hour_total = hour_index.partitioned_total(name, begin, end).total
-                    raw_by_window.append(raw_total)
-                    minute_index_by_window.append(minute_total)
-                    hour_by_window.append(hour_total)
-                    if not (
-                        raw_total is not None
-                        and raw_total == minute_total
-                        and raw_total == hour_total
-                    ):
-                        agrees = False
-                comparisons.append(
-                    CounterComparison(
-                        name=name,
-                        raw=_sum_or_none(raw_by_window),
-                        minute=_sum_or_none(minute_index_by_window),
-                        hour=_sum_or_none(hour_by_window),
-                        agrees=agrees,
-                    )
-                )
-            return tuple(comparisons)
-        finally:
-            raw_index.close()
-            minute_index.close()
-            hour_index.close()
+    tiers = {
+        "raw": _read_tier_rows(raw_path),
+        "minute": _read_tier_rows(minute_path),
+        "hour": _read_tier_rows(hour_path),
+    }
+    comparisons: list[CounterComparison] = []
+    for name in COUNTER_NAMES:
+        runs = {tier: _counter_runs(rows, name) for tier, rows in tiers.items()}
+        totals: dict[str, list[float | None]] = {tier: [] for tier in tiers}
+        agrees = True
+        for begin, end in windows:
+            raw_total = _run_window_total(runs["raw"], begin, end)
+            minute_total = _run_window_total(runs["minute"], begin, end)
+            hour_total = _run_window_total(runs["hour"], begin, end)
+            totals["raw"].append(raw_total)
+            totals["minute"].append(minute_total)
+            totals["hour"].append(hour_total)
+            if not (
+                raw_total is not None
+                and raw_total == minute_total
+                and raw_total == hour_total
+            ):
+                agrees = False
+        comparisons.append(
+            CounterComparison(
+                name=name,
+                raw=_sum_or_none(totals["raw"]),
+                minute=_sum_or_none(totals["minute"]),
+                hour=_sum_or_none(totals["hour"]),
+                agrees=agrees,
+            )
+        )
+    return tuple(comparisons)
 
 
 def _modification_time(path: Path) -> float | None:

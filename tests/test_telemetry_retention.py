@@ -13,6 +13,7 @@ from __future__ import annotations
 import datetime as _dt
 import json
 import os
+import time
 from pathlib import Path
 
 from imas_ambix.agent import telemetry_retention as retention
@@ -44,6 +45,14 @@ def _write_rows(path: Path, rows: list[dict]) -> None:
     with path.open("w", encoding="utf-8") as handle:
         for row in rows:
             handle.write(json.dumps(row) + "\n")
+
+
+def _row_omitting(epoch: float, generation: float, omit: tuple[str, ...]) -> dict:
+    """A recorder sample with the named engine counters left out entirely."""
+    row = _row(epoch, generation)
+    for name in omit:
+        del row["engine"][name]
+    return row
 
 
 def _build_job(
@@ -196,6 +205,74 @@ def test_an_ended_old_job_whose_minute_window_differs_is_ineligible(tmp_path):
     assert by_name["engine.generation_tokens"].raw == (
         by_name["engine.generation_tokens"].minute
     )
+
+
+def test_an_absent_counter_is_absent_not_zero(tmp_path):
+    """A counter no row of a tier carries in a window is absent, not zero.
+
+    The raw file records generation and prompt tokens but never the uncached
+    counter, while the minute and hour tiers carry it. The absent reading must
+    survive as absent rather than be summed as a measured zero, and a tier that
+    holds a value where the raw file holds none is a disagreement -- even though
+    the other counters agree over the same window.
+    """
+    hour = int((_NOW - 20 * 86400) // 3600) * 3600
+    windows = [(float(hour), float(hour + 3600))]
+    raw = tmp_path / "deepseek-v4-1-flash-1278105.jsonl"
+    minute, hour_path = retention.tier_paths(raw)
+    _write_rows(
+        raw,
+        [
+            _row_omitting(hour + 600, 100.0, ("uncached_prompt_tokens",)),
+            _row_omitting(hour + 1800, 200.0, ("uncached_prompt_tokens",)),
+        ],
+    )
+    _write_rows(minute, [_row(hour + 600, 100.0), _row(hour + 1800, 200.0)])
+    _write_rows(hour_path, [_row(hour + 600, 100.0), _row(hour + 1800, 200.0)])
+
+    comparisons = retention.compare_tiers(raw, minute, hour_path, windows)
+    by_name = {counter.name: counter for counter in comparisons}
+
+    uncached = by_name["engine.uncached_prompt_tokens"]
+    assert uncached.raw is None, "an absent counter was reported as a value"
+    assert uncached.raw != 0.0
+    assert uncached.minute == 250.0
+    assert uncached.hour == 250.0
+    assert uncached.agrees is False
+    # The counters both tiers carry still agree over the same window.
+    assert by_name["engine.generation_tokens"].agrees is True
+
+
+def test_the_tier_check_over_a_large_record_completes_quickly(tmp_path):
+    """The check scales to the real record: 20,000 raw rows and their tiers.
+
+    The retirement listing runs over every candidate file, and a raw receipt
+    grows about 8.7 MB a day, so the comparison is read directly from the rows
+    rather than through a rebuilt index. Twenty thousand rows -- several days at
+    the recorder's five-second cadence -- with their minute and hour compactions
+    must be checked well inside ten seconds.
+    """
+    start = int((_NOW - 20 * 86400) // 3600) * 3600
+    raw = tmp_path / "deepseek-v4-1-flash-1278105.jsonl"
+    # A one-second phase offset keeps no reading exactly on a UTC hour boundary,
+    # so the raw file and its compactions differencing the same endpoints agree
+    # window by window -- the shape a free-running recorder cadence produces.
+    _write_rows(
+        raw,
+        [_row(start + 1 + index * 5, 100.0 * index) for index in range(20000)],
+    )
+    minute, hour_path = retention.tier_paths(raw)
+    run_compaction(raw, minute, hour_path)
+    first, last = retention.row_span(raw)
+    assert first is not None and last is not None
+    windows = retention._hour_windows(first, last)
+
+    began = time.monotonic()
+    comparisons = retention.compare_tiers(raw, minute, hour_path, windows)
+    elapsed = time.monotonic() - began
+
+    assert comparisons and all(counter.agrees for counter in comparisons)
+    assert elapsed < 10.0, f"the tier comparison took {elapsed:.1f}s"
 
 
 def test_a_five_day_old_ended_job_is_ineligible(tmp_path):
