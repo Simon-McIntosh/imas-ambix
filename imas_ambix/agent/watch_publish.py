@@ -27,6 +27,7 @@ flushed line per iteration, success or failure, and continues to the next.
 
 from __future__ import annotations
 
+import contextlib
 import datetime as _dt
 import json
 import os
@@ -87,10 +88,8 @@ def _write_atomic(target: Path, payload: str) -> None:
             handle.write(payload)
         os.replace(temporary, target)
     except BaseException:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(temporary)
-        except OSError:
-            pass
         raise
 
 
