@@ -84,6 +84,59 @@ def _build_job(
     return raw, minute, hour_path
 
 
+def _old_row(epoch: float, job_id: str = "1278105") -> dict:
+    """A recorder sample from before the engine block existed.
+
+    The counters the check totals are absent, as they are in every pre-engine
+    row; only a throughput rate is carried, which is a gauge and not one of the
+    counters the retirement check compares.
+    """
+    return {
+        "timestamp": _dt.datetime.fromtimestamp(epoch, tz=_dt.UTC).isoformat(),
+        "hostname": "98dci4-gpu-0003",
+        "job_id": job_id,
+        "engine": {"generation_throughput_toks_per_s": 100.0},
+    }
+
+
+def _build_hybrid_job(
+    directory: Path,
+    *,
+    old_hours: int = 2,
+    covered_hours: int = 2,
+    job_id: str = "1278105",
+    slug: str = "deepseek-v4-1-flash",
+    age_days: float = 20.0,
+) -> tuple[Path, Path, Path]:
+    """A raw receipt whose early hours predate the engine block.
+
+    The first ``old_hours`` UTC hours carry no counter in any tier, the way the
+    recorder's rows read before it gained the engine section; the following
+    ``covered_hours`` carry all three counters in every tier and agree. The
+    shape is job 1273253's: a hybrid file the check must retire, its counters
+    verified only where they exist.
+    """
+    base = int((_NOW - age_days * 86400) // 3600) * 3600
+    rows: list[dict] = []
+    for hour_index in range(old_hours):
+        hour = base + hour_index * 3600
+        rows.extend(_old_row(hour + offset, job_id) for offset in (600, 1800, 3000))
+    generation = 100.0
+    for hour_index in range(old_hours, old_hours + covered_hours):
+        hour = base + hour_index * 3600
+        for offset in (600, 1800, 3000):
+            rows.append(_row(hour + offset, generation, job_id))
+            generation += 1.0
+    raw = directory / f"{slug}-{job_id}.jsonl"
+    _write_rows(raw, rows)
+    minute, hour_path = retention.tier_paths(raw)
+    run_compaction(raw, minute, hour_path)
+    quiet = _NOW - 21 * 86400
+    for path in (raw, minute, hour_path):
+        os.utime(path, (quiet, quiet))
+    return raw, minute, hour_path
+
+
 def _none_running() -> frozenset[str]:
     return frozenset()
 
@@ -231,7 +284,7 @@ def test_an_absent_counter_is_absent_not_zero(tmp_path):
     _write_rows(hour_path, [_row(hour + 600, 100.0), _row(hour + 1800, 200.0)])
 
     comparisons = retention.compare_tiers(raw, minute, hour_path, windows)
-    by_name = {counter.name: counter for counter in comparisons}
+    by_name = {counter.name: counter for counter in comparisons.counters}
 
     uncached = by_name["engine.uncached_prompt_tokens"]
     assert uncached.raw is None, "an absent counter was reported as a value"
@@ -268,10 +321,13 @@ def test_the_tier_check_over_a_large_record_completes_quickly(tmp_path):
     windows = retention._hour_windows(first, last)
 
     began = time.monotonic()
-    comparisons = retention.compare_tiers(raw, minute, hour_path, windows)
+    comparison = retention.compare_tiers(raw, minute, hour_path, windows)
     elapsed = time.monotonic() - began
 
-    assert comparisons and all(counter.agrees for counter in comparisons)
+    assert comparison.counters and all(
+        counter.agrees for counter in comparison.counters
+    )
+    assert comparison.compared_pairs > 0
     assert elapsed < 10.0, f"the tier comparison took {elapsed:.1f}s"
 
 
@@ -352,3 +408,113 @@ def test_no_compacted_file_is_ever_removed(tmp_path):
 
     assert report.removed == ()
     assert minute.exists() and hour.exists() and raw.exists()
+
+
+def test_a_hybrid_file_whose_old_format_hours_carry_no_counter_is_eligible(tmp_path):
+    """Hours carrying no counter in any tier are skipped, not disagreements.
+
+    The early hours predate the engine block, so no tier records the three
+    counters the check totals are; the later hours carry all three and agree.
+    The file is eligible once its covered hours are compared and agree, which is
+    what lets a hybrid file such as job 1273253 be retired while a purely
+    old-format one is not.
+    """
+    raw, _minute, _hour = _build_hybrid_job(tmp_path, old_hours=2, covered_hours=2)
+
+    verdict = _verdict_for(_listing(tmp_path), raw)
+
+    assert verdict.eligible is True, verdict.reason
+    assert verdict.compared_pairs == 6, verdict.counters
+    assert verdict.compared_hours == 2
+
+
+def test_a_pure_old_format_file_with_no_compared_pair_is_kept(tmp_path):
+    """A file whose every hour carries no counter is kept, not deleted on nothing.
+
+    With no counter recorded anywhere there is no comparison to rest a
+    retirement on, so the file is kept with the reason that says so rather than
+    being retired on an empty check.
+    """
+    raw, _minute, _hour = _build_hybrid_job(tmp_path, old_hours=2, covered_hours=0)
+
+    verdict = _verdict_for(_listing(tmp_path), raw)
+
+    assert verdict.eligible is False
+    assert "no hour carries the counters" in verdict.reason
+    assert verdict.compared_pairs == 0
+    assert verdict.compared_hours == 0
+
+
+def test_a_pair_present_in_raw_and_absent_in_the_minute_tier_is_refused(tmp_path):
+    """A counter one tier records and another does not is a disagreement.
+
+    The raw and hour tiers carry generation tokens while the minute tier's rows
+    for the same hour omit them. The pair is present in some tiers and absent in
+    others, so it is refused rather than skipped.
+    """
+    hour = int((_NOW - 20 * 86400) // 3600) * 3600
+    windows = [(float(hour), float(hour + 3600))]
+    raw = tmp_path / "deepseek-v4-1-flash-1278105.jsonl"
+    minute, hour_path = retention.tier_paths(raw)
+    _write_rows(raw, [_row(hour + 600, 100.0), _row(hour + 1800, 200.0)])
+    _write_rows(
+        minute,
+        [
+            _row_omitting(hour + 600, 100.0, ("generation_tokens",)),
+            _row_omitting(hour + 1800, 200.0, ("generation_tokens",)),
+        ],
+    )
+    _write_rows(hour_path, [_row(hour + 600, 100.0), _row(hour + 1800, 200.0)])
+
+    comparison = retention.compare_tiers(raw, minute, hour_path, windows)
+    by_name = {counter.name: counter for counter in comparison.counters}
+
+    generation = by_name["engine.generation_tokens"]
+    assert generation.agrees is False
+    assert generation.raw is not None and generation.hour is not None
+    assert generation.minute is None
+    # The two counters every tier records are present in all three and counted.
+    assert comparison.compared_pairs == 2
+
+
+def test_a_pair_present_in_all_tiers_with_unequal_totals_is_refused(tmp_path):
+    """All three tiers carry the counter, but the minute window differs.
+
+    The minute tier's closing reading for the hour is raised, so raw, minute and
+    hour are all present and the compared totals are not equal. The pair is
+    present in all three tiers, so the refusal is the totals' and not a presence
+    gap.
+    """
+    hour = int((_NOW - 20 * 86400) // 3600) * 3600
+    windows = [(float(hour), float(hour + 3600))]
+    raw = tmp_path / "deepseek-v4-1-flash-1278105.jsonl"
+    minute, hour_path = retention.tier_paths(raw)
+    _write_rows(raw, [_row(hour + 600, 100.0), _row(hour + 1800, 200.0)])
+    _write_rows(minute, [_row(hour + 600, 100.0), _row(hour + 1800, 260.0)])
+    _write_rows(hour_path, [_row(hour + 600, 100.0), _row(hour + 1800, 200.0)])
+
+    comparison = retention.compare_tiers(raw, minute, hour_path, windows)
+    by_name = {counter.name: counter for counter in comparison.counters}
+
+    generation = by_name["engine.generation_tokens"]
+    assert generation.agrees is False
+    assert generation.raw == 100.0
+    assert generation.minute == 160.0
+    assert generation.hour == 100.0
+    # Present in all three tiers: the pair was compared, not skipped.
+    assert comparison.compared_pairs == 3
+
+
+def test_the_listing_shows_compared_pair_and_hours_counts(tmp_path):
+    """The listing prints, per file, the compared pairs and their hours.
+
+    A healthy two-hour job compares three counters over each of two hours: six
+    pairs falling in two distinct hours.
+    """
+    raw, _minute, _hour = _build_job(tmp_path)
+
+    text = retention.render_listing(_listing(tmp_path))
+
+    assert "compared_pairs=6" in text
+    assert "compared_hours=2" in text
+    assert raw.name in text
