@@ -1,0 +1,539 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effective_input_window": 480000,
+    "effort": "high",
+    "launch": "cli",
+    "local": true,
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "worktree-full",
+    "usable_input_window": 480000
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "175631f8f90c921a2f638c16783a4303febb05ad",
+  "boundary_waiver": null,
+  "brief": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "fallback_credit": null,
+      "inference_geo": "",
+      "input_tokens": 10386712,
+      "input_tokens_cumulative": 10386712,
+      "output_tokens": 35974,
+      "output_tokens_cumulative": 35974,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": {
+    "added": 65,
+    "files": 1,
+    "removed": 0
+  },
+  "clone_matches": [
+    {
+      "existing_function": {
+        "line": 314,
+        "name": "test_definition_scan_sees_an_indented_rival",
+        "path": "tests/test_agent_bench_shared_reader.py"
+      },
+      "run_function": {
+        "line": 1125,
+        "name": "_record_source",
+        "path": "imas_ambix/agent/telemetry_index.py"
+      },
+      "window_line": 1147
+    },
+    {
+      "existing_function": {
+        "line": 377,
+        "name": "test_definition_scan_ignores_a_local_named_like_a_symbol",
+        "path": "tests/test_agent_bench_shared_reader.py"
+      },
+      "run_function": {
+        "line": 1125,
+        "name": "_record_source",
+        "path": "imas_ambix/agent/telemetry_index.py"
+      },
+      "window_line": 1147
+    },
+    {
+      "existing_function": {
+        "line": 408,
+        "name": "test_definition_scan_ignores_a_class_body_inside_a_function",
+        "path": "tests/test_agent_bench_shared_reader.py"
+      },
+      "run_function": {
+        "line": 1125,
+        "name": "_record_source",
+        "path": "imas_ambix/agent/telemetry_index.py"
+      },
+      "window_line": 1147
+    },
+    {
+      "existing_function": {
+        "line": 29,
+        "name": "_launch",
+        "path": "tests/test_agent_clive_worker_profile.py"
+      },
+      "run_function": {
+        "line": 1125,
+        "name": "_record_source",
+        "path": "imas_ambix/agent/telemetry_index.py"
+      },
+      "window_line": 1147
+    },
+    {
+      "existing_function": {
+        "line": 314,
+        "name": "test_definition_scan_sees_an_indented_rival",
+        "path": "tests/test_agent_bench_shared_reader.py"
+      },
+      "run_function": {
+        "line": 1550,
+        "name": "partitioned_total",
+        "path": "imas_ambix/agent/telemetry_index.py"
+      },
+      "window_line": 1576
+    },
+    {
+      "existing_function": {
+        "line": 377,
+        "name": "test_definition_scan_ignores_a_local_named_like_a_symbol",
+        "path": "tests/test_agent_bench_shared_reader.py"
+      },
+      "run_function": {
+        "line": 1550,
+        "name": "partitioned_total",
+        "path": "imas_ambix/agent/telemetry_index.py"
+      },
+      "window_line": 1576
+    },
+    {
+      "existing_function": {
+        "line": 408,
+        "name": "test_definition_scan_ignores_a_class_body_inside_a_function",
+        "path": "tests/test_agent_bench_shared_reader.py"
+      },
+      "run_function": {
+        "line": 1550,
+        "name": "partitioned_total",
+        "path": "imas_ambix/agent/telemetry_index.py"
+      },
+      "window_line": 1576
+    },
+    {
+      "existing_function": {
+        "line": 29,
+        "name": "_launch",
+        "path": "tests/test_agent_clive_worker_profile.py"
+      },
+      "run_function": {
+        "line": 1550,
+        "name": "partitioned_total",
+        "path": "imas_ambix/agent/telemetry_index.py"
+      },
+      "window_line": 1576
+    }
+  ],
+  "commit_resolution": null,
+  "commits": [
+    "8befa8bbd6af5c838b02317dd57d9adca6a7b9b8"
+  ],
+  "completed_at": "2026-10-02T18:38:05.784Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-10-02T18:12:24Z",
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": true,
+    "matched_measure": "pytest -p",
+    "override": false,
+    "role": "implement",
+    "status": "compatible"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [],
+  "gate": "passed",
+  "gate_check": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider tests/test_telemetry_ingest.py tests/test_agent_ingest_cli.py tests/test_telemetry_index.py",
+    "exit_status": 0,
+    "log_digest": "sha256:43ba198762c2cdfb20a8b642933a5fbbb92314c0cc1139a12361259cf80d3aca",
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T181215921664-srw-ingest-survives-a-locked-index/logs/gate.log"
+  },
+  "impl_move": {
+    "at_complete": 0.15,
+    "at_dispatch": 0.15,
+    "plan": "serving-record-warehouse",
+    "reason": "f-srw-021 in §5, already counted in impl.",
+    "verdict": "waived"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-10-02T18:57:16.832355+00:00",
+    "horizon_seconds": 2700,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": null,
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-10-02T18:12:16Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 12,
+    "binding_observed": "unknown",
+    "detail": "",
+    "generating": 9,
+    "headroom": 7,
+    "mean_context": 186667,
+    "observed_at": "2026-10-02T18:12:04Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45,
+    "throughput": {
+      "age_seconds": null,
+      "aggregate_tokens_per_second": "unknown",
+      "detail": "lane document publishes no 'throughput' block, so the rate its generating population achieved is not measured",
+      "mean_tokens_per_second": "unknown",
+      "observed_at": null,
+      "runs": "unknown",
+      "state": "unknown"
+    },
+    "waiting": 0
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-10-02T18:38:05.784Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": true,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T181215921664-srw-ingest-survives-a-locked-index/manifest.md",
+  "member": "disposable-r-20261002T181215921664-srw-ingest-survives-a-locked-index",
+  "negative_control": {
+    "added_failure_ids": [
+      "tests/test_telemetry_ingest.py::test_a_locked_index_fails_one_tick_and_the_next_ingests_what_was_pending"
+    ],
+    "baseline_failure_ids": [],
+    "comparison_arm": "baseline_suite",
+    "control_exit_status": 1,
+    "control_failure_ids": [
+      "tests/test_telemetry_ingest.py::test_a_locked_index_fails_one_tick_and_the_next_ingests_what_was_pending"
+    ],
+    "declaration": "letting the lock error propagate out of run, as before, must fail the held-lock test; applied as a scratch edit and restored",
+    "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T181215921664-srw-ingest-survives-a-locked-index/logs/negative-control-lock-propagates.log",
+    "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T181215921664-srw-ingest-survives-a-locked-index/logs/negative-control-lock-propagates.log",
+    "test_paths": [
+      "tests/test_telemetry_ingest.py"
+    ],
+    "verdict": "matched"
+  },
+  "no_commit": null,
+  "node": "srw-ingest-survives-a-locked-index",
+  "node_definition": {
+    "brief": "",
+    "brief_path": "",
+    "brief_sha256": "",
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 923,
+          "cached_input_tokens": 642139,
+          "input_tokens": 643064,
+          "output_tokens": 2077,
+          "reasoning_output_tokens": 709,
+          "total_tokens": 645141,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "0c4316b2-553f-4a0a-ae02-c42d88de747c",
+      "session_id": "0c4316b2-553f-4a0a-ae02-c42d88de747c"
+    },
+    "done_when": "telemetry_ingest.run catches sqlite3.OperationalError whose message contains 'locked' or 'busy' raised by a tick, rolls back the index's open transaction through a new public TelemetryIndex.rollback method, keeps the source fingerprint state it held before that tick, passes the error to an on_error callback whose default prints exactly one flushed line to stdout of the form '2026-10-02T18:30:00Z ingest tick failed: database is locked' (UTC time to the second, the message with newlines replaced by spaces), and continues to its next tick after the cadence; any other exception still propagates and ends the process; with a finite iterations count a failed tick counts as an iteration; cli.py is not edited; tests in tests/test_telemetry_ingest.py hold an exclusive lock on a fixture index from a second sqlite3 connection (BEGIN EXCLUSIVE) across one tick with a short busy timeout, assert that tick prints the failure line and does not raise, then release the lock and assert the next tick ingests the pending rows with none lost or duplicated, and assert a non-lock OperationalError still propagates; gate: uv run --no-sync pytest -p no:cacheprovider tests/test_telemetry_ingest.py tests/test_agent_ingest_cli.py tests/test_telemetry_index.py passes, uv run --no-sync pytest -p no:cacheprovider tests/test_agent_serve_registry.py -k agent_package_modules_parse_with_serving_python passes with exactly 1 test selected, uv run --no-sync ruff check imas_ambix tests exits 0; the gate log's first line names the commit it ran at, each command is logged verbatim beside its own summary and EXIT=N, and the gate runs in the foreground to its summary before the manifest is finalised",
+    "estimated_hours": null,
+    "goal": "Make the standing ingest loop survive a locked telemetry index instead of exiting",
+    "id": "srw-ingest-survives-a-locked-index",
+    "lane_declaration": {
+      "backend": null,
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-10-02T18:12:16Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 12,
+      "binding_observed": "unknown",
+      "detail": "",
+      "generating": 9,
+      "headroom": 7,
+      "mean_context": 186667,
+      "observed_at": "2026-10-02T18:12:04Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45,
+      "throughput": {
+        "age_seconds": null,
+        "aggregate_tokens_per_second": "unknown",
+        "detail": "lane document publishes no 'throughput' block, so the rate its generating population achieved is not measured",
+        "mean_tokens_per_second": "unknown",
+        "observed_at": null,
+        "runs": "unknown",
+        "state": "unknown"
+      },
+      "waiting": 0
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T181215921664-srw-ingest-survives-a-locked-index/manifest.md",
+    "negative_control": "letting the lock error propagate out of run, as before, must fail the held-lock test; applied as a scratch edit and restored",
+    "plan": "serving-record-warehouse",
+    "requested_backend": null,
+    "requires_decisions": [],
+    "role": "implement",
+    "section": "§5",
+    "spec_level": "exact",
+    "time_budget": "45m",
+    "token_budget": null,
+    "write_paths": [
+      "imas_ambix/agent/telemetry_ingest.py",
+      "imas_ambix/agent/telemetry_index.py",
+      "tests/test_telemetry_ingest.py",
+      "docs/evidence/fragments/serving-record-warehouse/srw-ingest-survives-a-locked-index.html",
+      "docs/figures/serving-record-warehouse/srw-ingest-survives-a-locked-index"
+    ]
+  },
+  "orientation_input_tokens": 1940729.0,
+  "outcome": "",
+  "pace": {
+    "allowance": null,
+    "bar": null,
+    "clocks": {
+      "five_hour": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "five_hour",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      },
+      "seven_day": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "seven_day",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      }
+    },
+    "group": null,
+    "hold": null,
+    "lane": "clive",
+    "member": null,
+    "node": "srw-ingest-survives-a-locked-index",
+    "policy": {
+      "drain_lead_hours": 12.0,
+      "pace_multiple": 1.1
+    },
+    "reason": "the lane declares no budget group, so no wallet paced it",
+    "recorded_at": "2026-10-02T18:12:19.060899+00:00",
+    "score": 0.64375,
+    "source": null,
+    "state": "unknown"
+  },
+  "picker_selection": null,
+  "plan": "serving-record-warehouse",
+  "plan_impl_at_dispatch": 0.15,
+  "plan_link": null,
+  "promoted_by": null,
+  "promoted_revision": "8befa8bbd6af5c838b02317dd57d9adca6a7b9b8",
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "scores": {},
+    "status": "unreadable",
+    "total": null
+  },
+  "review_tier": "none",
+  "role": "implement",
+  "run_id": "r-20261002T181215921664-srw-ingest-survives-a-locked-index",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§5",
+  "session": "0c4316b2-553f-4a0a-ae02-c42d88de747c",
+  "session_harness": "claude",
+  "session_id": "fdaf838b-f9d3-442f-b2a3-3786fe3241b4",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "exact",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 3,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 10386712,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+    "elapsed_seconds": 1533.118,
+    "generated_tokens": 35974,
+    "generation_seconds": 1316.763,
+    "input_budget_tokens": 480000,
+    "input_utilisation_pct": 37.4,
+    "machine_seconds": 216.355,
+    "peak_input_tokens": 179413,
+    "tokens_per_second": 27.32,
+    "wall_tokens_per_second": 23.46
+  },
+  "time_budget": "45m",
+  "tool_steps": 68.0,
+  "unplanned_reason": null,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": [
+      {
+        "budget_overrun": false,
+        "budget_overrun_seconds": 0,
+        "budget_seconds": 3000,
+        "classification": "scoring",
+        "commits_beyond_base": 0,
+        "detail": "the worker manifest reports completion, but no independent review is attached; an independent review must be produced before promotion",
+        "effective_phase": "complete",
+        "elapsed_seconds": 2682,
+        "exit_record": {
+          "attempt": 1,
+          "ended_during": "working",
+          "exit_code": 137,
+          "exited_at": "2026-10-02T17:56:42Z",
+          "last_record_type": "user",
+          "launched_at": "2026-10-02T17:27:42Z",
+          "recorded_by": "supervisor",
+          "run_id": "r-20261002T172728758497-srw-agent-publishes-the-watch-document",
+          "signal": null,
+          "signal_name": null,
+          "stream_records_seen": 6471,
+          "worker_pid": 2861974
+        },
+        "external_wait": null,
+        "fleet_verdict": {
+          "detail": "",
+          "lifting_condition": null,
+          "recovery": "review",
+          "recovery_classification": "scoring",
+          "state": "completed_unpromoted"
+        },
+        "interruption": null,
+        "lifting_condition": null,
+        "liveness_proven": true,
+        "log_age_seconds": 1016,
+        "log_fresh": false,
+        "manifest_commits": [
+          "32f4819c 68bb9bf5"
+        ],
+        "manifest_derived": false,
+        "manifest_digest": "ccc3af5da4b119bfb9f9008071bf3d9d89645de8a57a3b81a0613f65802d3c80",
+        "manifest_error": null,
+        "manifest_file_present": true,
+        "manifest_fresh": true,
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T172728758497-srw-agent-publishes-the-watch-document/manifest.md",
+        "manifest_present": true,
+        "manifest_reported_status": "complete",
+        "manifest_status": "complete",
+        "marker": null,
+        "needs_help_complete": null,
+        "next_action": "reckon crew dispatch --project imas-ambix --plan serving-record-warehouse --section '§10' --role review --spec-level exact --node review-of-srw-agent-publishes-the-watch-document --goal 'attach an independent review to run r-20261002T172728758497-srw-agent-publishes-the-watch-document' --done-when 'the review for r-20261002T172728758497-srw-agent-publishes-the-watch-document stores a parsed record scoring all 5 dimensions in the range 0..20, recording the revision it read as reviewed_base_sha and reviewed_head_sha, and carrying added_failure_count and added_failure_ids derived from the reviewed run'\"'\"'s own baseline_suite and after_suite gate logs; the turn ends once that record is stored and the manifest reads complete' --write-path /home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20261002T172728758497-srw-agent-publishes-the-watch-document.json --write-path /home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20261002T172728758497-srw-agent-publishes-the-watch-document.at-68bb9bf57882a145b87883192ec089ed3908c38d.json --time-budget 50m --session 0c4316b2-553f-4a0a-ae02-c42d88de747c --allow-unreconciled-runs --local",
+        "node": "srw-agent-publishes-the-watch-document",
+        "phase": "complete",
+        "plan": "serving-record-warehouse",
+        "process_alive": false,
+        "process_descendant_alive": null,
+        "project": "imas-ambix",
+        "recovery": "review",
+        "recovery_classification": "scoring",
+        "resets_at": null,
+        "review_error": null,
+        "review_present": false,
+        "review_status": null,
+        "run_id": "r-20261002T172728758497-srw-agent-publishes-the-watch-document",
+        "session": "0c4316b2-553f-4a0a-ae02-c42d88de747c",
+        "stored_phase": "complete",
+        "terminal_age_seconds": 1239,
+        "terminal_at": "2026-10-02T17:51:38Z",
+        "wait_age_seconds": null,
+        "wait_condition_state": null,
+        "wait_key_defect": null,
+        "wait_observed": null,
+        "wait_overdue": null,
+        "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-agent-publishes-the-watch-document"
+      }
+    ]
+  },
+  "wall_seconds": 1541,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-10-02T18:38:07Z",
+    "last_record_type": "result",
+    "launched_at": "2026-10-02T18:12:28Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20261002T181215921664-srw-ingest-survives-a-locked-index",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 5693,
+    "worker_pid": 3163704
+  },
+  "worker_seconds": 1513,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
