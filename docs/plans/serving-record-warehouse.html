@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-10-02">
-<meta name="plan-version" content="166">
+<meta name="plan-version" content="167">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -1217,6 +1217,9 @@
 </div>
 <div class="r-comment" data-section="s5" data-id="c-run-r-20261002T112535151253-srw-index-size-breakdown" data-who="reckon-build" data-when="2026-10-02T12:00:30.604Z">
     <div class="r-comment-body"><p>Read-only dbstat breakdown of the 4,799,336,448-byte telemetry index: the measurement table and its two indexes hold 3,806,269,440 bytes (79.31%) and the name/kind strings within them are stored three times over (2,508,000,784 bytes of column and key text, 52% of the file); all 410,617 samples are raw-tier because ingest reads only the finest tier per job, and the recommendation is a name/kind dictionary keyed by an integer id, measured at 49.05 bytes per measurement row against 171.96 today, giving a 2,106,436,448-byte snapshot (2.11 GB) after a rebuild.</p></div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-run-r-20261002T120253357301-review-of-srw-index-size-breakdown" data-who="reckon-build" data-when="2026-10-02T12:33:02.201Z">
+    <div class="r-comment-body"><p>Independent review of r-20261002T112535151253-srw-index-size-breakdown: parsed record, total 81/100 (goal_fidelity 17, evidence 13, scope_discipline 19, durability 15, fit 17); every headline figure reproduces exactly from the surviving snapshot, but the recorded gate receipt is false (the manifest says the sqlite3 step exited 0 while raw_results.err ends EXIT=1), the named gate script index_size_breakdown.py crashes under the interpreter gate.log records and lacks the page-count fallback, the string-duplication arithmetic is wrong in every written form, and the recorded negative control cannot be exercised by the delivered scratch script.</p></div>
 </div>
 </section>
 </main>
