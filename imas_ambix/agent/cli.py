@@ -8,8 +8,10 @@ import re
 import secrets
 import shlex
 import subprocess
+import sys
 from collections import deque
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -27,9 +29,11 @@ from imas_ambix.agent.profile import (
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+    from typing import TextIO
 
     from imas_ambix.agent.bench import BenchReport
     from imas_ambix.agent.router import Upstream
+    from imas_ambix.agent.telemetry_ingest import TickReport
 
 console = Console()
 stderr_console = Console(stderr=True)
@@ -2739,6 +2743,40 @@ def watch(
     console.print(watch_mod.watch_text(record_dir=record_dir, index_path=index_path))
 
 
+def _utc_now() -> datetime:
+    """The UTC wall clock, so a tick's stamp is testable through one seam."""
+    return datetime.now(UTC)
+
+
+def _format_ingest_tick(report: TickReport, when: datetime) -> str:
+    """One line naming what a tick discovered and what the index ingested."""
+    ingest = report.ingest
+    return (
+        f"{when.strftime('%Y-%m-%dT%H:%M:%SZ')} ingest tick "
+        f"discovered={report.files_discovered} "
+        f"read={report.files_read} "
+        f"skipped={report.files_skipped} "
+        f"scanned={ingest.files_scanned} "
+        f"inserted={ingest.rows_inserted} "
+        f"duplicate={ingest.rows_duplicate} "
+        f"malformed={ingest.malformed} "
+        f"bytes={ingest.bytes_read}"
+    )
+
+
+def _emit_ingest_tick(
+    report: TickReport,
+    *,
+    stream: TextIO | None = None,
+    now: datetime | None = None,
+) -> None:
+    """Write one flushed line per tick, so the service log shows the loop is alive."""
+    out = sys.stdout if stream is None else stream
+    when = _utc_now() if now is None else now
+    out.write(_format_ingest_tick(report, when) + "\n")
+    out.flush()
+
+
 @agent.command(name="ingest")
 @click.option(
     "--record",
@@ -2791,6 +2829,16 @@ def ingest(
     reader who has not run yet. It ends with the allocation and starts again
     when the allocation does.
 
+    Every tick prints one line to stdout and flushes it, so the fleet service
+    log shows the loop is alive. The line is stamped with the UTC wall clock
+    time the tick finished, to the second, and names the counts the tick
+    discovered, read and skipped and what the index scanned, inserted, found
+    duplicate or malformed, and read in bytes:
+
+    \b
+        2026-10-02T08:30:04Z ingest tick discovered=118 read=3 skipped=115
+            scanned=3 inserted=240 duplicate=0 malformed=0 bytes=51234
+
     \b
     Run the standing loop on the default sixty-second cadence:
         imas-ambix agent ingest
@@ -2817,6 +2865,7 @@ def ingest(
             resolved_record,
             cadence=cadence,
             iterations=1 if once else None,
+            on_tick=_emit_ingest_tick,
         )
     finally:
         index.close()
