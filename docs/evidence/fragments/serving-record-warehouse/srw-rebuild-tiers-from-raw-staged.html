@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Rebuilt tiers from raw, checked against raw</title>
+<meta name="plan" content="serving-record-warehouse">
+<meta name="node" content="srw-rebuild-tiers-from-raw-staged">
+</head>
+<body>
+<p>Rebuilt every ended job's minute and hour tiers from raw into a staging
+directory and checked each against raw with
+<code>telemetry_retention.compare_tiers</code>. Full table and totals:
+<code>check.md</code> and <code>rebuild_results.json</code> under the node's
+report directory.</p>
+<p><strong>Outcome:</strong> 36 jobs judged before the node's 60-minute fence
+was reached — 24 empty files skipped (no parseable row), 2 passed, 10 failed.
+The failures are not compaction disagreements: the raw rows carry no
+<code>engine.generation_tokens</code> / <code>engine.prompt_tokens</code> /
+<code>engine.uncached_prompt_tokens</code> measurements at all (older receipt
+format, flat keys, no <code>engine</code> section), so every tier total is
+absent and the three-way check reports disagreement. Both passing jobs are
+recent-format files whose rows carry the engine counters. 18 further candidate
+files (418.7 MB, including 118 MB, 87 MB, 65 MB and 58 MB giants) were not
+reached before the fence.</p>
+<p><strong>Blocker:</strong> <code>compare_tiers</code> ingests each raw file
+into a fresh <code>TelemetryIndex</code>; on this record the observed cost is
+far above the plan's recorded 8.9 s/MB — a 808 KB file took 353 s and a 684 KB
+file 196 s — so the full 423 MB candidate set cannot be checked within one
+node's 60-minute budget. The run is resumable: rerunning
+<code>rebuild_tiers_check.py</code> continues from <code>rebuild_results.json</code>.</p>
+</body>
+</html>
