@@ -78,12 +78,18 @@ def _write_atomic(target: Path, payload: str) -> None:
     within one filesystem and is atomic; the target is touched only by
     :func:`os.replace`, so a failure before that point leaves any existing file
     exactly as it was.
+
+    ``mkstemp`` creates the temporary with mode 0600, which the rename would
+    carry onto the target and leave the published document unreadable to anyone
+    but its owner. The document sits beside ``lane.json`` for other users to
+    read, so the temporary is given the conventional 0644 before it is renamed.
     """
     target.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary = tempfile.mkstemp(
         dir=str(target.parent), prefix=target.name + ".", suffix=".tmp"
     )
     try:
+        os.fchmod(descriptor, 0o644)
         with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
             handle.write(payload)
         os.replace(temporary, target)
