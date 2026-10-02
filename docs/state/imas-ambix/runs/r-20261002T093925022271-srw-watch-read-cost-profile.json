@@ -1,0 +1,343 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effective_input_window": 480000,
+    "effort": "xhigh",
+    "launch": "cli",
+    "local": true,
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "read-only",
+    "usable_input_window": 480000
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "d0cdc32ff612eb8bdf2b6b2be246e6641111e6a5",
+  "boundary_waiver": null,
+  "brief": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "fallback_credit": null,
+      "inference_geo": "",
+      "input_tokens": 4152845,
+      "input_tokens_cumulative": 4152845,
+      "output_tokens": 42863,
+      "output_tokens_cumulative": 42863,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": null,
+  "clone_matches": {
+    "reason": "the run asserted no revision pair to compare",
+    "status": "unmeasured"
+  },
+  "commit_resolution": null,
+  "commits": [],
+  "completed_at": "2026-10-02T10:19:32.054Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-10-02T09:39:31Z",
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": false,
+    "matched_measure": null,
+    "override": false,
+    "role": "investigate",
+    "status": "no-execution-measure"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [
+    "0.21"
+  ],
+  "gate": "passed",
+  "gate_check": {
+    "command": "python3 -c \"r=open('/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-watch-read-cost-profile/report.md').read();need=['## Recommended change','EXPLAIN','USING INDEX','ts_epoch','cProfile','1 month','98.8'];miss=[n for n in need if n not in r];print('missing',miss);assert not miss\"",
+    "exit_status": 0,
+    "log_digest": "sha256:0641802041eb539ba9e7ad7b9758303da36348e410746612ace49ff57a675082",
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T093925022271-srw-watch-read-cost-profile/coordinator-report-check-2.log"
+  },
+  "impl_move": {
+    "at_complete": null,
+    "at_dispatch": 0.15,
+    "plan": "serving-record-warehouse",
+    "reason": "role-not-enforced:investigate",
+    "verdict": "exempt"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-10-02T10:24:25.403329+00:00",
+    "horizon_seconds": 2700,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": null,
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-10-02T09:39:25Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 21,
+    "binding_observed": "unknown",
+    "detail": "",
+    "generating": 6,
+    "headroom": 7,
+    "mean_context": 181818,
+    "observed_at": "2026-10-02T09:39:04Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45,
+    "throughput": {
+      "age_seconds": null,
+      "aggregate_tokens_per_second": "unknown",
+      "detail": "lane document publishes no 'throughput' block, so the rate its generating population achieved is not measured",
+      "mean_tokens_per_second": "unknown",
+      "observed_at": null,
+      "runs": "unknown",
+      "state": "unknown"
+    },
+    "waiting": 0
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-10-02T10:19:32.054Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": true,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T093925022271-srw-watch-read-cost-profile/manifest.md",
+  "member": "disposable-r-20261002T093925022271-srw-watch-read-cost-profile",
+  "negative_control": {
+    "reason": "node-writes-no-test-path",
+    "verdict": "exempt"
+  },
+  "no_commit": "an investigation writes its report under the crew reports directory, outside the repository",
+  "node": "srw-watch-read-cost-profile",
+  "node_definition": {
+    "brief": "",
+    "brief_path": "",
+    "brief_sha256": "",
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 1789,
+          "cached_input_tokens": 316528,
+          "input_tokens": 318319,
+          "output_tokens": 1814,
+          "reasoning_output_tokens": 469,
+          "total_tokens": 320133,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "0c4316b2-553f-4a0a-ae02-c42d88de747c",
+      "session_id": "0c4316b2-553f-4a0a-ae02-c42d88de747c"
+    },
+    "done_when": "The report at /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-watch-read-cost-profile/report.md profiles watch.watch_document against the live index /home/ITER/mcintos/.cache/ambix/watch-index.sqlite3 (1.8 GB; measured 2026-10-02 at 136.8 s wall and 3.0 GB peak RSS for the whole command) opened read-only, with the index copied to node-local /tmp first if reading it in place would disturb the running ingest service; it gives the wall time and peak RSS of the call, a cProfile listing of the 25 functions with the largest cumulative time saved beside it, the time and the number of rows fetched into Python for each period (1 hour, 1 day, 1 week, 1 month) and for each other index query the document makes, and the SQL text of the three slowest queries with their EXPLAIN QUERY PLAN; it ends with one recommended change, naming the files it belongs in and the expected wall time and RSS after it, and states whether the change needs a schema addition the ingest must maintain; all work runs on the fleet allocation (SLURM_JOB_ID set), never on the login node, and nothing writes to the live index",
+    "estimated_hours": null,
+    "goal": "Find where imas-ambix agent watch --json spends its time and memory against the live index",
+    "id": "srw-watch-read-cost-profile",
+    "lane_declaration": {
+      "backend": null,
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-10-02T09:39:25Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 21,
+      "binding_observed": "unknown",
+      "detail": "",
+      "generating": 6,
+      "headroom": 7,
+      "mean_context": 181818,
+      "observed_at": "2026-10-02T09:39:04Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45,
+      "throughput": {
+        "age_seconds": null,
+        "aggregate_tokens_per_second": "unknown",
+        "detail": "lane document publishes no 'throughput' block, so the rate its generating population achieved is not measured",
+        "mean_tokens_per_second": "unknown",
+        "observed_at": null,
+        "runs": "unknown",
+        "state": "unknown"
+      },
+      "waiting": 0
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T093925022271-srw-watch-read-cost-profile/manifest.md",
+    "negative_control": "the per-period and per-query times listed must add up to at least 90 percent of the measured wall time, so the profile is shown to cover where the time went",
+    "plan": "serving-record-warehouse",
+    "requested_backend": null,
+    "requires_decisions": [],
+    "role": "investigate",
+    "section": "§10",
+    "spec_level": "guided",
+    "time_budget": "45m",
+    "token_budget": null,
+    "write_paths": [
+      "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-watch-read-cost-profile"
+    ]
+  },
+  "orientation_input_tokens": 3176037.0,
+  "outcome": "",
+  "pace": {
+    "allowance": null,
+    "bar": null,
+    "clocks": {
+      "five_hour": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "five_hour",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null
+      },
+      "seven_day": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "seven_day",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null
+      }
+    },
+    "group": null,
+    "hold": null,
+    "lane": "clive",
+    "member": null,
+    "node": "srw-watch-read-cost-profile",
+    "policy": {
+      "drain_lead_hours": 12.0,
+      "pace_multiple": 1.1
+    },
+    "reason": "the lane declares no budget group, so no wallet paced it",
+    "recorded_at": "2026-10-02T09:39:27.565406+00:00",
+    "score": 0.75625,
+    "source": null,
+    "state": "unknown"
+  },
+  "plan": "serving-record-warehouse",
+  "plan_impl_at_dispatch": 0.15,
+  "plan_link": null,
+  "promoted_revision": "d0cdc32ff612eb8bdf2b6b2be246e6641111e6a5",
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "reviewed_base_sha": "d0cdc32ff612eb8bdf2b6b2be246e6641111e6a5",
+    "reviewed_head_sha": "d0cdc32ff612eb8bdf2b6b2be246e6641111e6a5",
+    "scores": {
+      "durability": 16,
+      "evidence": 19,
+      "fit": 19,
+      "goal_fidelity": 19,
+      "scope_discipline": 20
+    },
+    "status": "parsed",
+    "total": 93
+  },
+  "review_tier": "none",
+  "role": "investigate",
+  "run_id": "r-20261002T093925022271-srw-watch-read-cost-profile",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§10",
+  "session": "0c4316b2-553f-4a0a-ae02-c42d88de747c",
+  "session_harness": "claude",
+  "session_id": "5ca99ba8-22e8-4987-9d4d-7456d4ba278d",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "guided",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": null,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 4152845,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+    "elapsed_seconds": 2391.698,
+    "generated_tokens": 42863,
+    "generation_seconds": 1630.466,
+    "input_budget_tokens": 480000,
+    "input_utilisation_pct": 34.4,
+    "machine_seconds": 761.232,
+    "peak_input_tokens": 165144,
+    "tokens_per_second": 26.29,
+    "wall_tokens_per_second": 17.92
+  },
+  "time_budget": "45m",
+  "tool_steps": 45.0,
+  "unplanned_reason": null,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": []
+  },
+  "wall_seconds": 2401,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-10-02T10:19:35Z",
+    "last_record_type": "result",
+    "launched_at": "2026-10-02T09:39:35Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20261002T093925022271-srw-watch-read-cost-profile",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 8928,
+    "worker_pid": 2612920
+  },
+  "worker_seconds": 2374,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
