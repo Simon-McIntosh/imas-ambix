@@ -27,11 +27,24 @@ suffix. A file qualifies only where every one of these holds:
   may still be flushing its tail;
 * its last parseable row is more than ``--older-than-days`` days old, measured
   from the row's own timestamp rather than the file's modification time;
-* both compacted siblings exist and, for every UTC hour the job spans and for
-  each cumulative token counter, the partitioned totals over raw, over minute
-  and over hour are equal exactly. The partition uses each tier's own opening
-  block, so a serve restart inside a window is totalled run by run in every
-  tier, and one counter in one window that disagrees keeps the raw file.
+* both compacted siblings exist and the (hour, counter) pairs they carry agree:
+  a pair is one UTC hour and one cumulative token counter, and a tier is
+  present for a pair when one of its rows in that hour carries the counter. A
+  pair absent in every tier is skipped -- there is nothing to verify -- so a
+  file whose early rows predate the counter, or whose every row does, is not
+  refused for the counter it never recorded. A pair present in some tiers and
+  absent in others is a disagreement. A pair present in all three is compared,
+  and agrees when the partitioned totals over raw, over minute and over hour are
+  equal exactly -- but a pair whose tiers all yield no total (a lone row in the
+  hour, with no earlier endpoint to difference against) is skipped as an absent
+  one is, and a pair whose total is absent in some tiers and present in others
+  is a disagreement, so ``None == None`` is never an agreement. The partition
+  uses each tier's own opening block, so a serve restart
+  inside a window is totalled run by run in every tier. A file is eligible only
+  once at least one pair was compared: with no compared pair there is no
+  evidence a retirement would rest on, so the file is kept. A file whose only
+  pairs are absent everywhere is kept with the reason ``no hour carries the
+  counters``.
 """
 
 from __future__ import annotations
@@ -120,12 +133,14 @@ def default_running_job_ids() -> frozenset[str]:
 
 @dataclass(frozen=True)
 class CounterComparison:
-    """One counter's totals per tier and whether the three agree.
+    """One counter's totals per tier and whether its pairs agree.
 
-    ``raw``, ``minute`` and ``hour`` are each the sum, over every window the job
-    spans, of that tier's partitioned total for the counter. ``agrees`` is
-    decided window by window, before the sums are taken, so a counter that
-    disagrees in one window cannot be masked by another window compensating it.
+    ``raw``, ``minute`` and ``hour`` are each the sum, over the windows that
+    carry the counter in any tier, of that tier's partitioned total for it.
+    ``agrees`` is decided pair by pair -- one UTC hour and this counter -- before
+    the sums are taken, so a pair that disagrees in one hour cannot be masked by
+    another hour compensating it. A window in which no tier carries the counter
+    contributes nothing and is neither compared nor a disagreement.
     """
 
     name: str
@@ -133,6 +148,22 @@ class CounterComparison:
     minute: float | None
     hour: float | None
     agrees: bool
+
+
+@dataclass(frozen=True)
+class TierComparison:
+    """The three-tier comparison for one raw file.
+
+    ``counters`` carries one :class:`CounterComparison` per engine counter.
+    ``compared_pairs`` counts the (hour, counter) pairs present in all three
+    tiers and yielding a total in each -- the pairs actually compared.
+    ``compared_hours`` counts the distinct UTC hours any compared pair falls in.
+    A file with ``compared_pairs`` zero was compared on no evidence at all.
+    """
+
+    counters: tuple[CounterComparison, ...]
+    compared_pairs: int
+    compared_hours: int
 
 
 @dataclass(frozen=True)
@@ -146,6 +177,8 @@ class FileVerdict:
     eligible: bool
     reason: str
     counters: tuple[CounterComparison, ...] = ()
+    compared_pairs: int = 0
+    compared_hours: int = 0
 
 
 @dataclass(frozen=True)
@@ -316,11 +349,12 @@ def _sum_or_none(values: list[float | None]) -> float | None:
 
     A window a tier cannot answer is not a zero of that tier: it is a window the
     tier does not cover, and the absence must survive to the comparison rather
-    than be summed away.
+    than be summed away. No window at all is an absence too, so an empty list
+    answers ``None`` rather than the zero an empty ``sum`` would give.
     """
-    if any(value is None for value in values):
+    if not values or any(value is None for value in values):
         return None
-    return sum(value for value in values if value is not None)
+    return sum(values)
 
 
 def _read_tier_rows(path: Path) -> list[dict]:
@@ -486,23 +520,54 @@ def _run_window_total(
     return total
 
 
+def _window_holds_counter(
+    runs: list[list[tuple[float, float, float | None]]], begin: float, end: float
+) -> bool:
+    """Whether any row of a tier carries the counter inside ``[begin, end)``.
+
+    The runs hold only rows that carry the counter, so a tier is present for a
+    pair exactly when one of its rows falls in the hour. A row of the tier that
+    omits the counter is not in the runs, so a tier whose hour holds rows but
+    none of the counter answers absent rather than present.
+    """
+    for run in runs:
+        for entry in run:
+            if begin <= entry[0] < end:
+                return True
+    return False
+
+
 def compare_tiers(
     raw_path: Path,
     minute_path: Path,
     hour_path: Path,
     windows: list[tuple[float, float]],
-) -> tuple[CounterComparison, ...]:
-    """Per-counter agreement between the raw file and its two compactions.
+) -> TierComparison:
+    """Per-pair agreement between the raw file and its two compactions.
 
-    Each tier's rows are read directly and totalled per UTC hour with the
-    partitioned-total arithmetic the record warehouse answers with -- one run per
-    serving process, a compacted row's carried opening used as the base where the
-    run begins inside the window -- so the same comparison is made without
-    building an index for either tier. The comparison is per window and per
-    counter: every window must agree for every counter, or the tuple carries a
-    ``CounterComparison`` whose ``agrees`` is false. A counter a tier holds in no
-    row of a window is reported absent (``None``), and a tier holding a value
-    where the raw file holds none is a disagreement.
+    The comparison works on (hour, counter) pairs. Each tier's rows are read
+    directly and totalled per UTC hour with the partitioned-total arithmetic the
+    record warehouse answers with -- one run per serving process, a compacted
+    row's carried opening used as the base where the run begins inside the
+    window -- so the same comparison is made without building an index for
+    either tier. For each pair:
+
+    * absent in every tier -- no tier's rows in that hour carry the counter --
+      the pair is skipped, neither compared nor a disagreement;
+    * present in some tiers and absent in others, the pair is a disagreement;
+    * present in all three but yielding a total in no tier -- every tier's rows
+      in the hour carry the counter, yet none has an earlier endpoint to
+      difference against -- the pair is skipped as an all-absent one is, since
+      ``None == None`` is not an agreement the retirement can rest on;
+    * present in all three and yielding a total in some tiers but not others, the
+      pair is a disagreement;
+    * present in all three with a total in every tier, the pair is compared, and
+      agrees when the raw, minute and hour totals are equal exactly.
+
+    A ``CounterComparison``'s ``agrees`` is false if any of its pairs is a
+    disagreement or any compared pair's totals differ. ``compared_pairs`` counts
+    the pairs compared -- present in all three tiers with a total in each -- and
+    ``compared_hours`` the distinct hours they fall in.
     """
     tiers = {
         "raw": _read_tier_rows(raw_path),
@@ -510,21 +575,41 @@ def compare_tiers(
         "hour": _read_tier_rows(hour_path),
     }
     comparisons: list[CounterComparison] = []
+    compared_pairs = 0
+    compared_hours: set[int] = set()
     for name in COUNTER_NAMES:
         runs = {tier: _counter_runs(rows, name) for tier, rows in tiers.items()}
         totals: dict[str, list[float | None]] = {tier: [] for tier in tiers}
         agrees = True
-        for begin, end in windows:
-            raw_total = _run_window_total(runs["raw"], begin, end)
-            minute_total = _run_window_total(runs["minute"], begin, end)
-            hour_total = _run_window_total(runs["hour"], begin, end)
-            totals["raw"].append(raw_total)
-            totals["minute"].append(minute_total)
-            totals["hour"].append(hour_total)
+        for index, (begin, end) in enumerate(windows):
+            present = {
+                tier: _window_holds_counter(runs[tier], begin, end) for tier in tiers
+            }
+            if not any(present.values()):
+                continue
+            tier_totals = {
+                "raw": _run_window_total(runs["raw"], begin, end),
+                "minute": _run_window_total(runs["minute"], begin, end),
+                "hour": _run_window_total(runs["hour"], begin, end),
+            }
+            for tier in tiers:
+                totals[tier].append(tier_totals[tier])
+            if not all(present.values()):
+                agrees = False
+                continue
+            if all(total is None for total in tier_totals.values()):
+                # Present in every tier but no tier computed a total -- a lone
+                # row in the hour with no earlier endpoint to difference
+                # against. ``None == None`` is not an agreement to rest a
+                # retirement on, so the pair is skipped as an all-absent one is.
+                continue
+            if any(total is None for total in tier_totals.values()):
+                agrees = False
+                continue
+            compared_pairs += 1
+            compared_hours.add(index)
             if not (
-                raw_total is not None
-                and raw_total == minute_total
-                and raw_total == hour_total
+                tier_totals["raw"] == tier_totals["minute"] == tier_totals["hour"]
             ):
                 agrees = False
         comparisons.append(
@@ -536,7 +621,11 @@ def compare_tiers(
                 agrees=agrees,
             )
         )
-    return tuple(comparisons)
+    return TierComparison(
+        counters=tuple(comparisons),
+        compared_pairs=compared_pairs,
+        compared_hours=len(compared_hours),
+    )
 
 
 def _modification_time(path: Path) -> float | None:
@@ -557,7 +646,7 @@ def _verdict(
     first, last = row_span(path)
     minute_path, hour_path = tier_paths(path)
 
-    counters: tuple[CounterComparison, ...] = ()
+    comparison: TierComparison | None = None
     siblings_present = (
         minute_path.is_file()
         and hour_path.is_file()
@@ -566,9 +655,10 @@ def _verdict(
     )
     if siblings_present:
         assert first is not None and last is not None
-        counters = compare_tiers(
+        comparison = compare_tiers(
             path, minute_path, hour_path, _hour_windows(first, last)
         )
+    counters = comparison.counters if comparison is not None else ()
 
     reasons: list[str] = []
     if job is None:
@@ -591,10 +681,13 @@ def _verdict(
         ]
         if missing:
             reasons.append("missing compacted sibling: " + ", ".join(missing))
-        elif not counters:
+        elif comparison is None:
             reasons.append("no agreement computed for the three tiers")
-        elif not all(counter.agrees for counter in counters):
-            reasons.append("compaction totals differ from the raw record")
+        else:
+            if not all(counter.agrees for counter in comparison.counters):
+                reasons.append("compaction totals differ from the raw record")
+            if comparison.compared_pairs == 0:
+                reasons.append("no hour carries the counters")
 
     return FileVerdict(
         path=path,
@@ -604,6 +697,8 @@ def _verdict(
         eligible=not reasons,
         reason="; ".join(reasons),
         counters=counters,
+        compared_pairs=comparison.compared_pairs if comparison is not None else 0,
+        compared_hours=comparison.compared_hours if comparison is not None else 0,
     )
 
 
@@ -650,14 +745,17 @@ def scan(
 
 
 def render_listing(result: ScanResult) -> str:
-    """The listing as text: per file its identity and verdict, per counter its
-    three tier totals and whether they agree."""
+    """The listing as text: per file its identity and verdict, its compared-pair
+    and compared-hour counts, and per counter its three tier totals and whether
+    they agree."""
     lines: list[str] = []
     for verdict in result.files:
         status = "eligible" if verdict.eligible else f"ineligible ({verdict.reason})"
         lines.append(
             f"{verdict.path.name}  job={verdict.job_id}  "
-            f"last_row={_iso(verdict.last_row_time)}  size={verdict.size}  {status}"
+            f"last_row={_iso(verdict.last_row_time)}  size={verdict.size}  {status}  "
+            f"compared_pairs={verdict.compared_pairs}  "
+            f"compared_hours={verdict.compared_hours}"
         )
         for counter in verdict.counters:
             outcome = "PASS" if counter.agrees else "FAIL"
@@ -700,6 +798,8 @@ def write_manifest(
                 "size": verdict.size,
                 "sha256": _sha256(verdict.path),
                 "last_row_time": _iso(verdict.last_row_time),
+                "compared_pairs": verdict.compared_pairs,
+                "compared_hours": verdict.compared_hours,
                 "minute_sha256": _sha256(minute_path),
                 "hour_sha256": _sha256(hour_path),
             }

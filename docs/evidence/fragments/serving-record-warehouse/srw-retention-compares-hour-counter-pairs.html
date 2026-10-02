@@ -1,0 +1,97 @@
+<section class="evidence-fragment" data-reckon="evidence" id="srw-retention-compares-hour-counter-pairs">
+  <header>
+    <h3>The retention check compares hour-and-counter pairs and skips pairs no tier carries</h3>
+    <p class="meta">
+      Node <code>srw-retention-compares-hour-counter-pairs</code> &middot;
+      date 2026-10-02 &middot;
+      worktree <code>imas-ambix-0405601943d2/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-retention-compares-hour-counter-pairs</code>
+    </p>
+  </header>
+
+  <p>
+    <code>compare_tiers</code> judged a raw receipt against its compactions by
+    totalling every UTC hour the job spans and refusing the file whenever the
+    three tiers were not all present. A row's counter is only recorded once the
+    recorder's row vocabulary carries the engine block, so a file whose early
+    rows predate it &mdash; job 1273253's shape &mdash; reads as a disagreement
+    in every hour before that byte offset even though no tier ever recorded the
+    counter there. The comparison now works on (hour, counter) pairs.
+  </p>
+
+  <h4>What changed</h4>
+  <ul>
+    <li>
+      <code>imas_ambix/agent/telemetry_retention.py</code>:
+      <code>compare_tiers</code> returns a <code>TierComparison</code> carrying
+      one <code>CounterComparison</code> per counter plus the number of compared
+      pairs and their distinct hours. Per pair: absent in every tier &mdash; no
+      tier's rows in that hour carry the counter &mdash; the pair is skipped; a
+      pair present in some tiers and absent in others is a disagreement; a pair
+      present in all three is compared, and agrees when the raw, minute and hour
+      partitioned totals are equal. A tier's presence for a pair is decided by
+      the rows themselves (<code>_window_holds_counter</code>), so an hour whose
+      rows exist but carry no counter reads as absent. <code>FileVerdict</code>
+      gains <code>compared_pairs</code> and <code>compared_hours</code>; a file
+      is eligible only once at least one pair was compared and every compared
+      pair agrees, and a file with no compared pair is kept with the reason
+      <code>no hour carries the counters</code>. <code>render_listing</code> and
+      the manifest print both counts per file.
+    </li>
+    <li>
+      <code>tests/test_telemetry_retention.py</code>: four new tests. A hybrid
+      file whose old-format hours carry no counter in any tier and whose covered
+      hours agree is eligible (6 compared pairs over 2 hours). A pure old-format
+      file is kept with the new reason and 0 compared pairs. A pair present in
+      raw and hour but absent in minute is refused. A pair present in all three
+      with unequal totals is refused, and was compared rather than skipped. A
+      fifth test asserts the listing prints both counts.
+    </li>
+  </ul>
+
+  <h4>Evidence</h4>
+  <table>
+    <thead>
+      <tr><th>Measure</th><th>Result</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Hybrid file: 2 old-format hours, 2 covered hours that agree</td>
+        <td><code>eligible=True</code>, <code>compared_pairs=6</code>, <code>compared_hours=2</code></td>
+      </tr>
+      <tr>
+        <td>Pure old-format file: no counter in any tier in any hour</td>
+        <td>
+          <code>eligible=False</code>, reason contains
+          <code>no hour carries the counters</code>, <code>compared_pairs=0</code>,
+          <code>compared_hours=0</code>
+        </td>
+      </tr>
+      <tr>
+        <td>Hour-and-counter pair present in raw and hour, absent in minute</td>
+        <td>
+          <code>agrees=False</code>, <code>raw</code> and <code>hour</code>
+          present, <code>minute=None</code>
+        </td>
+      </tr>
+      <tr>
+        <td>Hour-and-counter pair present in all three tiers, minute closing raised</td>
+        <td>
+          <code>agrees=False</code> (<code>raw=100</code>, <code>minute=160</code>,
+          <code>hour=100</code>), <code>compared_pairs=3</code>
+        </td>
+      </tr>
+      <tr>
+        <td>Listing line for a healthy two-hour job</td>
+        <td><code>compared_pairs=6</code>, <code>compared_hours=2</code></td>
+      </tr>
+      <tr>
+        <td>Negative control: all-absent pair counted as a disagreement</td>
+        <td><code>test_a_hybrid_file_whose_old_format_hours_carry_no_counter_is_eligible</code> fails, EXIT=1</td>
+      </tr>
+      <tr>
+        <td>Gate at <code>9ec6c992</code></td>
+        <td>17 retention tests passed, serving-python parse guard 1 passed (8 deselected), ruff exit 0</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
