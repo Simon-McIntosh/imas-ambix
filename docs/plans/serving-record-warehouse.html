@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-10-02">
-<meta name="plan-version" content="186">
+<meta name="plan-version" content="187">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -1055,7 +1055,7 @@
     <div class="r-comment-body"><p>an independent review of the srw-job-1273253-failing-hour investigation scores 94/100 across five dimensions and confirms its central finding against a parser the reviewer wrote itself.</p></div>
 </div>
 <div class="r-comment" data-section="s8" data-id="c-run-r-20261002T172700096366-srw-retention-compares-hour-counter-pairs" data-who="reckon-build" data-when="2026-10-02T18:05:56.832Z">
-    <div class="r-comment-body"><p>compare_tiers now works on (hour, counter) pairs: a pair absent in every tier is skipped, present-in-some-absent-in-others is a disagreement, present in all three agrees when the raw, minute and hour totals are equal; a file is eligible only with at least one compared pair and a file with none is kept with reason &quot;no hour carries the counters&quot;; the listing and manifest print the compared-pair and compared-hour counts; gate 17 retention tests + 1 serving-python parse guard + ruff exit 0, the hybrid fixture is eligible at 6 compared pairs over 2 hours</p></div>
+    <div class="r-comment-body"><p>compare_tiers now works on (hour, counter) pairs: a pair absent in every tier is skipped, present-in-some-absent-in-others is a disagreement, present in all three agrees when the raw, minute and hour totals are equal; a file is eligible only with at least one compared pair and a file with none is kept with reason "no hour carries the counters"; the listing and manifest print the compared-pair and compared-hour counts; gate 17 retention tests + 1 serving-python parse guard + ruff exit 0, the hybrid fixture is eligible at 6 compared pairs over 2 hours</p></div>
 </div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20260924T122840994565-s26-currency-audit" data-who="reckon-ship" data-when="2026-09-24T12:30:00Z">
     <div class="r-comment-body"><p>stopped by the coordinator within a minute of launch: the repository's local-lane budget for the re-plan exercise was reallocated, and the audit was done in-session instead</p></div>
@@ -1119,6 +1119,9 @@
 </div>
 <div class="r-comment" data-section="s10" data-id="c-run-r-20261002T170738344942-readback-3-of-srw-watch-read-path" data-who="reckon-build" data-when="2026-10-02T17:23:50.618Z">
     <div class="r-comment-body"><p>Read-back (third) of the binding-clarifications comment c-srw-read-path-binding-clarifications-2026-10-02: all 17 bullets restated and mapped to the f-srw-018/019/020 or §10-revision sentence each settles, 6 sentences quoted with two readings, and all 6 cited code names (watch.watch_document, time_weighted_mean, compare_tiers, engine.generation_tokens/prompt_tokens/uncached_prompt_tokens) present in imas_ambix/agent at main; report at the report.md path above.</p></div>
+</div>
+<div class="r-comment" data-section="s10" data-id="c-run-r-20261002T172728758497-srw-agent-publishes-the-watch-document" data-who="reckon-build" data-when="2026-10-02T17:55:22.486Z">
+    <div class="r-comment-body"><p>Added the imas-ambix agent publish-watch command and imas_ambix/agent/watch_publish.py: each iteration calls watch.watch_document in-process, adds top-level compute_seconds (float wall time) and published_at (UTC to the second, taken after the call), writes the JSON through a temporary file renamed over the target with os.replace, and prints exactly one flushed line per iteration with newlines in errors flattened to spaces; a failed derivation or a failed write/rename leaves an existing target byte-for-byte unchanged and the loop continues. Gate: 22 passed across test_agent_publish_watch.py/test_agent_ingest_cli.py/test_agent_watch_help.py, the serving-python parse guard selected exactly 1 test and passed, ruff check imas_ambix tests clean, all EXIT=0.</p></div>
 </div>
 <div class="r-comment" data-section="s11" data-id="c-run-r-20260929T072617274722-scout-live-panel-reuse" data-who="reckon-build" data-when="2026-09-29T08:33:34.522Z">
     <div class="r-comment-body"><p>No landing step. The map is an evidence input for a separately dispatched build wave; it is not merged into the repository and needs no review of the merged result.</p></div>
