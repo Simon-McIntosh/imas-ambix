@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-10-02">
-<meta name="plan-version" content="183">
+<meta name="plan-version" content="184">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -1313,6 +1313,9 @@
 </div>
 <div class="r-comment" data-section="s5" data-id="c-run-r-20261002T171023334166-srw-ingest-skips-a-reboot-spanning-file" data-who="reckon-build" data-when="2026-10-02T17:35:21.644Z">
     <div class="r-comment-body"><p>_consumed_whole_and_untouched now reads the source row with the highest offset (the row that recorded the file's end) rather than an arbitrary row, so a receipts file keyed by two boots and consumed to its end is skipped on the next pass instead of re-digested; new test proves the second pass neither opens nor digests the source (was files_scanned 1, now 0) and a third pass after one appended line reads only that line (bytes_read == the new line); gate 98 passed + serving parse 1 passed + ruff clean.</p></div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-run-r-20261002T173551396014-review-of-srw-ingest-skips-a-reboot-spanning-file" data-who="reckon-build" data-when="2026-10-02T18:11:21.934Z">
+    <div class="r-comment-body"><p>Independent review of r-20261002T171023334166 stored as a parsed record at head 69092489 over base cfb30a40, total 90/100 (goal_fidelity 19, evidence 17, scope_discipline 17, durability 18, fit 19), added_failure_count 0, added_failure_ids [], one follow-on finding.</p></div>
 </div>
 </section>
 </main>
