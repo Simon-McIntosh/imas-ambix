@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-10-02">
-<meta name="plan-version" content="152">
+<meta name="plan-version" content="153">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -1167,6 +1167,9 @@
 </div>
 <div class="r-comment" data-section="s5" data-id="c-run-r-20261002T091029530400-review-of-srw-watch-reads-index-read-only" data-who="reckon-build" data-when="2026-10-02T09:36:57.554Z">
     <div class="r-comment-body"><p>Independent review of run r-20261002T082940729305-srw-watch-reads-index-read-only (base 01147152, head d2f45cd2) stored as a parsed record scoring goal_fidelity 19, evidence 18, scope_discipline 20, durability 16, fit 19 (total 92), added_failure_count 0 and no added failure ids, with one finding: a present-but-unreadable (empty/partial) index that base healed now raises an uncaught sqlite3.OperationalError('no such table: sample') from watch_text and watch_document.</p></div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-run-r-20261002T093515993377-srw-watch-reports-an-unreadable-index" data-who="reckon-build" data-when="2026-10-02T10:00:24.932Z">
+    <div class="r-comment-body"><p>agent watch now catches sqlite3.DatabaseError while opening or querying the telemetry index: watch_text reports the index unreadable with the error quoted and prints no period or ledger rows, watch_document&#x27;s index block carries readable false with the error text and empty record/ledger/periods (readable true when the index reads), a missing index is unchanged and creates nothing, and TelemetryIndex.readonly takes a timeout keyword defaulting to 5.0 seconds; measure: 106 passed across tests/test_agent_telemetry_watch.py tests/test_agent_watch_live.py tests/test_agent_watch_cost.py tests/test_telemetry_index.py (EXIT=0), serving-interpreter parse guard 1 passed (EXIT=0), ruff check imas_ambix tests exits 0.</p></div>
 </div>
 </section>
 </main>
