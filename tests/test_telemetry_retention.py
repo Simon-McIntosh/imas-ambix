@@ -505,6 +505,66 @@ def test_a_pair_present_in_all_tiers_with_unequal_totals_is_refused(tmp_path):
     assert comparison.compared_pairs == 3
 
 
+def test_a_file_whose_only_present_pairs_yield_no_total_is_kept(tmp_path):
+    """A pair present in every tier but yielding no total is skipped, not agreed.
+
+    Each tier holds one row in the hour, so a tier is genuinely present for the
+    pair, but a lone row offers one endpoint and no earlier opening to
+    difference against, so ``_run_window_total`` answers None for all three.
+    ``None == None == None`` is not the agreement a retirement may rest on, so
+    the pair is neither compared nor a disagreement. With no compared pair the
+    file is kept rather than retired on an empty comparison.
+    """
+    hour = int((_NOW - 20 * 86400) // 3600) * 3600
+    raw = tmp_path / "deepseek-v4-1-flash-1278105.jsonl"
+    minute, hour_path = retention.tier_paths(raw)
+    _write_rows(raw, [_row(hour + 600, 100.0)])
+    _write_rows(minute, [_row(hour + 600, 100.0)])
+    _write_rows(hour_path, [_row(hour + 600, 100.0)])
+    quiet = _NOW - 21 * 86400
+    for path in (raw, minute, hour_path):
+        os.utime(path, (quiet, quiet))
+
+    verdict = _verdict_for(_listing(tmp_path), raw)
+
+    assert verdict.eligible is False
+    assert "no hour carries the counters" in verdict.reason
+    assert verdict.compared_pairs == 0
+    assert verdict.compared_hours == 0
+    assert all(counter.raw is None for counter in verdict.counters), (
+        "a present tier with no endpoint was totalled as something other than absent"
+    )
+
+
+def test_a_pair_with_a_total_in_raw_and_none_in_the_minute_tier_is_refused(tmp_path):
+    """A present pair whose total is a number in one tier and absent in another.
+
+    All three tiers carry the counter in the hour, so the pair is present in
+    every tier, but the minute tier holds a single row -- one endpoint and no
+    opening -- so its total is absent while raw and hour yield numbers. A
+    present pair whose totals are a number in some tiers and absent in others is
+    a disagreement rather than a skip, so the file cannot be retired on it.
+    """
+    hour = int((_NOW - 20 * 86400) // 3600) * 3600
+    windows = [(float(hour), float(hour + 3600))]
+    raw = tmp_path / "deepseek-v4-1-flash-1278105.jsonl"
+    minute, hour_path = retention.tier_paths(raw)
+    _write_rows(raw, [_row(hour + 600, 100.0), _row(hour + 1800, 200.0)])
+    _write_rows(minute, [_row(hour + 1800, 200.0)])
+    _write_rows(hour_path, [_row(hour + 600, 100.0), _row(hour + 1000, 200.0)])
+
+    comparison = retention.compare_tiers(raw, minute, hour_path, windows)
+    by_name = {counter.name: counter for counter in comparison.counters}
+
+    generation = by_name["engine.generation_tokens"]
+    assert generation.agrees is False
+    assert generation.raw == 100.0
+    assert generation.minute is None
+    # The pair was not compared: a total absent in one tier with a number in the
+    # others is a disagreement, not an agreement to skip.
+    assert comparison.compared_pairs == 0
+
+
 def test_the_listing_shows_compared_pair_and_hours_counts(tmp_path):
     """The listing prints, per file, the compared pairs and their hours.
 

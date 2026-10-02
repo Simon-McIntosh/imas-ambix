@@ -33,9 +33,13 @@ suffix. A file qualifies only where every one of these holds:
   pair absent in every tier is skipped -- there is nothing to verify -- so a
   file whose early rows predate the counter, or whose every row does, is not
   refused for the counter it never recorded. A pair present in some tiers and
-  absent in others is a disagreement, and a pair present in all three agrees
-  when the partitioned totals over raw, over minute and over hour are equal
-  exactly. The partition uses each tier's own opening block, so a serve restart
+  absent in others is a disagreement. A pair present in all three is compared,
+  and agrees when the partitioned totals over raw, over minute and over hour are
+  equal exactly -- but a pair whose tiers all yield no total (a lone row in the
+  hour, with no earlier endpoint to difference against) is skipped as an absent
+  one is, and a pair whose total is absent in some tiers and present in others
+  is a disagreement, so ``None == None`` is never an agreement. The partition
+  uses each tier's own opening block, so a serve restart
   inside a window is totalled run by run in every tier. A file is eligible only
   once at least one pair was compared: with no compared pair there is no
   evidence a retirement would rest on, so the file is kept. A file whose only
@@ -152,9 +156,9 @@ class TierComparison:
 
     ``counters`` carries one :class:`CounterComparison` per engine counter.
     ``compared_pairs`` counts the (hour, counter) pairs present in all three
-    tiers -- the pairs actually compared. ``compared_hours`` counts the distinct
-    UTC hours any compared pair falls in. A file with ``compared_pairs`` zero was
-    compared on no evidence at all.
+    tiers and yielding a total in each -- the pairs actually compared.
+    ``compared_hours`` counts the distinct UTC hours any compared pair falls in.
+    A file with ``compared_pairs`` zero was compared on no evidence at all.
     """
 
     counters: tuple[CounterComparison, ...]
@@ -551,13 +555,19 @@ def compare_tiers(
     * absent in every tier -- no tier's rows in that hour carry the counter --
       the pair is skipped, neither compared nor a disagreement;
     * present in some tiers and absent in others, the pair is a disagreement;
-    * present in all three, the pair is compared, and agrees when the raw,
-      minute and hour totals are equal exactly.
+    * present in all three but yielding a total in no tier -- every tier's rows
+      in the hour carry the counter, yet none has an earlier endpoint to
+      difference against -- the pair is skipped as an all-absent one is, since
+      ``None == None`` is not an agreement the retirement can rest on;
+    * present in all three and yielding a total in some tiers but not others, the
+      pair is a disagreement;
+    * present in all three with a total in every tier, the pair is compared, and
+      agrees when the raw, minute and hour totals are equal exactly.
 
     A ``CounterComparison``'s ``agrees`` is false if any of its pairs is a
     disagreement or any compared pair's totals differ. ``compared_pairs`` counts
-    the pairs present in all three tiers, and ``compared_hours`` the distinct
-    hours they fall in.
+    the pairs compared -- present in all three tiers with a total in each -- and
+    ``compared_hours`` the distinct hours they fall in.
     """
     tiers = {
         "raw": _read_tier_rows(raw_path),
@@ -577,18 +587,30 @@ def compare_tiers(
             }
             if not any(present.values()):
                 continue
-            raw_total = _run_window_total(runs["raw"], begin, end)
-            minute_total = _run_window_total(runs["minute"], begin, end)
-            hour_total = _run_window_total(runs["hour"], begin, end)
-            totals["raw"].append(raw_total)
-            totals["minute"].append(minute_total)
-            totals["hour"].append(hour_total)
+            tier_totals = {
+                "raw": _run_window_total(runs["raw"], begin, end),
+                "minute": _run_window_total(runs["minute"], begin, end),
+                "hour": _run_window_total(runs["hour"], begin, end),
+            }
+            for tier in tiers:
+                totals[tier].append(tier_totals[tier])
             if not all(present.values()):
+                agrees = False
+                continue
+            if all(total is None for total in tier_totals.values()):
+                # Present in every tier but no tier computed a total -- a lone
+                # row in the hour with no earlier endpoint to difference
+                # against. ``None == None`` is not an agreement to rest a
+                # retirement on, so the pair is skipped as an all-absent one is.
+                continue
+            if any(total is None for total in tier_totals.values()):
                 agrees = False
                 continue
             compared_pairs += 1
             compared_hours.add(index)
-            if not (raw_total == minute_total == hour_total):
+            if not (
+                tier_totals["raw"] == tier_totals["minute"] == tier_totals["hour"]
+            ):
                 agrees = False
         comparisons.append(
             CounterComparison(
