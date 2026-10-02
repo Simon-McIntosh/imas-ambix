@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="serving-record-warehouse">
+</head>
+<body>
+  <main class="plan-doc">
+    <p>The standing ingest loop now survives a locked index instead of
+    exiting. A tick that SQLite refuses because another connection holds the
+    index file is transient contention rather than a fault in the record, so
+    <code>run</code> catches the lock error, rolls the handle's open
+    transaction back through a new public <code>TelemetryIndex.rollback</code>,
+    keeps the source fingerprints the failed tick began from, announces the
+    failure on one flushed stdout line, and ticks again on the next cadence.
+    Any other <code>OperationalError</code> still propagates and ends the
+    process, and a failed tick counts as one of a finite
+    <code>iterations</code> so a caller cannot spin on a lock that never
+    clears. <code>agent/ingest</code>'s caller is untouched.</p>
+
+    <p><strong>The defect, exercised before it was repaired.</strong> With a
+    second connection holding <code>BEGIN EXCLUSIVE</code> on a fixture index
+    and a shortened busy timeout, a tick's resume lookup
+    (<code>_consumed_whole_and_untouched</code>) is refused with
+    <code>sqlite3.OperationalError: database is locked</code> before any write.
+    That statement sits outside the ingest pass's own
+    <code>try/except BaseException</code>, which is why the failed pass left an artifact that
+    needed to be rolled back explicitly, and why the old loop ended its process
+    on a condition that clears itself.</p>
+
+    <p><strong>What the loop now does.</strong> The failed tick prints exactly
+    one line of the form
+    <code>2026-10-02T18:30:00Z ingest tick failed: database is locked</code>
+    (UTC to the second, the message's newlines flattened to spaces), and does
+    not raise. The lock is then released and the next tick reads the pending
+    source: the held-lock fixture asserts two rows inserted on the recovery
+    tick, zero on the tick after, and a final <code>sample_count() == 2</code>,
+    so nothing the failed pass did not read was marked seen and nothing was
+    counted twice. The failure line matches a whole-line regular expression, so
+    a traceback or a second announcement would fail the assertion.</p>
+
+    <p><strong>Negative control.</strong> Making the <code>except</code> clause
+    raise unconditionally -- letting the lock error propagate out of
+    <code>run</code> exactly as before (a scratch edit, restored) -- fails
+    <code>test_a_locked_index_fails_one_tick_and_the_next_ingests_what_was_pending</code>
+    with <code>FAILED ... 1 failed ... EXIT=1</code>, the failing id the head
+    arm does not fail. Log:
+    <code>~/.config/reckon/crew/runs/r-20261002T181215921664-srw-ingest-survives-a-locked-index/logs/negative-control-lock-propagates.log</code>.</p>
+
+    <p><strong>Gate at <code>e95b68ad</code>.</strong> The three gate commands
+    ran in the foreground on the compute node, each logged verbatim beside its
+    summary: <span class="r-ok">87 passed</span> over
+    <code>tests/test_telemetry_ingest.py tests/test_agent_ingest_cli.py
+    tests/test_telemetry_index.py</code> (EXIT=0); <span class="r-ok">1
+    passed</span> for <code>tests/test_agent_serve_registry.py -k
+    agent_package_modules_parse_with_serving_python</code> with 8 deselected
+    (EXIT=0); <code>ruff check imas_ambix tests</code> <span
+    class="r-ok">All checks passed</span>. Log:
+    <code>~/.config/reckon/crew/runs/r-20261002T181215921664-srw-ingest-survives-a-locked-index/logs/gate.log</code>.</p>
+  </main>
+</body>
+</html>
