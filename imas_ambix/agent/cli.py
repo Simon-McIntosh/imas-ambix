@@ -2743,6 +2743,88 @@ def watch(
     console.print(watch_mod.watch_text(record_dir=record_dir, index_path=index_path))
 
 
+@agent.command(name="publish-watch")
+@click.option(
+    "--output",
+    "output_path",
+    type=click.Path(),
+    default=None,
+    help=(
+        "Where to write the document "
+        "(default: ~/public/imas-ambix/watch.json, beside the lane document)."
+    ),
+)
+@click.option(
+    "--cadence",
+    type=float,
+    default=300.0,
+    show_default=True,
+    help="Seconds between publications in the loop.",
+)
+@click.option(
+    "--once",
+    is_flag=True,
+    help="Publish one document and exit rather than loop on the cadence.",
+)
+@click.option(
+    "--record",
+    "record_dir",
+    type=click.Path(),
+    default=None,
+    help=(
+        "Receipts directory to read (default: the site's receipts directory, "
+        "$AMBIX_AGENT_BASE_DIR/agents/receipts, resolved by "
+        "watch.default_record_dir through the site configuration)."
+    ),
+)
+@click.option(
+    "--index",
+    "index_path",
+    type=click.Path(),
+    default=None,
+    help="Index file to query (default: ~/.cache/ambix/watch-index.sqlite3).",
+)
+def publish_watch(
+    output_path: str | None,
+    cadence: float,
+    once: bool,
+    record_dir: str | None,
+    index_path: str | None,
+) -> None:
+    """Publish the ``agent watch --json`` document to a file on a cadence.
+
+    Each iteration derives the full document from the recorded receipts, adds
+    ``compute_seconds`` and ``published_at`` at the top level, and writes it
+    atomically to the output file. A reader on another host therefore picks up
+    the panels without paying the derivation, and the published file's
+    ``published_at`` names the last success.
+
+    Every iteration prints exactly one flushed line, whether it wrote the
+    document or failed to. A failed iteration leaves the previous file
+    byte-for-byte unchanged and the loop continues to its next iteration.
+
+    \b
+    Publish once and exit:
+        imas-ambix agent publish-watch --once
+
+    \b
+    Run the standing loop on the default five-minute cadence:
+        imas-ambix agent publish-watch
+    """
+    from imas_ambix.agent import watch_publish
+
+    output = (
+        Path(output_path).expanduser() if output_path else watch_publish.DEFAULT_OUTPUT
+    )
+    watch_publish.run(
+        output,
+        record_dir=record_dir,
+        index_path=index_path,
+        cadence=cadence,
+        iterations=1 if once else None,
+    )
+
+
 def _utc_now() -> datetime:
     """The UTC wall clock, so a tick's stamp is testable through one seam."""
     return datetime.now(UTC)
