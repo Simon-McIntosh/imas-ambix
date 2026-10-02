@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-10-02">
-<meta name="plan-version" content="181">
+<meta name="plan-version" content="182">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -1305,6 +1305,9 @@
 </div>
 <div class="r-comment" data-section="s5" data-id="c-run-r-20261002T163643597825-review-of-srw-ingest-commits-in-batches" data-who="reckon-build" data-when="2026-10-02T17:15:53.784Z">
     <div class="r-comment-body"><p>Review of r-20261002T123509368875-srw-ingest-commits-in-batches at head 6bbea311 over base 4516e26e stored as a parsed record, total 90/100 (goal_fidelity 19, evidence 17, scope_discipline 20, durability 16, fit 18) with added_failure_count 0 and no added ids derived from this review's own base(94 passed)/head(97 passed) arms of the node's declared gate because the reviewed run was dispatched unarmed; three follow-on findings: a reproduced regression where a single receipts file spanning a reboot now commits a second source row and is no longer recognised as consumed-whole so its whole region is re-digested every pass; the gate log's second command names a selector that collects no test; and the recorded negative control names no mutation target though forcing per-row commits in production reddens the same test.</p></div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-run-r-20261002T171023334166-srw-ingest-skips-a-reboot-spanning-file" data-who="reckon-build" data-when="2026-10-02T17:35:21.644Z">
+    <div class="r-comment-body"><p>_consumed_whole_and_untouched now reads the source row with the highest offset (the row that recorded the file&#x27;s end) rather than an arbitrary row, so a receipts file keyed by two boots and consumed to its end is skipped on the next pass instead of re-digested; new test proves the second pass neither opens nor digests the source (was files_scanned 1, now 0) and a third pass after one appended line reads only that line (bytes_read == the new line); gate 98 passed + serving parse 1 passed + ruff clean.</p></div>
 </div>
 </section>
 </main>

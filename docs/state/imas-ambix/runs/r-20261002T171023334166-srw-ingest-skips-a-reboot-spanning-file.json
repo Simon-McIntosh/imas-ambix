@@ -1,0 +1,469 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effective_input_window": 480000,
+    "effort": "high",
+    "launch": "cli",
+    "local": true,
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "worktree-full",
+    "usable_input_window": 480000
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "cfb30a40bfd030c13dc4d7ac7d4b13fcf1377578",
+  "boundary_waiver": null,
+  "brief": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "fallback_credit": null,
+      "inference_geo": "",
+      "input_tokens": 5845518,
+      "input_tokens_cumulative": 5845518,
+      "output_tokens": 27286,
+      "output_tokens_cumulative": 27286,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": {
+    "added": 84,
+    "files": 2,
+    "removed": 1
+  },
+  "clone_matches": [
+    {
+      "existing_function": {
+        "line": 314,
+        "name": "test_definition_scan_sees_an_indented_rival",
+        "path": "tests/test_agent_bench_shared_reader.py"
+      },
+      "run_function": {
+        "line": 1105,
+        "name": "_record_source",
+        "path": "imas_ambix/agent/telemetry_index.py"
+      },
+      "window_line": 1127
+    },
+    {
+      "existing_function": {
+        "line": 377,
+        "name": "test_definition_scan_ignores_a_local_named_like_a_symbol",
+        "path": "tests/test_agent_bench_shared_reader.py"
+      },
+      "run_function": {
+        "line": 1105,
+        "name": "_record_source",
+        "path": "imas_ambix/agent/telemetry_index.py"
+      },
+      "window_line": 1127
+    },
+    {
+      "existing_function": {
+        "line": 408,
+        "name": "test_definition_scan_ignores_a_class_body_inside_a_function",
+        "path": "tests/test_agent_bench_shared_reader.py"
+      },
+      "run_function": {
+        "line": 1105,
+        "name": "_record_source",
+        "path": "imas_ambix/agent/telemetry_index.py"
+      },
+      "window_line": 1127
+    },
+    {
+      "existing_function": {
+        "line": 29,
+        "name": "_launch",
+        "path": "tests/test_agent_clive_worker_profile.py"
+      },
+      "run_function": {
+        "line": 1105,
+        "name": "_record_source",
+        "path": "imas_ambix/agent/telemetry_index.py"
+      },
+      "window_line": 1127
+    },
+    {
+      "existing_function": {
+        "line": 314,
+        "name": "test_definition_scan_sees_an_indented_rival",
+        "path": "tests/test_agent_bench_shared_reader.py"
+      },
+      "run_function": {
+        "line": 1530,
+        "name": "partitioned_total",
+        "path": "imas_ambix/agent/telemetry_index.py"
+      },
+      "window_line": 1556
+    },
+    {
+      "existing_function": {
+        "line": 377,
+        "name": "test_definition_scan_ignores_a_local_named_like_a_symbol",
+        "path": "tests/test_agent_bench_shared_reader.py"
+      },
+      "run_function": {
+        "line": 1530,
+        "name": "partitioned_total",
+        "path": "imas_ambix/agent/telemetry_index.py"
+      },
+      "window_line": 1556
+    },
+    {
+      "existing_function": {
+        "line": 408,
+        "name": "test_definition_scan_ignores_a_class_body_inside_a_function",
+        "path": "tests/test_agent_bench_shared_reader.py"
+      },
+      "run_function": {
+        "line": 1530,
+        "name": "partitioned_total",
+        "path": "imas_ambix/agent/telemetry_index.py"
+      },
+      "window_line": 1556
+    },
+    {
+      "existing_function": {
+        "line": 29,
+        "name": "_launch",
+        "path": "tests/test_agent_clive_worker_profile.py"
+      },
+      "run_function": {
+        "line": 1530,
+        "name": "partitioned_total",
+        "path": "imas_ambix/agent/telemetry_index.py"
+      },
+      "window_line": 1556
+    }
+  ],
+  "commit_resolution": null,
+  "commits": [
+    "69092489ab300505e54eadd114791cb00c09a0ab"
+  ],
+  "completed_at": "2026-10-02T17:35:21.644Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-10-02T17:10:32Z",
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": true,
+    "matched_measure": "pytest -p",
+    "override": false,
+    "role": "implement",
+    "status": "compatible"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [],
+  "gate": "passed",
+  "gate_check": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider tests/test_telemetry_index.py tests/test_telemetry_ingest.py tests/test_agent_telemetry_watch.py",
+    "exit_status": 0,
+    "log_digest": "sha256:607de4647336085baa4291c96618c4af28e7f852d58709ed51e9876e70812808",
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T171023334166-srw-ingest-skips-a-reboot-spanning-file/gate.log"
+  },
+  "impl_move": {
+    "at_complete": 0.15,
+    "at_dispatch": 0.15,
+    "plan": "serving-record-warehouse",
+    "reason": "A repair to f-srw-012's batched commits in §5, already counted in impl.",
+    "verdict": "waived"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-10-02T17:55:24.520360+00:00",
+    "horizon_seconds": 2700,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": null,
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-10-02T17:10:24Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 10,
+    "binding_observed": "unknown",
+    "detail": "",
+    "generating": 11,
+    "headroom": 5,
+    "mean_context": 169231,
+    "observed_at": "2026-10-02T17:10:14Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45,
+    "throughput": {
+      "age_seconds": null,
+      "aggregate_tokens_per_second": "unknown",
+      "detail": "lane document publishes no 'throughput' block, so the rate its generating population achieved is not measured",
+      "mean_tokens_per_second": "unknown",
+      "observed_at": null,
+      "runs": "unknown",
+      "state": "unknown"
+    },
+    "waiting": 0
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-10-02T17:35:21.644Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": true,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T171023334166-srw-ingest-skips-a-reboot-spanning-file/manifest.md",
+  "member": "disposable-r-20261002T171023334166-srw-ingest-skips-a-reboot-spanning-file",
+  "negative_control": {
+    "added_failure_ids": [
+      "tests/test_telemetry_index.py::test_a_reboot_spanning_source_consumed_to_its_end_is_not_read_again"
+    ],
+    "baseline_failure_ids": [],
+    "comparison_arm": "baseline_suite",
+    "control_exit_status": 1,
+    "control_failure_ids": [
+      "tests/test_telemetry_index.py::test_a_reboot_spanning_source_consumed_to_its_end_is_not_read_again"
+    ],
+    "declaration": "selecting an arbitrary source row for the file, as the reviewed head did, must fail the second-pass skip test; applied as a scratch edit and restored",
+    "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T171023334166-srw-ingest-skips-a-reboot-spanning-file/negative-control.log",
+    "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T171023334166-srw-ingest-skips-a-reboot-spanning-file/negative-control.log",
+    "test_paths": [
+      "tests/test_telemetry_index.py"
+    ],
+    "verdict": "matched"
+  },
+  "no_commit": null,
+  "node": "srw-ingest-skips-a-reboot-spanning-file",
+  "node_definition": {
+    "brief": "",
+    "brief_path": "",
+    "brief_sha256": "",
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 892,
+          "cached_input_tokens": 563340,
+          "input_tokens": 564234,
+          "output_tokens": 1688,
+          "reasoning_output_tokens": 425,
+          "total_tokens": 565922,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "0c4316b2-553f-4a0a-ae02-c42d88de747c",
+      "session_id": "0c4316b2-553f-4a0a-ae02-c42d88de747c"
+    },
+    "done_when": "Following the first finding in the review record /home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20261002T123509368875-srw-ingest-commits-in-batches.json: when one receipts file (path, inode) carries source rows under more than one boot key because it spans a reboot, TelemetryIndex treats it as consumed whole and untouched only from the row that recorded the file's end, and once it has been ingested to its end with size and modification time unchanged, the next ingest pass leaves it unopened and computes no prefix digest over it; a file whose bytes changed is still re-read as before; tests in tests/test_telemetry_index.py build a fixture file whose rows name two boot ids with batch_rows small enough that the first boot's rows end at a batch boundary, ingest it to its end, then assert on a second pass, by patching the function that opens or digests a source, that the file is neither opened nor digested, and that appending one line makes the third pass read only the new line; gate: uv run --no-sync pytest -p no:cacheprovider tests/test_telemetry_index.py tests/test_telemetry_ingest.py tests/test_agent_telemetry_watch.py passes, uv run --no-sync pytest -p no:cacheprovider tests/test_agent_serve_registry.py -k agent_package_modules_parse_with_serving_python passes with exactly 1 test selected, the log showing that command verbatim, uv run --no-sync ruff check imas_ambix tests exits 0; the gate log's first line names the commit it ran at, each command line is logged verbatim beside its own summary and exit status, and the gate runs in the foreground to its summary before the manifest is finalised",
+    "estimated_hours": null,
+    "goal": "Make the batched ingest skip a fully consumed receipts file that spans a reboot instead of re-digesting it every pass",
+    "id": "srw-ingest-skips-a-reboot-spanning-file",
+    "lane_declaration": {
+      "backend": null,
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-10-02T17:10:24Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 10,
+      "binding_observed": "unknown",
+      "detail": "",
+      "generating": 11,
+      "headroom": 5,
+      "mean_context": 169231,
+      "observed_at": "2026-10-02T17:10:14Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45,
+      "throughput": {
+        "age_seconds": null,
+        "aggregate_tokens_per_second": "unknown",
+        "detail": "lane document publishes no 'throughput' block, so the rate its generating population achieved is not measured",
+        "mean_tokens_per_second": "unknown",
+        "observed_at": null,
+        "runs": "unknown",
+        "state": "unknown"
+      },
+      "waiting": 0
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T171023334166-srw-ingest-skips-a-reboot-spanning-file/manifest.md",
+    "negative_control": "selecting an arbitrary source row for the file, as the reviewed head did, must fail the second-pass skip test; applied as a scratch edit and restored",
+    "plan": "serving-record-warehouse",
+    "requested_backend": null,
+    "requires_decisions": [],
+    "role": "implement",
+    "section": "§5",
+    "spec_level": "guided",
+    "time_budget": "45m",
+    "token_budget": null,
+    "write_paths": [
+      "imas_ambix/agent/telemetry_index.py",
+      "tests/test_telemetry_index.py",
+      "docs/evidence/fragments/serving-record-warehouse/srw-ingest-skips-a-reboot-spanning-file.html",
+      "docs/figures/serving-record-warehouse/srw-ingest-skips-a-reboot-spanning-file"
+    ]
+  },
+  "orientation_input_tokens": 1392445.0,
+  "outcome": "",
+  "pace": {
+    "allowance": null,
+    "bar": null,
+    "clocks": {
+      "five_hour": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "five_hour",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      },
+      "seven_day": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "seven_day",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      }
+    },
+    "group": null,
+    "hold": null,
+    "lane": "clive",
+    "member": null,
+    "node": "srw-ingest-skips-a-reboot-spanning-file",
+    "policy": {
+      "drain_lead_hours": 12.0,
+      "pace_multiple": 1.1
+    },
+    "reason": "the lane declares no budget group, so no wallet paced it",
+    "recorded_at": "2026-10-02T17:10:26.848700+00:00",
+    "score": 0.6625,
+    "source": null,
+    "state": "unknown"
+  },
+  "plan": "serving-record-warehouse",
+  "plan_impl_at_dispatch": 0.15,
+  "plan_link": null,
+  "promoted_by": null,
+  "promoted_revision": "69092489ab300505e54eadd114791cb00c09a0ab",
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "reviewed_base_sha": "cfb30a40bfd030c13dc4d7ac7d4b13fcf1377578",
+    "reviewed_head_sha": "69092489ab300505e54eadd114791cb00c09a0ab",
+    "scores": {
+      "durability": 18,
+      "evidence": 17,
+      "fit": 19,
+      "goal_fidelity": 19,
+      "scope_discipline": 17
+    },
+    "status": "parsed",
+    "total": 90
+  },
+  "review_tier": "full",
+  "role": "implement",
+  "run_id": "r-20261002T171023334166-srw-ingest-skips-a-reboot-spanning-file",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§5",
+  "session": "0c4316b2-553f-4a0a-ae02-c42d88de747c",
+  "session_harness": "claude",
+  "session_id": "9b51c989-1df3-42b8-b23d-dc428fd55e6e",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "guided",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 1,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 5845518,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 480000",
+    "elapsed_seconds": 1479.847,
+    "generated_tokens": 27286,
+    "generation_seconds": 1059.41,
+    "input_budget_tokens": 480000,
+    "input_utilisation_pct": 36.0,
+    "machine_seconds": 420.437,
+    "peak_input_tokens": 172698,
+    "tokens_per_second": 25.76,
+    "wall_tokens_per_second": 18.44
+  },
+  "time_budget": "45m",
+  "tool_steps": 44.0,
+  "unplanned_reason": null,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": []
+  },
+  "wall_seconds": 1489,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-10-02T17:35:25Z",
+    "last_record_type": "result",
+    "launched_at": "2026-10-02T17:10:37Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20261002T171023334166-srw-ingest-skips-a-reboot-spanning-file",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 5394,
+    "worker_pid": 2544163
+  },
+  "worker_seconds": 1467,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
