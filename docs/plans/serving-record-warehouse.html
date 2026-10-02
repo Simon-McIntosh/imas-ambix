@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-10-02">
-<meta name="plan-version" content="188">
+<meta name="plan-version" content="189">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -1125,6 +1125,9 @@
 </div>
 <div class="r-comment" data-section="s10" data-id="c-run-r-20261002T172728758497-srw-agent-publishes-the-watch-document" data-who="reckon-build" data-when="2026-10-02T17:55:22.486Z">
     <div class="r-comment-body"><p>Added the imas-ambix agent publish-watch command and imas_ambix/agent/watch_publish.py: each iteration calls watch.watch_document in-process, adds top-level compute_seconds (float wall time) and published_at (UTC to the second, taken after the call), writes the JSON through a temporary file renamed over the target with os.replace, and prints exactly one flushed line per iteration with newlines in errors flattened to spaces; a failed derivation or a failed write/rename leaves an existing target byte-for-byte unchanged and the loop continues. Gate: 22 passed across test_agent_publish_watch.py/test_agent_ingest_cli.py/test_agent_watch_help.py, the serving-python parse guard selected exactly 1 test and passed, ruff check imas_ambix tests clean, all EXIT=0.</p></div>
+</div>
+<div class="r-comment" data-section="s10" data-id="c-run-r-20261002T180550871497-review-of-srw-agent-publishes-the-watch-document" data-who="reckon-build" data-when="2026-10-02T18:35:28.007Z">
+    <div class="r-comment-body"><p>independent review of run r-20261002T172728758497-srw-agent-publishes-the-watch-document (serving-record-warehouse section 10, node srw-agent-publishes-the-watch-document) at base 92850b4d1f306be3aba04e4ae332c67eb4ea0dde head 68bb9bf57882a145b87883192ec089ed3908c38d: stored total 93/100 (goal_fidelity 19, evidence 18, scope_discipline 20, durability 17, fit 19), added_failure_count 0 with no ids derived from the reviewed run&#x27;s own baseline_suite/after_suite fields (both name negative_control.log, so the read-path set difference is empty); the declared gate re-ran green at the head in a scratch export and the declared negative control was reproduced red; two follow-on findings, no blocking findings.</p></div>
 </div>
 <div class="r-comment" data-section="s11" data-id="c-run-r-20260929T072617274722-scout-live-panel-reuse" data-who="reckon-build" data-when="2026-09-29T08:33:34.522Z">
     <div class="r-comment-body"><p>No landing step. The map is an evidence input for a separately dispatched build wave; it is not merged into the repository and needs no review of the merged result.</p></div>
