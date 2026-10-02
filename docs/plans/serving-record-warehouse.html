@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-10-02">
-<meta name="plan-version" content="148">
+<meta name="plan-version" content="149">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -945,6 +945,9 @@
 </div>
 <div class="r-comment" data-section="s8" data-id="c-run-r-20261002T004051979867-review-of-srw-retire-raw-checks-tiers-without-building-indexes" data-who="reckon-build" data-when="2026-10-02T00:57:04.631Z">
     <div class="r-comment-body"><p>Independent review of run r-20261002T000925962662-srw-retire-raw-checks-tiers-without-building-indexes (base ce90ad05, head 182dffcf) stored as a parsed record scoring goal_fidelity 20, evidence 18, scope_discipline 20, durability 18, fit 19 (total 95), added_failure_count 0 with no added failure ids, one follow-on; compare_tiers no longer builds a TelemetryIndex and now totals each UTC hour from rows directly, and the reviewed run was dispatched unarmed so this review rebuilt both gate arms from the commits' own object store (base 16 passed, head 18 passed, each EXIT=0).</p></div>
+</div>
+<div class="r-comment" data-section="s8" data-id="c-run-r-20261002T084013590894-srw-job-1273253-failing-hour" data-who="reckon-build" data-when="2026-10-02T09:12:22.501Z">
+    <div class="r-comment-body"><p>Job 1273253&#x27;s raw receipts and its compactions do not disagree anywhere: all 14 UTC hours carrying the three counters (2026-09-22T15:00Z..2026-09-23T04:00Z) match exactly across raw, minute and hour (42/42 comparisons); the check fails the file only because its other 115 hours (2026-09-17T20:00Z..2026-09-22T14:00Z) hold no reading of the counters in any tier — the recorder&#x27;s row vocabulary gains the engine block at byte 54,326,416 (2026-09-22T15:22:09.302536Z, schema_version 3, the node-readings commit aa51702b) after 4.79 days without it, and compare_tiers counts &quot;raw holds nothing here&quot; as a disagreement (imas_ambix/agent/telemetry_retention.py lines 524-529). The compaction is correct; the check must accept these files, by skipping windows in which every tier is absent.</p></div>
 </div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20260924T122840994565-s26-currency-audit" data-who="reckon-ship" data-when="2026-09-24T12:30:00Z">
     <div class="r-comment-body"><p>stopped by the coordinator within a minute of launch: the repository's local-lane budget for the re-plan exercise was reallocated, and the audit was done in-session instead</p></div>
