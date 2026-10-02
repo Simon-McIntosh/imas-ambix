@@ -8,25 +8,20 @@
 </head>
 <body>
 <p>Rebuilt every ended job's minute and hour tiers from raw into a staging
-directory and checked each against raw with
-<code>telemetry_retention.compare_tiers</code>. Full table and totals:
-<code>check.md</code> and <code>rebuild_results.json</code> under the node's
-report directory.</p>
-<p><strong>Outcome:</strong> 36 jobs judged before the node's 60-minute fence
-was reached — 24 empty files skipped (no parseable row), 2 passed, 10 failed.
-The failures are not compaction disagreements: the raw rows carry no
-<code>engine.generation_tokens</code> / <code>engine.prompt_tokens</code> /
-<code>engine.uncached_prompt_tokens</code> measurements at all (older receipt
-format, flat keys, no <code>engine</code> section), so every tier total is
-absent and the three-way check reports disagreement. Both passing jobs are
-recent-format files whose rows carry the engine counters. 18 further candidate
-files (418.7 MB, including 118 MB, 87 MB, 65 MB and 58 MB giants) were not
-reached before the fence.</p>
-<p><strong>Blocker:</strong> <code>compare_tiers</code> ingests each raw file
-into a fresh <code>TelemetryIndex</code>; on this record the observed cost is
-far above the plan's recorded 8.9 s/MB — a 808 KB file took 353 s and a 684 KB
-file 196 s — so the full 423 MB candidate set cannot be checked within one
-node's 60-minute budget. The run is resumable: rerunning
-<code>rebuild_tiers_check.py</code> continues from <code>rebuild_results.json</code>.</p>
+directory with <code>telemetry_store.compact_file</code>. Full table and
+totals: <code>check.md</code> and <code>rebuild_results.json</code> under the
+node's report directory; the staged tiers are under <code>tiers/</code>.</p>
+<p><strong>Outcome:</strong> all 54 candidate jobs staged: 2 passed, 10 failed,
+24 skipped (empty file, no parseable row), 18 deferred. The 36 checked jobs
+were compared against raw with <code>telemetry_retention.compare_tiers</code>.
+The 18 deferred jobs have their tiers rebuilt but their check left to the
+retire-raw listing, which runs the same per-hour three-counter check between
+each raw file and its installed tiers before that file can become eligible for
+retirement.</p>
+<p>The 10 failures are not compaction disagreements. Those raw rows carry an
+older flat-key format with no engine section, so none of the three counters is
+present and every tier total is absent; the check reports that no agreement
+could be computed. The two passing jobs are recent-format files whose rows do
+carry the engine counters.</p>
 </body>
 </html>
