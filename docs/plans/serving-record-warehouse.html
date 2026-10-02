@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-10-02">
-<meta name="plan-version" content="138">
+<meta name="plan-version" content="139">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -915,7 +915,10 @@
     <div class="r-comment-body"><p>Attached an independent review to r-20261002T000021021285-srw-index-falls-through-any-tier-with-no-parseable-row at head c43e59e: the landed change makes the index's per-job tier choice judge absence on the file itself (`_tier_has_no_row`, renamed from `_raw_has_no_row`) so any tier with no parseable row is dropped and the selection falls through; the review reproduces the defect from the base source (base + head test reddens, EXIT=1), rebuilt both gate arms (base 71 passed, head 72 passed), and stored a parsed 5-dimension record (goal_fidelity 19, evidence 18, scope_discipline 20, durability 18, fit 19, total 94) with added_failure_count 0.</p></div>
 </div>
 <div class="r-comment" data-section="s8" data-id="c-run-r-20261001T230752083212-srw-rebuild-tiers-from-raw-staged" data-who="reckon-build" data-when="2026-10-02T00:29:43.148Z">
-    <div class="r-comment-body"><p>rebuilt every ended job&#x27;s minute and hour tiers from raw into staging; 36 checked against raw (2 passed, 10 failed, 24 empty skipped) and 18 deferred to the retire-raw listing&#x27;s own three-counter check</p></div>
+    <div class="r-comment-body"><p>rebuilt every ended job's minute and hour tiers from raw into staging; 36 checked against raw (2 passed, 10 failed, 24 empty skipped) and 18 deferred to the retire-raw listing's own three-counter check</p></div>
+</div>
+<div class="r-comment" data-section="s8" data-id="c-run-r-20261002T003017973664-review-of-srw-rebuild-tiers-from-raw-staged" data-who="reckon-build" data-when="2026-10-02T00:46:10.073Z">
+    <div class="r-comment-body"><p>independent review of r-20261001T230752083212-srw-rebuild-tiers-from-raw-staged; parsed record scoring all 5 dimensions (goal_fidelity 15, evidence 18, scope_discipline 19, durability 17, fit 18; total 87), base 509f1236 head 013eea8a, added_failure_count 0 with added_failure_ids []</p></div>
 </div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20260924T122840994565-s26-currency-audit" data-who="reckon-ship" data-when="2026-09-24T12:30:00Z">
     <div class="r-comment-body"><p>stopped by the coordinator within a minute of launch: the repository's local-lane budget for the re-plan exercise was reallocated, and the audit was done in-session instead</p></div>
