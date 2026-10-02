@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as _dt
 import gzip
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -1593,9 +1594,7 @@ def test_a_job_whose_raw_file_has_no_parseable_row_is_answered_from_minute(
         "engine.prompt_tokens": pytest.approx(1000.0),
         "engine.uncached_prompt_tokens": pytest.approx(800.0),
     }
-    raw.write_text(
-        '{"timestamp": "2026-09-20T06:00:05+00:00" \n', encoding="utf-8"
-    )
+    raw.write_text('{"timestamp": "2026-09-20T06:00:05+00:00" \n', encoding="utf-8")
 
     with TelemetryIndex(tmp_path / "index.db") as index:
         tick(index, tmp_path)
@@ -1622,7 +1621,7 @@ def test_a_job_with_no_raw_and_an_unparseable_minute_file_reads_hour(tmp_path):
     }
     raw.unlink()
     minute.write_text(
-        "\n" '{"timestamp": "2026-09-20T06:00:05+00:00" \n',
+        '\n{"timestamp": "2026-09-20T06:00:05+00:00" \n',
         encoding="utf-8",
     )
 
@@ -1697,3 +1696,112 @@ def test_one_tier_per_job_keeps_the_finest_and_ignores_unkeyed_names():
     selected, chosen = one_tier_per_job([hour, notes])
     assert set(selected) == {hour, notes}
     assert chosen == {"1001": "hour"}
+
+
+def _many_rows(count: int) -> list[dict]:
+    """*count* recorder samples a second apart, so each carries distinct bytes."""
+    return [_row(second) for second in range(count)]
+
+
+def _end_of_line(source: Path, lines: int) -> int:
+    """The byte offset after the first *lines* newline-terminated lines."""
+    return sum(
+        len(line) for line in source.read_bytes().splitlines(keepends=True)[:lines]
+    )
+
+
+def test_ingest_commits_once_per_batch_not_once_per_row(tmp_path):
+    """A 1000-row source commits once per batch, not once per row.
+
+    The count is read from the connection's own trace callback, so it measures
+    the COMMIT statements the store issued rather than the source's intent. The
+    bound leaves room for the file-level writes beside the batches while still
+    failing a pass that commits each sample on its own.
+    """
+    source = tmp_path / "serve.jsonl"
+    _write(source, _many_rows(1000))
+
+    statements: list[str] = []
+    with TelemetryIndex(tmp_path / "index.db") as index:
+        index._conn.set_trace_callback(statements.append)
+        report = index.ingest([source], batch_rows=250)
+        index._conn.set_trace_callback(None)
+
+        assert report.rows_inserted == 1000
+        assert index.sample_count() == 1000
+
+    commits = [s for s in statements if s.strip().upper().startswith("COMMIT")]
+    assert commits, "the trace recorded no commit, so it measures nothing"
+    assert len(commits) <= 6, f"{len(commits)} commits for 1000 rows"
+
+
+def test_a_pass_that_dies_between_batches_resumes_without_re_reading(
+    tmp_path, monkeypatch
+):
+    """A pass killed after its second batch resumes there, re-reading nothing.
+
+    The source offset the killed pass left behind is the end of the second
+    batch's last line, and the samples of the third batch -- which never
+    committed -- are gone with it. A second pass therefore reads only the rows
+    past that offset and counts no duplicate, which is what makes the batch
+    boundary a resume point rather than a place to re-do work.
+
+    The second pass reads 500 of 1000 rows and the index holds 1000: both halves
+    asserted, because a resume that re-read the whole file would also end at
+    1000 samples while counting 500 duplicates.
+    """
+    source = tmp_path / "serve.jsonl"
+    _write(source, _many_rows(1000))
+    boundary = _end_of_line(source, 500)
+
+    original = TelemetryIndex._insert
+    seen = {"n": 0}
+
+    def die_after_two_batches(self, *args, **kwargs):
+        seen["n"] += 1
+        if seen["n"] == 501:
+            raise RuntimeError("killed after the second batch")
+        return original(self, *args, **kwargs)
+
+    with TelemetryIndex(tmp_path / "index.db") as index:
+        monkeypatch.setattr(TelemetryIndex, "_insert", die_after_two_batches)
+        with pytest.raises(RuntimeError):
+            index.ingest([source], batch_rows=250)
+        monkeypatch.setattr(TelemetryIndex, "_insert", original)
+
+        row = index._conn.execute("SELECT offset FROM source").fetchone()
+        assert row["offset"] == boundary, "the source did not stop at batch two"
+        assert index.sample_count() == 500
+
+        report = index.ingest([source], batch_rows=250)
+        assert report.rows_inserted == 500
+        assert report.rows_duplicate == 0, "the resume re-read a committed row"
+        assert index.sample_count() == 1000
+
+
+def test_a_batched_ingest_records_the_whole_region_digest(tmp_path):
+    """The digest a batched pass records is the one an unbatched pass records.
+
+    Every commit stores the digest of the bytes consumed up to that line, so the
+    batch boundaries must not change the digest left at the end of the file: the
+    incremental hash the batches extend must reach the same value as a pass that
+    reads the whole file in one batch. The digest is also asserted against the
+    file itself, so a value that merely agreed with another index could not pass.
+    """
+    source = tmp_path / "serve.jsonl"
+    _write(source, _many_rows(1000))
+    whole = hashlib.sha256(source.read_bytes()).hexdigest()
+
+    def final_digest(index_path: Path, batch_rows: int) -> tuple[str, int, int]:
+        with TelemetryIndex(index_path) as index:
+            index.ingest([source], batch_rows=batch_rows)
+            row = index._conn.execute(
+                "SELECT prefix_sha, offset, size FROM source"
+            ).fetchone()
+            return row["prefix_sha"], row["offset"], row["size"]
+
+    batched, batched_offset, batched_size = final_digest(tmp_path / "batched.db", 250)
+    single, single_offset, single_size = final_digest(tmp_path / "single.db", 10**9)
+
+    assert batched_offset == batched_size == source.stat().st_size
+    assert batched == single == whole

@@ -216,6 +216,16 @@ CUMULATIVE_MEASUREMENTS: frozenset[str] = frozenset(
     }
 )
 
+#: How many record lines one ingest pass consumes before it commits and
+#: advances the source row. A commit per row makes SQLite pay its journal and
+#: fsync cost once per sample; batching bounds that cost while keeping the
+#: window a pass can be killed inside small, because every committed batch
+#: advances the source's offset and digest to the end of its last line, so a
+#: pass that dies mid-source resumes at the last committed batch and re-reads
+#: no committed row. It is a keyword on :meth:`TelemetryIndex.ingest` so tests
+#: can lower it and observe the boundaries.
+DEFAULT_BATCH_ROWS = 1000
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS source (
     host     TEXT    NOT NULL,
@@ -925,7 +935,12 @@ class TelemetryIndex:
 
     # ── ingest ───────────────────────────────────────────────────────
 
-    def ingest(self, sources: Iterable[str | Path]) -> IngestReport:
+    def ingest(
+        self,
+        sources: Iterable[str | Path],
+        *,
+        batch_rows: int = DEFAULT_BATCH_ROWS,
+    ) -> IngestReport:
         """Consume every byte appended to *sources* since the record last moved.
 
         *sources* is offered whole -- every file the caller discovered, changed
@@ -951,6 +966,13 @@ class TelemetryIndex:
         A compressed roll is refused by name rather than read as text: handed to
         the parser it is one long malformed line at best, and it is reported
         with the bytes it holds only where the caller handles it deliberately.
+
+        Lines are committed in batches of *batch_rows*, and each commit advances
+        the source row to the end of the batch's last line together with the
+        digest of every byte consumed to that line. A pass interrupted at any
+        point therefore restarts at the last committed batch's end and re-reads
+        no row it already committed; a batch that was not committed leaves no
+        trace, because its transaction is rolled back when the pass raises.
         """
         offered = [Path(source) for source in sources]
         # A tier file the recorder has created but not yet written a row to is
@@ -980,8 +1002,10 @@ class TelemetryIndex:
             if self._consumed_whole_and_untouched(path, stat):
                 continue
             scanned += 1
-            lines, tail, prefix_sha, source_host, source_boot = self._resume(path, stat)
+            lines, tail, digest, source_host, source_boot = self._resume(path, stat)
             added = 0
+            since_commit = 0
+            wrote_source = False
             carried: str | None = None
             # The boot the file's consumed region was keyed by, if the previous
             # pass established one: a row that names no boot of its own belongs
@@ -990,65 +1014,71 @@ class TelemetryIndex:
             file_host = resolve_host(source_host)
             file_boot, file_scope = resolve_boot_id(source_boot or self.boot_id)
             file_kind = key_scope(file_host, file_scope)
-            for offset, raw in lines:
-                read += len(raw)
-                parsed = self._parse(raw, path, offset)
-                if parsed is None:
-                    malformed += 1
-                    continue
-                if carried is None:
-                    # One file is written by one recorder on one machine, so the
-                    # first row that names its host names it for every row here.
-                    carried = row_host(parsed)
-                own_boot = row_boot_id(parsed)
-                if own_boot is not None:
-                    # Resolved per row, unlike the host: a reboot inside one file
-                    # leaves the hostname alone and changes only this.
-                    carried_boot = own_boot
-                file_host = resolve_host(carried or source_host)
-                file_boot, file_scope = resolve_boot_id(
-                    carried_boot if carried_boot is not None else self.boot_id
-                )
-                file_kind = key_scope(file_host, file_scope)
-                if self._insert(
-                    path,
-                    stat.st_ino,
-                    file_host,
-                    file_boot,
-                    file_kind,
-                    offset,
-                    parsed,
-                ):
-                    inserted += 1
-                    added += 1
-                else:
-                    duplicate += 1
-            with self._conn:
-                self._conn.execute(
-                    "INSERT INTO source "
-                    "(host, boot_id, key_kind, path, inode, size, offset, rows, "
-                    " prefix_sha, mtime_ns) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
-                    "ON CONFLICT (host, boot_id, path, inode) DO UPDATE SET "
-                    "  size = excluded.size, offset = excluded.offset, "
-                    "  rows = source.rows + excluded.rows, "
-                    "  mtime_ns = excluded.mtime_ns, "
-                    "  prefix_sha = COALESCE(excluded.prefix_sha, source.prefix_sha)",
-                    (
-                        file_host,
-                        file_boot,
-                        file_kind,
-                        str(path),
-                        stat.st_ino,
-                        stat.st_size,
-                        tail,
-                        added,
-                        prefix_sha,
-                        stat.st_mtime_ns,
-                    ),
-                )
-        with self._conn:
-            self._conn.commit()
+            try:
+                for offset, raw in lines:
+                    read += len(raw)
+                    parsed = self._parse(raw, path, offset)
+                    if parsed is None:
+                        malformed += 1
+                    else:
+                        if carried is None:
+                            # One file is written by one recorder on one machine,
+                            # so the first row naming its host names it for all.
+                            carried = row_host(parsed)
+                        own_boot = row_boot_id(parsed)
+                        if own_boot is not None:
+                            # Resolved per row, unlike the host: a reboot inside
+                            # one file leaves the hostname alone and changes only
+                            # this.
+                            carried_boot = own_boot
+                        file_host = resolve_host(carried or source_host)
+                        file_boot, file_scope = resolve_boot_id(
+                            carried_boot if carried_boot is not None else self.boot_id
+                        )
+                        file_kind = key_scope(file_host, file_scope)
+                        if self._insert(
+                            path,
+                            stat.st_ino,
+                            file_host,
+                            file_boot,
+                            file_kind,
+                            offset,
+                            parsed,
+                        ):
+                            inserted += 1
+                            added += 1
+                        else:
+                            duplicate += 1
+                    if digest is not None:
+                        digest.update(raw)
+                    since_commit += 1
+                    if since_commit >= batch_rows:
+                        self._record_source(
+                            path,
+                            stat,
+                            file_host,
+                            file_boot,
+                            file_kind,
+                            offset + len(raw),
+                            added,
+                            digest,
+                        )
+                        added = 0
+                        since_commit = 0
+                        wrote_source = True
+                # A trailing partial batch, or a file with no line to commit,
+                # still records where the pass stopped, so the next one resumes
+                # rather than re-reading.
+                if since_commit or not wrote_source:
+                    self._record_source(
+                        path, stat, file_host, file_boot, file_kind, tail, added, digest
+                    )
+            except BaseException:
+                # An uncommitted batch leaves no half-written state: its samples,
+                # and any source row not yet committed, go back to the last
+                # committed batch, which is where the next pass resumes.
+                self._conn.rollback()
+                raise
         # The deselected tier is dropped only once the selected tier has been
         # read. A read that raises -- a corrupt selected file, say -- then
         # leaves the job's previously held samples in place rather than
@@ -1061,6 +1091,51 @@ class TelemetryIndex:
             malformed=malformed,
             bytes_read=read,
         )
+
+    def _record_source(
+        self,
+        path: Path,
+        stat: os.stat_result,
+        host: str,
+        boot_id: str,
+        key_kind: str,
+        offset: int,
+        added: int,
+        digest: Any | None,
+    ) -> None:
+        """Commit one batch with the source row describing how far it read.
+
+        *offset* is the byte after the batch's last complete line, and *digest*
+        describes every byte this index has consumed from the file up to that
+        line -- ``None`` where no line has been consumed yet, which leaves any
+        recorded digest in place. The samples of the batch, this row and the
+        commit are one transaction, so a pass that dies after it leaves the
+        source advanced to exactly the batch it committed.
+        """
+        with self._conn:
+            self._conn.execute(
+                "INSERT INTO source "
+                "(host, boot_id, key_kind, path, inode, size, offset, rows, "
+                " prefix_sha, mtime_ns) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT (host, boot_id, path, inode) DO UPDATE SET "
+                "  size = excluded.size, offset = excluded.offset, "
+                "  rows = source.rows + excluded.rows, "
+                "  mtime_ns = excluded.mtime_ns, "
+                "  prefix_sha = COALESCE(excluded.prefix_sha, source.prefix_sha)",
+                (
+                    host,
+                    boot_id,
+                    key_kind,
+                    str(path),
+                    stat.st_ino,
+                    stat.st_size,
+                    offset,
+                    added,
+                    None if digest is None else digest.hexdigest(),
+                    stat.st_mtime_ns,
+                ),
+            )
 
     def _tier_has_no_row(self, path: Path) -> bool:
         """Whether *path* is a job's receipts tier file that carries no record line.
@@ -1168,8 +1243,15 @@ class TelemetryIndex:
 
     def _resume(
         self, path: Path, stat: os.stat_result
-    ) -> tuple[Iterator[tuple[int, bytes]], int, str | None, str, str | None]:
-        """Lines to consume, the offset they carry to, digest, host, boot.
+    ) -> tuple[Iterator[tuple[int, bytes]], int, Any | None, str, str | None]:
+        """Lines to consume, the offset they carry to, a digest, host, boot.
+
+        The digest is seeded with every byte of the file this index had already
+        consumed, so the caller extends it with the lines returned and reads off
+        the digest of the region consumed to any line boundary -- the identity a
+        later pass compares against. It is ``None`` when the file holds no
+        complete line to consume, so the caller records no new identity rather
+        than an empty one.
 
         The host returned is the one the file's already-consumed region was
         attributed to, which is the host its samples must be dropped under if
@@ -1214,11 +1296,13 @@ class TelemetryIndex:
         if complete < 0:
             # Nothing but a partial line so far: leave the offset alone.
             return iter(()), start, None, host, boot
-        consumed = head + data[: complete + 1]
+        # Seed the digest with the region already consumed, so the caller can
+        # read off the digest of the file as of any line it has just taken.
+        seed = hashlib.sha256(head)
         return (
-            iter(_lines(consumed[start:], start)),
+            iter(_lines(data[: complete + 1], start)),
             start + complete + 1,
-            hashlib.sha256(consumed).hexdigest(),
+            seed,
             host,
             boot,
         )
@@ -1279,41 +1363,43 @@ class TelemetryIndex:
         counters are cumulative since a boot, so two readings of one machine on
         either side of a reboot. The boot is empty when none could be
         established, and it is empty rather than null so that the uniqueness
-        below still refuses a duplicate unkeyed row.
+        below still refuses a duplicate unkeyed row. It does not commit: the
+        batch that owns this row commits it together with the source row that
+        advances past it, so an interrupted pass leaves no half of the batch
+        committed and nothing to re-read.
         """
-        with self._conn:
-            cursor = self._conn.execute(
-                "INSERT OR IGNORE INTO sample "
-                "(host, boot_id, key_kind, inode, offset, path, ts, ts_epoch, "
-                " job_id, profile_slug, served_name, gpus, payload) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (
-                    host,
-                    boot_id,
-                    key_kind,
-                    inode,
-                    offset,
-                    str(path),
-                    row.get("timestamp"),
-                    _parse_timestamp(row.get("timestamp")),
-                    _as_text(row.get("job_id")),
-                    _as_text(row.get("profile_slug")),
-                    _as_text(row.get("served_name")),
-                    _as_int(row.get("gpus")),
-                    json.dumps(row, sort_keys=True),
-                ),
-            )
-            if cursor.rowcount == 0:
-                return False
-            sample_id = cursor.lastrowid
-            self._conn.executemany(
-                "INSERT OR REPLACE INTO measurement "
-                "(sample_id, name, kind, value) VALUES (?, ?, ?, ?)",
-                [
-                    (sample_id, name, _kind(name), value)
-                    for name, value in measure_row(row).items()
-                ],
-            )
+        cursor = self._conn.execute(
+            "INSERT OR IGNORE INTO sample "
+            "(host, boot_id, key_kind, inode, offset, path, ts, ts_epoch, "
+            " job_id, profile_slug, served_name, gpus, payload) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                host,
+                boot_id,
+                key_kind,
+                inode,
+                offset,
+                str(path),
+                row.get("timestamp"),
+                _parse_timestamp(row.get("timestamp")),
+                _as_text(row.get("job_id")),
+                _as_text(row.get("profile_slug")),
+                _as_text(row.get("served_name")),
+                _as_int(row.get("gpus")),
+                json.dumps(row, sort_keys=True),
+            ),
+        )
+        if cursor.rowcount == 0:
+            return False
+        sample_id = cursor.lastrowid
+        self._conn.executemany(
+            "INSERT OR REPLACE INTO measurement "
+            "(sample_id, name, kind, value) VALUES (?, ?, ?, ?)",
+            [
+                (sample_id, name, _kind(name), value)
+                for name, value in measure_row(row).items()
+            ],
+        )
         return True
 
     def rebuild(self, sources: Iterable[str | Path]) -> IngestReport:
