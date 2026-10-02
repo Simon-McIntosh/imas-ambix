@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-10-02">
-<meta name="plan-version" content="193">
+<meta name="plan-version" content="194">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -1059,6 +1059,9 @@
 </div>
 <div class="r-comment" data-section="s8" data-id="c-run-r-20261002T180959766773-review-of-srw-retention-compares-hour-counter-pairs" data-who="reckon-build" data-when="2026-10-02T18:26:56.499Z">
     <div class="r-comment-body"><p>Reviewed r-20261002T172700096366-srw-retention-compares-hour-counter-pairs (plan imas-ambix:serving-record-warehouse §8, f-srw-018) at head 25e2d4c7 on base 92850b4d; scores goal_fidelity 19, evidence 18, scope_discipline 20, durability 18, fit 19, total 94; the (hour, counter) pair rule is implemented as specified and every branch is exercised by a committed test, zero added failures, and the sole finding is a follow-on strictness gap (an all-None-totals pair counted as compared and agreeing).</p></div>
+</div>
+<div class="r-comment" data-section="s8" data-id="c-run-r-20261002T183002678308-srw-retention-refuses-a-pair-with-no-total" data-who="reckon-build" data-when="2026-10-02T18:56:46.579Z">
+    <div class="r-comment-body"><p>compare_tiers now skips a pair present in all three tiers when no tier yields a total, so None == None is never an agreement; tests add the all-None-per-tier fixture (compared_pairs 0, file kept with reason &#x27;no hour carries the counters&#x27;) and the number-in-raw/None-in-minute fixture (refused); measure 19 passed at head 31f64ead against 17 at base 25e2d4c7, serving-parse guard 1 passed, ruff 0, negative control EXIT=1</p></div>
 </div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20260924T122840994565-s26-currency-audit" data-who="reckon-ship" data-when="2026-09-24T12:30:00Z">
     <div class="r-comment-body"><p>stopped by the coordinator within a minute of launch: the repository's local-lane budget for the re-plan exercise was reallocated, and the audit was done in-session instead</p></div>
