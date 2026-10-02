@@ -1,0 +1,61 @@
+<section class="evidence-fragment" data-reckon="evidence" id="srw-index-falls-through-any-tier-with-no-parseable-row">
+  <header>
+    <h3>The index's tier fall-through skips any tier file with no parseable row</h3>
+    <p class="meta">
+      Node <code>srw-index-falls-through-any-tier-with-no-parseable-row</code> &middot;
+      date 2026-10-02 &middot;
+      worktree <code>imas-ambix-0405601943d2/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-index-falls-through-any-tier-with-no-parseable-row</code>
+    </p>
+  </header>
+
+  <p>
+    The check that drops a tier file carrying no record line was restricted to
+    the raw tier, so a minute file whose every line was blank or unparseable was
+    still offered as the job's finest tier. The job was pinned to a file with no
+    samples and its window read as uncovered while the hour file that held its
+    rows went unread. The check now judges the file rather than its resolution:
+    any tier file, raw, minute or hour, with no parseable record line is dropped
+    and the selection falls through to the finest tier that carries rows.
+  </p>
+
+  <h3>Evidence</h3>
+  <table>
+    <thead>
+      <tr><th>Measure</th><th>Result</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>
+          Job with no raw file, a minute file of a blank line and an unparseable
+          line, and an hour file with rows
+        </td>
+        <td>
+          answered from hour; totals 2000 / 1000 / 800; held tier
+          <code>{hour}</code>
+        </td>
+      </tr>
+      <tr>
+        <td>Existing raw fall-through tests</td>
+        <td>still pass (72 passed in the index and ingest suites)</td>
+      </tr>
+      <tr>
+        <td>
+          Negative control: no-parseable-row check restricted to the raw tier
+          again (scratch edit, restored)
+        </td>
+        <td>
+          <code>test_a_job_with_no_raw_and_an_unparseable_minute_file_reads_hour</code>
+          fails with <code>ValueError: invalid record JSON</code>,
+          <code>EXIT=1</code>
+        </td>
+      </tr>
+      <tr>
+        <td>Gate at <code>a99f4fbc</code></td>
+        <td>
+          72 passed; serving-python parse guard 1 passed; ruff
+          <code>All checks passed!</code> exit 0
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</section>

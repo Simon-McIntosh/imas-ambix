@@ -918,12 +918,13 @@ class TelemetryIndex:
         with the bytes it holds only where the caller handles it deliberately.
         """
         offered = [Path(source) for source in sources]
-        # A raw file the recorder has created but not yet written a row to is
+        # A tier file the recorder has created but not yet written a row to is
         # not a tier the job offers: selecting it would pin the job to a file
         # with no samples, and its window would read as uncovered while the
-        # minute or hour file that holds them went unread. Dropping it here
+        # coarser file that holds them went unread. This holds for every tier,
+        # not only raw -- a compaction can be empty too -- so dropping it here
         # lets the selection fall through to the finest tier carrying rows.
-        offering = [path for path in offered if not self._raw_has_no_row(path)]
+        offering = [path for path in offered if not self._tier_has_no_row(path)]
         selected, chosen = one_tier_per_job(offering)
         scanned = inserted = duplicate = malformed = read = 0
         for path in selected:
@@ -1026,18 +1027,18 @@ class TelemetryIndex:
             bytes_read=read,
         )
 
-    def _raw_has_no_row(self, path: Path) -> bool:
-        """Whether *path* is a raw receipts file that carries no record line.
+    def _tier_has_no_row(self, path: Path) -> bool:
+        """Whether *path* is a job's receipts tier file that carries no record line.
 
-        The recorder creates a job's raw file and writes its first row a moment
-        later, and a compaction can leave an empty file behind, so a raw file
+        A recorder creates a job's raw file and writes its first row a moment
+        later, and a compaction can leave an empty file behind, so a tier file
         of zero bytes or only blank lines offers the job nothing to read. A
-        raw file whose every line fails to parse as a record offers it nothing
-        either, because a recorder writes one JSON object per line and a line
-        that is not one carries no sample. Neither is a tier the job offers:
-        selecting either as the finest tier would leave the job's window
-        uncovered while a coarser file held its samples, so the caller drops it
-        and the selection falls through.
+        tier file whose every line fails to parse as a record offers it nothing
+        either, because the recorder writes one JSON object per line and a line
+        that is not one carries no sample. This holds for any tier, raw as much
+        as minute or hour: selecting such a file as the job's finest tier would
+        leave its window uncovered while a coarser file held its samples, so
+        the caller drops it and the selection falls through.
 
         A file already consumed whole carried rows when it was read, so it is
         not reopened to prove that here. A file holding at least one parseable
@@ -1045,7 +1046,7 @@ class TelemetryIndex:
         place by the read rather than hidden by the fall-through.
         """
         info = receipts_tier(path)
-        if info is None or info[1] != _RAW_TIER:
+        if info is None:
             return False
         try:
             stat = path.stat()

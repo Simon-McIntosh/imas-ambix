@@ -1604,6 +1604,35 @@ def test_a_job_whose_raw_file_has_no_parseable_row_is_answered_from_minute(
         assert _held_tiers(index) == {"minute"}
 
 
+def test_a_job_with_no_raw_and_an_unparseable_minute_file_reads_hour(tmp_path):
+    """A minute file with no record line is absent, so the job reads from hour.
+
+    The absence a tier file carries is a property of the file, not of its
+    resolution, so the check that drops a raw file with no parseable row drops
+    a minute file the same way: a minute file of a blank line and a line that
+    is not a record offers the job nothing, and counting it as the finest tier
+    would pin the job to a file with no samples while its hour file held the
+    rows. The job has no raw file, so the selection falls past both to hour.
+    """
+    raw, minute, hour = _tier_fixture(tmp_path)
+    expected = {
+        "engine.generation_tokens": pytest.approx(2000.0),
+        "engine.prompt_tokens": pytest.approx(1000.0),
+        "engine.uncached_prompt_tokens": pytest.approx(800.0),
+    }
+    raw.unlink()
+    minute.write_text(
+        "\n" '{"timestamp": "2026-09-20T06:00:05+00:00" \n',
+        encoding="utf-8",
+    )
+
+    with TelemetryIndex(tmp_path / "index.db") as index:
+        tick(index, tmp_path)
+
+        assert _token_totals(index) == expected
+        assert _held_tiers(index) == {"hour"}
+
+
 def test_a_job_keeps_its_minute_samples_when_its_selected_raw_file_raises(tmp_path):
     """A tier is dropped only after the selected one has been read.
 
