@@ -1604,9 +1604,7 @@ def test_a_job_whose_raw_file_has_no_parseable_row_is_answered_from_minute(
         assert _held_tiers(index) == {"minute"}
 
 
-def test_a_job_with_no_raw_and_a_minute_tier_holding_no_parseable_row_is_answered_from_hour(
-    tmp_path,
-):
+def test_a_job_with_no_raw_and_an_unparseable_minute_file_reads_hour(tmp_path):
     """A minute file with no record line is absent, so the job reads from hour.
 
     The absence a tier file carries is a property of the file, not of its
