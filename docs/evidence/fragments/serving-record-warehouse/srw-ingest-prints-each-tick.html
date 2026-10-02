@@ -1,0 +1,63 @@
+<section id="srw-ingest-prints-each-tick" data-reckon="landed">
+  <h2>§5 — The ingest prints one flushed line per tick</h2>
+
+  <p>Landed <code>imas_ambix/agent/cli.py</code>: <code>agent ingest</code> now
+  passes an <code>on_tick</code> callback to <code>telemetry_ingest.run</code>,
+  which the loop already accepted and invokes once per tick after each pass
+  completes. The callback writes exactly one line to stdout and flushes it, so
+  the fleet allocation's service log shows the loop is alive rather than silent
+  between restarts. The line is stamped with the UTC wall clock time the tick
+  finished, to the second, and names the counts the tick discovered, read and
+  skipped and what the index scanned, inserted, found duplicate or malformed,
+  and read in bytes:</p>
+
+  <pre>2026-10-02T08:30:04Z ingest tick discovered=118 read=3 skipped=115 scanned=3 inserted=240 duplicate=0 malformed=0 bytes=51234</pre>
+
+  <p>The stamp is taken at the moment the callback runs, which is immediately
+  after the tick returns, so it marks the tick's completion to the second. The
+  counts come from the <code>TickReport</code>
+  (<code>files_discovered</code>, <code>files_read</code>,
+  <code>files_skipped</code>) and its nested <code>IngestReport</code>
+  (<code>files_scanned</code>, <code>rows_inserted</code>,
+  <code>rows_duplicate</code>, <code>malformed</code>,
+  <code>bytes_read</code>). The line is printed unconditionally, so a tick that
+  discovers and reads nothing still marks the loop as running. The
+  <code>ingest</code> help names the per-tick line and its fields, so the format
+  is discoverable from <code>--help</code>. No other module changes: the loop
+  and its <code>on_tick</code> seam live in
+  <code>tests/test_agent_ingest_cli.py</code> and
+  <code>telemetry_ingest.run</code> already exposed <code>on_tick</code>, which
+  <code>telemetry_ingest.py</code> is left unedited to prove.</p>
+
+  <p><strong>Measure.</strong> <code>tests/test_agent_ingest_cli.py</code> gains
+  three tests. Two fixtures with distinct counts are handed to
+  <code>on_tick</code> through a
+  stubbed <code>telemetry_ingest.run</code> that drives the real
+  <code>agent ingest</code> command, with the clock frozen by patching
+  <code>cli._utc_now</code> — the command prints two lines, each asserted equal
+  to a literal built from its own fixture's counts and the frozen stamp
+  (<code>discovered=118 … bytes=51234</code> then <code>discovered=120 …
+  bytes=2048</code>). A second test replaces <code>cli.sys.stdout</code> with a
+  stand-in that records every <code>write</code> and <code>flush</code> call,
+  and asserts the ordering directly: <code>write line 1</code>,
+  <code>flush</code>, <code>write line 2</code>, <code>flush</code>. A third
+  asserts the <code>ingest --help</code> output contains <code>ingest
+  tick</code> and each field name.</p>
+
+  <p><strong>Gate.</strong> <code>uv run --no-sync pytest -p no:cacheprovider
+  tests/test_agent_ingest_cli.py tests/test_telemetry_ingest.py</code> — 24
+  passed (<code>EXIT=0</code>); the serving-interpreter grammar guard
+  (<code>agent_package_modules_parse_with_serving_python</code>) — 1 passed,
+  <code>EXIT=0</code>; <code>uv run --no-sync ruff check imas_ambix tests</code>
+  — clean, <code>EXIT=0</code>. Log:
+  <code>logs/gate-srw-ingest-prints-each-tick.log</code>, whose first line names
+  the revision it ran at. The gate measures this node's own change; verifying
+  the merged result belongs to a separately dispatched test node.</p>
+
+  <p><strong>Negative control.</strong> Removing the <code>out.flush()</code>
+  line from the callback as a scratch edit and restoring it: the flush-ordering
+  test fails (<code>1 failed</code>, <code>EXIT=1</code>), the recorded calls
+  showing <code>write line 1</code> followed immediately by <code>write line
+  2</code> with no <code>flush</code> between them. Log:
+  <code>logs/negative-control-srw-ingest-prints-each-tick.log</code>.</p>
+</section>
