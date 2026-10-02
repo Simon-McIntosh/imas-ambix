@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-10-02">
-<meta name="plan-version" content="169">
+<meta name="plan-version" content="171">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -658,6 +658,7 @@
     fetch into the package first. The gpu-watch node of this section therefore
     runs after §11's gpu-watch node, which writes the same file, and after
     §12, in addition to §5 and the §9 printing node.</p>
+<p><strong>Revised 2026-10-02, under the locked <code>watch-read-path</code> decision.</strong> gpu-watch does not run <code>agent watch --json</code> itself. That read takes about 48 s, and gpu-watch runs on the login node. It reads the document the fleet node publishes at <code>~/public/imas-ambix/watch.json</code> (f-srw-015) and renders its period ledger from that file. Where a figure in the done-when above was to agree with <code>agent watch --json</code> taken in the same minute, it now agrees to the digit with the published document gpu-watch read. The capture records that document's <code>published_at</code>. A published document older than twice its cadence is shown with its age rather than as current. The gpu-watch node therefore runs after f-srw-015 as well.</p>
 
     <h2 id="s11">§11 — The live panel reads the lane document and the recorder, and shows the router&#x27;s queue</h2>
 <section data-reckon="section" data-id="s11" data-effort-hours="3.75" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-attempts="0" data-status="implementable" data-links=""></section>
@@ -754,6 +755,26 @@
       </p>
     <p class="r-dec-rat">Lead decision 2026-10-01: a standing loop at a 60 s cadence, started and kept alive by the fleet allocation&#x27;s supervisor on the CPU fleet node, not a SLURM job on the GPU server&#x27;s reservation. The recorded steady pass is 0.29 s, so a 60 s cadence costs about 0.5% of one core, keeps the ledger at most a minute stale, and stats the receipts directory twelve times less often than the 5 s default would.</p>
     </div>
+<div class="r-dec" data-key="watch-read-path" data-choice="publish-now-rollups-later" data-by="Simon McIntosh (lead)" data-when="2026-10-02T16:38:16+00:00" data-sections="s10">
+    <p class="r-dec-q">How does gpu-watch get agent watch&#x27;s period ledger without a 48 s read?</p>
+    <p class="r-dec-ctx">After reading stored timestamps, agent watch --json still takes about 48 s on the 4.8 GB index, because the week and month periods aggregate every raw sample. gpu-watch runs on the login node and cannot pay that per refresh.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="publish-from-fleet-node">Publish: a fleet service writes the watch document every few minutes and gpu-watch reads the file</button>
+      <button class="r-opt" data-value="hourly-rollups">Rollups: the ingest maintains hourly aggregates so any period reads in about constant time</button>
+      <button class="r-opt chosen" data-value="publish-now-rollups-later">Both: publish now to unblock gpu-watch, and add rollups in the same rebuild as the name/kind dictionary</button>
+      </p>
+    <p class="r-dec-rat">Lead decision 2026-10-02. Publishing from the fleet node unblocks gpu-watch now with a small change, and puts the 48 s computation on the fleet allocation instead of the login node. The rollups are the durable fix. They are a schema addition, so they wait for the one index rebuild that f-srw-014&#x27;s name/kind dictionary already needs, and the index is rebuilt once rather than twice.</p>
+    </div>
+<div class="r-dec" data-key="retention-all-absent-hours" data-choice="skip-and-require-one-covered-hour" data-by="Simon McIntosh (lead)" data-when="2026-10-02T16:38:16+00:00" data-sections="s8">
+    <p class="r-dec-q">How does the retention check treat hours in which no tier holds the counters?</p>
+    <p class="r-dec-ctx">Old-format receipt rows carry throughput rates and no cumulative token counters. compare_tiers counts an hour absent in every tier as a disagreement, so job 1273253 (115 such hours, 14 covered hours all equal) and the 19 pure old-format files can never become eligible.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="skip-and-require-one-covered-hour">Skip all-absent hours, and require at least one hour where the counters are present</button>
+      <button class="r-opt" data-value="skip-without-coverage">Skip all-absent hours with no coverage requirement</button>
+      <button class="r-opt" data-value="compare-throughput-means">Extend the check to compare the old-format throughput means</button>
+      </p>
+    <p class="r-dec-rat">Lead decision 2026-10-02. An hour that no tier holds has nothing to verify, so it is not a disagreement. But a file with no compared hour at all would be deleted on no evidence, so at least one covered hour is required. Hybrid files such as 1273253 become eligible when every covered hour agrees, and the 19 pure old-format files are kept.</p>
+    </div>
 </section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
@@ -827,15 +848,31 @@
     <div class="r-fu-body"><p><code>TelemetryIndex._insert</code> commits every sample on its own, so each row pays a synchronous commit on shared storage. On 2026-10-02 the fleet service's catch-up ran at about 7–27 rows/s. Commit after a bounded batch instead (a row count or a byte count), and advance the source's offset and prefix digest with each batch, so a killed pass resumes from the last batch rather than re-reading from the source's last full commit. Each transaction must stay short enough that a read-only reader with a 5 s timeout never waits it out.</p></div>
     <pre class="r-fu-prompt">/reckon-build serving-record-warehouse §5 — make TelemetryIndex.ingest commit in bounded batches (rows or bytes) instead of once per row, advancing the source offset and prefix digest with each batch so a killed pass resumes at the last batch; keep each transaction short enough that a read-only reader with a 5 s timeout is never blocked; measure rows/s before and after on a debug partition against a copy of one large raw receipt file.</pre>
     </article>
-<article class="r-fu" data-id="f-srw-013" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-build" data-written-at="2026-10-02" data-recommends-skill="/reckon-build serving-record-warehouse §10" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-srw-013" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-build" data-written-at="2026-10-02" data-recommends-skill="/reckon-build serving-record-warehouse §10" data-resolved-at="2026-10-02T16:38:16+00:00" data-resolved-by="reckon-build">
     <h4 class="r-fu-title">Make agent watch --json fast enough for gpu-watch to call</h4>
     <div class="r-fu-body"><p>Measured on 2026-10-02 against the caught-up 1.8 GB index: <code>imas-ambix agent watch --json</code> took <strong>136.8 s and 3.0 GB peak RSS</strong>. Its four periods (1 hour, 1 day, 1 week, 1 month) read correctly, for example the 1-day period at 3.30 G tokens in, 16.8 M out, $33.09. §10's gpu-watch node renders its period ledger from this document, and gpu-watch runs on the login node, so the read must become cheap first. The profiling investigation <code>srw-watch-read-cost-profile</code> is running and will name the change. §10's gpu-watch node waits on this followup.</p></div>
     <pre class="r-fu-prompt">/reckon-build serving-record-warehouse §10 — read the srw-watch-read-cost-profile report, then implement its recommended change so imas-ambix agent watch --json over the live index runs in seconds and small memory, measured before and after on the fleet allocation; only then dispatch §10&#x27;s gpu-watch node.</pre>
+    <p class="r-fu-outcome"><p>Partly met and then superseded by the locked <code>watch-read-path</code> decision. Reading stored timestamps (<code>eb801719</code>) took the read from about 101 s and 2.90 GiB to 51 s and 126 MiB with identical output. Bounding the window queries saved 4 s, changed a result and was rejected. The rest moves to f-srw-015 (publish the document from the fleet node now) and f-srw-016 (hourly rollups in the dictionary rebuild).</p></p>
     </article>
 <article class="r-fu" data-id="f-srw-014" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-build" data-written-at="2026-10-02" data-recommends-skill="/reckon-build serving-record-warehouse §5" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Measure and bound the index&#x27;s size on shared home</h4>
     <div class="r-fu-body"><p>After the catch-up, the index at <code>~/.cache/ambix/watch-index.sqlite3</code> was 4.80 GB (10:19Z on 2026-10-02) over 801 MB of receipts, about six times their size. The fleet ingest appends about 44 KB of receipts a minute while the serve runs. At that expansion this is an <em>estimate</em> of roughly 380 MB of index a day on shared home, not yet a measured rate. Pages freed when a job's raw tier is deselected are reused, but the file never shrinks without a <code>VACUUM</code>. Measure the growth over a day from the file size, and decide how to bound it: store fewer measurements per sample, vacuum after tier drops, keep only minute-tier rows past a horizon, or move the index off home.</p></div>
     <pre class="r-fu-prompt">/reckon-build serving-record-warehouse §5 — measure the telemetry index&#x27;s growth on shared home over one day (file size against time, with the receipts bytes ingested over the same span), break the 4.8 GB down by table and by measurement name, and recommend one change that bounds it; record the measured rate and the recommendation on the plan.</pre>
+    </article>
+<article class="r-fu" data-id="f-srw-015" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-build" data-written-at="2026-10-02" data-recommends-skill="/reckon-build serving-record-warehouse §10" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Publish the watch document from the fleet node</h4>
+    <div class="r-fu-body"><p>Under the locked <code>watch-read-path</code> decision, add <code>imas-ambix agent publish-watch</code>.</p><ul><li>It writes the full <code>agent watch --json</code> document to <code>~/public/imas-ambix/watch.json</code>, beside the lane document. It adds <code>published_at</code> (UTC) and <code>compute_seconds</code>.</li><li>The write is atomic: a temporary file in the same directory, renamed over the target.</li><li>It runs as a standing loop at <code>--cadence</code> seconds (default 300), with <code>--once</code> for a single write. Each write prints one flushed line.</li><li>A computation that fails leaves the previous file in place and prints the error.</li></ul><p>Deploy: declare it in <code>~/.config/fleet/services.json</code>, message every local session, and reload the fleet supervisor. Confirm the file appears and refreshes.</p></div>
+    <pre class="r-fu-prompt">/reckon-build serving-record-warehouse §10 — add imas-ambix agent publish-watch (atomic write of the full agent watch --json document plus published_at and compute_seconds to ~/public/imas-ambix/watch.json, 300 s default cadence, --once, one flushed line per write, a failed computation keeps the previous file), then declare it as a fleet service, message every session, reload the supervisor and confirm the file refreshes.</pre>
+    </article>
+<article class="r-fu" data-id="f-srw-016" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-build" data-written-at="2026-10-02" data-recommends-skill="/reckon-build serving-record-warehouse §5" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Hourly rollups in the same rebuild as the name/kind dictionary</h4>
+    <div class="r-fu-body"><p>Under the locked <code>watch-read-path</code> decision, the ingest maintains an hourly rollup per source run and measurement: the counter difference, the gauge's time integral and the coverage seconds. A period sums its whole hours from the rollup and reads raw samples only for the partial hours at its edges. Land it in the same index rebuild as f-srw-014's name/kind dictionary, so the index is rebuilt once.</p><p>Done when: on a fresh snapshot, <code>watch_document</code> matches the raw computation field by field, runs in a few seconds, and the rebuilt file's size is measured against f-srw-014's estimate.</p></div>
+    <pre class="r-fu-prompt">/reckon-build serving-record-warehouse §5 — in one index rebuild, add the name/kind dictionary (f-srw-014) and an hourly rollup per source run and measurement maintained by the ingest; periods sum whole hours from the rollup plus raw edge hours; prove watch_document equal field by field to the raw computation on a fresh snapshot, and measure its time and the rebuilt file size.</pre>
+    </article>
+<article class="r-fu" data-id="f-srw-017" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-build" data-written-at="2026-10-02" data-recommends-skill="/reckon-build serving-record-warehouse §8" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Retention check skips all-absent hours and requires one covered hour</h4>
+    <div class="r-fu-body"><p>Under the locked <code>retention-all-absent-hours</code> decision:</p><ul><li><code>compare_tiers</code> does not compare an hour in which every tier is absent.</li><li>A tier holding a value where another holds none is still a disagreement.</li><li>A file is eligible only when at least one hour was compared and every compared hour agrees.</li><li>The <code>retire-raw</code> listing prints the covered-hour count, so a file with no compared hour shows why it is kept.</li></ul><p>This lands before f-srw-011 applies retention.</p></div>
+    <pre class="r-fu-prompt">/reckon-build serving-record-warehouse §8 — make compare_tiers skip hours absent in every tier, keep one-tier-present-other-absent as a disagreement, require at least one compared hour for eligibility, and print the covered-hour count in the retire-raw listing; test a hybrid file eligible, a pure old-format file kept, and a partial-presence hour refused.</pre>
     </article>
 </section>
 
