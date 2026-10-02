@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-10-02">
-<meta name="plan-version" content="160">
+<meta name="plan-version" content="161">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;}">
 <meta name="plan-impl" content="0.15">
 </head>
@@ -1016,6 +1016,9 @@
 </div>
 <div class="r-comment" data-section="s10" data-id="c-run-r-20261002T110010810571-review-of-srw-watch-reads-stored-timestamps" data-who="reckon-build" data-when="2026-10-02T11:28:57.606Z">
     <div class="r-comment-body"><p>Independent review of r-20261002T102143653458-srw-watch-reads-stored-timestamps at head 8e1f9cb7 over base 3c634374, stored as a parsed record scoring goal_fidelity 20, evidence 18, scope_discipline 20, durability 17, fit 18 (total 93), added_failure_count 0 and no added ids derived from the reviewed run's own armed arms (baseline-gate.log complete 2 failed/106 passed EXIT=1 with the two added tests as the failures; its after_suite gate.log is truncated by the exit-137 kill, so the head arm was re-run independently at 108 passed EXIT=0); the substitution was proved at the call site by an independent A/B on the real snapshot (base 105.34 s/2.90 GiB -&gt; head 49.87 s/126 MiB, record/periods/ledger identical field by field) and by a window-level equivalence read; two receipt findings: the after_suite gate.log is truncated mid-run with no summary or EXIT, and baseline-gate.log's header names the head revision as the base revision.</p></div>
+</div>
+<div class="r-comment" data-section="s10" data-id="c-run-r-20261002T112610955737-srw-watch-suite-slow-tests" data-who="reckon-build" data-when="2026-10-02T11:55:49.247Z">
+    <div class="r-comment-body"><p>Report at /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-watch-suite-slow-tests/report.md: the watch suite&#x27;s 178.98 s is one fsync&#x27;ed commit per sample row in TelemetryIndex._insert (imas_ambix/agent/telemetry_index.py:1284); the ten slowest tests are 90.57 s (50.6 %) and all are index-build bound; batching the commits re-runs the heaviest file at 9.29 s (was &gt;=80.5 s in-suite) and the one-file change is expected to bring the suite to ~30 s.</p></div>
 </div>
 <div class="r-comment" data-section="s11" data-id="c-run-r-20260929T072617274722-scout-live-panel-reuse" data-who="reckon-build" data-when="2026-09-29T08:33:34.522Z">
     <div class="r-comment-body"><p>No landing step. The map is an evidence input for a separately dispatched build wave; it is not merged into the repository and needs no review of the merged result.</p></div>
