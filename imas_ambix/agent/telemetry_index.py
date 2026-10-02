@@ -1525,6 +1525,27 @@ class TelemetryIndex:
     def _keyed_value(row: sqlite3.Row) -> tuple[str, str, float]:
         return (row["host"], row["boot_id"], float(row["value"]))
 
+    def timestamps(self, start: float, end: float) -> list[float]:
+        """Sample epochs in ``[start, end)``, ascending.
+
+        Reads the stored ``ts_epoch`` column instead of decoding each record's
+        epochs from its payload: the ingest wrote the epoch it parsed from the
+        record's own ``timestamp``, ``sample_time`` already indexes the column,
+        and the window bound and the ordering are the ones the store
+        maintains, so the same window answers without the payload transfer. A
+        record whose timestamp could not be parsed carries ``ts_epoch IS
+        NULL`` and is left out, exactly as it was when the epoch was
+        re-derived from the payload and that parse failed.
+        """
+        return [
+            float(row["ts_epoch"])
+            for row in self._conn.execute(
+                "SELECT ts_epoch FROM sample "
+                "WHERE ts_epoch >= ? AND ts_epoch < ? ORDER BY ts_epoch",
+                (start, end),
+            )
+        ]
+
     def rows(self, start: float, end: float) -> list[dict[str, Any]]:
         """Records whose timestamp falls in ``[start, end)``, in time order.
 
