@@ -24,7 +24,8 @@ import json
 import os
 import urllib.request
 import zlib
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -100,6 +101,13 @@ class LaneCapacity:
     # counter that has gone backwards means the engine restarted, and the
     # interval spanning that restart measures nothing.
     generation_tokens: int | None = field(default=None, compare=False)
+    # Wall-clock stamp of the moment this reading was taken. It is what makes two
+    # odometer samples differenceable into a rate: the odometer carries no time,
+    # and a rate is a difference divided by the interval between its samples.
+    # ``compare=False`` for the same reason as the odometer -- two readings of an
+    # unchanged lane at different instants are two different observations, and
+    # the stamp takes no part in deciding whether they describe the same lane.
+    observed_at: datetime | None = field(default=None, compare=False)
     # Safety ceiling, independent of workload. The pool arithmetic below is a
     # capacity estimate that rises without bound as the working context shrinks
     # -- on a cold lane with short prompts it read 131, which would invite a
@@ -358,6 +366,45 @@ class LaneWindow:
         """Additional requests before the windowed budget is reached."""
         return max(0, self.concurrent_requests - self.latest.running)
 
+    @property
+    def throughput(self) -> dict[str, object] | None:
+        """The rate the lane's generating population achieved over this window.
+
+        The odometer is a cumulative token count, so the only quantity in it is
+        the difference between two readings divided by the time that separated
+        them. That is the same arithmetic the width controller applies to the
+        same counter; here it is published so a reader can see how fast the lane
+        is actually generating rather than only how wide it is running.
+
+        The block is omitted -- rather than published with nulls -- whenever it
+        cannot answer, because a present figure gets consumed and a missing one
+        gets read. Fewer than two readings carry no interval, a counter that went
+        backwards spans an engine restart and measures nothing, and a
+        non-positive interval cannot divide. ``mean_tokens_per_second`` is a
+        division by the mean run count, so it is the one field that is present
+        and null exactly when ``runs`` is 0: an idle window achieved a rate of
+        zero per run, which is a measured zero rather than an absence.
+        """
+        if len(self.readings) < 2:
+            return None
+        first, last = self.readings[0], self.readings[-1]
+        start, end = first.generation_tokens, last.generation_tokens
+        if start is None or end is None or end < start:
+            return None
+        if first.observed_at is None or last.observed_at is None:
+            return None
+        elapsed = (last.observed_at - first.observed_at).total_seconds()
+        if elapsed <= 0:
+            return None
+        aggregate = (end - start) / elapsed
+        runs = sum(r.running for r in self.readings) / len(self.readings)
+        return {
+            "mean_tokens_per_second": round(aggregate / runs, 3) if runs > 0 else None,
+            "aggregate_tokens_per_second": round(aggregate, 3),
+            "runs": round(runs, 3),
+            "observed_at": last.observed_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        }
+
 
 def _lane_reader(
     samples: list[tuple[str, dict[str, str], float]], family: str
@@ -499,7 +546,11 @@ def fetch_lane_capacity(origin: str, *, timeout: float = 10.0) -> LaneCapacity:
         else:
             raise ValueError(f"unsupported metrics content encoding: {encoding}")
     body = body.decode("utf-8", "replace")
-    return parse_lane_capacity(body)
+    # Stamped where the reading is taken, not where it is later composed: the
+    # interval between two odometer samples is the wall clock at their fetches,
+    # and a stamp applied downstream would measure the publisher's cadence
+    # instead of the engine's movement.
+    return replace(parse_lane_capacity(body), observed_at=datetime.now(UTC))
 
 
 def detect_settling(
@@ -622,6 +673,7 @@ def write_lane_document(
     if window is None:
         window = LaneWindow(readings=(capacity,))
     spread = window.spread
+    throughput = window.throughput
 
     # An IDLE lane is the dangerous case, not the harmless one. Publishing the
     # ceiling while the pool term is undefined turns an absent workload
@@ -664,6 +716,13 @@ def write_lane_document(
         "kv_occupancy": round(capacity.kv_occupancy, 4),
         "preemptions": capacity.preemptions,
         "mean_context": window.mean_context,
+        # The rate the generating population achieved, present only when the
+        # window can answer it. It is omitted rather than nulled when it cannot
+        # (fewer than two readings, a counter that went backwards, a
+        # non-positive interval), because reckon's reader distinguishes an
+        # absent block from a present-and-null figure -- and a mean of null is
+        # itself a measurement, correct exactly when `runs` is 0.
+        **({"throughput": throughput} if throughput is not None else {}),
         # `concurrent_requests` and `headroom` appear HERE ONLY WHEN THE FIELD
         # CAN ANSWER. When it cannot they move under `withheld` below, so the
         # document leads with a refusal rather than with a number. A number
