@@ -1,0 +1,649 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effective_input_window": 230144,
+    "effort": "high",
+    "launch": "cli",
+    "local": true,
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "worktree-full",
+    "usable_input_window": 230144
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "611560898ef75399da0a431d2d85b0d075c0eef7",
+  "boundary_waiver": null,
+  "brief": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "fallback_credit": null,
+      "inference_geo": "",
+      "input_tokens": 4880235,
+      "input_tokens_cumulative": 4880235,
+      "output_tokens": 22840,
+      "output_tokens_cumulative": 22840,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": {
+    "added": 151,
+    "files": 3,
+    "removed": 2
+  },
+  "clone_matches": [
+    {
+      "existing_function": {
+        "line": 76,
+        "name": "test_idle_window_publishes_runs_zero_with_null_mean",
+        "path": "tests/test_agent_lane_publishes_throughput.py"
+      },
+      "run_function": {
+        "line": 44,
+        "name": "test_two_readings_publish_aggregate_runs_and_mean",
+        "path": "tests/test_agent_lane_publishes_throughput.py"
+      },
+      "window_line": 46
+    },
+    {
+      "existing_function": {
+        "line": 44,
+        "name": "test_two_readings_publish_aggregate_runs_and_mean",
+        "path": "tests/test_agent_lane_publishes_throughput.py"
+      },
+      "run_function": {
+        "line": 76,
+        "name": "test_idle_window_publishes_runs_zero_with_null_mean",
+        "path": "tests/test_agent_lane_publishes_throughput.py"
+      },
+      "window_line": 78
+    }
+  ],
+  "commit_resolution": null,
+  "commits": [
+    "7efe8121a0a07c8ea77e4f5714f16944c20730c3"
+  ],
+  "completed_at": "2026-10-04T12:32:48.036Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-10-04T12:24:54Z",
+  "disposition": null,
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": true,
+    "matched_measure": null,
+    "override": false,
+    "role": "implement",
+    "status": "no-execution-measure"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [],
+  "gate": "passed",
+  "gate_check": {
+    "command": "/home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider tests/test_agent_lane_publishes_throughput.py tests/agent/test_lane.py tests/test_agent_router_lane_publish.py -q",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261004T122447334314-llac-lane-publishes-throughput/gate.log"
+  },
+  "impl_move": {
+    "at_complete": 0.95,
+    "at_dispatch": 0.9,
+    "plan": "local-lane-admission-control",
+    "verdict": "moved"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-10-04T13:04:48.055994+00:00",
+    "horizon_seconds": 2400,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": null,
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-10-04T12:24:48Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 21,
+    "binding_observed": "unknown",
+    "detail": "lane document carries no numeric 'mean_context'",
+    "generating": 0,
+    "headroom": 15,
+    "mean_context": "unknown",
+    "observed_at": "2026-10-04T12:24:27Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45,
+    "throughput": {
+      "age_seconds": null,
+      "aggregate_tokens_per_second": "unknown",
+      "detail": "lane document publishes no 'throughput' block, so the rate its generating population achieved is not measured",
+      "mean_tokens_per_second": "unknown",
+      "observed_at": null,
+      "runs": "unknown",
+      "state": "unknown"
+    },
+    "waiting": 0
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-10-04T12:32:48.036Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": true,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261004T122447334314-llac-lane-publishes-throughput/manifest.md",
+  "member": "disposable-r-20261004T122447334314-llac-lane-publishes-throughput",
+  "negative_control": {
+    "added_failure_ids": [
+      "tests/test_agent_lane_publishes_throughput.py::test_two_readings_publish_aggregate_runs_and_mean"
+    ],
+    "baseline_failure_ids": [],
+    "comparison_arm": "after_suite",
+    "control_exit_status": 1,
+    "control_failure_ids": [
+      "tests/test_agent_lane_publishes_throughput.py::test_two_readings_publish_aggregate_runs_and_mean"
+    ],
+    "declaration": "remove the throughput block composition from write_lane_document so the document carries no throughput key; the two-reading case must then fail",
+    "head_failure_ids": [],
+    "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261004T122447334314-llac-lane-publishes-throughput/negative-control.log",
+    "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261004T122447334314-llac-lane-publishes-throughput/negative-control.log",
+    "test_paths": [
+      "tests/test_agent_lane_publishes_throughput.py"
+    ],
+    "verdict": "matched"
+  },
+  "no_commit": null,
+  "node": "llac-lane-publishes-throughput",
+  "node_definition": {
+    "brief": "",
+    "brief_path": "",
+    "brief_sha256": "",
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 506,
+          "cached_input_tokens": 203287,
+          "input_tokens": 203825,
+          "output_tokens": 1092,
+          "reasoning_output_tokens": 169,
+          "total_tokens": 204917,
+          "uncached_input_tokens": 32
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "31002440-af03-4b1b-8b7b-c6ee6ac84bf4",
+      "session_id": "s23-lane-mean"
+    },
+    "done_when": "tests/test_agent_lane_publishes_throughput.py passes its four cases (two readings 60 s apart with the counter 1000 then 7000, running 4 then 2 publish aggregate 100.0, runs 3.0, mean 33.333 to 3 dp, observed_at of the last reading; one reading publishes no throughput key; a decreased counter publishes no throughput key; running 0 on both readings publishes runs 0 with mean null), the negative control that drops the block composition from write_lane_document fails the two-reading case with EXIT=1 in a recorded log, tests/agent/test_lane.py plus tests/test_agent_router_lane_publish.py add 0 failures against the base revision, every log path named in the manifest",
+    "estimated_hours": null,
+    "goal": "Publish a throughput block in lane.json carrying mean_tokens_per_second, aggregate_tokens_per_second, runs, observed_at, derived from the generation_tokens odometer over the publisher's reading window",
+    "id": "llac-lane-publishes-throughput",
+    "lane_declaration": {
+      "backend": null,
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-10-04T12:24:48Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 21,
+      "binding_observed": "unknown",
+      "detail": "lane document carries no numeric 'mean_context'",
+      "generating": 0,
+      "headroom": 15,
+      "mean_context": "unknown",
+      "observed_at": "2026-10-04T12:24:27Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45,
+      "throughput": {
+        "age_seconds": null,
+        "aggregate_tokens_per_second": "unknown",
+        "detail": "lane document publishes no 'throughput' block, so the rate its generating population achieved is not measured",
+        "mean_tokens_per_second": "unknown",
+        "observed_at": null,
+        "runs": "unknown",
+        "state": "unknown"
+      },
+      "waiting": 0
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261004T122447334314-llac-lane-publishes-throughput/manifest.md",
+    "negative_control": "remove the throughput block composition from write_lane_document so the document carries no throughput key; the two-reading case must then fail",
+    "plan": "local-lane-admission-control",
+    "requested_backend": null,
+    "requires_decisions": [],
+    "role": "implement",
+    "section": "§23",
+    "spec_level": "guided",
+    "time_budget": "40m",
+    "token_budget": null,
+    "write_paths": [
+      "imas_ambix/agent/lane.py",
+      "imas_ambix/agent/router.py",
+      "tests/test_agent_lane_publishes_throughput.py",
+      "docs/evidence/fragments/local-lane-admission-control/llac-lane-publishes-throughput.html",
+      "docs/figures/local-lane-admission-control/llac-lane-publishes-throughput"
+    ]
+  },
+  "orientation_input_tokens": 977038.0,
+  "outcome": "",
+  "pace": {
+    "allowance": null,
+    "bar": null,
+    "clocks": {
+      "five_hour": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "five_hour",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      },
+      "seven_day": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "seven_day",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      }
+    },
+    "group": null,
+    "hold": null,
+    "lane": "clive",
+    "member": null,
+    "node": "llac-lane-publishes-throughput",
+    "policy": {
+      "drain_lead_hours": 12.0,
+      "pace_multiple": 1.1
+    },
+    "reason": "the lane declares no budget group, so no wallet paced it",
+    "recorded_at": "2026-10-04T12:24:48.681686+00:00",
+    "score": 0.6625,
+    "source": null,
+    "state": "unknown"
+  },
+  "picker_selection": {
+    "action": "route",
+    "answering_model": "typesafe/jev-1.13-20260917",
+    "backend": "clive",
+    "comment": "",
+    "confidence": 0.88,
+    "decision_source": "jev",
+    "effort": "high",
+    "excluded": [
+      {
+        "availability": "not-probed",
+        "backend": "native",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "in-harness",
+        "local": false,
+        "model": null,
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reasons": [
+          "in-harness-backend"
+        ],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      }
+    ],
+    "fallback_reason": null,
+    "family": "local",
+    "jev_latency_ms": 540.803,
+    "jev_model": "typesafe/jev-1.13",
+    "latency_ms": 2958.388,
+    "model": "deepseek-v4.1-flash",
+    "offered": [
+      {
+        "availability": "unknown",
+        "backend": "claude",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-sonnet-5-5",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "claude-haiku",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-haiku-4-5-20251001",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "claude-opus",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-opus-5-5",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "served",
+        "backend": "clive",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": {
+          "admission_verdict": "open",
+          "running": 0,
+          "slots_state": "measured",
+          "stale": false,
+          "waiting": 0
+        },
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "local",
+        "local": true,
+        "model": "deepseek-v4.1-flash",
+        "outcomes": {
+          "failed": 2,
+          "not-run": 0,
+          "passed": 50,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": 37
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex",
+        "budget_reason": "recorded account-window reading is stale",
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-sol",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex-astra",
+        "budget_reason": "recorded account-window reading is stale",
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-astra",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex-luna",
+        "budget_reason": "recorded account-window reading is stale",
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-luna",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex-terra",
+        "budget_reason": "recorded account-window reading is stale",
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-5.6-terra",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      }
+    ],
+    "probabilities": {
+      "claude": 0,
+      "claude-haiku": 0.01,
+      "claude-opus": 0,
+      "clive": 0.89,
+      "codex": 0.02,
+      "codex-astra": 0,
+      "codex-luna": 0.01,
+      "codex-terra": 0,
+      "hold": 0.07
+    },
+    "rendered_token_estimate": 1171,
+    "usage": {
+      "cost": 0.000139818,
+      "input_tokens": 3329,
+      "output_tokens": 99
+    }
+  },
+  "plan": "local-lane-admission-control",
+  "plan_impl_at_dispatch": 0.9,
+  "plan_link": null,
+  "promoted_by": null,
+  "promoted_revision": "7efe8121a0a07c8ea77e4f5714f16944c20730c3",
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "reviewed_base_sha": "611560898ef75399da0a431d2d85b0d075c0eef7",
+    "reviewed_head_sha": "7efe8121a0a07c8ea77e4f5714f16944c20730c3",
+    "scores": {
+      "durability": 16,
+      "evidence": 18,
+      "fit": 19,
+      "goal_fidelity": 20,
+      "scope_discipline": 20
+    },
+    "status": "parsed",
+    "total": 93
+  },
+  "review_tier": "full",
+  "role": "implement",
+  "route_mode": "explicit",
+  "run_id": "r-20261004T122447334314-llac-lane-publishes-throughput",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§23",
+  "session": "s23-lane-mean",
+  "session_harness": "claude",
+  "session_id": "ebc61379-16ea-4c43-a206-f31aa6eed795",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "guided",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 4,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 4880235,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 230144",
+    "elapsed_seconds": 465.324,
+    "generated_tokens": 22840,
+    "generation_seconds": 345.526,
+    "input_budget_tokens": 230144,
+    "input_utilisation_pct": 62.9,
+    "machine_seconds": 119.798,
+    "peak_input_tokens": 144841,
+    "tokens_per_second": 66.1,
+    "wall_tokens_per_second": 49.08
+  },
+  "time_budget": "40m",
+  "tool_steps": 41.0,
+  "unplanned_reason": null,
+  "unreconciled_override": null,
+  "wall_seconds": 474,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-10-04T12:32:53Z",
+    "last_record_type": "result",
+    "launched_at": "2026-10-04T12:24:58Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20261004T122447334314-llac-lane-publishes-throughput",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 3633,
+    "worker_pid": 3252011
+  },
+  "worker_seconds": 454,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
