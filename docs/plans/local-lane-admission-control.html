@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-impl" content="0.95">
-<meta name="plan-version" content="175">
+<meta name="plan-version" content="176">
 <meta name="plan-modified" content="2026-10-04">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s14&quot;:&quot;implementable&quot;,&quot;s15&quot;:&quot;done&quot;,&quot;s16&quot;:&quot;done&quot;,&quot;s17&quot;:&quot;implementable&quot;,&quot;s18&quot;:&quot;implementable&quot;,&quot;s19&quot;:&quot;implementable&quot;,&quot;s20&quot;:&quot;done&quot;,&quot;s21&quot;:&quot;implementable&quot;,&quot;s22&quot;:&quot;implementable&quot;,&quot;s23&quot;:&quot;done&quot;}">
 <meta name="plan-artifacts" content="docs/evidence/archive/local-lane-admission-control-landed.html">
@@ -1393,7 +1393,10 @@
     <div class="r-comment-body">gate tests/test_agent_lane_publishes_throughput.py passed (47 passed with the two existing lane files, 0 added failures, negative control EXIT=1); review 93; section closed by one node; router restart to publish live is operator work, pending the lead</div>
 </div>
 <div class="r-comment" data-section="s23" data-id="c-run-r-20261004T122447334314-llac-lane-publishes-throughput" data-who="reckon-build" data-when="2026-10-04T12:32:48.036Z">
-    <div class="r-comment-body"><p>LaneCapacity gains a fetch-time observed_at and LaneWindow.throughput composes a top-level throughput block (1000→7000 tokens over 60 s at running 4→2 gives aggregate 100.0, runs 3.0, mean 33.333); four cases pass, the after arm adds 0 failures against base, and the negative control exits 1 with the two-reading case failing KeyError: &#x27;throughput&#x27;.</p></div>
+    <div class="r-comment-body"><p>LaneCapacity gains a fetch-time observed_at and LaneWindow.throughput composes a top-level throughput block (1000→7000 tokens over 60 s at running 4→2 gives aggregate 100.0, runs 3.0, mean 33.333); four cases pass, the after arm adds 0 failures against base, and the negative control exits 1 with the two-reading case failing KeyError: 'throughput'.</p></div>
+</div>
+<div class="r-comment" data-section="s23" data-id="c-run-r-20261004T123342812689-review-of-llac-lane-publishes-throughput" data-who="reckon-build" data-when="2026-10-04T12:47:19.150Z">
+    <div class="r-comment-body"><p>Review of run r-20261004T122447334314-llac-lane-publishes-throughput (plan imas-ambix:local-lane-admission-control section 23) at head 7efe8121 on base 61156089: scores goal_fidelity 20, evidence 18, scope_discipline 20, durability 16, fit 19, total 93, added_failure_count 0; the throughput block matches the consumer contract and is independently reproduced, one follow-on finding records that the production observed_at stamp in fetch_lane_capacity is uncovered by tests.</p></div>
 </div>
 </section>
 </main>
