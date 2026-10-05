@@ -20,10 +20,14 @@
     MAST's but which declares another machine resolves to
     <code>AD_HOC_SHOTSET_VERSION</code> and can never be stamped under the
     frozen MAST label. <code>scripts/spine_benchmark.py</code> takes a
-    <code>--machine</code> argument (default <code>mast</code>) and constructs
-    its ad-hoc <code>BenchShot</code>s with it. No JT-60SA shot set is added,
+    <code>--machine</code> argument with <em>no default</em> and constructs its
+    ad-hoc <code>BenchShot</code>s with it; the parser itself refuses
+    <code>--shots</code> without <code>--machine</code>, so a run cannot have a
+    machine assumed for it. With no <code>--shots</code> the frozen set is used
+    and <code>--machine</code> is not needed. No JT-60SA shot set is added,
     because its shots are not yet chosen &mdash; the
-    <code>machine</code>-keyed label widening is the whole change.
+    <code>machine</code>-keyed label widening and the CLI declaration are the
+    whole change.
   </p>
 
   <h4>Measure, run on the fleet allocation (job 1277272)</h4>
@@ -34,7 +38,11 @@
       tests/spine_bench/test_shotset_labelling.py
       tests/spine_bench/test_parity.py
       tests/spine_bench/test_machine_artifact_arm.py</code> exits 0,
-      &ldquo;70 passed&rdquo;.
+      &ldquo;72 passed&rdquo;. The CLI guard is covered by
+      <code>test_the_cli_refuses_an_override_that_does_not_name_a_machine</code>,
+      which fails unless the parser refuses <code>--shots</code> without
+      <code>--machine</code> (an earlier form that validated after
+      <code>parse_args</code> left this test red).
     </li>
     <li id="jtmm-shotset-machine-negative-control">
       Negative control: with <code>resolve_shotset_version</code> mutated to
