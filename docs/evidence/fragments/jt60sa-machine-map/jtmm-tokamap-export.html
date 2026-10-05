@@ -1,0 +1,59 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtmm-tokamap-export">
+  <header>
+    <h3>tokamap export: the packaged MAST catalogue collapses unit, sign and COCOS into one scale</h3>
+    <p class="meta">
+      Node <code>jtmm-tokamap-export</code> &middot;
+      date 2026-10-05 &middot;
+      plan <code>jt60sa-machine-map</code> &sect;2 &middot;
+      new module <code>imas_ambix/data/tokamap_export.py</code>
+    </p>
+  </header>
+
+  <p>
+    <code>export_tokamap_directory(catalog, signal_maps, directory=...)</code>
+    writes a tokamap directory from an ambix catalogue and its signal maps:
+    a top-level <code>mappings.cfg.json</code> and <code>globals.json</code>,
+    one directory per IDS group, and beneath each group one partition
+    directory per catalogue map, named by the map's <code>first_shot</code>
+    and selected by <code>MAX_BELOW</code>. Each leaf carries its own
+    <code>globals.json</code> and <code>mappings.json</code>. Every binding
+    becomes a <code>DATA_SOURCE</code> mapping whose <code>scale</code> is the
+    product of its unit factor, its sign-convention factor and its COCOS
+    factor; a <code>unknown-unvalidated</code> binding takes no sign and says
+    so in its comment.
+  </p>
+
+  <h4>Measure, run on the fleet allocation (job 1277272)</h4>
+  <ul>
+    <li>
+      <code>uvx --from tokamap==0.3.2 tokamap-validator &lt;exported MAST
+      directory&gt;</code> exits 0, &ldquo;Validation completed
+      successfully.&rdquo;, for all four IDS groups the MAST map binds
+      (magnetics, pf_active, pf_passive, wall; 258 entries over 6 shot
+      partitions at 11766&ndash;22087).
+    </li>
+    <li>
+      For every exported catalogue binding the on-disk scale equals
+      unit&nbsp;&times;&nbsp;sign&nbsp;&times;&nbsp;COCOS to 1e-12, recomputed
+      independently from the binding's declaration; a degree&rarr;radian
+      binding exports 0.017453292519943295 and an ip_like target from source
+      COCOS&nbsp;6 exports &minus;1.
+    </li>
+    <li>
+      Shot partitions follow the catalogue's map ranges: the set of partition
+      directories under every group equals the set of map
+      <code>first_shot</code> values.
+    </li>
+    <li>
+      Negative control: omitting the COCOS factor from the exported scale
+      fails the scale round-trip test on the COCOS-dependent binding
+      (1 failed, 3 passed; exit 1).
+    </li>
+  </ul>
+
+  <p class="meta">
+    Gate logs in the run report directory:
+    <code>test_gate.log</code>, <code>validator.log</code>,
+    <code>ruff.log</code>, <code>negative_control.log</code>.
+  </p>
+</section>
