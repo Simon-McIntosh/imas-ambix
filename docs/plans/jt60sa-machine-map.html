@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f">
 <meta name="plan-impl" content="0.25">
-<meta name="plan-version" content="43">
+<meta name="plan-version" content="44">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -433,6 +433,12 @@
       branch (<code>_supply_declared_probe_angles</code>). JT-60SA reaches the kernel through
       it, with the store format, root and probe-angle source resolved from the catalogue
       rather than from the machine name, so that branch is retired, not joined by a second.
+      The stamp route carries a second MAST-only angle source:
+      <code>spine_bench/transform_geometry_source.py</code> <code>_supply_probe_orientations</code>
+      fills probe angles from the MAST campaign sensor map, and
+      <code>TransformGeometrySource.table_for</code> calls <code>read_geometry_table</code> with no
+      machine, which resolves the MAST catalogue. Both take the catalogue's declared probe-angle
+      source too, so neither the reader nor the benchmark keeps a machine-named angle path.
       Done-when: <code>transform_machine_description</code>
       emits a JT-60SA description for one OP1 and one OP2 shot through one code path,
       <code>read_geometry_table</code> and <code>geometry_table_from_description</code> build a
