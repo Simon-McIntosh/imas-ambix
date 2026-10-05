@@ -1,0 +1,49 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtmm-shotset-machine">
+  <header>
+    <h3>jtmm-shotset-machine: the frozen benchmark shot set now declares the machine each shot belongs to</h3>
+    <p class="meta">
+      Node <code>jtmm-shotset-machine</code> &middot;
+      date 2026-10-05 &middot;
+      plan <code>jt60sa-machine-map</code> &sect;7 &middot;
+      <code>imas_ambix/spine_bench/shots.py</code>
+    </p>
+  </header>
+
+  <p id="jtmm-shotset-machine-change">
+    <code>BenchShot</code> gains a required <code>machine</code> field with
+    <em>no default</em>: a shot number is not unique across machines, so the
+    catalogue a shot belongs to is declared and never inferred from the
+    digits. MAST's six frozen shots declare <code>machine="mast"</code>.
+    <code>resolve_shotset_version</code> now compares
+    <code>(machine, int(shot_id), role)</code> against MAST's
+    <code>FROZEN_SHOTSET</code>, so a set whose shot ids and roles equal
+    MAST's but which declares another machine resolves to
+    <code>AD_HOC_SHOTSET_VERSION</code> and can never be stamped under the
+    frozen MAST label. <code>scripts/spine_benchmark.py</code> takes a
+    <code>--machine</code> argument (default <code>mast</code>) and constructs
+    its ad-hoc <code>BenchShot</code>s with it. No JT-60SA shot set is added,
+    because its shots are not yet chosen &mdash; the
+    <code>machine</code>-keyed label widening is the whole change.
+  </p>
+
+  <h4>Measure, run on the fleet allocation (job 1277272)</h4>
+  <ul>
+    <li id="jtmm-shotset-machine-gate">
+      <code>UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv
+      PYTHONPATH=$PWD command uv run --no-sync pytest -p no:cacheprovider
+      tests/spine_bench/test_shotset_labelling.py
+      tests/spine_bench/test_parity.py
+      tests/spine_bench/test_machine_artifact_arm.py</code> exits 0,
+      &ldquo;70 passed&rdquo;.
+    </li>
+    <li id="jtmm-shotset-machine-negative-control">
+      Negative control: with <code>resolve_shotset_version</code> mutated to
+      compare <code>(shot_id, role)</code> only and ignore the machine, the
+      set whose ids and roles match MAST's under another machine no longer
+      resolves ad-hoc, and
+      <code>test_the_frozen_ids_and_roles_under_another_machine_are_labelled_ad_hoc</code>
+      fails (&ldquo;1 failed, 11 passed&rdquo;, <code>EXIT=1</code>). The head
+      arm does not fail it.
+    </li>
+  </ul>
+</section>

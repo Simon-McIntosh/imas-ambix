@@ -33,6 +33,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="explicit comma list (overrides the frozen set — for testing)",
     )
     ap.add_argument(
+        "--machine",
+        type=str,
+        default="mast",
+        help="machine whose catalogue the shot ids belong to; declared on the "
+        "command line, never inferred from the digits",
+    )
+    ap.add_argument(
         "--topology-reads",
         type=str,
         default="hard",
@@ -51,7 +58,7 @@ def main() -> int:
     shots = None
     if args.shots:
         shots = [
-            BenchShot(shot_id=int(s), role="ad-hoc")
+            BenchShot(machine=args.machine, shot_id=int(s), role="ad-hoc")
             for s in args.shots.split(",")
             if s.strip()
         ]

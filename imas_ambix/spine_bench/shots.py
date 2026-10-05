@@ -25,20 +25,35 @@ AD_HOC_SHOTSET_VERSION = "ad-hoc"
 
 
 class BenchShot(BaseModel):
-    """One pinned benchmark shot and its role in the set."""
+    """One pinned benchmark shot and its machine and role in the set.
 
+    ``machine`` has no default: a shot number is not unique across machines (a
+    JT-60SA pulse integer coincides with no MAST value by construction, but a
+    coincidence is not a rule), so the catalogue a shot belongs to is DECLARED
+    and never inferred from its digits.
+    """
+
+    machine: str
     shot_id: int
     role: str
 
 
-#: The pinned set. Ordered; roles document why each is included.
+#: MAST's pinned set. Ordered; roles document why each is included.
 FROZEN_SHOTSET: list[BenchShot] = [
-    BenchShot(shot_id=21978, role="ramp+flat-top (low-Ip early + 900kA flat-top)"),
-    BenchShot(shot_id=21983, role="flat-top representative"),
-    BenchShot(shot_id=21985, role="flat-top representative"),
-    BenchShot(shot_id=21986, role="flat-top representative"),
-    BenchShot(shot_id=21989, role="flat-top representative"),
-    BenchShot(shot_id=22086, role="flat-top representative (campaign-edge)"),
+    BenchShot(
+        machine="mast",
+        shot_id=21978,
+        role="ramp+flat-top (low-Ip early + 900kA flat-top)",
+    ),
+    BenchShot(machine="mast", shot_id=21983, role="flat-top representative"),
+    BenchShot(machine="mast", shot_id=21985, role="flat-top representative"),
+    BenchShot(machine="mast", shot_id=21986, role="flat-top representative"),
+    BenchShot(machine="mast", shot_id=21989, role="flat-top representative"),
+    BenchShot(
+        machine="mast",
+        shot_id=22086,
+        role="flat-top representative (campaign-edge)",
+    ),
 ]
 
 
@@ -47,12 +62,15 @@ def resolve_shotset_version(shots: list[BenchShot] | None) -> str:
 
     A stamp's filename and its comparability guard both come from this label, so
     it must be derived from the shot set actually solved rather than assumed.
-    Anything other than the frozen shots in their frozen order with their frozen
-    roles is :data:`AD_HOC_SHOTSET_VERSION`, which keeps an override from ever
-    landing in the results directory under the frozen metric's name.
+    Anything other than the frozen shots on their frozen machine in their frozen
+    order with their frozen roles is :data:`AD_HOC_SHOTSET_VERSION`, which keeps
+    an override from ever landing in the results directory under the frozen
+    metric's name. The machine is part of the comparison: a set whose shot ids
+    and roles equal MAST's but which declares another machine is not MAST's
+    frozen set and must never carry its label.
     """
     if shots is None:
         return SHOTSET_VERSION
-    frozen = [(shot.shot_id, shot.role) for shot in FROZEN_SHOTSET]
-    given = [(int(shot.shot_id), shot.role) for shot in shots]
+    frozen = [(shot.machine, int(shot.shot_id), shot.role) for shot in FROZEN_SHOTSET]
+    given = [(shot.machine, int(shot.shot_id), shot.role) for shot in shots]
     return SHOTSET_VERSION if given == frozen else AD_HOC_SHOTSET_VERSION
