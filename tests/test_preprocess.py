@@ -437,6 +437,7 @@ def test_preprocess_frames_cli_from_bucket_all(
     pytest.importorskip("cv2")
     from click.testing import CliRunner
 
+    import imas_ambix.data.cli as cli_mod
     import imas_ambix.data.paths as paths_mod
     from imas_ambix.data.cli import data
 
@@ -445,7 +446,10 @@ def test_preprocess_frames_cli_from_bucket_all(
     for sid in [9950, 9951, 9952]:
         make_frame_zarr(src_root, sid, camera="rbb", t=2, h=8, w=8, seed=sid)
 
+    # cli copies LEVEL1_DIR into its own namespace at import, so the glob and
+    # src_root must be rebound through that copy, not only through paths.
     monkeypatch.setattr(paths_mod, "LEVEL1_DIR", src_root)
+    monkeypatch.setattr(cli_mod, "LEVEL1_DIR", src_root)
 
     runner = CliRunner()
     result = runner.invoke(
