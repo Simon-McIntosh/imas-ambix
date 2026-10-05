@@ -45,6 +45,11 @@ GEOMETRY_TYPE_RECTANGLE = 2
 # Two deck resistivity columns are the same material; this tolerance only
 # absorbs float-decimal spelling differences between rows.
 _RESISTIVITY_REL_TOL = 1e-9
+# tf/coil/conductor/elements/types: line segment, circular arc.
+LINE_ELEMENT_TYPE = 1
+ARC_ELEMENT_TYPE = 2
+# Angular step at which a deck arc is discretised into wall-outline points.
+ARC_ANGULAR_STEP_DEG = 1.0
 
 
 # --------------------------------------------------------------------------
@@ -547,18 +552,47 @@ def build_magnetics(factory, geo: GeoIn):
     return ids
 
 
+def _arc_sample(
+    seg: Segment, step_deg: float = ARC_ANGULAR_STEP_DEG
+) -> tuple[np.ndarray, np.ndarray]:
+    """Points along a deck arc, from its start angle to its end angle."""
+    rc, zc, radius, a_start, a_end = seg.params[:5]
+    span = abs(a_end - a_start)
+    count = max(2, int(np.ceil(span / step_deg)) + 1)
+    angles = np.radians(np.linspace(a_start, a_end, count))
+    return rc + radius * np.cos(angles), zc + radius * np.sin(angles)
+
+
+def _arc_start_end_centre(
+    seg: Segment,
+) -> tuple[tuple[float, float], tuple[float, float], tuple[float, float]]:
+    """The two endpoints and the centre of a deck arc, in the deck plane."""
+    rc, zc, radius, a_start, a_end = seg.params[:5]
+    a0 = np.radians(a_start)
+    a1 = np.radians(a_end)
+    start = (rc + radius * np.cos(a0), zc + radius * np.sin(a0))
+    end = (rc + radius * np.cos(a1), zc + radius * np.sin(a1))
+    return start, end, (rc, zc)
+
+
 def _wall_outline(wall: Sequence[Segment]) -> tuple[list[float], list[float]]:
     r_pts: list[float] = []
     z_pts: list[float] = []
+
+    def _push(r: float, z: float) -> None:
+        if not r_pts or abs(r_pts[-1] - r) > 1e-9 or abs(z_pts[-1] - z) > 1e-9:
+            r_pts.append(float(r))
+            z_pts.append(float(z))
+
     for seg in wall:
-        if seg.kind != "line":
-            continue
-        (r1, z1), (r2, z2) = seg.line_points()
-        if not r_pts or abs(r_pts[-1] - r1) > 1e-9 or abs(z_pts[-1] - z1) > 1e-9:
-            r_pts.append(r1)
-            z_pts.append(z1)
-        r_pts.append(r2)
-        z_pts.append(z2)
+        if seg.kind == "line":
+            (r1, z1), (r2, z2) = seg.line_points()
+            _push(r1, z1)
+            _push(r2, z2)
+        elif seg.kind == "arc":
+            arc_r, arc_z = _arc_sample(seg)
+            for r, z in zip(arc_r, arc_z, strict=True):
+                _push(r, z)
     return r_pts, z_pts
 
 
@@ -573,18 +607,49 @@ def build_wall(factory, wall: Sequence[Segment]):
     return ids
 
 
-def _tf_section_points(segments: Sequence[Segment]):
-    r_pts: list[float] = []
-    z_pts: list[float] = []
+def _tf_section_arrays(segments: Sequence[Segment]) -> dict[str, np.ndarray]:
+    """One tf conductor element per deck segment.
+
+    A line runs from its first to its second point; an arc runs from its start
+    to its end angle, keeps its circle centre, and is typed as an arc.  The two
+    endpoints differ for every non-degenerate segment, so no element is written
+    with zero length.
+    """
+    start_r: list[float] = []
+    start_z: list[float] = []
+    end_r: list[float] = []
+    end_z: list[float] = []
+    centre_r: list[float] = []
+    centre_z: list[float] = []
+    types: list[int] = []
     for seg in segments:
         if seg.kind == "line":
             (r1, z1), (r2, z2) = seg.line_points()
-            r_pts.extend([r1, r2])
-            z_pts.extend([z1, z2])
-        else:
-            r_pts.append(seg.params[0])
-            z_pts.append(seg.params[1])
-    return np.array(r_pts, dtype=float), np.array(z_pts, dtype=float)
+            start_r.append(r1)
+            start_z.append(z1)
+            end_r.append(r2)
+            end_z.append(z2)
+            centre_r.append(0.5 * (r1 + r2))
+            centre_z.append(0.5 * (z1 + z2))
+            types.append(LINE_ELEMENT_TYPE)
+        elif seg.kind == "arc":
+            start, end, centre = _arc_start_end_centre(seg)
+            start_r.append(start[0])
+            start_z.append(start[1])
+            end_r.append(end[0])
+            end_z.append(end[1])
+            centre_r.append(centre[0])
+            centre_z.append(centre[1])
+            types.append(ARC_ELEMENT_TYPE)
+    return {
+        "start_r": np.array(start_r, dtype=float),
+        "start_z": np.array(start_z, dtype=float),
+        "end_r": np.array(end_r, dtype=float),
+        "end_z": np.array(end_z, dtype=float),
+        "centre_r": np.array(centre_r, dtype=float),
+        "centre_z": np.array(centre_z, dtype=float),
+        "types": np.array(types, dtype=np.int32),
+    }
 
 
 def build_tf(
@@ -605,14 +670,18 @@ def build_tf(
         ids.coil[0].turns = int(turns)
     ids.coil[0].conductor.resize(2)
     for c, segments in enumerate((deck.tfc_inside, deck.tfc_outside)):
-        r_pts, z_pts = _tf_section_points(segments)
+        arrays = _tf_section_arrays(segments)
         elements = ids.coil[0].conductor[c].elements
-        for point in ("start_points", "end_points"):
-            arr = getattr(elements, point)
-            arr.r = r_pts
-            arr.z = z_pts
-            arr.phi = np.zeros_like(r_pts)
-        elements.types = np.ones_like(r_pts, dtype=np.int32)
+        elements.start_points.r = arrays["start_r"]
+        elements.start_points.z = arrays["start_z"]
+        elements.start_points.phi = np.zeros_like(arrays["start_r"])
+        elements.end_points.r = arrays["end_r"]
+        elements.end_points.z = arrays["end_z"]
+        elements.end_points.phi = np.zeros_like(arrays["end_r"])
+        elements.centres.r = arrays["centre_r"]
+        elements.centres.z = arrays["centre_z"]
+        elements.centres.phi = np.zeros_like(arrays["centre_r"])
+        elements.types = arrays["types"]
     return ids
 
 

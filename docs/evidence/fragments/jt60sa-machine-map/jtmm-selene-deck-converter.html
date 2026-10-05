@@ -29,7 +29,12 @@
       value, so the deck's 63/57 split at 7.76e-7 and 7.20e-7 ohm&nbsp;m survives
       the round trip. Where the deck states no TF turn or coil count, the
       <code>tf</code> field is left unset and recorded in the receipt's
-      <code>validation_gaps</code> rather than written as a guessed zero.
+      <code>validation_gaps</code> rather than written as a guessed zero. Each TFC
+      segment becomes one <code>tf</code> conductor element — a line runs from its
+      first to its second point, an arc from its start to its end angle with its
+      circle centre in the element centre and the DD arc type — so no element has
+      zero length, and the wall outline keeps the arcs and the straight segments
+      alike by sampling each arc along its circle.
     </p>
   </div>
 

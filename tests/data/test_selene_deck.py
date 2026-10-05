@@ -22,6 +22,11 @@ REAL_EQSLE = Path(
     "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/"
     "jtmm-geometry-source/copies/jt-60sa/work/efit_jt60sa/EQSLE.DATA"
 )
+REAL_GEO = Path(
+    "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/"
+    "jtmm-analysis-sensor-search/copies/jt-60sa/analysis/src/getseldata_v4.2/"
+    "UTL/getseldata/geo.in"
+)
 
 EQSLE_TEXT = """\
  &DSK DEVICE='JT-60SA',IWRITE=65, /$
@@ -228,7 +233,11 @@ def test_writer_reads_back_at_dd_4_1_1(decks, tmp_path: Path):
     wall = read("wall")
     outline_r = np.asarray(wall.description_2d[0].limiter.unit[0].outline.r)
     assert outline_r.size >= 2
-    assert outline_r[0] == pytest.approx(3.316)
+    # The outline starts on the first deck segment.  That segment is an arc, so
+    # its first sampled point is R = 1.4 + 3.5 cos(-60 deg) = 3.15 m.
+    assert outline_r[0] == pytest.approx(3.15)
+    # The straight limiter segment's endpoint is retained in the outline.
+    assert np.any(np.isclose(outline_r, 3.316, atol=1e-9))
 
     tf = read("tf")
     # The deck carries no TF turn or coil count, so both are left unset and
@@ -236,8 +245,16 @@ def test_writer_reads_back_at_dd_4_1_1(decks, tmp_path: Path):
     gap_paths = {gap["path"] for gap in receipt["validation_gaps"]}
     assert "tf/coils_n" in gap_paths
     assert "tf/coil[:]/turns" in gap_paths
-    start_r = np.asarray(tf.coil[0].conductor[0].elements.start_points.r)
-    assert start_r.size >= 1
+    conductor = tf.coil[0].conductor[0].elements
+    start_r = np.asarray(conductor.start_points.r)
+    start_z = np.asarray(conductor.start_points.z)
+    end_r = np.asarray(conductor.end_points.r)
+    end_z = np.asarray(conductor.end_points.z)
+    # The synthetic TFC INSIDE section is two arcs; each is one element.
+    assert start_r.size == 2
+    length_sq = (start_r - end_r) ** 2 + (start_z - end_z) ** 2
+    assert np.min(length_sq) > 0
+    assert list(np.asarray(conductor.types)) == [2, 2]
 
     assert receipt["outputs"]["pf_active"] == str(phase_dir / "pf_active.nc")
     assert (phase_dir / "receipt.json").exists()
@@ -323,3 +340,49 @@ def test_extent_columns_are_full_extents_of_a_real_element():
     assert [float(loop.resistivity) for loop in passive.loop] == pytest.approx(
         [7.76e-7, 7.20e-7]
     )
+
+
+def test_real_tfc_sections_and_wall_arcs_round_trip(tmp_path: Path):
+    if not (REAL_EQSLE.exists() and REAL_GEO.exists()):
+        pytest.skip("real deck copies absent")
+    deck = sd.parse_eqsle_deck(REAL_EQSLE)
+    geo = sd.parse_geo_in(REAL_GEO)
+    assert len(deck.tfc_inside) == 7
+    assert len(deck.tfc_outside) == 7
+
+    receipt = sd.write_phase_description(
+        phase="RT", out_dir=tmp_path, eqsle=deck, geo=geo
+    )
+    assert {gap["path"] for gap in receipt["validation_gaps"]} >= {
+        "tf/coils_n",
+        "tf/coil[:]/turns",
+    }
+
+    with imas.DBEntry(tmp_path / "RT" / "wall.nc", "r", dd_version="4.1.1") as e:
+        wall = e.get("wall")
+    with imas.DBEntry(tmp_path / "RT" / "tf.nc", "r", dd_version="4.1.1") as e:
+        tf = e.get("tf")
+
+    # Every TFC section round-trips as one element per deck segment, and no
+    # element is written with equal start and end points.
+    for c in range(2):
+        els = tf.coil[0].conductor[c].elements
+        start_r = np.asarray(els.start_points.r)
+        end_r = np.asarray(els.end_points.r)
+        start_z = np.asarray(els.start_points.z)
+        end_z = np.asarray(els.end_points.z)
+        assert start_r.size == 7
+        assert np.min((start_r - end_r) ** 2 + (start_z - end_z) ** 2) > 0
+    types = list(np.asarray(tf.coil[0].conductor[0].elements.types))
+    assert types == [2, 2, 2, 1, 2, 2, 2]
+
+    # Every one of the ten wall arcs is represented in the outline, with a
+    # point within 1e-6 m of its circle.
+    arcs = [seg for seg in deck.limiter_and_first_wall if seg.kind == "arc"]
+    assert len(arcs) == 10
+    outline_r = np.asarray(wall.description_2d[0].limiter.unit[0].outline.r)
+    outline_z = np.asarray(wall.description_2d[0].limiter.unit[0].outline.z)
+    for arc in arcs:
+        rc, zc, radius = arc.params[:3]
+        distance = np.abs(np.hypot(outline_r - rc, outline_z - zc) - radius)
+        assert float(np.min(distance)) < 1e-6
