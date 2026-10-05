@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4">
 <meta name="plan-impl" content="0.4">
-<meta name="plan-version" content="60">
+<meta name="plan-version" content="61">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -467,6 +467,12 @@
       branch (<code>_supply_declared_probe_angles</code>). JT-60SA reaches the kernel through
       it, with the store format, root and probe-angle source resolved from the catalogue
       rather than from the machine name, so that branch is retired, not joined by a second.
+      One more machine-named angle path exists, and it is off the JT-60SA route:
+      <code>imas_ambix/gs/geometry.py</code> <code>load_tables</code> converts the probe angles of
+      MAST's efm campaign tables manifest (<code>gs_geometry_tables.json</code>) through
+      <code>load_packaged_signal_map("mast", "magnetics")</code>. That manifest holds only MAST
+      campaigns and nothing in ambix calls <code>load_tables</code> today, so no JT-60SA read
+      reaches it and it is left unchanged.
       The benchmark's transform source keeps its own angle fill:
       <code>spine_bench/transform_geometry_source.py</code> <code>_supply_probe_orientations</code>
       joins probe angles from the MAST campaign sensor map, and
@@ -489,7 +495,11 @@
     <h2 id="s5">§5 — Pulse bindings and the EDDB census</h2>
     <p>
       The pulse signal maps bind EDDB channels to DD leaves with a compiled affine
-      transform. Known from the commissioning-shot tables: <code>MMSYS/cur{CS1..CS4,EF1..EF6}{HiTe,LKAT}</code>
+      transform. They are read by the loader that reads MAST's,
+      <code>imas_ambix/data/signal_map.py</code> <code>load_packaged_signal_map(machine, system)</code>,
+      which resolves <code>PACKAGED_MAP_ROOT/&lt;machine&gt;/&lt;system&gt;.json</code> and refuses a
+      file whose declared machine and system differ from the path; <code>jt-60sa</code> already
+      matches its component pattern, so the JT-60SA maps add files and no loader. Known from the commissioning-shot tables: <code>MMSYS/cur{CS1..CS4,EF1..EF6}{HiTe,LKAT}</code>
       in A are the pf_active circuit currents, with the two chains recorded as ranked
       sources rather than silently preferring one; <code>MMSYS/cur1TFLKAT</code> and
       <code>cur2TFLKAT</code> are the TF current; <code>PSRC/Ip</code> in kA is the plasma
