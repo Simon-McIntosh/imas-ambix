@@ -78,7 +78,7 @@ OPTIONAL_SUBSYSTEM_ROOTS = (
 # as the video extra's members so the census checks each is declared there
 # rather than pulling the video stack into a plain sync.
 LAZY_VIDEO_MODULES = {
-    "cv2": "opencv-python",
+    "cv2": "opencv-python-headless",
     "torchvision": "torchvision",
     "imageio": "imageio",
     "imageio_ffmpeg": "imageio-ffmpeg",

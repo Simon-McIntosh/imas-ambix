@@ -65,7 +65,7 @@ dependencies = [
     "torax>=1.1.1",
     "nova-stella",
     # --- Directly imported libraries the census found undeclared ---
-    "chronos-forecasting",
+    "chronos-forecasting>=1.3",
     "contourpy",
     "h5netcdf",
     "matplotlib",
@@ -116,9 +116,15 @@ train = [
 ]
 video = [
     # Video rendering and perceptual-metric paths import these only inside
-    # functions; none is needed for a plain sync.
-    "opencv-python",
-    "torchvision",
+    # functions; none is needed for a plain sync.  opencv-python-headless
+    # provides the same cv2 module without an X display, which the compute
+    # nodes do not have.
+    "opencv-python-headless",
+    # torchvision and torch ship as a matched pair, and one lock serves every
+    # extra, so an unpinned torchvision lets an optional extra pull a newer
+    # torch and rewrite the default CUDA stack.  Pin it to the release built
+    # for the torch the default resolution carries.
+    "torchvision==0.26.*",
     "imageio",
     "imageio-ffmpeg",
     "lpips",
