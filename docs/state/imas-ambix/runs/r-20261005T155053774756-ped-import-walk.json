@@ -1,0 +1,649 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effective_input_window": 230144,
+    "effort": "high",
+    "launch": "cli",
+    "local": true,
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "worktree-full",
+    "usable_input_window": 230144
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "d7f4491f441c2ae449c3f03ad575acbaeb494013",
+  "boundary_waiver": null,
+  "brief": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "fallback_credit": null,
+      "inference_geo": "",
+      "input_tokens": 2845376,
+      "input_tokens_cumulative": 2845376,
+      "output_tokens": 24883,
+      "output_tokens_cumulative": 24883,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": {
+    "added": 277,
+    "files": 2,
+    "removed": 3
+  },
+  "clone_matches": [
+    {
+      "existing_function": {
+        "line": 314,
+        "name": "test_definition_scan_sees_an_indented_rival",
+        "path": "tests/test_agent_bench_shared_reader.py"
+      },
+      "run_function": {
+        "line": 457,
+        "name": "render_fragment",
+        "path": "tests/test_declared_dependencies.py"
+      },
+      "window_line": 539
+    },
+    {
+      "existing_function": {
+        "line": 377,
+        "name": "test_definition_scan_ignores_a_local_named_like_a_symbol",
+        "path": "tests/test_agent_bench_shared_reader.py"
+      },
+      "run_function": {
+        "line": 457,
+        "name": "render_fragment",
+        "path": "tests/test_declared_dependencies.py"
+      },
+      "window_line": 539
+    },
+    {
+      "existing_function": {
+        "line": 408,
+        "name": "test_definition_scan_ignores_a_class_body_inside_a_function",
+        "path": "tests/test_agent_bench_shared_reader.py"
+      },
+      "run_function": {
+        "line": 457,
+        "name": "render_fragment",
+        "path": "tests/test_declared_dependencies.py"
+      },
+      "window_line": 539
+    },
+    {
+      "existing_function": {
+        "line": 29,
+        "name": "_launch",
+        "path": "tests/test_agent_clive_worker_profile.py"
+      },
+      "run_function": {
+        "line": 457,
+        "name": "render_fragment",
+        "path": "tests/test_declared_dependencies.py"
+      },
+      "window_line": 539
+    }
+  ],
+  "commit_resolution": null,
+  "commits": [
+    "216e3bcd0a07464f01e4fd87cbb946ed034c5e76"
+  ],
+  "completed_at": "2026-10-05T16:02:28.683Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-10-05T15:51:04Z",
+  "disposition": null,
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": true,
+    "matched_measure": "pytest -p",
+    "override": false,
+    "role": "implement",
+    "status": "compatible"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [],
+  "gate": "passed",
+  "gate_check": {
+    "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD command uv run --no-sync pytest -p no:cacheprovider tests/test_declared_dependencies.py",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T155053774756-ped-import-walk/unit-gate.log"
+  },
+  "impl_move": {
+    "at_complete": 0.8,
+    "at_dispatch": 0.6,
+    "plan": "project-environment-declared",
+    "verdict": "moved"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-10-05T16:35:55.096430+00:00",
+    "horizon_seconds": 2700,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": null,
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-10-05T15:50:55Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 18,
+    "binding_observed": "unknown",
+    "detail": "",
+    "generating": 5,
+    "headroom": 11,
+    "mean_context": 120000,
+    "observed_at": "2026-10-05T15:50:37Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45,
+    "throughput": {
+      "age_seconds": 18,
+      "aggregate_tokens_per_second": 224.364,
+      "detail": "",
+      "mean_tokens_per_second": 70.114,
+      "observed_at": "2026-10-05T15:50:37Z",
+      "runs": 3.2,
+      "state": "measured"
+    },
+    "waiting": 0
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-10-05T16:02:28.683Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": true,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T155053774756-ped-import-walk/manifest.md",
+  "member": "disposable-r-20261005T155053774756-ped-import-walk",
+  "negative_control": {
+    "added_failure_ids": [
+      "tests/test_declared_dependencies.py::test_walk_classifies_synthetic_import_failures"
+    ],
+    "baseline_failure_ids": [],
+    "comparison_arm": "baseline_suite",
+    "control_exit_status": 1,
+    "control_failure_ids": [
+      "tests/test_declared_dependencies.py::test_walk_classifies_synthetic_import_failures"
+    ],
+    "declaration": "make the classifier accept any ModuleNotFoundError regardless of the distribution it names; the test where an optional-root module is missing a default distribution must then fail",
+    "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T155053774756-ped-import-walk/negative-control.log",
+    "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T155053774756-ped-import-walk/negative-control.log",
+    "test_paths": [
+      "tests/test_declared_dependencies.py"
+    ],
+    "verdict": "matched"
+  },
+  "no_commit": null,
+  "node": "ped-import-walk",
+  "node_definition": {
+    "brief": "",
+    "brief_path": "",
+    "brief_sha256": "",
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 1030,
+          "cached_input_tokens": 708316,
+          "input_tokens": 709348,
+          "output_tokens": 1778,
+          "reasoning_output_tokens": 279,
+          "total_tokens": 711126,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "a663ef24-6dba-4bb9-9ea5-3f1597c64253",
+      "session_id": "a663ef24-6dba-4bb9-9ea5-3f1597c64253"
+    },
+    "done_when": "tests/test_declared_dependencies.py gains a function that writes the hand-off (the optional distribution set from build_census() and module_distribution_map()) to a JSON path, a function that imports every module under imas_ambix/ in the running interpreter and classifies each failure from such a hand-off (a module outside OPTIONAL_SUBSYSTEM_ROOTS must import; a module inside one may fail only with ModuleNotFoundError naming a distribution the census classes optional; anything else fails), and two modes on its existing main that run them, documented in main's usage line. On the fleet compute node, UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD command uv run --no-sync pytest -p no:cacheprovider tests/test_declared_dependencies.py exits 0 with unit tests that drive the classifier on synthetic modules under tmp_path: an optional-root module missing an optional distribution passes, one missing a default distribution fails, a non-optional module that fails to import fails, and an error other than ModuleNotFoundError fails. Running the two modes in the shared environment (hand-off, then walk) imports every imas_ambix module with no failure, logged with an EXIT line; the evidence fragment docs/evidence/fragments/project-environment-declared/ped-import-walk.html records the counts and the commands. UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD command uv run --no-sync ruff check imas_ambix tests exits 0. No new module, and nothing outside the census module and the fragment changes.",
+    "estimated_hours": null,
+    "goal": "fold the fresh-environment import walk into the census module",
+    "id": "ped-import-walk",
+    "lane_declaration": {
+      "backend": null,
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-10-05T15:50:55Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 18,
+      "binding_observed": "unknown",
+      "detail": "",
+      "generating": 5,
+      "headroom": 11,
+      "mean_context": 120000,
+      "observed_at": "2026-10-05T15:50:37Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45,
+      "throughput": {
+        "age_seconds": 18,
+        "aggregate_tokens_per_second": 224.364,
+        "detail": "",
+        "mean_tokens_per_second": 70.114,
+        "observed_at": "2026-10-05T15:50:37Z",
+        "runs": 3.2,
+        "state": "measured"
+      },
+      "waiting": 0
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T155053774756-ped-import-walk/manifest.md",
+    "negative_control": "make the classifier accept any ModuleNotFoundError regardless of the distribution it names; the test where an optional-root module is missing a default distribution must then fail",
+    "plan": "project-environment-declared",
+    "requested_backend": null,
+    "requires_decisions": [],
+    "role": "implement",
+    "section": "§6",
+    "spec_level": "guided",
+    "time_budget": "45m",
+    "token_budget": null,
+    "write_paths": [
+      "tests/test_declared_dependencies.py",
+      "docs/evidence/fragments/project-environment-declared/ped-import-walk.html",
+      "docs/figures/project-environment-declared/ped-import-walk"
+    ]
+  },
+  "orchestrator_lane_override": null,
+  "orientation_input_tokens": 1033725.0,
+  "outcome": "",
+  "pace": {
+    "allowance": null,
+    "bar": null,
+    "clocks": {
+      "five_hour": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "five_hour",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      },
+      "seven_day": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "seven_day",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      }
+    },
+    "group": null,
+    "hold": null,
+    "lane": "clive",
+    "member": null,
+    "node": "ped-import-walk",
+    "policy": {
+      "drain_lead_hours": 12.0,
+      "pace_multiple": 1.1
+    },
+    "reason": "the lane declares no budget group, so no wallet paced it",
+    "recorded_at": "2026-10-05T15:50:58.921459+00:00",
+    "score": 0.6625,
+    "source": null,
+    "state": "unknown"
+  },
+  "picker_selection": {
+    "action": "route",
+    "answering_model": "typesafe/jev-1.13-20260917",
+    "backend": "clive",
+    "comment": "",
+    "confidence": 0.92,
+    "decision_source": "jev",
+    "effort": "high",
+    "excluded": [
+      {
+        "availability": "not-probed",
+        "backend": "native",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "in-harness",
+        "local": false,
+        "model": null,
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reasons": [
+          "in-harness-backend"
+        ],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      }
+    ],
+    "fallback_reason": null,
+    "family": "local",
+    "jev_latency_ms": 330.644,
+    "jev_model": "typesafe/jev-1.13",
+    "latency_ms": 818.689,
+    "model": "deepseek-v4.1-flash",
+    "offered": [
+      {
+        "availability": "unknown",
+        "backend": "claude",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-sonnet-5-5",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "claude-haiku",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-haiku-4-5-20251001",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "claude-opus",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-opus-5-5",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "served",
+        "backend": "clive",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": {
+          "admission_verdict": "open",
+          "running": 5,
+          "slots_state": "measured",
+          "stale": false,
+          "waiting": 0
+        },
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "local",
+        "local": true,
+        "model": "deepseek-v4.1-flash",
+        "outcomes": {
+          "failed": 1,
+          "not-run": 1,
+          "passed": 65,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": 12
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex",
+        "budget_reason": "recorded account-window reading is stale",
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-sol",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex-astra",
+        "budget_reason": "recorded account-window reading is stale",
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-astra",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex-luna",
+        "budget_reason": "recorded account-window reading is stale",
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-luna",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      }
+    ],
+    "probabilities": {
+      "claude": 0,
+      "claude-haiku": 0.01,
+      "claude-opus": 0.01,
+      "clive": 0.93,
+      "codex": 0.01,
+      "codex-astra": 0,
+      "codex-luna": 0,
+      "hold": 0.04
+    },
+    "rendered_token_estimate": 1254,
+    "usage": {
+      "cost": 0.00013503,
+      "input_tokens": 3215,
+      "output_tokens": 89
+    }
+  },
+  "plan": "project-environment-declared",
+  "plan_impl_at_dispatch": 0.6,
+  "plan_link": null,
+  "promoted_by": null,
+  "promoted_revision": "216e3bcd0a07464f01e4fd87cbb946ed034c5e76",
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "reviewed_base_sha": "d7f4491f441c2ae449c3f03ad575acbaeb494013",
+    "reviewed_head_sha": "216e3bcd0a07464f01e4fd87cbb946ed034c5e76",
+    "scores": {
+      "durability": 18,
+      "evidence": 19,
+      "fit": 19,
+      "goal_fidelity": 20,
+      "reuse": 19,
+      "scope_discipline": 20
+    },
+    "status": "parsed",
+    "total": 115
+  },
+  "review_tier": "none",
+  "role": "implement",
+  "route_mode": "explicit",
+  "run_id": "r-20261005T155053774756-ped-import-walk",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§6",
+  "session": "a663ef24-6dba-4bb9-9ea5-3f1597c64253",
+  "session_harness": "claude",
+  "session_id": "8c92383e-7d0b-4d7d-9cdb-b81f328bfa39",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "guided",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 1,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 2845376,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 230144",
+    "elapsed_seconds": 674.203,
+    "generated_tokens": 24883,
+    "generation_seconds": 521.961,
+    "input_budget_tokens": 230144,
+    "input_utilisation_pct": 46.5,
+    "machine_seconds": 152.242,
+    "peak_input_tokens": 107036,
+    "tokens_per_second": 47.67,
+    "wall_tokens_per_second": 36.91
+  },
+  "time_budget": "45m",
+  "tool_steps": 35.0,
+  "unplanned_reason": null,
+  "unreconciled_override": null,
+  "wall_seconds": 684,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-10-05T16:02:31Z",
+    "last_record_type": "result",
+    "launched_at": "2026-10-05T15:51:09Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20261005T155053774756-ped-import-walk",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 4335,
+    "worker_pid": 2284541
+  },
+  "worker_seconds": 648,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
