@@ -1,0 +1,38 @@
+<section class="evidence-fragment" data-reckon="evidence" id="ped-timeout-latent">
+  <header>
+    <h3>Per-test measurement of the tests/latent/ rows the 300 s bound reached</h3>
+    <p class="meta">
+      Node <code>ped-timeout-latent</code> &middot; each listed test file run as its only target on the fleet compute node
+    </p>
+  </header>
+  <table id="ped-timeout-latent-table">
+    <thead>
+      <tr>
+        <th>Test</th><th>Phase</th><th>Measured [s]</th><th>Load (1 min)</th><th>Outcome</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td><code>tests/latent/test_patch_inverse.py::test_policy_runs_end_to_end[fixed]</code></td><td>setup</td><td>37.36</td><td>7.17</td><td>under bound &mdash; change nothing</td></tr>
+      <tr><td><code>tests/latent/test_patch_inverse.py::test_batching_reproducible[fixed]</code></td><td>setup</td><td>37.36</td><td>7.17</td><td>under bound &mdash; change nothing (shares the module <code>synth_problem</code> / <code>policy_run[fixed]</code> fixture)</td></tr>
+      <tr><td><code>tests/latent/test_patch_inverse.py::test_ip_anchor_within_tolerance[fixed]</code></td><td>setup</td><td>37.36</td><td>7.17</td><td>under bound &mdash; change nothing (shared <code>policy_run[fixed]</code> fixture)</td></tr>
+      <tr><td><code>tests/latent/test_patch_inverse.py::test_misfit_decreases[fixed]</code></td><td>setup</td><td>37.36</td><td>7.17</td><td>under bound &mdash; change nothing (shared <code>policy_run[fixed]</code> fixture)</td></tr>
+      <tr><td><code>tests/latent/test_patch_inverse.py::test_candidate_mask_zeros_excluded_cells[fixed]</code></td><td>setup</td><td>37.36</td><td>7.17</td><td>under bound &mdash; change nothing (shared <code>policy_run[fixed]</code> fixture)</td></tr>
+      <tr><td><code>tests/latent/test_patch_inverse.py::test_policy_runs_end_to_end[warm-start]</code></td><td>setup</td><td>3.93</td><td>7.17</td><td>under bound &mdash; change nothing</td></tr>
+      <tr><td><code>tests/latent/test_patch_inverse.py::test_batching_reproducible[warm-start]</code></td><td>setup</td><td>3.93</td><td>7.17</td><td>under bound &mdash; change nothing (shared <code>policy_run[warm-start]</code> fixture)</td></tr>
+      <tr><td><code>tests/latent/test_patch_inverse.py::test_ip_anchor_within_tolerance[warm-start]</code></td><td>setup</td><td>3.93</td><td>7.17</td><td>under bound &mdash; change nothing (shared <code>policy_run[warm-start]</code> fixture)</td></tr>
+      <tr><td><code>tests/latent/test_patch_inverse.py::test_misfit_decreases[warm-start]</code></td><td>setup</td><td>3.93</td><td>7.17</td><td>under bound &mdash; change nothing (shared <code>policy_run[warm-start]</code> fixture)</td></tr>
+      <tr><td><code>tests/latent/test_patch_inverse.py::test_candidate_mask_zeros_excluded_cells[warm-start]</code></td><td>setup</td><td>3.93</td><td>7.17</td><td>under bound &mdash; change nothing (shared <code>policy_run[warm-start]</code> fixture)</td></tr>
+      <tr><td><code>tests/latent/test_patch_inverse.py::test_structure_regularisation_reduces_residual</code></td><td>call</td><td>4.94</td><td>7.17</td><td>under bound &mdash; change nothing</td></tr>
+      <tr><td><code>tests/latent/test_engine.py::test_engine_grounds_in_raw_magnetics</code></td><td>call</td><td>13.54</td><td>7.17</td><td>under bound &mdash; change nothing</td></tr>
+      <tr><td><code>tests/latent/test_patch_encoder.py::test_overfit_single_example_smoke</code></td><td>call</td><td>7.54</td><td>7.17</td><td>under bound &mdash; change nothing</td></tr>
+      <tr><td><code>tests/latent/test_training.py::test_training_step_reduces_composite_loss_across_campaigns</code></td><td>call</td><td>6.10</td><td>7.17</td><td>under bound &mdash; change nothing</td></tr>
+      <tr><td><code>tests/latent/test_synthetic_truth.py::test_basin_scout_reaches_confined_where_fixed_shape_drifts</code></td><td>call</td><td>132.97</td><td>8.44</td><td>under bound &mdash; change nothing</td></tr>
+      <tr><td><code>tests/latent/test_patch_inverse.py::test_sign_prior_softplus_enforces_unidirectional</code></td><td>call</td><td>3.81</td><td>7.17</td><td>under bound &mdash; change nothing</td></tr>
+      <tr><td><code>tests/latent/test_patch_encoder_gaussian.py::test_gaussian_overfit_single_example_smoke</code></td><td>call</td><td>8.07</td><td>8.44</td><td>under bound &mdash; change nothing</td></tr>
+      <tr><td><code>tests/latent/test_patch_inverse.py::test_sign_prior_penalty_suppresses_negative_current</code></td><td>call</td><td>7.68</td><td>7.17</td><td>under bound &mdash; change nothing</td></tr>
+    </tbody>
+  </table>
+  <p>
+    Negative control: the basin-scout test alone under a tighter bound (<code>--timeout=60</code>) fails with a pytest-timeout abort on that test id, showing the per-test bound is live rather than switched off (<code>/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T125152619186-ped-timeout-latent/negative-control/timeout-60.log</code>).
+  </p>
+</section>
