@@ -273,3 +273,131 @@ def test_published_availability_uses_the_clamped_headroom_not_the_engine_figure(
     assert document["engine_headroom"] == 13
     assert document["headroom"] == 4
     assert document["availability_percent"] == 25.0
+
+
+def _publish_with_gate(
+    tmp_path,
+    document: dict,
+    *,
+    effective_width: int,
+    admission_headroom: int,
+    paused: bool = False,
+) -> dict:
+    """Publish one lane document through a stub gate and return what landed."""
+    lane_path = tmp_path / "lane.json"
+    lane_path.write_text(json.dumps(document), encoding="utf-8")
+    app = RouterApp(_MetricsResolver("http://127.0.0.1:1"), lane_document=lane_path)
+    app._generation_gate = _StubGate(
+        {
+            "effective_width": effective_width,
+            "paused": paused,
+            "width": effective_width,
+        },
+        {"headroom": admission_headroom},
+    )
+    app._publish_gate_snapshot()
+    return json.loads(lane_path.read_text(encoding="utf-8"))
+
+
+def test_usable_sizing_still_bounds_headroom_by_the_gate(tmp_path):
+    """A lane that sized reads as before: engine 20 and gate 13 gives 13."""
+    document = _publish_with_gate(
+        tmp_path,
+        {"state": "measured", "headroom": 20, "sizing_verdict": "usable"},
+        effective_width=16,
+        admission_headroom=13,
+    )
+    assert document["headroom"] == 13
+    assert document["engine_headroom"] == 20
+
+
+def test_withheld_estimate_reads_open_bounded_by_the_gate(tmp_path):
+    """A lane that cannot size publishes the withheld estimate, gate-bounded.
+
+    The engine withheld a headroom of 27 and the gate admits 13 more at an
+    effective width of 16, so the document's headroom is 13 and its availability
+    is 81.25. ``withheld`` and ``sizing_verdict`` stay present, so a reader still
+    sees that the engine refused to size.
+    """
+    withheld = {"headroom": 27, "concurrent_requests": 40, "why": "volatile"}
+    document = _publish_with_gate(
+        tmp_path,
+        {
+            "state": "measured",
+            "sizing_verdict": "do-not-size",
+            "sizing_reason": "the working context is oscillating",
+            "withheld": withheld,
+        },
+        effective_width=16,
+        admission_headroom=13,
+    )
+    assert document["headroom"] == 13
+    assert document["engine_headroom"] == 27
+    assert document["availability_percent"] == 81.25
+    assert document["withheld"] == withheld
+    assert document["sizing_verdict"] == "do-not-size"
+
+
+def test_withheld_estimate_below_the_gate_is_published_unchanged(tmp_path):
+    """The engine's estimate binds when it is the lower of the two figures."""
+    document = _publish_with_gate(
+        tmp_path,
+        {
+            "state": "measured",
+            "sizing_verdict": "do-not-size",
+            "withheld": {"headroom": 3, "concurrent_requests": 9, "why": "idle"},
+        },
+        effective_width=16,
+        admission_headroom=10,
+    )
+    assert document["headroom"] == 3
+    assert document["engine_headroom"] == 3
+
+
+def test_withheld_block_without_a_numeric_estimate_reads_the_gate(tmp_path):
+    """With no numeric engine figure at all the gate's figure stands alone.
+
+    A refused sizing that carries no usable estimate publishes no
+    ``engine_headroom``, and the top-level headroom is the gate's own estimate.
+    """
+    document = _publish_with_gate(
+        tmp_path,
+        {
+            "state": "measured",
+            "sizing_verdict": "do-not-size",
+            "withheld": {"headroom": None, "concurrent_requests": None, "why": "idle"},
+        },
+        effective_width=10,
+        admission_headroom=8,
+    )
+    assert document["headroom"] == 8
+    assert "engine_headroom" not in document
+
+
+def test_zero_effective_width_publishes_no_availability(tmp_path):
+    """A gate of width 0 admits nothing, so no percentage is published."""
+    document = _publish_with_gate(
+        tmp_path,
+        {"state": "measured", "headroom": 5, "sizing_verdict": "usable"},
+        effective_width=0,
+        admission_headroom=5,
+    )
+    assert document["headroom"] == 5
+    assert "availability_percent" not in document
+
+
+def test_unreadable_lane_publishes_no_gate_headroom(tmp_path):
+    """An unreadable lane keeps no headroom rather than borrowing the gate's.
+
+    The document carries no headroom, no withheld block and no sizing verdict,
+    so it is not a lane reading at all: publishing the gate's figure against it
+    would publish an open lane at the moment the engine could not be read.
+    """
+    document = _publish_with_gate(
+        tmp_path,
+        {"state": "unavailable", "reason": "metrics unreachable"},
+        effective_width=16,
+        admission_headroom=16,
+    )
+    assert "headroom" not in document
+    assert "availability_percent" not in document

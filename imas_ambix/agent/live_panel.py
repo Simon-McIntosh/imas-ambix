@@ -32,7 +32,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from imas_ambix.agent.lane import availability_percent, classify_reading
+from imas_ambix.agent.lane import availability_percent, classify_reading, lane_headroom
 from imas_ambix.agent.serving_receipts import tier_paths
 
 #: The trailing window the ``live`` block describes. The recorder appends one
@@ -76,12 +76,16 @@ ADMISSION_FIELDS = ("headroom", "verdict", "waiting", "oldest_wait_seconds")
 #: behind it. ``unkeyed_share`` likewise travels with them: it is the share of
 #: busy request-seconds whose requests carry no usable run id, and the run-keyed
 #: figures beside it are computed over the remainder, so without it those
-#: figures describe an unstated fraction of the lane.
+#: figures describe an unstated fraction of the lane. ``worker_slots_basis``
+#: travels with them too: it says whether the slots were measured or assumed at
+#: one request per run, which a reader needs to know whether the figure is a
+#: level or an upper bound.
 WORKER_SLOT_FIELDS = (
     "live_runs",
     "observed_seconds",
     "requests_per_run",
     "worker_slots",
+    "worker_slots_basis",
     "unkeyed_share",
 )
 
@@ -472,14 +476,17 @@ def lane_block(
     gate = document.get("router_generation_gate")
     if isinstance(gate, dict):
         block["router_generation_gate"] = {key: gate.get(key) for key in GATE_FIELDS}
-    # Copy the published percentage, or derive it with the same function the
+    # Copy the published percentage, or derive it with the same functions the
     # router published it with when the document predates the field. A reader
     # sees the figure before the router is next restarted; an omitted figure
-    # stays omitted rather than becoming a null read as zero.
+    # stays omitted rather than becoming a null read as zero. The headroom the
+    # percentage divides is the shared gate-bounded selection, so a document
+    # written before the rule -- one that withheld its sizing and published no
+    # top-level headroom -- still derives the figure the router would publish.
     availability = document.get("availability_percent")
     if availability is None and isinstance(gate, dict):
         availability = availability_percent(
-            document.get("headroom"),
+            lane_headroom(document),
             gate.get("effective_width"),
             paused=gate.get("paused") is True,
         )
