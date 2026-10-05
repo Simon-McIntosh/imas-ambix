@@ -362,6 +362,63 @@ def test_lane_block_copies_the_published_fields():
     assert block["router_generation_gate"]["reason"] == "within width"
 
 
+def test_lane_block_copies_a_published_availability_unchanged():
+    document = {
+        "observed_at": _stamp(0.0),
+        "state": "measured",
+        "headroom": 4,
+        "availability_percent": 81.25,
+        "router_generation_gate": {
+            "width": 16,
+            "effective_width": 8,
+            "in_flight": 4,
+            "waiting": 0,
+            "paused": False,
+        },
+    }
+    block = lane_block(document, now=BASE)
+    assert block["availability_percent"] == 81.25
+
+
+def test_lane_block_derives_availability_when_the_document_lacks_it():
+    """A document predating the field draws the same figure, from the width in force.
+
+    The router publishes the percentage only after a restart, so the reader
+    derives it with the same function. Here the configured width is 16 but the
+    width in force is 8 with headroom 4, so the gate is half open: 50.0.
+    """
+    document = {
+        "observed_at": _stamp(0.0),
+        "state": "measured",
+        "headroom": 4,
+        "router_generation_gate": {
+            "width": 16,
+            "effective_width": 8,
+            "in_flight": 4,
+            "waiting": 0,
+            "paused": False,
+        },
+    }
+    block = lane_block(document, now=BASE)
+    assert block["availability_percent"] == 50.0
+
+
+def test_lane_block_omits_availability_when_the_headroom_is_withheld():
+    document = {
+        "observed_at": _stamp(0.0),
+        "state": "measured",
+        "withheld": {"headroom": 7, "concurrent_requests": 9, "why": "idle"},
+        "router_generation_gate": {
+            "width": 16,
+            "effective_width": 16,
+            "in_flight": 0,
+            "waiting": 0,
+            "paused": False,
+        },
+    }
+    assert "availability_percent" not in lane_block(document, now=BASE)
+
+
 def test_lane_block_omits_unkeyed_share_when_the_lane_does_not_publish_it():
     """A lane that has not published the share leaves it absent, not null.
 

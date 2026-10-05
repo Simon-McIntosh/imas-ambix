@@ -1,0 +1,5 @@
+<section data-reckon="evidence" data-id="srw-lane-publishes-availability">
+  <h3 id="srw-lane-publishes-availability-heading">The lane publishes availability_percent</h3>
+  <p id="srw-lane-publishes-availability-def">availability_percent = 100 x clamped headroom / router_generation_gate.effective_width, clamped to 0-100, defined once in <code>lane.availability_percent</code>. A paused gate reports 0.0; absent headroom, non-numeric input, or a non-positive effective width omits the key. The router publishes it top-level in <code>_publish_gate_snapshot</code>; <code>live_panel.lane_block</code> copies a published value or derives it for a document predating the field.</p>
+  <p id="srw-lane-publishes-availability-capture">Live capture 2026-10-05T07:54Z: documents at <code>~/public/imas-ambix/lane.json</code> read headroom 11, effective_width 16, paused false; <code>agent watch --json --live</code> printed <code>lane.availability_percent = 68.75</code> = 100 x 11 / 16. Recorded at <code>watch-live-output.json</code> in the run directory.</p>
+</section>

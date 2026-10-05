@@ -647,6 +647,50 @@ def classify_reading(
     return "stale" if age > shelf_life_seconds else "measured"
 
 
+def availability_percent(
+    headroom: object,
+    effective_width: object,
+    *,
+    paused: bool = False,
+) -> float | None:
+    """The share of the router's generation width still open, as a percentage.
+
+    ``headroom`` is the lane document's top-level, admission-clamped headroom in
+    requests, and ``effective_width`` the width the generation gate is actually
+    enforcing. Both are counted in requests, so the ratio is dimensionless and
+    comparable across a rotation that changes the width.
+
+    Defined once here, the module that owns the lane document's schema, so the
+    router that publishes the figure and every reader that derives it for a
+    document predating the field compute it identically.
+
+    Returns ``None`` -- the key is omitted, never written as null or zero -- when
+    the width is not a positive number or the headroom is absent or non-numeric.
+    A withheld figure stays withheld rather than reading as a measured zero.
+
+    A paused gate admits nothing whatever its width, so it reports ``0.0``
+    rather than the arithmetic, which would otherwise show the idle width as
+    available at the exact moment the operator has closed it.
+    """
+    if paused:
+        return 0.0
+    if not _is_finite_number(headroom):
+        return None
+    if not _is_finite_number(effective_width) or effective_width <= 0:
+        return None
+    open_share = min(max(float(headroom), 0.0), float(effective_width))
+    return round(100.0 * open_share / float(effective_width), 2)
+
+
+def _is_finite_number(value: object) -> bool:
+    """Whether *value* is a real number the arithmetic above can divide by.
+
+    ``bool`` is excluded deliberately: it is an ``int`` subclass, so a caller
+    passing ``True`` for a count would otherwise be read as the count 1.
+    """
+    return isinstance(value, int | float) and not isinstance(value, bool)
+
+
 def write_lane_document(
     capacity: LaneCapacity,
     path: str | Path,
