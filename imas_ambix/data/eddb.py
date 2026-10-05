@@ -38,6 +38,8 @@ from typing import TYPE_CHECKING
 import numpy as np
 import zarr
 
+from imas_ambix.data.eddb_remote import BatchResult
+
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
@@ -277,13 +279,16 @@ def fetch_channels(
     extractor: RemoteEddbExtractor,
     cache_root: Path | str,
     requests: Iterable[object],
-) -> list[ChannelRecord]:
+) -> BatchResult:
     """Fetch the requested channels not already cached and write them.
 
     Requests already satisfied on disk make no transport call.  Every remaining
     request — including a half-written one whose time array is missing — is read
-    in a single remote process, so one batch is one ssh session, and each
-    returned record is written with :func:`write_channel`.
+    in a single remote process, so one batch is one ssh session.  Each served
+    record is written with :func:`write_channel`; a refused channel is reported
+    in the returned :class:`BatchResult` rather than raising, so a batch mixing
+    served and refused channels caches the served ones and a batch that is
+    entirely refused writes nothing.
     """
 
     ordered = list(requests)
@@ -293,11 +298,11 @@ def fetch_channels(
         if not is_cached(cache_root, request.shot, request.category, request.dname)
     ]
     if not missing:
-        return []
-    fetched = extractor.fetch_batch(missing)
-    for record in fetched:
+        return BatchResult(records=[], refusals=[])
+    result = extractor.fetch_batch(missing)
+    for record in result.records:
         write_channel(cache_root, record)
-    return fetched
+    return result
 
 
 __all__ = [

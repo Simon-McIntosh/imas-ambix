@@ -97,6 +97,59 @@ class ChannelRecord:
         return (self.shot, self.category, self.dname)
 
 
+@dataclass(frozen=True)
+class ChannelRefusal:
+    """One requested channel EDDB did not serve, with its return code.
+
+    ``code`` is the EDDB return code the remote read produced (1015 when the
+    shot's store exists but the datum was never written, 1013 when the shot is
+    absent from the data set).  A refusal names the whole request so a caller can
+    report it without re-deriving which channel failed.
+    """
+
+    shot: str
+    category: str
+    dname: str
+    code: int
+
+    @property
+    def key(self) -> tuple[str, str, str]:
+        return (self.shot, self.category, self.dname)
+
+
+@dataclass(frozen=True)
+class BatchResult:
+    """What one remote session returned: served records and per-channel refusals.
+
+    A batch mixing served and refused channels carries both here, so a caller
+    caches the records and reports the refusals without the refusal aborting the
+    batch.  ``records`` and ``refusals`` partition the requests the remote
+    answered.
+    """
+
+    records: list[ChannelRecord]
+    refusals: list[ChannelRefusal]
+
+
+def normalise_unit(unit: object) -> str:
+    """Return the EDDB unit string, refusing a multi-entry unit list.
+
+    EDDB returns the unit as a list; a single-entry list is the unit itself
+    (``["A"]`` is ``A``), while a multi-entry list names several units and is
+    refused rather than joined into a string no reader can interpret.
+    """
+
+    if unit is None:
+        return ""
+    if isinstance(unit, (list, tuple)):
+        if len(unit) == 1:
+            return str(unit[0])
+        raise EddbRemoteError(
+            f"EDDB returned a multi-entry unit {unit!r}; refusing to join it"
+        )
+    return str(unit)
+
+
 class Transport(Protocol):
     """The seam a batch runs through: one call is one remote process."""
 
@@ -130,13 +183,17 @@ class SshTransport:
         return completed.stdout
 
 
-def encode_batch(records: Iterable[ChannelRecord]) -> bytes:
-    """Encode records into the envelope the remote script also emits.
+def encode_batch(
+    records: Iterable[ChannelRecord],
+    refusals: Iterable[ChannelRefusal] = (),
+) -> bytes:
+    """Encode records and refusals into the envelope the remote script emits.
 
     Layout: the magic, a little-endian uint32 header length, the UTF-8 JSON
     header, then every channel's ``data`` followed by its ``time``, both as
     little-endian float64 in C order.  The header lists each channel in the
-    same order so a reader can walk the segment offsets without a second pass.
+    same order so a reader can walk the segment offsets without a second pass,
+    and carries the refused channels' return codes beside them.
     """
 
     ordered = list(records)
@@ -153,7 +210,18 @@ def encode_batch(records: Iterable[ChannelRecord]) -> bytes:
         }
         for record in ordered
     ]
-    header = json.dumps({"channels": header_channels}).encode("utf-8")
+    header_refusals = [
+        {
+            "shot": refusal.shot,
+            "category": refusal.category,
+            "dname": refusal.dname,
+            "code": int(refusal.code),
+        }
+        for refusal in refusals
+    ]
+    header = json.dumps(
+        {"channels": header_channels, "refusals": header_refusals}
+    ).encode("utf-8")
     segments = bytearray()
     for record in ordered:
         segments += np.ascontiguousarray(record.data, dtype="<f8").tobytes()
@@ -161,7 +229,7 @@ def encode_batch(records: Iterable[ChannelRecord]) -> bytes:
     return _MAGIC + _STRUCT.pack(len(header)) + header + bytes(segments)
 
 
-def decode_batch(payload: bytes) -> list[ChannelRecord]:
+def decode_batch(payload: bytes) -> BatchResult:
     """Decode an envelope produced by :func:`encode_batch` or the remote script."""
 
     if not payload.startswith(_MAGIC):
@@ -195,12 +263,21 @@ def decode_batch(payload: bytes) -> list[ChannelRecord]:
                 dname=str(entry["dname"]),
                 data=data,
                 time=time,
-                unit=str(entry.get("unit", "")),
+                unit=normalise_unit(entry.get("unit", "")),
                 nch=int(entry.get("nch", data.shape[0] if data.ndim else 1)),
                 seq=int(entry.get("seq", 0)),
             )
         )
-    return records
+    refusals = [
+        ChannelRefusal(
+            shot=str(entry["shot"]),
+            category=str(entry["category"]),
+            dname=str(entry["dname"]),
+            code=int(entry["code"]),
+        )
+        for entry in header.get("refusals", [])
+    ]
+    return BatchResult(records=records, refusals=refusals)
 
 
 class RemoteEddbExtractor:
@@ -248,14 +325,20 @@ class RemoteEddbExtractor:
         prefix = [os.path.expanduser(part) for part in self.ssh_command]
         return [*prefix, self._remote_shell_command()]
 
-    def fetch_batch(
-        self, requests: Iterable[ChannelRequest]
-    ) -> list[ChannelRecord]:
-        """Read every request in one remote process and decode the result."""
+    def fetch_batch(self, requests: Iterable[ChannelRequest]) -> BatchResult:
+        """Read every request in one remote process and decode the result.
+
+        The returned :class:`BatchResult` carries the served records and one
+        refusal per refused channel, each naming the shot, category, dname and
+        the EDDB return code, so a partial batch is reported rather than
+        raising.  The transport raises only when the remote process itself
+        fails; a channel the remote reported neither as served nor refused is a
+        protocol failure of the session and raises here.
+        """
 
         ordered = list(requests)
         if not ordered:
-            return []
+            return BatchResult(records=[], refusals=[])
         payload = json.dumps(
             {
                 "api_path": self.api_path,
@@ -271,13 +354,15 @@ class RemoteEddbExtractor:
             }
         ).encode("utf-8")
         response = self.transport.run(self._argv(), payload)
-        records = decode_batch(response)
-        missing = {request.key for request in ordered} - {r.key for r in records}
+        result = decode_batch(response)
+        answered = {r.key for r in result.records} | {r.key for r in result.refusals}
+        missing = {request.key for request in ordered} - answered
         if missing:
             raise EddbRemoteError(
-                f"remote batch returned no record for {sorted(missing)!r}"
+                f"remote batch reported neither a record nor a refusal for "
+                f"{sorted(missing)!r}"
             )
-        return records
+        return result
 
 
 # The script is executed by ``python3 -c`` on the analysis server, so it can
@@ -294,16 +379,48 @@ HEADER = struct.Struct("<I")
 TIME_BOUNDS = ("0", "99")
 
 
+def _unit(value):
+    if value is None:
+        return ""
+    if isinstance(value, (list, tuple)):
+        if len(value) == 1:
+            return str(value[0])
+        raise RuntimeError(
+            "EDDB returned a multi-entry unit %r; refusing to join it" % (value,)
+        )
+    return str(value)
+
+
+def _return_code(rtn):
+    # The wrapper's boolean is the C call status alone; the EDDB return code is
+    # the integer in data['irc'] (ircgrp 1 on every refusal). A failed read that
+    # carries no integer irc is a shape this script does not understand, so it
+    # raises rather than reporting a code of 0 that would read as success.
+    if isinstance(rtn, dict):
+        code = rtn.get("irc")
+        if isinstance(code, int) and not isinstance(code, bool):
+            return code
+    raise RuntimeError(
+        "EDDB refused a channel with no integer irc in the returned data: %r"
+        % (rtn,)
+    )
+
+
 def _read_one(db, req):
     shot, cat, dname = req["shot"], req["category"], req["dname"]
     data_class = req.get("data_class", "")
-    rtn = None
+    ok, rtn = True, None
     if data_class == "O":
         ok, rtn = db.eddbreadOne(shot, cat, dname, None, 0, 0)
     if rtn is None:
         ok, rtn = db.eddbreadTime(shot, cat, dname, TIME_BOUNDS[0], TIME_BOUNDS[1])
     if not ok or not rtn:
-        return None
+        return None, {
+            "shot": shot,
+            "category": cat,
+            "dname": dname,
+            "code": _return_code(rtn),
+        }
     values = np.asarray(rtn.get("data"), dtype="<f8")
     if values.ndim == 1:
         values = values.reshape(1, -1)
@@ -314,17 +431,17 @@ def _read_one(db, req):
             % (shot, cat, dname)
         )
     time = np.asarray(time, dtype="<f8").reshape(-1)
-    unit = rtn.get("unit") or rtn.get("units") or ""
+    unit = _unit(rtn.get("unit") or rtn.get("units"))
     return {
         "shot": shot,
         "category": cat,
         "dname": dname,
-        "unit": str(unit),
+        "unit": unit,
         "nch": int(values.shape[0]),
         "seq": int(rtn.get("seq") or 0),
         "data": values,
         "time": time,
-    }
+    }, None
 
 
 def main():
@@ -337,19 +454,21 @@ def main():
         raise SystemExit("eddbOpen() failed")
 
     header_channels = []
+    header_refusals = []
     segments = bytearray()
     try:
         for req in config.get("requests", []):
-            record = _read_one(db, req)
-            if record is None:
+            record, refusal = _read_one(db, req)
+            if refusal is not None:
+                header_refusals.append(refusal)
                 continue
             header_channels.append({
                 "shot": record["shot"],
                 "category": record["category"],
                 "dname": record["dname"],
                 "unit": record["unit"],
-                "nch": record["nch"],
-                "seq": record["seq"],
+                "nch": int(record["nch"]),
+                "seq": int(record["seq"]),
                 "shape": [int(n) for n in record["data"].shape],
                 "time_shape": [int(n) for n in record["time"].shape],
             })
@@ -358,7 +477,9 @@ def main():
     finally:
         db.eddbClose()
 
-    header = json.dumps({"channels": header_channels}).encode("utf-8")
+    header = json.dumps(
+        {"channels": header_channels, "refusals": header_refusals}
+    ).encode("utf-8")
     out = sys.stdout.buffer
     out.write(MAGIC)
     out.write(HEADER.pack(len(header)))
@@ -375,7 +496,9 @@ if __name__ == "__main__":
 __all__ = [
     "DEFAULT_SSH_COMMAND",
     "REMOTE_SCRIPT",
+    "BatchResult",
     "ChannelRecord",
+    "ChannelRefusal",
     "ChannelRequest",
     "EddbRemoteError",
     "RemoteEddbExtractor",
@@ -383,4 +506,5 @@ __all__ = [
     "Transport",
     "decode_batch",
     "encode_batch",
+    "normalise_unit",
 ]
