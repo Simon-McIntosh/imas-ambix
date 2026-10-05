@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f">
 <meta name="plan-impl" content="0.25">
-<meta name="plan-version" content="42">
+<meta name="plan-version" content="43">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -397,8 +397,14 @@
       reads one <code>{binding}.nc</code> per binding, a per-pulse layout that suits MAST, whose
       geometry is written into every pulse, but would force a copy of a static description
       for every JT-60SA shot. §4 therefore extends that engine, rather than adding one, so a
-      store can be addressed by the map a shot selects. The converted description is one IDS
-      netCDF per IDS per phase under <code>JT60SA_ROOT/machine_description/</code>. Being static
+      store can be addressed by the map a shot selects. The rule is a declared store layout. A
+      store declared per-shot keeps today's behaviour: <code>open</code> resolves
+      <code>{root}/{int(shot)}</code> and reads one <code>{binding}.nc</code> per binding. A store
+      declared static over its map resolves <code>{root}/{map name}</code> and reads one
+      <code>{ids}.nc</code> per IDS, so the shot selects the map and the map selects the directory,
+      and no description is copied per shot. The converted description is one IDS netCDF per IDS
+      per phase under <code>JT60SA_ROOT/machine_description/</code>, which is that static layout
+      with the phase's map name as the directory. Being static
       over a map's shot range is a property of how the engine addresses the store, not a new
       catalogue slot: description values reach the DD through ordinary bindings to that
       netCDF, and a value it cannot carry goes in the slots the schema already has for static
@@ -415,8 +421,8 @@
       spine needs is authored from this source and published through that owner with a pin of
       its own (§7); the deck receipt is the field provenance that artifact's semantic identity
       covers. The catalogue gains the slots this addressing needs, under the §2 slot rule:
-      the description's store format and store root, named through <code>paths.py</code>, and
-      the source of directed probe angles, so <code>load_machine_map</code>'s fixed key set grows
+      the description's store format, its store root named through <code>paths.py</code>, its
+      store layout (per-shot or static over the map), and the source of directed probe angles, so <code>load_machine_map</code>'s fixed key set grows
       by named structure rather than by machine. The two store-addressing keys retire nothing,
       because the catalogue had no addressing slot: they move <code>read_geometry_table</code>'s
       MAST defaults into each catalogue, and the probe-angle key retires the machine branch.
@@ -563,6 +569,12 @@
       <code>read_acquisition_channels</code> at its default machine. The selector therefore takes
       the machine from the catalogue the shot belongs to and passes it to the identity registry,
       the pin table and the acquisition read, rather than JT-60SA growing a selector of its own.
+      The benchmark that stamps the baseline has a geometry resolver of its own,
+      <code>imas_ambix/spine_bench/transform_geometry_source.py</code>
+      <code>resolve_geometry_source</code>, whose sources (campaign, identity-bound, transform)
+      are frozen to MAST's <code>FROZEN_SHOTSET</code>. The JT-60SA stamp goes through that resolver
+      with a frozen JT-60SA shot set beside MAST's, keyed by machine, rather than a second
+      resolver, so the stamp and the spine read one geometry route.
       How the JT-60SA artifact is authored from the §4 source without a JT-60SA module in nova
       is the open question <code>jt60sa-artifact-authoring</code>. Using only the mapped
       pf_active, pf_passive, tf and magnetics data, the ambix physics spine
@@ -860,7 +872,7 @@
     <div class="r-comment-body"><p>review of run r-20261005T075003020335-jtmm-eddb-cold-fetch (plan imas-ambix:jt60sa-machine-map §3) stored at reviews/imas-ambix/r-20261005T075003020335-jtmm-eddb-cold-fetch.json (and its .at-b8380293 sibling), reviewed_base_sha b6eb4de2 / reviewed_head_sha b8380293, scores goal_fidelity 18 evidence 15 scope_discipline 20 durability 13 fit 17 (of 20 each; total 83), three follow-on findings (VirtualZarrView has no transport so the warm-read sentence overstates the guard; the gate makes two ssh sessions per shot against the done-when's one; the manifest follow-on misstates the PSRC set as magPbTC1..35 against 1..23).</p></div>
 </div>
 <div class="r-comment" data-section="s3" data-id="c-run-r-20261005T075003020335-jtmm-eddb-cold-fetch" data-who="reckon-build" data-when="2026-10-05T08:15:06.014Z">
-    <div class="r-comment-body"><p>cold JT-60SA EDDB fetch driver run through the merged extractor: E101173 (newest E EDDB lists) and C060033 (newest C) each served 26/85 channels (MMSYS 22 + MDAC 4, unit [&#x27;A&#x27;]) in one ssh session per shot and had all 59 PSRC channels refused (irc 1015 E / 1013 C); cold wall 101.3 s / 82.8 MB on disk (164.7 MB logical) for E and 7.7 s / 1.2 MB on disk (4.1 MB logical) for C; a warm re-read of all 26 fetched channels through VirtualZarrView made 0 transport calls (control: an uncached channel forces 1 call and fires the raising transport)</p></div>
+    <div class="r-comment-body"><p>cold JT-60SA EDDB fetch driver run through the merged extractor: E101173 (newest E EDDB lists) and C060033 (newest C) each served 26/85 channels (MMSYS 22 + MDAC 4, unit ['A']) in one ssh session per shot and had all 59 PSRC channels refused (irc 1015 E / 1013 C); cold wall 101.3 s / 82.8 MB on disk (164.7 MB logical) for E and 7.7 s / 1.2 MB on disk (4.1 MB logical) for C; a warm re-read of all 26 fetched channels through VirtualZarrView made 0 transport calls (control: an uncached channel forces 1 call and fires the raising transport)</p></div>
 </div>
 <div class="r-comment" data-section="s2" data-id="c-run-r-20261005T065204728047-review-of-jtmm-tokamap-export" data-who="reckon-build" data-when="2026-10-05T07:08:54.445Z">
     <div class="r-comment-body"><p>jtmm-tokamap-export reviewed: the exporter, its validator run and its round-trip gate reproduce at the reviewed head, but every IDS group directory is written with the same cross-group mappings.json (all four groups' keys in every group), so the export is not group-scoped; added_failure_count 0.</p></div>
