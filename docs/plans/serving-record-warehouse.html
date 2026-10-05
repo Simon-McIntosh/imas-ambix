@@ -22,9 +22,9 @@
   <title>Serving Record Warehouse | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;implementable&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;done&quot;}">
-<meta name="plan-impl" content="0.35">
-<meta name="plan-version" content="215">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;done&quot;}">
+<meta name="plan-impl" content="0.4">
+<meta name="plan-version" content="216">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -734,65 +734,12 @@
 <li><strong>What §11's gpu-watch node removes, and what §10's removes (fixed 2026-09-29).</strong> gpu-watch's private period ledger is fed by the same <code>/metrics</code> scrape the serve panel uses (<code>ledger_record</code> is called from <code>_serve_state_tail</code>). The ledger's replacement, periods from <code>agent watch --json</code>, cannot land until §5's read-only index is deployed, because the full path still ingests on read and takes minutes. So §11's gpu-watch node takes the serve panel entirely off the scrape: it renders from <code>agent watch --json --live</code>, and the scrape remains only as the ledger's feeder. §10's gpu-watch node deletes the scrape and the ledger together. §11's grep clause therefore reads: no <code>/metrics</code> fetch and no <code>_scrape_serve</code> call remains on the serve panel's path. §10's clause, no <code>/metrics</code> anywhere in the file, stands as written. gpu-watch finds the CLI through the <code>IMAS_AMBIX_CLI</code> environment variable, falling back to the main checkout's <code>.venv/bin/imas-ambix</code>, because the command is not on <code>PATH</code>.</li>
 </ul>
 
+    <section class="section-landed">
+  <header><span class="badge badge-shipped">&#10003; landed 2026-10-05</span>
     <h2 id="s13">§13 — A long period&#x27;s tokens are the sum of its hours, never more</h2>
-<section data-reckon="section" data-id="s13" data-effort-hours="2.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links=""></section>
-<p><strong>Measured, 2026-10-05.</strong> Two consecutive publications of <code>~/public/imas-ambix/watch.json</code>, six minutes apart, disagree by a factor of about sixteen on every period longer than an hour. Their one-hour rows agree.</p>
-<table>
-<caption>The same ledger, published twice. The 07:24 figures come from a gpu-watch capture the lead took; the 07:30 figures come from the file itself.</caption>
-<thead><tr><th>published</th><th>1 hour in · out · cost</th><th>1 day</th><th>1 week</th><th>1 month (window)</th></tr></thead>
-<tbody>
-<tr><td>07:24:26Z</td><td>140M · 976k · $2.76</td><td>29G · 199M · $563.86</td><td>336G · 2.31G · $6543</td><td>354G · 2.45G · $6942 (16 d)</td></tr>
-<tr><td>07:30:53Z</td><td>143M · 995k · $2.82</td><td>1.81G · 12.3M · $35.03</td><td>19.7G · 128M · $365.65</td><td>30.5G · 215M · $608.39 (12.6 d)</td></tr>
-</tbody>
-</table>
-<p>The 07:24 day is impossible. The busiest hour, at 95–97% card utilisation, produced under 1M output tokens, so a day cannot produce 199M. The 07:30 figures fit the hour: the day's output is 12.4 hours' worth at a 58% mean utilisation.</p>
-<p><strong>The cost arithmetic is not at fault.</strong> Every row's cost reproduces exactly from that row's own tokens at the price in force. That price is OpenRouter's <code>deepseek/deepseek-v4.1-flash</code> row: $0.003 per million prompt and cache-read tokens, and $2.40 per million completion tokens, in a table fetched about 22.7 h before 07:33Z on 2026-10-05. So 199M × $2.40/M + 29G × $0.003/M = $563.86. At these prices output dominates the bill and the third-party hit-rate estimate barely moves it. The row differs from the 2026-09-29 row quoted in <code>watch.estimated_cost</code>'s docstring ($0.30, $0.006 and $1.20 per million), so that docstring's worked example is stale.</p>
-<p>So the fault is in the token totals the index returns for long windows. It is intermittent: the same code, over almost the same record, gave both answers six minutes apart.</p>
-<p><strong>Leads, not conclusions.</strong> The node decides which of these holds, if any.</p>
-<ul>
-<li><code>TelemetryIndex.partitioned_total</code> splits a window into counter runs. A run ends wherever the source key changes or the counter falls. Each run contributes its closing value minus its opening value, and a compacted row that opens a run supplies its own declared opening as the base. Suppose two carriers of one job's counter are visible in the same read, such as the raw file and a compacted tier. Their rows then interleave by timestamp, every alternation starts a new run, and each compacted row adds its whole window's advance again. That would inflate every window reaching the overlap and leave the hour untouched.</li>
-<li>The ingest commits in batches and counts each job from one tier (§8). A reader that does not hold one snapshot across a tier switch could see both tiers, or neither, for part of a period. The publisher's derivation takes about 85 s and so spans at least one ingest tick. Every fifth ingest tick reads three files rather than one (ingest log, 2026-10-05).</li>
-<li><code>watch_document</code> issues many separate statements and holds no single read transaction across them.</li>
-<li>The inflation may depend on where the window starts rather than on ingest timing, because the rows at a window's opening edge decide each run's base.</li>
-</ul>
-<p><strong>The fix lands at the mechanism that double-counts</strong>, in the index's totalling or in the ingest's tier switch. It never lands as a clamp or a plausibility filter in the ledger. A period total is additive: the total over a window equals the sum of the totals over any partition of it, and that identity is the test.</p>
-<table>
-<caption>Nodes for this section.</caption>
-<thead><tr><th>Node</th><th>Runs after</th><th>Effort</th></tr></thead>
-<tbody>
-<tr><td>Locate the mechanism and reproduce one inflated total on the live index</td><td>—</td><td>1 h</td></tr>
-<tr><td>Fix the double count where it happens and pin the additive identity in a test</td><td>the locating node</td><td>1.5 h</td></tr>
-</tbody>
-</table>
-<p><strong>The measuring instrument is part of the problem.</strong> A first attempt, stopped by an 8-minute fence on 2026-10-05, found that one day-against-24-hours comparison on the live index did not finish in 100 s. The reason is in the query: <code>partitioned_total</code> reads every reading of the counter before the window's end, not only those inside the window. So 25 calls for each counter at each window end cannot be paid many times over. Two cheap reads come first:</p>
-<ul>
-<li><strong>Carriers.</strong> Group <code>sample</code> rows from the last 30 days by <code>path</code> and <code>job_id</code>, with each group's first and last <code>ts_epoch</code> and row count. This needs no counter history. It shows directly whether two carriers of one job overlap in time, and whether any rows lack a <code>job_id</code> that their neighbours carry. <code>_counter_runs</code> keys a run on <code>(host, boot_id, job_id)</code>, so either of those would split runs at every alternation.</li>
-<li><strong>The two window ends.</strong> Each publication's <code>now</code> is its <code>published_at</code> minus its <code>compute_seconds</code>: about 07:23:00.6Z for the inflated publication and 07:29:26.0Z for the sound one (publisher log, 2026-10-05). Recompute <code>ledger()</code> on today's index at both ends; each is one call of about 85 s. If 07:23 inflates again and 07:29 does not, the defect depends on where the window falls, and the rows at that day window's opening edge are the place to look. If neither inflates, the 07:24 publication saw a transient state of the index, and the ingest's tier switch around 07:22–07:24Z is the place to look.</li>
-</ul>
-<p><strong>Done when</strong> (the locating node):</p>
-<ul>
-<li>The evidence fragment reports the carrier table and both recomputed ledgers, each with the exact window end used.</li>
-<li>It names the mechanism: the rows that inflate one stated window (source key, path, timestamps, opening values) and the code path that sums them. Or, if neither end reproduces, the ingest evidence that explains a transient.</li>
-<li>At least one inflated total is reproduced by computation, or its absence at both ends is shown.</li>
-<li>Every read opens <code>~/.cache/ambix/watch-index.sqlite3</code> read-only, in place on the fleet allocation (<code>SLURM_JOB_ID</code> set; never the login node), and the logs sit under the node's report directory.</li>
-<li>The node writes no product code.</li>
-</ul>
-<p><strong>Located, 2026-10-05.</strong> The locating node and its review together give the mechanism.</p>
-<ul>
-<li>Recomputed at the inflated publication's own window end (07:23:00.6Z), today's index returns the sound figures: 1.80G prompt tokens for the day, against 1.81G at 07:29:26Z. So the 07:24 read saw an index state that no longer exists.</li>
-<li>No job has two carriers in the index now, and no row lacks a <code>job_id</code>.</li>
-<li>The carriers of one job disagree on their run key. The live job's raw file (<code>deepseek-v4-1-flash-1280470.jsonl</code>) carries <code>boot_id</code> null, which the index stores as its unknown-boot placeholder. Its <code>.minute</code> and <code>.hour</code> tiers carry <code>boot_id</code> <code>58cc3b8e-66b3-4b4f-baf3-e9e8b8f7c406</code>.</li>
-<li><code>_counter_runs</code> keys a run on <code>(host, boot_id, job_id)</code>. A read that sees a job's raw rows and its tier rows together therefore starts a new run at every alternation, and each tier row that opens a run adds its whole stride again through its declared opening. A window reaching such an overlap inflates. One that does not, such as the hour, stays sound.</li>
-<li>Every fifth ingest tick reads three files (the raw file and both tiers). The index counts each job from one tier (§8), so a tick that briefly holds both carriers of one job, between batch commits or across the tier choice, is the state a 85-second publisher read can land in.</li>
-</ul>
-<p><strong>Done when</strong> (the fixing node):</p>
-<ol>
-<li>A test under <code>tests/</code> builds the overlap from fixture rows: one job's raw rows with a null <code>boot_id</code> and its minute-tier rows with a real one, visible together. It asserts that the day total equals the sum of its 24 hourly totals for prompt tokens, generation tokens and each cached tier. The test fails at the base revision and passes at head. The declared negative control re-applies the defective step, and it must turn that test red.</li>
-<li>A second test drives the head ingest over fixture raw, minute and hour files for one job, with a small batch size. After every commit it reads the index the way the publisher does, and asserts the same identity at each of those reads. So the test proves that no state the ingest writes, even between batches, offers one read two carriers of one job, or that such a state no longer inflates a total.</li>
-<li>The fragment states which of those two the fix guarantees, and whether the live index takes it only once the ingest service is restarted. The logs sit under the node's report directory and are cited.</li>
-<li><code>uv run --no-sync ruff check imas_ambix tests</code> exits 0. If any module under <code>imas_ambix/agent/</code> changed, the serving-interpreter parse guard passes.</li>
-</ol>
-<p>Out of scope: restarting the publisher or ingest services (the coordinator does that after the merge), the price table, and the cost model.</p>
+<section data-reckon="section" data-id="s13" data-effort-hours="2.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-status="done" data-links=""></section></header>
+  <p class="landed-summary">Landed <code>telemetry_index._same_run</code>: a job's raw rows (unknown boot) no longer split a counter run against its compacted tiers (declared boot), so a read holding both carriers totals each counter once and a day equals the sum of its hours. This was the ledger's 16× day/week/month inflation ($563.86 against $35 for one day). Tests red at base, green at head; reviews 87 and 85; merged <code>365ed7af</code>. The publisher takes it on restart. <a href="s13">full record</a></p>
+</section>
 
     <section class="section-landed">
   <header><span class="badge badge-shipped">&#10003; landed 2026-10-05</span>
@@ -1476,6 +1423,9 @@
 </div>
 <div class="r-comment" data-section="s13" data-id="c-run-r-20261005T083219317937-review-of-srw-ledger-double-count-located" data-who="reckon-build" data-when="2026-10-05T08:43:15.732Z">
     <div class="r-comment-body"><p>none: this node writes a review record, not a plan section.</p></div>
+</div>
+<div class="r-comment" data-section="s13" data-id="c-20261005T0950-s13-landed" data-who="reckon-build" data-when="2026-10-05T09:50:00Z">
+    <div class="r-comment-body">gate tests passed (5, exit 0); section s13 closed by run r-20261005T084405666372 at merge 365ed7af. The worker did not write its evidence fragment; the coordinator wrote the landing record above from its manifest, logs and both reviews.</div>
 </div>
 </section>
 </main>
