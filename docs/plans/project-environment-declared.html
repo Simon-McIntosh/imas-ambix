@@ -26,7 +26,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;}">
 <meta name="plan-commits" content="80e9f492">
 <meta name="plan-impl" content="0.333">
-<meta name="plan-version" content="9">
+<meta name="plan-version" content="10">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -94,7 +94,14 @@
       (<code>tokenizer/finetune_decoder.py</code>) and frame preprocessing (<code>data/preprocess.py</code>,
       <code>worldmodel/exposure_balance.py</code>: opencv). None is installed today, so no session
       relies on them. They go in a new <code>video</code> extra, and the classifier lists them by
-      name as that extra's lazily imported members rather than classing them default. A version bound is added only for an incompatibility
+      name as that extra's lazily imported members rather than classing them default. The
+      relock rewrites the declaration that <code>tests/physics/test_dependency_contract.py</code>
+      already guards: <code>test_project_and_lock_declare_editable_nova_checkout</code> asserts the
+      nova path source and its <code>uv.lock</code> projection, so it must pass after the relock as
+      well. That test and the census both resolve an editable install's checkout from
+      <code>direct_url.json</code>, and the census's copy omits the <code>unquote</code> the existing
+      one applies, so both move onto one shared helper in
+      <code>tests/distribution_sources.py</code>. A version bound is added only for an incompatibility
       that has been observed and is named in the commit; nothing else is pinned. The existing path
       sources in <code>[tool.uv.sources]</code> (imas-ink and nova-stella) keep their entries, and no
       new path source is added, because the census found no import of reckon. The pytest
