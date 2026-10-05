@@ -27,6 +27,11 @@ REAL_GEO = Path(
     "jtmm-analysis-sensor-search/copies/jt-60sa/analysis/src/getseldata_v4.2/"
     "UTL/getseldata/geo.in"
 )
+REAL_COIL_VV = Path(
+    "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/"
+    "jtmm-geometry-source/copies/jt-60sa/.local/share/machine_description/"
+    "coil_geometry/coil_vv_OP2.dat"
+)
 
 EQSLE_TEXT = """\
  &DSK DEVICE='JT-60SA',IWRITE=65, /$
@@ -77,6 +82,13 @@ COIL_VV_TEXT = """\
  2   NV,     Vturn,Vr,Vz,Va,Vb,Vrho
   1.00000   4.95480   0.12482   0.03600   0.24969  7.20e-007
   1.00000   4.93720   0.37383   0.03600   0.25000  7.20e-007
+ 4  1  nlim,line mimiter option
+    1.7050    1.8750
+    1.7750    2.0138
+    1.7750    2.5000
+    1.7050    1.8750
+ 1
+     1.6250    0.0000    1.6250    2.3830              1         %%Inner VV=50
 """
 
 
@@ -181,6 +193,17 @@ def test_coil_vv_vessel_block_parses(decks):
     assert fil.dr == pytest.approx(0.036)
     assert fil.dz == pytest.approx(0.24969)
     assert fil.resistivity == pytest.approx(7.20e-7)
+    # The limiter block's vertices become the line segments of a closed
+    # contour; the typed contour table after it is not part of the block.
+    assert len(parsed.limiter_and_first_wall) == 3
+    assert all(seg.kind == "line" for seg in parsed.limiter_and_first_wall)
+    (r1, z1), (r2, z2) = parsed.limiter_and_first_wall[0].line_points()
+    assert (r1, z1) == pytest.approx((1.7050, 1.8750))
+    assert (r2, z2) == pytest.approx((1.7750, 2.0138))
+    assert parsed.limiter_and_first_wall[0].provenance.line_range() == [12, 13]
+    assert parsed.vessel[0].provenance.sha256 == hashlib.sha256(
+        coil_vv.read_bytes()
+    ).hexdigest()
 
 
 def test_writer_reads_back_at_dd_4_1_1(decks, tmp_path: Path):
@@ -231,13 +254,15 @@ def test_writer_reads_back_at_dd_4_1_1(decks, tmp_path: Path):
     assert float(mag.flux_loop[0].position[0].r) == pytest.approx(1.8798)
 
     wall = read("wall")
+    # The wall describes limiter units only, so the DD descriptor is the one
+    # that says no vessel structure is filled.
+    assert int(wall.description_2d[0].type.index) == 1
     outline_r = np.asarray(wall.description_2d[0].limiter.unit[0].outline.r)
-    assert outline_r.size >= 2
-    # The outline starts on the first deck segment.  That segment is an arc, so
-    # its first sampled point is R = 1.4 + 3.5 cos(-60 deg) = 3.15 m.
-    assert outline_r[0] == pytest.approx(3.15)
-    # The straight limiter segment's endpoint is retained in the outline.
-    assert np.any(np.isclose(outline_r, 3.316, atol=1e-9))
+    # A coil_vv deck was supplied, so the wall is that deck's limiter block;
+    # its three segments trace four outline points.
+    assert outline_r.size == 4
+    assert outline_r[0] == pytest.approx(1.7050)
+    assert outline_r[-1] == pytest.approx(1.7050)
 
     tf = read("tf")
     # The deck carries no TF turn or coil count, so both are left unset and
@@ -386,3 +411,57 @@ def test_real_tfc_sections_and_wall_arcs_round_trip(tmp_path: Path):
         rc, zc, radius = arc.params[:3]
         distance = np.abs(np.hypot(outline_r - rc, outline_z - zc) - radius)
         assert float(np.min(distance)) < 1e-6
+
+
+def test_op2_wall_comes_from_the_coil_vv_limiter(tmp_path: Path):
+    """The OP2 wall is the coil_vv deck's own limiter, not the EQSLE wall."""
+    if not (REAL_EQSLE.exists() and REAL_GEO.exists() and REAL_COIL_VV.exists()):
+        pytest.skip("real deck copies absent")
+    eqsle = sd.parse_eqsle_deck(REAL_EQSLE)
+    geo = sd.parse_geo_in(REAL_GEO)
+    coil_vv = sd.parse_coil_vv_deck(REAL_COIL_VV)
+
+    # The deck's limiter header declares 51 vertices, closing on the first.
+    assert len(coil_vv.limiter_and_first_wall) == 50
+    assert all(seg.kind == "line" for seg in coil_vv.limiter_and_first_wall)
+    vv_sha = hashlib.sha256(REAL_COIL_VV.read_bytes()).hexdigest()
+    eqsle_sha = hashlib.sha256(REAL_EQSLE.read_bytes()).hexdigest()
+    assert coil_vv.sha256 == vv_sha != eqsle_sha
+    for seg in coil_vv.limiter_and_first_wall:
+        assert seg.provenance.source == str(REAL_COIL_VV)
+        assert seg.provenance.sha256 == vv_sha
+    for seg in eqsle.limiter_and_first_wall:
+        assert seg.provenance.source == str(REAL_EQSLE)
+        assert seg.provenance.sha256 == eqsle_sha
+
+    def outline(path, **kwargs):
+        out = tmp_path / path
+        sd.write_phase_description(
+            phase=path, out_dir=tmp_path, eqsle=eqsle, geo=geo, **kwargs
+        )
+        with imas.DBEntry(out / "wall.nc", "r", dd_version="4.1.1") as e:
+            wall_entry = e.get("wall")
+        return (
+            np.asarray(wall_entry.description_2d[0].limiter.unit[0].outline.r),
+            np.asarray(wall_entry.description_2d[0].limiter.unit[0].outline.z),
+            int(wall_entry.description_2d[0].type.index),
+        )
+
+    op1_r, op1_z, op1_type = outline("OP1")
+    op2_r, op2_z, op2_type = outline("OP2", coil_vv=coil_vv)
+
+    assert op1_type == op2_type == 1
+    # The OP2 contour is the coarser closed polygon of the coil_vv block, so it
+    # differs from the OP1 outline in both its size and the points it covers.
+    assert op2_r.size == 51
+    assert op1_r.size > 100
+    assert np.any(np.isclose(op1_r, 3.316, atol=1e-9))
+    assert not np.any(np.isclose(op2_r, 3.316, atol=1e-9))
+    # The OP2 outline reproduces the deck polygon's own extreme vertices.
+    assert op2_r.min() == pytest.approx(1.7048)
+    assert op2_r.max() == pytest.approx(4.2064)
+    assert op2_z.min() == pytest.approx(-2.8285)
+    assert op2_z.max() == pytest.approx(3.0009)
+    # The OP1 outline is the EQSLE limiter and first wall, a different contour.
+    assert op1_r.max() == pytest.approx(4.216)
+    assert not np.isclose(op1_z.min(), op2_z.min())

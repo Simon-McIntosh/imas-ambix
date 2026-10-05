@@ -14,7 +14,7 @@
       <code>NV</code> vessel block, the TFC inside/outside arc segments and the
       limiter/first-wall segment table), <code>geo.in</code> (the
       <code>Magnetic Probe</code> and <code>Flux Loop</code> blocks) and
-      <code>coil_vv_*.dat</code> (its vessel block) — into provenance-carrying
+      <code>coil_vv_*.dat</code> (its vessel block and its limiter contour) — into provenance-carrying
       element types, and writes the pf_active, pf_passive, magnetics, wall and
       tf IDS netCDF for a phase at DD 4.1.1 alongside a <code>receipt.json</code>
       naming each source file's path, sha256, line ranges and the converter's
@@ -34,19 +34,30 @@
       first to its second point, an arc from its start to its end angle with its
       circle centre in the element centre and the DD arc type — so no element has
       zero length, and the wall outline keeps the arcs and the straight segments
-      alike by sampling each arc along its circle.
+      alike by sampling each arc along its circle. When a
+      <code>coil_vv</code> deck is supplied the wall is that phase's own contour:
+      the <code>nlim</code> block's vertices become the line segments of the
+      closed OP2 limiter, while the OP1 wall stays on <code>EQSLE.DATA</code>'s
+      43-segment limiter and first-wall table, so the two phases carry different
+      outlines and each element bears the source path and sha256 of the deck it
+      came from. <code>wall/description_2d[0]/type/index</code> is set to
+      <code>1</code>, the DD identifier for limiter units described with no
+      vessel structure filled.
     </p>
   </div>
 
   <div id="jtmm-selene-deck-converter-evidence">
     <p>
-      Gate (<code>EXIT=0</code>): 8 tests pass in
+      Gate (<code>EXIT=0</code>): 12 tests pass in
       <code>tests/data/test_selene_deck.py</code>, writing synthetic decks in all
       three grammars and reading every IDS back through
       <code>imas.DBEntry</code> at DD 4.1.1. Logged parse of the real facility
       copies reports exactly the deck content the plan names: 12 PF coils
       (CS1&ndash;4, EF1&ndash;6, FPPC_UP/DOWN), 120 OP1 and 98 OP2 vessel
-      filaments, 7+7 TFC segments, 17 magnetic probes and 27 flux loops. The
+      filaments, 7+7 TFC segments, 17 magnetic probes and 27 flux loops, and an
+      OP1 wall of 43 limiter and first-wall segments (638 outline points, all 10
+      arcs carried) against an OP2 wall of the <code>coil_vv_OP2.dat</code>
+      limiter block's 50 segments and 51 outline points. The
       whole-tree <code>ruff check imas_ambix tests</code> exits 0. Declared
       negative control: dropping the line-range provenance from one PF element
       fails <code>test_provenance_carries_path_sha256_and_line_range</code>

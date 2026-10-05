@@ -50,6 +50,9 @@ LINE_ELEMENT_TYPE = 1
 ARC_ELEMENT_TYPE = 2
 # Angular step at which a deck arc is discretised into wall-outline points.
 ARC_ANGULAR_STEP_DEG = 1.0
+# wall/description_2d/type/index: the descriptor the written wall satisfies.
+# The writer fills limiter units only, so no vessel structure is described.
+WALL_TYPE_MULTIPLE_UNITS_NO_VESSEL = 1
 
 
 # --------------------------------------------------------------------------
@@ -197,11 +200,12 @@ class GeoIn:
 
 @dataclass
 class CoilVesselDeck:
-    """A coil_vv deck, of which the vessel block is parsed."""
+    """A coil_vv deck: its vessel filament block and its limiter contour."""
 
     path: str
     sha256: str
     vessel: list[VesselFilament]
+    limiter_and_first_wall: list[Segment]
 
 
 # --------------------------------------------------------------------------
@@ -444,15 +448,66 @@ def parse_geo_in(path: Path | str) -> GeoIn:
     return GeoIn(path=source, sha256=sha, probes=probes, flux_loops=loops)
 
 
+def _find_limiter_header(lines: list[str], start: int) -> int:
+    for i in range(start, len(lines)):
+        tokens = lines[i].split()
+        if not tokens or not tokens[0].isdigit():
+            continue
+        if "nlim" in " ".join(tokens[1:]).lower():
+            return i
+    raise ValueError("no nlim limiter block header found")
+
+
+def _parse_limiter_polygon(
+    lines: list[str], header: int, source: str, sha: str
+) -> list[Segment]:
+    """Parse a coil_vv limiter block into the segments of its closed contour.
+
+    The header declares the vertex count; each following row is one ``R Z``
+    vertex and the last vertex repeats the first, so consecutive vertex pairs
+    trace the limiter and first wall as line segments.  The typed contour table
+    that follows the vertices carries more than two numbers per row and is not
+    part of this block.
+    """
+    count = int(lines[header].split()[0])
+    vertices: list[tuple[float, float, int]] = []
+    for idx in range(header + 1, len(lines)):
+        nums, _ = _numeric_prefix(lines[idx].split())
+        if len(nums) != 2:
+            break
+        vertices.append((float(nums[0]), float(nums[1]), idx + 1))
+        if len(vertices) == count:
+            break
+    if len(vertices) != count:
+        raise ValueError(
+            f"limiter block declares {count} vertices, found {len(vertices)}"
+        )
+    return [
+        Segment(
+            kind="line",
+            params=(r1, z1, r2, z2),
+            comment="",
+            provenance=Provenance(source, sha, first_line, second_line),
+        )
+        for (r1, z1, first_line), (r2, z2, second_line) in zip(
+            vertices, vertices[1:], strict=False
+        )
+    ]
+
+
 def parse_coil_vv_deck(path: Path | str) -> CoilVesselDeck:
-    """Parse the vessel block of a coil_vv-grammar deck."""
+    """Parse the vessel and limiter blocks of a coil_vv-grammar deck."""
     path = Path(path)
     lines = _read_lines(path)
     sha = sha256_of(path)
     source = str(path)
     nv_header = _find_vessel_header(lines, 0)
-    vessel, _ = _parse_vessel(lines, nv_header, source, sha)
-    return CoilVesselDeck(path=source, sha256=sha, vessel=vessel)
+    vessel, after_vessel = _parse_vessel(lines, nv_header, source, sha)
+    limiter_header = _find_limiter_header(lines, after_vessel)
+    wall = _parse_limiter_polygon(lines, limiter_header, source, sha)
+    return CoilVesselDeck(
+        path=source, sha256=sha, vessel=vessel, limiter_and_first_wall=wall
+    )
 
 
 def derive_b_field_phi_vacuum_r(current: float, turns: int, r0: float) -> float:
@@ -596,11 +651,16 @@ def _wall_outline(wall: Sequence[Segment]) -> tuple[list[float], list[float]]:
     return r_pts, z_pts
 
 
-def build_wall(factory, wall: Sequence[Segment]):
+def build_wall(
+    factory,
+    wall: Sequence[Segment],
+    description_type: int = WALL_TYPE_MULTIPLE_UNITS_NO_VESSEL,
+):
     ids = factory.new("wall")
     _static_header(ids)
     r_pts, z_pts = _wall_outline(wall)
     ids.description_2d.resize(1)
+    ids.description_2d[0].type.index = description_type
     ids.description_2d[0].limiter.unit.resize(1)
     ids.description_2d[0].limiter.unit[0].outline.r = np.array(r_pts, dtype=float)
     ids.description_2d[0].limiter.unit[0].outline.z = np.array(z_pts, dtype=float)
@@ -752,9 +812,15 @@ def build_receipt(
                 "role": "coil_vv_deck",
                 "path": coil_vv.path,
                 "sha256": coil_vv.sha256,
-                "line_ranges": _line_ranges([f.provenance for f in coil_vv.vessel]),
+                "line_ranges": _line_ranges(
+                    [f.provenance for f in coil_vv.vessel]
+                    + [s.provenance for s in coil_vv.limiter_and_first_wall]
+                ),
                 "blocks": {
-                    "NV": _line_ranges([f.provenance for f in coil_vv.vessel])
+                    "NV": _line_ranges([f.provenance for f in coil_vv.vessel]),
+                    "wall": _line_ranges(
+                        [s.provenance for s in coil_vv.limiter_and_first_wall]
+                    ),
                 },
             }
         )
@@ -793,6 +859,13 @@ def write_phase_description(
     commit = converter_commit or converter_git_commit()
 
     vessel = coil_vv.vessel if coil_vv is not None else eqsle.vessel
+    # A coil_vv deck carries the phase's own limiter contour; EQSLE.DATA carries
+    # the one the deck was written from.
+    wall = (
+        coil_vv.limiter_and_first_wall
+        if coil_vv is not None
+        else eqsle.limiter_and_first_wall
+    )
     # The deck states only the TF conductor geometry. Where it carries no turn
     # or coil count, the field is left unset and recorded as a validation gap
     # rather than written as a guessed zero.
@@ -818,7 +891,7 @@ def write_phase_description(
         "pf_active": build_pf_active(factory, eqsle),
         "pf_passive": build_pf_passive(factory, vessel),
         "magnetics": build_magnetics(factory, geo),
-        "wall": build_wall(factory, eqsle.limiter_and_first_wall),
+        "wall": build_wall(factory, wall),
         "tf": build_tf(
             factory, eqsle, r0=r0, coils_n=resolved_coils_n, turns=tf_turns
         ),
