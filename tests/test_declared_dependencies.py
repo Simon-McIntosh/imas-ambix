@@ -10,10 +10,12 @@ Every distribution that something under ``imas_ambix/``, ``tests/`` or
   ``imas_ambix/`` outside an optional subsystem, or from anywhere under
   ``tests/``; or it is the test and lint tooling every session runs.
 * **optional** -- only an optional subsystem imports it: the GPU model serving
-  stack (``imas_ambix/agent``) or the world-model training stack
-  (``imas_ambix/train``).  A distribution reached only from ``scripts/`` (the
+  stack (``imas_ambix/agent``), the world-model training stack
+  (``imas_ambix/train``) or the FAIR-MAST acquisition package
+  (``imas_ambix/data``).  A distribution reached only from ``scripts/`` (the
   analysis and figure tooling) counts as optional too: no core ``imas_ambix/``
-  code outside those subsystems and no test reaches it.
+  code outside those subsystems and no test reaches it.  The video extra's
+  members (``LAZY_VIDEO_MODULES``) are optional by name.
 * **unused** -- nothing under those three trees imports it.
 * **transitive** -- nothing imports it, but another directly imported
   distribution requires it, so it needs no declaration of its own.
@@ -30,23 +32,21 @@ WHY
 ---
 The declaration must match what the code and tests actually import, so a plain
 ``uv sync`` installs the working stack and nothing a session relies on lives
-outside the project's declared dependencies.  Committing the census as a test
-makes it a guard rather than a one-off scan: its first run, against the current
-declaration, is expected to fail -- the failure lines name each undeclared
-``default`` and ``optional`` distribution -- so it is marked
-``xfail(strict=True)``.  That reports an expected failure now, and a hard
-failure the moment the census passes without the declaration having caught up
-with it.
+outside the project's declared dependencies.  Keeping the census as a test
+makes it a guard rather than a one-off scan: the failure lines name each
+undeclared ``default`` and ``optional`` distribution, and the guard turns red
+the moment the declaration falls behind the tree.
 
-Regenerate the fragment after changing the tree::
+Regenerate the fragment after changing the tree, giving the output path and,
+optionally, a pytest ``--durations`` log to record beside the census::
 
-    uv run --no-sync python tests/test_declared_dependencies.py
+    uv run --no-sync python tests/test_declared_dependencies.py <out.html> <log>
 """
 
 from __future__ import annotations
 
 import ast
-import json
+import os
 import re
 import sys
 import tomllib
@@ -54,35 +54,49 @@ from collections import defaultdict
 from dataclasses import dataclass
 from importlib.metadata import distributions, packages_distributions
 from pathlib import Path
-from urllib.parse import urlsplit
 
-import pytest
+TESTS_DIR = Path(__file__).resolve().parent
+if str(TESTS_DIR) not in sys.path:
+    sys.path.insert(0, str(TESTS_DIR))
 
-ROOT = Path(__file__).resolve().parents[1]
+from distribution_sources import editable_checkout  # noqa: E402
+
+ROOT = TESTS_DIR.parent
 SCAN_DIRS = ("imas_ambix", "tests", "scripts")
 
 # Importing code under these roots belongs to an optional subsystem, so an
 # import there does not make a distribution default.  Everything else under
-# imas_ambix/, and every test import, does.
-OPTIONAL_SUBSYSTEM_ROOTS = ("imas_ambix/agent", "imas_ambix/train")
+# imas_ambix/, and every test import, does.  The FAIR-MAST acquisition package
+# is optional too: its remote and object-store paths carry the data extra.
+OPTIONAL_SUBSYSTEM_ROOTS = (
+    "imas_ambix/agent",
+    "imas_ambix/train",
+    "imas_ambix/data",
+)
+
+# Video rendering and perceptual-metric paths import these only inside
+# functions, and none is installed in an ordinary session.  They are named here
+# as the video extra's members so the census checks each is declared there
+# rather than pulling the video stack into a plain sync.
+LAZY_VIDEO_MODULES = {
+    "cv2": "opencv-python-headless",
+    "torchvision": "torchvision",
+    "imageio": "imageio",
+    "imageio_ffmpeg": "imageio-ffmpeg",
+    "lpips": "lpips",
+}
 
 # Tooling every session runs; default even though no import names some of them.
-TOOLING = ("pytest", "ruff", "mypy", "tokamap", "pytest-timeout", "pytest-xdist")
-
-NODE_ID = "ped-census"
-_FRAGMENT_NAME = "ped-census.html"
-
-
-def fragment_path() -> Path:
-    """Locate this node's evidence fragment by its file name."""
-    matches = sorted((ROOT / "docs/evidence/fragments").glob(f"*/{_FRAGMENT_NAME}"))
-    if len(matches) != 1:
-        raise RuntimeError(
-            f"expected exactly one {_FRAGMENT_NAME} under docs/evidence/fragments, "
-            f"found {len(matches)}"
-        )
-    return matches[0]
-
+TOOLING = (
+    "pytest",
+    "pytest-cov",
+    "pytest-timeout",
+    "pytest-xdist",
+    "ruff",
+    "mypy",
+    "pre-commit",
+    "tokamap",
+)
 
 @dataclass(frozen=True)
 class Row:
@@ -166,14 +180,8 @@ def installation_top_level_modules(dist) -> set[str]:
         return set()
     if not raw:
         return set()
-    try:
-        direct_url = json.loads(raw)
-    except ValueError:
-        return set()
-    url = direct_url.get("url")
-    if isinstance(url, str) and url.startswith("file:"):
-        return checkout_top_level_modules(Path(urlsplit(url).path))
-    return set()
+    source_root = editable_checkout(raw)
+    return checkout_top_level_modules(source_root) if source_root else set()
 
 
 def module_distribution_map(sources: dict) -> dict[str, set[str]]:
@@ -278,8 +286,17 @@ def transitive_closure(roots: set[str]) -> dict[str, str]:
 
 
 def build_census(pyproject_path: Path | None = None) -> Census:
-    """Classify every directly imported distribution against the declaration."""
-    project = tomllib.loads((pyproject_path or ROOT / "pyproject.toml").read_text())
+    """Classify every directly imported distribution against the declaration.
+
+    ``pyproject_path`` names the declaration to read; when it is omitted the
+    ``AMBX_PYPROJECT`` environment variable, then the tree's own
+    ``pyproject.toml``, is used, so a mutated declaration can be censused
+    without editing the real file.
+    """
+    if pyproject_path is None:
+        override = os.environ.get("AMBX_PYPROJECT")
+        pyproject_path = Path(override) if override else ROOT / "pyproject.toml"
+    project = tomllib.loads(pyproject_path.read_text())
     declared = declaration_map(project)
     sources = project.get("tool", {}).get("uv", {}).get("sources", {})
     module_map = module_distribution_map(sources)
@@ -288,9 +305,13 @@ def build_census(pyproject_path: Path | None = None) -> Census:
     stdlib = set(sys.stdlib_module_names)
 
     importers: dict[str, set[str]] = defaultdict(set)
+    video_importers: dict[str, set[str]] = defaultdict(set)
     unmapped: set[str] = set()
     for module, files in imports.items():
         if module in stdlib or module in local:
+            continue
+        if module in LAZY_VIDEO_MODULES:
+            video_importers[LAZY_VIDEO_MODULES[module]].update(files)
             continue
         dists = module_map.get(module)
         if not dists:
@@ -310,6 +331,10 @@ def build_census(pyproject_path: Path | None = None) -> Census:
             rows.append(
                 Row(name, "optional", sorted(files)[0], declared.get(name, "none"))
             )
+    for name, files in video_importers.items():
+        rows.append(
+            Row(name, "optional", sorted(files)[0], declared.get(name, "none"))
+        )
     for tool in TOOLING:
         name = canonical(tool)
         if name not in importers:
@@ -353,14 +378,98 @@ def build_census(pyproject_path: Path | None = None) -> Census:
     )
 
 
-def render_fragment(census: Census) -> str:
-    """Render the census as the evidence fragment, from the same result."""
-    lines = [
-        f'<section class="evidence-fragment" data-reckon="evidence" id="{NODE_ID}">',
+_DURATION_RE = re.compile(r"^\s*(\d+(?:\.\d+)?)s\s+(call|setup|teardown)\s+(\S+)")
+
+
+def parse_durations(text: str) -> list[str]:
+    """Extract the slowest-test lines from pytest ``--durations`` output."""
+    found: list[str] = []
+    for line in text.splitlines():
+        match = _DURATION_RE.match(line)
+        if match:
+            found.append(f"{match.group(1)}s {match.group(2)} {match.group(3)}")
+    return found
+
+
+def _timeout_abort(body: list[str]) -> bool:
+    """Whether a failure record carries a pytest-timeout abort."""
+    return any("from pytest-timeout" in line for line in body)
+
+
+def parse_timeouts(text: str) -> list[tuple[str, str, str | None]]:
+    """Extract every test that aborted at the per-test timeout from a pytest log.
+
+    Returns ``(test id, phase, duration or None)`` for each ``FAILED`` or
+    ``ERROR`` record whose traceback carries the pytest-timeout abort, so the
+    tests a timeout bound reaches are listed as evidence rather than left only
+    in the log.  The phase is ``setup`` or ``teardown`` for an error record and
+    ``call`` for a failure record; the duration is the one the ``--durations``
+    table records, or ``None`` when the test is not among the reported slowest.
+    """
+    lines = text.splitlines()
+
+    durations: dict[str, str] = {}
+    full_ids: dict[str, str] = {}
+    for line in lines:
+        match = _DURATION_RE.match(line)
+        if match:
+            durations[match.group(3).split("::")[-1]] = match.group(1)
+        summary = re.match(r"^(?:FAILED|ERROR) (\S+)", line)
+        if summary:
+            full_ids[summary.group(1).split("::")[-1]] = summary.group(1)
+
+    rows: list[tuple[str, str, str | None]] = []
+    name = ""
+    body: list[str] = []
+
+    def flush() -> None:
+        if not name or not _timeout_abort(body):
+            return
+        match = re.match(r"ERROR at (setup|teardown) of (.+)", name)
+        tail = match.group(2) if match else name
+        phase = match.group(1) if match else "call"
+        rows.append((full_ids.get(tail, tail), phase, durations.get(tail)))
+
+    for line in lines:
+        if line.startswith("=") and ("ERRORS" in line or "FAILURES" in line):
+            flush()
+            name, body = "", []
+            continue
+        if line.startswith("=") and (
+            "short test summary" in line or "slowest" in line
+        ):
+            flush()
+            name, body = "", []
+            continue
+        stripped = line.strip("_ \t")
+        if line.startswith("_") and line.rstrip().endswith("_") and stripped:
+            flush()
+            name, body = stripped, []
+            continue
+        if name:
+            body.append(line)
+    flush()
+    return rows
+
+
+def render_fragment(
+    census: Census,
+    node: str,
+    durations: list[str] | None = None,
+    timeouts: list[tuple[str, str, str | None]] | None = None,
+) -> str:
+    """Render the census as an evidence fragment, from the same result.
+
+    ``node`` labels the fragment (its ``id`` and header) and is supplied by the
+    caller; ``durations`` optionally records the slowest tests beside the census,
+    and ``timeouts`` the tests aborting at the per-test timeout bound.
+    """
+    lines: list[str] = [
+        f'<section class="evidence-fragment" data-reckon="evidence" id="{node}">',
         "  <header>",
         "    <h3>Import census: which libraries a plain sync must declare</h3>",
-        "    <p class=\"meta\">",
-        f"      Node <code>{NODE_ID}</code> &middot; import census against the "
+        '    <p class="meta">',
+        f"      Node <code>{node}</code> &middot; import census against the "
         "project declaration",
         "    </p>",
         "  </header>",
@@ -369,7 +478,7 @@ def render_fragment(census: Census) -> str:
         " (default, optional, unused or transitive), the importing file that"
         " decided the class, and how the declaration currently carries it. The"
         " classifier in <code>tests/test_declared_dependencies.py</code> renders"
-        " this fragment and asserts the same result, so the two cannot drift.",
+        " this fragment from the same result its assertion reads.",
         "  </p>",
         "  <table>",
         "    <thead><tr><th>Distribution</th><th>Class</th>"
@@ -415,15 +524,54 @@ def render_fragment(census: Census) -> str:
     ]
     for failure in census.failures:
         lines.append(f"    <li>{failure}</li>")
-    lines += ["  </ul>", "</section>", ""]
+    lines += ["  </ul>"]
+    if durations:
+        lines += ["  <h4>Slowest tests (whole suite)</h4>", "  <ul>"]
+        for item in durations:
+            lines.append(f"    <li><code>{item}</code></li>")
+        lines += ["  </ul>"]
+    if timeouts:
+        lines += [
+            "  <h4>Tests that aborted at the per-test timeout (measured)</h4>",
+            "  <p>",
+            "    Every test whose record in the whole-suite log carries a"
+            " <code>pytest-timeout</code> abort at the 300&nbsp;s per-test bound,"
+            " with the phase it aborted in and the duration the"
+            " <code>--durations</code> table records for it where it is among the"
+            " reported slowest. Recorded as a measured finding for a later section"
+            " to triage, not as a defect of this node.",
+            "  </p>",
+            "  <table>",
+            "    <thead><tr><th>Test</th><th>Phase</th>"
+            "<th>Duration [s]</th></tr></thead>",
+            "    <tbody>",
+        ]
+        for test_id, phase, seconds in timeouts:
+            shown = seconds if seconds is not None else "&mdash;"
+            lines.append(
+                f"      <tr><td><code>{test_id}</code></td><td>{phase}</td>"
+                f"<td>{shown}</td></tr>"
+            )
+        lines += ["    </tbody>", "  </table>"]
+    lines += ["</section>", ""]
     return "\n".join(lines)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="the declaration has not yet caught up with the census: undeclared "
-    "default and optional distributions remain",
-)
+def write_fragment(
+    census: Census,
+    out_path: Path,
+    durations: list[str] | None = None,
+    timeouts: list[tuple[str, str, str | None]] | None = None,
+) -> None:
+    """Write ``census`` as an evidence fragment to ``out_path``.
+
+    The fragment is labelled by the output file's stem, so this module carries
+    no node identity of its own.
+    """
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(render_fragment(census, out_path.stem, durations, timeouts))
+
+
 def test_every_directly_imported_distribution_is_declared() -> None:
     census = build_census()
     print("\n".join(census.failures))
@@ -432,17 +580,24 @@ def test_every_directly_imported_distribution_is_declared() -> None:
     )
 
 
-def test_fragment_matches_census() -> None:
-    census = build_census()
-    assert fragment_path().read_text() == render_fragment(census)
+def main(argv: list[str] | None = None) -> int:
+    """Write the census fragment to the path given and report the failures.
 
-
-def main() -> int:
-    """Write the fragment from the current census and report the failure count."""
+    Usage: test_declared_dependencies.py <out.html> [suite.log]
+    """
+    args = list(sys.argv[1:] if argv is None else argv)
+    if not args:
+        print("usage: test_declared_dependencies.py <out.html> [suite.log]")
+        return 2
+    durations = None
+    timeouts = None
+    if len(args) > 1:
+        suite_text = Path(args[1]).read_text()
+        durations = parse_durations(suite_text)
+        timeouts = parse_timeouts(suite_text)
+    out_path = Path(args[0])
     census = build_census()
-    target = fragment_path()
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(render_fragment(census))
+    write_fragment(census, out_path, durations, timeouts)
     count = len(census.failures)
     print(f"{len(census.rows)} distributions classified; {count} undeclared")
     for failure in census.failures:
