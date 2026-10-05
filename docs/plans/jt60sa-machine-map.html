@@ -24,7 +24,7 @@
   <title>JT-60SA Machine Map for Equilibrium Reconstruction | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="18">
+<meta name="plan-version" content="21">
 <meta name="plan-modified" content="2026-10-05">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 </head>
@@ -180,8 +180,10 @@
     </table>
     <p>
       Done-when for this section: the ambix schema accepts a JT-60SA catalogue without a
-      machine-name branch (any new slot is justified by a JT-60SA structure, such as a
-      SELENE-deck conductor element, not by a JT-60SA name), and a
+      machine-name branch (any new slot is justified by a structure the catalogue must
+      describe, such as a SELENE-deck conductor element, a store that is static over a shot
+      range, or where a description's store and probe angles are read from, never by a
+      JT-60SA name), and a
       <code>tokamap</code> exporter writes a directory that passes
       <code>tokamap-validator</code> for the five first-pass groups, with the collapse of
       unit, sign and COCOS factors into <code>scale</code> asserted by a round-trip test on
@@ -268,18 +270,53 @@
       name, hard-codes the phase, and its comment still names the wrong machine.
     </p>
     <p>
-      <strong>Which source is the single source of truth is open.</strong> The lead's home on
-      the analysis server (<code>jt-60sa:~</code>) holds further <code>.dat</code> files, Python
-      processing scripts and IMAS IDS data that may be upstream of, newer than, or different
-      from the workstation decks. OP1 and OP2 are different geometric configurations, so the
-      question is answered per IDS and per phase. The investigation node
-      <code>jtmm-geometry-source</code> inventories both hosts, compares every source pair
-      per phase and recommends the file set each IDS is built from; the deck converter and the
-      description bindings wait on that recommendation and the lead's choice, and this
-      section is rewritten to name the chosen source. The lead ruled 2026-10-05 that JT-60SA
-      geometry is committed to the repository as MAST's is in <code>mast.json</code>, so
-      supplements and directional vacuum verdicts carry their coordinates inline; EDDB values
-      never enter the repository.
+      <strong>The source of truth is the facility's SELENE PSRC run tree</strong> (decision
+      below). Measured 2026-10-05 by <code>jtmm-geometry-source</code>: the workstation decks
+      <code>coil_vv_OP1.dat</code> and <code>coil_vv_OP2.dat</code> are byte-identical to the
+      copies in the lead's analysis-server home, both arrived in a OneDrive bundle dated
+      2024-10-21, and the OP1 deck is element-for-element identical (largest difference 0.0)
+      to <code>/analysis/src/SAselene_v2.0_forPSRC/RUN/EQSLE.DATA</code>, the input the
+      facility's plasma-shape reconstruction runs on (2020-12-14), whose <code>fort.96</code>
+      carries 27 flux-loop and 17 probe positions. The lead's own extraction
+      (<code>jt-60sa:~/work/efit_jt60sa/extract_jt60sa.py</code>, 2026-04-27) reads the same two
+      files. Between OP1 and OP2 the PF coils, flux loops and probes are identical; only the
+      vessel changes, from 120 filaments at 7.76e-7 Ω·m to 98 at 7.20e-7 Ω·m, with the wall
+      contours. The nakamap IDS files are not sources: they are DD 3.42 fragments labelled
+      SST-1, with no provenance, and their magnetics IDS stores the probe coordinates in
+      <code>flux_loop</code> (5.09 m from the true loop positions).
+    </p>
+    <table>
+      <thead><tr><th>IDS</th><th>OP1</th><th>OP2</th></tr></thead>
+      <tbody>
+        <tr><td>pf_active</td><td colspan="2"><code>EQSLE.DATA</code> PF coil block; phase-independent</td></tr>
+        <tr><td>pf_passive</td><td><code>EQSLE.DATA</code> vessel block (120)</td><td><code>coil_vv_OP2.dat</code> vessel block (98), provisional until a facility OP2 source is found</td></tr>
+        <tr><td>tf</td><td colspan="2"><code>EQSLE.DATA</code> TFC inside and outside segments; the TF magnet is taken as unchanged between phases</td></tr>
+        <tr><td>wall</td><td colspan="2">the deck contour tables, per phase</td></tr>
+        <tr><td>magnetics</td><td colspan="2">held: <code>fort.96</code> covers 27 of the 34 flux loops and 17 of the 23 probes EDDB acquires on E101173, so the current facility sensor table is searched for first (<code>jtmm-analysis-sensor-search</code>)</td></tr>
+      </tbody>
+    </table>
+    <p>
+      <strong>Facility sensor search</strong> (node <code>jtmm-analysis-sensor-search</code>). A
+      read-only search, run as <code>ssh -F ~/.ssh/config jt-60sa</code> under
+      <code>nice -n 19</code> with every <code>find</code> bounded by <code>timeout 180</code> and
+      <code>-maxdepth 5</code> over <code>/analysis/src</code> and <code>/analysis/lib</code> only,
+      looks for four things. First, SELENE, PSRC, FAME and EQDB trees newer than
+      <code>SAselene_v2.0_forPSRC</code>. Second, any sensor table holding 34 flux loops or 23
+      probes or naming <code>magFluxLp</code> and <code>magPbTC</code>, compared with
+      <code>fort.96</code> to 1e-6 m. Third, the sensor-position or calibration parameters EDDB
+      carries as one-point data for <code>PSRC</code> and <code>MDAC</code> on E101173, read with
+      <code>eddbreadOne</code> and never as time series. Fourth, a 98-filament OP2 vessel block or
+      a TF table, compared with <code>coil_vv_OP2.dat</code>. It is done when the loop and probe
+      count of every sensor table found is tabulated with its agreement to
+      <code>fort.96</code>, and a facility file is named for magnetics, OP2 pf_passive and tf, or
+      the search states plainly that none exists inside its bounds.
+    </p>
+    <p>
+      The converter reads the facility file, records its path and sha256 as the receipt, and
+      treats the OneDrive deck as a verified mirror rather than as the source. The lead ruled
+      that JT-60SA geometry is committed to the repository as MAST's is in
+      <code>mast.json</code>, so supplements and directional vacuum verdicts carry their
+      coordinates inline; EDDB values never enter the repository.
     </p>
     <p>
       This section rebinds that content as a <strong>range-scoped machine map</strong>:
@@ -324,7 +361,10 @@
       <code>gs/machine_selection.py</code> <code>select_machine</code>. The JT-60SA artifact the
       spine needs is authored from this source and published through that owner with a pin of
       its own (§7); the deck receipt is the field provenance that artifact's semantic identity
-      covers. The extension point is <code>imas_ambix/data/description_reader.py</code>
+      covers. The catalogue gains the slots this addressing needs, under the §2 slot rule:
+      the description's store format and store root, named through <code>paths.py</code>, and
+      the source of directed probe angles, so <code>load_machine_map</code>'s fixed key set grows
+      by named structure rather than by machine. The extension point is <code>imas_ambix/data/description_reader.py</code>
       <code>read_geometry_table</code>, the sole acquisition route from catalogue to geometry
       table, which today resolves one fixed store format and root and supplies MAST's probe
       angles under a <code>machine == "mast"</code> branch. JT-60SA reaches the kernel through
@@ -398,7 +438,13 @@
       The COCOS of the source is then identified rather than assumed. For the raw side,
       the sign products that the Sauter and Medvedev coefficients constrain are read from
       plasma shots: Ip against the sign of poloidal flux change at the loops, toroidal field
-      polarity from the TF current, the handedness implied by q from FAME. For the
+      polarity from the TF current, the handedness implied by q from FAME. That computation
+      already has an owner, <code>imas_ambix/data/cocos_convention.py</code>: its
+      <code>score_convention</code>, <code>score_conventions</code> and
+      <code>surviving_conventions</code> take any cohort of <code>ShotSignObservation</code>, with
+      the MAST table only as the default, and <code>format_sign_report</code> writes the sign
+      report this section's done-when names, so JT-60SA supplies an observation cohort to it
+      rather than a second scorer. For the
       equilibrium side, the SELENE and FAME outputs are scored on the convention scorer's
       tests (edge-minus-axis flux sense, flux-per-radian versus total flux by integrating
       the Grad–Shafranov current, q sign). The shipped entry point,
@@ -407,7 +453,11 @@
       part is its Grad–Shafranov current integral, <code>_integrated_current</code>. §6
       therefore generalises the entry point to take an equilibrium record through a loader,
       with the DIII-D corpus as its first loader and SELENE and FAME as the next, rather than
-      writing a second scorer. The result sets <code>source_cocos</code> in the catalogue and
+      writing a second scorer. Because <code>_integrated_current</code> and
+      <code>_axis_and_boundary</code> read DIII-D corpus keys (<code>efit_grid_R</code>,
+      <code>efit_psirz</code>, <code>efit_z_axis</code>) directly, the loader boundary is a record
+      contract with canonical keys for the grid, psi, axis and boundary, which the DIII-D
+      loader maps onto and the kernel reads, so the kernel is reused rather than rewritten. The result sets <code>source_cocos</code> in the catalogue and
       the per-binding overrides where SELENE and the raw acquisition differ. Target
       convention is fixed: DD 4 in COCOS 17, and the engine applies the Sauter transform
       to each of the DD's COCOS-dependent leaves — seventeen in magnetics, three in
@@ -455,7 +505,12 @@
       <code>judge_geometry</code> already scores model geometry against an injected reference
       equilibrium into a <code>GeometryVerdict</code> (boundary RMS, axis position, q), so §7 adds
       a SELENE reference loader and its firewall tier to it instead of a parallel
-      comparator.
+      comparator. <code>GeometryVerdict</code> scores axis, X-point and boundary RMS only. The
+      whitened magnetics residual already has its owner in the spine benchmark
+      (<code>imas_ambix/spine_bench/runner.py</code> <code>_magnetics_residual</code>, written into
+      the stamped record), so it is read from the stamp; q95 and Ip have no owner that
+      scores them against a reference, so they are added to <code>judge_geometry</code> as
+      verdict components rather than scored beside it.
       Nova consumes the emitted IDSs through its existing readers; nothing JT-60SA-specific
       is added to nova, which is the transfer claim of the north star exercised on a second
       machine without waiting for the sealed DIII-D rehearsal.
@@ -654,6 +709,16 @@
       <button class="r-opt" data-value="private-package">A private repository holds jt-60sa.json</button>
       </p>
     <p class="r-dec-rat">Lead&#x27;s choice 2026-10-05: JT-60SA geometry is committed like MAST&#x27;s, after checking whether the SELENE decks are the best single source given the further .dat files, processing scripts and IMAS IDS data in the lead&#x27;s analysis-server home, per phase because OP1 and OP2 are different configurations. EDDB signal values never enter the repository. Rejected: GPFS-only coordinates (a schema extension to reference netCDF values) and a private package (reopens the map-location decision).</p>
+    </div>
+<div class="r-dec" data-key="geometry-source-of-truth" data-choice="facility-run-tree" data-by="Simon McIntosh" data-when="2026-10-05T07:04:10+00:00" data-sections="s4">
+    <p class="r-dec-q">Which source is the single source of truth for JT-60SA geometry?</p>
+    <p class="r-dec-ctx">Measured 2026-10-05 by jtmm-geometry-source: the OneDrive decks coil_vv_OP1/OP2.dat are byte-identical on both hosts and the OP1 deck equals /analysis/src/SAselene_v2.0_forPSRC/RUN/EQSLE.DATA to 0.0; the nakamap IDS files are DD 3.42 SST-labelled fragments whose magnetics IDS stores probe coordinates as flux loops; fort.96 holds 27 loops and 17 probes against 34 and 23 acquired in EDDB.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="facility-run-tree">Facility SELENE PSRC run tree, decks as verified mirrors; magnetics held for the facility sensor search</button>
+      <button class="r-opt" data-value="onedrive-decks-all-now">Build every IDS from the OneDrive decks now, magnetics with 27 loops and 17 probes</button>
+      <button class="r-opt" data-value="search-analysis-first">Build nothing until /analysis/src is searched</button>
+      </p>
+    <p class="r-dec-rat">Lead&#x27;s choice 2026-10-05. The facility file the plasma-shape reconstruction runs on is upstream of the decks, which match it to 0.0 for OP1, and using SELENE&#x27;s own input keeps geometry out of the SELENE comparison in s7. pf_active, tf and wall are built now and OP2 pf_passive from coil_vv_OP2.dat provisionally; magnetics waits for the bounded /analysis/src sensor search because fort.96 covers 27 of 34 loops and 17 of 23 probes. Rejected: building everything from the OneDrive decks (ships an incomplete sensor set as authoritative) and building nothing until the search (holds geometry the facility file already settles).</p>
     </div>
 </section>
 
