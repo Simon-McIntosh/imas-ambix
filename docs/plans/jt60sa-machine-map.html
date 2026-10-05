@@ -25,9 +25,9 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
-<meta name="plan-commits" content="023dbf93">
-<meta name="plan-impl" content="0.125">
-<meta name="plan-version" content="31">
+<meta name="plan-commits" content="023dbf93,4bf5bf2f">
+<meta name="plan-impl" content="0.25">
+<meta name="plan-version" content="36">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -298,27 +298,26 @@
       <thead><tr><th>IDS</th><th>OP1</th><th>OP2</th></tr></thead>
       <tbody>
         <tr><td>pf_active</td><td colspan="2"><code>EQSLE.DATA</code> PF coil block; phase-independent</td></tr>
-        <tr><td>pf_passive</td><td><code>EQSLE.DATA</code> vessel block (120)</td><td><code>coil_vv_OP2.dat</code> vessel block (98), provisional until a facility OP2 source is found</td></tr>
+        <tr><td>pf_passive</td><td><code>EQSLE.DATA</code> vessel block (120)</td><td><code>coil_vv_OP2.dat</code> vessel block (98), provisional: no facility file under <code>/analysis/src</code> carries a 98-filament vessel</td></tr>
         <tr><td>tf</td><td colspan="2"><code>EQSLE.DATA</code> TFC inside and outside segments; the TF magnet is taken as unchanged between phases</td></tr>
         <tr><td>wall</td><td colspan="2">the deck contour tables, per phase</td></tr>
-        <tr><td>magnetics</td><td colspan="2">held: <code>fort.96</code> covers 27 of the 34 flux loops and 17 of the 23 probes EDDB acquires on E101173, so the current facility sensor table is searched for first (<code>jtmm-analysis-sensor-search</code>)</td></tr>
+        <tr><td>magnetics</td><td colspan="2"><code>/analysis/src/getseldata_v4.2/UTL/getseldata/geo.in</code>: 17 poloidal probes (R, Z, angle) and 27 flux loops (R, Z), from which the <code>getseldata</code> preprocessor writes <code>fort.96</code>; the further 7 flux loops and 6 probes EDDB acquires have no position in any facility file and are declared as source qualifications rather than given positions</td></tr>
       </tbody>
     </table>
     <p>
-      <strong>Facility sensor search</strong> (node <code>jtmm-analysis-sensor-search</code>). A
-      read-only search, run as <code>ssh -F ~/.ssh/config jt-60sa</code> under
-      <code>nice -n 19</code> with every <code>find</code> bounded by <code>timeout 180</code> and
-      <code>-maxdepth 5</code> over <code>/analysis/src</code> and <code>/analysis/lib</code> only,
-      looks for four things. First, SELENE, PSRC, FAME and EQDB trees newer than
-      <code>SAselene_v2.0_forPSRC</code>. Second, any sensor table holding 34 flux loops or 23
-      probes or naming <code>magFluxLp</code> and <code>magPbTC</code>, compared with
-      <code>fort.96</code> to 1e-6 m. Third, the sensor-position or calibration parameters EDDB
-      carries as one-point data for <code>PSRC</code> and <code>MDAC</code> on E101173, read with
-      <code>eddbreadOne</code> and never as time series. Fourth, a 98-filament OP2 vessel block or
-      a TF table, compared with <code>coil_vv_OP2.dat</code>. It is done when the loop and probe
-      count of every sensor table found is tabulated with its agreement to
-      <code>fort.96</code>, and a facility file is named for magnetics, OP2 pf_passive and tf, or
-      the search states plainly that none exists inside its bounds.
+      <strong>Facility sensor search</strong> (node <code>jtmm-analysis-sensor-search</code>,
+      2026-10-05). A read-only search of <code>/analysis/src</code> and <code>/analysis/lib</code>,
+      bounded by <code>timeout 180</code> and <code>-maxdepth 5</code> under <code>nice -n 19</code>, found
+      one sensor set. <code>geo.in</code> exists as ten byte-identical copies under
+      <code>getseldata_v4.1</code> and <code>getseldata_v4.2</code> (2020-12-08), and all five
+      <code>fort.96</code> files it produces declare <code>IPROB = 17</code> and
+      <code>ILOOP = 27</code>. EDDB carries <code>magFluxLp1..34</code> and <code>magPbTC1..23</code> on
+      E101173 as channel names with no positions, while its validity flags
+      <code>abnormFL1..27</code> and <code>abnormMP1..17</code> cover exactly the SELENE subset;
+      which EDDB indices are the 27 loops and the 17 probes is a §5 census question. No
+      98-filament vessel block exists under the searched roots, and <code>EQSLE.DATA</code>'s TFC
+      segments are the only TF geometry. A separate real-time acquisition
+      (<code>offlineTCCS.MAIN/RfmRtc.h</code>) carries 90 raw probes, outside this map's first pass.
     </p>
     <p>
       The converter reads the facility file, records its path and sha256 as the receipt, and
@@ -373,10 +372,14 @@
       covers. The catalogue gains the slots this addressing needs, under the §2 slot rule:
       the description's store format and store root, named through <code>paths.py</code>, and
       the source of directed probe angles, so <code>load_machine_map</code>'s fixed key set grows
-      by named structure rather than by machine. The extension point is <code>imas_ambix/data/description_reader.py</code>
+      by named structure rather than by machine. The two store-addressing keys retire nothing,
+      because the catalogue had no addressing slot: they move <code>read_geometry_table</code>'s
+      MAST defaults into each catalogue, and the probe-angle key retires the machine branch.
+      The extension point is <code>imas_ambix/data/description_reader.py</code>
       <code>read_geometry_table</code>, the sole acquisition route from catalogue to geometry
-      table, which today resolves one fixed store format and root and supplies MAST's probe
-      angles under a <code>machine == "mast"</code> branch. JT-60SA reaches the kernel through
+      table, whose store format and root are keyword parameters defaulting to MAST's zarr
+      level-2 store, and which supplies MAST's probe angles under a <code>machine == "mast"</code>
+      branch (<code>_supply_declared_probe_angles</code>). JT-60SA reaches the kernel through
       it, with the store format, root and probe-angle source resolved from the catalogue
       rather than from the machine name, so that branch is retired, not joined by a second.
       Done-when: <code>transform_machine_description</code>
@@ -501,13 +504,18 @@
       reader exists in ambix.
     </p>
     <p>
-      The reconstruction gate is what makes the map honest. Using only the mapped
+      The reconstruction gate is what makes the map honest. The spine reads JT-60SA geometry
+      through <code>gs/artifact_resolution.py</code> with a JT-60SA pin rather than through a second
+      resolver, so <code>resolve_machine_description</code> gains a machine to resolve: its pins,
+      today the single <code>PINNED_SEMANTIC_IDENTITY</code>, <code>PINNED_PHYSICAL_DIGEST</code> and
+      <code>PINNED_REGISTRY_DIGEST</code> constants, become a table keyed by machine, and
+      <code>author_pinned_description</code>, which hard-imports
+      <code>nova.imas.mast_geometry</code>, takes each machine's authoring route from that table.
+      How the JT-60SA artifact is authored from the §4 source without a JT-60SA module in nova
+      is the open question <code>jt60sa-artifact-authoring</code>. Using only the mapped
       pf_active, pf_passive, tf and magnetics data, the ambix physics spine
-      (<code>greens-matvec</code>, with <code>grid-delstar</code> as the check), reading JT-60SA
-      geometry through <code>gs/artifact_resolution.py</code> with a JT-60SA pin rather than a
-      second resolver (so <code>resolve_machine_description</code> gains a machine to resolve,
-      and how the artifact is authored from the §4 source without a JT-60SA module in nova is
-      settled in this section), recovers the equilibrium for a frozen set of OP2 shots and is compared against SELENE on the
+      (<code>greens-matvec</code>, with <code>grid-delstar</code> as the check) recovers the
+      equilibrium for a frozen set of OP2 shots, and the result is compared against SELENE on the
       quantities SELENE reports: boundary distance, axis position, Ip, q95, and the whitened
       magnetics residual. This is the MAST benchmark pattern with SELENE in EFIT's seat, and
       it is scored by the owner of that pattern: <code>imas_ambix/eval/efit_referee.py</code>
@@ -757,6 +765,9 @@
 <div class="r-q" data-id="eqdb-reader" data-section="s7" data-status="open" data-opened-by="Simon McIntosh" data-opened-at="2026-10-05" data-resolved-at="" data-resolved-by="">
     <p class="r-q-body">Is there a Python or C entry point to the SELENE equilibrium database (eqdbms, eqdbget) that the remote extractor can call without a Fortran build, and what grid and profile set does an EQDB record carry? The Code TWiki in the graph documents the EQDBMS library under <code>/analysis/lib/eqdbms</code> in 129×129 and 1025×1025 mesh variants, consumed by EQREAD, EQFAME, SELENE, SETEQU and FBEQU, and an <em>EquilibriumDBFAME</em> page; a Python wrapper was not found on the server before the IFERC link dropped.</p>
     </div>
+<div class="r-q" data-id="jt60sa-artifact-authoring" data-section="s7" data-status="open" data-opened-by="reckon-build" data-opened-at="2026-10-05" data-resolved-at="" data-resolved-by="">
+    <p class="r-q-body">How is the spine's JT-60SA machine artifact authored from the §4 IDS description without adding a JT-60SA module to nova? gs/artifact_resolution.author_pinned_description reaches MAST's artifact through nova.imas.mast_geometry.publish_refined_artifact; whether nova.imas.machine_artifact can materialize an artifact from DD-shaped IDS input for any machine, or needs a generic entry point, decides whether this stays inside ambix.</p>
+    </div>
 </section>
 
     <section data-reckon="research" id="research" class="r-research-list">
@@ -800,8 +811,14 @@
 <div class="r-comment" data-section="s2" data-id="c-run-r-20261005T071822930165-review-of-jtmm-tokamap-export" data-who="reckon-build" data-when="2026-10-05T07:31:03.794Z">
     <div class="r-comment-body"><p>review-of-jtmm-tokamap-export: independent review of r-20261005T063236505228-jtmm-tokamap-export at head 5a07dd95f369 (base 0111d5a1) scores 83/100 (goal_fidelity 15, evidence 15, scope_discipline 19, durability 17, fit 17); the prior blocking finding (every IDS group's mappings.json carried all groups' keys) is fixed — an independent export reproduced group-scoped files with group-relative keys and no cross-group leakage (magnetics 21 keys, pf_active 9, pf_passive 11, wall 3 per partition; 24 mappings files; 264 leaf entries) — and the group-relative key matches the reference MAST form (flux_loop[#]/name); two follow-ons remain: the plan §2 five-group validator clause is a four-group demonstration (tf unbound by the MAST test catalogue), and the evidence fragment's negative-control tally reads "1 failed, 4 passed" against a log that reads "1 failed, 5 passed"</p></div>
 </div>
+<div class="r-comment" data-section="s2" data-id="c-20261005T0738-s2-exporter-landed" data-who="reckon-build" data-when="2026-10-05T07:38:00Z">
+    <div class="r-comment-body">gate tests/data/test_tokamap_export.py passed (6 tests, re-run at integrated HEAD 5fb2e3af, exit 0); jtmm-tokamap-export merged as 4bf5bf2f after two repair rounds (group-filtered mappings, then group-relative keys matching ukaea/IMAS_MAST_mappings) and an independent review of 83/100 at 5a07dd95. The MAST export passes tokamap-validator for its four bound groups. Section 2 stays open: the five-group clause needs JT-60SA bindings.</div>
+</div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20261005T072455153088-review-of-jtmm-analysis-sensor-search" data-who="reckon-build" data-when="2026-10-05T07:30:48.378Z">
-    <div class="r-comment-body"><p>review of r-20261005T070115655557-jtmm-analysis-sensor-search (imas-ambix:jt60sa-machine-map §4) scored goal_fidelity 18, evidence 16, scope_discipline 19, durability 18, fit 18 (total 89); the investigation&#x27;s facility-file conclusions reproduce, with 4 minor evidence follow-ons.</p></div>
+    <div class="r-comment-body"><p>review of r-20261005T070115655557-jtmm-analysis-sensor-search (imas-ambix:jt60sa-machine-map §4) scored goal_fidelity 18, evidence 16, scope_discipline 19, durability 18, fit 18 (total 89); the investigation's facility-file conclusions reproduce, with 4 minor evidence follow-ons.</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-20261005T0738-s4-sources-measured" data-who="reckon-build" data-when="2026-10-05T07:38:00Z">
+    <div class="r-comment-body">jtmm-geometry-source and jtmm-analysis-sensor-search recorded (independent review 89/100 for the second). The facility SELENE PSRC run tree is the source; magnetics comes from getseldata_v4.2/UTL/getseldata/geo.in (17 probes, 27 loops); EDDB's further 7 loops and 6 probes have no position in any facility file; the OP2 vessel has no facility source. Section 4 stays open: the converter and the description bindings are next.</div>
 </div>
 </section>
 </main>
