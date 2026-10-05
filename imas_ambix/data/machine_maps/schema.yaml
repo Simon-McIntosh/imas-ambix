@@ -104,18 +104,19 @@ slots:
   description_store_format:
     description: >-
       Physical store format the description is read from, one of the
-      registered transform-engine formats.
-    required: true
+      registered transform-engine formats. Declared together with the store
+      root and layout, or omitted as a complete set for a source-only catalog
+      that has no description store; a partial declaration is refused.
   description_store_root:
     description: >-
       Symbolic name of the store root, resolved to a path defined in
-      imas_ambix.data.paths.
-    required: true
+      imas_ambix.data.paths. Declared with the store format and layout, or
+      omitted as a complete set.
   description_store_layout:
     description: >-
       How a shot addresses the store: a directory per shot, or one static
-      directory per machine map.
-    required: true
+      directory per machine map. Declared with the store format and root, or
+      omitted as a complete set.
     range: DescriptionStoreLayout
   probe_angle_source:
     description: >-

@@ -973,9 +973,9 @@ class MachineMapCatalog:
     source: str
     source_revision: str
     source_cocos: int | None
-    description_store_format: str
-    description_store_root: str
-    description_store_layout: str
+    description_store_format: str | None
+    description_store_root: str | None
+    description_store_layout: str | None
     probe_angle_source: str
     binding_sets: Mapping[str, tuple[ChannelBinding, ...]]
     maps: tuple[MachineMap, ...]
@@ -990,8 +990,15 @@ class MachineMapCatalog:
     description_supplements: tuple[DescriptionSupplement, ...]
     circuit_current_joins: tuple[CircuitCurrentJoin, ...] = ()
 
+    @property
+    def has_description_store(self) -> bool:
+        """Whether this catalog declares an addressable description store."""
+        return self.description_store_format is not None
+
     def description_store_root_path(self) -> Path:
         """Return the on-disk store root named by this catalog."""
+        if self.description_store_root is None:
+            raise MachineMapError("catalog declares no description store root")
         return resolve_description_store_root(self.description_store_root)
 
     def cocos_for_binding(self, binding: ChannelBinding | None = None) -> int | None:
@@ -1136,26 +1143,45 @@ def load_machine_map(path: Path | str) -> MachineMapCatalog:
     else:
         source_cocos = _cocos_identifier(raw_source_cocos, "source_cocos")
 
-    description_store_format = _text(
-        payload["description_store_format"], "description_store_format"
+    description_store_format = payload["description_store_format"]
+    description_store_root = payload["description_store_root"]
+    description_store_layout = payload["description_store_layout"]
+    store_slots = (
+        description_store_format,
+        description_store_root,
+        description_store_layout,
     )
-    if description_store_format not in _DESCRIPTION_STORE_FORMATS:
-        raise MachineMapError(
-            "description_store_format must be one of "
-            f"{sorted(_DESCRIPTION_STORE_FORMATS)}"
+    if any(slot is None for slot in store_slots):
+        if not all(slot is None for slot in store_slots):
+            raise MachineMapError(
+                "description store addressing must be declared wholly or not at "
+                "all: description_store_format, description_store_root and "
+                "description_store_layout must all be null or all be present"
+            )
+        description_store_format = None
+        description_store_root = None
+        description_store_layout = None
+    else:
+        description_store_format = _text(
+            description_store_format, "description_store_format"
         )
-    description_store_root = _text(
-        payload["description_store_root"], "description_store_root"
-    )
-    resolve_description_store_root(description_store_root)
-    description_store_layout = _text(
-        payload["description_store_layout"], "description_store_layout"
-    )
-    if description_store_layout not in _DESCRIPTION_STORE_LAYOUTS:
-        raise MachineMapError(
-            "description_store_layout must be one of "
-            f"{sorted(_DESCRIPTION_STORE_LAYOUTS)}"
+        if description_store_format not in _DESCRIPTION_STORE_FORMATS:
+            raise MachineMapError(
+                "description_store_format must be one of "
+                f"{sorted(_DESCRIPTION_STORE_FORMATS)}"
+            )
+        description_store_root = _text(
+            description_store_root, "description_store_root"
         )
+        resolve_description_store_root(description_store_root)
+        description_store_layout = _text(
+            description_store_layout, "description_store_layout"
+        )
+        if description_store_layout not in _DESCRIPTION_STORE_LAYOUTS:
+            raise MachineMapError(
+                "description_store_layout must be one of "
+                f"{sorted(_DESCRIPTION_STORE_LAYOUTS)}"
+            )
     probe_angle_source = _text(payload["probe_angle_source"], "probe_angle_source")
     if probe_angle_source not in _PROBE_ANGLE_SOURCES:
         raise MachineMapError(

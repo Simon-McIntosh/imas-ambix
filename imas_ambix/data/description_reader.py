@@ -80,6 +80,36 @@ def _supply_declared_probe_angles(table: Any) -> Any:
     )
 
 
+def _resolve_store_addressing(
+    catalog: Any,
+    machine: str,
+    store_format: str | None,
+    store_root: Path | str | None,
+) -> tuple[str, Path | str]:
+    """Resolve the store format and root a description read addresses.
+
+    An explicit ``store_format``/``store_root`` override wins; otherwise the
+    loaded catalog's own declaration supplies them.  A catalog that declares no
+    description store has neither, so a read against it is refused naming the
+    machine rather than silently resolving to another machine's root.
+    """
+    if store_format is None:
+        if catalog.description_store_format is None:
+            raise DescriptionReadError(
+                f"machine {machine!r} declares no description store; supply an "
+                "explicit store_format and store_root to read one"
+            )
+        store_format = catalog.description_store_format
+    if store_root is None:
+        if catalog.description_store_root is None:
+            raise DescriptionReadError(
+                f"machine {machine!r} declares no description store; supply an "
+                "explicit store_format and store_root to read one"
+            )
+        store_root = resolve_description_store_root(catalog.description_store_root)
+    return store_format, store_root
+
+
 def read_geometry_table(
     shot: int,
     *,
@@ -96,15 +126,14 @@ def read_geometry_table(
     """
     shot_id = int(shot)
     catalog = load_packaged_machine_map(machine)
+    resolved_format, resolved_root = _resolve_store_addressing(
+        catalog, machine, store_format, store_root
+    )
     description = transform_machine_description(
         catalog,
         shot_id,
-        store_format if store_format is not None else catalog.description_store_format,
-        (
-            store_root
-            if store_root is not None
-            else resolve_description_store_root(catalog.description_store_root)
-        ),
+        resolved_format,
+        resolved_root,
     )
     if description.status != "emitted":
         raise DescriptionReadError(

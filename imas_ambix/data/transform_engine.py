@@ -162,10 +162,15 @@ class ZarrTransformEngine:
     ) -> _ZarrArrays:
         """Open ``<root>/<shot>.zarr`` without mutating the source store.
 
-        The map and declared layout are accepted for protocol parity; a zarr
-        store is addressed per shot and ignores both.
+        A zarr store is addressed per shot, so a catalog declaring it static
+        over its map is refused rather than silently read per shot.
         """
-        del machine_map, store_layout
+        del machine_map
+        if store_layout == "static-over-map":
+            raise TransformEngineError(
+                "the zarr engine does not support a static-over-map store "
+                "layout; a zarr store is addressed per shot"
+            )
         return _ZarrArrays(Path(root) / f"{int(shot)}.zarr")
 
 

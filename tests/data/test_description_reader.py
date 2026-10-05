@@ -172,6 +172,44 @@ def test_declared_probe_angle_source_selects_the_angle_rule(
     assert applied == []
 
 
+def test_catalog_with_no_description_store_refuses_a_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import imas_ambix.data.description_reader as reader
+
+    monkeypatch.setattr(
+        reader,
+        "load_packaged_machine_map",
+        lambda machine: SimpleNamespace(
+            description_store_format=None,
+            description_store_root=None,
+            description_store_layout=None,
+            probe_angle_source="description",
+        ),
+    )
+
+    with pytest.raises(DescriptionReadError, match="'diii-d'.*no description store"):
+        read_geometry_table(170_000, machine="diii-d")
+    with pytest.raises(DescriptionReadError, match="'diii-d'.*no description store"):
+        read_acquisition_channels((170_000,), machine="diii-d")
+
+    captured: list[tuple[object, ...]] = []
+    monkeypatch.setattr(
+        reader,
+        "transform_machine_description",
+        lambda *args, **kwargs: captured.append(args)
+        or SimpleNamespace(status="source-unavailable", detail="absent"),
+    )
+    with pytest.raises(DescriptionReadError, match="source-unavailable"):
+        read_geometry_table(
+            170_000,
+            machine="diii-d",
+            store_format="zarr",
+            store_root="/tmp/elsewhere",
+        )
+    assert captured and captured[0][2:] == ("zarr", "/tmp/elsewhere")
+
+
 @pytest.mark.skipif(
     not (LEVEL2_ROOT / "21978.zarr").is_dir(),
     reason="local level-2 geometry stores are not mounted",
