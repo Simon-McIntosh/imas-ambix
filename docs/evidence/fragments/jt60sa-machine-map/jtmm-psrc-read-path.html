@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="jtmm-psrc-read-path-landing">
+      <p>Read-only investigation on the Naka analysis server, run 2026-10-05 as
+      <code>ssh -F ~/.ssh/config jt-60sa</code> (nakasvr26, host <code>intr26-2</code>) under
+      <code>nice -n 19</code> with the system Python 3. Nothing was written on the server.
+      No EDDB data value appears here: only return codes and array shapes. <strong>The call
+      that returns PSRC magnetics is
+      <code>eddbreadTime(shot, cat=&#x27;PSRC&#x27;, dname=&#x27;magFluxLp1&#x27;)</code></strong>
+      through <code>/analysis/src/eddb/eddb_pwrapper.py</code>; it is populated on E101154
+      (irc 1015 on the newest E-shot E101173). The two naming routes the facility uses are the
+      category route (<code>cat=&#x27;PSRC&#x27;, dname=&#x27;magFluxLpN&#x27;</code>) and the PID
+      route (<code>cat=&#x27;&#x27;, dname=&#x27;1626 S007&#x27;, dim=[k,1,1]</code>) that Selene
+      reads.</p>
+    </section>
+
+    <section id="jtmm-psrc-read-path-return-codes">
+      <h3>Return codes 1013 and 1015</h3>
+      <p>The only file under <code>/analysis/src/eddb</code> is
+      <code>eddb_pwrapper.py</code>; a grep for <code>1013</code>/<code>1015</code> in that
+      directory returns nothing, and no header under <code>/analysis/src</code> defines the
+      two codes. The wrapper exposes <code>irc</code> and <code>ircgrp</code> as bare fields
+      with no value table — <code>eddb_pwrapper.py:89</code>
+      <code>ircgrp   [int]   return code group</code>, <code>:90</code>
+      <code>irc      [int]   return code</code>, set at <code>:282-287</code>, while the boolean
+      the wrapper returns is the C function status only (<code>:134</code>
+      <code>rtn_bool</code> <code>= True if rtn == 0 else False</code>). The code is therefore
+      carried by <code>data[&#x27;irc&#x27;]</code>, and its meaning is not documented in the
+      facility sources; the meanings below are inferred from controlled reads, with the
+      observations that support each.</p>
+      <table>
+        <thead><tr><th>code</th><th>observed when</th><th>supporting reads</th></tr></thead>
+        <tbody>
+          <tr><td><code>1013</code></td><td>the requested shot is not present in that data
+          set (no store for this category on this shot)</td>
+          <td>PSRC on C060033, C060031, E100001 and the non-existent E999999 all return 1013;
+          MDAC on the same C-shots returns data</td></tr>
+          <tr><td><code>1015</code></td><td>the shot&#x27;s store exists but the requested datum
+          was not acquired</td>
+          <td>PSRC on E101173 (an E-shot whose PSRC is not populated) and MDAC on E100001 (an
+          old shot with no flux-loop channel)</td></tr>
+          <tr><td><code>1022</code></td><td>the data name or category is not in the catalogue
+          at all</td>
+          <td>PSRC/<code>noSuchName</code> and category <code>ZZZZ</code> give 1022; also the
+          mis-spelled <code>magFlxLp1</code> under PSRC (that spelling belongs to MDAC)</td></tr>
+        </tbody>
+      </table>
+      <p><code>ircgrp</code> is 0 on success and 1 on every refusal above.</p>
+    </section>
+
+    <section id="jtmm-psrc-read-path-live-read">
+      <h3>The call, and its outcome on E101154 and E101173</h3>
+      <p>Reads through <code>eddbWrapper(libpath=&#x27;/analysis/lib/libeddb.so&#x27;)</code>
+      with a string time window <code>t1=&#x27;0.0&#x27;, t2=&#x27;0.5&#x27;</code> (numeric
+      bounds raise inside the wrapper). <code>ok</code> is the wrapper boolean,
+      <code>irc</code> the EDDB return code, and <code>shape</code> the returned array shape.</p>
+      <table>
+        <thead><tr><th>shot</th><th>request</th><th>ok</th><th>irc</th><th>shape</th></tr></thead>
+        <tbody>
+          <tr><td>E101154</td><td><code>cat=&#x27;PSRC&#x27; dname=&#x27;magFluxLp1&#x27;</code></td><td>True</td><td>0</td><td>(2001,)</td></tr>
+          <tr><td>E101173</td><td><code>cat=&#x27;PSRC&#x27; dname=&#x27;magFluxLp1&#x27;</code></td><td>False</td><td>1015</td><td>—</td></tr>
+          <tr><td>E101154</td><td><code>cat=&#x27;MDAC&#x27; dname=&#x27;magFlxLp1&#x27;</code></td><td>True</td><td>0</td><td>(2000,)</td></tr>
+          <tr><td>E101173</td><td><code>cat=&#x27;MDAC&#x27; dname=&#x27;magFlxLp1&#x27;</code></td><td>True</td><td>0</td><td>(2000,)</td></tr>
+          <tr><td>E101154</td><td><code>cat=&#x27;PSRC&#x27; dname=&#x27;Ip&#x27;</code></td><td>True</td><td>0</td><td>(2001,)</td></tr>
+          <tr><td>E101173</td><td><code>cat=&#x27;PSRC&#x27; dname=&#x27;Ip&#x27;</code></td><td>False</td><td>1015</td><td>—</td></tr>
+          <tr><td>E101154</td><td><code>cat=&#x27;&#x27; dname=&#x27;1626 S007&#x27; dim=[1,1,1]</code></td><td>True</td><td>0</td><td>(2001,)</td></tr>
+          <tr><td>E101173</td><td><code>cat=&#x27;&#x27; dname=&#x27;1626 S007&#x27; dim=[1,1,1]</code></td><td>True</td><td>0</td><td>(1,)</td></tr>
+          <tr><td>E101154</td><td><code>cat=&#x27;&#x27; dname=&#x27;1626 S007&#x27; dim=[7,1,1]</code></td><td>True</td><td>0</td><td>(2001,)</td></tr>
+        </tbody>
+      </table>
+      <p>One PSRC flux loop (<code>magFluxLp1</code>) reads on E101154 with return code 0 and
+      array shape <code>(2001,)</code>, and is refused on E101173 with return code
+      <code>1015</code> (no array). PSRC is therefore not populated for E101173, and E101154 is
+      a shot it is populated for; so is E101011, which the lead&#x27;s
+      <code>naka_explore.py</code> reads. The flux-loop hardware channel is still available on
+      E101173 by the MDAC route (<code>magFlxLp1</code>, shape <code>(2000,)</code>), which is
+      why the lead&#x27;s extractor reads flux loops from MDAC. The Selene PID route
+      <code>1626 S007</code> returns a full <code>(2001,)</code> flux record on E101154 and a
+      degenerate one-point <code>(1,)</code> stub on E101173, so a PID read that returns
+      <code>irc=0</code> on E101173 is not evidence of a populated PSRC.</p>
+    </section>
+
+    <section id="jtmm-psrc-read-path-script-calls">
+      <h3>How the lead&#x27;s scripts read the signals</h3>
+      <p><code>~/work/efit_jt60sa/extract_jt60sa.py</code> (the writer of
+      <code>E101154_signals.npz</code>): <code>sys.path.insert(0,
+      &#x27;/analysis/src/eddb&#x27;)</code> <code>:13</code>, <code>e =
+      eddbWrapper(libpath=&quot;/analysis/lib/libeddb.so&quot;)</code> <code>:24</code>,
+      <code>e.eddbOpen()</code> <code>:25</code>; its one read call is <code>ok, d =
+      e.eddbreadTime(shot=SHOT, cat=cat, dname=dname, t1=t1, t2=t2)</code> <code>:31</code>.
+      It reads the plasma current from PSRC (<code>read_signal(&quot;PSRC&quot;,
+      &quot;Ip&quot;)</code> <code>:78</code>) and the flux loops and tangential probes from
+      MDAC (<code>name = &quot;magFlxLp{}&quot;.format(i)</code> <code>:53</code>,
+      <code>read_signal(&quot;MDAC&quot;, name)</code> <code>:54</code>;
+      <code>&quot;magPbTC{}&quot;.format(i)</code> <code>:66</code>). Its default shot is
+      E101154 (<code>:16</code>).</p>
+      <p><code>~/naka_explore.py</code>: <code>sys.path.append(&#x27;/analysis/src/eddb/&#x27;)</code>,
+      <code>eddb = eddbWrapper(&#x27;/analysis/lib/libeddb.so&#x27;)</code>,
+      <code>eddb.NUMPY = True</code>, then <code>ier, data =
+      eddb.eddbreadTime(shot, category, signal)</code> over the tuple list
+      <code>(&#x27;PSRC&#x27;,&#x27;Ip&#x27;), (&#x27;PSRC&#x27;,&#x27;calZp0&#x27;),
+      (&#x27;PSRC&#x27;,&#x27;calRp0&#x27;), (&#x27;PSRC&#x27;,&#x27;calWdia&#x27;),
+      (&#x27;PSRC&#x27;,&#x27;calkappa&#x27;), (&#x27;MAG&#x27;,&#x27;tmode0..2&#x27;),
+      (&#x27;MAG&#x27;,&#x27;wdia7RT&#x27;)</code>. It reads those names live from the EDDB
+      (shot <code>E101011</code>), not from the npz; both scripts issue the same
+      <code>eddbreadTime(shot, cat, dname)</code> call.</p>
+    </section>
+
+    <section id="jtmm-psrc-read-path-npz-keys">
+      <h3>PSRC names in E101154_signals.npz</h3>
+      <p><code>~/work/efit_jt60sa/E101154_signals.npz</code> (152,234,749 B) loaded with
+      <code>np.load(..., allow_pickle=False)</code> holds 173 keys: 86 <code>time_*</code>, 86
+      <code>data_*</code> and <code>_meta_json</code>. The single PSRC-sourced name it holds is
+      <code>Ip</code> (keys <code>time_ip</code>, <code>data_ip</code>, both shape
+      <code>(46078,)</code>) — the only read the extractor takes from PSRC. Its
+      <code>fluxloop_01..34</code> and <code>probe_tc_01..17</code> keys are MDAC reads, and
+      <code>coil_*</code>, <code>diamag_*</code> and <code>passive_*</code> come from MMSYS and
+      MDAC. No PSRC flux-loop or probe name (e.g. <code>magFlxLp</code> under PSRC) is present.
+      Keys only; no values.</p>
+    </section>
+  </main>
+</body>
+</html>
