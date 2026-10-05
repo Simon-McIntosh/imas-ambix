@@ -1,0 +1,72 @@
+<section class="evidence-fragment" data-reckon="evidence" id="ped-timeout-suite-final">
+  <header>
+    <h3>Whole-suite run at <code>-n 8</code> at the full-triage revision: every pytest-timeout abort accounted for</h3>
+    <p class="meta">Node <code>ped-timeout-suite-final</code> &middot; revision <code>f1ec52fb</code> &middot; one SLURM batch job <code>1281106</code> on <code>sun</code> (98dci4-clu-3096, 24 CPUs) &middot; run <code>r-20261005T205200205154</code></p>
+  </header>
+  <p>
+    The suite ran as one batch job from the worktree at its declared revision, which carries the per-worker
+    thread cap (<code>tests/conftest.py</code>), the registered <code>slow</code> marker
+    (<code>pyproject.toml</code> <code>[tool.pytest.ini_options]</code>), and the preprocess bucket-test fix:
+    <code>sbatch --partition=sun --time=03:00:00 --cpus-per-task=24 --mem=96G</code> running
+    <code>unset -f uv; UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD command uv run --no-sync pytest -p no:cacheprovider -n 8 --durations=60 -q tests</code>.
+    The run reached pytest&rsquo;s summary line and its log ends <code>EXIT=1</code> (test failures, not a job failure).
+  </p>
+  <h4 id="ped-timeout-suite-final-counts">Counts</h4>
+  <table id="ped-timeout-suite-final-counts-table">
+    <thead><tr><th>passed</th><th>failed</th><th>errors</th><th>skipped</th><th>wall [s]</th><th>pytest-timeout aborts</th><th>collection errors</th></tr></thead>
+    <tbody><tr><td>3986</td><td>24</td><td>0</td><td>4</td><td>5751.47</td><td>1</td><td>0</td></tr></tbody>
+  </table>
+  <p>Summary line as emitted: <code>24 failed, 3986 passed, 4 skipped, 930 warnings in 5751.47s (1:35:51)</code>. Job started <code>2026-10-05T20:53:02Z</code>, ended <code>2026-10-05T22:28:56Z</code>. The <code>errors</code> count is zero and no <code>ERROR collecting</code> line appears, so the two previously uncollected <code>slow</code>-marked modules (<code>tests/latent/test_synthetic_truth.py</code>, <code>tests/latent/test_temporal_operator.py</code>) collected and ran.</p>
+  <h4 id="ped-timeout-suite-final-aborts">Every pytest-timeout abort, classified</h4>
+  <p>Exactly <strong>one</strong> abort is recorded, against 55 at <code>-n 16</code> before the thread cap and 2 at the capped revision before the preprocess fix and the marker registration. It is in the triage tables, so <strong>no abort is unaccounted for</strong>.</p>
+  <table id="ped-timeout-suite-final-aborts-table">
+    <thead><tr><th>Test</th><th>Phase</th><th>Bound hit [s]</th><th>Classification</th></tr></thead>
+    <tbody>
+      <tr class="acct"><td><code>tests/fluxstate/test_consumer_contract.py::test_eager_jitted_and_batched_members_agree</code></td><td>call</td><td>raised 5400</td><td>accounted for &mdash; in <code>ped-timeout-corpus.html</code> (setup 2693.92&nbsp;s, outcome &ldquo;marked 5400&rdquo;); the raised per-test mark is the triage&rsquo;s own disposition, not the 300&nbsp;s default</td></tr>
+    </tbody>
+  </table>
+  <p>
+    The abort is <code>Failed: Timeout (&gt;5400.0s) from pytest-timeout</code>, raised in the <em>call</em> phase
+    (the captured stack is the test body inside <code>jax/_src/numpy/reductions.py</code>; the fixture resolved, so
+    setup completed) at the <code>@pytest.mark.timeout(5400)</code> bound the corpus table records for this test id
+    &mdash; <code>tests/fluxstate/test_consumer_contract.py:1260</code> in the worktree. No abort hit the 300&nbsp;s default.
+  </p>
+  <h4 id="ped-timeout-suite-final-nontimeout">Non-timeout failures (pre-existing, not this node&rsquo;s)</h4>
+  <p>The remaining <strong>23</strong> failures are not timeouts. Each is listed with its first error line and recorded as pre-existing; none is fixed by this node. All 23 also failed in the capped run (<code>ped-timeout-suite-capped.html</code>) except where noted.</p>
+  <table id="ped-timeout-suite-final-nontimeout-table">
+    <thead><tr><th>Test</th><th>First error line</th></tr></thead>
+    <tbody>
+      <tr><td><code>tests/agent/test_bench_provenance.py::test_parser_tolerates_a_malformed_line</code></td><td><code>E       KeyError: &#x27;draft_tokens_total&#x27;</code></td></tr>
+      <tr><td><code>tests/agent/test_flight_placement.py::test_clive_placement_declares_the_scheduler</code></td><td><code>E       KeyError: &#x27;backends&#x27;</code></td></tr>
+      <tr><td><code>tests/agent/test_flight_placement.py::test_placement_queries_carry_the_job_substitution_point</code></td><td><code>E       KeyError: &#x27;backends&#x27;</code></td></tr>
+      <tr><td><code>tests/agent/test_flight_placement.py::test_placement_declares_nothing_but_the_scheduler_and_its_two_queries</code></td><td><code>E       KeyError: &#x27;backends&#x27;</code></td></tr>
+      <tr><td><code>tests/test_agent.py::test_agent_serve_gpu_help_matches_core_scaling</code></td><td><code>E       AssertionError: assert (0 == 0 and &#x27;Host cores do not scale with cards&#x27; in &#x27;Usage: main agent serve [OPTIONS] [SLUG]\n\n  Generate and submit a model serving job.\n\nOptions:\n  --dry-run      ...                         editing the profile.  [x&gt;=1]\n  --help                          Show this message and exit.\n&#x27;)</code></td></tr>
+      <tr><td><code>tests/test_agent.py::test_clive_openrouter_opt_in_starts_proxy_and_presents_picker[mode_arguments0]</code></td><td><code>E       AssertionError: assert &#x27;or-opus-4.8, or-gpt-5.5, or-glm-5.2&#x27; in &#x27;clive: starting imas-ambix-llm.service ...\n&#x27;</code></td></tr>
+      <tr><td><code>tests/test_agent.py::test_clive_openrouter_opt_in_starts_proxy_and_presents_picker[mode_arguments1]</code></td><td><code>E       AssertionError: assert &#x27;or-opus-4.8, or-gpt-5.5, or-glm-5.2&#x27; in &#x27;clive: starting imas-ambix-llm.service ...\n&#x27;</code></td></tr>
+      <tr><td><code>tests/test_agent_context_headroom.py::test_dsv41_dry_run_carries_all_context_headroom_levers</code></td><td><code>E       AssertionError: assert &#x27;--max-running-requests 64&#x27; in &#x27;        apptainer exec --nv --bind ...&#x27;</code></td></tr>
+      <tr><td><code>tests/test_agent_decode_bins.py::test_harvest_reproduces_confirmed_single_width_spot_values</code></td><td><code>E       assert 126.41 &lt;= 118.0</code></td></tr>
+      <tr><td><code>tests/test_agent_endpoint_discovery.py::test_publish_command_records_router_covering_every_release</code></td><td><code>E           KeyError: &#x27;jobid&#x27;</code></td></tr>
+      <tr><td><code>tests/test_agent_endpoint_discovery.py::test_publish_command_omits_router_covering_only_some_releases</code></td><td><code>E           KeyError: &#x27;jobid&#x27;</code></td></tr>
+      <tr><td><code>tests/test_agent_endpoint_discovery.py::test_publish_command_omits_unreachable_router</code></td><td><code>E           KeyError: &#x27;jobid&#x27;</code></td></tr>
+      <tr><td><code>tests/test_agent_serving_receipts.py::test_record_receipts_compacts_its_record_between_samples</code></td><td><code>E       AssertionError: assert {&#x27;leaves&#x27;: {&#x27;...econds&#x27;: 10.0} == {&#x27;samples&#x27;: 2...econds&#x27;: 10.0}</code></td></tr>
+      <tr><td><code>tests/test_eval.py::test_compute_all_metrics_returns_expected_keys</code></td><td><code>E       RuntimeError: Given input size: (192x1x1). Calculated output size: (192x0x0). Output size is too small</code></td></tr>
+      <tr><td><code>tests/test_eval.py::test_compute_all_metrics_all_values_are_floats</code></td><td><code>E       RuntimeError: Given input size: (192x1x1). Calculated output size: (192x0x0). Output size is too small</code></td></tr>
+      <tr><td><code>tests/test_eval.py::test_compute_all_metrics_identical_psnr_is_inf</code></td><td><code>E       RuntimeError: Given input size: (192x1x1). Calculated output size: (192x0x0). Output size is too small</code></td></tr>
+      <tr><td><code>tests/test_eval.py::test_compute_all_metrics_identical_centroid_mse_is_zero</code></td><td><code>E       RuntimeError: Given input size: (192x1x1). Calculated output size: (192x0x0). Output size is too small</code></td></tr>
+      <tr><td><code>tests/test_preprocess.py::test_preprocess_rbb_shot_no_skip_overwrites</code></td><td><code>E       assert 0 == 3</code></td></tr>
+      <tr><td><code>tests/test_preprocess.py::test_preprocess_frames_cli_shot_ids</code></td><td><code>E       AssertionError: assert False</code></td></tr>
+      <tr><td><code>tests/test_toroidal_periodic_probe.py::test_mode_recovery_invariant_to_seam_crossing_offset</code></td><td><code>E       AssertionError: seam-crossing recovery 0.5888888888888889 too low</code></td></tr>
+      <tr><td><code>tests/worldmodel/test_camera_topology_robustness.py::test_report_parsers_resolve_every_subset</code></td><td><code>E           json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)</code></td></tr>
+      <tr><td><code>tests/worldmodel/test_label_cartoon_video.py::test_renderer_writes_aligned_tight_clipped_gifs_and_receipt</code></td><td><code>E           ValueError: the session&#x27;s slice has no stored boundary polyline: the label reader takes lcfs_r/lcfs_z as the authoritative boundary and refuses a frame without one rather than substituting the outermost nested surface</code></td></tr>
+      <tr><td><code>tests/gs/test_artifact_resolution.py::test_re_authoring_reproduces_the_identity_the_package_pins</code></td><td><code>E       AssertionError: assert &#x27;sha256:f20d6...a594ca7d039d5&#x27; == &#x27;sha256:8df7a...edc2bd4be220c&#x27;</code></td></tr>
+    </tbody>
+  </table>
+  <p>
+    Against the capped run&rsquo;s fragment, five test ids no longer appear: <code>test_preprocess_frames_cli_from_bucket_all</code>
+    (the abort the preprocess fix resolves, now passing), <code>test_worldmodel_skeleton.py::test_real_shot_overfit_smoke</code>
+    (an abort at the capped revision, now passing rather than aborting), and the three <code>test_agent_clive_alias_dispatch.py</code>
+    failures, which no longer reproduce at this revision. One id appears that the capped fragment did not list,
+    <code>test_eager_jitted_and_batched_members_agree</code> &mdash; the single abort above, which <code>ped-timeout-corpus.html</code>
+    accounts for. All 23 non-timeout failures are recorded as pre-existing and are not fixed by this node.
+  </p>
+</section>
