@@ -141,6 +141,10 @@ dev = [
     "mypy>=1.14",
     "tokamap==0.3.2",
     "aiohttp",
+    # Two worldmodel tests import the nova playable camera, which imports bokeh
+    # at module level; the extra is declared by its owner (nova), so a plain
+    # sync installs it and the suite collects without the viz extra.
+    "nova-stella[bokeh]",
 ]
 
 [project.urls]

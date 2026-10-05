@@ -1,0 +1,75 @@
+<section class="evidence-fragment" data-reckon="evidence" id="ped-fresh-env">
+  <header>
+    <h3>A plain <code>uv sync</code> on node-local disk: builds, imports, collects, lints</h3>
+    <p class="meta">
+      Node <code>ped-fresh-env</code> &middot; fresh environment built from the declaration alone
+    </p>
+  </header>
+  <p>
+    A fresh environment was built from the project declaration with no flag beyond the two
+    named environment variables, on node-local disk (<code>$TMPDIR</code>), so the shared
+    <code>.venv</code> was never touched. Into that environment the proof imported every module
+    under <code>imas_ambix/</code>, ran the console script, collected the whole test suite and
+    ran ruff, all in one gate log. The environment was then removed.
+  </p>
+
+  <h4>Setup and sync</h4>
+  <ul>
+    <li>Scratch copy of the worktree at revision <code>cb8260a2</code>, with <code>../nova</code>
+      and <code>../imas-ink</code> resolving to the sibling checkouts.</li>
+    <li><code>UV_OFFLINE=0 UV_PROJECT_ENVIRONMENT=$TMPDIR/ped-fresh-&lt;run&gt; uv sync</code> &mdash;
+      <strong>Resolved 236 packages, Installed 194 packages</strong> in 59&nbsp;s.</li>
+    <li>Environment size: <strong>11&nbsp;GiB</strong>; removed after the gate.</li>
+  </ul>
+
+  <h4>Gate results</h4>
+  <table>
+    <thead><tr><th>Check</th><th>Result</th><th>EXIT</th></tr></thead>
+    <tbody>
+      <tr><td>Import every module under <code>imas_ambix/</code></td>
+        <td>313 modules: 311 imported, 2 optional-missing, <strong>0 hard failures</strong></td><td>0</td></tr>
+      <tr><td><code>imas-ambix --help</code></td>
+        <td><code>Usage: imas-ambix [OPTIONS] COMMAND [ARGS]...</code></td><td>0</td></tr>
+      <tr><td><code>pytest --collect-only</code> (fresh env)</td>
+        <td><strong>3987 collected, 0 errors</strong></td><td>0</td></tr>
+      <tr><td><code>pytest --collect-only</code> (shared env, same tree)</td>
+        <td>3987 collected, 0 errors</td><td>0</td></tr>
+      <tr><td><code>ruff check imas_ambix tests</code></td>
+        <td>All checks passed!</td><td>0</td></tr>
+    </tbody>
+  </table>
+
+  <h4>Optional modules that did not import (both name a distribution the census classed optional)</h4>
+  <ul>
+    <li><code>imas_ambix.agent.kimi_k2.client_example</code> &mdash;
+      <code>ModuleNotFoundError: No module named 'openai'</code> (optional: <code>openai</code>).</li>
+    <li><code>imas_ambix.train.loop</code> &mdash;
+      <code>ModuleNotFoundError: No module named 'hydra'</code> (optional: <code>hydra-core</code>).</li>
+  </ul>
+
+  <h4>Collection gap closed by declaring the extra through its owner</h4>
+  <p>
+    An earlier build of this environment collected <strong>3980 tests with 2 errors</strong>
+    against 3987 in the shared environment: two worldmodel tests import
+    <code>apps.playable.camera</code> from the <code>nova</code> sibling, which imports
+    <code>bokeh</code> at module level, and <code>bokeh</code> was reachable only through the
+    <code>viz</code> extra.
+  </p>
+  <p>
+    The dependency is now declared through its owner: the <code>dev</code> dependency group
+    carries <code>nova-stella[bokeh]</code>, so a plain sync installs the extra <code>nova</code>
+    itself declares. The lock was regenerated additively &mdash; 236 packages before and after,
+    no existing version changed &mdash; and <code>uv lock --check</code> passes. The fresh
+    environment then carries <code>bokeh&nbsp;3.10.0</code> and both environments collect the
+    same <strong>3987 tests with 0 errors</strong>.
+  </p>
+
+  <h4>Environment and removal</h4>
+  <ul>
+    <li>Environment path: <code>$TMPDIR/ped-fresh-r-20261005T123533577432-ped-fresh-env</code>.</li>
+    <li>Module under test as imported:
+      <code>/tmp/reckon-crew-scratch/r-20261005T123533577432-ped-fresh-env/ped-scratch/ambix/imas_ambix/__init__.py</code>;
+      resolved working directory <code>/tmp/reckon-crew-scratch/r-20261005T123533577432-ped-fresh-env/ped-scratch/ambix</code>.</li>
+    <li>Gate logs and driver live in the run directory, not the repository.</li>
+  </ul>
+</section>
