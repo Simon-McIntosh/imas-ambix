@@ -22,10 +22,10 @@
   <title>Serving Record Warehouse | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-10-03">
-<meta name="plan-version" content="200">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;}">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;implementable&quot;,&quot;s14&quot;:&quot;implementable&quot;,&quot;s15&quot;:&quot;implementable&quot;}">
 <meta name="plan-impl" content="0.15">
+<meta name="plan-version" content="201">
+<meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
   <main class="plan-doc">
@@ -731,6 +731,100 @@
 <li><strong>The table's age.</strong> The age is the current time minus the table's <code>at</code> field, a Unix timestamp. It is not the timestamp itself.</li>
 </ul></li>
 <li><strong>What §11's gpu-watch node removes, and what §10's removes (fixed 2026-09-29).</strong> gpu-watch's private period ledger is fed by the same <code>/metrics</code> scrape the serve panel uses (<code>ledger_record</code> is called from <code>_serve_state_tail</code>). The ledger's replacement, periods from <code>agent watch --json</code>, cannot land until §5's read-only index is deployed, because the full path still ingests on read and takes minutes. So §11's gpu-watch node takes the serve panel entirely off the scrape: it renders from <code>agent watch --json --live</code>, and the scrape remains only as the ledger's feeder. §10's gpu-watch node deletes the scrape and the ledger together. §11's grep clause therefore reads: no <code>/metrics</code> fetch and no <code>_scrape_serve</code> call remains on the serve panel's path. §10's clause, no <code>/metrics</code> anywhere in the file, stands as written. gpu-watch finds the CLI through the <code>IMAS_AMBIX_CLI</code> environment variable, falling back to the main checkout's <code>.venv/bin/imas-ambix</code>, because the command is not on <code>PATH</code>.</li>
+</ul>
+
+    <h2 id="s13">§13 — A long period&#x27;s tokens are the sum of its hours, never more</h2>
+<section data-reckon="section" data-id="s13" data-effort-hours="2.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links=""></section>
+<p><strong>Measured, 2026-10-05.</strong> Two consecutive publications of <code>~/public/imas-ambix/watch.json</code>, six minutes apart, disagree by a factor of about sixteen on every period longer than an hour. Their one-hour rows agree.</p>
+<table>
+<caption>The same ledger, published twice. The 07:24 figures come from a gpu-watch capture the lead took; the 07:30 figures come from the file itself.</caption>
+<thead><tr><th>published</th><th>1 hour in · out · cost</th><th>1 day</th><th>1 week</th><th>1 month (window)</th></tr></thead>
+<tbody>
+<tr><td>07:24:26Z</td><td>140M · 976k · $2.76</td><td>29G · 199M · $563.86</td><td>336G · 2.31G · $6543</td><td>354G · 2.45G · $6942 (16 d)</td></tr>
+<tr><td>07:30:53Z</td><td>143M · 995k · $2.82</td><td>1.81G · 12.3M · $35.03</td><td>19.7G · 128M · $365.65</td><td>30.5G · 215M · $608.39 (12.6 d)</td></tr>
+</tbody>
+</table>
+<p>The 07:24 day is impossible. The busiest hour, at 95–97% card utilisation, produced under 1M output tokens, so a day cannot produce 199M. The 07:30 figures fit the hour: the day's output is 12.4 hours' worth at a 58% mean utilisation.</p>
+<p><strong>The cost arithmetic is not at fault.</strong> Every row's cost reproduces exactly from that row's own tokens at the price in force. That price is OpenRouter's <code>deepseek/deepseek-v4.1-flash</code> row: $0.003 per million prompt and cache-read tokens, and $2.40 per million completion tokens, in a table fetched about 22.7 h before 07:33Z on 2026-10-05. So 199M × $2.40/M + 29G × $0.003/M = $563.86. At these prices output dominates the bill and the third-party hit-rate estimate barely moves it. The row differs from the 2026-09-29 row quoted in <code>watch.estimated_cost</code>'s docstring ($0.30, $0.006 and $1.20 per million), so that docstring's worked example is stale.</p>
+<p>So the fault is in the token totals the index returns for long windows. It is intermittent: the same code, over almost the same record, gave both answers six minutes apart.</p>
+<p><strong>Leads, not conclusions.</strong> The node decides which of these holds, if any.</p>
+<ul>
+<li><code>TelemetryIndex.partitioned_total</code> splits a window into counter runs. A run ends wherever the source key changes or the counter falls. Each run contributes its closing value minus its opening value, and a compacted row that opens a run supplies its own declared opening as the base. Suppose two carriers of one job's counter are visible in the same read, such as the raw file and a compacted tier. Their rows then interleave by timestamp, every alternation starts a new run, and each compacted row adds its whole window's advance again. That would inflate every window reaching the overlap and leave the hour untouched.</li>
+<li>The ingest commits in batches and counts each job from one tier (§8). A reader that does not hold one snapshot across a tier switch could see both tiers, or neither, for part of a period. The publisher's derivation takes about 85 s and so spans at least one ingest tick. Every fifth ingest tick reads three files rather than one (ingest log, 2026-10-05).</li>
+<li><code>watch_document</code> issues many separate statements and holds no single read transaction across them.</li>
+<li>The inflation may depend on where the window starts rather than on ingest timing, because the rows at a window's opening edge decide each run's base.</li>
+</ul>
+<p><strong>The fix lands at the mechanism that double-counts</strong>, in the index's totalling or in the ingest's tier switch. It never lands as a clamp or a plausibility filter in the ledger. A period total is additive: the total over a window equals the sum of the totals over any partition of it, and that identity is the test.</p>
+<table>
+<caption>Nodes for this section.</caption>
+<thead><tr><th>Node</th><th>Runs after</th><th>Effort</th></tr></thead>
+<tbody>
+<tr><td>Find the double count, fix it where it happens, and pin the additive identity in a test</td><td>—</td><td>2.5 h</td></tr>
+</tbody>
+</table>
+<p><strong>Done when:</strong></p>
+<ol>
+<li>The evidence fragment names the mechanism and shows it on the live index at <code>~/.cache/ambix/watch-index.sqlite3</code>, opened read-only. It must show the rows that produce an inflated total for one stated window (source key, tier, timestamps) and the code path that sums them. At least one inflated total is reproduced by computing it, not inferred from the capture above.</li>
+<li>A test under <code>tests/</code> builds the mechanism from fixture rows. It asserts that the day total equals the sum of its 24 hourly totals for prompt tokens, generation tokens and each cached tier. The test fails at the base revision and passes at head. The declared negative control re-applies the defective step, and it must turn that test red.</li>
+<li>If the fix is on the read path, the live index is measured in place on the fleet allocation (<code>SLURM_JOB_ID</code> set; never the login node). At twelve window ends five minutes apart, the one-day total of each counter equals the sum of its 24 hourly totals within 0.5%, and at least one of those ends overlaps an ingest tick that reads three files. If the fix is on the ingest's write path, the same identity is shown instead on an index that the head ingest wrote under node-local <code>/tmp</code>. That index replays the live job's receipt files across at least one tier switch, and the fragment states that the live index takes the fix only once the ingest service is restarted. Either way, the log is written under the node's report directory and cited.</li>
+<li><code>uv run --no-sync ruff check imas_ambix tests</code> exits 0. If any module under <code>imas_ambix/agent/</code> changed, the serving-interpreter parse guard passes.</li>
+</ol>
+<p>Out of scope: restarting the publisher or ingest services (the coordinator does that after the merge), the price table, and the cost model.</p>
+
+    <h2 id="s14">§14 — The live panel publishes the lane&#x27;s availability as a percentage</h2>
+<section data-reckon="section" data-id="s14" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+<p><strong>Read, 2026-10-05 07:34Z.</strong> Reckon publishes no availability percentage for the local lane. The <code>local_lane</code> block it writes to <code>~/public/reckon/paid-lanes.json</code> copies the lane document's running count, ceiling, headroom, gate width, in-flight count and waiting count. It read headroom 13, gate width 16 and 3 in flight. Orchestrators size against two figures from the lane document: <code>headroom</code>, counted in requests, and <code>admission.worker_slots</code>, counted in workers. Neither is a percentage. The lead asked for the lane's availability as a filled bar on gpu-watch, and §15 draws it. This section publishes the figure, because gpu-watch computes no serving figure of its own (<code>f-srw-022</code>).</p>
+<p><strong>Definition.</strong> <code>availability_percent</code> = 100 × <code>headroom</code> ÷ <code>router_generation_gate.effective_width</code>, clamped to 0–100. Here <code>headroom</code> is the lane document's top-level, admission-clamped headroom, the figure orchestrators read. The percentage is the share of the router's generation width still open to new requests. Three rules govern it:</p>
+<ul>
+<li>A paused gate (<code>router_generation_gate.paused</code> true) reports 0.0, because it admits nothing.</li>
+<li>The key is omitted, not set to null or zero, when either input is absent or non-numeric, or when the effective width is not positive. This follows <code>lane_block</code>'s rule that a withheld figure stays withheld.</li>
+<li>A stale lane document marks this figure stale like every other figure copied from it.</li>
+</ul>
+<p>It is added to <code>imas_ambix.agent.live_panel.lane_block</code> beside the copied fields, so <code>agent watch --json --live</code> and the full document both carry it, from one implementation.</p>
+<table>
+<caption>Nodes for this section.</caption>
+<thead><tr><th>Node</th><th>Runs after</th><th>Effort</th></tr></thead>
+<tbody>
+<tr><td><code>lane_block</code> carries <code>availability_percent</code></td><td>—</td><td>1 h</td></tr>
+</tbody>
+</table>
+<p><strong>Done when:</strong> <code>tests/test_live_panel.py</code> asserts by literal:</p>
+<ul>
+<li>headroom 13 at effective width 16 gives 81.25;</li>
+<li>headroom 0 gives 0.0;</li>
+<li>headroom 20 at width 16 gives 100.0;</li>
+<li>a paused gate gives 0.0;</li>
+<li>an absent headroom omits the key;</li>
+<li>an effective width of 0 omits the key.</li>
+</ul>
+<p>The declared negative control divides by the configured <code>width</code> instead of <code>effective_width</code>. It must fail a case where the two differ: width 16, effective width 8, headroom 4, which must give 50.0.</p>
+<p><code>imas-ambix agent watch --json --live</code>, run against the real lane document, prints an <code>availability_percent</code> equal to 100 × headroom ÷ effective width of that same document, read within the same second. The capture is recorded. The serving-interpreter parse guard passes, and <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0.</p>
+
+    <h2 id="s15">§15 — gpu-watch&#x27;s serve grid fits in three bands and draws availability as a bar</h2>
+<section data-reckon="section" data-id="s15" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+<p><strong>Seen, 2026-10-05.</strong> gpu-watch's serve grid spends 14 rows on 21 figures. It has five bands, each a label row over a value row, with blank rows between them, and its six columns do not line up with the seven columns of the ledger below it. The lead asked for the parameters to be grouped onto longer lines.</p>
+<p><strong>The design.</strong> At most three bands, each on the ledger's own seven-column grid: the first column 13 characters wide, the rest 12, and no padding at the edge. The grid then takes at most eight rows: three label rows, three value rows and two blank separators. Every figure the grid shows today stays, grouped by what it describes:</p>
+<ol>
+<li><em>engine</em>: running, queued, tok/s out, tok/s each, prefill tok/s, ttft s, cache %;</li>
+<li><em>cards and pool</em>: °C mean, °C max, kW, % of cap, kv pool %;</li>
+<li><em>router and dispatch</em>: in flight as in-flight over effective width (for example <code>3/16</code>), router queue, oldest wait, verdict, headroom, worker slots, available %.</li>
+</ol>
+<p>The available % cell is §14's <code>availability_percent</code>, read from the <code>lane</code> block of <code>agent watch --json --live</code> and drawn by the panel's existing <code>pct()</code> helper in its <code>good</code> mode, where high is healthy. An absent key draws a dash. gpu-watch computes nothing from headroom or width itself.</p>
+<p>The stale-lane mark moves to the serve header line, as one mark for the whole lane, because every figure copied from the lane document now sits in band 3.</p>
+<p><strong>Delivery.</strong> As with §11's gpu-watch nodes, the node writes a full modified copy of <code>bin/gpu-watch</code> and a unified diff against dotfiles <code>HEAD</code> into its report directory. The coordinator lands the diff in the dotfiles repository.</p>
+<table>
+<caption>Nodes for this section.</caption>
+<thead><tr><th>Node</th><th>Runs after</th><th>Effort</th></tr></thead>
+<tbody>
+<tr><td>gpu-watch's serve grid in three bands with an availability bar</td><td>§14's node</td><td>1.5 h</td></tr>
+</tbody>
+</table>
+<p><strong>Done when:</strong></p>
+<ul>
+<li>A render from a captured <code>agent watch --json --live</code> document puts at most eight grid rows between the header line and the ledger. Every label listed above appears exactly once. The card rows, ledger rows and job table are byte-identical to a render of the same inputs at the base revision.</li>
+<li>One live capture, taken within the same minute as <code>agent watch --json --live</code>, agrees with it on running, in flight, effective width, router queue, headroom, worker slots and availability.</li>
+<li>The declared negative control computes availability inside gpu-watch from <code>engine_headroom</code>. With it applied, the captured figure must disagree with the document whenever <code>engine_headroom</code> differs from <code>headroom</code>, and that capture is recorded.</li>
+<li><code>python3 -m py_compile</code> passes on the copy.</li>
 </ul>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
