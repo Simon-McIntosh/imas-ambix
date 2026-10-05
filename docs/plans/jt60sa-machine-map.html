@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f">
 <meta name="plan-impl" content="0.25">
-<meta name="plan-version" content="37">
+<meta name="plan-version" content="38">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -300,7 +300,7 @@
         <tr><td>pf_active</td><td colspan="2"><code>EQSLE.DATA</code> PF coil block; phase-independent</td></tr>
         <tr><td>pf_passive</td><td><code>EQSLE.DATA</code> vessel block (120)</td><td><code>coil_vv_OP2.dat</code> vessel block (98), provisional: no facility file under <code>/analysis/src</code> carries a 98-filament vessel</td></tr>
         <tr><td>tf</td><td colspan="2"><code>EQSLE.DATA</code> TFC inside and outside segments; the TF magnet is taken as unchanged between phases</td></tr>
-        <tr><td>wall</td><td colspan="2">the deck contour tables, per phase</td></tr>
+        <tr><td>wall</td><td><code>EQSLE.DATA</code> limiter and first-wall blocks</td><td>the limiter and first-wall blocks of <code>coil_vv_OP2.dat</code></td></tr>
         <tr><td>magnetics</td><td colspan="2"><code>/analysis/src/getseldata_v4.2/UTL/getseldata/geo.in</code>: 17 poloidal probes (R, Z, angle) and 27 flux loops (R, Z), from which the <code>getseldata</code> preprocessor writes <code>fort.96</code>; the further 7 flux loops and 6 probes EDDB acquires have no position in any facility file and are declared as source qualifications rather than given positions</td></tr>
       </tbody>
     </table>
@@ -333,7 +333,12 @@
       investigations made, in the <code>jtmm-geometry-source</code> and
       <code>jtmm-analysis-sensor-search</code> report directories, are the reference the grammar is
       read from, and parse checks against them are logged rather than committed. Running the
-      converter once against the facility files on GPFS is a separate node. The lead ruled
+      converter once against the facility files on GPFS is a separate node. The converter
+      supersedes <code>nakamap</code> as the JT-60SA deck converter: once it lands, nothing in this
+      map reads nakamap's code or its <code>jt60sa_md_*.nc</code> outputs, which carry the probe
+      coordinates in <code>flux_loop</code>, and the nakamap repository is left as the historical
+      seed rather than maintained beside it. Its public surface is the one converter entry point;
+      it retires nothing inside ambix, because ambix has no deck reader today. The lead ruled
       that JT-60SA geometry is committed to the repository as MAST's is in
       <code>mast.json</code>, so supplements and directional vacuum verdicts carry their
       coordinates inline; EDDB values never enter the repository.
