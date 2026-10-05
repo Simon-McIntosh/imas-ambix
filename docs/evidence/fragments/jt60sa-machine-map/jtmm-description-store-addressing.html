@@ -6,4 +6,46 @@
       date 2026-10-05 &middot; plan <code>jt60sa-machine-map</code> &sect;4
     </p>
   </header>
+
+  <p>
+    Each packaged machine catalog now declares how its machine description is
+    addressed: the store <em>format</em> (<code>netcdf</code> or
+    <code>zarr</code>), the symbolic <em>root</em> name (resolved to a path
+    defined in <code>imas_ambix.data.paths</code>), the <em>layout</em>
+    (<code>per-shot</code> or <code>static-over-map</code>), and the
+    <em>root</em> source of a directed probe angle
+    (<code>acquisition-address</code> or <code>description</code>). The
+    <code>StoreEngine.open</code> seam receives the map the shot selected and
+    the declared layout, so a static store reads <code>{root}/{map
+    name}/{ids}.nc</code> for every shot in the map's range while a per-shot
+    store keeps reading <code>{root}/{int(shot)}/{binding}.nc</code>.
+    <code>read_geometry_table</code> takes format, root and angle rule from the
+    loaded catalog and holds no comparison against a machine name; MAST returns
+    its unchanged <code>GeometryTable</code> against its existing expectations.
+  </p>
+
+  <p>
+    The three description-store slots form one unit. A catalog that has no
+    description store (a source-only catalog such as DIII&amp;D) declares all
+    three null; a partial set is refused at load, and a read against a catalog
+    with no store raises <code>DescriptionReadError</code> naming the machine
+    rather than resolving another machine's root. The zarr engine, which opens
+    a directory per shot, refuses a <code>static-over-map</code> declaration
+    instead of silently reading it per shot.
+  </p>
+
+  <ul>
+    <li><code>mast.json</code>: <code>zarr</code>/<code>LEVEL2_DIR</code>/<code>per-shot</code>/<code>acquisition-address</code> (pure line insertion, 0 deleted lines).</li>
+    <li><code>diii-d.json</code>: format, root and layout all null &mdash; a source-only catalog with no description store; probe-angle source <code>description</code>.</li>
+    <li>Gate: 104 passed, EXIT=0 (<code>gate-repair.log</code>) at commit <code>f1e753dc</code>; whole-tree <code>ruff check imas_ambix tests</code> exit 0.</li>
+    <li>Negative control: forcing <code>NetCDFTransformEngine.open</code> to ignore the declared layout turns the static-store test red (<code>source-unavailable</code> != <code>emitted</code>, EXIT=1).</li>
+  </ul>
+
+  <p class="meta">
+    Commits <code>1489638d</code>, <code>9baaec7a</code>, <code>f1e753dc</code>.
+    A JT-60SA catalog is not part of this node; its static description store
+    needs a <code>paths.py</code> root name that resolves to
+    <code>JT60SA_ROOT/machine_description</code>, which is outside this node's
+    write scope.
+  </p>
 </section>
