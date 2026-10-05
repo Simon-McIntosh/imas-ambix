@@ -21,7 +21,15 @@
       git commit. pf_active coils carry positive turns with winding direction in
       <code>pf_active/circuit/connections</code>; the angular
       <code>geo.in</code> probe angle is converted degrees&rarr;radians for the
-      DD leaf.
+      DD leaf. The deck's extent columns (<code>dR dZ</code> for a PF coil,
+      <code>Va Vb</code> for a vessel filament) are whole extents, so each
+      element's rectangle width and height come straight from the column with no
+      factor of two. Each contiguous block of vessel filaments that shares one
+      resistivity becomes its own <code>pf_passive</code> loop carrying that
+      value, so the deck's 63/57 split at 7.76e-7 and 7.20e-7 ohm&nbsp;m survives
+      the round trip. Where the deck states no TF turn or coil count, the
+      <code>tf</code> field is left unset and recorded in the receipt's
+      <code>validation_gaps</code> rather than written as a guessed zero.
     </p>
   </div>
 

@@ -18,6 +18,11 @@ import pytest
 
 from imas_ambix.data import selene_deck as sd
 
+REAL_EQSLE = Path(
+    "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/"
+    "jtmm-geometry-source/copies/jt-60sa/work/efit_jt60sa/EQSLE.DATA"
+)
+
 EQSLE_TEXT = """\
  &DSK DEVICE='JT-60SA',IWRITE=65, /$
  &EQU IRESET=2,$
@@ -31,7 +36,7 @@ EQSLE_TEXT = """\
  3    NV, Vturn,Vr,Vz,Va,Vb,Vrho
   1.00000   4.90000   0.30000   0.04000   0.25000  7.76e-07
   1.00000   4.80000   0.60000   0.04000   0.25000  7.76e-07
-  1.00000   4.70000   0.90000   0.04000   0.25000  7.76e-07
+  1.00000   4.70000   0.90000   0.04000   0.25000  7.20e-07
  2
   1.400  0.0  3.500 -60.0  60.0  2   VV OUTER SKIN
   1.400  0.0  3.500  60.0 300.0  2
@@ -89,10 +94,11 @@ def test_eqsle_parses_pf_coils(decks):
     assert first.turns == pytest.approx(1.0)
     assert first.r == pytest.approx(0.5)
     assert first.z == pytest.approx(0.1)
-    assert first.dr == pytest.approx(0.5 * 0.2)
+    assert first.dr == pytest.approx(0.1)
     assert first.dz == pytest.approx(0.2)
-    assert first.width == pytest.approx(0.2)
-    assert first.height == pytest.approx(0.4)
+    # Deck extent columns are full extents, so width/height equal dR/dZ.
+    assert first.width == pytest.approx(0.1)
+    assert first.height == pytest.approx(0.2)
     assert len(deck.pf_coils[0].elements) == 2
     # Positive turns only; sign is a circuit property, not a turn sign.
     assert all(e.turns > 0 for c in deck.pf_coils for e in c.elements)
@@ -195,16 +201,21 @@ def test_writer_reads_back_at_dd_4_1_1(decks, tmp_path: Path):
     assert str(pf.coil[0].name) == "CS1"
     assert float(pf.coil[0].element[0].turns_with_sign) > 0
     assert float(pf.coil[0].element[0].geometry.rectangle.r) == pytest.approx(0.5)
-    assert float(pf.coil[0].element[0].geometry.rectangle.width) == pytest.approx(0.2)
+    assert float(pf.coil[0].element[0].geometry.rectangle.width) == pytest.approx(0.1)
+    assert float(pf.coil[0].element[0].geometry.rectangle.height) == pytest.approx(0.2)
     assert np.asarray(pf.circuit[0].connections).size >= 1
 
     passive = read("pf_passive")
     assert float(passive.loop[0].element[0].geometry.rectangle.r) == pytest.approx(
         4.9548
     )
+    # Va/Vb are full extents, so width equals the deck column directly.
     assert float(passive.loop[0].element[0].geometry.rectangle.width) == pytest.approx(
-        0.072
+        0.036
     )
+    assert float(
+        passive.loop[0].element[0].geometry.rectangle.height
+    ) == pytest.approx(0.24969)
     assert float(passive.loop[0].resistivity) == pytest.approx(7.20e-7)
 
     mag = read("magnetics")
@@ -220,7 +231,11 @@ def test_writer_reads_back_at_dd_4_1_1(decks, tmp_path: Path):
     assert outline_r[0] == pytest.approx(3.316)
 
     tf = read("tf")
-    assert int(tf.coils_n) == 18
+    # The deck carries no TF turn or coil count, so both are left unset and
+    # recorded as validation gaps rather than written as a guessed zero.
+    gap_paths = {gap["path"] for gap in receipt["validation_gaps"]}
+    assert "tf/coils_n" in gap_paths
+    assert "tf/coil[:]/turns" in gap_paths
     start_r = np.asarray(tf.coil[0].conductor[0].elements.start_points.r)
     assert start_r.size >= 1
 
@@ -261,3 +276,50 @@ def test_b_field_phi_vacuum_r_relation():
     expected = (4.0e-7 * math.pi) * 100 * 15000.0 / (2 * math.pi * 2.96)
     assert value == pytest.approx(expected)
     assert value > 0
+
+
+def test_pf_passive_preserves_two_resistivities(decks, tmp_path: Path):
+    eqsle, geo, _ = decks
+    receipt = sd.write_phase_description(
+        phase="OP1",
+        out_dir=tmp_path,
+        eqsle=sd.parse_eqsle_deck(eqsle),
+        geo=sd.parse_geo_in(geo),
+    )
+    with imas.DBEntry(
+        tmp_path / "OP1" / "pf_passive.nc", "r", dd_version="4.1.1"
+    ) as entry:
+        passive = entry.get("pf_passive")
+    # The two deck resistivities become two loops, each carrying its own value.
+    assert len(passive.loop) == 2
+    assert [len(loop.element) for loop in passive.loop] == [2, 1]
+    assert [float(loop.resistivity) for loop in passive.loop] == pytest.approx(
+        [7.76e-7, 7.20e-7]
+    )
+    assert receipt["phase"] == "OP1"
+
+
+def test_extent_columns_are_full_extents_of_a_real_element():
+    if not REAL_EQSLE.exists():
+        pytest.skip(f"real deck copy absent: {REAL_EQSLE}")
+    deck = sd.parse_eqsle_deck(REAL_EQSLE)
+    cs1 = next(coil for coil in deck.pf_coils if coil.name == "CS1")
+    assert len(cs1.elements) == 40
+    first = cs1.elements[0]
+    assert first.dr == pytest.approx(0.08175)
+    assert first.dz == pytest.approx(0.15740)
+    assert first.width == pytest.approx(first.dr)
+    assert first.height == pytest.approx(first.dz)
+    # Tiling with whole extents widens the centre span by one extent, which
+    # reproduces the facility CS1 rectangle (0.327 m x 1.574 m).
+    rs = [el.r for el in cs1.elements]
+    zs = [el.z for el in cs1.elements]
+    assert (max(rs) - min(rs)) + first.dr == pytest.approx(0.327, abs=1e-3)
+    assert (max(zs) - min(zs)) + first.dz == pytest.approx(1.574, abs=1e-3)
+
+    factory = imas.IDSFactory("4.1.1")
+    passive = sd.build_pf_passive(factory, deck.vessel)
+    assert [len(loop.element) for loop in passive.loop] == [63, 57]
+    assert [float(loop.resistivity) for loop in passive.loop] == pytest.approx(
+        [7.76e-7, 7.20e-7]
+    )

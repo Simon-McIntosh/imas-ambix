@@ -13,6 +13,15 @@ ranges together with the converter's git commit.
 Every parsed element carries a :class:`Provenance` naming the source path, the
 file's sha256 and the 1-based inclusive line range it was also read from, so the
 converted IDS can be re-derived from the deck it was built from.
+
+Extent convention (EQSLE.DATA grammar).  The two extent columns of a PF coil row
+(``dR dZ``) and of a vessel row (``Va Vb``) are **full extents**: an element
+spans ``R - dR/2 .. R + dR/2`` and ``Z - dZ/2 .. Z + dZ/2``.  Adjacent elements
+tile the coil with centres spaced by one full extent, so a whole coil's
+rectangle is the span of its element centres widened by one extent, which is how
+the facility's own IMAS machine description reports it (CS1 at w=0.327 m,
+h=1.574 m).  The pf_active and pf_passive writers therefore place each element's
+``width``/``height`` straight from the deck column, with no factor of two.
 """
 
 from __future__ import annotations
@@ -33,6 +42,9 @@ DD_VERSION = "4.1.1"
 CONVERTER_MODULE = "imas_ambix/data/selene_deck.py"
 MU0 = 4.0e-7 * np.pi
 GEOMETRY_TYPE_RECTANGLE = 2
+# Two deck resistivity columns are the same material; this tolerance only
+# absorbs float-decimal spelling differences between rows.
+_RESISTIVITY_REL_TOL = 1e-9
 
 
 # --------------------------------------------------------------------------
@@ -94,11 +106,13 @@ class PfElement:
 
     @property
     def width(self) -> float:
-        return 2.0 * self.dr
+        """Full radial extent taken straight from the deck ``dR`` column."""
+        return self.dr
 
     @property
     def height(self) -> float:
-        return 2.0 * self.dz
+        """Full vertical extent taken straight from the deck ``dZ`` column."""
+        return self.dz
 
 
 @dataclass
@@ -160,6 +174,10 @@ class EqSleDeck:
     tfc_inside: list[Segment]
     tfc_outside: list[Segment]
     limiter_and_first_wall: list[Segment]
+    # The deck states the TF conductor geometry only; when it also carried an
+    # explicit turn or coil count it would be recorded here.
+    tf_turns: int | None = None
+    tf_coils_n: int | None = None
 
 
 @dataclass
@@ -470,21 +488,40 @@ def build_pf_active(factory, deck: EqSleDeck):
     return ids
 
 
+def _resistivity_blocks(
+    vessel: Sequence[VesselFilament],
+) -> list[list[VesselFilament]]:
+    """Split filaments into contiguous runs that share one deck resistivity."""
+    blocks: list[list[VesselFilament]] = []
+    for fil in vessel:
+        if blocks and abs(blocks[-1][-1].resistivity - fil.resistivity) <= (
+            _RESISTIVITY_REL_TOL * max(1.0, abs(fil.resistivity))
+        ):
+            blocks[-1].append(fil)
+        else:
+            blocks.append([fil])
+    return blocks
+
+
 def build_pf_passive(factory, vessel: Sequence[VesselFilament]):
+    """One loop per contiguous resistivity block, each carrying its own value."""
     ids = factory.new("pf_passive")
     _static_header(ids)
-    ids.loop.resize(1)
-    ids.loop[0].element.resize(len(vessel))
-    for j, fil in enumerate(vessel):
-        out = ids.loop[0].element[j]
-        out.turns_with_sign = abs(float(fil.turns))
-        out.geometry.geometry_type = GEOMETRY_TYPE_RECTANGLE
-        out.geometry.rectangle.r = float(fil.r)
-        out.geometry.rectangle.z = float(fil.z)
-        out.geometry.rectangle.width = 2.0 * float(fil.dr)
-        out.geometry.rectangle.height = 2.0 * float(fil.dz)
-    if vessel:
-        ids.loop[0].resistivity = float(np.mean([f.resistivity for f in vessel]))
+    blocks = _resistivity_blocks(vessel)
+    ids.loop.resize(len(blocks))
+    for i, block in enumerate(blocks):
+        loop = ids.loop[i]
+        loop.element.resize(len(block))
+        for j, fil in enumerate(block):
+            out = loop.element[j]
+            out.turns_with_sign = abs(float(fil.turns))
+            out.geometry.geometry_type = GEOMETRY_TYPE_RECTANGLE
+            out.geometry.rectangle.r = float(fil.r)
+            out.geometry.rectangle.z = float(fil.z)
+            # Va/Vb, like dR/dZ, are full extents; no factor of two.
+            out.geometry.rectangle.width = float(fil.dr)
+            out.geometry.rectangle.height = float(fil.dz)
+        loop.resistivity = float(block[0].resistivity)
     return ids
 
 
@@ -555,15 +592,17 @@ def build_tf(
     deck: EqSleDeck,
     *,
     r0: float = 2.96,
-    coils_n: int = 18,
-    turns: int = 0,
+    coils_n: int | None = None,
+    turns: int | None = None,
 ):
     ids = factory.new("tf")
     _static_header(ids)
     ids.r0 = float(r0)
-    ids.coils_n = int(coils_n)
+    if coils_n is not None:
+        ids.coils_n = int(coils_n)
     ids.coil.resize(1)
-    ids.coil[0].turns = int(turns)
+    if turns is not None:
+        ids.coil[0].turns = int(turns)
     ids.coil[0].conductor.resize(2)
     for c, segments in enumerate((deck.tfc_inside, deck.tfc_outside)):
         r_pts, z_pts = _tf_section_points(segments)
@@ -602,6 +641,7 @@ def build_receipt(
     coil_vv: CoilVesselDeck | None,
     outputs: dict[str, str],
     converter_commit: str,
+    validation_gaps: Sequence[dict] = (),
 ) -> dict:
     """Compose the receipt naming every source's path, sha256 and line ranges."""
     sources = [
@@ -658,6 +698,7 @@ def build_receipt(
         },
         "sources": sources,
         "outputs": outputs,
+        "validation_gaps": list(validation_gaps),
     }
 
 
@@ -671,7 +712,8 @@ def write_phase_description(
     converter_commit: str | None = None,
     tf_current: float | None = None,
     r0: float = 2.96,
-    coils_n: int = 18,
+    coils_n: int | None = None,
+    turns: int | None = None,
 ) -> dict:
     """Write the per-phase IDS netCDF and the receipt into ``out_dir/phase``."""
     import imas
@@ -682,16 +724,35 @@ def write_phase_description(
     commit = converter_commit or converter_git_commit()
 
     vessel = coil_vv.vessel if coil_vv is not None else eqsle.vessel
-    # The deck carries no explicit TF conductor count; the conductor geometry
-    # is what it states, so the turn count is not inferred from it.
-    tf_turns = 0
+    # The deck states only the TF conductor geometry. Where it carries no turn
+    # or coil count, the field is left unset and recorded as a validation gap
+    # rather than written as a guessed zero.
+    resolved_coils_n = coils_n if coils_n is not None else eqsle.tf_coils_n
+    tf_turns = turns if turns is not None else eqsle.tf_turns
+    validation_gaps: list[dict] = []
+    if resolved_coils_n is None:
+        validation_gaps.append(
+            {
+                "path": "tf/coils_n",
+                "reason": "EQSLE.DATA carries no TF coil count; left unset",
+            }
+        )
+    if tf_turns is None:
+        validation_gaps.append(
+            {
+                "path": "tf/coil[:]/turns",
+                "reason": "EQSLE.DATA carries no TF turn count; left unset",
+            }
+        )
 
     ids_map = {
         "pf_active": build_pf_active(factory, eqsle),
         "pf_passive": build_pf_passive(factory, vessel),
         "magnetics": build_magnetics(factory, geo),
         "wall": build_wall(factory, eqsle.limiter_and_first_wall),
-        "tf": build_tf(factory, eqsle, r0=r0, coils_n=coils_n, turns=tf_turns),
+        "tf": build_tf(
+            factory, eqsle, r0=r0, coils_n=resolved_coils_n, turns=tf_turns
+        ),
     }
     outputs: dict[str, str] = {}
     for name, ids in ids_map.items():
@@ -707,10 +768,11 @@ def write_phase_description(
         coil_vv=coil_vv,
         outputs=outputs,
         converter_commit=commit,
+        validation_gaps=validation_gaps,
     )
-    if tf_current is not None:
+    if tf_current is not None and tf_turns is not None:
         receipt["tf_b_field_phi_vacuum_r"] = derive_b_field_phi_vacuum_r(
-            tf_current, coils_n, r0
+            tf_current, tf_turns, r0
         )
     receipt_path = phase_dir / "receipt.json"
     receipt_path.write_text(json.dumps(receipt, indent=2))
