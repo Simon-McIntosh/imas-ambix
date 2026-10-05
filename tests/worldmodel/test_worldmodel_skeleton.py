@@ -395,6 +395,7 @@ def _real_corpus_shots(n: int = 2) -> list[int]:
         return []
 
 
+@pytest.mark.timeout(1080)  # 539.79 s measured alone 2026-10-05; 2x rounded up to 60
 @pytest.mark.skipif(
     not _real_corpus_shots(1), reason="on-disk token corpus not reachable"
 )
