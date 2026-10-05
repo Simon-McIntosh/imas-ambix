@@ -27,6 +27,18 @@ from imas_ambix.agent.telemetry_index import TelemetryIndex, discover
 HOUR = 3600.0
 MONTH = 2592000.0
 
+#: The header line ``render_ledger_rows`` prints above its rows. The ledger
+#: block is absent when this header is absent; the bare word *ledger* is not
+#: the block, because an index path may itself carry that word.
+LEDGER_HEADER = "ledger  period · covered · in · cached · out · cards · cost"
+
+
+def _assert_no_ledger_block(text: str) -> None:
+    """The report carries neither the ledger header nor any period row."""
+    assert LEDGER_HEADER not in text
+    for _period, label in watch.LEDGER_PERIODS:
+        assert f"{label:>8}  " not in text, f"period row printed: {label!r}"
+
 
 def _iso(epoch: float) -> str:
     return _dt.datetime.fromtimestamp(epoch, _dt.UTC).isoformat()
@@ -558,7 +570,7 @@ def test_a_missing_index_is_reported_and_not_created(tmp_path: Path) -> None:
     assert str(index_path) in text
     assert "imas-ambix agent ingest" in text
     # No period or ledger rows: the message stands alone.
-    assert "ledger" not in text
+    _assert_no_ledger_block(text)
     assert not index_path.exists()
     assert not index_path.parent.exists()
 
@@ -649,7 +661,7 @@ def test_a_zero_byte_index_is_reported_unreadable(tmp_path: Path) -> None:
     assert "no such table" in text
     assert str(index_path) in text
     # No period or ledger rows accompany a report that could not be read.
-    assert "ledger" not in text
+    _assert_no_ledger_block(text)
     assert index_path.read_bytes() == b""
 
     payload = watch.watch_document(
@@ -692,7 +704,7 @@ def test_a_locked_index_is_reported_with_a_short_timeout(tmp_path: Path) -> None
         )
         assert "database is locked" in text
         assert "could not be read" in text
-        assert "ledger" not in text
+        _assert_no_ledger_block(text)
 
         payload = watch.watch_document(
             record_dir=directory, index_path=index_path, prices=[], timeout=0.25

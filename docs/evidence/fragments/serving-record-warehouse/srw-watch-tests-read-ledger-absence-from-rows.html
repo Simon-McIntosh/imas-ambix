@@ -1,0 +1,4 @@
+<section data-reckon="fragment" data-node="srw-watch-tests-read-ledger-absence-from-rows">
+  <p>The three index-report tests in <code>tests/test_agent_telemetry_watch.py</code> now assert the ledger block's absence by its header line and period rows, through a shared <code>_assert_no_ledger_block</code> helper, rather than by the bare word <em>ledger</em> that an index path may itself carry.</p>
+  <p>Measure: <code>tests/test_agent_telemetry_watch.py</code> 22 passed with <code>TMPDIR</code> set to a path containing <em>ledger</em> and 22 passed with a clean <code>TMPDIR</code>; the declared mutation appending <code>render_ledger_rows</code> output to the index report failed the same three tests (EXIT=1); <code>ruff check imas_ambix tests</code> exits 0.</p>
+</section>
