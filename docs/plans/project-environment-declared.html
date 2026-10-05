@@ -26,7 +26,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;}">
 <meta name="plan-commits" content="80e9f492,8a58accb">
 <meta name="plan-impl" content="0.5">
-<meta name="plan-version" content="15">
+<meta name="plan-version" content="16">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -88,15 +88,23 @@
     <p>
       The proof builds a new environment from the declaration alone, on node-local disk so the shared
       one is never touched:
-      <code>UV_PROJECT_ENVIRONMENT=/tmp/ped-fresh-&lt;run&gt; uv sync</code> with no flags, where
-      <code>/tmp</code> on the fleet node is local disk. Against that environment it imports every
+      <code>UV_PROJECT_ENVIRONMENT=$TMPDIR/ped-fresh-&lt;run&gt; uv sync</code> with no flags, where
+      <code>TMPDIR</code> is the node's own scratch, the root
+      <code>imas_ambix/gs/artifact_resolution.py</code> <code>staging_cache_root()</code> already uses
+      for node-local work, so the environment dies with the run's scratch. Against that environment it imports every
       module under <code>imas_ambix/</code>. A module outside the optional subsystems must import; a
       module inside one must either import or fail with <code>ModuleNotFoundError</code> naming a
       distribution the census classed optional, and any other failure fails the proof. Which
-      modules are optional, and which distributions, is not re-declared by the proof: it imports
-      <code>OPTIONAL_SUBSYSTEM_ROOTS</code> and <code>build_census()</code> from
-      <code>tests/test_declared_dependencies.py</code>, the census module that owns both, so the
-      proof and the census share one definition of optional. It also runs
+      modules are optional, and which distributions, is not re-declared by the proof: it takes
+      <code>OPTIONAL_SUBSYSTEM_ROOTS</code> and the census from
+      <code>tests/test_declared_dependencies.py</code>, the module that owns both. Because
+      <code>build_census()</code> maps imports to distributions through whatever the running
+      interpreter has installed, it is run in the shared environment, where every declared
+      distribution is present, and its optional set is written to the run's scratch and read by
+      the import walk in the fresh environment, so the proof and the census share one definition
+      of optional. The proof's driver is a run artifact kept beside its gate log, not a
+      repository module, and the evidence fragment is the only file it adds, so it adds no
+      public surface. It also runs
       the <code>imas-ambix</code> console script's <code>--help</code>, collects the whole test suite,
       and runs <code>ruff check imas_ambix tests</code>, then removes the fresh environment. The
       worker does only this. The coordinator then runs a plain <code>uv sync</code> in the main
