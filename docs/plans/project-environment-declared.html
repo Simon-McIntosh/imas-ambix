@@ -26,7 +26,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;}">
 <meta name="plan-commits" content="80e9f492,8a58accb">
 <meta name="plan-impl" content="0.5">
-<meta name="plan-version" content="24">
+<meta name="plan-version" content="25">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -203,6 +203,9 @@
 </div>
 <div class="r-comment" data-section="s5" data-id="c-run-r-20261005T143742119707-review-of-ped-timeout-corpus" data-who="reckon-build" data-when="2026-10-05T14:43:09.538Z">
     <div class="r-comment-body"><p>independent review of r-20261005T125229955482-ped-timeout-corpus stored; scored goal_fidelity 17, evidence 17, scope_discipline 20, durability 16, fit 19, reuse 19 (total 108 of 120); reviewed base adb67e5f, head db026f9d; added_failure_count 0.</p></div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-run-r-20261005T125229955482-ped-timeout-corpus" data-who="reckon-build" data-when="2026-10-05T14:36:10.593Z">
+    <div class="r-comment-body"><p>Raised the per-test bound for every corpus test that aborts at 300 s — machine-map inventory scan marked 780 (measured 379 s), challenge loader sweeps marked 1560 (753 s) and 1500 (724 s), three fluxstate consumer-contract tests marked 5400 over a measured 2694 s shared fixture setup (the first 2640 s mark aborted, so it was raised) — and bounded the unreachable-catalog launch wait from 900 s to 5.7 s; the two faster machine-map rows (0.12 s, 13.4 s) and the filaments loop test (270.6 s) finish under the bound and are unchanged. Default-bound confirmation passes for challenge/test_loader, test_machine_map and test_agent (the latter failing only on three pre-existing unrelated tests); the fluxstate re-run is outstanding because its 2694 s setup exceeds the remaining fence.</p></div>
 </div>
 </section>
 </main>
