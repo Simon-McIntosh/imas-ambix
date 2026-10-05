@@ -117,6 +117,11 @@
     left as it stands; the meta <code>plan-version</code> and <code>plan-modified</code>
     pair was not touched.</p>
 
-  </main>
+    <section id="s14">
+    <h2>§14 — the lane publishes availability_percent</h2>
+    <p><code>lane.availability_percent</code> is 100 × the admission-clamped headroom ÷ <code>router_generation_gate.effective_width</code>, clamped to 0–100, and is defined once in <code>imas_ambix/agent/lane.py</code>. A paused gate reports 0.0. An absent or non-numeric headroom, or a non-positive width, omits the key. The router publishes it beside the clamped headroom. <code>live_panel.lane_block</code> copies the published value, or derives it with the same function for a document the router wrote before the field existed.</p><p>Run <code>r-20261005T074920909576</code>, worker commit <code>3dc25f3f</code>, merged in <code>b0dcb893</code>. 40 tests pass across <code>tests/test_lane_availability.py</code>, <code>tests/test_live_panel.py</code> and <code>tests/test_agent_router_lane_publish.py</code>. The declared negative control, dividing by the configured width, failed 25.0 against the expected 50.0. A live capture at 07:54Z read 68.75 = 100 × 11 ÷ 16. The independent review scored 91/100 with no blocking finding.</p><p>The router publishes the field only after its next restart, an operator step under <code>ops/lane-cycle/AGENTS.md</code>. Until then the live panel derives it.</p>
+  </section>
+
+</main>
 </body>
 </html>

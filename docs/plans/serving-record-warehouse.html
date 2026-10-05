@@ -22,9 +22,9 @@
   <title>Serving Record Warehouse | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;implementable&quot;,&quot;s14&quot;:&quot;implementable&quot;,&quot;s15&quot;:&quot;implementable&quot;}">
-<meta name="plan-impl" content="0.15">
-<meta name="plan-version" content="203">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;implementable&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;implementable&quot;}">
+<meta name="plan-impl" content="0.23">
+<meta name="plan-version" content="204">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -785,41 +785,12 @@
 </ol>
 <p>Out of scope: restarting the publisher or ingest services (the coordinator does that after the merge), the price table, and the cost model.</p>
 
+    <section class="section-landed">
+  <header><span class="badge badge-shipped">&#10003; landed 2026-10-05</span>
     <h2 id="s14">§14 — The live panel publishes the lane&#x27;s availability as a percentage</h2>
-<section data-reckon="section" data-id="s14" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
-<p><strong>Read, 2026-10-05 07:34Z.</strong> Reckon publishes no availability percentage for the local lane. The <code>local_lane</code> block it writes to <code>~/public/reckon/paid-lanes.json</code> copies the lane document's running count, ceiling, headroom, gate width, in-flight count and waiting count. It read headroom 13, gate width 16 and 3 in flight. Orchestrators size against two figures from the lane document: <code>headroom</code>, counted in requests, and <code>admission.worker_slots</code>, counted in workers. Neither is a percentage. The lead asked for the lane's availability as a filled bar on gpu-watch, and §15 draws it. This section publishes the figure, because gpu-watch computes no serving figure of its own (<code>f-srw-022</code>).</p>
-<p>The figure the reckon monitor prints beside each local run, for example <code>lane 61.8</code>, is not an availability. It is the lane document's <code>throughput.mean_tokens_per_second</code>: the generating population's mean output rate per run, in tokens per second. At 07:40:39Z it read 61.809, from an aggregate of 222.5 tok/s over 3.6 runs.</p>
-<p><strong>Definition.</strong> <code>availability_percent</code> = 100 × <code>headroom</code> ÷ <code>router_generation_gate.effective_width</code>, clamped to 0–100. Here <code>headroom</code> is the lane document's top-level, admission-clamped headroom, the figure orchestrators read. The percentage is the share of the router's generation width still open to new requests. Three rules govern it:</p>
-<ul>
-<li>A paused gate (<code>router_generation_gate.paused</code> true) reports 0.0, because it admits nothing.</li>
-<li>The key is omitted, not set to null or zero, when either input is absent or non-numeric, or when the effective width is not positive. This follows <code>lane_block</code>'s rule that a withheld figure stays withheld.</li>
-<li>A stale lane document marks this figure stale like every other figure copied from it.</li>
-</ul>
-<p><strong>Where it lives.</strong> The figure is defined once, as a pure function in <code>imas_ambix/agent/lane.py</code>, the module that owns the lane document's schema. The router publishes it as a top-level <code>availability_percent</code> in <code>RouterApp._publish_lane</code>, immediately after the line that clamps <code>headroom</code> to the admission headroom and adds the <code>router_generation_gate</code> block, because that is where both inputs are final. Reckon's lane reader and every orchestrator then see the same figure gpu-watch draws. <code>live_panel.lane_block</code> copies the published field like every other lane field. For a document whose router predates the field, it derives the figure with the same <code>lane.py</code> function, so gpu-watch draws the bar before the router is next restarted. The published field appears only after that restart, which is an operator step under <code>ops/lane-cycle/AGENTS.md</code> and is outside this node.</p>
-<p><strong>Interface surface.</strong> One published field, <code>availability_percent</code>, joins the lane document and the <code>lane</code> block. Nothing is retired, because no percentage existed before.</p>
-<table>
-<caption>Nodes for this section.</caption>
-<thead><tr><th>Node</th><th>Runs after</th><th>Effort</th></tr></thead>
-<tbody>
-<tr><td>The lane document and <code>lane_block</code> carry <code>availability_percent</code>, defined once in <code>lane.py</code></td><td>—</td><td>1.25 h</td></tr>
-</tbody>
-</table>
-<p><strong>Done when:</strong> a test of the <code>lane.py</code> function asserts by literal:</p>
-<ul>
-<li>headroom 13 at effective width 16 gives 81.25;</li>
-<li>headroom 0 gives 0.0;</li>
-<li>headroom 20 at width 16 gives 100.0;</li>
-<li>a paused gate gives 0.0;</li>
-<li>an absent headroom omits the key;</li>
-<li>an effective width of 0 omits the key.</li>
-</ul>
-<p>The declared negative control divides by the configured <code>width</code> instead of <code>effective_width</code>. It must fail a case where the two differ: width 16, effective width 8, headroom 4, which must give 50.0.</p>
-<p>Two more tests, without a live router:</p>
-<ul>
-<li><code>tests/test_agent_router_lane_publish.py</code> asserts that the published lane document carries <code>availability_percent</code> computed from the clamped <code>headroom</code>, not from <code>engine_headroom</code>.</li>
-<li><code>tests/test_live_panel.py</code> asserts that <code>lane_block</code> copies a published value unchanged, and derives the same value from a fixture document that lacks the field.</li>
-</ul>
-<p><code>imas-ambix agent watch --json --live</code>, run against the real lane document, prints an <code>availability_percent</code> equal to 100 × headroom ÷ effective width of that same document, read within the same second. The capture is recorded. The serving-interpreter parse guard passes, and <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0.</p>
+<section data-reckon="section" data-id="s14" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="done" data-links=""></section></header>
+  <p class="landed-summary">Landed <code>lane.availability_percent</code>: the share of the router's effective generation width still open, defined once in <code>lane.py</code>, published by the router beside the clamped headroom, and copied or derived by <code>live_panel.lane_block</code>. 40 tests pass; review 91/100; live read 68.75 (11 of 16). The router publishes it from its next restart. <a href="s14">full record</a></p>
+</section>
 
     <h2 id="s15">§15 — gpu-watch&#x27;s serve grid fits in three bands and draws availability as a bar</h2>
 <section data-reckon="section" data-id="s15" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
@@ -1480,6 +1451,9 @@
 </div>
 <div class="r-comment" data-section="s5" data-id="c-run-r-20261002T184030460381-review-of-srw-ingest-survives-a-locked-index" data-who="reckon-build" data-when="2026-10-02T19:19:26.575Z">
     <div class="r-comment-body"><p>Independent review of srw-ingest-survives-a-locked-index stored (parsed, 5 dimensions, total 88): two-arm gate reproduces (base 175631f8 84 passed, head e95b68ad 87 passed, both EXIT=0), the guarded behaviour was made to happen and independently falsified, one finding + one follow-on recorded on the non-load-bearing TelemetryIndex.rollback and the fragment's overstated need for it.</p></div>
+</div>
+<div class="r-comment" data-section="s14" data-id="c-20261005T0810-s14-landed" data-who="reckon-build" data-when="2026-10-05T08:10:00Z">
+    <div class="r-comment-body">gate tests passed (40, exit 0); section s14 closed by run r-20261005T074920909576 at merge b0dcb893. impl moves by one of twelve executable sections. Review follow-on: lane._is_finite_number accepts inf and nan, so availability_percent returns nan for a non-finite input; folded as a repair node.</div>
 </div>
 </section>
 </main>
