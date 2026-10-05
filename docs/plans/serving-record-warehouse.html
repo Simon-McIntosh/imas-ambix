@@ -22,9 +22,9 @@
   <title>Serving Record Warehouse | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;done&quot;,&quot;s16&quot;:&quot;implementable&quot;}">
-<meta name="plan-impl" content="0.4">
-<meta name="plan-version" content="221">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;done&quot;,&quot;s16&quot;:&quot;done&quot;}">
+<meta name="plan-impl" content="0.45">
+<meta name="plan-version" content="222">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -755,9 +755,12 @@
   <p class="landed-summary">Landed in dotfiles <code>490fe13</code>: gpu-watch's serve grid in three bands on the ledger's column grid (running first; cards with pool; router with available % drawn from <code>availability_percent</code>), the stale mark on the header line; 11 lines between header and ledger, down from 16; review 86. <a href="s15">full record</a></p>
 </section>
 
+    <section class="section-landed">
+  <header><span class="badge badge-shipped">&#10003; landed 2026-10-05</span>
     <h2 id="s16">§16 — The watch tests find the ledger&#x27;s absence in its rows, not in a path</h2>
-<section data-reckon="section" data-id="s16" data-effort-hours="0.25" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
-<p><strong>Measured, 2026-10-05.</strong> Three tests in <code>tests/test_agent_telemetry_watch.py</code> fail whenever the test's temporary directory has the word <em>ledger</em> in its path:</p><ul><li><code>test_a_missing_index_is_reported</code> (line 561);</li><li><code>test_a_zero_byte_index_is_reported_unreadable</code> (line 652);</li><li><code>test_a_locked_index_is_reported_with_a_short_timeout</code>.</li></ul><p>Each asserts <code>"ledger" not in text</code>, to show that no period rows accompany an index report. But the same text prints the index's path, so a worktree or scratch directory named after a ledger node (<code>srw-ledger-carriers-never-split-runs</code>) makes the assertion fail on the path rather than on a ledger row. With a clean <code>TMPDIR</code> all 22 tests pass, so the defect is in the check, not in the reader.</p><p><strong>The design.</strong> Each of the three checks asserts the absence of what it means: the ledger block's own header line, as <code>render_ledger_rows</code> prints it, and any period row, rather than the bare word anywhere in the text. The reader is unchanged.</p><table><caption>Nodes for this section.</caption><thead><tr><th>Node</th><th>Runs after</th><th>Effort</th></tr></thead><tbody><tr><td>The three checks assert the absence of the ledger block, not of the word</td><td>—</td><td>0.25 h</td></tr></tbody></table><p><strong>Done when:</strong></p><ul><li><code>tests/test_agent_telemetry_watch.py</code> passes with <code>TMPDIR</code> set to a directory whose path contains <code>ledger</code>, and with a clean <code>TMPDIR</code>.</li><li>The three tests still fail if the reader prints a ledger block beside an index report. That is the declared negative control: make <code>watch_text</code> append <code>render_ledger_rows</code>'s output to the missing-index report.</li><li><code>uv run --no-sync ruff check imas_ambix tests</code> exits 0.</li></ul>
+<section data-reckon="section" data-id="s16" data-effort-hours="0.25" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="done" data-links=""></section></header>
+  <p class="landed-summary">Landed: the three index-report tests assert the ledger block's header and period rows are absent, not the bare word an index path may carry; 22 pass with a ledger-named and a clean TMPDIR; review 90. <a href="s16">full record</a></p>
+</section>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
@@ -1447,6 +1450,9 @@
 </div>
 <div class="r-comment" data-section="s13" data-id="c-run-r-20261005T093309197723-review-of-srw-ledger-carriers-never-split-runs" data-who="reckon-build" data-when="2026-10-05T09:41:06.213Z">
     <div class="r-comment-body"><p>review stored as a parsed record for run r-20261005T084405666372-srw-ledger-carriers-never-split-runs (base 53e20099, head 0957a37e): goal_fidelity 16, evidence 17, scope_discipline 19, durability 16, fit 17, total 85, added_failure_count 0 with added_failure_ids [] from this review's own arms of the node's declared gate (reviewed run unarmed), and one finding -- the done-when's evidence fragment is not written at head.</p></div>
+</div>
+<div class="r-comment" data-section="s16" data-id="c-20261005T1010-s16-landed" data-who="reckon-build" data-when="2026-10-05T10:10:00Z">
+    <div class="r-comment-body">gate tests passed (22, exit 0, under both TMPDIRs); section s16 closed by run r-20261005T094714092208 at merge 4c9be988. impl moves by one of thirteen executable sections.</div>
 </div>
 </section>
 </main>
