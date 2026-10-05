@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4">
 <meta name="plan-impl" content="0.4">
-<meta name="plan-version" content="57">
+<meta name="plan-version" content="58">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -929,7 +929,10 @@
     <div class="r-comment-body"><p>cold JT-60SA EDDB fetch driver run through the merged extractor: E101173 (newest E EDDB lists) and C060033 (newest C) each served 26/85 channels (MMSYS 22 + MDAC 4, unit ['A']) in one ssh session per shot and had all 59 PSRC channels refused (irc 1015 E / 1013 C); cold wall 101.3 s / 82.8 MB on disk (164.7 MB logical) for E and 7.7 s / 1.2 MB on disk (4.1 MB logical) for C; a warm re-read of all 26 fetched channels through VirtualZarrView made 0 transport calls (control: an uncached channel forces 1 call and fires the raising transport)</p></div>
 </div>
 <div class="r-comment" data-section="s3" data-id="c-run-r-20261005T084129278336-jtmm-psrc-read-path" data-who="reckon-build" data-when="2026-10-05T10:05:17.377Z">
-    <div class="r-comment-body"><p>EDDB PSRC magnetics read path: eddbreadTime(shot, cat=&#x27;PSRC&#x27;, dname=&#x27;magFluxLp1&#x27;) returns PSRC flux-loop data - populated on E101154 (irc=0, shape 2001), refused on E101173 (irc=1015, PSRC not populated), with the MDAC magFlxLp1 hardware channel available on both; the Selene PID route (cat=&#x27;&#x27;, dname=&#x27;1626 S007&#x27;, dim=[k,1,1]) returns a full record on E101154 but a one-point stub on E101173; return codes 1015 (shot&#x27;s store present, datum not acquired) and 1013 (shot absent from that data set) are inferred from controlled reads because no header under /analysis/src/eddb defines them - the directory holds only eddb_pwrapper.py, which exposes irc/ircgrp with no value table.</p></div>
+    <div class="r-comment-body"><p>EDDB PSRC magnetics read path: eddbreadTime(shot, cat='PSRC', dname='magFluxLp1') returns PSRC flux-loop data - populated on E101154 (irc=0, shape 2001), refused on E101173 (irc=1015, PSRC not populated), with the MDAC magFlxLp1 hardware channel available on both; the Selene PID route (cat='', dname='1626 S007', dim=[k,1,1]) returns a full record on E101154 but a one-point stub on E101173; return codes 1015 (shot's store present, datum not acquired) and 1013 (shot absent from that data set) are inferred from controlled reads because no header under /analysis/src/eddb defines them - the directory holds only eddb_pwrapper.py, which exposes irc/ircgrp with no value table.</p></div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-run-r-20261005T100545538723-review-of-jtmm-psrc-read-path" data-who="reckon-build" data-when="2026-10-05T10:13:05.915Z">
+    <div class="r-comment-body"><p>review-of-jtmm-psrc-read-path — the reviewed fragment&#x27;s PSRC read-path claims verified independently; record stored parsed, all six dimensions scored (goal_fidelity 19, evidence 19, scope_discipline 18, durability 14, fit 18, reuse 20), total 108, with two follow-on findings (a misplaced 1015 parenthetical in the landing sentence; a declared figures write path left unused).</p></div>
 </div>
 <div class="r-comment" data-section="s2" data-id="c-run-r-20261005T065204728047-review-of-jtmm-tokamap-export" data-who="reckon-build" data-when="2026-10-05T07:08:54.445Z">
     <div class="r-comment-body"><p>jtmm-tokamap-export reviewed: the exporter, its validator run and its round-trip gate reproduce at the reviewed head, but every IDS group directory is written with the same cross-group mappings.json (all four groups' keys in every group), so the export is not group-scoped; added_failure_count 0.</p></div>
