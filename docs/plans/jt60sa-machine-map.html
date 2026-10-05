@@ -24,7 +24,7 @@
   <title>JT-60SA Machine Map for Equilibrium Reconstruction | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="25">
+<meta name="plan-version" content="26">
 <meta name="plan-modified" content="2026-10-05">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 </head>
@@ -780,8 +780,11 @@
 <div class="r-comment" data-section="s3" data-id="c-run-r-20261005T070004515547-review-of-jtmm-eddb-extractor" data-who="reckon-build" data-when="2026-10-05T07:07:36.225Z">
     <div class="r-comment-body"><p>Reviewed r-20261005T063225542614-jtmm-eddb-extractor over its gained commit 41074219 (base 5949dfcf) as an independent review: scored goal_fidelity 16, evidence 16, scope_discipline 19, durability 17, fit 17 (total 85); the delta faithfully repairs the prior review's defects (EDDB time base carried as a sibling array, numeric shot token normalised to the engine's int directory form, ssh config path expanded at call time, module-loaded python 3.12 remote command, one presence predicate shared by reader and writer) with both arms green and the refusal guard independently reproduced red; §3's wall-time/bytes measurement clause, the non-numeric C/E shot token, and a stale gate-log revision label are recorded as follow-ons.</p></div>
 </div>
+<div class="r-comment" data-section="s3" data-id="c-run-r-20261005T063225542614-jtmm-eddb-extractor" data-who="reckon-build" data-when="2026-10-05T07:19:33.013Z">
+    <div class="r-comment-body"><p>Implemented and twice repaired the ambix JT-60SA EDDB batch extractor and on-demand cache — imas_ambix/data/eddb_remote.py reads a batch in one remote process (module-loaded python 3.12, niced 19, ssh config path expanded at call time, a record with no EDDB time refused with an error naming shot/category/dname); imas_ambix/data/eddb.py splits an EDDB shot token into its optional series letter and its digits, stores the cache directory as the integer of the digits, records the full token on the pulse group and refuses a second token sharing those digits, writes each raw channel to {int(shot)}.zarr/{category}/{dname} with its EDDB unit, channel count and sequence number plus the time vector as a sibling array, and treats a channel as cached only when both arrays exist and agree in length — refusing an already-cached channel, completing a half-written one, and refusing a corrupt node; JT60SA_ROOT declared once in imas_ambix/data/paths.py; tests/data/test_eddb_cache.py; gate 19 passed at head 3d2192c8, ruff exit 0, negative control red under the real guard mutation.</p></div>
+</div>
 <div class="r-comment" data-section="s2" data-id="c-run-r-20261005T065204728047-review-of-jtmm-tokamap-export" data-who="reckon-build" data-when="2026-10-05T07:08:54.445Z">
-    <div class="r-comment-body"><p>jtmm-tokamap-export reviewed: the exporter, its validator run and its round-trip gate reproduce at the reviewed head, but every IDS group directory is written with the same cross-group mappings.json (all four groups&#x27; keys in every group), so the export is not group-scoped; added_failure_count 0.</p></div>
+    <div class="r-comment-body"><p>jtmm-tokamap-export reviewed: the exporter, its validator run and its round-trip gate reproduce at the reviewed head, but every IDS group directory is written with the same cross-group mappings.json (all four groups' keys in every group), so the export is not group-scoped; added_failure_count 0.</p></div>
 </div>
 </section>
 </main>
