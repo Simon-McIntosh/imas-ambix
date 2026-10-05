@@ -278,8 +278,10 @@
     <p>
       The first node of this section is therefore a census, not a map: enumerate every
       category table for the latest OP2 E-shot, record name, class, unit, description,
-      channel count and shot validity, join each channel to its handbook entry and PID where
-      the codex graph holds one, and publish the join as evidence. Only then are the
+      channel count and shot validity, record the PID of every one-point datum, and run the
+      codex EDAS scanner from the workstation so the same catalogue lands in the graph as
+      FacilitySignal nodes beside the handbook pages it already holds; publish the join as
+      evidence. Only then are the
       magnetics bindings written, with <code>sign_convention: unknown-unvalidated</code> on
       every signed quantity until §6 replaces it. Unit strings in EDDB are free text
       (<code>KA</code>, <code>DEG</code>, <code>T.m</code>, <code>deg. C</code>); the census
@@ -476,12 +478,14 @@
         <p class="r-q-body">Which EDDB category carries the raw flux-loop and pickup-coil channels on a plasma shot (MDAC, PSRC or MAG), and are they separate names or multi-channel arrays?</p>
       </div>
       <div class="r-q" data-id="handbook-pid-in-graph" data-section="s5"
-           data-status="open" data-opened-by="Simon McIntosh" data-opened-at="2026-10-05">
-        <p class="r-q-body">Does the codex graph hold the JT-60SA data handbook with each signal linked to its PID, so the census can join channels to handbook entries? Unverified: both graph endpoints were unreachable on 2026-10-05.</p>
+           data-status="resolved" data-opened-by="Simon McIntosh" data-opened-at="2026-10-05"
+           data-resolved-at="2026-10-05" data-resolved-by="Simon McIntosh">
+        <p class="r-q-body">Does the codex graph hold the JT-60SA data handbook with each signal linked to its PID, so the census can join channels to handbook entries?</p>
+        <p class="r-q-resolution">Partly. Measured 2026-10-05 against the ITER graph once the tunnel was repaired: the JT-60SA facility carries 4,476 wiki pages, 8,465 wiki chunks, 1,049 documents and 8,324 facility paths, including the <em>JT-60SA Data Handbook</em> and <em>Discharge Parameter Handbook</em> pages and the EDDB API manuals. The handbook is an index into per-database tables (EDDB, UDDB, PMDB, EQDB, FAME, LCDB, MBDB) served by CGI; those tables were ingested as one-chunk wrappers, so the per-category signal lists are <strong>not</strong> in the graph. No FacilitySignal, DataAccess, SignalSource or IMASMapping node exists for JT-60SA and no node carries a PID property: the EDAS scanner has never been run. In EDDB a PID No. is a nine-character key (four digits then five characters) for discharge one-point and condition data, read through <code>eddbreadOne</code> and <code>eddbreadPara</code>; time-series channels are keyed by category and data name. The census therefore joins through the EDDB catalogue itself and records PIDs for the one-point data, and the graph is populated by running the scanner from the workstation.</p>
       </div>
       <div class="r-q" data-id="eqdb-reader" data-section="s7"
            data-status="open" data-opened-by="Simon McIntosh" data-opened-at="2026-10-05">
-        <p class="r-q-body">Is there a Python or C entry point to the SELENE equilibrium database (eqdbms, eqdbget) that the remote extractor can call without a Fortran build, and what grid and profile set does an EQDB record carry?</p>
+        <p class="r-q-body">Is there a Python or C entry point to the SELENE equilibrium database (eqdbms, eqdbget) that the remote extractor can call without a Fortran build, and what grid and profile set does an EQDB record carry? The Code TWiki in the graph documents the EQDBMS library under <code>/analysis/lib/eqdbms</code> in 129×129 and 1025×1025 mesh variants, consumed by EQREAD, EQFAME, SELENE, SETEQU and FBEQU, and an <em>EquilibriumDBFAME</em> page; a Python wrapper was not found on the server before the IFERC link dropped.</p>
       </div>
     </section>
 
