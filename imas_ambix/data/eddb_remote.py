@@ -391,12 +391,19 @@ def _unit(value):
     return str(value)
 
 
-def _return_code(value):
-    if isinstance(value, bool):
-        return 0
-    if isinstance(value, (int, float)):
-        return int(value)
-    return 0
+def _return_code(rtn):
+    # The wrapper's boolean is the C call status alone; the EDDB return code is
+    # the integer in data['irc'] (ircgrp 1 on every refusal). A failed read that
+    # carries no integer irc is a shape this script does not understand, so it
+    # raises rather than reporting a code of 0 that would read as success.
+    if isinstance(rtn, dict):
+        code = rtn.get("irc")
+        if isinstance(code, int) and not isinstance(code, bool):
+            return code
+    raise RuntimeError(
+        "EDDB refused a channel with no integer irc in the returned data: %r"
+        % (rtn,)
+    )
 
 
 def _read_one(db, req):

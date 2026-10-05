@@ -85,7 +85,11 @@ class eddbWrapper:
         if dname == "NOTIME":
             return True, {"data": np.arange(6.0).reshape(2, 3)}
         if dname == "REFUSED":
-            return False, 1015
+            return False, {"irc": 1015, "ircgrp": 1}
+        if dname == "ABSENT":
+            return False, {"irc": 1013, "ircgrp": 1}
+        if dname == "NOIRC":
+            return False, {}
         if dname == "MULTIUNIT":
             return True, {
                 "data": np.array([[1.0, 2.0, 3.0]]),
@@ -533,6 +537,36 @@ def test_remote_script_reports_a_refusal_per_channel_without_aborting_the_batch(
         "REFUSED",
     )
     assert refusal.code == 1015
+
+
+def test_remote_script_reads_the_return_code_from_the_wrappers_irc_field(tmp_path):
+    # The real wrapper returns (ok, data) with the code in data['irc'] and
+    # ircgrp 1 on a refusal; the boolean is the C call status alone, so the code
+    # is never a bare number.
+    completed = _run_remote_script(
+        tmp_path,
+        [
+            {"shot": "C060033", "category": "PSRC", "dname": "ABSENT"},
+            {"shot": "E101173", "category": "PSRC", "dname": "REFUSED"},
+        ],
+    )
+    assert completed.returncode == 0, completed.stderr.decode()
+
+    result = decode_batch(completed.stdout)
+    assert result.records == []
+    assert {(refusal.dname, refusal.code) for refusal in result.refusals} == {
+        ("ABSENT", 1013),
+        ("REFUSED", 1015),
+    }
+
+
+def test_remote_script_refuses_a_failed_read_with_no_integer_irc(tmp_path):
+    completed = _run_remote_script(
+        tmp_path, [{"shot": "E101173", "category": "PSRC", "dname": "NOIRC"}]
+    )
+
+    assert completed.returncode != 0
+    assert "no integer irc" in completed.stderr.decode()
 
 
 def test_remote_script_refuses_a_multi_entry_unit(tmp_path):
