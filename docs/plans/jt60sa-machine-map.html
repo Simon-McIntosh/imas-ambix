@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d">
 <meta name="plan-impl" content="0.5">
-<meta name="plan-version" content="68">
+<meta name="plan-version" content="69">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -218,9 +218,12 @@
       enumeration (<code>imas_codex/remote/scripts/enumerate_edas.py</code> run through
       <code>executor.py</code> and <code>ssh_worker.py</code>, with the msgpack array format in
       <code>serialization.py</code>). Ambix owns its own extractor rather than importing that
-      layer or extracting a shared remote core from it. Importing it would make imas-codex,
-      with its graph, LLM and tool-installation dependencies, a dependency of every ambix
-      read, which the map-persistence decision rules out. And the extractor needs a small part
+      layer or extracting a shared remote core from it. The remote modules themselves import only
+      the standard library, but importing them makes the imas-codex distribution a dependency of
+      ambix, and installing it brings its declared requirements (the <code>neo4j</code> driver,
+      <code>fastmcp</code>, <code>rapidfuzz</code>, <code>lxml</code>, <code>pypdf</code> and the rest)
+      into every ambix environment, which the map-persistence decision rules out by keeping
+      codex off ambix's runtime path. And the extractor needs a small part
       of that layer: one ssh process per batch, one remote script read from stdin and numpy
       arrays back, with no session pool, host registry or tool installer, because the ssh
       control master in the user config already amortises session setup and the cache means
@@ -640,7 +643,9 @@
       MAST's six shots declare as <code>mast</code>; <code>resolve_shotset_version</code> compares
       <code>(machine, shot_id, role)</code>; and the JT-60SA frozen set is a second named set in
       that module with its own version label, so a JT-60SA shot whose digits coincide with a
-      MAST id can never be stamped under the MAST label. The selector reads the machine from
+      MAST id can never be stamped under the MAST label. The machine field and the second set
+      retire nothing, because no shot set records its machine today; the label is widened in
+      <code>resolve_shotset_version</code> rather than a second labeller added. The selector reads the machine from
       that declaration, and <code>identity_for_shot</code>, which takes a registry rather than a
       machine, is handed the registry for the declared machine instead of
       <code>default_registry</code>'s MAST one.
