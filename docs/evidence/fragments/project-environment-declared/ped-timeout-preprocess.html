@@ -1,0 +1,31 @@
+<section class="evidence-fragment" data-reckon="evidence" id="ped-timeout-preprocess">
+  <header>
+    <h3>Measurement and resolution of the one unaccounted pytest-timeout abort</h3>
+    <p class="meta">
+      Node <code>ped-timeout-preprocess</code> &middot; <code>tests/test_preprocess.py::test_preprocess_frames_cli_from_bucket_all</code> run alone on the fleet compute node (job 1277272, 98dci4-clu-2018)
+    </p>
+  </header>
+  <table id="ped-timeout-preprocess-table">
+    <thead>
+      <tr><th>Test</th><th>Phase</th><th>Measured [s]</th><th>Cause</th><th>Outcome</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>tests/test_preprocess.py::test_preprocess_frames_cli_from_bucket_all</code></td>
+        <td>call</td>
+        <td>1.56</td>
+        <td>not a wait and not long work: the test patched <code>imas_ambix.data.paths.LEVEL1_DIR</code>, but <code>imas_ambix/data/cli.py</code> binds <code>LEVEL1_DIR</code> into its own namespace at import, so <code>--from-bucket-all</code> globbed the real corpus (<code>/work/projects/imas_gpu/mast/level1/shots</code>, 17&nbsp;111 <code>*.zarr</code>) and preprocessed it with <code>--workers 1</code> &mdash; unbounded work, not the three synthetic shots the test builds</td>
+        <td>fixed &mdash; the test now also rebinds the CLI module copy (<code>monkeypatch.setattr(cli_mod, "LEVEL1_DIR", src_root)</code>), so it enumerates only its own three shots and runs in 1.56&nbsp;s; under 300&nbsp;s, no <code>@pytest.mark.timeout</code> added</td>
+      </tr>
+    </tbody>
+  </table>
+  <p>
+    Reproduction of the defect before the fix: running the test alone, the pytest process held open file descriptors under <code>/work/projects/imas_gpu/mast/level1/shots/16209.zarr/rbb/data/&hellip;</code> and wrote the real shot id <code>15085.zarr</code> into the test's <code>tmp_path</code> output; the run was still going at 13&nbsp;min when stopped (log: <code>/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T202418546998-ped-timeout-preprocess/solo-preprocess-bucket-all.log</code>, no <code>EXIT=</code> line). After the fix the same command passes in 1.56&nbsp;s.
+  </p>
+  <p>
+    Negative control: with the fix reverted (the <code>cli_mod</code> rebind removed so only <code>paths_mod</code> is patched), the test run alone at the default 300&nbsp;s bound aborts with <code>Failed: Timeout (&gt;300.0s) from pytest-timeout</code> on <code>tests/test_preprocess.py::test_preprocess_frames_cli_from_bucket_all</code> (<code>EXIT=1</code>), a failure the head arm does not produce &mdash; log <code>/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T202418546998-ped-timeout-preprocess/negative-control.log</code>.
+  </p>
+  <p>
+    Module gate: <code>pytest tests/test_preprocess.py</code> now reports 17 passed, 2 failed in 2.62&nbsp;s; the two failures are pre-existing and not this node's &mdash; <code>test_preprocess_rbb_shot_no_skip_overwrites</code> (product overwrite yields 0 frames) and <code>test_preprocess_frames_cli_shot_ids</code> (same wrong-patch-target shape as this node's test), both already listed among the non-timeout failures in <code>ped-timeout-suite-capped.html</code>. They are reported as follow-ons, not fixed here.
+  </p>
+</section>
