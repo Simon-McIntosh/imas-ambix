@@ -18,11 +18,13 @@
       <code>fetch_channels</code> writes every served channel and returns the
       refusals, so a batch mixing served and refused channels caches the served
       ones and a fully refused batch writes nothing. The remote script reports
-      a refusal per channel instead of aborting the batch, and the cached unit
-      attribute is the EDDB unit string (<code>A</code>, not
-      <code>"['A']"</code>), with a unit list of more than one entry refused
-      rather than joined.</p>
-      <p>Gate: <code>tests/data/test_eddb_cache.py</code> 28 passed, exit 0;
+      a refusal per channel instead of aborting the batch, reading the code from
+      the wrapper's <code>data['irc']</code> (the boolean is the C call status
+      alone), raising when a failed read carries no integer <code>irc</code>
+      rather than reporting 0, and the cached unit attribute is the EDDB unit
+      string (<code>A</code>, not <code>"['A']"</code>), with a unit list of
+      more than one entry refused rather than joined.</p>
+      <p>Gate: <code>tests/data/test_eddb_cache.py</code> 30 passed, exit 0;
       <code>ruff check imas_ambix tests</code> clean, exit 0. Negative control:
       making <code>fetch_batch</code> drop the refusal list it returns reddens
       the four tests that assert a refused channel is reported, exit 1.</p>
