@@ -1,0 +1,28 @@
+<section class="evidence-fragment" data-reckon="evidence" id="ped-timeout-worldmodel">
+  <header>
+    <h3>Triage of the tests/worldmodel rows the 300&nbsp;s bound reaches</h3>
+    <p class="meta">
+      Node <code>ped-timeout-worldmodel</code> &middot; measured alone on the fleet compute node
+    </p>
+  </header>
+  <p>
+    Each of the seven <code>tests/worldmodel/</code> rows in the abort table was run
+    alone with <code>-p no:cacheprovider --timeout=3600 --durations=0</code>, one log
+    per run, on job 1277272 (28 CPUs, node-local <code>/tmp</code>). Load is the
+    one-minute average recorded at the start of the run. Six finish under the
+    default bound; one is genuine training work that exceeds it and carries a
+    raised bound of twice its measured time rounded up to a multiple of 60.
+  </p>
+  <table id="ped-timeout-worldmodel-table">
+    <thead><tr><th>Test</th><th>Phase</th><th>Measured [s]</th><th>Load</th><th>Outcome</th></tr></thead>
+    <tbody>
+      <tr><td><code>tests/worldmodel/test_worldmodel_skeleton.py::test_real_shot_overfit_smoke</code></td><td>call</td><td>539.79</td><td>7.14</td><td>marked <code>@pytest.mark.timeout(1080)</code></td></tr>
+      <tr><td><code>tests/worldmodel/test_worldmodel_skeleton.py::test_overfit_loss_drops_substantially</code></td><td>call</td><td>186.71</td><td>7.14</td><td>under bound (no change)</td></tr>
+      <tr><td><code>tests/worldmodel/test_controllable_model.py::test_actuator_becomes_load_bearing_after_training</code></td><td>call</td><td>39.86</td><td>33.36</td><td>under bound (no change)</td></tr>
+      <tr><td><code>tests/worldmodel/test_spacetime_v2.py::test_overfit_drops_loss_with_signals</code></td><td>call</td><td>42.44</td><td>38.15</td><td>under bound (no change)</td></tr>
+      <tr><td><code>tests/worldmodel/test_spacetime_model.py::test_overfit_drops_loss</code></td><td>call</td><td>38.91</td><td>33.41</td><td>under bound (no change)</td></tr>
+      <tr><td><code>tests/worldmodel/test_timescale_camera_conditioning.py::test_timescale_becomes_load_bearing_after_training</code></td><td>call</td><td>28.07</td><td>34.04</td><td>under bound (no change)</td></tr>
+      <tr><td><code>tests/worldmodel/test_controllable_model.py::test_controllability_gate_returns_structured_verdict</code></td><td>call</td><td>23.59</td><td>34.98</td><td>under bound (no change)</td></tr>
+    </tbody>
+  </table>
+</section>
