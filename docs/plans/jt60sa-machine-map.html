@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4">
 <meta name="plan-impl" content="0.4">
-<meta name="plan-version" content="62">
+<meta name="plan-version" content="63">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -966,6 +966,9 @@
 </div>
 <div class="r-comment" data-section="s3" data-id="c-run-r-20261005T100545538723-review-of-jtmm-psrc-read-path" data-who="reckon-build" data-when="2026-10-05T10:13:05.915Z">
     <div class="r-comment-body"><p>review-of-jtmm-psrc-read-path — the reviewed fragment's PSRC read-path claims verified independently; record stored parsed, all six dimensions scored (goal_fidelity 19, evidence 19, scope_discipline 18, durability 14, fit 18, reuse 20), total 108, with two follow-on findings (a misplaced 1015 parenthetical in the landing sentence; a declared figures write path left unused).</p></div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-run-r-20261005T110952943571-review-of-jtmm-eddb-partial-batch" data-who="reckon-build" data-when="2026-10-05T11:17:34.806Z">
+    <div class="r-comment-body"><p>Reviewed run r-20261005T104220106834-jtmm-eddb-partial-batch (plan imas-ambix:jt60sa-machine-map §3) at reviewed_base_sha f5808031 / reviewed_head_sha 4198579a, storing a parsed record scoring all five dimensions 0..20 (goal_fidelity 19, evidence 18, scope_discipline 19, durability 17, fit 18; total 91) with added_failure_count 0 and added_failure_ids [] derived from the reviewed run&#x27;s own arms; the node&#x27;s extractor-repair clause is implemented faithfully (one EDDB session returns BatchResult of served records plus one refusal per refused channel, fetch_channels caches the served and reports the rest, the unit is normalised to the EDDB string, the PSRC call is unchanged as the investigation required), both §3 defects repaired and guarded, one follow-on residual (a channel-level refusal with no integer irc raises in the remote script and aborts the whole batch) and one under-delivery of the declared figures write path.</p></div>
 </div>
 <div class="r-comment" data-section="s2" data-id="c-run-r-20261005T065204728047-review-of-jtmm-tokamap-export" data-who="reckon-build" data-when="2026-10-05T07:08:54.445Z">
     <div class="r-comment-body"><p>jtmm-tokamap-export reviewed: the exporter, its validator run and its round-trip gate reproduce at the reviewed head, but every IDS group directory is written with the same cross-group mappings.json (all four groups' keys in every group), so the export is not group-scoped; added_failure_count 0.</p></div>
