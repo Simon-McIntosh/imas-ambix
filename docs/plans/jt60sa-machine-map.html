@@ -24,7 +24,7 @@
   <title>JT-60SA Machine Map for Equilibrium Reconstruction | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="2">
+<meta name="plan-version" content="3">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -397,12 +397,17 @@
     <h3 id="handoff">Handoff notes (2026-10-05)</h3>
     <p>
       <strong>Where this continues.</strong> Scoped from the WSL workstation on 2026-10-05; the
-      build runs from the ITER host for the local-lane GPU compute. Two network facts bind the
-      split: no connection between JT-60SA and ITER is permitted in either direction, so every
-      step that touches nakasvr26 (the EDDB extractor, the census, the vacuum-shot reads, the
-      codex EDAS scan) runs from the workstation over <code>ssh jt-60sa</code> and lands its
-      output in the GPFS mirror or the ITER graph through the codex tunnel; transforms,
-      validation and the spine benchmark run on ITER compute. The codex graph for JT-60SA
+      build runs from the ITER host for the local-lane GPU compute. One network fact binds the
+      placement: no direct connection between JT-60SA and ITER is permitted in either
+      direction, and the permitted path is through the workstation. ITER's ssh config carries
+      <code>Host jt-60sa</code> with <code>ProxyJump laptop</code> over the laptop's reverse ssh
+      forward (bound on the login nodes, measured 2026-10-05), so every step that touches
+      nakasvr26 (the EDDB extractor, the census, the vacuum-shot reads, the codex EDAS scan)
+      runs from ITER as <code>ssh jt-60sa</code> via the laptop and lands its output on GPFS or
+      in the ITER graph directly; the workstation's codex tunnel unit must be up for the hop.
+      Transforms, validation and the spine benchmark run on ITER compute. Order: codex
+      <code>jt60sa-discovery-completion</code> §2 (scan) first, then this plan's §3 (extractor and
+      mirror, which can start in parallel), then §5 once the gate opens, then §4, §6, §7. The codex graph for JT-60SA
       evidence is the ITER one (SLURM job <code>codex-neo4j</code>, bolt 17687 through the
       <code>imas-codex-tunnel-iter</code> unit on the workstation, direct on ITER); the local
       Neo4j on the workstation rejects its configured credential and is not used.
