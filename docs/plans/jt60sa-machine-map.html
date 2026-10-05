@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624">
 <meta name="plan-impl" content="0.4375">
-<meta name="plan-version" content="66">
+<meta name="plan-version" content="67">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -1016,7 +1016,10 @@
     <div class="r-comment-body"><p>Ran imas_ambix/data/selene_deck.py (unchanged) once on the facility copies for OP1 and OP2: 3 sha256-verified copies under machine_description/source/ with provenance.json, and OP1/ and OP2/ each holding pf_active/pf_passive/magnetics/wall/tf netCDF at DD 4.1.1 plus receipt.json, every IDS reading back through imas.DBEntry (12 PF coils; pf_passive 120 filaments as 63@7.76e-7+57@7.20e-7 ohm.m in OP1 and 98@7.20e-7 in OP2; 17 probes, 27 flux loops; wall outline 638 OP1 / 51 OP2; TF 7+7 elements per phase).</p></div>
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20261005T113310929032-review-of-jtmm-description-store-addressing" data-who="reckon-build" data-when="2026-10-05T12:01:38.713Z">
-    <div class="r-comment-body"><p>Independent review of r-20261005T104555347277-jtmm-description-store-addressing (imas-ambix:jt60sa-machine-map §4) at head efb8c135 (base f5808031): stored a parsed record scoring goal_fidelity 18, evidence 18, scope_discipline 19, durability 18, fit 19 (total 92); added_failure_count 0, added_failure_ids []; the node&#x27;s declared nine-file gate reproduces at base (97 passed, EXIT=0) and head (104 passed, EXIT=0), the declared negative control reproduces (1 failed, EXIT=1), and four direct probes confirm the store-declaration refusals and the no-store read refusal; one cosmetic fragment-wording follow-on.</p></div>
+    <div class="r-comment-body"><p>Independent review of r-20261005T104555347277-jtmm-description-store-addressing (imas-ambix:jt60sa-machine-map §4) at head efb8c135 (base f5808031): stored a parsed record scoring goal_fidelity 18, evidence 18, scope_discipline 19, durability 18, fit 19 (total 92); added_failure_count 0, added_failure_ids []; the node's declared nine-file gate reproduces at base (97 passed, EXIT=0) and head (104 passed, EXIT=0), the declared negative control reproduces (1 failed, EXIT=1), and four direct probes confirm the store-declaration refusals and the no-store read refusal; one cosmetic fragment-wording follow-on.</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-run-r-20261005T104555347277-jtmm-description-store-addressing" data-who="reckon-build" data-when="2026-10-05T11:32:33.895Z">
+    <div class="r-comment-body"><p>Every catalogue now declares its description store format, symbolic store root (resolved through paths.py), layout (per-shot or static-over-map) and probe-angle source; load_machine_map refuses a catalogue that omits or misspells any of them, and refuses a partially-declared store (the three slots are declared together or all null for a source-only catalogue); StoreEngine.open receives the selected map and declared layout so a static store reads {root}/{map name}/{ids}.nc while a per-shot store reads {root}/{int(shot)}/{binding}.nc; read_geometry_table takes format, root and angle source from the catalogue with the machine-name branch retired, returning MAST&#x27;s GeometryTable unchanged, and raises DescriptionReadError naming the machine for a catalogue with no description store and no explicit override; the zarr engine refuses a static-over-map declaration rather than silently reading per shot. Measure: gate 104 passed EXIT=0 at f1e753dc (gate-repair.log), ruff exit 0, declared negative control red.</p></div>
 </div>
 </section>
 </main>
