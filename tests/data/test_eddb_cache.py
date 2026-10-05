@@ -28,8 +28,11 @@ from imas_ambix.data.eddb import (
     EddbCacheError,
     channel_path,
     channel_time_path,
+    eddb_token,
     fetch_channels,
     is_cached,
+    normalised_shot,
+    read_eddb_token,
     write_channel,
 )
 from imas_ambix.data.eddb_remote import (
@@ -309,19 +312,23 @@ def test_writing_over_an_existing_channel_is_refused(tmp_path):
     assert np.array_equal(stored[...], record.data)
 
 
-def test_a_present_channel_is_cached_and_refused_even_when_not_an_array(tmp_path):
+def test_an_unreadable_channel_node_is_refused_not_reported_not_cached(tmp_path):
     path = channel_path(tmp_path, "51234", "MMSYS", "CS1")
     path.mkdir(parents=True)
     (path / "junk").write_text("not a zarr array")
 
-    assert is_cached(tmp_path, "51234", "MMSYS", "CS1") is True
+    with pytest.raises(EddbCacheError, match="not a readable array"):
+        is_cached(tmp_path, "51234", "MMSYS", "CS1")
 
     record = _record("51234", "MMSYS", "CS1")
-    with pytest.raises(EddbCacheError):
+    with pytest.raises(EddbCacheError, match="not a readable array"):
         write_channel(tmp_path, record)
 
     transport = _FakeTransport()
-    fetch_channels(_extractor(transport), tmp_path, [_request("51234", "MMSYS", "CS1")])
+    with pytest.raises(EddbCacheError, match="not a readable array"):
+        fetch_channels(
+            _extractor(transport), tmp_path, [_request("51234", "MMSYS", "CS1")]
+        )
     assert transport.calls == []
 
 
@@ -342,6 +349,82 @@ def test_the_shot_token_is_normalised_to_its_int_form(tmp_path):
     with ZarrTransformEngine().open(tmp_path, 51234, "4.1.1") as arrays:
         engine_values = arrays.read(_binding("MMSYS", "CS1"))
     assert engine_values.shape == (2, 5)
+
+
+def test_series_letter_tokens_land_under_their_integer_and_record_the_token(tmp_path):
+    assert normalised_shot("E101173") == "101173"
+    assert eddb_token("E101173") == "E101173"
+    assert normalised_shot("c510000") == "510000"
+    assert eddb_token("c510000") == "C510000"
+
+    transport = _FakeTransport()
+    requests = [
+        _request("E101173", "MMSYS", "CS1"),
+        _request("C510000", "MMSYS", "EF1"),
+    ]
+    fetch_channels(_extractor(transport), tmp_path, requests)
+
+    sent = [spec["shot"] for spec in json.loads(transport.calls[0][1])["requests"]]
+    assert sent == ["E101173", "C510000"]
+
+    path = channel_path(tmp_path, "E101173", "MMSYS", "CS1")
+    assert "E101173" not in str(path)
+    assert str(path).endswith("101173.zarr/MMSYS/CS1")
+    assert read_eddb_token(tmp_path, "E101173") == "E101173"
+    assert read_eddb_token(tmp_path, "C510000") == "C510000"
+    assert is_cached(tmp_path, "E101173", "MMSYS", "CS1") is True
+
+    with ZarrTransformEngine().open(tmp_path, 101173, "4.1.1") as arrays:
+        engine_values = arrays.read(_binding("MMSYS", "CS1"))
+    assert engine_values.shape == (2, 5)
+
+
+def test_a_second_token_sharing_the_digits_is_refused(tmp_path):
+    write_channel(tmp_path, _record("E101173", "MMSYS", "CS1"))
+
+    with pytest.raises(EddbCacheError, match="EDDB token"):
+        write_channel(tmp_path, _record("C101173", "MMSYS", "CS2"))
+
+    assert is_cached(tmp_path, "E101173", "MMSYS", "CS1") is True
+    assert is_cached(tmp_path, "C101173", "MMSYS", "CS2") is False
+
+
+def test_a_half_written_channel_is_completed_rather_than_refused(tmp_path):
+    record = _record("E101173", "MMSYS", "CS1")
+    # A failure between the two writes leaves the data array with no time base.
+    group = zarr.open_group(tmp_path / "101173.zarr", mode="a")
+    group.require_group("MMSYS").create_array(
+        "CS1", data=record.data + 50.0, overwrite=False
+    )
+
+    assert is_cached(tmp_path, "E101173", "MMSYS", "CS1") is False
+
+    write_channel(tmp_path, record)
+
+    assert is_cached(tmp_path, "E101173", "MMSYS", "CS1") is True
+    stored = zarr.open_array(
+        channel_path(tmp_path, "E101173", "MMSYS", "CS1"), mode="r"
+    )
+    assert np.array_equal(stored[...], record.data + 50.0)
+    stored_time = zarr.open_array(
+        channel_time_path(tmp_path, "E101173", "MMSYS", "CS1"), mode="r"
+    )
+    assert np.array_equal(stored_time[...], record.time)
+
+
+def test_a_refetch_completes_a_half_written_channel(tmp_path):
+    record = _record("51234", "MMSYS", "CS1")
+    group = zarr.open_group(tmp_path / "51234.zarr", mode="a")
+    group.require_group("MMSYS").create_array(
+        "CS1", data=record.data, overwrite=False
+    )
+
+    transport = _FakeTransport()
+    fetch_channels(_extractor(transport), tmp_path, [_request("51234", "MMSYS", "CS1")])
+
+    assert len(transport.calls) == 1
+    assert is_cached(tmp_path, "51234", "MMSYS", "CS1") is True
+    assert channel_time_path(tmp_path, "51234", "MMSYS", "CS1").is_dir()
 
 
 def test_cached_store_opens_through_engine_and_view_with_no_transport_call(tmp_path):
