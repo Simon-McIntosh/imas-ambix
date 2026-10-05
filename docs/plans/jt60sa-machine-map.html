@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4">
 <meta name="plan-impl" content="0.3">
-<meta name="plan-version" content="49">
+<meta name="plan-version" content="50">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -408,7 +408,13 @@
       <code>{root}/{int(shot)}</code> and reads one <code>{binding}.nc</code> per binding. A store
       declared static over its map resolves <code>{root}/{map name}</code> and reads one
       <code>{ids}.nc</code> per IDS, so the shot selects the map and the map selects the directory,
-      and no description is copied per shot. The converted description is one IDS netCDF per IDS
+      and no description is copied per shot. The engine cannot choose a layout from what it is
+      given today: <code>NetCDFTransformEngine.open(root, shot, dd_version)</code> appends
+      <code>str(int(shot))</code> and never sees the map, while
+      <code>transform_machine_description</code> already holds the map it selected. The
+      <code>StoreEngine</code> protocol's <code>open</code> therefore gains that map as an argument,
+      both engines accept it, and a per-shot store ignores it. That widens one protocol method
+      and retires nothing, because no engine has a way to see the map today. The converted description is one IDS netCDF per IDS
       per phase under <code>JT60SA_ROOT/machine_description/</code>, which is that static layout
       with the phase's map name as the directory. Being static
       over a map's shot range is a property of how the engine addresses the store, not a new
@@ -532,7 +538,11 @@
       <code>_axis_and_boundary</code> read DIII-D corpus keys (<code>efit_grid_R</code>,
       <code>efit_psirz</code>, <code>efit_z_axis</code>) directly, the loader boundary is a record
       contract with canonical keys for the grid, psi, axis and boundary, which the DIII-D
-      loader maps onto and the kernel reads, so the kernel is reused rather than rewritten. The result sets <code>source_cocos</code> in the catalogue and
+      loader maps onto and the kernel reads, so the kernel is reused rather than rewritten. The
+      entry point also hard-codes DIII-D eligibility, <code>MINIMUM_PLASMA_CURRENT_KA</code>,
+      <code>STANDARD_FIELD_BCOIL_MAXIMUM</code> and the <code>MINIMUM_AUDIT_SHOTS</code> guard, so
+      those move into each loader's declaration as its corpus's eligibility, and the kernel keeps
+      only the Grad–Shafranov integral and the sign tests. The result sets <code>source_cocos</code> in the catalogue and
       the per-binding overrides where SELENE and the raw acquisition differ. Target
       convention is fixed: DD 4 in COCOS 17, and the engine applies the Sauter transform
       to each of the DD's COCOS-dependent leaves — seventeen in magnetics, three in
@@ -581,6 +591,11 @@
       <code>read_acquisition_channels</code> at its default machine. The selector therefore takes
       the machine from the catalogue the shot belongs to and passes it to the identity registry,
       the pin table and the acquisition read, rather than JT-60SA growing a selector of its own.
+      No file maps a shot to a catalogue today, and a JT-60SA pulse integer (E101173 is
+      <code>101173</code>) cannot be told from another machine's shot number by value, so the machine
+      is never inferred: the frozen shot set declares (machine, shot) pairs, and
+      <code>identity_for_shot</code>, which takes a registry rather than a machine, is handed the
+      registry for the declared machine instead of <code>default_registry</code>'s MAST one.
       The benchmark that stamps the baseline has a geometry resolver of its own,
       <code>imas_ambix/spine_bench/transform_geometry_source.py</code>
       <code>resolve_geometry_source</code>, whose sources (campaign, identity-bound, transform)
