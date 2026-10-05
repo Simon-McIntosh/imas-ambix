@@ -23,7 +23,7 @@
   <title>Project Environment From Its Declaration | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="2">
+<meta name="plan-version" content="4">
 <meta name="plan-modified" content="2026-10-05">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;}">
 </head>
@@ -70,48 +70,63 @@
     <h2 id="s2">§2 — Census: which libraries are truly default</h2>
 <section data-reckon="section" data-id="s2" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
     <p>
-      A library is <strong>default</strong> when the repository cannot do its ordinary work without
-      it: it is imported at module level by code under <code>imas_ambix/</code> that an ordinary
-      import or the <code>imas-ambix</code> console script reaches, or it is needed to run the test
-      suite and the lint gate (<code>pytest</code> and its plugins named in the pytest
-      configuration, <code>ruff</code>, and the packages the tests import). A library is
-      <strong>optional</strong> when only a subsystem that runs on purpose-built hosts reaches it:
-      documentation builds, GPU serving, the FAIR-MAST acquisition stack, the training stack. A
-      library is <strong>unused</strong> when nothing in <code>imas_ambix/</code>, <code>tests/</code>
-      or <code>scripts/</code> imports it.
+      Each distribution that something in the repository imports directly gets one class. It is
+      <strong>default</strong> when the repository cannot do its ordinary work without it: an
+      <code>import</code> statement at any level (module or function) reaches it from code under
+      <code>imas_ambix/</code> outside the optional subsystems named below, or from anywhere under
+      <code>tests/</code>, or it is the test and lint tooling every session runs. That tooling is
+      <code>pytest</code>, <code>ruff</code>, <code>mypy</code>, the tokamap validator, and the two
+      pytest plugins the workstation's test protocol requires, <code>pytest-timeout</code> for a
+      per-test bound and <code>pytest-xdist</code> for parallel runs, which no import names. It is
+      <strong>optional</strong> when only an optional subsystem imports it: the documentation build,
+      GPU model serving, the FAIR-MAST acquisition stack and the training stack, each of which runs
+      on hosts provisioned for it. It is <strong>unused</strong> when nothing under
+      <code>imas_ambix/</code>, <code>tests/</code> or <code>scripts/</code> imports it at any level.
+      A distribution nothing imports but that is installed because another one requires it is
+      <strong>transitive</strong>: it is listed by name with the distribution that requires it, and
+      needs no declaration of its own.
     </p>
     <p>
-      The census node classifies every package in the restored environment by that rule. It scans
-      imports statically (Python's <code>ast</code> over <code>imas_ambix/</code>, <code>tests/</code>
-      and <code>scripts/</code>, mapping each top-level module to its distribution through
-      <code>importlib.metadata.packages_distributions</code>), separates module-level imports from
-      imports inside functions, and records for each distribution its classification, the first
-      importing file, and its current declaration (dependency, extra name, or none). It answers one
-      question the rule cannot settle alone: whether anything in this repository imports
-      <code>reckon</code>, and if so from which files, because reckon-plans is a sibling checkout and
-      not a published package. The census writes its table as the evidence fragment
-      <code>docs/evidence/fragments/project-environment-declared/ped-census.html</code> and changes no
-      other file.
+      The census is a committed test rather than a one-off scan, so the declaration cannot drift
+      again. It sits beside the existing declaration check,
+      <code>tests/physics/test_dependency_contract.py</code>, which already reads
+      <code>pyproject.toml</code> and <code>uv.lock</code> to assert the nova path source, and it walks
+      sources with Python's <code>ast</code> as <code>scripts/circular_assertion_audit.py</code> does.
+      It maps each imported top-level module to its distribution through
+      <code>importlib.metadata.packages_distributions</code> and asserts that every default
+      distribution is declared in <code>[project.dependencies]</code> or the <code>dev</code> dependency
+      group, and every optional one in an extra. Its first run, against the restored environment,
+      is expected to fail, and its failure list is the census. Beside it the node writes the
+      classification table, one row per directly imported distribution with its class, the
+      importing file that decided the class, and its current declaration (dependency, extra name or
+      none), plus the transitive list, as the evidence fragment
+      <code>docs/evidence/fragments/project-environment-declared/ped-census.html</code>. Measured
+      2026-10-05: nothing under <code>imas_ambix/</code>, <code>tests/</code> or <code>scripts/</code>
+      imports <code>reckon</code> or <code>linkml</code> at any level, so reckon-plans and linkml
+      classify as unused and are not declared; reckon runs from its own environment.
     </p>
     <p>
-      Done-when: the fragment holds one row per installed distribution with classification,
-      first importing file and current declaration; it lists every default library that is not
-      declared as a dependency or in a default-synced group, and every declared dependency that
-      nothing imports; and it states whether and where <code>reckon</code> is imported.
+      Done-when: the test exists at <code>tests/test_declared_dependencies.py</code> and its log shows
+      it failing against the current declaration with one line per undeclared default or optional
+      distribution; the fragment holds one row per directly imported distribution and the
+      transitive list; and the fragment lists every declared dependency that nothing imports.
     </p>
 
     <h2 id="s3">§3 — Declare and relock</h2>
 <section data-reckon="section" data-id="s3" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links=""></section>
     <p>
-      The declaration follows the census. Default runtime libraries go in
-      <code>[project.dependencies]</code>. Default development libraries (the test runner, its
-      plugins, the linter, the type checker, the tokamap validator) move from the <code>dev</code>
-      extra into a <code>[dependency-groups]</code> <code>dev</code> group, which uv installs on a plain
-      <code>uv sync</code>. The <code>docs</code>, <code>viz</code>, <code>agent</code>, <code>data</code> and
-      <code>train</code> extras stay extras unless the census finds a default code path importing one
-      of their members, in which case that member moves to the dependencies. A version constraint
-      is added only where a known incompatibility requires it; nothing is pinned for its own sake.
-      Path sources keep using <code>[tool.uv.sources]</code>, as imas-ink and nova-stella already do.
+      The declaration follows the census. A default distribution imported by code under
+      <code>imas_ambix/</code> goes in <code>[project.dependencies]</code>; one imported only by
+      <code>tests/</code>, and the test and lint tooling, go in a <code>[dependency-groups]</code>
+      <code>dev</code> group, which uv installs on a plain <code>uv sync</code>, and the <code>dev</code>
+      extra is removed. The <code>docs</code>, <code>viz</code>, <code>agent</code>, <code>data</code> and
+      <code>train</code> extras keep every member the census classed optional; a member it classed
+      default moves out by the same rule. A version bound is added only for an incompatibility
+      that has been observed and is named in the commit; nothing else is pinned. The existing path
+      sources in <code>[tool.uv.sources]</code> (imas-ink and nova-stella) keep their entries, and no
+      new path source is added, because the census found no import of reckon. The pytest
+      configuration gains a default per-test <code>timeout</code> of 300 s, raised only for a test
+      whose measured duration needs more.
     </p>
     <p>
       The node edits <code>pyproject.toml</code> and regenerates <code>uv.lock</code> with
@@ -121,11 +136,9 @@
       holds every package the census found.
     </p>
     <p>
-      Done-when: <code>uv lock --check</code> passes; every library the census classified default
-      appears in <code>[project.dependencies]</code> or the <code>dev</code> group of
-      <code>uv.lock</code>; the <code>dev</code> extra no longer exists; and the existing suite's
-      collection (<code>pytest --collect-only -q</code>) reports the same number of tests with zero
-      errors as before the edit, both logged.
+      Done-when: <code>uv lock --check</code> passes; <code>tests/test_declared_dependencies.py</code>
+      passes; the <code>dev</code> extra no longer exists; and <code>pytest --collect-only -q</code>
+      run before and after the edit, each logged, reports the same test count and zero errors.
     </p>
 
     <h2 id="s4">§4 — Prove it on a fresh environment</h2>
@@ -133,19 +146,23 @@
     <p>
       The proof builds a new environment from the declaration alone, on node-local disk so the shared
       one is never touched:
-      <code>UV_PROJECT_ENVIRONMENT=/tmp/ped-fresh-&lt;run&gt; uv sync</code> with no flags. Against that
-      environment it imports every module under <code>imas_ambix/</code>, runs the
-      <code>imas-ambix</code> console script's <code>--help</code>, collects the whole test suite, and
-      runs <code>ruff check imas_ambix tests</code>. It then removes the fresh environment. Only after
-      the proof passes does the coordinator run a plain <code>uv sync</code> in the main checkout, and
-      it compares that sync's removal list with the census: anything removed must be a package the
-      census classified optional or unused.
+      <code>UV_PROJECT_ENVIRONMENT=/tmp/ped-fresh-&lt;run&gt; uv sync</code> with no flags, where
+      <code>/tmp</code> on the fleet node is local disk. Against that environment it imports every
+      module under <code>imas_ambix/</code>. A module outside the optional subsystems must import; a
+      module inside one must either import or fail with <code>ModuleNotFoundError</code> naming a
+      distribution the census classed optional, and any other failure fails the proof. It also runs
+      the <code>imas-ambix</code> console script's <code>--help</code>, collects the whole test suite,
+      and runs <code>ruff check imas_ambix tests</code>, then removes the fresh environment. The
+      worker does only this. The coordinator then runs a plain <code>uv sync</code> in the main
+      checkout and checks its removal list against the census: every removed package must be one
+      the census classed optional, unused or transitive, and nothing classed default may go.
     </p>
     <p>
-      Done-when: in the fresh environment every module imports, the console script answers, test
-      collection reports zero errors and the same test count as the shared environment, and ruff
-      exits 0, all in one gate log; and the main checkout's plain sync removes no package the census
-      classified default.
+      Done-when, for the worker: in the fresh environment every non-optional module imports and
+      every optional module either imports or fails naming an optional distribution, the console
+      script answers, test collection reports zero errors and the same count as the shared
+      environment, and ruff exits 0, all in one gate log. For the coordinator: the main checkout's
+      plain sync removes nothing the census classed default.
     </p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
@@ -172,8 +189,9 @@
 
     <section data-reckon="questions" id="questions" class="r-questions">
 <h2><span class="sec">§</span> Open questions</h2>
-<div class="r-q" data-id="reckon-dependency" data-section="s3" data-status="open" data-opened-by="reckon-build" data-opened-at="2026-10-05" data-resolved-at="" data-resolved-by="">
+<div class="r-q" data-id="reckon-dependency" data-section="s3" data-status="resolved" data-opened-by="reckon-build" data-opened-at="2026-10-05" data-resolved-at="2026-10-05T07:48:43+00:00" data-resolved-by="reckon-build">
     <p class="r-q-body">If the census finds <code>reckon</code> imported by this repository, is it declared as a dev-group path source on <code>~/Code/reckon</code> (as imas-ink is), or are those imports removed or confined to tooling that runs from reckon's own environment? A path source works on this workstation and fails anywhere without the sibling checkout.</p>
+    <p class="r-q-resolution">Measured 2026-10-05 with a grep for import statements at any indentation: nothing under imas_ambix/, tests/ or scripts/ imports reckon, so reckon-plans classifies as unused and is not declared. reckon's hooks and crew tooling run from reckon's own environment at ~/Code/reckon/.venv, not from this one.</p>
     </div>
 </section>
   <section data-reckon="comments" id="comments" class="r-comments">

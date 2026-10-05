@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f">
 <meta name="plan-impl" content="0.25">
-<meta name="plan-version" content="36">
+<meta name="plan-version" content="37">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -321,7 +321,19 @@
     </p>
     <p>
       The converter reads the facility file, records its path and sha256 as the receipt, and
-      treats the OneDrive deck as a verified mirror rather than as the source. The lead ruled
+      treats the OneDrive deck as a verified mirror rather than as the source.
+      <strong>Converter node.</strong> The converter is <code>imas_ambix/data/selene_deck.py</code>.
+      It parses the SELENE PSRC deck grammar of <code>EQSLE.DATA</code> (the <code>&amp;DSK</code> header,
+      the PF coil block, the <code>NV</code> vessel block, the TFC inside and outside arc segments,
+      the limiter and first wall), the <code>geo.in</code> sensor blocks (<code>17 Magnetic Probe</code>
+      and <code>27 Flux Loop</code>), and the vessel block of <code>coil_vv_OP2.dat</code>, and writes
+      pf_active, pf_passive, magnetics, wall and tf IDS netCDF per phase at DD 4.1.1, with a
+      <code>receipt.json</code> naming each source file's path, sha256 and line ranges and the
+      converter's git commit. Its tests use synthetic files in those grammars. The copies the two
+      investigations made, in the <code>jtmm-geometry-source</code> and
+      <code>jtmm-analysis-sensor-search</code> report directories, are the reference the grammar is
+      read from, and parse checks against them are logged rather than committed. Running the
+      converter once against the facility files on GPFS is a separate node. The lead ruled
       that JT-60SA geometry is committed to the repository as MAST's is in
       <code>mast.json</code>, so supplements and directional vacuum verdicts carry their
       coordinates inline; EDDB values never enter the repository.
@@ -511,6 +523,13 @@
       <code>PINNED_REGISTRY_DIGEST</code> constants, become a table keyed by machine, and
       <code>author_pinned_description</code>, which hard-imports
       <code>nova.imas.mast_geometry</code>, takes each machine's authoring route from that table.
+      The selection path is pinned to MAST as well: <code>gs/machine_selection.py</code>
+      <code>ArtifactMachineSelector.select</code> resolves a shot through
+      <code>gs/machine_identity.py</code> <code>identity_for_shot</code>, whose
+      <code>default_registry</code> is nova's MAST geometry registry, and reads channels with
+      <code>read_acquisition_channels</code> at its default machine. The selector therefore takes
+      the machine from the catalogue the shot belongs to and passes it to the identity registry,
+      the pin table and the acquisition read, rather than JT-60SA growing a selector of its own.
       How the JT-60SA artifact is authored from the §4 source without a JT-60SA module in nova
       is the open question <code>jt60sa-artifact-authoring</code>. Using only the mapped
       pf_active, pf_passive, tf and magnetics data, the ambix physics spine
@@ -526,8 +545,10 @@
       whitened magnetics residual already has its owner in the spine benchmark
       (<code>imas_ambix/spine_bench/runner.py</code> <code>_magnetics_residual</code>, written into
       the stamped record), so it is read from the stamp; q95 and Ip have no owner that
-      scores them against a reference, so they are added to <code>judge_geometry</code> as
-      verdict components rather than scored beside it.
+      scores them against a reference, and <code>GeometryVerdict</code> is a verdict in metres, so
+      they are reported per shot in the stamped record as relative differences against SELENE,
+      without a pass mark: the first stamp is a baseline with no tolerance to apply. That adds two
+      record fields and retires nothing, because no scalar reference comparison exists yet.
       Nova consumes the emitted IDSs through its existing readers; nothing JT-60SA-specific
       is added to nova, which is the transfer claim of the north star exercised on a second
       machine without waiting for the sealed DIII-D rehearsal.
