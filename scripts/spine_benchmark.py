@@ -21,8 +21,22 @@ logger = logging.getLogger("spine_benchmark")
 DEFAULT_OUT = Path("imas_ambix/spine_bench/results")
 
 
+class _Parser(argparse.ArgumentParser):
+    """Parser that refuses an override which does not name its machine."""
+
+    def parse_args(
+        self,
+        args: list[str] | None = None,
+        namespace: argparse.Namespace | None = None,
+    ) -> argparse.Namespace:
+        parsed = super().parse_args(args, namespace)
+        if parsed.shots and not parsed.machine:
+            self.error("--machine is required when --shots is given")
+        return parsed
+
+
 def build_parser() -> argparse.ArgumentParser:
-    ap = argparse.ArgumentParser(description=__doc__)
+    ap = _Parser(description=__doc__)
     ap.add_argument("--max-slices", type=int, default=6)
     ap.add_argument("--sigma", type=float, default=0.02)
     ap.add_argument("--out-dir", type=str, default=str(DEFAULT_OUT))
@@ -31,6 +45,14 @@ def build_parser() -> argparse.ArgumentParser:
         type=str,
         default="",
         help="explicit comma list (overrides the frozen set — for testing)",
+    )
+    ap.add_argument(
+        "--machine",
+        type=str,
+        default=None,
+        help="machine whose catalogue the shot ids belong to; REQUIRED with "
+        "--shots, declared on the command line and never inferred from the "
+        "digits",
     )
     ap.add_argument(
         "--topology-reads",
@@ -51,7 +73,7 @@ def main() -> int:
     shots = None
     if args.shots:
         shots = [
-            BenchShot(shot_id=int(s), role="ad-hoc")
+            BenchShot(machine=args.machine, shot_id=int(s), role="ad-hoc")
             for s in args.shots.split(",")
             if s.strip()
         ]

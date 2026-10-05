@@ -6,7 +6,9 @@ indistinguishable from the frozen evolution metric it is not.
 
 from __future__ import annotations
 
+import pytest
 import yaml
+from pydantic import ValidationError
 
 from imas_ambix.spine_bench.runner import write_yaml
 from imas_ambix.spine_bench.schema import (
@@ -28,6 +30,17 @@ def test_the_frozen_set_is_labelled_frozen_when_no_override_is_given():
     assert resolve_shotset_version(None) == SHOTSET_VERSION
 
 
+def test_a_bench_shot_requires_a_machine():
+    """The machine is declared and never inferred, so its absence is refused."""
+    with pytest.raises(ValidationError):
+        BenchShot(shot_id=21978, role="flat-top representative")
+
+
+def test_the_frozen_shots_declare_the_mast_machine():
+    assert {shot.machine for shot in FROZEN_SHOTSET} == {"mast"}
+    assert len(FROZEN_SHOTSET) == 6
+
+
 def test_an_override_naming_exactly_the_frozen_set_keeps_the_frozen_label():
     """Passing the frozen shots explicitly measures the frozen metric."""
     assert resolve_shotset_version(list(FROZEN_SHOTSET)) == SHOTSET_VERSION
@@ -40,7 +53,10 @@ def test_a_subset_of_the_frozen_shots_is_labelled_ad_hoc():
 
 
 def test_an_extra_shot_is_labelled_ad_hoc():
-    extended = [*FROZEN_SHOTSET, BenchShot(shot_id=99999, role="ad-hoc")]
+    extended = [
+        *FROZEN_SHOTSET,
+        BenchShot(machine="mast", shot_id=99999, role="ad-hoc"),
+    ]
     assert resolve_shotset_version(extended) == AD_HOC_SHOTSET_VERSION
 
 
@@ -52,8 +68,39 @@ def test_a_reordered_frozen_set_is_labelled_ad_hoc():
 
 def test_the_frozen_shots_under_a_different_role_are_labelled_ad_hoc():
     """The command line cannot silently re-role the frozen set."""
-    reroled = [BenchShot(shot_id=s.shot_id, role="ad-hoc") for s in FROZEN_SHOTSET]
+    reroled = [
+        BenchShot(machine=s.machine, shot_id=s.shot_id, role="ad-hoc")
+        for s in FROZEN_SHOTSET
+    ]
     assert resolve_shotset_version(reroled) == AD_HOC_SHOTSET_VERSION
+
+
+def test_the_frozen_ids_and_roles_under_another_machine_are_labelled_ad_hoc():
+    """A coincident shot id on another machine must never claim MAST's label."""
+    other_machine = [
+        BenchShot(machine="jt60sa", shot_id=s.shot_id, role=s.role)
+        for s in FROZEN_SHOTSET
+    ]
+    assert resolve_shotset_version(other_machine) == AD_HOC_SHOTSET_VERSION
+    assert resolve_shotset_version(other_machine) != SHOTSET_VERSION
+
+
+def test_the_cli_refuses_an_override_that_does_not_name_a_machine():
+    """--shots without --machine is refused by the parser, not assumed to be MAST."""
+    from scripts.spine_benchmark import build_parser
+
+    with pytest.raises(SystemExit) as excinfo:
+        build_parser().parse_args(["--shots", "21978"])
+    assert excinfo.value.code == 2
+
+
+def test_the_cli_does_not_require_a_machine_for_the_frozen_set():
+    """With no --shots the frozen set is used, so --machine is not needed."""
+    from scripts.spine_benchmark import build_parser
+
+    args = build_parser().parse_args([])
+    assert args.shots == ""
+    assert args.machine is None
 
 
 def _stamp(shotset_version: str) -> SpineBenchmarkStamp:
