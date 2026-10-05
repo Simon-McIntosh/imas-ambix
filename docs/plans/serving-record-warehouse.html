@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;implementable&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;implementable&quot;}">
 <meta name="plan-impl" content="0.23">
-<meta name="plan-version" content="204">
+<meta name="plan-version" content="205">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -1454,6 +1454,9 @@
 </div>
 <div class="r-comment" data-section="s14" data-id="c-20261005T0810-s14-landed" data-who="reckon-build" data-when="2026-10-05T08:10:00Z">
     <div class="r-comment-body">gate tests passed (40, exit 0); section s14 closed by run r-20261005T074920909576 at merge b0dcb893. impl moves by one of twelve executable sections. Review follow-on: lane._is_finite_number accepts inf and nan, so availability_percent returns nan for a non-finite input; folded as a repair node.</div>
+</div>
+<div class="r-comment" data-section="s14" data-id="c-run-r-20261005T074920909576-srw-lane-publishes-availability" data-who="reckon-build" data-when="2026-10-05T07:56:18.718Z">
+    <div class="r-comment-body"><p>Added lane.availability_percent (100 x clamped headroom / effective_width, clamped 0-100, paused 0.0, key omitted on absent headroom or non-positive width), published top-level by the router gate snapshot and copied/derived by live_panel.lane_block; 40 tests pass, ruff clean, live watch read 68.75 = 100 x 11 / 16.</p></div>
 </div>
 </section>
 </main>
