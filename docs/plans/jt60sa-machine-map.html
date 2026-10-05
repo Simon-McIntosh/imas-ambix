@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4">
 <meta name="plan-impl" content="0.35">
-<meta name="plan-version" content="54">
+<meta name="plan-version" content="55">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -269,6 +269,22 @@
       records together with each refused channel's return code, so the cache writes what was
       served and reports the rest. It records the unit as the EDDB string. It adopts the PSRC call
       the investigation names.
+    </p>
+    <p>
+      <strong>PSRC read path</strong> (<code>jtmm-psrc-read-path</code>, 2026-10-05). The
+      extractor's call was right: <code>eddbreadTime(shot, 'PSRC', 'magFluxLp1')</code> returns data
+      on E101154 (return code 0, 2,001 samples) and 1015 on E101173. No header under
+      <code>/analysis/src/eddb</code> defines the codes; controlled reads show that 1015 means the
+      shot's store exists but the datum was never written, and 1013 that the shot is absent from
+      the data set. PSRC is the plasma-shape reconstruction's processed copy, written only for
+      shots it ran on, while MDAC carries the raw hardware flux-loop channels
+      (<code>magFlxLp1</code> and its siblings) on both shots. The SELENE PID route
+      (<code>'1626 S007'</code>) returns a full record on E101154 and a one-point stub on E101173.
+      The extractor repair therefore needs no new call: it returns served records with each
+      refused channel's code and records the unit string. A second cold fetch on E101154 then
+      takes the first-pass PSRC channels together with the raw MDAC flux-loop channels on
+      E101154 and E101173, and the §5 census decides which source each magnetics binding reads:
+      raw MDAC on every shot, or PSRC where the reconstruction ran.
     </p>
     <p>
       Done-when: a cold fetch of one OP2 shot's first-pass signals completes through the
@@ -544,7 +560,12 @@
       <code>_axis_and_boundary</code> read DIII-D corpus keys (<code>efit_grid_R</code>,
       <code>efit_psirz</code>, <code>efit_z_axis</code>) directly, the loader boundary is a record
       contract with canonical keys for the grid, psi, axis and boundary, which the DIII-D
-      loader maps onto and the kernel reads, so the kernel is reused rather than rewritten. The
+      loader maps onto and the kernel reads, so the kernel is reused rather than rewritten.
+      The DIII-D side of that contract already has an owner: <code>imas_ambix/challenge/loader.py</code>
+      loads a challenge shot in the canonical convention into typed records
+      (<code>load_shot</code>, <code>ChallengeShot</code>, <code>EfitLabels</code> with
+      <code>psirz</code>), so the DIII-D loader reads through it rather than reading the parquet
+      directly as <code>convention.py</code> does today. The
       entry point also hard-codes DIII-D eligibility, <code>MINIMUM_PLASMA_CURRENT_KA</code>,
       <code>STANDARD_FIELD_BCOIL_MAXIMUM</code> and the <code>MINIMUM_AUDIT_SHOTS</code> guard, so
       those move into each loader's declaration as its corpus's eligibility, and the kernel keeps
