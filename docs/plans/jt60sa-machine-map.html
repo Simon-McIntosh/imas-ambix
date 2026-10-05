@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93">
 <meta name="plan-impl" content="0.125">
-<meta name="plan-version" content="29">
+<meta name="plan-version" content="30">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -795,7 +795,10 @@
     <div class="r-comment-body"><p>jtmm-tokamap-export reviewed: the exporter, its validator run and its round-trip gate reproduce at the reviewed head, but every IDS group directory is written with the same cross-group mappings.json (all four groups' keys in every group), so the export is not group-scoped; added_failure_count 0.</p></div>
 </div>
 <div class="r-comment" data-section="s2" data-id="c-run-r-20261005T063236505228-jtmm-tokamap-export" data-who="reckon-build" data-when="2026-10-05T07:17:40.574Z">
-    <div class="r-comment-body"><p>jtmm-tokamap-export: imas_ambix/data/tokamap_export.py exports an ambix machine-map catalogue and its signal maps as a tokamap directory — uvx tokamap-validator exits 0 over the packaged MAST catalogue for all four IDS groups it binds (264 entries, 24 mappings files over 6 shot partitions), each group&#x27;s mappings.json holds only bindings whose dd_path is in that group and keys stay group-relative (magnetics &#x27;flux_loop[#]/name&#x27;), and every exported scale equals unit x sign x COCOS to 1e-12</p></div>
+    <div class="r-comment-body"><p>jtmm-tokamap-export: imas_ambix/data/tokamap_export.py exports an ambix machine-map catalogue and its signal maps as a tokamap directory — uvx tokamap-validator exits 0 over the packaged MAST catalogue for all four IDS groups it binds (264 entries, 24 mappings files over 6 shot partitions), each group's mappings.json holds only bindings whose dd_path is in that group and keys stay group-relative (magnetics 'flux_loop[#]/name'), and every exported scale equals unit x sign x COCOS to 1e-12</p></div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-run-r-20261005T071822930165-review-of-jtmm-tokamap-export" data-who="reckon-build" data-when="2026-10-05T07:31:03.794Z">
+    <div class="r-comment-body"><p>review-of-jtmm-tokamap-export: independent review of r-20261005T063236505228-jtmm-tokamap-export at head 5a07dd95f369 (base 0111d5a1) scores 83/100 (goal_fidelity 15, evidence 15, scope_discipline 19, durability 17, fit 17); the prior blocking finding (every IDS group&#x27;s mappings.json carried all groups&#x27; keys) is fixed — an independent export reproduced group-scoped files with group-relative keys and no cross-group leakage (magnetics 21 keys, pf_active 9, pf_passive 11, wall 3 per partition; 24 mappings files; 264 leaf entries) — and the group-relative key matches the reference MAST form (flux_loop[#]/name); two follow-ons remain: the plan §2 five-group validator clause is a four-group demonstration (tf unbound by the MAST test catalogue), and the evidence fragment&#x27;s negative-control tally reads &quot;1 failed, 4 passed&quot; against a log that reads &quot;1 failed, 5 passed&quot;</p></div>
 </div>
 </section>
 </main>
