@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="jtmm-eddb-partial-batch-landing">
+      <p>One EDDB session now returns its served records together with one
+      refusal per refused channel: <code>fetch_batch</code> returns a
+      <code>BatchResult</code> carrying <code>records</code> and
+      <code>refusals</code>, each refusal naming shot, category, dname and the
+      EDDB return code, and raises only when the remote session itself fails.
+      <code>fetch_channels</code> writes every served channel and returns the
+      refusals, so a batch mixing served and refused channels caches the served
+      ones and a fully refused batch writes nothing. The remote script reports
+      a refusal per channel instead of aborting the batch, and the cached unit
+      attribute is the EDDB unit string (<code>A</code>, not
+      <code>"['A']"</code>), with a unit list of more than one entry refused
+      rather than joined.</p>
+      <p>Gate: <code>tests/data/test_eddb_cache.py</code> 28 passed, exit 0;
+      <code>ruff check imas_ambix tests</code> clean, exit 0. Negative control:
+      making <code>fetch_batch</code> drop the refusal list it returns reddens
+      the four tests that assert a refused channel is reported, exit 1.</p>
+    </section>
+  </main>
+</body>
+</html>

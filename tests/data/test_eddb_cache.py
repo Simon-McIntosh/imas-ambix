@@ -41,12 +41,16 @@ from imas_ambix.data.eddb_remote import (
     PYTHON_MODULE_LOAD,
     PYTHON_MODULE_UNLOAD,
     REMOTE_SCRIPT,
+    BatchResult,
     ChannelRecord,
+    ChannelRefusal,
     ChannelRequest,
+    EddbRemoteError,
     RemoteEddbExtractor,
     SshTransport,
     decode_batch,
     encode_batch,
+    normalise_unit,
 )
 from imas_ambix.data.machine_map import ChannelBinding
 from imas_ambix.data.paths import JT60SA_ROOT
@@ -55,8 +59,11 @@ from imas_ambix.data.transform_engine import ZarrTransformEngine
 from imas_ambix.data.virtual_zarr import VirtualZarrView
 
 # A stand-in for the analysis server's eddb_pwrapper.  It returns a known
-# time series for any name except NOTIME, which returns data with no time base
-# so the refusal path can be exercised.
+# time series for any name except NOTIME, which returns data with no time base,
+# and REFUSED, which the EDDB answers with return code 1015, so the per-channel
+# refusal path can be exercised without aborting the batch.  The served unit is
+# returned as a one-entry list, as the real EDDB wrapper does, so the extractor's
+# normalisation to the unit string is exercised end to end.
 FAKE_WRAPPER = '''
 import numpy as np
 
@@ -77,10 +84,19 @@ class eddbWrapper:
     def eddbreadTime(self, shot, category, dname, t1, t2):
         if dname == "NOTIME":
             return True, {"data": np.arange(6.0).reshape(2, 3)}
+        if dname == "REFUSED":
+            return False, 1015
+        if dname == "MULTIUNIT":
+            return True, {
+                "data": np.array([[1.0, 2.0, 3.0]]),
+                "time": np.array([0.0, 0.5, 1.0]),
+                "unit": ["A", "V"],
+                "seq": 1,
+            }
         return True, {
             "data": np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]),
             "time": np.array([0.0, 0.5, 1.0]),
-            "unit": "A",
+            "unit": ["A"],
             "seq": 42,
         }
 '''
@@ -110,18 +126,33 @@ def _record_from_request(spec: dict[str, str]) -> ChannelRecord:
 
 
 class _FakeTransport:
-    """A transport that answers a batch with synthetic EDDB records."""
+    """A transport that answers a batch with synthetic EDDB records.
 
-    def __init__(self, factory=_record_from_request) -> None:
+    ``refuse`` maps a data name to the EDDB return code the remote answers it
+    with, so a batch can be made to mix served and refused channels.
+    """
+
+    def __init__(self, factory=_record_from_request, refuse=None) -> None:
         self.calls: list[tuple[list[str], bytes]] = []
         self._factory = factory
+        self._refuse = dict(refuse or {})
 
     def run(self, argv, payload: bytes) -> bytes:
         self.calls.append((list(argv), payload))
         request_spec = json.loads(payload)
-        return encode_batch(
-            [self._factory(spec) for spec in request_spec["requests"]]
-        )
+        records = []
+        refusals = []
+        for spec in request_spec["requests"]:
+            code = self._refuse.get(spec["dname"])
+            if code is None:
+                records.append(self._factory(spec))
+            else:
+                refusals.append(
+                    ChannelRefusal(
+                        spec["shot"], spec["category"], spec["dname"], code
+                    )
+                )
+        return encode_batch(records, refusals)
 
 
 def _extractor(transport=None) -> RemoteEddbExtractor:
@@ -255,10 +286,11 @@ def test_one_transport_process_per_batch(tmp_path):
         _request("51234", "PSRC", "Ip"),
     ]
 
-    records = fetch_channels(_extractor(transport), tmp_path, requests)
+    result = fetch_channels(_extractor(transport), tmp_path, requests)
 
     assert len(transport.calls) == 1
-    assert {record.dname for record in records} == {"CS1", "EF1", "Ip"}
+    assert {record.dname for record in result.records} == {"CS1", "EF1", "Ip"}
+    assert result.refusals == []
 
 
 def test_each_channel_lands_raw_with_eddb_attributes_and_its_time_base(tmp_path):
@@ -453,9 +485,10 @@ def test_remote_script_executes_and_decodes_a_known_record(tmp_path):
     )
     assert completed.returncode == 0, completed.stderr.decode()
 
-    records = decode_batch(completed.stdout)
-    assert len(records) == 1
-    record = records[0]
+    result = decode_batch(completed.stdout)
+    assert len(result.records) == 1
+    assert result.refusals == []
+    record = result.records[0]
     assert (record.shot, record.category, record.dname) == ("051234", "MMSYS", "CS1")
     assert np.array_equal(record.data, [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
     assert np.array_equal(record.time, [0.0, 0.5, 1.0])
@@ -477,12 +510,146 @@ def test_remote_script_refuses_a_record_with_no_time_base(tmp_path):
     assert "NOTIME" in stderr
 
 
+def test_remote_script_reports_a_refusal_per_channel_without_aborting_the_batch(
+    tmp_path,
+):
+    completed = _run_remote_script(
+        tmp_path,
+        [
+            {"shot": "051234", "category": "MMSYS", "dname": "CS1"},
+            {"shot": "051234", "category": "PSRC", "dname": "REFUSED"},
+            {"shot": "051234", "category": "MMSYS", "dname": "EF1"},
+        ],
+    )
+    assert completed.returncode == 0, completed.stderr.decode()
+
+    result = decode_batch(completed.stdout)
+    assert [record.dname for record in result.records] == ["CS1", "EF1"]
+    assert [refusal.dname for refusal in result.refusals] == ["REFUSED"]
+    refusal = result.refusals[0]
+    assert (refusal.shot, refusal.category, refusal.dname) == (
+        "051234",
+        "PSRC",
+        "REFUSED",
+    )
+    assert refusal.code == 1015
+
+
+def test_remote_script_refuses_a_multi_entry_unit(tmp_path):
+    completed = _run_remote_script(
+        tmp_path, [{"shot": "051234", "category": "MMSYS", "dname": "MULTIUNIT"}]
+    )
+
+    assert completed.returncode != 0
+    assert "multi-entry unit" in completed.stderr.decode()
+
+
+def test_fetch_batch_returns_served_records_with_one_refusal_per_refused_channel():
+    transport = _FakeTransport(refuse={"Ip": 1015, "magFluxLp1": 1013})
+    requests = [
+        _request("E101173", "MMSYS", "CS1"),
+        _request("E101173", "PSRC", "Ip"),
+        _request("E101173", "PSRC", "magFluxLp1"),
+    ]
+
+    result = _extractor(transport).fetch_batch(requests)
+
+    assert len(transport.calls) == 1
+    assert [record.dname for record in result.records] == ["CS1"]
+    assert {(r.category, r.dname, r.code) for r in result.refusals} == {
+        ("PSRC", "Ip", 1015),
+        ("PSRC", "magFluxLp1", 1013),
+    }
+    assert {r.shot for r in result.refusals} == {"E101173"}
+
+
+def test_fetch_batch_makes_no_call_for_an_empty_batch():
+    transport = _FakeTransport()
+
+    result = _extractor(transport).fetch_batch([])
+
+    assert result == BatchResult(records=[], refusals=[])
+    assert transport.calls == []
+
+
+def test_fetch_batch_raises_only_when_the_session_itself_fails():
+    class _BrokenTransport:
+        def run(self, argv, payload):
+            raise EddbRemoteError("ssh: connect to host jt-60sa port 22: refused")
+
+    with pytest.raises(EddbRemoteError, match="connect to host"):
+        _extractor(_BrokenTransport()).fetch_batch([_request("1", "MMSYS", "CS1")])
+
+    # A refused channel is reported in the result, not raised.
+    transport = _FakeTransport(refuse={"CS1": 1015})
+    result = _extractor(transport).fetch_batch([_request("1", "MMSYS", "CS1")])
+    assert result.records == []
+    assert result.refusals[0].code == 1015
+
+
+def test_fetch_channels_caches_the_served_and_reports_the_refused(tmp_path):
+    transport = _FakeTransport(refuse={"Ip": 1015})
+    requests = [
+        _request("E101173", "MMSYS", "CS1"),
+        _request("E101173", "PSRC", "Ip"),
+    ]
+
+    result = fetch_channels(_extractor(transport), tmp_path, requests)
+
+    assert [record.dname for record in result.records] == ["CS1"]
+    assert [refusal.dname for refusal in result.refusals] == ["Ip"]
+    assert result.refusals[0].code == 1015
+    assert is_cached(tmp_path, "E101173", "MMSYS", "CS1") is True
+    assert is_cached(tmp_path, "E101173", "PSRC", "Ip") is False
+
+
+def test_a_batch_that_is_entirely_refused_writes_nothing(tmp_path):
+    transport = _FakeTransport(refuse={"Ip": 1015, "CS1": 1013})
+    requests = [
+        _request("E101173", "PSRC", "Ip"),
+        _request("E101173", "MMSYS", "CS1"),
+    ]
+
+    result = fetch_channels(_extractor(transport), tmp_path, requests)
+
+    assert result.records == []
+    assert {refusal.dname for refusal in result.refusals} == {"Ip", "CS1"}
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_the_cached_unit_is_the_eddb_unit_string_not_its_repr(tmp_path):
+    completed = _run_remote_script(
+        tmp_path, [{"shot": "051234", "category": "MMSYS", "dname": "CS1"}]
+    )
+    record = decode_batch(completed.stdout).records[0]
+    assert record.unit == "A"
+
+    cache_root = tmp_path / "cache"
+    write_channel(cache_root, record)
+    stored = zarr.open_array(
+        channel_path(cache_root, "051234", "MMSYS", "CS1"), mode="r"
+    )
+    assert stored.attrs["units"] == "A"
+
+
+def test_normalise_unit_takes_a_single_entry_and_refuses_a_multi_entry_list():
+    assert normalise_unit(["A"]) == "A"
+    assert normalise_unit("A") == "A"
+    assert normalise_unit(None) == ""
+
+    with pytest.raises(EddbRemoteError, match="multi-entry unit"):
+        normalise_unit(["A", "V"])
+
+
 def test_envelope_round_trips_through_encode_and_decode():
     records = [_record("51234", "MMSYS", "CS1"), _record("51234", "PSRC", "Ip")]
     decoded = decode_batch(encode_batch(records))
-    assert [record.key for record in decoded] == [record.key for record in records]
-    assert np.array_equal(decoded[1].data, records[1].data)
-    assert decoded[0].unit == "A"
+    assert [record.key for record in decoded.records] == [
+        record.key for record in records
+    ]
+    assert decoded.refusals == []
+    assert np.array_equal(decoded.records[1].data, records[1].data)
+    assert decoded.records[0].unit == "A"
 
 
 def test_default_ssh_transport_is_the_only_network_seam():
