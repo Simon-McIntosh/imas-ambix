@@ -4,12 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"   content="imas-ambix">
-  <meta name="reckon-type"    content="plan">
-  <meta name="plan-slug"      content="jt60sa-machine-map">
-  <meta name="plan-title"     content="JT-60SA Machine Map for Equilibrium Reconstruction">
-  <meta name="plan-summary"   content="Declare, validate and serve a JT-60SA → IMAS map for pf_active, pf_passive, magnetics, tf and equilibrium, driven by reconstructing SELENE equilibria">
-  <meta name="plan-status"    content="draft">
-  <meta name="plan-roi"       content="high">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+  <meta name="plan-title" content="JT-60SA Machine Map for Equilibrium Reconstruction">
+  <meta name="plan-summary" content="Declare, validate and serve a JT-60SA → IMAS map for pf_active, pf_passive, magnetics, tf and equilibrium, driven by reconstructing SELENE equilibria">
+  <meta name="plan-status" content="draft">
+  <meta name="plan-roi" content="high">
   <meta name="plan-effort-hours" content="40.0">
   <meta name="plan-capability-version" content="1.0">
   <meta name="plan-capability-class" content="orchestrator">
@@ -17,13 +17,15 @@
   <meta name="plan-capability-context" content="extended">
   <meta name="plan-capability-verification" content="strict">
   <meta name="plan-milestone" content="M4">
-  <meta name="plan-sprint"    content="S20">
-  <meta name="plan-owner"     content="Simon McIntosh">
-  <meta name="plan-tags"      content="equilibrium,machine-map,jt-60sa">
-  <meta name="plan-blocks"    content="iter-first-plasma-rehearsal">
+  <meta name="plan-sprint" content="S20">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-tags" content="equilibrium,machine-map,jt-60sa">
+  <meta name="plan-blocks" content="iter-first-plasma-rehearsal">
   <title>JT-60SA Machine Map for Equilibrium Reconstruction | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-version" content="2">
+<meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
   <main class="plan-doc">
@@ -392,122 +394,150 @@
       the login node.
     </p>
 
+    <h3 id="handoff">Handoff notes (2026-10-05)</h3>
+    <p>
+      <strong>Where this continues.</strong> Scoped from the WSL workstation on 2026-10-05; the
+      build runs from the ITER host for the local-lane GPU compute. Two network facts bind the
+      split: no connection between JT-60SA and ITER is permitted in either direction, so every
+      step that touches nakasvr26 (the EDDB extractor, the census, the vacuum-shot reads, the
+      codex EDAS scan) runs from the workstation over <code>ssh jt-60sa</code> and lands its
+      output in the GPFS mirror or the ITER graph through the codex tunnel; transforms,
+      validation and the spine benchmark run on ITER compute. The codex graph for JT-60SA
+      evidence is the ITER one (SLURM job <code>codex-neo4j</code>, bolt 17687 through the
+      <code>imas-codex-tunnel-iter</code> unit on the workstation, direct on ITER); the local
+      Neo4j on the workstation rejects its configured credential and is not used.
+    </p>
+    <p>
+      <strong>Remote execution.</strong> On nakasvr26 run <code>module unload python/3.5.6; module
+      load python/3.12</code> and call the module's <code>python</code> (3.12.9, numpy 2.4.2);
+      <code>python3</code> is the system 3.9 without numpy and <code>module purge</code> breaks
+      the module path. The EDDB wrapper is <code>/analysis/src/eddb/eddb_pwrapper.py</code> with
+      <code>/analysis/lib/libeddb.so</code>, <code>NUMPY = True</code>, always under
+      <code>nice -n 19</code>. <code>eddbreadTime</code> takes string time bounds and returns the
+      full record without them (740,900 points for a coil current); <code>eddbreadOne</code> is
+      the one-point and PID reader. The full channel listing for E101173 and the measured
+      call shapes are in the codex research doc <code>imas-codex:jt60sa-eddb-census</code>.
+    </p>
+    <p>
+      <strong>Dependencies across repositories.</strong> §5's census joins channels to handbook
+      entries and PIDs through the codex graph, which holds the JT-60SA wiki (4,476 pages) but
+      no FacilitySignal nodes yet; that scan, the handbook-table linkage and the PID
+      enumeration are <code>imas-codex:jt60sa-discovery-completion</code> §2 and §3 (sprint
+      S16), and the gate below holds §5 on its §2. The EDAS scanner repairs (reference shot,
+      class and shot-range capture, string time bounds, class-routed checks) are committed in
+      codex but the live scan has not run. Nothing in nova changes; nova consumes the emitted
+      IDSs. The machine-description decks and the nakamap IDS netCDF seeds are on the
+      workstation under <code>~/.local/share/machine_description/coil_geometry</code> and must
+      be copied to GPFS before §4 runs on ITER.
+    </p>
+    <p>
+      <strong>Open on the user.</strong> The five decisions above; whether the mirror lives on
+      GPFS beside the MAST mirror; and the choice of OP2 shot set for the §7 baseline.
+    </p>
+
     <section data-reckon="gates" id="gates" class="r-gates">
-      <h2><span class="sec">§</span> Evidence gates</h2>
-      <div class="r-gate" data-id="conventions-before-equilibrium" data-section="s7"
-           data-gated-sections="s7" data-status="open" data-verdict="">
-        <h4 class="r-gate-measure">No equilibrium psi binding is written before the source COCOS is identified from data</h4>
-        <p class="r-gate-required-evidence">
-          The §6 sign report naming the identified source COCOS for SELENE/FAME output and
-          for the raw acquisition, with per-channel vacuum slopes.
-        </p>
-      </div>
-    </section>
+<h2><span class="sec">§</span> Evidence gates</h2>
+<div class="r-gate" data-id="conventions-before-equilibrium" data-section="s7" data-gated-sections="s7" data-status="open" data-verdict="">
+    <h4 class="r-gate-measure">No equilibrium psi binding is written before the source COCOS is identified from data</h4>
+    <p class="r-gate-required-evidence">The §6 sign report naming the identified source COCOS for SELENE/FAME output and
+          for the raw acquisition, with per-channel vacuum slopes.</p>
+    </div>
+<div class="r-gate" data-id="g-jt60sa-machine-map-1" data-section="s5" data-gated-sections="s5" data-status="open" data-verdict="">
+    <h4 class="r-gate-measure">FacilitySignal nodes for JT-60SA E101173 exist in the codex graph with class, shot range and handbook linkage, so the census can join channels to handbook entries and PIDs</h4>
+    <p class="r-gate-required-evidence">imas-codex:jt60sa-discovery-completion#s2</p>
+    </div>
+</section>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-      <div class="r-dec" data-key="map-persistence-location" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Where are JT-60SA → IMAS maps persisted?</p>
-        <p class="r-dec-ctx">Codex has traditionally generated the facility and DD knowledge graph; ambix holds the executable machine-map substrate that MAST already runs through.</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="ambix-packaged-maps">Packaged maps in ambix, codex supplies evidence</button>
-          <button class="r-opt" data-value="codex-graph-mappings">IMASMapping nodes in the codex graph, ambix reads the graph</button>
-          <button class="r-opt" data-value="separate-mapping-repo">A standalone mapping repository both consume</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-      <div class="r-dec" data-key="map-format" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Is the map authored in the ambix LinkML schema or natively in tokamap?</p>
-        <p class="r-dec-ctx">Tokamap is the UKAEA/UDA interchange format; it has no slot for units, sign convention, COCOS, validation state or evidence.</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="ambix-schema-tokamap-export">Ambix schema is authoritative; tokamap is a validated export</button>
-          <button class="r-opt" data-value="tokamap-native">Author tokamap directly and extend it with custom keys</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-      <div class="r-dec" data-key="description-source-engine" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">How does the SELENE deck reach the transform engine?</p>
-        <p class="r-dec-ctx">The deck is a static per-phase text file; the engine registry varies by store format.</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="receipted-ids-netcdf">One-off conversion to IDS netCDF with a deck hash receipt, read by the netCDF engine</button>
-          <button class="r-opt" data-value="deck-store-engine">A dedicated store engine that parses the deck per call</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-      <div class="r-dec" data-key="mirror-location" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Where does the immutable EDDB mirror live?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="gpfs-project-tree">GPFS under the project tree beside the MAST mirror</button>
-          <button class="r-opt" data-value="workstation-local">Workstation-local disk, synced to GPFS per campaign</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-      <div class="r-dec" data-key="codex-graph-hosting" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Is the codex graph used for JT-60SA evidence served locally or through the ITER tunnel?</p>
-        <p class="r-dec-ctx">Measured 2026-10-05: the ITER graph runs as a SLURM job but the forward tunnel on port 17687 is in a restart loop; a local Neo4j instance is running but rejects both the configured and its own launch credential; the local embedding server is not running and the workstation has no usable GPU.</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="local-jt60sa-graph">A local per-facility graph on the jt-60sa port slot, loaded from a facility-filtered export</button>
-          <button class="r-opt" data-value="iter-tunnel">The ITER graph through the systemd tunnel once it recovers</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-    </section>
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="map-persistence-location" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Where are JT-60SA → IMAS maps persisted?</p>
+    <p class="r-dec-ctx">Codex has traditionally generated the facility and DD knowledge graph; ambix holds the executable machine-map substrate that MAST already runs through.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="ambix-packaged-maps">Packaged maps in ambix, codex supplies evidence</button>
+      <button class="r-opt" data-value="codex-graph-mappings">IMASMapping nodes in the codex graph, ambix reads the graph</button>
+      <button class="r-opt" data-value="separate-mapping-repo">A standalone mapping repository both consume</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+<div class="r-dec" data-key="map-format" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Is the map authored in the ambix LinkML schema or natively in tokamap?</p>
+    <p class="r-dec-ctx">Tokamap is the UKAEA/UDA interchange format; it has no slot for units, sign convention, COCOS, validation state or evidence.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="ambix-schema-tokamap-export">Ambix schema is authoritative; tokamap is a validated export</button>
+      <button class="r-opt" data-value="tokamap-native">Author tokamap directly and extend it with custom keys</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+<div class="r-dec" data-key="description-source-engine" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">How does the SELENE deck reach the transform engine?</p>
+    <p class="r-dec-ctx">The deck is a static per-phase text file; the engine registry varies by store format.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="receipted-ids-netcdf">One-off conversion to IDS netCDF with a deck hash receipt, read by the netCDF engine</button>
+      <button class="r-opt" data-value="deck-store-engine">A dedicated store engine that parses the deck per call</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+<div class="r-dec" data-key="mirror-location" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Where does the immutable EDDB mirror live?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="gpfs-project-tree">GPFS under the project tree beside the MAST mirror</button>
+      <button class="r-opt" data-value="workstation-local">Workstation-local disk, synced to GPFS per campaign</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+<div class="r-dec" data-key="codex-graph-hosting" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Is the codex graph used for JT-60SA evidence served locally or through the ITER tunnel?</p>
+    <p class="r-dec-ctx">Measured 2026-10-05: the ITER graph runs as a SLURM job but the forward tunnel on port 17687 is in a restart loop; a local Neo4j instance is running but rejects both the configured and its own launch credential; the local embedding server is not running and the workstation has no usable GPU.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="local-jt60sa-graph">A local per-facility graph on the jt-60sa port slot, loaded from a facility-filtered export</button>
+      <button class="r-opt" data-value="iter-tunnel">The ITER graph through the systemd tunnel once it recovers</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups</h2>
-      <article class="r-fu" data-id="f-jtmm-001" data-status="open"
-               data-capability-version="1.0" data-capability-class="orchestrator"
-               data-written-by="reckon-create" data-written-at="2026-10-05"
-               data-recommends-skill="/reckon-ship jt60sa-machine-map §3">
-        <h4 class="r-fu-title">Build the EDDB remote extractor and immutable mirror, fetch one C-shot and one E-shot</h4>
-        <div class="r-fu-body">
-          The access path is proven interactively (catalogue, tables and the current shot
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-jtmm-001" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-create" data-written-at="2026-10-05" data-recommends-skill="/reckon-build jt60sa-machine-map §3" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Build the EDDB remote extractor and immutable mirror, fetch one C-shot and one E-shot</h4>
+    <div class="r-fu-body">The access path is proven interactively (catalogue, tables and the current shot
           all answered over <code>ssh jt-60sa</code>) but nothing is persisted. Land the
           extractor, the mirror writer and the timing evidence so the census and the
           vacuum adjudication have data to run on. Blocked only while the IFERC link is
-          down; the §4 deck rebinding does not wait on it.
-        </div>
-        <pre class="r-fu-prompt">/reckon-ship jt60sa-machine-map §3</pre>
-      </article>
-    </section>
+          down; the §4 deck rebinding does not wait on it.</div>
+    <pre class="r-fu-prompt">/reckon-build jt60sa-machine-map §3</pre>
+    </article>
+</section>
 
     <section data-reckon="questions" id="questions" class="r-questions">
-      <h2><span class="sec">§</span> Open questions</h2>
-      <div class="r-q" data-id="raw-magnetics-category" data-section="s5"
-           data-status="resolved" data-opened-by="Simon McIntosh" data-opened-at="2026-10-05"
-           data-resolved-at="2026-10-05" data-resolved-by="Simon McIntosh">
-        <p class="r-q-body">Which EDDB category carries the raw flux-loop and pickup-coil channels on a plasma shot (MDAC, PSRC or MAG), and are they separate names or multi-channel arrays?</p>
-        <p class="r-q-resolution">Measured 2026-10-05 on E101173, the newest E-shot the catalogue lists: the equilibrium magnetics live in <code>PSRC</code> as one name per channel &mdash; 34 flux loops <code>magFluxLp1..34</code> in Wb, 23 poloidal probes <code>magPbTC1..23</code>, 10 calibrated partial fluxes <code>calFP1..10</code>, the surface flux <code>calFX</code>, diamagnetic loops <code>corDmagL1</code> and the <code>calS1</code> surface integrals, with per-channel abnormality flags and <code>calIp</code> in kA; <code>MDAC</code> adds four vessel Rogowski coils <code>curAVVRC1..4</code> for Ip, 41 halo-current Rogowski coils, one-turn voltage and the raw coil-current observations <code>oCS1Cur..oEF6Cur</code>, <code>oTFCur</code>; <code>MAG</code> holds only MHD fluctuation probes; <code>MMSYS</code> holds the coil and TF currents from two chains plus coil voltages; <code>FAME</code> holds 100 real-time equilibrium scalars (axis, boundary gaps, q, beta, li, volumes). The census log is the first node's input and is not yet persisted as evidence.</p>
-      </div>
-      <div class="r-q" data-id="handbook-pid-in-graph" data-section="s5"
-           data-status="resolved" data-opened-by="Simon McIntosh" data-opened-at="2026-10-05"
-           data-resolved-at="2026-10-05" data-resolved-by="Simon McIntosh">
-        <p class="r-q-body">Does the codex graph hold the JT-60SA data handbook with each signal linked to its PID, so the census can join channels to handbook entries?</p>
-        <p class="r-q-resolution">Partly. Measured 2026-10-05 against the ITER graph once the tunnel was repaired: the JT-60SA facility carries 4,476 wiki pages, 8,465 wiki chunks, 1,049 documents and 8,324 facility paths, including the <em>JT-60SA Data Handbook</em> and <em>Discharge Parameter Handbook</em> pages and the EDDB API manuals. The handbook is an index into per-database tables (EDDB, UDDB, PMDB, EQDB, FAME, LCDB, MBDB) served by CGI; those tables were ingested as one-chunk wrappers, so the per-category signal lists are <strong>not</strong> in the graph. No FacilitySignal, DataAccess, SignalSource or IMASMapping node exists for JT-60SA and no node carries a PID property: the EDAS scanner has never been run. In EDDB a PID No. is a nine-character key (four digits then five characters) for discharge one-point and condition data, read through <code>eddbreadOne</code> and <code>eddbreadPara</code>; time-series channels are keyed by category and data name. The census therefore joins through the EDDB catalogue itself and records PIDs for the one-point data, and the graph is populated by running the scanner from the workstation.</p>
-      </div>
-      <div class="r-q" data-id="eqdb-reader" data-section="s7"
-           data-status="open" data-opened-by="Simon McIntosh" data-opened-at="2026-10-05">
-        <p class="r-q-body">Is there a Python or C entry point to the SELENE equilibrium database (eqdbms, eqdbget) that the remote extractor can call without a Fortran build, and what grid and profile set does an EQDB record carry? The Code TWiki in the graph documents the EQDBMS library under <code>/analysis/lib/eqdbms</code> in 129×129 and 1025×1025 mesh variants, consumed by EQREAD, EQFAME, SELENE, SETEQU and FBEQU, and an <em>EquilibriumDBFAME</em> page; a Python wrapper was not found on the server before the IFERC link dropped.</p>
-      </div>
-    </section>
+<h2><span class="sec">§</span> Open questions</h2>
+<div class="r-q" data-id="raw-magnetics-category" data-section="s5" data-status="resolved" data-opened-by="Simon McIntosh" data-opened-at="2026-10-05" data-resolved-at="2026-10-05" data-resolved-by="Simon McIntosh">
+    <p class="r-q-body">Which EDDB category carries the raw flux-loop and pickup-coil channels on a plasma shot (MDAC, PSRC or MAG), and are they separate names or multi-channel arrays?</p>
+    <p class="r-q-resolution">Measured 2026-10-05 on E101173, the newest E-shot the catalogue lists: the equilibrium magnetics live in <code>PSRC</code> as one name per channel — 34 flux loops <code>magFluxLp1..34</code> in Wb, 23 poloidal probes <code>magPbTC1..23</code>, 10 calibrated partial fluxes <code>calFP1..10</code>, the surface flux <code>calFX</code>, diamagnetic loops <code>corDmagL1</code> and the <code>calS1</code> surface integrals, with per-channel abnormality flags and <code>calIp</code> in kA; <code>MDAC</code> adds four vessel Rogowski coils <code>curAVVRC1..4</code> for Ip, 41 halo-current Rogowski coils, one-turn voltage and the raw coil-current observations <code>oCS1Cur..oEF6Cur</code>, <code>oTFCur</code>; <code>MAG</code> holds only MHD fluctuation probes; <code>MMSYS</code> holds the coil and TF currents from two chains plus coil voltages; <code>FAME</code> holds 100 real-time equilibrium scalars (axis, boundary gaps, q, beta, li, volumes). The census log is the first node's input and is not yet persisted as evidence.</p>
+    </div>
+<div class="r-q" data-id="handbook-pid-in-graph" data-section="s5" data-status="resolved" data-opened-by="Simon McIntosh" data-opened-at="2026-10-05" data-resolved-at="2026-10-05" data-resolved-by="Simon McIntosh">
+    <p class="r-q-body">Does the codex graph hold the JT-60SA data handbook with each signal linked to its PID, so the census can join channels to handbook entries?</p>
+    <p class="r-q-resolution">Partly. Measured 2026-10-05 against the ITER graph once the tunnel was repaired: the JT-60SA facility carries 4,476 wiki pages, 8,465 wiki chunks, 1,049 documents and 8,324 facility paths, including the <em>JT-60SA Data Handbook</em> and <em>Discharge Parameter Handbook</em> pages and the EDDB API manuals. The handbook is an index into per-database tables (EDDB, UDDB, PMDB, EQDB, FAME, LCDB, MBDB) served by CGI; those tables were ingested as one-chunk wrappers, so the per-category signal lists are <strong>not</strong> in the graph. No FacilitySignal, DataAccess, SignalSource or IMASMapping node exists for JT-60SA and no node carries a PID property: the EDAS scanner has never been run. In EDDB a PID No. is a nine-character key (four digits then five characters) for discharge one-point and condition data, read through <code>eddbreadOne</code> and <code>eddbreadPara</code>; time-series channels are keyed by category and data name. The census therefore joins through the EDDB catalogue itself and records PIDs for the one-point data, and the graph is populated by running the scanner from the workstation.</p>
+    </div>
+<div class="r-q" data-id="eqdb-reader" data-section="s7" data-status="open" data-opened-by="Simon McIntosh" data-opened-at="2026-10-05" data-resolved-at="" data-resolved-by="">
+    <p class="r-q-body">Is there a Python or C entry point to the SELENE equilibrium database (eqdbms, eqdbget) that the remote extractor can call without a Fortran build, and what grid and profile set does an EQDB record carry? The Code TWiki in the graph documents the EQDBMS library under <code>/analysis/lib/eqdbms</code> in 129×129 and 1025×1025 mesh variants, consumed by EQREAD, EQFAME, SELENE, SETEQU and FBEQU, and an <em>EquilibriumDBFAME</em> page; a Python wrapper was not found on the server before the IFERC link dropped.</p>
+    </div>
+</section>
 
     <section data-reckon="research" id="research" class="r-research-list">
-      <h2><span class="sec">§</span> Research</h2>
-      <div class="r-research" data-id="r-tokamap" data-type="repo" data-url="https://github.com/ukaea/tokamap">
-        <span class="r-research-title">UKAEA tokamap — JSON mapping schema, validator and partition selectors</span>
-      </div>
-      <div class="r-research" data-id="r-libtokamap" data-type="repo" data-url="https://github.com/ukaea/libtokamap">
-        <span class="r-research-title">UKAEA libtokamap — C++20 mapping executor (ExprTk, Inja)</span>
-      </div>
-      <div class="r-research" data-id="r-mast-mappings" data-type="repo" data-url="https://github.com/ukaea/IMAS_MAST_mappings">
-        <span class="r-research-title">UKAEA IMAS_MAST_mappings — worked tokamap mappings for MAST magnetics</span>
-      </div>
-      <div class="r-research" data-id="r-mast-cocos-eval" data-type="doc" data-url="/imas-ambix/mast-imas-cocos-evaluation.html">
-        <span class="r-research-title">MAST → IMAS COCOS evaluation — the convention-proof method reused here</span>
-      </div>
-    </section>
+<h2><span class="sec">§</span> Research</h2>
+<div class="r-research" data-id="r-tokamap" data-type="repo" data-source="" data-added-by="" data-when="" data-url="https://github.com/ukaea/tokamap">
+    <span class="r-research-title"><a href="https://github.com/ukaea/tokamap">UKAEA tokamap — JSON mapping schema, validator and partition selectors</a></span></div>
+<div class="r-research" data-id="r-libtokamap" data-type="repo" data-source="" data-added-by="" data-when="" data-url="https://github.com/ukaea/libtokamap">
+    <span class="r-research-title"><a href="https://github.com/ukaea/libtokamap">UKAEA libtokamap — C++20 mapping executor (ExprTk, Inja)</a></span></div>
+<div class="r-research" data-id="r-mast-mappings" data-type="repo" data-source="" data-added-by="" data-when="" data-url="https://github.com/ukaea/IMAS_MAST_mappings">
+    <span class="r-research-title"><a href="https://github.com/ukaea/IMAS_MAST_mappings">UKAEA IMAS_MAST_mappings — worked tokamap mappings for MAST magnetics</a></span></div>
+<div class="r-research" data-id="r-mast-cocos-eval" data-type="doc" data-source="" data-added-by="" data-when="" data-url="/imas-ambix/mast-imas-cocos-evaluation.html">
+    <span class="r-research-title"><a href="/imas-ambix/mast-imas-cocos-evaluation.html">MAST → IMAS COCOS evaluation — the convention-proof method reused here</a></span></div>
+</section>
 
-    <section data-reckon="comments" id="comments" class="r-comments"></section>
+    
   </main>
 </body>
 </html>
