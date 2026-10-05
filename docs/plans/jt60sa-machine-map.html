@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4">
 <meta name="plan-impl" content="0.35">
-<meta name="plan-version" content="53">
+<meta name="plan-version" content="54">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -367,7 +367,13 @@
       the inventories record each copy's sha256 against the facility file. The run copies them
       to <code>JT60SA_ROOT/machine_description/source/</code>, checks each sha256 against those
       inventories, converts both phases into <code>JT60SA_ROOT/machine_description/OP1/</code> and
-      <code>OP2/</code>, and its receipts name the facility path and hash of each source. The converter
+      <code>OP2/</code>. Each receipt names the landed copy it read and that copy's sha256, and
+      <code>source/provenance.json</code> maps every copy to its facility path by the same hash.
+      Neither deck states the TF coil count or turn count, so <code>tf/coils_n</code> and
+      <code>tf/coil/turns</code> are left unset and declared as validation gaps until a source
+      that states them is found. Landed 2026-10-05 (merge <code>dbea2656</code>):
+      <code>/work/projects/imas_gpu/jt60sa/machine_description/OP1</code> and <code>OP2</code> hold
+      all five IDSs with receipts citing converter commit <code>6ea7df62</code>. The converter
       supersedes <code>nakamap</code> as the JT-60SA deck converter: once it lands, nothing in this
       map reads nakamap's code or its <code>jt60sa_md_*.nc</code> outputs, which carry the probe
       coordinates in <code>flux_loop</code>, and the nakamap repository is left as the historical
