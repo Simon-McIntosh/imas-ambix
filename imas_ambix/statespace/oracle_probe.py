@@ -45,15 +45,14 @@ Run: ``uv run python -m imas_ambix.statespace.oracle_probe``  (CPU, minutes).
 # ruff: noqa: N803, N806, N812
 from __future__ import annotations
 
-import os
-
 # Pin BLAS/OpenMP thread pools BEFORE importing numpy/sklearn.  On a shared
 # login node the HistGradientBoostingRegressor's OpenMP pool otherwise spreads
 # over all 64 cores and thrashes against concurrent jobs — a single fit went
 # from 0.2 s (pinned) to > 200 s (unpinned) during development.  4 threads is
 # ample for this MLP/GBM-scale probe and keeps it a good login-node citizen.
-for _v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
-    os.environ.setdefault(_v, "4")
+from imas_ambix._thread_pools import pin_thread_pools  # noqa: E402
+
+pin_thread_pools(4)
 
 import argparse  # noqa: E402
 import json  # noqa: E402

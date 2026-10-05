@@ -1,0 +1,42 @@
+<section class="evidence-fragment" data-reckon="evidence" id="ped-worker-threads">
+  <header>
+    <h3>Per-xdist-worker thread-pool cap: share on this node and gate results</h3>
+    <p class="meta">Node <code>ped-worker-threads</code> &middot; revision <code>23ee56ab</code> &middot; fleet compute node <code>98dci4-clu-2018</code>, job <code>1277272</code> &middot; run <code>r-20261005T175306814457</code></p>
+  </header>
+  <p>
+    The cap reads the CPUs available to the process from
+    <code>os.sched_getaffinity(0)</code> and divides by
+    <code>PYTEST_XDIST_WORKER_COUNT</code>, floored at one. On this node the
+    process affinity is <strong>28</strong> CPUs, so the share is
+    <code>28 // workers</code> (minimum one).
+  </p>
+  <h4 id="ped-worker-threads-shares">Share computed on the node</h4>
+  <table id="ped-worker-threads-shares-table">
+    <thead><tr><th>workers</th><th>affinity CPUs</th><th>share (OMP/OPENBLAS/MKL, torch)</th></tr></thead>
+    <tbody>
+      <tr><td><code>-n 4</code></td><td>28</td><td>7</td></tr>
+      <tr><td><code>-n 8</code></td><td>28</td><td>3</td></tr>
+    </tbody>
+  </table>
+  <h4 id="ped-worker-threads-gates">Gate results (this node's own change)</h4>
+  <table id="ped-worker-threads-gates-table">
+    <thead><tr><th>gate</th><th>result</th><th>EXIT</th><th>log</th></tr></thead>
+    <tbody>
+      <tr><td><code>pytest -p no:cacheprovider tests/test_worker_threads.py</code></td><td>8 passed, 1 skipped</td><td>0</td><td><code>gate-serial.log</code></td></tr>
+      <tr><td><code>pytest -p no:cacheprovider -n 4 tests/test_worker_threads.py</code></td><td>9 passed</td><td>0</td><td><code>gate-xdist4.log</code></td></tr>
+      <tr><td><code>pytest -p no:cacheprovider -n 8 tests/test_worker_threads.py</code></td><td>9 passed</td><td>0</td><td><code>gate-xdist8.log</code></td></tr>
+      <tr><td><code>ruff check imas_ambix tests</code></td><td>All checks passed!</td><td>0</td><td><code>gate-ruff.log</code></td></tr>
+      <tr><td><code>pytest -n 4</code> with the cap's <code>torch.set_num_threads</code> skipped (negative control)</td><td>1 failed, 8 passed &mdash; <code>assert 28 == 7</code></td><td>1</td><td><code>negative-control-xdist4.log</code></td></tr>
+    </tbody>
+  </table>
+  <p>
+    The negative control skips <code>torch.set_num_threads</code> in the cap; the
+    xdist-run test asserting <code>torch.get_num_threads() == share</code> then
+    fails with <code>28 == 7</code>, showing the torch branch is load-bearing.
+    <code>threadpool_limits</code> is scoped to the <code>blas</code> API in the
+    cap: capping the <code>openmp</code> API caps the same runtime torch reports,
+    which would satisfy that assertion without the torch call and leave it
+    untested. No xdist run sets nothing, and the gate logs are under the run
+    directory <code>r-20261005T175306814457-ped-worker-threads</code>.
+  </p>
+</section>
