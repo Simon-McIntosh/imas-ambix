@@ -30,6 +30,11 @@
     <p>Merged 8a58accb from run r-20261005T090944644784-ped-declare-relock (commits 3c506b86, 7e576c53, 8f6d1058, ca2adc4e). Gate: <code>tests/test_declared_dependencies.py</code> and <code>tests/physics/test_dependency_contract.py</code>, 4 passed; whole-tree ruff clean; <code>uv lock --check</code> exit 0 at the merged head. Negative control: removing scipy from <code>[project.dependencies]</code> fails the census test naming scipy. Independent review 108, 0 added failures; its follow-ons were the collect count (3953 to 3952, explained) and a manifest placeholder for the interpreter path. Full record: <code>docs/evidence/fragments/project-environment-declared/ped-declare-relock.html</code>, which lists the 37 tests that hit the 300 s bound.</p>
   </section>
 
+  <section id="s4">
+    <h2>§4 — fresh environment proven, shared environment synced</h2>
+    <p>Merged 9a4bad01 from run r-20261005T123533577432-ped-fresh-env (commits abcdc37e, 37f44b1b, 52768177; review 97, its durability score of 9 exempted with a reason) and f746157b from run r-20261005T143708493246-ped-lock-matplotlib (review 114). The fresh-environment gate log records the import walk at EXIT 0, <code>imas-ambix --help</code> at EXIT 0, collection of 3987 tests with 0 errors fresh and shared, and ruff at EXIT 0. The shared environment was synced at the main checkout with <code>uv sync --all-extras</code>: 69 uninstalled, 7 installed, matching its dry run; log at <code>~/.cache/imas-ambix-ped/sync-all-extras-20261005.log</code>. Fragments: <code>docs/evidence/fragments/project-environment-declared/ped-fresh-env.html</code> and <code>ped-lock-matplotlib.html</code>.</p>
+  </section>
+
 </main>
 </body>
 </html>

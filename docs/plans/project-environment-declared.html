@@ -23,10 +23,10 @@
   <title>Project Environment From Its Declaration | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;}">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;}">
 <meta name="plan-commits" content="80e9f492,8a58accb,9a4bad01,d0fb6648,a8c7ce1a,5d448418,f746157b">
-<meta name="plan-impl" content="0.5">
-<meta name="plan-version" content="28">
+<meta name="plan-impl" content="0.75">
+<meta name="plan-version" content="29">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -83,41 +83,12 @@
   <p class="landed-summary">Landed 8a58accb (review 108 at ca2adc4e, 0 added failures). <code>pyproject.toml</code> declares every directly imported distribution: census 46 classified, 0 undeclared. The dev extra is replaced by a <code>[dependency-groups] dev</code> group; hydra-core and wandb move to <code>train</code>, uvicorn to <code>agent</code>, and a <code>video</code> extra carries opencv-python-headless, imageio, imageio-ffmpeg, lpips and <code>torchvision==0.26.*</code>, pinned because an unbounded torchvision re-pins torch 2.11.0 to 2.14.1 and rewrites the CUDA stack. <code>uv.lock</code> adds 9 packages and changes no existing version; <code>uv lock --check</code> passes at the merged head. The default per-test timeout is 300 s. Collect-only reports 3953 before and 3952 after, because the census fragment-comparison test went when fragment rendering moved out of the census test. The whole suite at the shared environment hit the 300 s bound in 37 tests, which §5 triages. <a href="s3">full record</a></p>
 </section>
 
+    <section class="section-landed">
+  <header><span class="badge badge-shipped">&#10003; landed 2026-10-05</span>
     <h2 id="s4">§4 — Prove it on a fresh environment</h2>
-<section data-reckon="section" data-id="s4" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links=""></section>
-    <p>
-      The proof builds a new environment from the declaration alone, on node-local disk so the shared
-      one is never touched:
-      <code>UV_PROJECT_ENVIRONMENT=$TMPDIR/ped-fresh-&lt;run&gt; uv sync</code> with no flags, where
-      <code>TMPDIR</code> is the node's own scratch, the root
-      <code>imas_ambix/gs/artifact_resolution.py</code> <code>staging_cache_root()</code> already uses
-      for node-local work, so the environment dies with the run's scratch. Against that environment it imports every
-      module under <code>imas_ambix/</code>. A module outside the optional subsystems must import; a
-      module inside one must either import or fail with <code>ModuleNotFoundError</code> naming a
-      distribution the census classed optional, and any other failure fails the proof. Which
-      modules are optional, and which distributions, is not re-declared by the proof: it takes
-      <code>OPTIONAL_SUBSYSTEM_ROOTS</code> and the census from
-      <code>tests/test_declared_dependencies.py</code>, the module that owns both. Because
-      <code>build_census()</code> maps imports to distributions through whatever the running
-      interpreter has installed, it is run in the shared environment, where every declared
-      distribution is present, and its optional set is written to the run's scratch and read by
-      the import walk in the fresh environment, so the proof and the census share one definition
-      of optional. The proof's driver is a run artifact kept beside its gate log, not a
-      repository module, and the evidence fragment is the only file it adds, so it adds no
-      public surface. It also runs
-      the <code>imas-ambix</code> console script's <code>--help</code>, collects the whole test suite,
-      and runs <code>ruff check imas_ambix tests</code>, then removes the fresh environment. The
-      worker does only this. The coordinator then runs a plain <code>uv sync</code> in the main
-      checkout and checks its removal list against the census: every removed package must be one
-      the census classed optional, unused or transitive, and nothing classed default may go.
-    </p>
-    <p>
-      Done-when, for the worker: in the fresh environment every non-optional module imports and
-      every optional module either imports or fails naming an optional distribution, the console
-      script answers, test collection reports zero errors and the same count as the shared
-      environment, and ruff exits 0, all in one gate log. For the coordinator: the main checkout's
-      plain sync removes nothing the census classed default.
-    </p>
+<section data-reckon="section" data-id="s4" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-status="done" data-links=""></section></header>
+  <p class="landed-summary">Landed 9a4bad01 and f746157b, with the shared environment synced 2026-10-05. A plain <code>uv sync</code> of the declaration into <code>$TMPDIR</code> builds an 11 GiB environment (Resolved 236, Installed 194). The proof's driver ran <code>build_census()</code> in the shared environment and handed the fresh environment both the optional distribution set and <code>module_distribution_map()</code>, so each <code>ModuleNotFoundError</code> was judged by the census's own mapping. 311 of 313 modules import with 0 hard failures (the 2 name optional openai and hydra-core), the console script answers, collection is 3987 with 0 errors fresh and shared, and ruff passes. The proof found two worldmodel tests that need nova's bokeh extra, now declared as <code>nova-stella[bokeh]</code> in the dev group, and a stale matplotlib 3.10.9 in the lock, refreshed to 3.11.2. A plain sync of the shared environment would remove nothing the census classes default. At the lead's choice it was synced with <code>uv sync --all-extras</code>, removing 69 unimported packages and installing the video extra; the fleet services kept running and the lane router runs from the vLLM engine environment. <a href="s4">full record</a></p>
+</section>
 
     <h2 id="s5">§5 — Triage the tests the 300 s bound reaches</h2>
 <section data-reckon="section" data-id="s5" data-effort-hours="2.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
