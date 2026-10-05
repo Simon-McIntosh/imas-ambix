@@ -24,7 +24,7 @@
   <title>JT-60SA Machine Map for Equilibrium Reconstruction | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="3">
+<meta name="plan-version" content="5">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -102,7 +102,7 @@
           <text x="260" y="62" font-weight="700">remote extractor (ssh)</text>
           <text x="260" y="80">stdlib + eddb_pwrapper, niced</text>
           <text x="260" y="97">batched (shot, cat, dname) → npz</text>
-          <text x="500" y="62" font-weight="700">immutable mirror</text>
+          <text x="500" y="62" font-weight="700">on-demand cache</text>
           <text x="500" y="80">{shot}.zarr/{category}/{dname}</text>
           <text x="500" y="97">raw units, raw sign, never rewritten</text>
           <text x="750" y="62" font-weight="700">transform engine (zarr)</text>
@@ -187,7 +187,7 @@
       every binding.
     </p>
 
-    <h2 id="s3">§3 — Access path: EDDB over ssh, an immutable mirror, a lazy view</h2>
+    <h2 id="s3">§3 — Access path: EDDB over ssh, an on-demand cache, a lazy view</h2>
     <p>
       The authorised data path is the EDDB C library through its Python wrapper on the Naka
       analysis server (<code>/analysis/src/eddb/eddb_pwrapper.py</code>,
@@ -208,9 +208,13 @@
       niced, that takes a batch of (shot, category, dname) requests on stdin and streams
       compact binary arrays back — the same shape as the codex remote executor already uses
       for enumeration, but owned by ambix because ambix must not require codex at runtime.
-      The <strong>immutable mirror</strong> lands those arrays as
-      <code>{shot}.zarr/{category}/{dname}</code> with the EDDB unit string, channel count
-      and sequence number as attributes, in raw units and raw sign, never rewritten. The
+      The <strong>on-demand cache</strong> lands only the channels the map binds, for the
+      shots a run asks for, as <code>{shot}.zarr/{category}/{dname}</code> with the EDDB unit
+      string, channel count and sequence number as attributes, in raw units and raw sign,
+      written on first fetch and never rewritten. It is not a copy of the EDDB: about 230
+      first-pass channels cost roughly 1.4 GB per shot at full rate or 150 MB windowed to the
+      plasma phase (one coil-current record is 740,900 points, 5.9 MB), so a frozen 20-shot
+      benchmark set is 3 to 28 GB under a size cap, pre-warmed only for that set. The
       <strong>lazy view</strong> is the existing <code>VirtualZarrView</code>: listing and
       metadata read no chunks, and a slice applies the compiled affine transform to only the
       returned chunk. The zarr engine then serves JT-60SA with no new engine, which is the
@@ -220,9 +224,9 @@
       Done-when: a cold fetch of one OP2 shot's first-pass signals completes through the
       extractor in a single ssh session; a warm read of the same signals through the view
       touches no network; and the extractor's wall time per signal and bytes per signal are
-      recorded in the evidence so the mirror's size for a campaign can be sized rather than
-      guessed. Where the mirror lives — node-local scratch for development, GPFS under the
-      project tree for a shared campaign — is a decision below.
+      recorded in the evidence so the cache for a shot set is sized rather than guessed. The
+      cache lives on GPFS under <code>/work/projects/imas_gpu/jt60sa</code> beside the MAST
+      store, so every ITER session and worker reads the same bytes (decision below).
     </p>
 
     <h2 id="s4">§4 — Machine description: the SELENE deck is the source</h2>
@@ -455,50 +459,50 @@
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
-<div class="r-dec" data-key="map-persistence-location" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="map-persistence-location" data-choice="ambix-packaged-maps" data-by="Simon McIntosh" data-when="2026-10-05T05:13:52+00:00">
     <p class="r-dec-q">Where are JT-60SA → IMAS maps persisted?</p>
     <p class="r-dec-ctx">Codex has traditionally generated the facility and DD knowledge graph; ambix holds the executable machine-map substrate that MAST already runs through.</p>
     <p class="r-dec-opts">
-      <button class="r-opt" data-value="ambix-packaged-maps">Packaged maps in ambix, codex supplies evidence</button>
+      <button class="r-opt chosen" data-value="ambix-packaged-maps">Packaged maps in ambix, codex supplies evidence</button>
       <button class="r-opt" data-value="codex-graph-mappings">IMASMapping nodes in the codex graph, ambix reads the graph</button>
       <button class="r-opt" data-value="separate-mapping-repo">A standalone mapping repository both consume</button>
       </p>
-    <p class="r-dec-rat"></p>
+    <p class="r-dec-rat">Lead&#x27;s choice 2026-10-05. Ambix already serves MAST through a declared machine map (254 bindings), two store engines and a compiled affine signal map, and its runtime never queries the discovery graph by design, so JT-60SA maps are packaged, versioned ambix documents with evidence receipts pointing at codex graph nodes. Rejected: IMASMapping nodes in the codex graph (a live graph and a tunnel at every read) and a separate mapping repository (a third repo that defers the units/sign/COCOS schema question).</p>
     </div>
-<div class="r-dec" data-key="map-format" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="map-format" data-choice="ambix-schema-tokamap-export" data-by="Simon McIntosh" data-when="2026-10-05T05:13:52+00:00">
     <p class="r-dec-q">Is the map authored in the ambix LinkML schema or natively in tokamap?</p>
     <p class="r-dec-ctx">Tokamap is the UKAEA/UDA interchange format; it has no slot for units, sign convention, COCOS, validation state or evidence.</p>
     <p class="r-dec-opts">
-      <button class="r-opt" data-value="ambix-schema-tokamap-export">Ambix schema is authoritative; tokamap is a validated export</button>
+      <button class="r-opt chosen" data-value="ambix-schema-tokamap-export">Ambix schema is authoritative; tokamap is a validated export</button>
       <button class="r-opt" data-value="tokamap-native">Author tokamap directly and extend it with custom keys</button>
       </p>
-    <p class="r-dec-rat"></p>
+    <p class="r-dec-rat">Lead&#x27;s choice 2026-10-05. Tokamap has no slot for units, sign convention, COCOS, validation state or evidence, only a bare scale, so it cannot carry the claims this plan proves; the forward collapse of unit, sign and COCOS factors into scale is lossless and the reverse is not. Author in the ambix LinkML schema and emit a tokamap directory that passes tokamap-validator for UDA and UKAEA consumers. Rejected: tokamap native with custom keys, invisible to libtokamap and unvalidated.</p>
     </div>
-<div class="r-dec" data-key="description-source-engine" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="description-source-engine" data-choice="receipted-ids-netcdf" data-by="Simon McIntosh" data-when="2026-10-05T05:13:52+00:00">
     <p class="r-dec-q">How does the SELENE deck reach the transform engine?</p>
     <p class="r-dec-ctx">The deck is a static per-phase text file; the engine registry varies by store format.</p>
     <p class="r-dec-opts">
-      <button class="r-opt" data-value="receipted-ids-netcdf">One-off conversion to IDS netCDF with a deck hash receipt, read by the netCDF engine</button>
+      <button class="r-opt chosen" data-value="receipted-ids-netcdf">One-off conversion to IDS netCDF with a deck hash receipt, read by the netCDF engine</button>
       <button class="r-opt" data-value="deck-store-engine">A dedicated store engine that parses the deck per call</button>
       </p>
-    <p class="r-dec-rat"></p>
+    <p class="r-dec-rat">Lead&#x27;s choice 2026-10-05. The SELENE deck is a static per-phase text file read twice a campaign, so there is no per-shot cost to amortise with a new engine; convert coil_vv_OP1/OP2.dat once with the nakamap logic into IDS netCDF carrying the deck hash and converter commit as the receipt, read by the existing netCDF engine. Rejected: a dedicated deck store engine, one more engine for a format with no access cost.</p>
     </div>
-<div class="r-dec" data-key="mirror-location" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="mirror-location" data-choice="gpfs-project-tree" data-by="Simon McIntosh" data-when="2026-10-05T05:13:52+00:00">
     <p class="r-dec-q">Where does the immutable EDDB mirror live?</p>
     <p class="r-dec-opts">
-      <button class="r-opt" data-value="gpfs-project-tree">GPFS under the project tree beside the MAST mirror</button>
+      <button class="r-opt chosen" data-value="gpfs-project-tree">GPFS under the project tree beside the MAST mirror</button>
       <button class="r-opt" data-value="workstation-local">Workstation-local disk, synced to GPFS per campaign</button>
       </p>
-    <p class="r-dec-rat"></p>
+    <p class="r-dec-rat">Lead&#x27;s choice 2026-10-05, after the store was re-stated as an on-demand cache of only the channels the map binds for the shots a run asks for, never a copy of the EDDB (about 230 first-pass channels, 1.4 GB per shot at full rate or 150 MB windowed; a frozen 20-shot set is 3 to 28 GB under a size cap). It lives on GPFS under /work/projects/imas_gpu/jt60sa beside the MAST store so every ITER session and worker reads the same bytes and the benchmark is reproducible offline. Rejected: in-memory only (re-pulls gigabytes per benchmark run through the laptop hop) and node-local /tmp (invisible to other sessions, gone with the allocation).</p>
     </div>
-<div class="r-dec" data-key="codex-graph-hosting" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="codex-graph-hosting" data-choice="iter-tunnel" data-by="Simon McIntosh" data-when="2026-10-05T05:13:52+00:00">
     <p class="r-dec-q">Is the codex graph used for JT-60SA evidence served locally or through the ITER tunnel?</p>
     <p class="r-dec-ctx">Measured 2026-10-05: the ITER graph runs as a SLURM job but the forward tunnel on port 17687 is in a restart loop; a local Neo4j instance is running but rejects both the configured and its own launch credential; the local embedding server is not running and the workstation has no usable GPU.</p>
     <p class="r-dec-opts">
       <button class="r-opt" data-value="local-jt60sa-graph">A local per-facility graph on the jt-60sa port slot, loaded from a facility-filtered export</button>
-      <button class="r-opt" data-value="iter-tunnel">The ITER graph through the systemd tunnel once it recovers</button>
+      <button class="r-opt chosen" data-value="iter-tunnel">The ITER graph through the systemd tunnel once it recovers</button>
       </p>
-    <p class="r-dec-rat"></p>
+    <p class="r-dec-rat">Lead&#x27;s choice 2026-10-05. The ITER graph (SLURM job codex-neo4j on gpu-0002, beside the embedding server) already holds the 4,476 JT-60SA wiki pages, is direct from ITER where the work moves, and reaches the workstation through the codex tunnel on 17687 now that the supervisor&#x27;s connection grace is fixed. Rejected: a local per-facility graph, which needs a credential reset on the local Neo4j, a local embedding server without a usable GPU and a sync discipline back to ITER.</p>
     </div>
 </section>
 
