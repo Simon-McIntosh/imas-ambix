@@ -1,0 +1,454 @@
+"""Census of directly imported distributions against the project declaration.
+
+WHAT
+----
+Every distribution that something under ``imas_ambix/``, ``tests/`` or
+``scripts/`` imports directly gets exactly one class:
+
+* **default** -- the repository cannot do its ordinary work without it.  An
+  ``import`` at any level (module or function) reaches it from code under
+  ``imas_ambix/`` outside an optional subsystem, or from anywhere under
+  ``tests/``; or it is the test and lint tooling every session runs.
+* **optional** -- only an optional subsystem imports it: the GPU model serving
+  stack (``imas_ambix/agent``) or the world-model training stack
+  (``imas_ambix/train``).  A distribution reached only from ``scripts/`` (the
+  analysis and figure tooling) counts as optional too: no core ``imas_ambix/``
+  code outside those subsystems and no test reaches it.
+* **unused** -- nothing under those three trees imports it.
+* **transitive** -- nothing imports it, but another directly imported
+  distribution requires it, so it needs no declaration of its own.
+
+The classification lives in one function, :func:`build_census`, so the
+assertion in :func:`test_every_directly_imported_distribution_is_declared` and
+the renderer that writes the evidence fragment cannot disagree: both read the
+same result.  ``packages_distributions`` maps an imported top-level module to
+its distribution; path-source extras (``packages_distributions`` cannot see an
+editable install that ships no ``top_level.txt``) are recovered from the
+checkout the ``[tool.uv.sources]`` path points at.
+
+WHY
+---
+The declaration must match what the code and tests actually import, so a plain
+``uv sync`` installs the working stack and nothing a session relies on lives
+outside the project's declared dependencies.  Committing the census as a test
+makes it a guard rather than a one-off scan: its first run, against the current
+declaration, is expected to fail -- the failure lines name each undeclared
+``default`` and ``optional`` distribution -- so it is marked
+``xfail(strict=True)``.  That reports an expected failure now, and a hard
+failure the moment the census passes without the declaration having caught up
+with it.
+
+Regenerate the fragment after changing the tree::
+
+    uv run --no-sync python tests/test_declared_dependencies.py
+"""
+
+from __future__ import annotations
+
+import ast
+import json
+import re
+import sys
+import tomllib
+from collections import defaultdict
+from dataclasses import dataclass
+from importlib.metadata import distributions, packages_distributions
+from pathlib import Path
+from urllib.parse import urlsplit
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[1]
+SCAN_DIRS = ("imas_ambix", "tests", "scripts")
+
+# Importing code under these roots belongs to an optional subsystem, so an
+# import there does not make a distribution default.  Everything else under
+# imas_ambix/, and every test import, does.
+OPTIONAL_SUBSYSTEM_ROOTS = ("imas_ambix/agent", "imas_ambix/train")
+
+# Tooling every session runs; default even though no import names some of them.
+TOOLING = ("pytest", "ruff", "mypy", "tokamap", "pytest-timeout", "pytest-xdist")
+
+NODE_ID = "ped-census"
+_FRAGMENT_NAME = "ped-census.html"
+
+
+def fragment_path() -> Path:
+    """Locate this node's evidence fragment by its file name."""
+    matches = sorted((ROOT / "docs/evidence/fragments").glob(f"*/{_FRAGMENT_NAME}"))
+    if len(matches) != 1:
+        raise RuntimeError(
+            f"expected exactly one {_FRAGMENT_NAME} under docs/evidence/fragments, "
+            f"found {len(matches)}"
+        )
+    return matches[0]
+
+
+@dataclass(frozen=True)
+class Row:
+    """One directly imported distribution and how it stands against the declaration."""
+
+    name: str
+    kind: str
+    deciding_file: str
+    declaration: str
+
+
+@dataclass(frozen=True)
+class Census:
+    """The whole census: rows, the transitive closure, and the failure lines."""
+
+    rows: tuple[Row, ...]
+    transitive: tuple[tuple[str, str], ...]
+    unused_declared: tuple[str, ...]
+    unmapped: tuple[str, ...]
+    failures: tuple[str, ...]
+
+
+def canonical(name: str) -> str:
+    """Return the PEP 503 normalised distribution name."""
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def requirement_name(entry: object) -> str | None:
+    """Extract the distribution name from a requirement or declaration string."""
+    if not isinstance(entry, str):
+        return None
+    match = re.match(r"[A-Za-z0-9][A-Za-z0-9._-]*", entry.strip())
+    return canonical(match.group(0)) if match else None
+
+
+def declaration_map(project: dict) -> dict[str, str]:
+    """Map every declared distribution name to where it is declared."""
+    declared: dict[str, str] = {}
+    for entry in project["project"].get("dependencies", []):
+        name = requirement_name(entry)
+        if name:
+            declared[name] = "dependency"
+    for group, entries in project.get("dependency-groups", {}).items():
+        for entry in entries:
+            name = requirement_name(entry)
+            if name:
+                declared.setdefault(name, f"group:{group}")
+    for extra, entries in project["project"].get("optional-dependencies", {}).items():
+        for entry in entries:
+            name = requirement_name(entry)
+            if name:
+                declared.setdefault(name, f"extra:{extra}")
+    return declared
+
+
+def checkout_top_level_modules(path: Path) -> set[str]:
+    """Top-level import names a sibling checkout exposes (flat or ``src/`` layout)."""
+    base = path / "src" if (path / "src").is_dir() else path
+    if not base.is_dir():
+        return set()
+    modules: set[str] = set()
+    for child in base.iterdir():
+        if child.suffix == ".py":
+            modules.add(child.stem)
+        elif child.is_dir() and (child / "__init__.py").is_file():
+            modules.add(child.name)
+    return modules
+
+
+def installation_top_level_modules(dist) -> set[str]:
+    """Top-level import names a single installed distribution exposes."""
+    try:
+        text = dist.read_text("top_level.txt")
+    except OSError:
+        text = None
+    if text:
+        return {line.strip() for line in text.splitlines() if line.strip()}
+    try:
+        raw = dist.read_text("direct_url.json")
+    except OSError:
+        return set()
+    if not raw:
+        return set()
+    try:
+        direct_url = json.loads(raw)
+    except ValueError:
+        return set()
+    url = direct_url.get("url")
+    if isinstance(url, str) and url.startswith("file:"):
+        return checkout_top_level_modules(Path(urlsplit(url).path))
+    return set()
+
+
+def module_distribution_map(sources: dict) -> dict[str, set[str]]:
+    """Map each directly imported top-level module name to its distribution(s)."""
+    del sources  # kept in the signature so a caller can pass [tool.uv.sources]
+    mapping: dict[str, set[str]] = defaultdict(set)
+    for module, dist_names in packages_distributions().items():
+        for dist_name in dist_names:
+            mapping[module].add(canonical(dist_name))
+
+    # An editable path install ships no top_level.txt, so packages_distributions
+    # cannot see it; recover the import names from the checkout it points at
+    # (readable from its direct_url.json, so this works inside a worktree too).
+    covered = {dist for dists in mapping.values() for dist in dists}
+    for dist in distributions():
+        name = dist.metadata["Name"]
+        if not name:
+            continue
+        canonical_name = canonical(name)
+        if canonical_name in covered:
+            continue
+        for module in installation_top_level_modules(dist):
+            mapping[module].add(canonical_name)
+    return mapping
+
+
+def local_top_level_names() -> set[str]:
+    """Top-level module names provided by this repository itself."""
+    names = set(SCAN_DIRS)
+    for child in ROOT.iterdir():
+        if child.suffix == ".py" and child.stem != "__init__":
+            names.add(child.stem)
+        elif (child / "__init__.py").is_file():
+            names.add(child.name)
+    # Modules under the scanned trees import one another by bare name (the
+    # analysis scripts especially), so every module stem is a local name.
+    for base in SCAN_DIRS:
+        for path in (ROOT / base).rglob("*.py"):
+            if path.stem != "__init__":
+                names.add(path.stem)
+    return names
+
+
+def iter_imports() -> dict[str, set[str]]:
+    """Every top-level module imported anywhere, and the files importing it."""
+    imports: dict[str, set[str]] = defaultdict(set)
+    for base in SCAN_DIRS:
+        for path in (ROOT / base).rglob("*.py"):
+            try:
+                tree = ast.parse(path.read_text(), filename=str(path))
+            except SyntaxError:
+                continue
+            relative = path.relative_to(ROOT).as_posix()
+            for node in ast.walk(tree):
+                names: list[str] = []
+                if isinstance(node, ast.Import):
+                    names = [alias.name for alias in node.names]
+                elif (
+                    isinstance(node, ast.ImportFrom)
+                    and node.level == 0
+                    and node.module
+                ):
+                    names = [node.module]
+                for name in names:
+                    imports[name.split(".")[0]].add(relative)
+    return imports
+
+
+def makes_default(relative: str) -> bool:
+    """Whether an importing file's location makes its distribution default."""
+    if relative.startswith("tests/"):
+        return True
+    if relative.startswith("imas_ambix/"):
+        optional = tuple(f"{root}/" for root in OPTIONAL_SUBSYSTEM_ROOTS)
+        return not relative.startswith(optional)
+    return False  # scripts/ alone: optional tooling
+
+
+def transitive_closure(roots: set[str]) -> dict[str, str]:
+    """Map a required distribution to the directly imported one that pulls it in."""
+    installed: dict[str, list[str] | None] = {}
+    for dist in distributions():
+        name = dist.metadata["Name"]
+        if name:
+            installed[canonical(name)] = dist.requires
+    reached: dict[str, str] = {}
+    origin: dict[str, str] = {root: root for root in roots}
+    seen = set(roots)
+    frontier = sorted(roots)
+    while frontier:
+        nxt: set[str] = set()
+        for current in frontier:
+            for entry in installed.get(current) or []:
+                required = requirement_name(entry)
+                if required and required in installed and required not in seen:
+                    seen.add(required)
+                    reached[required] = origin[current]
+                    origin[required] = origin[current]
+                    nxt.add(required)
+        frontier = sorted(nxt)
+    return reached
+
+
+def build_census(pyproject_path: Path | None = None) -> Census:
+    """Classify every directly imported distribution against the declaration."""
+    project = tomllib.loads((pyproject_path or ROOT / "pyproject.toml").read_text())
+    declared = declaration_map(project)
+    sources = project.get("tool", {}).get("uv", {}).get("sources", {})
+    module_map = module_distribution_map(sources)
+    imports = iter_imports()
+    local = local_top_level_names()
+    stdlib = set(sys.stdlib_module_names)
+
+    importers: dict[str, set[str]] = defaultdict(set)
+    unmapped: set[str] = set()
+    for module, files in imports.items():
+        if module in stdlib or module in local:
+            continue
+        dists = module_map.get(module)
+        if not dists:
+            unmapped.add(module)
+            continue
+        for dist in dists:
+            importers[dist].update(files)
+
+    rows: list[Row] = []
+    for name, files in importers.items():
+        default_files = sorted(f for f in files if makes_default(f))
+        if default_files:
+            rows.append(
+                Row(name, "default", default_files[0], declared.get(name, "none"))
+            )
+        else:
+            rows.append(
+                Row(name, "optional", sorted(files)[0], declared.get(name, "none"))
+            )
+    for tool in TOOLING:
+        name = canonical(tool)
+        if name not in importers:
+            rows.append(
+                Row(name, "default", "(no import; tooling)", declared.get(name, "none"))
+            )
+    rows.sort(key=lambda row: (row.kind, row.name))
+
+    roots = set(importers) | {canonical(tool) for tool in TOOLING}
+    reached = transitive_closure(roots)
+    transitive = tuple(sorted((d, r) for d, r in reached.items() if d not in importers))
+
+    directly_imported = set(importers)
+    unused_declared = tuple(
+        sorted(name for name in declared if name not in directly_imported)
+    )
+
+    failures: list[str] = []
+    for row in rows:
+        if row.kind == "default":
+            if row.declaration != "dependency" and not row.declaration.startswith(
+                "group:"
+            ):
+                failures.append(
+                    f"default {row.name} (imported by {row.deciding_file}) is "
+                    f"declared as {row.declaration}, not in [project.dependencies] "
+                    f"or the dev dependency group"
+                )
+        elif not row.declaration.startswith("extra:"):
+            failures.append(
+                f"optional {row.name} (imported only by {row.deciding_file}) is "
+                f"declared as {row.declaration}, not in an extra"
+            )
+
+    return Census(
+        rows=tuple(rows),
+        transitive=transitive,
+        unused_declared=unused_declared,
+        unmapped=tuple(sorted(unmapped)),
+        failures=tuple(failures),
+    )
+
+
+def render_fragment(census: Census) -> str:
+    """Render the census as the evidence fragment, from the same result."""
+    lines = [
+        f'<section class="evidence-fragment" data-reckon="evidence" id="{NODE_ID}">',
+        "  <header>",
+        "    <h3>Import census: which libraries a plain sync must declare</h3>",
+        "    <p class=\"meta\">",
+        f"      Node <code>{NODE_ID}</code> &middot; import census against the "
+        "project declaration",
+        "    </p>",
+        "  </header>",
+        "  <p>",
+        "    Each distribution this repository imports directly, its class"
+        " (default, optional, unused or transitive), the importing file that"
+        " decided the class, and how the declaration currently carries it. The"
+        " classifier in <code>tests/test_declared_dependencies.py</code> renders"
+        " this fragment and asserts the same result, so the two cannot drift.",
+        "  </p>",
+        "  <table>",
+        "    <thead><tr><th>Distribution</th><th>Class</th>"
+        "<th>Deciding file</th><th>Declaration</th></tr></thead>",
+        "    <tbody>",
+    ]
+    for row in census.rows:
+        lines.append(
+            f"      <tr><td><code>{row.name}</code></td><td>{row.kind}</td>"
+            f"<td><code>{row.deciding_file}</code></td>"
+            f"<td>{row.declaration}</td></tr>"
+        )
+    lines += [
+        "    </tbody>",
+        "  </table>",
+        "  <h4>Transitive dependencies (nothing imports them; a directly imported"
+        " distribution requires them)</h4>",
+        "  <ul>",
+    ]
+    for dist, requirer in census.transitive:
+        lines.append(
+            f"    <li><code>{dist}</code> &mdash; required by "
+            f"<code>{requirer}</code></li>"
+        )
+    lines += [
+        "  </ul>",
+        "  <h4>Declared dependencies nothing imports</h4>",
+        "  <ul>",
+    ]
+    for name in census.unused_declared:
+        lines.append(f"    <li><code>{name}</code></li>")
+    lines += [
+        "  </ul>",
+        "  <h4>Imported but not mapped to an installed distribution</h4>",
+        "  <ul>",
+    ]
+    for name in census.unmapped:
+        lines.append(f"    <li><code>{name}</code></li>")
+    lines += [
+        "  </ul>",
+        "  <h4>Assertion lines: undeclared default and optional distributions</h4>",
+        "  <ul>",
+    ]
+    for failure in census.failures:
+        lines.append(f"    <li>{failure}</li>")
+    lines += ["  </ul>", "</section>", ""]
+    return "\n".join(lines)
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="the declaration has not yet caught up with the census: undeclared "
+    "default and optional distributions remain",
+)
+def test_every_directly_imported_distribution_is_declared() -> None:
+    census = build_census()
+    print("\n".join(census.failures))
+    assert not census.failures, "undeclared distributions:\n" + "\n".join(
+        census.failures
+    )
+
+
+def test_fragment_matches_census() -> None:
+    census = build_census()
+    assert fragment_path().read_text() == render_fragment(census)
+
+
+def main() -> int:
+    """Write the fragment from the current census and report the failure count."""
+    census = build_census()
+    target = fragment_path()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(render_fragment(census))
+    count = len(census.failures)
+    print(f"{len(census.rows)} distributions classified; {count} undeclared")
+    for failure in census.failures:
+        print(f"  {failure}")
+    return 0 if not census.failures else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
