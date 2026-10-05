@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;implementable&quot;,&quot;s14&quot;:&quot;implementable&quot;,&quot;s15&quot;:&quot;implementable&quot;}">
 <meta name="plan-impl" content="0.15">
-<meta name="plan-version" content="202">
+<meta name="plan-version" content="203">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -760,14 +760,27 @@
 <caption>Nodes for this section.</caption>
 <thead><tr><th>Node</th><th>Runs after</th><th>Effort</th></tr></thead>
 <tbody>
-<tr><td>Find the double count, fix it where it happens, and pin the additive identity in a test</td><td>—</td><td>2.5 h</td></tr>
+<tr><td>Locate the mechanism and reproduce one inflated total on the live index</td><td>—</td><td>1 h</td></tr>
+<tr><td>Fix the double count where it happens and pin the additive identity in a test</td><td>the locating node</td><td>1.5 h</td></tr>
 </tbody>
 </table>
-<p><strong>Done when:</strong></p>
+<p><strong>The measuring instrument is part of the problem.</strong> A first attempt, stopped by an 8-minute fence on 2026-10-05, found that one day-against-24-hours comparison on the live index did not finish in 100 s. The reason is in the query: <code>partitioned_total</code> reads every reading of the counter before the window's end, not only those inside the window. So 25 calls for each counter at each window end cannot be paid many times over. Two cheap reads come first:</p>
+<ul>
+<li><strong>Carriers.</strong> Group <code>sample</code> rows from the last 30 days by <code>path</code> and <code>job_id</code>, with each group's first and last <code>ts_epoch</code> and row count. This needs no counter history. It shows directly whether two carriers of one job overlap in time, and whether any rows lack a <code>job_id</code> that their neighbours carry. <code>_counter_runs</code> keys a run on <code>(host, boot_id, job_id)</code>, so either of those would split runs at every alternation.</li>
+<li><strong>The two window ends.</strong> Each publication's <code>now</code> is its <code>published_at</code> minus its <code>compute_seconds</code>: about 07:23:00.6Z for the inflated publication and 07:29:26.0Z for the sound one (publisher log, 2026-10-05). Recompute <code>ledger()</code> on today's index at both ends; each is one call of about 85 s. If 07:23 inflates again and 07:29 does not, the defect depends on where the window falls, and the rows at that day window's opening edge are the place to look. If neither inflates, the 07:24 publication saw a transient state of the index, and the ingest's tier switch around 07:22–07:24Z is the place to look.</li>
+</ul>
+<p><strong>Done when</strong> (the locating node):</p>
+<ul>
+<li>The evidence fragment reports the carrier table and both recomputed ledgers, each with the exact window end used.</li>
+<li>It names the mechanism: the rows that inflate one stated window (source key, path, timestamps, opening values) and the code path that sums them. Or, if neither end reproduces, the ingest evidence that explains a transient.</li>
+<li>At least one inflated total is reproduced by computation, or its absence at both ends is shown.</li>
+<li>Every read opens <code>~/.cache/ambix/watch-index.sqlite3</code> read-only, in place on the fleet allocation (<code>SLURM_JOB_ID</code> set; never the login node), and the logs sit under the node's report directory.</li>
+<li>The node writes no product code.</li>
+</ul>
+<p><strong>Done when</strong> (the fixing node):</p>
 <ol>
-<li>The evidence fragment names the mechanism and shows it on the live index at <code>~/.cache/ambix/watch-index.sqlite3</code>, opened read-only. It must show the rows that produce an inflated total for one stated window (source key, tier, timestamps) and the code path that sums them. At least one inflated total is reproduced by computing it, not inferred from the capture above.</li>
-<li>A test under <code>tests/</code> builds the mechanism from fixture rows. It asserts that the day total equals the sum of its 24 hourly totals for prompt tokens, generation tokens and each cached tier. The test fails at the base revision and passes at head. The declared negative control re-applies the defective step, and it must turn that test red.</li>
-<li>If the fix is on the read path, the live index is measured in place on the fleet allocation (<code>SLURM_JOB_ID</code> set; never the login node). At twelve window ends five minutes apart, the one-day total of each counter equals the sum of its 24 hourly totals within 0.5%, and at least one of those ends overlaps an ingest tick that reads three files. If the fix is on the ingest's write path, the same identity is shown instead on an index that the head ingest wrote under node-local <code>/tmp</code>. That index replays the live job's receipt files across at least one tier switch, and the fragment states that the live index takes the fix only once the ingest service is restarted. Either way, the log is written under the node's report directory and cited.</li>
+<li>A test under <code>tests/</code> builds the located mechanism from fixture rows. It asserts that the day total equals the sum of its 24 hourly totals for prompt tokens, generation tokens and each cached tier. The test fails at the base revision and passes at head. The declared negative control re-applies the defective step, and it must turn that test red.</li>
+<li>If the fix is on the read path, the reproducing window end from the locating node is recomputed at head on the live index. Its day total for each counter equals the sum of its four six-hour totals within 0.5%, and the same holds at two further window ends 15 minutes apart. If the fix is on the ingest's write path, the identity is shown instead on an index that the head ingest wrote under node-local <code>/tmp</code>, replaying the live job's receipt files across at least one tier switch. The fragment then states that the live index takes the fix only once the ingest service is restarted. Either way, the log sits under the node's report directory and is cited.</li>
 <li><code>uv run --no-sync ruff check imas_ambix tests</code> exits 0. If any module under <code>imas_ambix/agent/</code> changed, the serving-interpreter parse guard passes.</li>
 </ol>
 <p>Out of scope: restarting the publisher or ingest services (the coordinator does that after the merge), the price table, and the cost model.</p>
