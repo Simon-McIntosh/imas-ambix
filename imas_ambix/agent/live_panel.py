@@ -32,7 +32,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from imas_ambix.agent.lane import classify_reading
+from imas_ambix.agent.lane import availability_percent, classify_reading
 from imas_ambix.agent.serving_receipts import tier_paths
 
 #: The trailing window the ``live`` block describes. The recorder appends one
@@ -472,6 +472,19 @@ def lane_block(
     gate = document.get("router_generation_gate")
     if isinstance(gate, dict):
         block["router_generation_gate"] = {key: gate.get(key) for key in GATE_FIELDS}
+    # Copy the published percentage, or derive it with the same function the
+    # router published it with when the document predates the field. A reader
+    # sees the figure before the router is next restarted; an omitted figure
+    # stays omitted rather than becoming a null read as zero.
+    availability = document.get("availability_percent")
+    if availability is None and isinstance(gate, dict):
+        availability = availability_percent(
+            document.get("headroom"),
+            gate.get("effective_width"),
+            paused=gate.get("paused") is True,
+        )
+    if availability is not None:
+        block["availability_percent"] = availability
     return block
 
 

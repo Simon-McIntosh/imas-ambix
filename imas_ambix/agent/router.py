@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 import aiohttp
 
-from imas_ambix.agent.lane import LaneCapacity
+from imas_ambix.agent.lane import LaneCapacity, availability_percent
 from imas_ambix.agent.request_receipts import (
     DEFAULT_MAX_ROWS_PER_S,
     DEFAULT_WINDOW_S,
@@ -2144,6 +2144,17 @@ class RouterApp:
             ):
                 document["engine_headroom"] = engine_headroom
                 document["headroom"] = min(engine_headroom, admission["headroom"])
+            # Both inputs are final here: `headroom` is the admission-clamped
+            # figure above, and the gate snapshot carries the width in force and
+            # the pause. Publishing the percentage beside the field it derives
+            # from keeps the two reconcilable by a reader with no router source.
+            availability = availability_percent(
+                document.get("headroom"),
+                gate_snapshot.get("effective_width"),
+                paused=gate_snapshot.get("paused") is True,
+            )
+            if availability is not None:
+                document["availability_percent"] = availability
             scratch = self._lane_document.with_suffix(".gate.tmp")
             scratch.write_text(
                 json.dumps(document, indent=2, sort_keys=True), encoding="utf-8"

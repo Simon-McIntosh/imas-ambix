@@ -236,3 +236,40 @@ def test_lane_publish_feeds_the_gates_auto_width(
     # reading in: a gate that never saw one holds the floor, so the estimate is
     # what separates a sized width from a width that merely happens to match.
     assert gate_state["context_estimate"] == pytest.approx(mean_context)
+
+
+class _StubGate:
+    """A generation gate whose snapshot and admission the test fixes directly."""
+
+    def __init__(self, snapshot: dict, admission: dict) -> None:
+        self._snapshot = snapshot
+        self._admission = admission
+
+    def snapshot(self) -> dict:
+        return self._snapshot
+
+    def admission_document(self) -> dict:
+        return self._admission
+
+
+def test_published_availability_uses_the_clamped_headroom_not_the_engine_figure(
+    tmp_path,
+):
+    """The percentage divides the admission-clamped headroom, not engine_headroom.
+
+    The engine reports headroom 13 and the gate admits 4 more at an effective
+    width of 16, so the document's headroom is 4 and availability is 25.0. A
+    figure computed from the engine headroom would read 81.25.
+    """
+    lane_path = tmp_path / "lane.json"
+    lane_path.write_text(json.dumps({"state": "measured", "headroom": 13}), "utf-8")
+    app = RouterApp(_MetricsResolver("http://127.0.0.1:1"), lane_document=lane_path)
+    app._generation_gate = _StubGate(
+        {"effective_width": 16, "paused": False, "width": 16},
+        {"headroom": 4},
+    )
+    app._publish_gate_snapshot()
+    document = json.loads(lane_path.read_text(encoding="utf-8"))
+    assert document["engine_headroom"] == 13
+    assert document["headroom"] == 4
+    assert document["availability_percent"] == 25.0
