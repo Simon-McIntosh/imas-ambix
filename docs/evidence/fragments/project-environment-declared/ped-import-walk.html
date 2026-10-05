@@ -1,0 +1,79 @@
+<section class="evidence-fragment" data-reckon="evidence" id="ped-import-walk">
+  <header>
+    <h3>The fresh-environment import walk, carried by the census module</h3>
+    <p class="meta">
+      Node <code>ped-import-walk</code> &middot; import walk joined to
+      <code>tests/test_declared_dependencies.py</code>
+    </p>
+  </header>
+  <p>
+    The fresh-environment import walk moves from the &sect;4 run directory into the
+    tree. One function writes the hand-off &mdash; the optional distribution set
+    from <code>build_census()</code> and <code>module_distribution_map()</code> &mdash;
+    to a JSON path; one imports every module under <code>imas_ambix/</code> in the
+    running interpreter and classifies each failure against that hand-off; and
+    <code>main</code> gains the two modes. No new module is added: the census module
+    already owns the optional boundary and the module-to-distribution map, and its
+    entry point already exists.
+  </p>
+
+  <h4>Classification rule</h4>
+  <ul>
+    <li>A module outside an optional subsystem root
+      (<code>OPTIONAL_SUBSYSTEM_ROOTS</code>) must import; any failure is a hard failure.</li>
+    <li>A module inside one may fail only with <code>ModuleNotFoundError</code>
+      naming a module the hand-off resolves to a distribution the census classes
+      optional; that is <code>optional-missing</code>.</li>
+    <li>Anything else &mdash; a failure outside the optional roots, a missing module
+      that maps to no optional distribution, or an exception that is not
+      <code>ModuleNotFoundError</code> &mdash; is a hard failure.</li>
+  </ul>
+
+  <h4>Gate results (shared environment,
+    <code>UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD</code>)</h4>
+  <table id="ped-import-walk-results">
+    <thead><tr><th>Check</th><th>Result</th><th>EXIT</th></tr></thead>
+    <tbody>
+      <tr><td><code>command uv run --no-sync pytest -p no:cacheprovider
+        tests/test_declared_dependencies.py</code></td>
+        <td>2 passed (census assertion + synthetic-classifier unit test)</td>
+        <td>0</td></tr>
+      <tr><td><code>command uv run --no-sync python tests/test_declared_dependencies.py
+        handoff &lt;handoff.json&gt;</code></td>
+        <td>hand-off written (optional set + module map)</td><td>0</td></tr>
+      <tr><td><code>command uv run --no-sync python tests/test_declared_dependencies.py
+        walk &lt;handoff.json&gt;</code></td>
+        <td><strong>313 modules: 313 imported, 0 optional-missing, 0 hard failures</strong></td>
+        <td>0</td></tr>
+      <tr><td><code>command uv run --no-sync ruff check imas_ambix tests</code></td>
+        <td>All checks passed!</td><td>0</td></tr>
+    </tbody>
+  </table>
+
+  <h4>Unit test: the classifier on synthetic modules</h4>
+  <p>
+    <code>test_walk_classifies_synthetic_import_failures</code> builds a synthetic
+    package under <code>tmp_path</code>, adds it to <code>sys.path</code>, and points
+    the walk at it with a synthetic hand-off. Each case asserts the classifier's
+    verdict, so a mutation that widens the rule turns one red:
+  </p>
+  <table id="ped-import-walk-unit-cases">
+    <thead><tr><th>Synthetic module</th><th>Outcome</th></tr></thead>
+    <tbody>
+      <tr><td>optional-root module missing an optional distribution</td>
+        <td><code>optional-missing</code> (passes)</td></tr>
+      <tr><td>optional-root module missing a default distribution</td>
+        <td>hard failure &mdash; the case the declared mutation breaks</td></tr>
+      <tr><td>non-optional module that fails to import</td><td>hard failure</td></tr>
+      <tr><td>module raising an error other than <code>ModuleNotFoundError</code></td>
+        <td>hard failure</td></tr>
+    </tbody>
+  </table>
+
+  <h4>Logs</h4>
+  <ul>
+    <li>Unit gate: <code>/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T155053774756-ped-import-walk/unit-gate.log</code></li>
+    <li>Hand-off + walk: <code>/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T155053774756-ped-import-walk/walk-gate.log</code></li>
+    <li>Lint: <code>/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T155053774756-ped-import-walk/ruff.log</code></li>
+  </ul>
+</section>

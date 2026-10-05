@@ -46,6 +46,8 @@ optionally, a pytest ``--durations`` log to record beside the census::
 from __future__ import annotations
 
 import ast
+import importlib
+import json
 import os
 import re
 import sys
@@ -572,6 +574,168 @@ def write_fragment(
     out_path.write_text(render_fragment(census, out_path.stem, durations, timeouts))
 
 
+def build_handoff(census: Census | None = None) -> dict:
+    """Capture the census result a walk in another environment needs.
+
+    The walk may run where fewer distributions are installed, so the two facts
+    that decide an import failure are captured here and handed over: the
+    distributions the census classes optional, and the module-to-distribution
+    map.  A missing module name resolves through that map to the distribution
+    that would provide it, and the failure is expected only when that
+    distribution is one the census calls optional.
+    """
+    if census is None:
+        census = build_census()
+    optional = sorted(row.name for row in census.rows if row.kind == "optional")
+    module_map = {
+        module: sorted(dists) for module, dists in module_distribution_map({}).items()
+    }
+    return {"optional_distributions": optional, "module_distributions": module_map}
+
+
+def write_handoff(path: Path, census: Census | None = None) -> None:
+    """Write the walk hand-off of :func:`build_handoff` to a JSON path."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(build_handoff(census), indent=2, sort_keys=True) + "\n")
+
+
+@dataclass(frozen=True)
+class WalkResult:
+    """The outcome of importing every module under a package root."""
+
+    total: int
+    imported: tuple[str, ...]
+    optional_missing: tuple[tuple[str, str], ...]
+    failures: tuple[tuple[str, str], ...]
+
+    @property
+    def failed(self) -> bool:
+        return bool(self.failures)
+
+
+def classify_import(
+    dotted: str,
+    error: BaseException | None,
+    handoff: dict,
+    optional_roots: tuple[str, ...] = OPTIONAL_SUBSYSTEM_ROOTS,
+) -> str:
+    """Classify one module's import outcome: imported, optional-missing, failed.
+
+    A module that imported is ``imported``.  A module inside an optional root
+    whose import raised ``ModuleNotFoundError`` naming a module the hand-off
+    resolves to a distribution the census classes optional is
+    ``optional-missing``: the environment the walk runs in is expected not to
+    carry that extra.  Everything else -- a failure outside an optional root, a
+    missing module that maps to no optional distribution, or any exception that
+    is not ``ModuleNotFoundError`` -- is ``failed``.
+    """
+    if error is None:
+        return "imported"
+    prefixes = tuple(root.replace("/", ".") for root in optional_roots)
+    in_optional = any(
+        dotted == prefix or dotted.startswith(prefix + ".") for prefix in prefixes
+    )
+    if in_optional and isinstance(error, ModuleNotFoundError):
+        missing = (error.name or "").split(".")[0]
+        optional = set(handoff.get("optional_distributions", []))
+        named = set(handoff.get("module_distributions", {}).get(missing, []))
+        if optional & named:
+            return "optional-missing"
+    return "failed"
+
+
+def module_names(root: Path, package: str) -> list[str]:
+    """Dotted import names for every ``*.py`` under ``root`` under ``package``."""
+    names: list[str] = []
+    for path in sorted(root.rglob("*.py")):
+        parts = list(path.relative_to(root).parts)
+        if parts[-1] == "__init__.py":
+            parts = parts[:-1]
+        else:
+            parts[-1] = path.stem
+        names.append(".".join([package, *parts]))
+    return names
+
+
+def walk_imports(
+    handoff: dict,
+    root: Path | None = None,
+    package: str = "imas_ambix",
+    optional_roots: tuple[str, ...] = OPTIONAL_SUBSYSTEM_ROOTS,
+) -> WalkResult:
+    """Import every module under ``root`` and classify each failure.
+
+    ``root`` defaults to this repository's ``imas_ambix/`` tree and ``package``
+    to ``imas_ambix``; a caller may point both at a synthetic package (added to
+    ``sys.path``) to drive the classifier without touching the real tree.
+    """
+    base = root if root is not None else ROOT / "imas_ambix"
+    imported: list[str] = []
+    optional_missing: list[tuple[str, str]] = []
+    failures: list[tuple[str, str]] = []
+    names = module_names(base, package)
+    for dotted in names:
+        try:
+            importlib.import_module(dotted)
+        except Exception as error:  # noqa: BLE001 - an import may raise anything
+            kind = classify_import(dotted, error, handoff, optional_roots)
+            if kind == "optional-missing":
+                missing = (getattr(error, "name", "") or "").split(".")[0]
+                optional_missing.append((dotted, missing))
+            else:
+                failures.append((dotted, f"{type(error).__name__}: {error}"))
+        else:
+            imported.append(dotted)
+    return WalkResult(
+        total=len(names),
+        imported=tuple(imported),
+        optional_missing=tuple(optional_missing),
+        failures=tuple(failures),
+    )
+
+
+def test_walk_classifies_synthetic_import_failures(tmp_path, monkeypatch) -> None:
+    """The walk classifies each synthetic failure against the hand-off."""
+    pkg = tmp_path / "synthpkg"
+    (pkg / "core").mkdir(parents=True)
+    (pkg / "opt").mkdir()
+    (pkg / "__init__.py").write_text("")
+    (pkg / "core" / "__init__.py").write_text("")
+    (pkg / "opt" / "__init__.py").write_text("")
+    (pkg / "core" / "ok.py").write_text("VALUE = 1\n")
+    (pkg / "core" / "missing.py").write_text("import absent_default\n")
+    (pkg / "core" / "raises.py").write_text("raise RuntimeError('boom')\n")
+    (pkg / "opt" / "missing_optional.py").write_text("import absent_optional\n")
+    (pkg / "opt" / "missing_default.py").write_text("import absent_default\n")
+
+    handoff = {
+        "optional_distributions": ["optionalpkg"],
+        "module_distributions": {
+            "absent_optional": ["optionalpkg"],
+            "absent_default": ["defaultpkg"],
+        },
+    }
+    monkeypatch.syspath_prepend(str(tmp_path))
+    try:
+        result = walk_imports(
+            handoff, root=pkg, package="synthpkg", optional_roots=("synthpkg/opt",)
+        )
+    finally:
+        for name in list(sys.modules):
+            if name == "synthpkg" or name.startswith("synthpkg."):
+                del sys.modules[name]
+
+    assert "synthpkg.core.ok" in result.imported
+    assert ("synthpkg.opt.missing_optional", "absent_optional") in (
+        result.optional_missing
+    )
+    failed = dict(result.failures)
+    assert "synthpkg.opt.missing_default" in failed  # optional root, default dist
+    assert "synthpkg.core.missing" in failed  # non-optional root must import
+    assert "synthpkg.core.raises" in failed  # not a ModuleNotFoundError
+    assert result.failed
+
+
 def test_every_directly_imported_distribution_is_declared() -> None:
     census = build_census()
     print("\n".join(census.failures))
@@ -581,14 +745,45 @@ def test_every_directly_imported_distribution_is_declared() -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Write the census fragment to the path given and report the failures.
+    """Write the census fragment, write the walk hand-off, or run the walk.
 
-    Usage: test_declared_dependencies.py <out.html> [suite.log]
+    Usage:
+      test_declared_dependencies.py <out.html> [suite.log]   census fragment
+      test_declared_dependencies.py handoff <out.json>        write walk hand-off
+      test_declared_dependencies.py walk <handoff.json>       import-walk result
     """
     args = list(sys.argv[1:] if argv is None else argv)
+    usage = (
+        "usage: test_declared_dependencies.py <out.html> [suite.log]\n"
+        "       test_declared_dependencies.py handoff <out.json>\n"
+        "       test_declared_dependencies.py walk <handoff.json>"
+    )
     if not args:
-        print("usage: test_declared_dependencies.py <out.html> [suite.log]")
+        print(usage)
         return 2
+    if args[0] == "handoff":
+        if len(args) != 2:
+            print(usage)
+            return 2
+        write_handoff(Path(args[1]))
+        print(f"hand-off written to {args[1]}")
+        return 0
+    if args[0] == "walk":
+        if len(args) != 2:
+            print(usage)
+            return 2
+        handoff = json.loads(Path(args[1]).read_text())
+        result = walk_imports(handoff)
+        print(
+            f"{result.total} modules: {len(result.imported)} imported, "
+            f"{len(result.optional_missing)} optional-missing, "
+            f"{len(result.failures)} hard failures"
+        )
+        for dotted, missing in result.optional_missing:
+            print(f"  optional-missing {dotted}: {missing}")
+        for dotted, message in result.failures:
+            print(f"  FAILED {dotted}: {message}")
+        return 0 if not result.failed else 1
     durations = None
     timeouts = None
     if len(args) > 1:
