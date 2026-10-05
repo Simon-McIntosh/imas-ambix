@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d">
 <meta name="plan-impl" content="0.5">
-<meta name="plan-version" content="69">
+<meta name="plan-version" content="70">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -439,7 +439,14 @@
       <code>transform_machine_description</code> already holds the map it selected. The
       <code>StoreEngine</code> protocol's <code>open</code> therefore gains that map as an argument,
       both engines accept it, and a per-shot store ignores it. That widens one protocol method
-      and retires nothing, because no engine has a way to see the map today. The converted description is one IDS netCDF per IDS
+      and retires nothing, because no engine has a way to see the map today. Landed 2026-10-05 (merge
+      1eaa5c3d, node <code>jtmm-description-store-addressing</code>): the catalogue slots
+      <code>description_store_format</code>, <code>description_store_root</code>,
+      <code>description_store_layout</code> and <code>probe_angle_source</code> exist, MAST declares
+      its level-2 store and DIII-D declares no store, <code>StoreEngine.open</code> receives the
+      selected map, the netCDF engine reads a static store from
+      <code>{root}/{map name}/{ids}.nc</code>, and <code>read_geometry_table</code> has no
+      machine-name branch. What remains in this section is the JT-60SA catalogue that uses them. The converted description is one IDS netCDF per IDS
       per phase under <code>JT60SA_ROOT/machine_description/</code>, which is that static layout
       with the phase's map name as the directory. Being static
       over a map's shot range is a property of how the engine addresses the store, not a new
@@ -484,7 +491,11 @@
       stamp reads its geometry, angles included, from the artifact through
       <code>MachineArtifactGeometrySource</code>, so no JT-60SA read reaches a machine-named
       angle path and the transform source is left unchanged.
-      Done-when: <code>transform_machine_description</code>
+      Done-when, for what remains: <code>imas_ambix/data/machine_maps/jt-60sa.json</code> declares
+      the netCDF format, a <code>paths.py</code> name for <code>JT60SA_ROOT/machine_description</code>,
+      the <code>static-over-map</code> layout and description-carried probe angles, with maps
+      <code>OP1</code> and <code>OP2</code> over the shot ranges either side of the first OP2 pulse and
+      description bindings to the five IDS netCDF of each phase; <code>transform_machine_description</code>
       emits a JT-60SA description for one OP1 and one OP2 shot through one code path,
       <code>read_geometry_table</code> and <code>geometry_table_from_description</code> build a
       <code>GeometryTable</code> from it with zero machine-name branches, and the three identity assertions (determinism,
