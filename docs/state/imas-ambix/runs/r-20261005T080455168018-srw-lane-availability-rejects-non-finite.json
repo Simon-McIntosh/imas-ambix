@@ -1,0 +1,605 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effective_input_window": 230144,
+    "effort": "high",
+    "launch": "cli",
+    "local": true,
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "worktree-full",
+    "usable_input_window": 230144
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "6ebdaca73bb550b9e669ac6432f26933d8f0f747",
+  "boundary_waiver": null,
+  "brief": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "fallback_credit": null,
+      "inference_geo": "",
+      "input_tokens": 2410860,
+      "input_tokens_cumulative": 2410860,
+      "output_tokens": 12684,
+      "output_tokens_cumulative": 12684,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": {
+    "added": 26,
+    "files": 2,
+    "removed": 4
+  },
+  "clone_matches": [],
+  "commit_resolution": null,
+  "commits": [
+    "dce1459bf683e9a11b8f202845dbb55fff501d84"
+  ],
+  "completed_at": "2026-10-05T08:09:54.990Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-10-05T08:05:02Z",
+  "disposition": null,
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": true,
+    "matched_measure": null,
+    "override": false,
+    "role": "implement",
+    "status": "no-execution-measure"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [],
+  "gate": "passed",
+  "gate_check": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider -q tests/test_lane_availability.py",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "none"
+  },
+  "impl_move": {
+    "at_complete": null,
+    "at_dispatch": 0.23,
+    "plan": "serving-record-warehouse",
+    "reason": "corrective-run:repairs:r-20261005T074920909576-srw-lane-publishes-availability",
+    "verdict": "exempt"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-10-05T08:12:55.732153+00:00",
+    "horizon_seconds": 480,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": null,
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-10-05T08:04:55Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 10,
+    "binding_observed": "unknown",
+    "detail": "",
+    "generating": 7,
+    "headroom": 9,
+    "mean_context": 131429,
+    "observed_at": "2026-10-05T08:04:45Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45,
+    "throughput": {
+      "age_seconds": 10,
+      "aggregate_tokens_per_second": 498.944,
+      "detail": "",
+      "mean_tokens_per_second": 62.368,
+      "observed_at": "2026-10-05T08:04:45Z",
+      "runs": 8.0,
+      "state": "measured"
+    },
+    "waiting": 0
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-10-05T08:09:54.990Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": true,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T080455168018-srw-lane-availability-rejects-non-finite/manifest.md",
+  "member": "disposable-r-20261005T080455168018-srw-lane-availability-rejects-non-finite",
+  "negative_control": {
+    "added_failure_ids": [
+      "tests/test_lane_availability.py::test_non_finite_effective_width_omits_the_key[inf]",
+      "tests/test_lane_availability.py::test_non_finite_effective_width_omits_the_key[nan]",
+      "tests/test_lane_availability.py::test_non_finite_headroom_omits_the_key[-inf]",
+      "tests/test_lane_availability.py::test_non_finite_headroom_omits_the_key[inf]",
+      "tests/test_lane_availability.py::test_non_finite_headroom_omits_the_key[nan]"
+    ],
+    "baseline_failure_ids": [],
+    "comparison_arm": "baseline_suite",
+    "control_exit_status": 1,
+    "control_failure_ids": [
+      "tests/test_lane_availability.py::test_non_finite_effective_width_omits_the_key[inf]",
+      "tests/test_lane_availability.py::test_non_finite_effective_width_omits_the_key[nan]",
+      "tests/test_lane_availability.py::test_non_finite_headroom_omits_the_key[-inf]",
+      "tests/test_lane_availability.py::test_non_finite_headroom_omits_the_key[inf]",
+      "tests/test_lane_availability.py::test_non_finite_headroom_omits_the_key[nan]"
+    ],
+    "declaration": "restore _is_finite_number's type-only check that accepts inf and nan; the non-finite cases must then fail",
+    "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T080455168018-srw-lane-availability-rejects-non-finite/negative-control.log",
+    "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T080455168018-srw-lane-availability-rejects-non-finite/negative-control.log",
+    "test_paths": [
+      "tests/test_lane_availability.py"
+    ],
+    "verdict": "matched"
+  },
+  "no_commit": null,
+  "node": "srw-lane-availability-rejects-non-finite",
+  "node_definition": {
+    "brief": "",
+    "brief_path": "",
+    "brief_sha256": "",
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 2106,
+          "cached_input_tokens": 379295,
+          "input_tokens": 381403,
+          "output_tokens": 752,
+          "reasoning_output_tokens": 0,
+          "total_tokens": 382155,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "9a153eb3-0957-4cfe-bea0-82a3f0afe0a5",
+      "session_id": "9a153eb3-0957-4cfe-bea0-82a3f0afe0a5"
+    },
+    "done_when": "tests/test_lane_availability.py asserts the key is omitted (None returned) for headroom float inf, headroom float nan, effective width float inf and effective width float nan, alongside the existing cases which still pass; the declared negative control restores the type-only check and the nan and inf cases fail; the serving-interpreter parse guard passes and ruff check imas_ambix tests exits 0",
+    "estimated_hours": 0.25,
+    "goal": "lane.availability_percent omits the key for an infinite or NaN headroom or width rather than returning nan",
+    "id": "srw-lane-availability-rejects-non-finite",
+    "lane_declaration": {
+      "backend": null,
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-10-05T08:04:55Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 10,
+      "binding_observed": "unknown",
+      "detail": "",
+      "generating": 7,
+      "headroom": 9,
+      "mean_context": 131429,
+      "observed_at": "2026-10-05T08:04:45Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45,
+      "throughput": {
+        "age_seconds": 10,
+        "aggregate_tokens_per_second": 498.944,
+        "detail": "",
+        "mean_tokens_per_second": 62.368,
+        "observed_at": "2026-10-05T08:04:45Z",
+        "runs": 8.0,
+        "state": "measured"
+      },
+      "waiting": 0
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T080455168018-srw-lane-availability-rejects-non-finite/manifest.md",
+    "negative_control": "restore _is_finite_number's type-only check that accepts inf and nan; the non-finite cases must then fail",
+    "plan": "serving-record-warehouse",
+    "requested_backend": null,
+    "requires_decisions": [],
+    "role": "implement",
+    "section": "§14",
+    "spec_level": "exact",
+    "time_budget": "8m",
+    "token_budget": null,
+    "write_paths": [
+      "imas_ambix/agent/lane.py",
+      "tests/test_lane_availability.py",
+      "docs/evidence/fragments/serving-record-warehouse/srw-lane-availability-rejects-non-finite.html",
+      "docs/figures/serving-record-warehouse/srw-lane-availability-rejects-non-finite"
+    ]
+  },
+  "orchestrator_lane_override": null,
+  "orientation_input_tokens": 1198853.0,
+  "outcome": "",
+  "pace": {
+    "allowance": null,
+    "bar": null,
+    "clocks": {
+      "five_hour": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "five_hour",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      },
+      "seven_day": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "seven_day",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      }
+    },
+    "group": null,
+    "hold": null,
+    "lane": "clive",
+    "member": null,
+    "node": "srw-lane-availability-rejects-non-finite",
+    "policy": {
+      "drain_lead_hours": 12.0,
+      "pace_multiple": 1.1
+    },
+    "reason": "the lane declares no budget group, so no wallet paced it",
+    "recorded_at": "2026-10-05T08:04:57.508671+00:00",
+    "score": 0.49375,
+    "source": null,
+    "state": "unknown"
+  },
+  "picker_selection": {
+    "action": "route",
+    "answering_model": "typesafe/jev-1.13-20260917",
+    "backend": "clive",
+    "comment": "",
+    "confidence": 0.74,
+    "decision_source": "jev",
+    "effort": "high",
+    "excluded": [
+      {
+        "availability": "not-probed",
+        "backend": "native",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "in-harness",
+        "local": false,
+        "model": null,
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reasons": [
+          "in-harness-backend"
+        ],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      }
+    ],
+    "fallback_reason": null,
+    "family": "local",
+    "jev_latency_ms": 340.027,
+    "jev_model": "typesafe/jev-1.13",
+    "latency_ms": 400.945,
+    "model": "deepseek-v4.1-flash",
+    "offered": [
+      {
+        "availability": "unknown",
+        "backend": "claude",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-sonnet-5-5",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "claude-haiku",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-haiku-4-5-20251001",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "claude-opus",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-opus-5-5",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "served",
+        "backend": "clive",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": {
+          "admission_verdict": "open",
+          "running": 7,
+          "slots_state": "measured",
+          "stale": false,
+          "waiting": 0
+        },
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "local",
+        "local": true,
+        "model": "deepseek-v4.1-flash",
+        "outcomes": {
+          "failed": 1,
+          "not-run": 0,
+          "passed": 85,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": 14
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex",
+        "budget_reason": "recorded account-window reading is stale",
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-sol",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex-astra",
+        "budget_reason": "recorded account-window reading is stale",
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-astra",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex-luna",
+        "budget_reason": "recorded account-window reading is stale",
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-luna",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      }
+    ],
+    "probabilities": {
+      "claude": 0.01,
+      "claude-haiku": 0.04,
+      "claude-opus": 0.01,
+      "clive": 0.76,
+      "codex": 0.04,
+      "codex-astra": 0,
+      "codex-luna": 0.06,
+      "hold": 0.08
+    },
+    "rendered_token_estimate": 969,
+    "usage": {
+      "cost": 0.000123186,
+      "input_tokens": 2933,
+      "output_tokens": 89
+    }
+  },
+  "plan": "serving-record-warehouse",
+  "plan_impl_at_dispatch": 0.23,
+  "plan_link": null,
+  "promoted_by": null,
+  "promoted_revision": "dce1459bf683e9a11b8f202845dbb55fff501d84",
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "reviewed_base_sha": "6ebdaca73bb550b9e669ac6432f26933d8f0f747",
+    "reviewed_head_sha": "dce1459bf683e9a11b8f202845dbb55fff501d84",
+    "scores": {
+      "durability": 17,
+      "evidence": 17,
+      "fit": 18,
+      "goal_fidelity": 19,
+      "scope_discipline": 19
+    },
+    "status": "parsed",
+    "total": 90
+  },
+  "review_tier": "light",
+  "role": "implement",
+  "route_mode": "explicit",
+  "run_id": "r-20261005T080455168018-srw-lane-availability-rejects-non-finite",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§14",
+  "session": "9a153eb3-0957-4cfe-bea0-82a3f0afe0a5",
+  "session_harness": "claude",
+  "session_id": "92bc7077-808a-4591-a110-6221cd133059",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "exact",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 6,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 2410860,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 230144",
+    "elapsed_seconds": 284.293,
+    "generated_tokens": 12684,
+    "generation_seconds": 247.714,
+    "input_budget_tokens": 230144,
+    "input_utilisation_pct": 54.9,
+    "machine_seconds": 36.579,
+    "peak_input_tokens": 126237,
+    "tokens_per_second": 51.2,
+    "wall_tokens_per_second": 44.62
+  },
+  "time_budget": "8m",
+  "tool_steps": 24.0,
+  "unplanned_reason": null,
+  "unreconciled_override": null,
+  "wall_seconds": 292,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-10-05T08:09:57Z",
+    "last_record_type": "result",
+    "launched_at": "2026-10-05T08:05:06Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20261005T080455168018-srw-lane-availability-rejects-non-finite",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 1812,
+    "worker_pid": 313880
+  },
+  "worker_seconds": 271,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}

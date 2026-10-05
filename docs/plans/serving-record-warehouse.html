@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;implementable&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;implementable&quot;}">
 <meta name="plan-impl" content="0.23">
-<meta name="plan-version" content="206">
+<meta name="plan-version" content="207">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -1459,7 +1459,10 @@
     <div class="r-comment-body"><p>Added lane.availability_percent (100 x clamped headroom / effective_width, clamped 0-100, paused 0.0, key omitted on absent headroom or non-positive width), published top-level by the router gate snapshot and copied/derived by live_panel.lane_block; 40 tests pass, ruff clean, live watch read 68.75 = 100 x 11 / 16.</p></div>
 </div>
 <div class="r-comment" data-section="s14" data-id="c-run-r-20261005T075634842304-review-of-srw-lane-publishes-availability" data-who="reckon-build" data-when="2026-10-05T08:01:30.747Z">
-    <div class="r-comment-body"><p>Independent review of run r-20261005T074920909576-srw-lane-publishes-availability (serving-record-warehouse §14, node srw-lane-publishes-availability) at base b6eb4de20631e6e2761cdf0db5de6ef75a461bd4 head 3dc25f3f034c84604fc96871da0abe4e4875c660: stored 91/100 (goal_fidelity 19, evidence 17, scope_discipline 19, durability 17, fit 19), added_failure_count 0 with no ids derived from the reviewed run&#x27;s own baseline_suite/after_suite fields (both null, so the read-path set difference is empty); the reviewed gate re-ran green at the head in the reviewed worktree and one follow-on finding, no blocking findings.</p></div>
+    <div class="r-comment-body"><p>Independent review of run r-20261005T074920909576-srw-lane-publishes-availability (serving-record-warehouse §14, node srw-lane-publishes-availability) at base b6eb4de20631e6e2761cdf0db5de6ef75a461bd4 head 3dc25f3f034c84604fc96871da0abe4e4875c660: stored 91/100 (goal_fidelity 19, evidence 17, scope_discipline 19, durability 17, fit 19), added_failure_count 0 with no ids derived from the reviewed run's own baseline_suite/after_suite fields (both null, so the read-path set difference is empty); the reviewed gate re-ran green at the head in the reviewed worktree and one follow-on finding, no blocking findings.</p></div>
+</div>
+<div class="r-comment" data-section="s14" data-id="c-run-r-20261005T080455168018-srw-lane-availability-rejects-non-finite" data-who="reckon-build" data-when="2026-10-05T08:09:54.990Z">
+    <div class="r-comment-body"><p>lane.availability_percent now omits the key (returns None) for an infinite or NaN headroom or effective width instead of propagating a nan percentage; _is_finite_number gained math.isfinite; tests/test_lane_availability.py 16 passed, negative control (type-only check restored) 5 failed EXIT=1.</p></div>
 </div>
 </section>
 </main>
