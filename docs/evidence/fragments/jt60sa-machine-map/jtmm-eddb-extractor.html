@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="jtmm-eddb-extractor-landing">
+      <p>Built the ambix EDDB batch extractor and its on-demand cache:
+      <code>imas_ambix/data/eddb_remote.py</code> reads a batch of
+      <code>(shot, category, dname)</code> channels in one remote process,
+      <code>imas_ambix/data/eddb.py</code> writes each raw channel to
+      <code>{shot}.zarr/{category}/{dname}</code> with its EDDB unit, channel
+      count and sequence number and refuses to overwrite one already cached,
+      and <code>JT60SA_ROOT</code> is declared once in
+      <code>imas_ambix/data/paths.py</code>.</p>
+    </section>
+  </main>
+</body>
+</html>

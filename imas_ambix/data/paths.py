@@ -22,6 +22,15 @@ REST_API_BASE = "https://mastapp.site/json"
 # --- Local mirror layout ----------------------------------------------
 
 MIRROR_ROOT = Path("/work/projects/imas_gpu/mast")
+
+# --- JT-60SA on-demand EDDB cache -------------------------------------
+#
+# The JT-60SA cache is filled on demand over ssh from the Naka analysis
+# server and is NOT a copy of the EDDB: only the channels a map binds, for
+# the shots a run asks for, land here as ``{shot}.zarr/{category}/{dname}``.
+# It sits on GPFS beside the MAST mirror so every ITER session and worker
+# reads the same bytes.
+JT60SA_ROOT = Path("/work/projects/imas_gpu/jt60sa")
 LEVEL1_DIR = MIRROR_ROOT / "level1" / "shots"
 LEVEL2_DIR = MIRROR_ROOT / "level2" / "shots"
 MANIFEST_DIR = MIRROR_ROOT / "manifests"
