@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f">
 <meta name="plan-impl" content="0.25">
-<meta name="plan-version" content="39">
+<meta name="plan-version" content="40">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -855,6 +855,9 @@
 </div>
 <div class="r-comment" data-section="s3" data-id="c-20261005T0730-s3-extractor-landed" data-who="reckon-build" data-when="2026-10-05T07:30:00Z">
     <div class="r-comment-body">gate tests/data/test_eddb_cache.py passed (19 tests, re-run at integrated HEAD a7782dec, exit 0); jtmm-eddb-extractor merged as 023dbf93 after two repair rounds and an independent review of 87/100 at 3d2192c8. Section 3 stays open: the cold fetch of one C-shot and one E-shot with wall time and bytes per signal is the next node.</div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-run-r-20261005T081707031868-review-of-jtmm-eddb-cold-fetch" data-who="reckon-build" data-when="2026-10-05T08:26:37.847Z">
+    <div class="r-comment-body"><p>review of run r-20261005T075003020335-jtmm-eddb-cold-fetch (plan imas-ambix:jt60sa-machine-map §3) stored at reviews/imas-ambix/r-20261005T075003020335-jtmm-eddb-cold-fetch.json (and its .at-b8380293 sibling), reviewed_base_sha b6eb4de2 / reviewed_head_sha b8380293, scores goal_fidelity 18 evidence 15 scope_discipline 20 durability 13 fit 17 (of 20 each; total 83), three follow-on findings (VirtualZarrView has no transport so the warm-read sentence overstates the guard; the gate makes two ssh sessions per shot against the done-when&#x27;s one; the manifest follow-on misstates the PSRC set as magPbTC1..35 against 1..23).</p></div>
 </div>
 <div class="r-comment" data-section="s2" data-id="c-run-r-20261005T065204728047-review-of-jtmm-tokamap-export" data-who="reckon-build" data-when="2026-10-05T07:08:54.445Z">
     <div class="r-comment-body"><p>jtmm-tokamap-export reviewed: the exporter, its validator run and its round-trip gate reproduce at the reviewed head, but every IDS group directory is written with the same cross-group mappings.json (all four groups' keys in every group), so the export is not group-scoped; added_failure_count 0.</p></div>
