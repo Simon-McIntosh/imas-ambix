@@ -24,7 +24,7 @@
   <title>JT-60SA Machine Map for Equilibrium Reconstruction | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="13">
+<meta name="plan-version" content="14">
 <meta name="plan-modified" content="2026-10-05">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 </head>
@@ -296,11 +296,24 @@
       store can be addressed by the map a shot selects. The converted description is one IDS
       netCDF per IDS per phase under <code>JT60SA_ROOT/machine_description/</code>, and any
       schema slot this needs names the structure, a source that is static over a map's shot
-      range, never the machine. Done-when: <code>transform_machine_description</code>
+      range, never the machine. That netCDF is the source layer, the counterpart of MAST's
+      level-2 store that the transform engine reads, and not a second machine-description
+      artifact store. The spine reads geometry through
+      <code>imas_ambix/gs/artifact_resolution.py</code>, whose content-addressed store
+      (<code>publish_object</code>, <code>resolve_machine_description</code>, a pinned semantic
+      identity) holds MAST's single pinned description and is consumed by
+      <code>gs/machine_selection.py</code> <code>select_machine</code>. The JT-60SA artifact the
+      spine needs is authored from this source and published through that owner with a pin of
+      its own (§7); the deck receipt is the field provenance that artifact's semantic identity
+      covers. Done-when: <code>transform_machine_description</code>
       emits a JT-60SA description for one OP1 and one OP2 shot through one code path,
       <code>geometry_table_from_description</code> builds a <code>GeometryTable</code> from it
       with zero machine-name branches, and the three identity assertions (determinism,
-      partition consistency, visible change at the OP1/OP2 boundary) pass.
+      partition consistency, visible change at the OP1/OP2 boundary) pass. Those are the
+      assertions <code>imas_ambix/data/description_identity.py</code> already proves for MAST's
+      two geometry transitions (<code>machine_description_bytes</code>,
+      <code>geometry_description_for_transition</code>, <code>description_field_changes</code>),
+      extended to the JT-60SA phases rather than rewritten.
     </p>
 
     <h2 id="s5">§5 — Pulse bindings and the EDDB census</h2>
@@ -397,8 +410,11 @@
     <p>
       The reconstruction gate is what makes the map honest. Using only the mapped
       pf_active, pf_passive, tf and magnetics data, the ambix physics spine
-      (<code>greens-matvec</code>, with <code>grid-delstar</code> as the check) recovers the
-      equilibrium for a frozen set of OP2 shots and is compared against SELENE on the
+      (<code>greens-matvec</code>, with <code>grid-delstar</code> as the check), reading JT-60SA
+      geometry through <code>gs/artifact_resolution.py</code> with a JT-60SA pin rather than a
+      second resolver (so <code>resolve_machine_description</code> gains a machine to resolve,
+      and how the artifact is authored from the §4 source without a JT-60SA module in nova is
+      settled in this section), recovers the equilibrium for a frozen set of OP2 shots and is compared against SELENE on the
       quantities SELENE reports: boundary distance, axis position, Ip, q95, and the whitened
       magnetics residual. This is the MAST benchmark pattern with SELENE in EFIT's seat.
       Nova consumes the emitted IDSs through its existing readers; nothing JT-60SA-specific
