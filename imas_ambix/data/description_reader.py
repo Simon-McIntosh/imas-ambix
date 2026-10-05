@@ -18,8 +18,10 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
 from imas_ambix.data.geometry_adapter import geometry_table_from_description
-from imas_ambix.data.machine_map import load_packaged_machine_map
-from imas_ambix.data.paths import LEVEL2_DIR
+from imas_ambix.data.machine_map import (
+    load_packaged_machine_map,
+    resolve_description_store_root,
+)
 from imas_ambix.data.transform_engine import transform_machine_description
 
 if TYPE_CHECKING:
@@ -38,8 +40,8 @@ class AcquisitionChannels:
     currents: tuple[str, ...]
 
 
-def _mast_probe_angle(address: str) -> float | None:
-    """Return the directed poloidal angle declared by a MAST probe address."""
+def _probe_angle_from_address(address: str) -> float | None:
+    """Return the directed poloidal angle declared by a probe address prefix."""
     name = address.lower()
     if name.startswith(("ccbv", "obv")):
         return -90.0
@@ -56,7 +58,7 @@ def _supply_declared_probe_angles(table: Any) -> Any:
         if mapping.kind != "b_probe":
             mappings.append(mapping)
             continue
-        angle = _mast_probe_angle(mapping.amb_channel)
+        angle = _probe_angle_from_address(mapping.amb_channel)
         if angle is None:
             missing.append(mapping.amb_channel)
             mappings.append(mapping)
@@ -82,17 +84,27 @@ def read_geometry_table(
     shot: int,
     *,
     machine: str = "mast",
-    store_format: str = "zarr",
-    store_root: Path | str = LEVEL2_DIR,
+    store_format: str | None = None,
+    store_root: Path | str | None = None,
 ) -> Any:
-    """Emit and adapt the declared machine description covering ``shot``."""
+    """Emit and adapt the declared machine description covering ``shot``.
+
+    The store format, root and probe-angle source come from the loaded
+    catalog.  ``store_format`` and ``store_root`` remain optional overrides so
+    a caller that points at a specific store keeps working; when omitted the
+    catalog's own declaration is used.
+    """
     shot_id = int(shot)
     catalog = load_packaged_machine_map(machine)
     description = transform_machine_description(
         catalog,
         shot_id,
-        store_format,
-        store_root,
+        store_format if store_format is not None else catalog.description_store_format,
+        (
+            store_root
+            if store_root is not None
+            else resolve_description_store_root(catalog.description_store_root)
+        ),
     )
     if description.status != "emitted":
         raise DescriptionReadError(
@@ -100,7 +112,7 @@ def read_geometry_table(
             f"{description.detail}"
         )
     table = geometry_table_from_description(description, catalog)
-    if machine == "mast":
+    if catalog.probe_angle_source == "acquisition-address":
         table = _supply_declared_probe_angles(table)
     return table
 
@@ -109,8 +121,8 @@ def read_acquisition_channels(
     shots: Iterable[int],
     *,
     machine: str = "mast",
-    store_format: str = "zarr",
-    store_root: Path | str = LEVEL2_DIR,
+    store_format: str | None = None,
+    store_root: Path | str | None = None,
 ) -> AcquisitionChannels:
     """Return the stable union of declared sensor and current addresses."""
     sensors: dict[str, str] = {}

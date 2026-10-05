@@ -60,9 +60,19 @@ class StoreEngine(Protocol):
     format_name: str
 
     def open(
-        self, root: Path | str, shot: int, dd_version: str
+        self,
+        root: Path | str,
+        shot: int,
+        dd_version: str,
+        machine_map: MachineMap | None = None,
+        store_layout: str = "per-shot",
     ) -> AbstractContextManager[StoreArrays]:
-        """Open the requested pulse as a collection of named arrays."""
+        """Open the requested pulse as a collection of named arrays.
+
+        ``machine_map`` is the range-scoped map the caller selected, so a
+        store declared static over its map resolves ``{root}/{map name}``
+        instead of ``{root}/{shot}``.  A per-shot store ignores it.
+        """
 
 
 @dataclass(frozen=True)
@@ -142,8 +152,20 @@ class ZarrTransformEngine:
 
     format_name = "zarr"
 
-    def open(self, root: Path | str, shot: int, dd_version: str) -> _ZarrArrays:
-        """Open ``<root>/<shot>.zarr`` without mutating the source store."""
+    def open(
+        self,
+        root: Path | str,
+        shot: int,
+        dd_version: str,
+        machine_map: MachineMap | None = None,
+        store_layout: str = "per-shot",
+    ) -> _ZarrArrays:
+        """Open ``<root>/<shot>.zarr`` without mutating the source store.
+
+        The map and declared layout are accepted for protocol parity; a zarr
+        store is addressed per shot and ignores both.
+        """
+        del machine_map, store_layout
         return _ZarrArrays(Path(root) / f"{int(shot)}.zarr")
 
 
@@ -186,9 +208,10 @@ def _read_ids_path(
 
 
 class _NetCDFStoreArrays(AbstractContextManager["_NetCDFStoreArrays"]):
-    def __init__(self, path: Path, dd_version: str) -> None:
+    def __init__(self, path: Path, dd_version: str, store_layout: str) -> None:
         self.path = path
         self.dd_version = dd_version
+        self.store_layout = store_layout
 
     def __enter__(self) -> Self:
         if not self.path.is_dir():
@@ -199,10 +222,13 @@ class _NetCDFStoreArrays(AbstractContextManager["_NetCDFStoreArrays"]):
         return None
 
     def read(self, binding: ChannelBinding) -> np.ndarray:
-        source = self.path / f"{binding.name}.nc"
+        ids_name, relative_path = binding.dd_path.split("/", maxsplit=1)
+        if self.store_layout == "static-over-map":
+            source = self.path / f"{ids_name}.nc"
+        else:
+            source = self.path / f"{binding.name}.nc"
         if not source.is_file():
             raise KeyError(binding.name)
-        ids_name, relative_path = binding.dd_path.split("/", maxsplit=1)
         try:
             with imas.DBEntry(source, "r", dd_version=self.dd_version) as entry:
                 ids = entry.get(ids_name, autoconvert=False)
@@ -233,9 +259,32 @@ class NetCDFTransformEngine:
 
     format_name = "netcdf"
 
-    def open(self, root: Path | str, shot: int, dd_version: str) -> _NetCDFStoreArrays:
-        """Open the IMAS-netCDF binding files for one pulse."""
-        return _NetCDFStoreArrays(Path(root) / str(int(shot)), dd_version)
+    def open(
+        self,
+        root: Path | str,
+        shot: int,
+        dd_version: str,
+        machine_map: MachineMap | None = None,
+        store_layout: str = "per-shot",
+    ) -> _NetCDFStoreArrays:
+        """Open the IMAS-netCDF binding files for one pulse.
+
+        A per-shot store resolves ``{root}/{int(shot)}`` and reads one
+        ``{binding}.nc`` per binding.  A store declared static over its map
+        resolves ``{root}/{map name}`` and reads one ``{ids}.nc`` per IDS, so
+        every shot in the map's range reads the same directory.
+        """
+        if store_layout == "static-over-map":
+            if machine_map is None:
+                raise TransformEngineError(
+                    "a static-over-map store requires the selected machine map"
+                )
+            return _NetCDFStoreArrays(
+                Path(root) / machine_map.name, dd_version, store_layout
+            )
+        return _NetCDFStoreArrays(
+            Path(root) / str(int(shot)), dd_version, store_layout
+        )
 
 
 _TRANSFORM_ENGINES: Mapping[str, StoreEngine] = MappingProxyType(
@@ -381,7 +430,13 @@ def transform_machine_description(
         else source_cocos
     )
     try:
-        with engine.open(store_root, shot_id, catalog.dd_version) as source:
+        with engine.open(
+            store_root,
+            shot_id,
+            catalog.dd_version,
+            machine_map,
+            catalog.description_store_layout,
+        ) as source:
             arrays, missing = _emit_arrays(
                 source,
                 bindings,

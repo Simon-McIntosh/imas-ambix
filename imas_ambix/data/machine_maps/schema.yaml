@@ -63,6 +63,18 @@ enums:
         description: The measured vacuum response selects the reconstruction position.
       undecided:
         description: The measurement does not distinguish the candidate positions.
+  DescriptionStoreLayout:
+    permissible_values:
+      per-shot:
+        description: The engine resolves one directory per shot under the root.
+      static-over-map:
+        description: The engine resolves one directory per machine map over a shot range.
+  ProbeAngleSource:
+    permissible_values:
+      acquisition-address:
+        description: Directed probe angles are supplied by the declared acquisition address.
+      description:
+        description: Directed probe angles are carried by the description itself.
 
 slots:
   schema_version:
@@ -89,6 +101,28 @@ slots:
     range: integer
     minimum_value: 1
     maximum_value: 18
+  description_store_format:
+    description: >-
+      Physical store format the description is read from, one of the
+      registered transform-engine formats.
+    required: true
+  description_store_root:
+    description: >-
+      Symbolic name of the store root, resolved to a path defined in
+      imas_ambix.data.paths.
+    required: true
+  description_store_layout:
+    description: >-
+      How a shot addresses the store: a directory per shot, or one static
+      directory per machine map.
+    required: true
+    range: DescriptionStoreLayout
+  probe_angle_source:
+    description: >-
+      Where a directed poloidal probe angle comes from: the declared
+      acquisition address, or the description itself.
+    required: true
+    range: ProbeAngleSource
   binding_sets:
     range: BindingSet
     multivalued: true
@@ -563,6 +597,10 @@ classes:
       - source
       - source_revision
       - source_cocos
+      - description_store_format
+      - description_store_root
+      - description_store_layout
+      - probe_angle_source
       - binding_sets
       - maps
       - validation_gaps

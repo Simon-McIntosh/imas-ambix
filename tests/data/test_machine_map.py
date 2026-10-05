@@ -317,8 +317,76 @@ def test_linkml_schema_is_declarative_and_has_no_executable_language():
         "reconstruction",
         "undecided",
     }
+    catalog_slots = schema["classes"]["MachineMapCatalog"]["slots"]
+    for slot in (
+        "description_store_format",
+        "description_store_root",
+        "description_store_layout",
+        "probe_angle_source",
+    ):
+        assert slot in catalog_slots
+    assert set(schema["enums"]["DescriptionStoreLayout"]["permissible_values"]) == {
+        "per-shot",
+        "static-over-map",
+    }
+    assert set(schema["enums"]["ProbeAngleSource"]["permissible_values"]) == {
+        "acquisition-address",
+        "description",
+    }
     forbidden = {"condition", "expression", "code_hook", "transform_code"}
     assert forbidden.isdisjoint(schema["slots"])
+
+
+def test_machine_catalogs_declare_description_store_addressing():
+    mast = load_packaged_machine_map("mast")
+    diii_d = load_packaged_machine_map("diii-d")
+
+    assert (
+        mast.description_store_format,
+        mast.description_store_root,
+        mast.description_store_layout,
+        mast.probe_angle_source,
+    ) == ("zarr", "LEVEL2_DIR", "per-shot", "acquisition-address")
+    assert mast.description_store_root_path() == LEVEL2_ROOT
+    assert diii_d.description_store_format in {"netcdf", "zarr"}
+    assert diii_d.description_store_layout in {"per-shot", "static-over-map"}
+    assert diii_d.probe_angle_source in {"acquisition-address", "description"}
+    assert diii_d.description_store_root_path() == LEVEL2_ROOT
+
+
+def test_machine_map_refuses_an_incomplete_or_unknown_store_declaration(tmp_path):
+    document = _plasma_current_catalog_document(3)
+
+    baseline = tmp_path / "baseline.json"
+    baseline.write_text(json.dumps(document))
+    load_machine_map(baseline)
+
+    for key in (
+        "description_store_format",
+        "description_store_root",
+        "description_store_layout",
+        "probe_angle_source",
+    ):
+        mutated = json.loads(json.dumps(document))
+        del mutated[key]
+        path = tmp_path / f"missing-{key}.json"
+        path.write_text(json.dumps(mutated))
+        with pytest.raises(MachineMapError, match=key):
+            load_machine_map(path)
+
+    for key, value in (
+        ("description_store_format", "parquet"),
+        ("description_store_root", "NO_SUCH_STORE_ROOT"),
+        ("description_store_layout", "per-campaign"),
+        ("probe_angle_source", "convention"),
+    ):
+        mutated = json.loads(json.dumps(document))
+        mutated[key] = value
+        path = tmp_path / f"unknown-{key}.json"
+        path.write_text(json.dumps(mutated))
+        expected = "description store root" if key == "description_store_root" else key
+        with pytest.raises(MachineMapError, match=expected):
+            load_machine_map(path)
 
 
 def test_flux_loop_position_verdicts_are_range_scoped_and_evidence_carrying():

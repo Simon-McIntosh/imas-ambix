@@ -19,6 +19,8 @@ from typing import Any
 
 import yaml
 
+from imas_ambix.data import paths as _paths
+
 PACKAGED_MACHINE_MAP_ROOT = Path(__file__).with_name("machine_maps")
 LINKML_SCHEMA_PATH = PACKAGED_MACHINE_MAP_ROOT / "schema.yaml"
 
@@ -28,6 +30,9 @@ _SIGN_CONVENTIONS = {
     "not-applicable",
     "unknown-unvalidated",
 }
+_DESCRIPTION_STORE_FORMATS = {"netcdf", "zarr"}
+_DESCRIPTION_STORE_LAYOUTS = {"per-shot", "static-over-map"}
+_PROBE_ANGLE_SOURCES = {"acquisition-address", "description"}
 _SOURCE_ROLES = {"value", "identifier", "dimension-coordinate"}
 _SOURCE_STATUSES = {"corpus-observed", "legacy-only", "range-absent"}
 _VALIDATION_STATES = {"corpus-validated", "source-only"}
@@ -108,6 +113,22 @@ def _number_tuple(value: Any, label: str) -> tuple[float, ...]:
     if not isinstance(value, list) or not value:
         raise MachineMapError(f"{label} must be a non-empty list")
     return tuple(_number(item, f"{label}[{index}]") for index, item in enumerate(value))
+
+
+def resolve_description_store_root(name: str) -> Path:
+    """Resolve a declared store-root name to the path defined in :mod:`paths`.
+
+    The catalog names its store root symbolically so the on-disk layout stays
+    owned by :mod:`imas_ambix.data.paths`.  A name that does not resolve to a
+    path constant there is refused rather than guessed.
+    """
+    root = getattr(_paths, name, None)
+    if not isinstance(root, Path):
+        raise MachineMapError(
+            f"description store root {name!r} is not a path defined in "
+            f"{_paths.__name__}"
+        )
+    return root
 
 
 @dataclass(frozen=True)
@@ -952,6 +973,10 @@ class MachineMapCatalog:
     source: str
     source_revision: str
     source_cocos: int | None
+    description_store_format: str
+    description_store_root: str
+    description_store_layout: str
+    probe_angle_source: str
     binding_sets: Mapping[str, tuple[ChannelBinding, ...]]
     maps: tuple[MachineMap, ...]
     validation_gaps: tuple[ValidationGap, ...]
@@ -964,6 +989,10 @@ class MachineMapCatalog:
     acquisition_declarations: tuple[AcquisitionDeclaration, ...]
     description_supplements: tuple[DescriptionSupplement, ...]
     circuit_current_joins: tuple[CircuitCurrentJoin, ...] = ()
+
+    def description_store_root_path(self) -> Path:
+        """Return the on-disk store root named by this catalog."""
+        return resolve_description_store_root(self.description_store_root)
 
     def cocos_for_binding(self, binding: ChannelBinding | None = None) -> int | None:
         """Resolve a binding override before the machine-level declaration."""
@@ -1082,6 +1111,10 @@ def load_machine_map(path: Path | str) -> MachineMapCatalog:
         "source",
         "source_revision",
         "source_cocos",
+        "description_store_format",
+        "description_store_root",
+        "description_store_layout",
+        "probe_angle_source",
         "binding_sets",
         "maps",
         "validation_gaps",
@@ -1102,6 +1135,32 @@ def load_machine_map(path: Path | str) -> MachineMapCatalog:
         source_cocos = None
     else:
         source_cocos = _cocos_identifier(raw_source_cocos, "source_cocos")
+
+    description_store_format = _text(
+        payload["description_store_format"], "description_store_format"
+    )
+    if description_store_format not in _DESCRIPTION_STORE_FORMATS:
+        raise MachineMapError(
+            "description_store_format must be one of "
+            f"{sorted(_DESCRIPTION_STORE_FORMATS)}"
+        )
+    description_store_root = _text(
+        payload["description_store_root"], "description_store_root"
+    )
+    resolve_description_store_root(description_store_root)
+    description_store_layout = _text(
+        payload["description_store_layout"], "description_store_layout"
+    )
+    if description_store_layout not in _DESCRIPTION_STORE_LAYOUTS:
+        raise MachineMapError(
+            "description_store_layout must be one of "
+            f"{sorted(_DESCRIPTION_STORE_LAYOUTS)}"
+        )
+    probe_angle_source = _text(payload["probe_angle_source"], "probe_angle_source")
+    if probe_angle_source not in _PROBE_ANGLE_SOURCES:
+        raise MachineMapError(
+            f"probe_angle_source must be one of {sorted(_PROBE_ANGLE_SOURCES)}"
+        )
 
     binding_sets_raw = payload["binding_sets"]
     if not isinstance(binding_sets_raw, list) or not binding_sets_raw:
@@ -1497,6 +1556,10 @@ def load_machine_map(path: Path | str) -> MachineMapCatalog:
         source=_text(payload["source"], "source"),
         source_revision=_text(payload["source_revision"], "source_revision"),
         source_cocos=source_cocos,
+        description_store_format=description_store_format,
+        description_store_root=description_store_root,
+        description_store_layout=description_store_layout,
+        probe_angle_source=probe_angle_source,
         binding_sets=MappingProxyType(binding_sets),
         maps=maps,
         validation_gaps=gaps,

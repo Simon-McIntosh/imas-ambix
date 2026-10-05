@@ -100,7 +100,15 @@ def test_facade_rejects_a_description_that_was_not_emitted(
 ) -> None:
     import imas_ambix.data.description_reader as reader
 
-    monkeypatch.setattr(reader, "load_packaged_machine_map", lambda machine: object())
+    monkeypatch.setattr(
+        reader,
+        "load_packaged_machine_map",
+        lambda machine: SimpleNamespace(
+            description_store_format="zarr",
+            description_store_root="LEVEL2_DIR",
+            probe_angle_source="acquisition-address",
+        ),
+    )
     monkeypatch.setattr(
         reader,
         "transform_machine_description",
@@ -112,6 +120,56 @@ def test_facade_rejects_a_description_that_was_not_emitted(
 
     with pytest.raises(DescriptionReadError, match="source-unavailable"):
         read_geometry_table(12_417)
+
+
+def test_declared_probe_angle_source_selects_the_angle_rule(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import imas_ambix.data.description_reader as reader
+
+    sentinel = SimpleNamespace(sensor_map=[], provenance_flags=[])
+
+    def catalog_with_angle_source(angle_source: str) -> SimpleNamespace:
+        return SimpleNamespace(
+            description_store_format="zarr",
+            description_store_root="LEVEL2_DIR",
+            probe_angle_source=angle_source,
+        )
+
+    monkeypatch.setattr(
+        reader,
+        "transform_machine_description",
+        lambda *args, **kwargs: SimpleNamespace(status="emitted", detail=""),
+    )
+    monkeypatch.setattr(
+        reader,
+        "geometry_table_from_description",
+        lambda description, catalog: sentinel,
+    )
+
+    applied: list[object] = []
+    monkeypatch.setattr(
+        reader,
+        "_supply_declared_probe_angles",
+        lambda table: applied.append(table) or sentinel,
+    )
+
+    monkeypatch.setattr(
+        reader,
+        "load_packaged_machine_map",
+        lambda machine: catalog_with_angle_source("acquisition-address"),
+    )
+    assert read_geometry_table(1) is sentinel
+    assert applied == [sentinel]
+
+    applied.clear()
+    monkeypatch.setattr(
+        reader,
+        "load_packaged_machine_map",
+        lambda machine: catalog_with_angle_source("description"),
+    )
+    assert read_geometry_table(1) is sentinel
+    assert applied == []
 
 
 @pytest.mark.skipif(
