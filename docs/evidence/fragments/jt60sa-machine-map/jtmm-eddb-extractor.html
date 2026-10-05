@@ -15,12 +15,16 @@
       <code>(shot, category, dname)</code> channels in one remote process over
       the module-loaded python 3.12, niced, with the ssh config path expanded at
       call time and a missing time base refused rather than invented;
-      <code>imas_ambix/data/eddb.py</code> normalises the shot token to its
-      integer form, writes each raw channel to
-      <code>{shot}.zarr/{category}/{dname}</code> with its EDDB unit, channel
+      <code>imas_ambix/data/eddb.py</code> splits an EDDB shot token into its
+      optional series letter and its digits, stores the pulse under the integer
+      of the digits so the engine opens it as <code>{int(shot)}.zarr</code>,
+      records the full token on the pulse group and refuses a second token
+      sharing those digits, writes each raw channel with its EDDB unit, channel
       count and sequence number plus the EDDB time vector as a sibling array,
-      and refuses to overwrite one already cached through the one predicate the
-      reader shares; and <code>JT60SA_ROOT</code> is declared once in
+      and treats a channel as cached only when both arrays exist and agree in
+      length — refusing an already-cached channel, completing a half-written
+      one, and refusing a corrupt node rather than reporting it not cached; and
+      <code>JT60SA_ROOT</code> is declared once in
       <code>imas_ambix/data/paths.py</code>.</p>
     </section>
   </main>
