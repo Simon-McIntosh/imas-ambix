@@ -1,0 +1,615 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effective_input_window": 230144,
+    "effort": "high",
+    "launch": "cli",
+    "local": true,
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "worktree-full",
+    "usable_input_window": 230144
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "adb67e5f37a4b939971300f645c37ddabe77ba12",
+  "boundary_waiver": null,
+  "brief": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "fallback_credit": null,
+      "inference_geo": "",
+      "input_tokens": 4056378,
+      "input_tokens_cumulative": 4056378,
+      "output_tokens": 27436,
+      "output_tokens_cumulative": 27436,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": {
+    "added": 29,
+    "files": 2,
+    "removed": 0
+  },
+  "clone_matches": [
+    {
+      "existing_function": {
+        "line": 321,
+        "name": "test_overfit_loss_drops_substantially",
+        "path": "tests/worldmodel/test_worldmodel_skeleton.py"
+      },
+      "run_function": {
+        "line": 402,
+        "name": "test_real_shot_overfit_smoke",
+        "path": "tests/worldmodel/test_worldmodel_skeleton.py"
+      },
+      "window_line": 408
+    }
+  ],
+  "commit_resolution": null,
+  "commits": [
+    "bfa42c01688f3ec02d4edc5188becafca33caa1e",
+    "d56f74b8f0e49b8cd682194bf59a67be32756b02"
+  ],
+  "completed_at": "2026-10-05T13:41:29.987Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-10-05T12:52:24Z",
+  "disposition": null,
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": true,
+    "matched_measure": "pytest -p",
+    "override": false,
+    "role": "implement",
+    "status": "compatible"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [
+    "186.71",
+    "290.75"
+  ],
+  "gate": "passed",
+  "gate_check": {
+    "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD command uv run --no-sync pytest -p no:cacheprovider --durations=0 tests/worldmodel/test_worldmodel_skeleton.py",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T125215313502-ped-timeout-worldmodel/logs/confirm_skeleton.log"
+  },
+  "impl_move": {
+    "at_complete": 0.5,
+    "at_dispatch": 0.5,
+    "plan": "project-environment-declared",
+    "reason": "the plan counts its timeout-triage section as one executable node; this is one of three parallel measurement runs plus a final whole-suite check, so impl moves when the section closes",
+    "verdict": "waived"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-10-05T13:52:15.712441+00:00",
+    "horizon_seconds": 3600,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": null,
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-10-05T12:52:15Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 4,
+    "binding_observed": "unknown",
+    "detail": "",
+    "generating": 1,
+    "headroom": 14,
+    "mean_context": 120000,
+    "observed_at": "2026-10-05T12:52:11Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45,
+    "throughput": {
+      "age_seconds": 4,
+      "aggregate_tokens_per_second": 86.246,
+      "detail": "",
+      "mean_tokens_per_second": 107.808,
+      "observed_at": "2026-10-05T12:52:11Z",
+      "runs": 0.8,
+      "state": "measured"
+    },
+    "waiting": 0
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-10-05T13:41:29.987Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": true,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T125215313502-ped-timeout-worldmodel/manifest.md",
+  "member": "disposable-r-20261005T125215313502-ped-timeout-worldmodel",
+  "negative_control": {
+    "added_failure_ids": [
+      "tests/worldmodel/test_worldmodel_skeleton.py::test_real_shot_overfit_smoke"
+    ],
+    "baseline_failure_ids": [],
+    "comparison_arm": "baseline_suite",
+    "control_exit_status": 1,
+    "control_failure_ids": [
+      "tests/worldmodel/test_worldmodel_skeleton.py::test_real_shot_overfit_smoke"
+    ],
+    "declaration": "remove one @pytest.mark.timeout mark this node added and run its test at the default 300 s bound; the test must then fail with a pytest-timeout abort (if the node adds no mark, the control is none: no mark was added, so no mark can be removed)",
+    "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T125215313502-ped-timeout-worldmodel/logs/negctl_real_shot_default300.log",
+    "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T125215313502-ped-timeout-worldmodel/logs/negctl_real_shot_default300.log",
+    "test_paths": [
+      "tests/worldmodel"
+    ],
+    "verdict": "matched"
+  },
+  "no_commit": null,
+  "node": "ped-timeout-worldmodel",
+  "node_definition": {
+    "brief": "",
+    "brief_path": "",
+    "brief_sha256": "",
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 1223,
+          "cached_input_tokens": 512943,
+          "input_tokens": 514168,
+          "output_tokens": 529,
+          "reasoning_output_tokens": 0,
+          "total_tokens": 514697,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "a663ef24-6dba-4bb9-9ea5-3f1597c64253",
+      "session_id": "a663ef24-6dba-4bb9-9ea5-3f1597c64253"
+    },
+    "done_when": "The tests to resolve are the rows for tests/worldmodel/ in the table of docs/evidence/fragments/project-environment-declared/ped-declare-relock.html. On the fleet compute node this session holds, run each listed test file serially (no -n) with UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD command uv run --no-sync pytest -p no:cacheprovider --timeout=3600 --durations=0 with that listed test file as its only target, into one log per file with an EXIT line, recording nproc and the one-minute load average at the start of each. For each listed test: if its own work (call, or the setup of the fixture it shares) exceeds 300 s, add @pytest.mark.timeout(N) with N twice the measured seconds rounded up to a multiple of 60, and a comment stating the measured seconds and the date; if its time is spent waiting (a network call, a sleep, a poll for something that never arrives), remove or bound the wait in the test, or leave it failing and name the source module and plan that own the wait; if it finishes under 300 s when run alone, change nothing and record that. The evidence fragment docs/evidence/fragments/project-environment-declared/ped-timeout-worldmodel.html has one table row per listed test: test id, phase, measured seconds, load at measurement, outcome (marked N / wait fixed / under bound / left failing with owner). After the changes, the same per-file runs at the default 300 s exit 0 or fail only on tests the table records as left failing. UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD command uv run --no-sync ruff check imas_ambix tests exits 0. No test outside tests/worldmodel changes and no product source changes.",
+    "estimated_hours": null,
+    "goal": "resolve each test in tests/worldmodel that hits the 300 s per-test bound by its measured duration",
+    "id": "ped-timeout-worldmodel",
+    "lane_declaration": {
+      "backend": null,
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-10-05T12:52:15Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 4,
+      "binding_observed": "unknown",
+      "detail": "",
+      "generating": 1,
+      "headroom": 14,
+      "mean_context": 120000,
+      "observed_at": "2026-10-05T12:52:11Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45,
+      "throughput": {
+        "age_seconds": 4,
+        "aggregate_tokens_per_second": 86.246,
+        "detail": "",
+        "mean_tokens_per_second": 107.808,
+        "observed_at": "2026-10-05T12:52:11Z",
+        "runs": 0.8,
+        "state": "measured"
+      },
+      "waiting": 0
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T125215313502-ped-timeout-worldmodel/manifest.md",
+    "negative_control": "remove one @pytest.mark.timeout mark this node added and run its test at the default 300 s bound; the test must then fail with a pytest-timeout abort (if the node adds no mark, the control is none: no mark was added, so no mark can be removed)",
+    "plan": "project-environment-declared",
+    "requested_backend": null,
+    "requires_decisions": [],
+    "role": "implement",
+    "section": "§5",
+    "spec_level": "guided",
+    "time_budget": "60m",
+    "token_budget": null,
+    "write_paths": [
+      "docs/evidence/fragments/project-environment-declared/ped-timeout-worldmodel.html",
+      "tests/worldmodel",
+      "docs/figures/project-environment-declared/ped-timeout-worldmodel"
+    ]
+  },
+  "orchestrator_lane_override": null,
+  "orientation_input_tokens": 2225470.0,
+  "outcome": "",
+  "pace": {
+    "allowance": null,
+    "bar": null,
+    "clocks": {
+      "five_hour": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "five_hour",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      },
+      "seven_day": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "seven_day",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      }
+    },
+    "group": null,
+    "hold": null,
+    "lane": "clive",
+    "member": null,
+    "node": "ped-timeout-worldmodel",
+    "policy": {
+      "drain_lead_hours": 12.0,
+      "pace_multiple": 1.1
+    },
+    "reason": "the lane declares no budget group, so no wallet paced it",
+    "recorded_at": "2026-10-05T12:52:18.284288+00:00",
+    "score": 0.5875,
+    "source": null,
+    "state": "unknown"
+  },
+  "picker_selection": {
+    "action": "route",
+    "answering_model": "typesafe/jev-1.13-20260917",
+    "backend": "clive",
+    "comment": "",
+    "confidence": 0.82,
+    "decision_source": "jev",
+    "effort": "high",
+    "excluded": [
+      {
+        "availability": "not-probed",
+        "backend": "native",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "in-harness",
+        "local": false,
+        "model": null,
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reasons": [
+          "in-harness-backend"
+        ],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      }
+    ],
+    "fallback_reason": null,
+    "family": "local",
+    "jev_latency_ms": 406.827,
+    "jev_model": "typesafe/jev-1.13",
+    "latency_ms": 489.148,
+    "model": "deepseek-v4.1-flash",
+    "offered": [
+      {
+        "availability": "unknown",
+        "backend": "claude",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-sonnet-5-5",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "claude-haiku",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-haiku-4-5-20251001",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "claude-opus",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-opus-5-5",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "served",
+        "backend": "clive",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": {
+          "admission_verdict": "open",
+          "running": 1,
+          "slots_state": "measured",
+          "stale": false,
+          "waiting": 0
+        },
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "local",
+        "local": true,
+        "model": "deepseek-v4.1-flash",
+        "outcomes": {
+          "failed": 1,
+          "not-run": 1,
+          "passed": 61,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": 75
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex",
+        "budget_reason": null,
+        "burn_multiple": 1.530904697400176,
+        "congestion": null,
+        "days_to_reset": 4.3479720106481485,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-sol",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": 0.41674703923991413,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": "2026-10-09T21:13:34+00:00",
+        "utilisation_pct": 57.99999999999999,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex-astra",
+        "budget_reason": null,
+        "burn_multiple": 1.530904697400176,
+        "congestion": null,
+        "days_to_reset": 4.3479720106481485,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-astra",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": 0.41674703923991413,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": "2026-10-09T21:13:34+00:00",
+        "utilisation_pct": 57.99999999999999,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex-luna",
+        "budget_reason": null,
+        "burn_multiple": 1.530904697400176,
+        "congestion": null,
+        "days_to_reset": 4.3479720106481485,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-luna",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": 0.41674703923991413,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": "2026-10-09T21:13:34+00:00",
+        "utilisation_pct": 57.99999999999999,
+        "worker_slots": null
+      }
+    ],
+    "probabilities": {
+      "claude": 0,
+      "claude-haiku": 0.01,
+      "claude-opus": 0,
+      "clive": 0.85,
+      "codex": 0.07,
+      "codex-astra": 0,
+      "codex-luna": 0.02,
+      "hold": 0.05
+    },
+    "rendered_token_estimate": 1354,
+    "usage": {
+      "cost": 0.000149982,
+      "input_tokens": 3571,
+      "output_tokens": 89
+    }
+  },
+  "plan": "project-environment-declared",
+  "plan_impl_at_dispatch": 0.5,
+  "plan_link": null,
+  "promoted_by": null,
+  "promoted_revision": "d56f74b8f0e49b8cd682194bf59a67be32756b02",
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "reviewed_base_sha": "adb67e5f37a4b939971300f645c37ddabe77ba12",
+    "reviewed_head_sha": "d56f74b8f0e49b8cd682194bf59a67be32756b02",
+    "scores": {
+      "durability": 17,
+      "evidence": 19,
+      "fit": 19,
+      "goal_fidelity": 19,
+      "reuse": 19,
+      "scope_discipline": 20
+    },
+    "status": "parsed",
+    "total": 113
+  },
+  "review_tier": "none",
+  "role": "implement",
+  "route_mode": "explicit",
+  "run_id": "r-20261005T125215313502-ped-timeout-worldmodel",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§5",
+  "session": "a663ef24-6dba-4bb9-9ea5-3f1597c64253",
+  "session_harness": "claude",
+  "session_id": "de037e3d-583f-4293-8255-e223d80c0d35",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "guided",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 0,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 4056378,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 230144",
+    "elapsed_seconds": 2938.384,
+    "generated_tokens": 27436,
+    "generation_seconds": 412.144,
+    "input_budget_tokens": 230144,
+    "input_utilisation_pct": 52.5,
+    "machine_seconds": 2526.24,
+    "peak_input_tokens": 120816,
+    "tokens_per_second": 66.57,
+    "wall_tokens_per_second": 9.34
+  },
+  "time_budget": "60m",
+  "tool_steps": 42.0,
+  "unplanned_reason": null,
+  "unreconciled_override": null,
+  "wall_seconds": 2945,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-10-05T13:41:33Z",
+    "last_record_type": "result",
+    "launched_at": "2026-10-05T12:52:28Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20261005T125215313502-ped-timeout-worldmodel",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 5799,
+    "worker_pid": 1659423
+  },
+  "worker_seconds": 2927,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
