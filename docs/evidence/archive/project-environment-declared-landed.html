@@ -35,6 +35,11 @@
     <p>Merged 9a4bad01 from run r-20261005T123533577432-ped-fresh-env (commits abcdc37e, 37f44b1b, 52768177; review 97, its durability score of 9 exempted with a reason) and f746157b from run r-20261005T143708493246-ped-lock-matplotlib (review 114). The fresh-environment gate log records the import walk at EXIT 0, <code>imas-ambix --help</code> at EXIT 0, collection of 3987 tests with 0 errors fresh and shared, and ruff at EXIT 0. The shared environment was synced at the main checkout with <code>uv sync --all-extras</code>: 69 uninstalled, 7 installed, matching its dry run; log at <code>~/.cache/imas-ambix-ped/sync-all-extras-20261005.log</code>. Fragments: <code>docs/evidence/fragments/project-environment-declared/ped-fresh-env.html</code> and <code>ped-lock-matplotlib.html</code>.</p>
   </section>
 
+  <section id="s6">
+    <h2>§6 — import walk kept in the census module</h2>
+    <p>Merged 20f7f6b4 from run r-20261005T155053774756-ped-import-walk (commit 216e3bcd; review 115, 0 added failures). Gate: <code>tests/test_declared_dependencies.py</code> 2 passed, exit 0; walk in the synced environment 313 imported, 0 optional-missing, 0 hard failures; ruff clean. Negative control: a classifier that accepts any <code>ModuleNotFoundError</code> inside an optional root fails the synthetic test on the default-distribution case. Fragment: <code>docs/evidence/fragments/project-environment-declared/ped-import-walk.html</code>.</p>
+  </section>
+
 </main>
 </body>
 </html>
