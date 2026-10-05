@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;implementable&quot;,&quot;s14&quot;:&quot;implementable&quot;,&quot;s15&quot;:&quot;implementable&quot;}">
 <meta name="plan-impl" content="0.15">
-<meta name="plan-version" content="201">
+<meta name="plan-version" content="202">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -675,6 +675,7 @@
 <li><code>live</code> is computed from the rows of the newest raw receipt file that fall in the trailing 45 s. All of them must belong to one run: the same job, and no counter below its predecessor. It carries mean running, the engine queue, and aggregate output tok/s as the generation counter's advance over elapsed time. Per-stream tok/s is that aggregate divided by mean running. Prefill tok/s comes from the advance in uncached prompt tokens, and the cache hit from the prompt and uncached advances. The median time to first token comes from the histogram's advance, and pool occupancy is the latest reading. If the window holds fewer than two rows of one run, every rate is null, not zero.</li>
 </ul>
 <p>A <code>--live</code> flag emits only those two blocks. It reads only the lane document and the tail of one receipt file, and never opens the index, so gpu-watch can call it every five seconds while the index work of §5 is unfinished. gpu-watch then renders its serve panel from that document and deletes its engine scrape. Its first band reads <em>running</em> instead of workers. It gains a router row (width, in flight, queued at the router with the oldest wait, verdict) and a slots row. The slots row carries the lane's top-level <code>headroom</code> in requests and, when the lane publishes them, its worker slots.</p>
+<p><strong>Interface surface.</strong> This section adds one CLI option, <code>--live</code>, and two published blocks, <code>lane</code> and <code>live</code>, to <code>agent watch --json</code> and to <code>watch.json</code>. Nothing in imas-ambix's CLI or public definitions is retired, because the readers the blocks replace, gpu-watch's engine scrape and its private ledger, live in the dotfiles repository and are deleted there. <code>--live</code> cannot merge into <code>--json</code>: its purpose is to skip the index, which the full document must open.</p>
 <table>
 <caption>Nodes for this section.</caption>
 <thead><tr><th>Node</th><th>Runs after</th><th>Effort</th></tr></thead>
@@ -774,21 +775,23 @@
     <h2 id="s14">§14 — The live panel publishes the lane&#x27;s availability as a percentage</h2>
 <section data-reckon="section" data-id="s14" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
 <p><strong>Read, 2026-10-05 07:34Z.</strong> Reckon publishes no availability percentage for the local lane. The <code>local_lane</code> block it writes to <code>~/public/reckon/paid-lanes.json</code> copies the lane document's running count, ceiling, headroom, gate width, in-flight count and waiting count. It read headroom 13, gate width 16 and 3 in flight. Orchestrators size against two figures from the lane document: <code>headroom</code>, counted in requests, and <code>admission.worker_slots</code>, counted in workers. Neither is a percentage. The lead asked for the lane's availability as a filled bar on gpu-watch, and §15 draws it. This section publishes the figure, because gpu-watch computes no serving figure of its own (<code>f-srw-022</code>).</p>
+<p>The figure the reckon monitor prints beside each local run, for example <code>lane 61.8</code>, is not an availability. It is the lane document's <code>throughput.mean_tokens_per_second</code>: the generating population's mean output rate per run, in tokens per second. At 07:40:39Z it read 61.809, from an aggregate of 222.5 tok/s over 3.6 runs.</p>
 <p><strong>Definition.</strong> <code>availability_percent</code> = 100 × <code>headroom</code> ÷ <code>router_generation_gate.effective_width</code>, clamped to 0–100. Here <code>headroom</code> is the lane document's top-level, admission-clamped headroom, the figure orchestrators read. The percentage is the share of the router's generation width still open to new requests. Three rules govern it:</p>
 <ul>
 <li>A paused gate (<code>router_generation_gate.paused</code> true) reports 0.0, because it admits nothing.</li>
 <li>The key is omitted, not set to null or zero, when either input is absent or non-numeric, or when the effective width is not positive. This follows <code>lane_block</code>'s rule that a withheld figure stays withheld.</li>
 <li>A stale lane document marks this figure stale like every other figure copied from it.</li>
 </ul>
-<p>It is added to <code>imas_ambix.agent.live_panel.lane_block</code> beside the copied fields, so <code>agent watch --json --live</code> and the full document both carry it, from one implementation.</p>
+<p><strong>Where it lives.</strong> The figure is defined once, as a pure function in <code>imas_ambix/agent/lane.py</code>, the module that owns the lane document's schema. The router publishes it as a top-level <code>availability_percent</code> in <code>RouterApp._publish_lane</code>, immediately after the line that clamps <code>headroom</code> to the admission headroom and adds the <code>router_generation_gate</code> block, because that is where both inputs are final. Reckon's lane reader and every orchestrator then see the same figure gpu-watch draws. <code>live_panel.lane_block</code> copies the published field like every other lane field. For a document whose router predates the field, it derives the figure with the same <code>lane.py</code> function, so gpu-watch draws the bar before the router is next restarted. The published field appears only after that restart, which is an operator step under <code>ops/lane-cycle/AGENTS.md</code> and is outside this node.</p>
+<p><strong>Interface surface.</strong> One published field, <code>availability_percent</code>, joins the lane document and the <code>lane</code> block. Nothing is retired, because no percentage existed before.</p>
 <table>
 <caption>Nodes for this section.</caption>
 <thead><tr><th>Node</th><th>Runs after</th><th>Effort</th></tr></thead>
 <tbody>
-<tr><td><code>lane_block</code> carries <code>availability_percent</code></td><td>—</td><td>1 h</td></tr>
+<tr><td>The lane document and <code>lane_block</code> carry <code>availability_percent</code>, defined once in <code>lane.py</code></td><td>—</td><td>1.25 h</td></tr>
 </tbody>
 </table>
-<p><strong>Done when:</strong> <code>tests/test_live_panel.py</code> asserts by literal:</p>
+<p><strong>Done when:</strong> a test of the <code>lane.py</code> function asserts by literal:</p>
 <ul>
 <li>headroom 13 at effective width 16 gives 81.25;</li>
 <li>headroom 0 gives 0.0;</li>
@@ -798,6 +801,11 @@
 <li>an effective width of 0 omits the key.</li>
 </ul>
 <p>The declared negative control divides by the configured <code>width</code> instead of <code>effective_width</code>. It must fail a case where the two differ: width 16, effective width 8, headroom 4, which must give 50.0.</p>
+<p>Two more tests, without a live router:</p>
+<ul>
+<li><code>tests/test_agent_router_lane_publish.py</code> asserts that the published lane document carries <code>availability_percent</code> computed from the clamped <code>headroom</code>, not from <code>engine_headroom</code>.</li>
+<li><code>tests/test_live_panel.py</code> asserts that <code>lane_block</code> copies a published value unchanged, and derives the same value from a fixture document that lacks the field.</li>
+</ul>
 <p><code>imas-ambix agent watch --json --live</code>, run against the real lane document, prints an <code>availability_percent</code> equal to 100 × headroom ÷ effective width of that same document, read within the same second. The capture is recorded. The serving-interpreter parse guard passes, and <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0.</p>
 
     <h2 id="s15">§15 — gpu-watch&#x27;s serve grid fits in three bands and draws availability as a bar</h2>
