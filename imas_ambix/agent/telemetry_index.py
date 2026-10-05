@@ -699,19 +699,29 @@ def counter_run_continues(
 
     One predicate defines a run for both the compactor and the query, so the
     two cannot drift apart and discard an endpoint again. A run is one serving
-    process on one host over one boot -- *current*'s key -- whose cumulative
-    counters never fall. So a reading continues it only while the key is
-    unchanged and no counter it carries is below the value the previous reading
-    gave for the same counter; a key that moves, or a counter that resets without
-    the key announcing it, opens a new run. The first reading of a sequence opens
-    one, since it has no predecessor to continue.
+    job on one host -- *current*'s key -- whose cumulative counters never fall.
+    So a reading continues it only while its key names the same run and no
+    counter it carries is below the value the previous reading gave for the same
+    counter; a key that moves, or a counter that resets without the key
+    announcing it, opens a new run. The first reading of a sequence opens one,
+    since it has no predecessor to continue.
+
+    *current*'s key is ``(host, boot, job)``, and the two ends are not
+    equivalent. The host and the job name the running process, so either moving
+    is a different run. The boot announces a reboot the counters alone cannot
+    show, but a boot the record did not carry -- the empty marker a raw row is
+    stored under -- announces nothing: it must continue the run of the same host
+    and job rather than open one, or a read that sees a job's raw rows beside
+    its compacted tiers, which carry a boot the raw rows do not, would split the
+    run at every alternation and count each tier row's stride again. Only two
+    keys that both declare a boot, and declare them differently, end the run.
 
     Each argument pairs a run key with the counter values the reading carries,
     keyed by a name that is stable within the sequence so values are compared
     like for like. A counter present in one reading and absent from the other is
     not compared rather than read as a fall to zero.
     """
-    if previous is None or previous[0] != current[0]:
+    if previous is None or not _same_run(previous[0], current[0]):
         return False
     before = previous[1]
     for name, value in current[1].items():
@@ -719,6 +729,25 @@ def counter_run_continues(
         if prior is not None and value < prior:
             return False
     return True
+
+
+def _same_run(previous_key: tuple[Any, ...], current_key: tuple[Any, ...]) -> bool:
+    """Whether two run keys name one uninterrupted run of one job.
+
+    A key is ``(host, boot, job)``. The host and the job must agree, because a
+    reading from another machine or another serving process is a different run
+    whatever its boot says. The boot must agree too, but only where both keys
+    declare one: an unknown boot -- the empty marker a row is stored under when
+    its record named no boot -- is compatible with any boot, because it carries
+    no fact that could disagree. Two declared boots that differ do end the run.
+    """
+    if previous_key[0] != current_key[0] or previous_key[2] != current_key[2]:
+        return False
+    before_boot = previous_key[1]
+    current_boot = current_key[1]
+    if not before_boot or not current_boot:
+        return True
+    return before_boot == current_boot
 
 
 def _counter_runs(
