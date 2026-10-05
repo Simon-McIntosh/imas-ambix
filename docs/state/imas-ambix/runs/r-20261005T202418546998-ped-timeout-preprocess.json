@@ -1,0 +1,703 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effective_input_window": 230144,
+    "effort": "high",
+    "launch": "cli",
+    "local": true,
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "worktree-full",
+    "usable_input_window": 230144
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "40d0280acb08383b53b66b018c38d509cb48707a",
+  "boundary_waiver": null,
+  "brief": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "fallback_credit": null,
+      "inference_geo": "",
+      "input_tokens": 3555884,
+      "input_tokens_cumulative": 3555884,
+      "output_tokens": 34834,
+      "output_tokens_cumulative": 34834,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": {
+    "added": 35,
+    "files": 2,
+    "removed": 0
+  },
+  "clone_matches": [
+    {
+      "existing_function": {
+        "line": 301,
+        "name": "test_download_happy_path_slurm",
+        "path": "tests/test_data_cli.py"
+      },
+      "run_function": {
+        "line": 433,
+        "name": "test_preprocess_frames_cli_from_bucket_all",
+        "path": "tests/test_preprocess.py"
+      },
+      "window_line": 454
+    },
+    {
+      "existing_function": {
+        "line": 323,
+        "name": "test_download_happy_path_login",
+        "path": "tests/test_data_cli.py"
+      },
+      "run_function": {
+        "line": 433,
+        "name": "test_preprocess_frames_cli_from_bucket_all",
+        "path": "tests/test_preprocess.py"
+      },
+      "window_line": 454
+    },
+    {
+      "existing_function": {
+        "line": 469,
+        "name": "test_encode_shot_happy_path",
+        "path": "tests/test_data_cli.py"
+      },
+      "run_function": {
+        "line": 433,
+        "name": "test_preprocess_frames_cli_from_bucket_all",
+        "path": "tests/test_preprocess.py"
+      },
+      "window_line": 454
+    },
+    {
+      "existing_function": {
+        "line": 272,
+        "name": "test_bulk_encode_signals_cli_smoke",
+        "path": "tests/test_encoding.py"
+      },
+      "run_function": {
+        "line": 433,
+        "name": "test_preprocess_frames_cli_from_bucket_all",
+        "path": "tests/test_preprocess.py"
+      },
+      "window_line": 454
+    },
+    {
+      "existing_function": {
+        "line": 320,
+        "name": "test_from_quality_index_filters_usable_shots",
+        "path": "tests/test_encoding.py"
+      },
+      "run_function": {
+        "line": 433,
+        "name": "test_preprocess_frames_cli_from_bucket_all",
+        "path": "tests/test_preprocess.py"
+      },
+      "window_line": 454
+    },
+    {
+      "existing_function": {
+        "line": 387,
+        "name": "test_from_quality_index_empty_produces_no_shots",
+        "path": "tests/test_encoding.py"
+      },
+      "run_function": {
+        "line": 433,
+        "name": "test_preprocess_frames_cli_from_bucket_all",
+        "path": "tests/test_preprocess.py"
+      },
+      "window_line": 454
+    },
+    {
+      "existing_function": {
+        "line": 604,
+        "name": "test_audit_cmd_end_to_end",
+        "path": "tests/test_quality.py"
+      },
+      "run_function": {
+        "line": 433,
+        "name": "test_preprocess_frames_cli_from_bucket_all",
+        "path": "tests/test_preprocess.py"
+      },
+      "window_line": 454
+    }
+  ],
+  "commit_resolution": null,
+  "commits": [
+    "c3eb1709d094e9eba1dbcaec1dbd77c925b5bbeb"
+  ],
+  "completed_at": "2026-10-05T20:45:53.795Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-10-05T20:24:26Z",
+  "disposition": null,
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": true,
+    "matched_measure": "pytest -p",
+    "override": false,
+    "role": "implement",
+    "status": "compatible"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [
+    "tests/test_preprocess.py::test_preprocess_rbb_shot_no_skip_overwrites",
+    "imas_ambix/data/preprocess.py",
+    "tests/",
+    "ped-timeout-suite-capped.html",
+    "tests/test_preprocess.py::test_preprocess_frames_cli_shot_ids",
+    "imas_ambix/data/cli.py"
+  ],
+  "gate": "passed",
+  "gate_check": {
+    "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD command uv run --no-sync pytest -p no:cacheprovider --timeout=3600 --durations=0 tests/test_preprocess.py::test_preprocess_frames_cli_from_bucket_all",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T202418546998-ped-timeout-preprocess/solo-preprocess-bucket-all-fixed.log"
+  },
+  "impl_move": {
+    "at_complete": 0.8,
+    "at_dispatch": 0.8,
+    "plan": "project-environment-declared",
+    "reason": "resolves the one unaccounted timeout; the section closes with the whole-suite check",
+    "verdict": "waived"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-10-05T21:09:19.091777+00:00",
+    "horizon_seconds": 2700,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": null,
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-10-05T20:24:19Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 22,
+    "binding_observed": "unknown",
+    "detail": "",
+    "generating": 1,
+    "headroom": 15,
+    "mean_context": 120000,
+    "observed_at": "2026-10-05T20:23:57Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45,
+    "throughput": {
+      "age_seconds": 22,
+      "aggregate_tokens_per_second": 147.161,
+      "detail": "",
+      "mean_tokens_per_second": 105.115,
+      "observed_at": "2026-10-05T20:23:57Z",
+      "runs": 1.4,
+      "state": "measured"
+    },
+    "waiting": 0
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-10-05T20:45:53.795Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": true,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T202418546998-ped-timeout-preprocess/manifest.md",
+  "member": "disposable-r-20261005T202418546998-ped-timeout-preprocess",
+  "negative_control": {
+    "added_failure_ids": [
+      "tests/test_preprocess.py::test_preprocess_frames_cli_from_bucket_all"
+    ],
+    "baseline_failure_ids": [
+      "tests/test_preprocess.py::test_preprocess_frames_cli_shot_ids",
+      "tests/test_preprocess.py::test_preprocess_rbb_shot_no_skip_overwrites"
+    ],
+    "comparison_arm": "after_suite",
+    "control_exit_status": 1,
+    "control_failure_ids": [
+      "tests/test_preprocess.py::test_preprocess_frames_cli_from_bucket_all"
+    ],
+    "declaration": "if a timeout mark was added, remove it and run the test at the default 300 s bound; it must abort with a pytest-timeout failure (none: if no mark was added)",
+    "head_failure_ids": [
+      "tests/test_preprocess.py::test_preprocess_frames_cli_shot_ids",
+      "tests/test_preprocess.py::test_preprocess_rbb_shot_no_skip_overwrites"
+    ],
+    "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T202418546998-ped-timeout-preprocess/negative-control.log",
+    "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T202418546998-ped-timeout-preprocess/negative-control.log",
+    "test_paths": [
+      "tests/test_preprocess.py"
+    ],
+    "verdict": "matched"
+  },
+  "no_commit": null,
+  "node": "ped-timeout-preprocess",
+  "node_definition": {
+    "brief": "",
+    "brief_path": "",
+    "brief_sha256": "",
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 953,
+          "cached_input_tokens": 873364,
+          "input_tokens": 874319,
+          "output_tokens": 868,
+          "reasoning_output_tokens": 19,
+          "total_tokens": 875187,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "a663ef24-6dba-4bb9-9ea5-3f1597c64253",
+      "session_id": "a663ef24-6dba-4bb9-9ea5-3f1597c64253"
+    },
+    "done_when": "On the fleet compute node, run that test alone, serially, with UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD command uv run --no-sync pytest -p no:cacheprovider --timeout=3600 --durations=0 'tests/test_preprocess.py::test_preprocess_frames_cli_from_bucket_all' into a log with a header (nproc, one-minute load) and an EXIT line. If its own work exceeds 300 s, add @pytest.mark.timeout(N) with N twice the measured seconds rounded up to a multiple of 60 and a comment giving the measurement and date; if its time is spent waiting (a network call, a sleep, a poll), remove or bound the wait in the test, or leave it failing and name the source module and plan that own the wait; if it finishes under 300 s alone, change nothing and record that. Then UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD command uv run --no-sync pytest -p no:cacheprovider tests/test_preprocess.py at the default bound exits 0 (or fails only on that test if left failing), into a log with an EXIT line. The fragment docs/evidence/fragments/project-environment-declared/ped-timeout-preprocess.html records the measurement and the outcome. UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD command uv run --no-sync ruff check imas_ambix tests exits 0. Nothing outside tests/test_preprocess.py and the fragment changes.",
+    "estimated_hours": null,
+    "goal": "resolve tests/test_preprocess.py::test_preprocess_frames_cli_from_bucket_all by its measured duration",
+    "id": "ped-timeout-preprocess",
+    "lane_declaration": {
+      "backend": null,
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-10-05T20:24:19Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 22,
+      "binding_observed": "unknown",
+      "detail": "",
+      "generating": 1,
+      "headroom": 15,
+      "mean_context": 120000,
+      "observed_at": "2026-10-05T20:23:57Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45,
+      "throughput": {
+        "age_seconds": 22,
+        "aggregate_tokens_per_second": 147.161,
+        "detail": "",
+        "mean_tokens_per_second": 105.115,
+        "observed_at": "2026-10-05T20:23:57Z",
+        "runs": 1.4,
+        "state": "measured"
+      },
+      "waiting": 0
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T202418546998-ped-timeout-preprocess/manifest.md",
+    "negative_control": "if a timeout mark was added, remove it and run the test at the default 300 s bound; it must abort with a pytest-timeout failure (none: if no mark was added)",
+    "plan": "project-environment-declared",
+    "requested_backend": null,
+    "requires_decisions": [],
+    "role": "implement",
+    "section": "§5",
+    "spec_level": "guided",
+    "time_budget": "45m",
+    "token_budget": null,
+    "write_paths": [
+      "tests/test_preprocess.py",
+      "docs/evidence/fragments/project-environment-declared/ped-timeout-preprocess.html",
+      "docs/figures/project-environment-declared/ped-timeout-preprocess"
+    ]
+  },
+  "orchestrator_lane_override": null,
+  "orientation_input_tokens": 1813948.0,
+  "outcome": "",
+  "pace": {
+    "allowance": null,
+    "bar": null,
+    "clocks": {
+      "five_hour": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "five_hour",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      },
+      "seven_day": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "seven_day",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      }
+    },
+    "group": null,
+    "hold": null,
+    "lane": "clive",
+    "member": null,
+    "node": "ped-timeout-preprocess",
+    "policy": {
+      "drain_lead_hours": 12.0,
+      "pace_multiple": 1.1
+    },
+    "reason": "the lane declares no budget group, so no wallet paced it",
+    "recorded_at": "2026-10-05T20:24:21.050197+00:00",
+    "score": 0.5875,
+    "source": null,
+    "state": "unknown"
+  },
+  "picker_selection": {
+    "action": "route",
+    "answering_model": "typesafe/jev-1.13-20260917",
+    "backend": "clive",
+    "comment": "",
+    "confidence": 0.89,
+    "decision_source": "jev",
+    "effort": "high",
+    "excluded": [
+      {
+        "availability": "not-probed",
+        "backend": "native",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "in-harness",
+        "local": false,
+        "model": null,
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reasons": [
+          "in-harness-backend"
+        ],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      }
+    ],
+    "fallback_reason": null,
+    "family": "local",
+    "jev_latency_ms": 392.601,
+    "jev_model": "typesafe/jev-1.13",
+    "latency_ms": 480.229,
+    "model": "deepseek-v4.1-flash",
+    "offered": [
+      {
+        "availability": "unknown",
+        "backend": "claude",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-sonnet-5-5",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "claude-haiku",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-haiku-4-5-20251001",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "claude-opus",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-opus-5-5",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "served",
+        "backend": "clive",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": {
+          "admission_verdict": "open",
+          "running": 1,
+          "slots_state": "measured",
+          "stale": false,
+          "waiting": 0
+        },
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "local",
+        "local": true,
+        "model": "deepseek-v4.1-flash",
+        "outcomes": {
+          "failed": 3,
+          "not-run": 1,
+          "passed": 63,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": 106
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex",
+        "budget_reason": null,
+        "burn_multiple": 1.5576893128289024,
+        "congestion": null,
+        "days_to_reset": 4.034066852916666,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-sol",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": 0.4660749701630292,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": "2026-10-09T21:13:34+00:00",
+        "utilisation_pct": 66.0,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex-astra",
+        "budget_reason": null,
+        "burn_multiple": 1.5576893128289024,
+        "congestion": null,
+        "days_to_reset": 4.034066852916666,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-astra",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": 0.4660749701630292,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": "2026-10-09T21:13:34+00:00",
+        "utilisation_pct": 66.0,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex-luna",
+        "budget_reason": null,
+        "burn_multiple": 1.5576893128289024,
+        "congestion": null,
+        "days_to_reset": 4.034066852916666,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-luna",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": 0.4660749701630292,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": "2026-10-09T21:13:34+00:00",
+        "utilisation_pct": 66.0,
+        "worker_slots": null
+      }
+    ],
+    "probabilities": {
+      "claude": 0,
+      "claude-haiku": 0.01,
+      "claude-opus": 0,
+      "clive": 0.91,
+      "codex": 0.02,
+      "codex-astra": 0,
+      "codex-luna": 0,
+      "hold": 0.06
+    },
+    "rendered_token_estimate": 1267,
+    "usage": {
+      "cost": 0.000145614,
+      "input_tokens": 3467,
+      "output_tokens": 89
+    }
+  },
+  "plan": "project-environment-declared",
+  "plan_impl_at_dispatch": 0.8,
+  "plan_link": null,
+  "promoted_by": null,
+  "promoted_revision": "c3eb1709d094e9eba1dbcaec1dbd77c925b5bbeb",
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "reviewed_base_sha": "40d0280acb08383b53b66b018c38d509cb48707a",
+    "reviewed_head_sha": "c3eb1709d094e9eba1dbcaec1dbd77c925b5bbeb",
+    "scores": {
+      "durability": 18,
+      "evidence": 18,
+      "fit": 19,
+      "goal_fidelity": 19,
+      "reuse": 19,
+      "scope_discipline": 20
+    },
+    "status": "parsed",
+    "total": 113
+  },
+  "review_tier": "none",
+  "role": "implement",
+  "route_mode": "explicit",
+  "run_id": "r-20261005T202418546998-ped-timeout-preprocess",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§5",
+  "session": "a663ef24-6dba-4bb9-9ea5-3f1597c64253",
+  "session_harness": "claude",
+  "session_id": "dc9d04a9-c59b-4ee0-9950-2a3fd24a8df8",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "guided",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 0,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 3555884,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 230144",
+    "elapsed_seconds": 1281.093,
+    "generated_tokens": 34834,
+    "generation_seconds": 314.158,
+    "input_budget_tokens": 230144,
+    "input_utilisation_pct": 53.8,
+    "machine_seconds": 966.935,
+    "peak_input_tokens": 123794,
+    "tokens_per_second": 110.88,
+    "wall_tokens_per_second": 27.19
+  },
+  "time_budget": "45m",
+  "tool_steps": 46.0,
+  "unplanned_reason": null,
+  "unreconciled_override": null,
+  "wall_seconds": 1287,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-10-05T20:45:56Z",
+    "last_record_type": "result",
+    "launched_at": "2026-10-05T20:24:29Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20261005T202418546998-ped-timeout-preprocess",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 7628,
+    "worker_pid": 3024351
+  },
+  "worker_seconds": 1270,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
