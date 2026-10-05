@@ -26,7 +26,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="80e9f492,8a58accb,9a4bad01,d0fb6648,a8c7ce1a,5d448418,f746157b">
 <meta name="plan-impl" content="0.8">
-<meta name="plan-version" content="42">
+<meta name="plan-version" content="43">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -205,6 +205,9 @@
 </div>
 <div class="r-comment" data-section="s5" data-id="c-run-r-20261005T175901268480-review-of-ped-declare-threadpoolctl" data-who="reckon-build" data-when="2026-10-05T18:03:49.457Z">
     <div class="r-comment-body"><p>independent review of r-20261005T175334711675-ped-declare-threadpoolctl at head b496f586 against base 23ee56ab stored; scored goal_fidelity 19, evidence 20, scope_discipline 20, durability 18, fit 19, reuse 20 (total 116 of 120); added_failure_count 0; the declaration+relock gate was reproduced from scratch (uv lock --check exit 0, 0 of 236 versions moved, raw lock diff exactly the two threadpoolctl edges)</p></div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-run-r-20261005T175306814457-ped-worker-threads" data-who="reckon-build" data-when="2026-10-05T18:15:13.236Z">
+    <div class="r-comment-body"><p>docs/evidence/fragments/project-environment-declared/ped-worker-threads.html — per-xdist-worker thread-pool cap: share max(1, affinity 28 // workers) = 7 at -n 4 and 3 at -n 8; the cap pins OMP/OPENBLAS/MKL before resolving torch and then sets torch.set_num_threads; serial 9 passed/1 skipped, -n 4 and -n 8 10 passed, ruff clean, all EXIT=0; negative control (resolve torch before the pin) fails test_environment_is_pinned_before_torch_is_resolved, 1 failed/9 passed, EXIT=1.</p></div>
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20261005T155053774756-ped-import-walk" data-who="reckon-build" data-when="2026-10-05T16:02:28.683Z">
     <div class="r-comment-body"><p>folded the fresh-environment import walk into tests/test_declared_dependencies.py — a hand-off writer (optional set from build_census() + module_distribution_map()), an interpreter walk over imas_ambix/ that classifies each failure, and handoff/walk modes on main, with a synthetic-module classifier unit test; the walk imports 313 imas_ambix modules with 313 imported, 0 optional-missing, 0 hard failures in the synced shared environment</p></div>
