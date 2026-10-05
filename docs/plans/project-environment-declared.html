@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="project-environment-declared">
+  <meta name="plan-title" content="Project Environment From Its Declaration">
+  <meta name="plan-summary" content="Plain uv sync yields the working imas-ambix stack: every library the code and tests need is declared, optional stacks stay extras">
+  <meta name="plan-status" content="draft">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort-hours" content="4.0">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="general">
+  <meta name="plan-capability-reasoning" content="standard">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-capability-risk" content="moderate">
+  <meta name="plan-sprint" content="S27">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-tags" content="dev-environment">
+  <meta name="plan-standalone" content="Repository environment hygiene: no plan waits on it and it waits on none; the JT-60SA map build only surfaced it.">
+  <title>Project Environment From Its Declaration | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-version" content="1">
+<meta name="plan-modified" content="2026-10-05">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;}">
+</head>
+<body>
+  <main class="plan-doc">
+    <header>
+      <p class="eyebrow">One environment, rebuilt from what the project declares</p>
+      <h1>Project Environment From Its Declaration</h1>
+      <p class="lead">
+        The shared project environment at <code>.venv</code> works only because it holds packages
+        the project never declared. A plain <code>uv sync</code>, the command the repository's own
+        instructions tell every agent to run, removes them. This plan makes the declaration match
+        what the code and tests need, so a plain sync produces the working stack and nothing a
+        session relies on lives outside <code>pyproject.toml</code> and <code>uv.lock</code>.
+      </p>
+    </header>
+
+    <h2 id="s1">§1 — What a plain sync does today</h2>
+    <p>
+      Measured 2026-10-05 in the main checkout, while landing the tokamap exporter's new dev
+      dependency: <code>uv sync</code> uninstalled 130 packages and installed one. The removed set
+      included pytest, pytest-xdist, pytest-timeout, ruff, mypy, linkml and linkml-runtime,
+      imas-ink, reckon-plans and the editable <code>imas-ambix</code> install itself, and the newly
+      declared <code>tokamap</code> was not installed. Two causes account for all 130:
+    </p>
+    <table>
+      <thead><tr><th>Cause</th><th>Packages</th><th>Why a plain sync drops them</th></tr></thead>
+      <tbody>
+        <tr><td>Declared only as extras</td><td>61</td><td>The <code>dev</code>, <code>docs</code>, <code>viz</code>, <code>agent</code>, <code>data</code> and <code>train</code> stacks are <code>[project.optional-dependencies]</code>, which uv installs only with <code>--extra</code> or <code>--all-extras</code>; the environment had been built with all of them.</td></tr>
+        <tr><td>Declared nowhere</td><td>68</td><td>Absent from <code>uv.lock</code>: installed into the environment by hand at some earlier point, among them linkml, pytest-xdist, pytest-timeout, sphinx, mcp, sqlalchemy and reckon-plans (a path install of <code>~/Code/reckon</code>).</td></tr>
+      </tbody>
+    </table>
+    <p>
+      The environment was restored the same day: <code>uv sync --all-extras</code> brought back the 61,
+      the 68 were reinstalled at the versions the sync log recorded removing, and reckon-plans was
+      reinstalled editable from <code>~/Code/reckon</code>, which also brought <code>playwright</code>
+      and <code>pyee</code> and matplotlib 3.11.2 (reckon requires <code>matplotlib&gt;=3.11.2</code>;
+      imas-ambix declares no matplotlib requirement of its own). <code>uv pip check</code> then
+      reported all 296 installed packages compatible. That restore is the debt this plan retires: it
+      put the undeclared packages back by hand, which is exactly what the project's rule against
+      imperative installs exists to prevent.
+    </p>
+
+    <h2 id="s2">§2 — Census: which libraries are truly default</h2>
+<section data-reckon="section" data-id="s2" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+    <p>
+      A library is <strong>default</strong> when the repository cannot do its ordinary work without
+      it: it is imported at module level by code under <code>imas_ambix/</code> that an ordinary
+      import or the <code>imas-ambix</code> console script reaches, or it is needed to run the test
+      suite and the lint gate (<code>pytest</code> and its plugins named in the pytest
+      configuration, <code>ruff</code>, and the packages the tests import). A library is
+      <strong>optional</strong> when only a subsystem that runs on purpose-built hosts reaches it:
+      documentation builds, GPU serving, the FAIR-MAST acquisition stack, the training stack. A
+      library is <strong>unused</strong> when nothing in <code>imas_ambix/</code>, <code>tests/</code>
+      or <code>scripts/</code> imports it.
+    </p>
+    <p>
+      The census node classifies every package in the restored environment by that rule. It scans
+      imports statically (Python's <code>ast</code> over <code>imas_ambix/</code>, <code>tests/</code>
+      and <code>scripts/</code>, mapping each top-level module to its distribution through
+      <code>importlib.metadata.packages_distributions</code>), separates module-level imports from
+      imports inside functions, and records for each distribution its classification, the first
+      importing file, and its current declaration (dependency, extra name, or none). It answers one
+      question the rule cannot settle alone: whether anything in this repository imports
+      <code>reckon</code>, and if so from which files, because reckon-plans is a sibling checkout and
+      not a published package. The census writes its table as the evidence fragment
+      <code>docs/evidence/fragments/project-environment-declared/ped-census.html</code> and changes no
+      other file.
+    </p>
+    <p>
+      Done-when: the fragment holds one row per installed distribution with classification,
+      first importing file and current declaration; it lists every default library that is not
+      declared as a dependency or in a default-synced group, and every declared dependency that
+      nothing imports; and it states whether and where <code>reckon</code> is imported.
+    </p>
+
+    <h2 id="s3">§3 — Declare and relock</h2>
+<section data-reckon="section" data-id="s3" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links=""></section>
+    <p>
+      The declaration follows the census. Default runtime libraries go in
+      <code>[project.dependencies]</code>. Default development libraries (the test runner, its
+      plugins, the linter, the type checker, the tokamap validator) move from the <code>dev</code>
+      extra into a <code>[dependency-groups]</code> <code>dev</code> group, which uv installs on a plain
+      <code>uv sync</code>. The <code>docs</code>, <code>viz</code>, <code>agent</code>, <code>data</code> and
+      <code>train</code> extras stay extras unless the census finds a default code path importing one
+      of their members, in which case that member moves to the dependencies. A version constraint
+      is added only where a known incompatibility requires it; nothing is pinned for its own sake.
+      Path sources keep using <code>[tool.uv.sources]</code>, as imas-ink and nova-stella already do.
+    </p>
+    <p>
+      The node edits <code>pyproject.toml</code> and regenerates <code>uv.lock</code> with
+      <code>uv lock</code> only. It never runs <code>uv sync</code> against the shared environment,
+      because a sync from a worktree repoints the shared editable install at that worktree. Its
+      tests run with <code>--no-sync</code> against the restored shared environment, which already
+      holds every package the census found.
+    </p>
+    <p>
+      Done-when: <code>uv lock --check</code> passes; every library the census classified default
+      appears in <code>[project.dependencies]</code> or the <code>dev</code> group of
+      <code>uv.lock</code>; the <code>dev</code> extra no longer exists; and the existing suite's
+      collection (<code>pytest --collect-only -q</code>) reports the same number of tests with zero
+      errors as before the edit, both logged.
+    </p>
+
+    <h2 id="s4">§4 — Prove it on a fresh environment</h2>
+<section data-reckon="section" data-id="s4" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links=""></section>
+    <p>
+      The proof builds a new environment from the declaration alone, on node-local disk so the shared
+      one is never touched:
+      <code>UV_PROJECT_ENVIRONMENT=/tmp/ped-fresh-&lt;run&gt; uv sync</code> with no flags. Against that
+      environment it imports every module under <code>imas_ambix/</code>, runs the
+      <code>imas-ambix</code> console script's <code>--help</code>, collects the whole test suite, and
+      runs <code>ruff check imas_ambix tests</code>. It then removes the fresh environment. Only after
+      the proof passes does the coordinator run a plain <code>uv sync</code> in the main checkout, and
+      it compares that sync's removal list with the census: anything removed must be a package the
+      census classified optional or unused.
+    </p>
+    <p>
+      Done-when: in the fresh environment every module imports, the console script answers, test
+      collection reports zero errors and the same test count as the shared environment, and ruff
+      exits 0, all in one gate log; and the main checkout's plain sync removes no package the census
+      classified default.
+    </p>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="dev-tooling-home" data-choice="dependency-group" data-by="Simon McIntosh" data-when="2026-10-05T07:45:00+00:00">
+    <p class="r-dec-q">Where do the test runner, its plugins, the linter and the validator live?</p>
+    <p class="r-dec-ctx">They are declared today as the dev extra, which a plain uv sync does not install.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="dependency-group">A [dependency-groups] dev group, installed by a plain sync</button>
+      <button class="r-opt" data-value="keep-extra">Keep the dev extra and document uv sync --extra dev</button>
+      </p>
+    <p class="r-dec-rat">Lead&#x27;s direction 2026-10-05: plain uv sync must produce the working stack, with the libraries that are truly default declared as default. The test and lint tooling is what every agent session runs, so it belongs in the group uv installs by default. Rejected: keeping the extra, which leaves a plain sync without the test runner.</p>
+    </div>
+</section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-ped-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-10-05" data-recommends-skill="/reckon-build project-environment-declared §2" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Run the import census that decides which libraries are default</h4>
+    <div class="r-fu-body">Section 2's census classifies every installed distribution as default, optional or unused; sections 3 and 4 declare, relock and prove from it.</div>
+    <pre class="r-fu-prompt">/reckon-build project-environment-declared §2</pre>
+    </article>
+</section>
+
+    <section data-reckon="questions" id="questions" class="r-questions">
+<h2><span class="sec">§</span> Open questions</h2>
+<div class="r-q" data-id="reckon-dependency" data-section="s3" data-status="open" data-opened-by="reckon-build" data-opened-at="2026-10-05" data-resolved-at="" data-resolved-by="">
+    <p class="r-q-body">If the census finds <code>reckon</code> imported by this repository, is it declared as a dev-group path source on <code>~/Code/reckon</code> (as imas-ink is), or are those imports removed or confined to tooling that runs from reckon's own environment? A path source works on this workstation and fails anywhere without the sibling checkout.</p>
+    </div>
+</section>
+  </main>
+</body>
+</html>
