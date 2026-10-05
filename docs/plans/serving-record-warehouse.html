@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;done&quot;,&quot;s16&quot;:&quot;done&quot;}">
 <meta name="plan-impl" content="0.45">
-<meta name="plan-version" content="223">
+<meta name="plan-version" content="224">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -1455,7 +1455,10 @@
     <div class="r-comment-body">gate tests passed (22, exit 0, under both TMPDIRs); section s16 closed by run r-20261005T094714092208 at merge 4c9be988. impl moves by one of thirteen executable sections.</div>
 </div>
 <div class="r-comment" data-section="s16" data-id="c-run-r-20261005T094714092208-srw-watch-tests-read-ledger-absence-from-rows" data-who="reckon-build" data-when="2026-10-05T09:53:52.914Z">
-    <div class="r-comment-body"><p>The three index-report tests in tests/test_agent_telemetry_watch.py assert the absence of the ledger block by its header line and period rows, not the bare word &quot;ledger&quot; that an index path may carry; 22 tests pass under a TMPDIR path containing &quot;ledger&quot; and under a clean TMPDIR, and the declared mutation fails the same three.</p></div>
+    <div class="r-comment-body"><p>The three index-report tests in tests/test_agent_telemetry_watch.py assert the absence of the ledger block by its header line and period rows, not the bare word "ledger" that an index path may carry; 22 tests pass under a TMPDIR path containing "ledger" and under a clean TMPDIR, and the declared mutation fails the same three.</p></div>
+</div>
+<div class="r-comment" data-section="s16" data-id="c-run-r-20261005T095442531219-review-of-srw-watch-tests-read-ledger-absence-from-rows" data-who="reckon-build" data-when="2026-10-05T10:03:58.250Z">
+    <div class="r-comment-body"><p>independent review of r-20261005T094714092208-srw-watch-tests-read-ledger-absence-from-rows stored at the two granted review paths as a parsed record scoring all 5 dimensions 0..20 -- goal_fidelity 19, evidence 17, scope_discipline 19, durability 17, fit 18, total 90, reviewed_base_sha 375cbe6fb64b6a3bd719af8df3fd3e398542fe40, reviewed_head_sha e5f415bcdf472940691ef8a1c4dfde765b8358c9, added_failure_count 0 with added_failure_ids [] derived from the reviewer&#x27;s own base and head arms of the reviewed node&#x27;s declared gate; the fix (assert the ledger block&#x27;s header and period rows, not the bare word &#x27;ledger&#x27;, in the three index-report tests) reproduces the defect at base (3 failed) and passes at head (22 passed), and the declared negative control reddens exactly the three guarded tests; no findings.</p></div>
 </div>
 </section>
 </main>
