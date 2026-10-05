@@ -1,0 +1,255 @@
+<section class="evidence-fragment" data-reckon="evidence" id="srw-ledger-double-count-located">
+  <header>
+    <h3>Neither window end reproduces the 07:24 inflation — it was a transient index state</h3>
+    <p class="meta">
+      Node <code>srw-ledger-double-count-located</code> &middot;
+      date 2026-10-05 &middot;
+      worktree <code>imas-ambix-0405601943d2/9a153eb3-0957-4cfe-bea0-82a3f0afe0a5/srw-ledger-double-count-located</code>
+    </p>
+  </header>
+
+  <p>
+    The ledger published at <code>07:24:26Z</code> on 2026-10-05 reported a day
+    of <strong>29G</strong> prompt tokens where the sound <code>07:30:53Z</code>
+    publication, six minutes later, reported <code>1.81G</code>; its week and
+    month were inflated by about the same factor (336G / 354G against 19.7G /
+    30.5G). Recomputing <code>ledger()</code> on today's index at the exact
+    <code>now</code> each publication used shows the inflation is <em>not</em> a
+    property of where the window falls: at the 07:24 publication's own window
+    end the current index returns the sound figures, and both ends agree with
+    the 07:30 file to within the six minutes that separate them. The 07:24 read
+    therefore saw an index state that no longer exists.
+  </p>
+
+  <h4 id="srw-ledger-double-count-located-carriers">Carriers — last 30 days of <code>sample</code> rows, grouped by <code>path</code> and <code>job_id</code></h4>
+
+  <p>
+    The first cheap read asks whether two carriers of one job's counter overlap
+    in time, and whether any rows lack a <code>job_id</code> their neighbours
+    carry. Every group carries exactly one path, so no job is offered by two
+    carriers at once, and no row in the window has an empty or null
+    <code>job_id</code> (0 of 456,375). <code>_counter_runs</code> keys a run on
+    <code>(host, boot_id, job_id)</code>, so neither a second carrier nor a
+    missing job id splits runs here.
+  </p>
+
+  <table id="srw-ledger-double-count-located-carrier-table">
+    <caption>
+      Sample rows in the last 30 days (window <code>1788596306.7 &le; ts_epoch
+      &le; 1791188306.7</code>), one group per <code>(path, job_id)</code>.
+      Times are <code>ts_epoch</code> seconds. 32 groups, 456,375 rows.
+    </caption>
+    <thead>
+      <tr><th>path (basename)</th><th>job_id</th><th>rows</th><th>first ts_epoch</th><th>last ts_epoch</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>deepseek-v4-1-flash-1280470.jsonl</td><td>1280470</td><td>39768</td><td>1790968329.3</td><td>1791188306.7</td></tr>
+      <tr><td>deepseek-v4-1-flash-1278105.jsonl</td><td>1278105</td><td>85957</td><td>1790493815.6</td><td>1790967842.0</td></tr>
+      <tr><td>deepseek-v4-1-flash-1278088.jsonl</td><td>1278088</td><td>6993</td><td>1790455835.2</td><td>1790493301.5</td></tr>
+      <tr><td>deepseek-v4-1-flash-1278072.jsonl</td><td>1278072</td><td>5178</td><td>1790427081.7</td><td>1790455353.0</td></tr>
+      <tr><td>deepseek-v4-1-flash-1278071.jsonl</td><td>1278071</td><td>685</td><td>1790422829.7</td><td>1790426563.0</td></tr>
+      <tr><td>deepseek-v4-1-flash-1278067.jsonl</td><td>1278067</td><td>684</td><td>1790418590.4</td><td>1790422314.9</td></tr>
+      <tr><td>deepseek-v4-1-flash-1278062.jsonl</td><td>1278062</td><td>1081</td><td>1790412182.2</td><td>1790418067.5</td></tr>
+      <tr><td>deepseek-v4-1-flash-1278060.jsonl</td><td>1278060</td><td>94</td><td>1790411206.5</td><td>1790411712.4</td></tr>
+      <tr><td>deepseek-v4-1-flash-1278050.jsonl</td><td>1278050</td><td>767</td><td>1790406519.0</td><td>1790410700.6</td></tr>
+      <tr><td>deepseek-v4-1-flash-1278049.jsonl</td><td>1278049</td><td>128</td><td>1790405304.9</td><td>1790405991.5</td></tr>
+      <tr><td>deepseek-v4-1-flash-1277121.jsonl</td><td>1277121</td><td>32657</td><td>1790227829.1</td><td>1790404816.1</td></tr>
+      <tr><td>deepseek-v4-1-flash-1276246.jsonl</td><td>1276246</td><td>16588</td><td>1790138787.4</td><td>1790227323.5</td></tr>
+      <tr><td>deepseek-v4-1-flash-1273253.jsonl</td><td>1273253</td><td>91173</td><td>1789675200.3</td><td>1790136721.5</td></tr>
+      <tr><td>deepseek-v4-1-flash-1273217.jsonl</td><td>1273217</td><td>1029</td><td>1789669501.1</td><td>1789674683.0</td></tr>
+      <tr><td>deepseek-v4-1-flash-1273074.jsonl</td><td>1273074</td><td>2541</td><td>1789656208.6</td><td>1789669020.8</td></tr>
+      <tr><td>deepseek-v4-1-flash-1272783.jsonl</td><td>1272783</td><td>3484</td><td>1789637859.7</td><td>1789655386.6</td></tr>
+      <tr><td>deepseek-v4-1-flash-1272167.jsonl</td><td>1272167</td><td>14197</td><td>1789562178.2</td><td>1789633543.3</td></tr>
+      <tr><td>deepseek-v4-1-flash-1271903.jsonl</td><td>1271903</td><td>3943</td><td>1789541851.7</td><td>1789561704.3</td></tr>
+      <tr><td>deepseek-v4-1-flash-1271895.jsonl</td><td>1271895</td><td>68</td><td>1789541142.3</td><td>1789541478.5</td></tr>
+      <tr><td>deepseek-v4-1-flash-1271889.jsonl</td><td>1271889</td><td>79</td><td>1789540393.0</td><td>1789540784.5</td></tr>
+      <tr><td>deepseek-v4-1-flash-1271741.jsonl</td><td>1271741</td><td>6451</td><td>1789507659.7</td><td>1789540006.2</td></tr>
+      <tr><td>deepseek-v4-1-flash-1271731.jsonl</td><td>1271731</td><td>419</td><td>1789505124.7</td><td>1789507225.9</td></tr>
+      <tr><td>deepseek-v4-1-flash-1271728.jsonl</td><td>1271728</td><td>12</td><td>1789504613.4</td><td>1789504671.6</td></tr>
+      <tr><td>deepseek-v4-1-flash-1271724.jsonl</td><td>1271724</td><td>18</td><td>1789504067.8</td><td>1789504154.5</td></tr>
+      <tr><td>deepseek-v4-1-flash-1271709.jsonl</td><td>1271709</td><td>514</td><td>1789501032.1</td><td>1789503610.2</td></tr>
+      <tr><td>deepseek-v4-flash-1271487.jsonl</td><td>1271487</td><td>2576</td><td>1789479991.1</td><td>1789492884.2</td></tr>
+      <tr><td>deepseek-v4-flash-1271376.jsonl</td><td>1271376</td><td>1372</td><td>1789472731.0</td><td>1789479598.7</td></tr>
+      <tr><td>deepseek-v4-flash-1271286.jsonl</td><td>1271286</td><td>1171</td><td>1789465710.7</td><td>1789471570.4</td></tr>
+      <tr><td>deepseek-v4-flash-1270628.jsonl</td><td>1270628</td><td>13399</td><td>1789398216.7</td><td>1789465301.2</td></tr>
+      <tr><td>deepseek-v4-flash-1270515.jsonl</td><td>1270515</td><td>422</td><td>1789395451.9</td><td>1789397559.8</td></tr>
+      <tr><td>deepseek-v4-flash-1264576.jsonl</td><td>1264576</td><td>114722</td><td>1788794298.6</td><td>1789368733.9</td></tr>
+      <tr><td>deepseek-v4-flash-2x-1263843.jsonl</td><td>1263843</td><td>8128</td><td>1788753633.8</td><td>1788794328.4</td></tr>
+    </tbody>
+  </table>
+
+  <h4 id="srw-ledger-double-count-located-window-ends">The two window ends, recomputed on the live index</h4>
+
+  <p>
+    Each publication's <code>now</code> is its <code>published_at</code> minus
+    its <code>compute_seconds</code> (publisher log,
+    <code>~/.local/state/fleet/services/ambix-watch-publisher.log</code>):
+    <code>07:24:26Z &minus; 85.45 s = 1791184980.6</code> and
+    <code>07:30:53Z &minus; 86.85 s = 1791185366.0</code>. The table is the output
+    of <code>ledger(index, now=end)</code> from
+    <code>imas_ambix.agent.watch</code>, on
+    <code>~/.cache/ambix/watch-index.sqlite3</code> opened read-only. Prompt
+    tokens (<code>engine.prompt_tokens</code>) are the inflated counter.
+  </p>
+
+  <table id="srw-ledger-double-count-located-recomputed-ledger">
+    <caption>
+      Recomputed ledger at both window ends. <code>end</code> is the exact
+      <code>now</code> used; <code>covered</code> is the window's coverage in
+      seconds. Neither end reproduces the 07:24 figures.
+    </caption>
+    <thead>
+      <tr>
+        <th>end (<code>now</code>)</th><th>period</th>
+        <th>tokens_in</th><th>cached</th><th>tokens_out</th><th>covered (s)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td rowspan="4">1791184980.6<br>(2026-10-05T07:23:00.6Z)</td><td>1 hour</td><td>129,498,907</td><td>125,917,952</td><td>888,418</td><td>3,586</td></tr>
+      <tr><td>1 day</td><td>1,796,272,459</td><td>1,734,678,016</td><td>12,220,488</td><td>86,386</td></tr>
+      <tr><td>1 week</td><td>19,729,130,625</td><td>19,265,181,696</td><td>127,719,528</td><td>604,299</td></tr>
+      <tr><td>1 month</td><td>30,452,021,690</td><td>29,710,292,224</td><td>215,257,535</td><td>1,086,817</td></tr>
+      <tr><td rowspan="4">1791185366.0<br>(2026-10-05T07:29:26.0Z)</td><td>1 hour</td><td>143,486,371</td><td>139,769,600</td><td>998,344</td><td>3,597</td></tr>
+      <tr><td>1 day</td><td>1,811,105,284</td><td>1,749,065,216</td><td>12,337,999</td><td>86,397</td></tr>
+      <tr><td>1 week</td><td>19,728,827,355</td><td>19,264,786,688</td><td>127,696,907</td><td>604,310</td></tr>
+      <tr><td>1 month</td><td>30,472,075,478</td><td>29,729,922,560</td><td>215,406,380</td><td>1,087,214</td></tr>
+    </tbody>
+  </table>
+
+  <p id="srw-ledger-double-count-located-recomputed-note">
+    Each end returns a day of about <code>1.80&ndash;1.81G</code> prompt tokens
+    &mdash; the same figure the sound <code>07:30:53Z</code> file carries
+    (<code>1.81G</code>). The <strong>absence of the inflation at both ends is
+    therefore shown by computation</strong>: the 07:24 publication's 29G day is
+    not produced by the current index at the window end that publication used.
+  </p>
+
+  <h4 id="srw-ledger-double-count-located-transient">The 07:24 publication read a transient index state</h4>
+
+  <p>
+    The same window end, <code>1791184980.6</code>, gives different answers
+    depending on <em>when</em> the index was read. At the 07:24 publication's own
+    <code>now</code>, the current index reports a day of 1.796G and a month
+    coverage of 1,086,817 s (12.58 d); the 07:24 publication reported 29G and a
+    month coverage of <strong>16 d</strong>. A window end is a fixed point in
+    the record; the totals and the coverage moving under a fixed end means the
+    row set the reader saw moved, not the window. The inflation factor grows
+    with the window (hour &times;1.08, day &times;16, week &times;17, month
+    &times;11.6), which is the signature of a defect that adds advance once per
+    counter <em>run</em> reached: a one-hour window reaches one run, a month
+    reaches them all.
+  </p>
+
+  <h4 id="srw-ledger-double-count-located-mechanism">The code path that sums, and the write state that fed it</h4>
+
+  <ul id="srw-ledger-double-count-located-mechanism-list">
+    <li>
+      <strong>Where it sums.</strong>
+      <code>TelemetryIndex.partitioned_total</code>
+      (<code>imas_ambix/agent/telemetry_index.py:1550&ndash;1611</code>) reads
+      <em>every</em> reading of the counter before the window's end &mdash; no
+      lower bound in the query &mdash; splits them into runs with
+      <code>_counter_runs</code> (<code>:724&ndash;756</code>), and sums, per run,
+      <code>closing &minus; base</code>. A run is one
+      <code>(host, boot_id, job_id)</code> whose counter never falls
+      (<code>counter_run_continues</code>, <code>:694</code>). <code>base</code>
+      is the last reading at or before the window start, or, for a run whose
+      first in-window sample is a compacted row, that row's own declared
+      <code>open.*</code> value (<code>_run_opening</code>, <code>:759</code>;
+      <code>carried</code>, <code>:1604</code>).
+    </li>
+    <li>
+      <strong>The state that inflates it.</strong> Two carriers of one job's
+      counter visible in one read &mdash; its raw file and a compacted tier
+      &mdash; interleave by timestamp; every key move starts a new run, and each
+      compacted row then contributes its <em>own</em> window's advance as the
+      base of a fresh run, adding that advance again. This inflates every window
+      that reaches the overlap and leaves the hour nearly untouched, which is
+      the 07:24 signature. The substrate exists: the live job
+      <code>1280470</code>'s compacted tiers carry a declared
+      <code>"open"</code> block in 63 hour rows and 3,672 minute rows
+      (<code>deepseek-v4-1-flash-1280470.{hour,minute}.jsonl</code>), while the
+      older <code>1278105</code>'s carry none &mdash; the openings feature
+      post-dates that job.
+    </li>
+    <li>
+      <strong>How one reader can see it.</strong> <code>ingest</code> commits its
+      samples in batches through the pass and drops a job's deselected tier only
+      <em>after</em> the selected tier has been read
+      (<code>telemetry_index.py:1112&ndash;1116</code>), so between those two
+      moments the index can hold two tiers' rows of one job at once. The
+      publisher's derivation takes about 85 s
+      (<code>compute_seconds=85.45</code> at 07:24:26) and
+      <code>watch_document</code> issues its statements with no single read
+      transaction across them, so a derivation spans at least one 60 s ingest
+      tick.
+    </li>
+    <li>
+      <strong>The tick inside the 07:24 window.</strong> The 07:24 publication
+      derived over <code>07:23:00.6 &rarr; 07:24:26</code>. The ingest log shows
+      the every-fifth-tick three-file scan landing inside it
+      (<code>ambix-ingest.log</code>, line recorded at
+      <code>2026-10-05T07:23:04Z ingest tick discovered=120 read=3 skipped=117
+      scanned=1 inserted=9 duplicate=0 malformed=0 bytes=33256</code>); the
+      neighbouring hundred-and-nineteenth ticks read one file
+      (<code>07:22:01Z &hellip; read=1</code>, <code>07:24:05Z &hellip;
+      read=1</code>). The three-file ticks recur every five minutes
+      (<code>07:23:04</code>, <code>07:28:09</code>, <code>07:33:18</code>).
+    </li>
+  </ul>
+
+  <h4 id="srw-ledger-double-count-located-index-now">What today's index holds</h4>
+
+  <p>
+    The current index loads only raw tiers: 32 distinct <code>sample</code>
+    paths, all <code>&lt;job&gt;.jsonl</code>, with <strong>0</strong> rows under
+    a <code>.minute.jsonl</code> or <code>.hour.jsonl</code> path and
+    <strong>0</strong> measurements named <code>open.%</code>. So no declared
+    opening is present now, and the two-carrier state the 07:24 read required
+    cannot be reconstructed from today's rows &mdash; which is why the inflation
+    does not reproduce at either end.
+  </p>
+
+  <h4 id="srw-ledger-double-count-located-logs">Reproduction</h4>
+
+  <table id="srw-ledger-double-count-located-repro-table">
+    <thead>
+      <tr><th>Measure</th><th>Result</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Carrier table, last 30 days, by <code>(path, job_id)</code></td>
+        <td>32 groups; exactly one path per job id; 0 rows with null/empty <code>job_id</code></td>
+      </tr>
+      <tr>
+        <td><code>ledger()</code> at <code>1791184980.6</code> (the inflated publication's <code>now</code>)</td>
+        <td>day 1,796,272,459 &mdash; sound; the 29G is not reproduced</td>
+      </tr>
+      <tr>
+        <td><code>ledger()</code> at <code>1791185366.0</code> (the sound publication's <code>now</code>)</td>
+        <td>day 1,811,105,284 &mdash; matches the 07:30 file's 1.81G</td>
+      </tr>
+      <tr>
+        <td>Inflated total reproduced by computation</td>
+        <td>none at either end &mdash; the absence at both ends is shown instead</td>
+      </tr>
+      <tr>
+        <td>Ingest evidence for the transient</td>
+        <td>
+          batched incremental commits with a deferred tier drop
+          (<code>telemetry_index.py:1112&ndash;1116</code>); publisher derivation
+          ~85 s spans a tick; three-file scan at <code>07:23:04Z</code> inside the
+          07:24 window
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p class="meta" id="srw-ledger-double-count-located-fence">
+    Every read opened <code>~/.cache/ambix/watch-index.sqlite3</code> read-only,
+    in place on the fleet allocation. Reports and logs under the node's report
+    directory (<code>reports/carrier.out</code>,
+    <code>reports/real_ledger.out</code>, <code>reports/opencheck.out</code>,
+    <code>reports/candidates.py</code>). No product code was written.
+  </p>
+</section>
