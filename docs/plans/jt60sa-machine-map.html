@@ -24,7 +24,7 @@
   <title>JT-60SA Machine Map for Equilibrium Reconstruction | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="8">
+<meta name="plan-version" content="9">
 <meta name="plan-modified" content="2026-10-05">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 </head>
@@ -185,7 +185,10 @@
       <code>tokamap</code> exporter writes a directory that passes
       <code>tokamap-validator</code> for the five first-pass groups, with the collapse of
       unit, sign and COCOS factors into <code>scale</code> asserted by a round-trip test on
-      every binding.
+      every binding. The exporter is one public function that writes the directory from a
+      catalogue and its signal maps. It retires nothing, because ambix has no exporter, and it
+      is kept out of the loaders because they read the ambix schema and must not learn
+      tokamap's.
     </p>
 
     <h2 id="s3">§3 — Access path: EDDB over ssh, an on-demand cache, a lazy view</h2>
@@ -207,8 +210,22 @@
       Transforming on the fly from nakasvr26 therefore means two tiers, not one. The
       <strong>remote extractor</strong> is a stdlib-plus-wrapper script executed over ssh,
       niced, that takes a batch of (shot, category, dname) requests on stdin and streams
-      compact binary arrays back — the same shape as the codex remote executor already uses
-      for enumeration, but owned by ambix because ambix must not require codex at runtime.
+      compact binary arrays back. That is the shape codex's remote layer already uses for
+      enumeration (<code>imas_codex/remote/scripts/enumerate_edas.py</code> run through
+      <code>executor.py</code> and <code>ssh_worker.py</code>, with the msgpack array format in
+      <code>serialization.py</code>). Ambix owns its own extractor rather than importing that
+      layer or extracting a shared remote core from it. Importing it would make imas-codex,
+      with its graph, LLM and tool-installation dependencies, a dependency of every ambix
+      read, which the map-persistence decision rules out. And the extractor needs a small part
+      of that layer: one ssh process per batch, one remote script read from stdin and numpy
+      arrays back, with no session pool, host registry or tool installer, because the ssh
+      control master in the user config already amortises session setup and the cache means
+      a shot is fetched once. Codex stays the reference for the EDDB call shapes
+      (<code>enumerate_edas.py</code> and <code>imas-codex:jt60sa-eddb-census</code>), not a code
+      dependency. A second facility needing remote execution in ambix is the point at which a
+      shared core becomes the cheaper path, and that is decided then, in its own plan. The
+      extractor's public surface is one batch-fetch function and one cache writer; it retires
+      nothing, because ambix has no remote reader today.
       The <strong>on-demand cache</strong> lands only the channels the map binds, for the
       shots a run asks for, as <code>{shot}.zarr/{category}/{dname}</code> with the EDDB unit
       string, channel count and sequence number as attributes, in raw units and raw sign,
@@ -226,8 +243,11 @@
       extractor in a single ssh session; a warm read of the same signals through the view
       touches no network; and the extractor's wall time per signal and bytes per signal are
       recorded in the evidence so the cache for a shot set is sized rather than guessed. The
-      cache lives on GPFS under <code>/work/projects/imas_gpu/jt60sa</code> beside the MAST
-      store, so every ITER session and worker reads the same bytes (decision below).
+      cache root is declared once, as <code>JT60SA_ROOT</code> in
+      <code>imas_ambix/data/paths.py</code> beside the MAST <code>MIRROR_ROOT</code>, because that
+      module is the single owner of mirror paths and every reader and writer imports from it.
+      Its value is <code>/work/projects/imas_gpu/jt60sa</code>, on GPFS beside the MAST store,
+      so every ITER session and worker reads the same bytes (decision below).
     </p>
 
     <h2 id="s4">§4 — Machine description: the SELENE deck is the source</h2>
@@ -354,7 +374,10 @@
       (<code>eqdbget</code>), and the Code TWiki documents the equilibrium codes. That rung
       needs a reader for the EQDB record (psi on its grid, boundary, p′ and FF′ or their
       profiles) wrapped in the same remote-extractor contract, and a COCOS verdict from §6
-      before any map is written into <code>profiles_2d/psi</code>.
+      before any map is written into <code>profiles_2d/psi</code>. The EQDB reader adds one
+      remote script and one fetch entry beside the §3 extractor's, using its transport and
+      cache rather than a second path; it retires nothing, because no equilibrium-database
+      reader exists in ambix.
     </p>
     <p>
       The reconstruction gate is what makes the map honest. Using only the mapped
@@ -459,34 +482,29 @@
       because GitHub ssh on port 22 is refused from compute nodes.
     </p>
     <p>
-      <strong>A fenced worker cannot run plain <code>ssh jt-60sa</code>; it runs
-      <code>ssh -F &lt;worker config&gt;</code>.</strong> A dispatched CLI worker runs inside a
-      bubblewrap fence over a user namespace with <code>~/.ssh</code> sealed read-only.
-      Reproduced 2026-10-05 05:39 UTC with the same mounts from the fleet node, and with the
-      existing control sockets hidden: plain <code>ssh jt-60sa</code> exits 255 with
-      <code>Bad owner or permissions on /etc/ssh/ssh_config.d/50-redhat.conf</code>, because
-      root-owned system config appears owned by the overflow uid inside the namespace;
-      <code>ssh -F ~/.ssh/config</code> still exits 255, because the jump hops'
-      <code>ControlMaster auto</code> cannot create a socket in the sealed
-      <code>~/.ssh/sockets</code>. A config that disables multiplexing and includes the user
-      config works through both ProxyJump hops, since <code>-F</code> is passed on to each jump
-      process: <code>ssh -F</code> to <code>jt-60sa</code> answered <code>intr26-2</code>,
-      <code>scp -F</code> copied <code>loop_data_OP1.nc</code> (6,792 bytes) from
-      <code>laptop</code>, and the remote <code>module load python/3.12</code> answered Python
-      3.12.9 with numpy 2.4.2. The worker config is exactly:
-    </p>
-    <pre>Host *
-  ControlMaster no
-  ControlPath none
-Include /home/ITER/mcintos/.ssh/config</pre>
-    <p>
+      <strong>A fenced worker runs <code>ssh -F ~/.ssh/config</code>, never plain
+      <code>ssh</code>.</strong> A dispatched CLI worker runs inside a bubblewrap fence over a
+      user namespace with <code>~/.ssh</code> sealed read-only. Measured 2026-10-05 05:50 UTC
+      from a real local-lane worker on <code>98dci4-clu-2018</code>: plain
+      <code>ssh jt-60sa</code> exits 255 with <code>Bad owner or permissions on
+      /etc/ssh/ssh_config.d/50-redhat.conf</code>. The system config's unconditional
+      <code>Include</code> is ownership-checked, and root-owned files appear owned by the
+      overflow uid inside the namespace; no user-config setting avoids that, and
+      <code>-F</code> is what skips the system file. The other half of the failure, jump hops
+      whose <code>ControlMaster</code> could not bind a socket in the sealed
+      <code>~/.ssh/sockets</code>, is fixed in the user config itself (dotfiles
+      <code>4dfef02</code>): the <code>laptop</code>/<code>wsl</code> and <code>jt-60sa</code>
+      hosts keep their control sockets at <code>/tmp/ssh-%C</code>, which the fence leaves
+      writable and which hashes the local host into the name. With that change,
+      <code>ssh -F ~/.ssh/config jt-60sa</code> answered <code>intr26-2</code> through both
+      ProxyJump hops, the remote <code>module load python/3.12</code> answered Python 3.12.9
+      with numpy 2.4.2, and <code>scp -F ~/.ssh/config</code> copied
+      <code>loop_data_OP1.nc</code> (6,792 bytes) from <code>laptop</code>; the log is
+      <code>~/.config/reckon/crew/reports/imas-ambix/jtmm-ssh-hop-probe/probe.log</code>.
       Every ssh or scp a worker runs, and every one the extractor issues, takes
-      <code>-F</code> with this file. The extractor therefore accepts its ssh command prefix
-      as configuration rather than hard-coding <code>ssh</code>, and the file is versioned at
-      <code>ops/jt60sa/ssh_config</code> by the §3 extractor node; until that lands a node
-      writes its own copy into its delivery directory. Because <code>-F</code> skips the
-      system file, the system crypto-policy include is not applied; nothing in either hop
-      needed it.
+      <code>-F ~/.ssh/config</code>, so the extractor accepts its ssh command prefix as
+      configuration rather than hard-coding <code>ssh</code>. The workstation's own client
+      config needs no change: on the ITER to jt-60sa path the laptop only forwards TCP.
     </p>
     <p>
       <strong>Open on the user.</strong> The choice of OP2 shot set for the §7 baseline.
