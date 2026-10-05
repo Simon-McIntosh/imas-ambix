@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import gzip
 import json
+import math
 import os
 import urllib.request
 import zlib
@@ -665,8 +666,10 @@ def availability_percent(
     document predating the field compute it identically.
 
     Returns ``None`` -- the key is omitted, never written as null or zero -- when
-    the width is not a positive number or the headroom is absent or non-numeric.
-    A withheld figure stays withheld rather than reading as a measured zero.
+    the width is not a positive finite number or the headroom is absent,
+    non-numeric or non-finite. A withheld figure stays withheld rather than
+    reading as a measured zero, and an infinite or NaN input is withheld rather
+    than propagated as a ``nan`` percentage that no reader can compare.
 
     A paused gate admits nothing whatever its width, so it reports ``0.0``
     rather than the arithmetic, which would otherwise show the idle width as
@@ -683,12 +686,19 @@ def availability_percent(
 
 
 def _is_finite_number(value: object) -> bool:
-    """Whether *value* is a real number the arithmetic above can divide by.
+    """Whether *value* is a real, finite number the arithmetic above can use.
 
     ``bool`` is excluded deliberately: it is an ``int`` subclass, so a caller
     passing ``True`` for a count would otherwise be read as the count 1.
+    Non-finite floats are excluded too: ``inf`` and ``nan`` pass an
+    ``isinstance`` check but make the ratio either meaningless or a ``nan``,
+    and a withheld percentage is read where a ``nan`` one is consumed.
     """
-    return isinstance(value, int | float) and not isinstance(value, bool)
+    return (
+        isinstance(value, int | float)
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+    )
 
 
 def write_lane_document(

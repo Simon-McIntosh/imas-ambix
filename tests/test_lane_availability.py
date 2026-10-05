@@ -40,6 +40,18 @@ def test_non_numeric_headroom_omits_the_key(bad: object) -> None:
     assert availability_percent(bad, 16) is None
 
 
+@pytest.mark.parametrize("non_finite", [float("inf"), float("-inf"), float("nan")])
+def test_non_finite_headroom_omits_the_key(non_finite: float) -> None:
+    """An infinite or NaN headroom yields no percentage, not a NaN one."""
+    assert availability_percent(non_finite, 16) is None
+
+
+@pytest.mark.parametrize("non_finite", [float("inf"), float("-inf"), float("nan")])
+def test_non_finite_effective_width_omits_the_key(non_finite: float) -> None:
+    """An infinite or NaN width yields no percentage, not a NaN one."""
+    assert availability_percent(4, non_finite) is None
+
+
 def test_configured_and_effective_width_differ_so_the_denominator_is_pinned() -> None:
     """Half the configured width open is 50%, not 25% of the configured width.
 
