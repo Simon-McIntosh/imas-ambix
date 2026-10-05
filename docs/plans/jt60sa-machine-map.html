@@ -24,7 +24,7 @@
   <title>JT-60SA Machine Map for Equilibrium Reconstruction | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="7">
+<meta name="plan-version" content="8">
 <meta name="plan-modified" content="2026-10-05">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 </head>
@@ -457,6 +457,36 @@
       <code>5fec869</code> (modules <code>coil_data</code>, <code>pf_active</code>,
       <code>pf_passive</code>, <code>magnetics</code>, <code>wall</code>); clone it over HTTPS
       because GitHub ssh on port 22 is refused from compute nodes.
+    </p>
+    <p>
+      <strong>A fenced worker cannot run plain <code>ssh jt-60sa</code>; it runs
+      <code>ssh -F &lt;worker config&gt;</code>.</strong> A dispatched CLI worker runs inside a
+      bubblewrap fence over a user namespace with <code>~/.ssh</code> sealed read-only.
+      Reproduced 2026-10-05 05:39 UTC with the same mounts from the fleet node, and with the
+      existing control sockets hidden: plain <code>ssh jt-60sa</code> exits 255 with
+      <code>Bad owner or permissions on /etc/ssh/ssh_config.d/50-redhat.conf</code>, because
+      root-owned system config appears owned by the overflow uid inside the namespace;
+      <code>ssh -F ~/.ssh/config</code> still exits 255, because the jump hops'
+      <code>ControlMaster auto</code> cannot create a socket in the sealed
+      <code>~/.ssh/sockets</code>. A config that disables multiplexing and includes the user
+      config works through both ProxyJump hops, since <code>-F</code> is passed on to each jump
+      process: <code>ssh -F</code> to <code>jt-60sa</code> answered <code>intr26-2</code>,
+      <code>scp -F</code> copied <code>loop_data_OP1.nc</code> (6,792 bytes) from
+      <code>laptop</code>, and the remote <code>module load python/3.12</code> answered Python
+      3.12.9 with numpy 2.4.2. The worker config is exactly:
+    </p>
+    <pre>Host *
+  ControlMaster no
+  ControlPath none
+Include /home/ITER/mcintos/.ssh/config</pre>
+    <p>
+      Every ssh or scp a worker runs, and every one the extractor issues, takes
+      <code>-F</code> with this file. The extractor therefore accepts its ssh command prefix
+      as configuration rather than hard-coding <code>ssh</code>, and the file is versioned at
+      <code>ops/jt60sa/ssh_config</code> by the §3 extractor node; until that lands a node
+      writes its own copy into its delivery directory. Because <code>-F</code> skips the
+      system file, the system crypto-policy include is not applied; nothing in either hop
+      needed it.
     </p>
     <p>
       <strong>Open on the user.</strong> The choice of OP2 shot set for the §7 baseline.
