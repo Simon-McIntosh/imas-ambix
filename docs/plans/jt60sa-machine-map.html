@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="plan">
+  <meta name="plan-slug"      content="jt60sa-machine-map">
+  <meta name="plan-title"     content="JT-60SA Machine Map for Equilibrium Reconstruction">
+  <meta name="plan-summary"   content="Declare, validate and serve a JT-60SA → IMAS map for pf_active, pf_passive, magnetics, tf and equilibrium, driven by reconstructing SELENE equilibria">
+  <meta name="plan-status"    content="draft">
+  <meta name="plan-roi"       content="high">
+  <meta name="plan-effort-hours" content="40.0">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="orchestrator">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-context" content="extended">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-milestone" content="M4">
+  <meta name="plan-sprint"    content="S20">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-tags"      content="equilibrium,machine-map,jt-60sa">
+  <meta name="plan-depends-on" content="machine-map-transform-engine,machine-map-cocos-transform">
+  <meta name="plan-blocks"    content="iter-first-plasma-rehearsal">
+  <title>JT-60SA Machine Map for Equilibrium Reconstruction | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <header>
+      <p class="eyebrow">Second machine on the declared-map substrate</p>
+      <h1>JT-60SA Machine Map for Equilibrium Reconstruction</h1>
+      <p class="lead">
+        MAST is read through a declared machine map and a format-scoped transform engine.
+        JT-60SA is the next machine on the left of that diagram: author its map, prove its
+        conventions against data, and serve its pulses through the same engines. The
+        driving use case is equilibrium reconstruction — recover the SELENE equilibrium
+        from mapped coil currents and magnetics — because it exercises every one of the
+        five first-pass IDSs and gives a comparator that cannot be satisfied by a map that is
+        merely well-formed.
+      </p>
+    </header>
+
+    <h2 id="s1">§1 — The map lives in ambix; codex supplies discovery and evidence</h2>
+    <p>
+      Two repositories could hold a JT-60SA map, and both already carry part of the
+      answer. <strong>imas-codex</strong> has a JT-60SA facility configuration, an EDAS/EDDB
+      signal scanner that enumerates the self-describing catalogue over ssh
+      (<code>eddbreadCatTable</code>, <code>eddbreadTable</code>), wiki-site adapters for the
+      Naka TWiki (manuals, the discharge-parameter handbook, equilibrium-code pages), and an
+      LLM pipeline that proposes <code>IMASMapping</code> nodes with typed
+      <code>MappingEvidence</code>. <strong>imas-ambix</strong> has the executable half: a
+      LinkML machine-map schema with no conditional or code-hook slot, range-scoped maps
+      selected by shot, two store engines (zarr, netCDF) that apply any map, a compiled
+      affine signal map with COCOS factors resolved at the read boundary, a lazy
+      transform-aware view over immutable arrays, and an evidence-based convention scorer.
+      MAST runs through all of it today with 254 bindings; DIII-D has a one-binding
+      source-only map.
+    </p>
+    <p>
+      The division is already written into ambix: the signal-map module states that
+      discovery systems may produce a large evidence graph, that the ambix runtime does not
+      query that graph, and that it loads a reviewed, content-addressed distillation
+      instead. The north star makes the same split load-bearing — machine identity enters
+      only through the shipped description and the deterministic forwards, and every
+      learned component is geometry-conditioned by construction. A map is therefore part
+      of the physics substrate the estimator ships with, not a discovery artefact.
+    </p>
+    <p>
+      <strong>Decision proposed and argued here, locked below:</strong> JT-60SA maps are
+      persisted in ambix as packaged, versioned documents under
+      <code>imas_ambix/data/machine_maps/jt-60sa.json</code> (description bindings) and
+      <code>imas_ambix/data/maps/jt-60sa/&lt;system&gt;.json</code> (pulse signal maps), each
+      carrying evidence receipts that point back at codex graph nodes, handbook pages and
+      PIDs. Codex remains the place where candidates are discovered, where the handbook and
+      PID tables are indexed, and where an LLM proposal is scored; it does not become the
+      runtime authority for what a channel means. Nova stays machine-agnostic: it consumes
+      the DD-shaped output in COCOS 17 through its existing IDS readers
+      (<code>nova.imas.machine</code>, <code>nova.imas.equilibrium</code>) and carries no
+      JT-60SA module — the earlier <code>nova/projects/JT-60SA</code> scripts were already
+      moved out into the standalone <code>nakamap</code> package in October 2024, which is
+      exactly the boundary this plan keeps.
+    </p>
+    <figure>
+      <svg viewBox="0 0 980 300" width="100%" role="img" aria-label="JT-60SA map and loader pipeline" style="max-width:980px;font-family:system-ui;font-size:13px">
+        <defs><marker id="jma" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4a5568"/></marker></defs>
+        <g fill="#fff" stroke="#4a5568" stroke-width="1">
+          <rect x="10" y="40" width="190" height="70" rx="3"/>
+          <rect x="250" y="40" width="190" height="70" rx="3"/>
+          <rect x="490" y="40" width="200" height="70" rx="3"/>
+          <rect x="740" y="40" width="230" height="70" rx="3"/>
+          <rect x="250" y="190" width="190" height="70" rx="3" stroke="#1565c0" stroke-width="1.4"/>
+          <rect x="490" y="190" width="200" height="70" rx="3" stroke="#1565c0" stroke-width="1.4"/>
+          <rect x="740" y="190" width="230" height="70" rx="3"/>
+        </g>
+        <g fill="#1a1a1a">
+          <text x="20" y="62" font-weight="700">nakasvr26 · EDDB</text>
+          <text x="20" y="80">eddbreadTable / eddbreadTime</text>
+          <text x="20" y="97">categories MMSYS, PSRC, MAG, FAME</text>
+          <text x="260" y="62" font-weight="700">remote extractor (ssh)</text>
+          <text x="260" y="80">stdlib + eddb_pwrapper, niced</text>
+          <text x="260" y="97">batched (shot, cat, dname) → npz</text>
+          <text x="500" y="62" font-weight="700">immutable mirror</text>
+          <text x="500" y="80">{shot}.zarr/{category}/{dname}</text>
+          <text x="500" y="97">raw units, raw sign, never rewritten</text>
+          <text x="750" y="62" font-weight="700">transform engine (zarr)</text>
+          <text x="750" y="80">range-scoped map selects bindings</text>
+          <text x="750" y="97">unit · sign · COCOS → DD paths</text>
+          <text x="260" y="212" font-weight="700" fill="#1565c0">jt-60sa machine map</text>
+          <text x="260" y="230">pf_active · pf_passive · wall · tf</text>
+          <text x="260" y="247">magnetics geometry, OP1/OP2 ranges</text>
+          <text x="500" y="212" font-weight="700" fill="#1565c0">jt-60sa signal maps</text>
+          <text x="500" y="230">coil currents · Ip · loops · probes</text>
+          <text x="500" y="247">compiled affine, COCOS 17 target</text>
+          <text x="750" y="212" font-weight="700">consumers</text>
+          <text x="750" y="230">GeometryTable → physics spine</text>
+          <text x="750" y="247">nova IDS readers · SELENE comparator</text>
+        </g>
+        <g stroke="#4a5568" stroke-width="1.4" fill="none" marker-end="url(#jma)">
+          <path d="M200,75 L250,75"/>
+          <path d="M440,75 L490,75"/>
+          <path d="M690,75 L740,75"/>
+          <path d="M345,190 L345,150 L790,150 L790,110"/>
+          <path d="M590,190 L590,150"/>
+          <path d="M855,110 L855,190"/>
+        </g>
+        <text x="20" y="215" fill="#3a3a3a">codex graph: handbook, PIDs,</text>
+        <text x="20" y="232" fill="#3a3a3a">EDAS catalogue, LLM proposals</text>
+        <text x="20" y="249" fill="#3a3a3a">→ evidence receipts in the maps</text>
+      </svg>
+      <figcaption>
+        Pulse bytes move left to right and are never rewritten; meaning is declared once in
+        the two map documents (blue) and applied by the engine. Codex contributes evidence
+        and provenance to the maps, not a runtime dependency.
+      </figcaption>
+    </figure>
+
+    <h2 id="s2">§2 — Map schema: the ambix contract, with a tokamap export</h2>
+    <p>
+      UKAEA's <a href="https://github.com/ukaea/tokamap">tokamap</a> is the community
+      interchange format for IMAS mappings: a <code>mappings.cfg.json</code> with metadata,
+      groups (one per IDS) and shot partitions selected by <code>MAX_BELOW</code>,
+      <code>MIN_ABOVE</code>, <code>EXACT</code> or <code>CLOSEST</code>; a
+      <code>globals.json</code> of templated constants; and per-group
+      <code>mappings.json</code> keyed by DD path with five map types —
+      <code>VALUE</code>, <code>DIMENSION</code>, <code>DATA_SOURCE</code> (with
+      <code>args</code>, <code>offset</code>, <code>scale</code>, <code>slice</code>),
+      <code>EXPR</code> and <code>CUSTOM</code>. It is executed by
+      <a href="https://github.com/ukaea/libtokamap">libtokamap</a> and UDA's JSON mapping
+      plugin, and the <a href="https://github.com/ukaea/IMAS_MAST_mappings">MAST mappings</a>
+      use it with Inja templating (<code>{{ at(flux_loop_names, indices.0) }}</code>) and
+      bare scale factors (<code>"SCALE": -1.0</code> on <code>flux_loop[#]/flux</code>).
+    </p>
+    <p>
+      The comparison below is why tokamap is a <em>target</em> of this plan rather than its
+      source of truth. Everything the ambix schema was built to make structural — a declared
+      source unit beside the target unit, a named sign convention instead of a bare
+      <code>-1.0</code>, a machine-wide source COCOS with per-binding override, a validation
+      state and evidence string per binding, source qualifications for arrays that exist but
+      cannot be bound, and range-scoped selection with no conditional — has no slot in
+      tokamap. A tokamap file can be <em>generated</em> from an ambix map losslessly in the
+      forward direction (unit factor × sign × COCOS factor collapse into
+      <code>scale</code>; DD-path keys and partitions are mechanical), but the reverse loses
+      the provenance and the convention claims this plan exists to prove.
+    </p>
+    <table>
+      <thead><tr><th>Concern</th><th>tokamap</th><th>ambix machine map</th></tr></thead>
+      <tbody>
+        <tr><td>Binding key</td><td>DD path with <code>[#]</code> indices</td><td><code>dd_path</code> plus <code>source_role</code> (value / identifier / dimension-coordinate)</td></tr>
+        <tr><td>Units</td><td>implicit; <code>scale</code> only</td><td><code>source_unit</code> and <code>target_unit</code> declared, factor derived</td></tr>
+        <tr><td>Sign</td><td>folded into <code>scale</code></td><td><code>sign_convention</code> enum incl. <code>unknown-unvalidated</code></td></tr>
+        <tr><td>COCOS</td><td>none</td><td><code>source_cocos</code> (0 = undeclared), target COCOS 17, Sauter transform per DD field</td></tr>
+        <tr><td>Shot dependence</td><td>partition directories + selector</td><td>range-scoped maps, gap-free, no conditionals</td></tr>
+        <tr><td>Evidence</td><td><code>comment</code></td><td><code>evidence</code>, <code>validation_state</code>, <code>validation_gaps</code>, <code>source_qualifications</code></td></tr>
+        <tr><td>Execution</td><td>libtokamap / UDA plugin, expressions</td><td>one engine per store format, affine only</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Done-when for this section: the ambix schema accepts a JT-60SA catalogue without a
+      machine-name branch (any new slot is justified by a JT-60SA structure, such as a
+      SELENE-deck conductor element, not by a JT-60SA name), and a
+      <code>tokamap</code> exporter writes a directory that passes
+      <code>tokamap-validator</code> for the five first-pass groups, with the collapse of
+      unit, sign and COCOS factors into <code>scale</code> asserted by a round-trip test on
+      every binding.
+    </p>
+
+    <h2 id="s3">§3 — Access path: EDDB over ssh, an immutable mirror, a lazy view</h2>
+    <p>
+      The authorised data path is the EDDB C library through its Python wrapper on the Naka
+      analysis server (<code>/analysis/src/eddb/eddb_pwrapper.py</code>,
+      <code>/analysis/lib/libeddb.so</code>), reached as <code>ssh jt-60sa</code>
+      (nakasvr26). Measured 2026-10-05 from this workstation: the catalogue answers with 73
+      categories; the current shot is a coil-commissioning pulse (C-series); category
+      <code>MMSYS</code> carries every CS, EF and TF coil current in amperes from two
+      independent measurement chains (HiTec and LKAT), <code>PSRC</code> carries the
+      plasma-shape-reconstruction inputs and outputs including <code>Ip</code> in kA,
+      <code>FAME</code> carries one hundred real-time equilibrium scalars, and
+      <code>MAG</code> on the commissioning shot carries only MHD fluctuation channels. The
+      ssh link to IFERC dropped mid-session and stayed down, so the raw flux-loop and
+      pickup-coil census on an OP2 E-shot is an open item (§5) rather than a finding.
+    </p>
+    <p>
+      Transforming on the fly from nakasvr26 therefore means two tiers, not one. The
+      <strong>remote extractor</strong> is a stdlib-plus-wrapper script executed over ssh,
+      niced, that takes a batch of (shot, category, dname) requests on stdin and streams
+      compact binary arrays back — the same shape as the codex remote executor already uses
+      for enumeration, but owned by ambix because ambix must not require codex at runtime.
+      The <strong>immutable mirror</strong> lands those arrays as
+      <code>{shot}.zarr/{category}/{dname}</code> with the EDDB unit string, channel count
+      and sequence number as attributes, in raw units and raw sign, never rewritten. The
+      <strong>lazy view</strong> is the existing <code>VirtualZarrView</code>: listing and
+      metadata read no chunks, and a slice applies the compiled affine transform to only the
+      returned chunk. The zarr engine then serves JT-60SA with no new engine, which is the
+      test that the architecture scales the way its own plan claimed.
+    </p>
+    <p>
+      Done-when: a cold fetch of one OP2 shot's first-pass signals completes through the
+      extractor in a single ssh session; a warm read of the same signals through the view
+      touches no network; and the extractor's wall time per signal and bytes per signal are
+      recorded in the evidence so the mirror's size for a campaign can be sized rather than
+      guessed. Where the mirror lives — node-local scratch for development, GPFS under the
+      project tree for a shared campaign — is a decision below.
+    </p>
+
+    <h2 id="s4">§4 — Machine description: the SELENE deck is the source</h2>
+    <p>
+      The JT-60SA conductor and sensor geometry already exists on this workstation as the
+      SELENE input decks <code>coil_vv_OP1.dat</code> and <code>coil_vv_OP2.dat</code> with
+      per-phase loop, probe and vessel-contour tables, and the <code>nakamap</code> package
+      has one-shot scripts that turn them into pf_active, pf_passive, wall and magnetics IDS
+      netCDF files (<code>jt60sa_md_OP1.nc</code>, <code>jt60sa_md_OP2.nc</code>). That work is
+      the seed, not the deliverable: it is imperative, carries no provenance beyond the file
+      name, hard-codes the phase, and its comment still names the wrong machine.
+    </p>
+    <p>
+      This section rebinds that content as a <strong>range-scoped machine map</strong>:
+      one binding set per operating phase, with the OP1→OP2 boundary expressed as a shot
+      range exactly as MAST's two geometry transitions are, and every emitted conductor
+      element, loop position and probe position carrying a binding whose evidence names the
+      deck line range and the deck's hash. pf_active coils (CS1–4, EF1–6, FPPC upper and
+      lower) emit rectangular elements with positive turns and circuit direction in
+      <code>pf_active/circuit/connections</code>, following the rule the MAST map settled —
+      direction lives in the circuit, not in signed turns. pf_passive vessel filaments carry
+      resistivity so the loop resistance is derived, not asserted. The tf IDS is populated
+      from the deck's TF description with <code>tf/coil/current</code> bound to the MMSYS TF
+      current and <code>tf/b_field_phi_vacuum_r</code> derived from it and the turn count, so
+      the one COCOS-dependent tf field is produced by a declared relation rather than a
+      guess. Magnetics geometry (loop positions, probe positions and <em>directed</em> probe
+      angles) is bound from the deck's sensor tables, with the probe angle marked
+      <code>unknown-unvalidated</code> until §6 settles its sense against vacuum data.
+    </p>
+    <p>
+      Whether the deck itself gets a store engine, or is converted once into an IDS netCDF
+      with a recorded receipt that the existing netCDF engine reads, is a decision below;
+      the recommendation is the receipt, because a static per-phase description has no
+      per-shot access cost to amortise. Done-when: <code>transform_machine_description</code>
+      emits a JT-60SA description for one OP1 and one OP2 shot through one code path,
+      <code>geometry_table_from_description</code> builds a <code>GeometryTable</code> from it
+      with zero machine-name branches, and the three identity assertions (determinism,
+      partition consistency, visible change at the OP1/OP2 boundary) pass.
+    </p>
+
+    <h2 id="s5">§5 — Pulse bindings and the EDDB census</h2>
+    <p>
+      The pulse signal maps bind EDDB channels to DD leaves with a compiled affine
+      transform. Known from the commissioning-shot tables: <code>MMSYS/cur{CS1..CS4,EF1..EF6}{HiTe,LKAT}</code>
+      in A are the pf_active circuit currents, with the two chains recorded as ranked
+      sources rather than silently preferring one; <code>MMSYS/cur1TFLKAT</code> and
+      <code>cur2TFLKAT</code> are the TF current; <code>PSRC/Ip</code> in kA is the plasma
+      current for <code>magnetics/ip/data</code> with a declared unit factor of 1000. What is
+      not yet known is where the raw flux loops and pickup coils live for a plasma shot and
+      how many there are — the candidates are <code>MDAC</code> (264 channels, the magnetic
+      data-acquisition controller), <code>PSRC</code> (312 channels) and <code>MAG</code> on an
+      E-shot — and whether EDDB exposes them as separate <code>dname</code>s or as
+      multi-channel arrays.
+    </p>
+    <p>
+      The first node of this section is therefore a census, not a map: enumerate every
+      category table for the latest OP2 E-shot, record name, class, unit, description,
+      channel count and shot validity, join each channel to its handbook entry and PID where
+      the codex graph holds one, and publish the join as evidence. Only then are the
+      magnetics bindings written, with <code>sign_convention: unknown-unvalidated</code> on
+      every signed quantity until §6 replaces it. Unit strings in EDDB are free text
+      (<code>KA</code>, <code>DEG</code>, <code>T.m</code>, <code>deg. C</code>); the census
+      produces the normalisation table that maps each to a DD unit, checked with the
+      imas-cx server's path and unit tools, and a string that cannot be normalised blocks
+      its binding rather than defaulting.
+    </p>
+    <p>
+      Done-when: every first-pass DD leaf for pf_active currents, tf current, magnetics ip,
+      flux loops and poloidal probes has either an executable binding or a source
+      qualification naming why not, and the signal map compiles to one affine operation per
+      channel with no string lookup in the chunk loop.
+    </p>
+
+    <h2 id="s6">§6 — Prove the conventions: vacuum shots, COCOS scoring, DD unit checks</h2>
+    <p>
+      A map that binds names is not yet a transform; MAST taught that the convention must
+      be identified from data and proved for both current signs rather than asserted. JT-60SA
+      offers a cleaner instrument than MAST had: the C-series commissioning shots drive the
+      superconducting coils with no plasma, so every loop flux and probe field is a
+      deterministic function of the measured coil currents and the declared geometry. Nova's
+      Biot–Savart operators predict both from the §4 description; comparison against the
+      measured channel fixes, per channel, the loop sign, the probe sensitive axis, the unit
+      factor and whether the declared position is consistent — exactly the adjudication
+      that settled MAST's nineteen disputed loop positions. A channel whose vacuum
+      prediction does not track its measurement with slope near one is left
+      <code>unknown-unvalidated</code> and reported, never forced.
+    </p>
+    <p>
+      The COCOS of the source is then identified rather than assumed. For the raw side,
+      the sign products that the Sauter and Medvedev coefficients constrain are read from
+      plasma shots: Ip against the sign of poloidal flux change at the loops, toroidal field
+      polarity from the TF current, the handedness implied by q from FAME. For the
+      equilibrium side, the SELENE and FAME outputs are scored with the ambix convention
+      scorer (edge-minus-axis flux sense, flux-per-radian versus total flux by integrating
+      the Grad–Shafranov current, q sign), which is the same instrument that measured the
+      DIII-D challenge corpus. The result sets <code>source_cocos</code> in the catalogue and
+      the per-binding overrides where SELENE and the raw acquisition differ. Target
+      convention is fixed: DD 4 in COCOS 17, and the engine applies the Sauter transform
+      to each of the DD's COCOS-dependent leaves — seventeen in magnetics, three in
+      pf_active, one in tf, one hundred and fifty-one in equilibrium — by the DD's own
+      transformation table, not by a hand list.
+    </p>
+    <p>
+      Done-when: a sign report over at least three vacuum shots and three plasma shots,
+      with both TF polarities if the campaign offers them, that names the identified source
+      COCOS, the per-channel vacuum slope and correlation, and every channel left
+      unvalidated with its reason; and a unit audit in which every binding's source and
+      target units resolve through the DD unit vocabulary with the derived factor asserted
+      against one hand-computed value per unit pair.
+    </p>
+
+    <h2 id="s7">§7 — Equilibrium: FAME scalars first, SELENE maps second, then the reconstruction gate</h2>
+    <p>
+      The equilibrium IDS is mapped in two rungs. The first binds the FAME real-time
+      scalars — plasma current, poloidal and toroidal beta, normalised beta, internal
+      inductance, axis position, X-point height, strike-point angles, boundary gaps,
+      <code>Bt·R</code> — to <code>equilibrium/time_slice/global_quantities</code> and
+      <code>boundary</code> leaves and to <code>vacuum_toroidal_field</code>. These are
+      time series in EDDB, so they ride the §3 path unchanged. The second rung reaches the
+      offline SELENE equilibria: the server holds the SELENE sources, the equilibrium
+      database client (<code>client_eqdbms</code>) and the FAME reader
+      (<code>eqdbget</code>), and the Code TWiki documents the equilibrium codes. That rung
+      needs a reader for the EQDB record (psi on its grid, boundary, p′ and FF′ or their
+      profiles) wrapped in the same remote-extractor contract, and a COCOS verdict from §6
+      before any map is written into <code>profiles_2d/psi</code>.
+    </p>
+    <p>
+      The reconstruction gate is what makes the map honest. Using only the mapped
+      pf_active, pf_passive, tf and magnetics data, the ambix physics spine
+      (<code>greens-matvec</code>, with <code>grid-delstar</code> as the check) recovers the
+      equilibrium for a frozen set of OP2 shots and is compared against SELENE on the
+      quantities SELENE reports: boundary distance, axis position, Ip, q95, and the whitened
+      magnetics residual. This is the MAST benchmark pattern with SELENE in EFIT's seat.
+      Nova consumes the emitted IDSs through its existing readers; nothing JT-60SA-specific
+      is added to nova, which is the transfer claim of the north star exercised on a second
+      machine without waiting for the sealed DIII-D rehearsal.
+    </p>
+    <p>
+      Done-when: a stamped spine-benchmark record for a JT-60SA shot set with the
+      comparator named as SELENE, boundary RMS distance and whitened magnetics residual
+      reported per shot, and the comparison run on a SLURM compute node with the
+      machine/env block recorded. The first stamp is a baseline, not a pass mark: the
+      number it reports is what later map corrections are judged against.
+    </p>
+
+    <h2 id="s8">§8 — Execution order</h2>
+    <ol>
+      <li>Lock the three placement decisions below (map location, schema versus tokamap,
+        description source), then land the empty JT-60SA catalogue that validates against
+        the schema with zero bindings — a scaffold the roadmap can see.</li>
+      <li>Build the remote extractor and the mirror writer (§3); fetch one C-shot and one
+        E-shot; record timing and sizes.</li>
+      <li>Run the EDDB census on the E-shot (§5); join to handbook and PID evidence in
+        codex; publish the normalisation table.</li>
+      <li>Rebind the SELENE deck as range-scoped description bindings (§4); build the
+        geometry table; pass the identity assertions.</li>
+      <li>Vacuum-shot adjudication and COCOS identification (§6); replace every
+        <code>unknown-unvalidated</code> that the data settles.</li>
+      <li>FAME scalar bindings, then the EQDB reader and SELENE map bindings (§7).</li>
+      <li>Stamp the reconstruction baseline on the spine with SELENE as comparator (§7);
+        export tokamap and validate it (§2).</li>
+    </ol>
+    <p>
+      Items 2 and 3 are blocked only by the IFERC link being up; everything in item 4 can
+      proceed from the local decks while it is down. Heavy gates — the census over all
+      categories, the vacuum adjudication, the spine stamp — run on SLURM compute, never
+      the login node.
+    </p>
+
+    <section data-reckon="gates" id="gates" class="r-gates">
+      <h2><span class="sec">§</span> Evidence gates</h2>
+      <div class="r-gate" data-id="conventions-before-equilibrium" data-section="s7"
+           data-gated-sections="s7" data-status="open" data-verdict="">
+        <h4 class="r-gate-measure">No equilibrium psi binding is written before the source COCOS is identified from data</h4>
+        <p class="r-gate-required-evidence">
+          The §6 sign report naming the identified source COCOS for SELENE/FAME output and
+          for the raw acquisition, with per-channel vacuum slopes.
+        </p>
+      </div>
+    </section>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+      <div class="r-dec" data-key="map-persistence-location" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">Where are JT-60SA → IMAS maps persisted?</p>
+        <p class="r-dec-ctx">Codex has traditionally generated the facility and DD knowledge graph; ambix holds the executable machine-map substrate that MAST already runs through.</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="ambix-packaged-maps">Packaged maps in ambix, codex supplies evidence</button>
+          <button class="r-opt" data-value="codex-graph-mappings">IMASMapping nodes in the codex graph, ambix reads the graph</button>
+          <button class="r-opt" data-value="separate-mapping-repo">A standalone mapping repository both consume</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+      <div class="r-dec" data-key="map-format" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">Is the map authored in the ambix LinkML schema or natively in tokamap?</p>
+        <p class="r-dec-ctx">Tokamap is the UKAEA/UDA interchange format; it has no slot for units, sign convention, COCOS, validation state or evidence.</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="ambix-schema-tokamap-export">Ambix schema is authoritative; tokamap is a validated export</button>
+          <button class="r-opt" data-value="tokamap-native">Author tokamap directly and extend it with custom keys</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+      <div class="r-dec" data-key="description-source-engine" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">How does the SELENE deck reach the transform engine?</p>
+        <p class="r-dec-ctx">The deck is a static per-phase text file; the engine registry varies by store format.</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="receipted-ids-netcdf">One-off conversion to IDS netCDF with a deck hash receipt, read by the netCDF engine</button>
+          <button class="r-opt" data-value="deck-store-engine">A dedicated store engine that parses the deck per call</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+      <div class="r-dec" data-key="mirror-location" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">Where does the immutable EDDB mirror live?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="gpfs-project-tree">GPFS under the project tree beside the MAST mirror</button>
+          <button class="r-opt" data-value="workstation-local">Workstation-local disk, synced to GPFS per campaign</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+      <div class="r-dec" data-key="codex-graph-hosting" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">Is the codex graph used for JT-60SA evidence served locally or through the ITER tunnel?</p>
+        <p class="r-dec-ctx">Measured 2026-10-05: the ITER graph runs as a SLURM job but the forward tunnel on port 17687 is in a restart loop; a local Neo4j instance is running but rejects both the configured and its own launch credential; the local embedding server is not running and the workstation has no usable GPU.</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="local-jt60sa-graph">A local per-facility graph on the jt-60sa port slot, loaded from a facility-filtered export</button>
+          <button class="r-opt" data-value="iter-tunnel">The ITER graph through the systemd tunnel once it recovers</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+      <article class="r-fu" data-id="f-jtmm-001" data-status="open"
+               data-capability-version="1.0" data-capability-class="orchestrator"
+               data-written-by="reckon-create" data-written-at="2026-10-05"
+               data-recommends-skill="/reckon-ship jt60sa-machine-map §3">
+        <h4 class="r-fu-title">Build the EDDB remote extractor and immutable mirror, fetch one C-shot and one E-shot</h4>
+        <div class="r-fu-body">
+          The access path is proven interactively (catalogue, tables and the current shot
+          all answered over <code>ssh jt-60sa</code>) but nothing is persisted. Land the
+          extractor, the mirror writer and the timing evidence so the census and the
+          vacuum adjudication have data to run on. Blocked only while the IFERC link is
+          down; the §4 deck rebinding does not wait on it.
+        </div>
+        <pre class="r-fu-prompt">/reckon-ship jt60sa-machine-map §3</pre>
+      </article>
+    </section>
+
+    <section data-reckon="questions" id="questions" class="r-questions">
+      <h2><span class="sec">§</span> Open questions</h2>
+      <div class="r-q" data-id="raw-magnetics-category" data-section="s5"
+           data-status="open" data-opened-by="Simon McIntosh" data-opened-at="2026-10-05">
+        <p class="r-q-body">Which EDDB category carries the raw flux-loop and pickup-coil channels on a plasma shot (MDAC, PSRC or MAG), and are they separate names or multi-channel arrays?</p>
+      </div>
+      <div class="r-q" data-id="handbook-pid-in-graph" data-section="s5"
+           data-status="open" data-opened-by="Simon McIntosh" data-opened-at="2026-10-05">
+        <p class="r-q-body">Does the codex graph hold the JT-60SA data handbook with each signal linked to its PID, so the census can join channels to handbook entries? Unverified: both graph endpoints were unreachable on 2026-10-05.</p>
+      </div>
+      <div class="r-q" data-id="eqdb-reader" data-section="s7"
+           data-status="open" data-opened-by="Simon McIntosh" data-opened-at="2026-10-05">
+        <p class="r-q-body">Is there a Python or C entry point to the SELENE equilibrium database (eqdbms, eqdbget) that the remote extractor can call without a Fortran build, and what grid and profile set does an EQDB record carry?</p>
+      </div>
+    </section>
+
+    <section data-reckon="research" id="research" class="r-research-list">
+      <h2><span class="sec">§</span> Research</h2>
+      <div class="r-research" data-id="r-tokamap" data-type="repo" data-url="https://github.com/ukaea/tokamap">
+        <span class="r-research-title">UKAEA tokamap — JSON mapping schema, validator and partition selectors</span>
+      </div>
+      <div class="r-research" data-id="r-libtokamap" data-type="repo" data-url="https://github.com/ukaea/libtokamap">
+        <span class="r-research-title">UKAEA libtokamap — C++20 mapping executor (ExprTk, Inja)</span>
+      </div>
+      <div class="r-research" data-id="r-mast-mappings" data-type="repo" data-url="https://github.com/ukaea/IMAS_MAST_mappings">
+        <span class="r-research-title">UKAEA IMAS_MAST_mappings — worked tokamap mappings for MAST magnetics</span>
+      </div>
+      <div class="r-research" data-id="r-mast-cocos-eval" data-type="doc" data-url="/imas-ambix/mast-imas-cocos-evaluation.html">
+        <span class="r-research-title">MAST → IMAS COCOS evaluation — the convention-proof method reused here</span>
+      </div>
+    </section>
+
+    <section data-reckon="comments" id="comments" class="r-comments"></section>
+  </main>
+</body>
+</html>
