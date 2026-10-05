@@ -13,8 +13,9 @@ Dictionary IDS group, and, beneath each group, one directory per partition
 selected by the catalogue's shot ranges.  Each leaf carries its own
 ``globals.json`` and ``mappings.json``, and each leaf holds only the mappings
 whose Data Dictionary path belongs to its own group.  A mapping's tokamap key
-keeps the IDS prefix, so a group's file can be read for foreign bindings
-without consulting anything else.
+is relative to that group, because tokamap -- and the libtokamap and UDA
+consumers of these directories -- resolve a request within the group the file
+is filed under.
 
 A DD path that several source arrays feed -- two probe families both
 declaring ``b_field_pol_probe/name`` is an example -- has no tokamap
@@ -164,19 +165,19 @@ def _data_type_name(node: Any) -> str:
 
 @cache
 def _tokamap_key(dd_version: str, dd_path: str) -> str:
-    """Render a DD path as a tokamap key that keeps its IDS group prefix.
+    """Convert an absolute DD path into a tokamap key relative to its group.
 
-    The key is the full Data Dictionary path, with every structure array
-    marked ``[#]`` because tokamap expands that dimension.  Carrying the IDS
-    prefix means a binding's group is readable from its key alone, so each
-    group's ``mappings.json`` can be checked for bindings that belong to
-    another IDS.
+    Tokamap resolves a request inside the group a mapping file is filed
+    under, so the key names the path below the IDS and does not repeat it.
+    Every Data Dictionary structure array is marked ``[#]`` because tokamap
+    expands that dimension; scalar and leaf-array components are emitted
+    unchanged.
     """
 
     ids_name, relative_path = dd_path.split("/", maxsplit=1)
     metadata = _ids_metadata(dd_version, ids_name)
     components = relative_path.split("/")
-    rendered: list[str] = [ids_name]
+    rendered: list[str] = []
     for index, component in enumerate(components):
         node = metadata["/".join(components[: index + 1])]
         if _data_type_name(node) == "STRUCT_ARRAY":

@@ -224,33 +224,54 @@ def test_each_group_file_holds_only_that_ids(catalog, signal_map, tmp_path):
     directory = tmp_path / "export"
     result = export_tokamap_directory(catalog, [signal_map], directory=directory)
 
-    keys_by_group: dict[str, set[str]] = {}
+    # A key is relative to its group, so membership is checked through the
+    # record's Data Dictionary path, not through the key.
+    paths_by_group: dict[str, dict[str, str]] = {group: {} for group in result.groups}
+    for entry in result.entries:
+        assert entry.dd_path.startswith(f"{entry.group}/"), (
+            entry.group,
+            entry.dd_path,
+        )
+        paths_by_group[entry.group].setdefault(entry.key, entry.dd_path)
+
     on_disk_total = 0
     for group in result.groups:
-        keys: set[str] = set()
         for first_shot in result.partitions:
             leaf = directory / group / str(first_shot) / "mappings.json"
             mappings = json.loads(leaf.read_text())
             on_disk_total += len(mappings)
             for key in mappings:
-                assert key.startswith(f"{group}/"), (group, key)
-                keys.add(key)
-        keys_by_group[group] = keys
+                assert key in paths_by_group[group], (group, key)
+                source_path = paths_by_group[group][key]
+                assert source_path.startswith(f"{group}/"), (group, key, source_path)
 
     for left in result.groups:
         for right in result.groups:
             if left < right:
-                assert not (keys_by_group[left] & keys_by_group[right]), (
-                    left,
-                    right,
-                    keys_by_group[left] & keys_by_group[right],
+                shared = set(paths_by_group[left].values()) & set(
+                    paths_by_group[right].values()
                 )
+                assert not shared, (left, right, shared)
 
     assert sum(result.group_entry_counts.values()) == len(result.entries)
     assert on_disk_total == len(result.entries)
     assert result.mappings_file_count == len(result.groups) * len(result.partitions)
     for group in result.groups:
-        assert result.group_entry_counts[group] == len(keys_by_group[group]) * len(
+        assert result.group_entry_counts[group] == len(paths_by_group[group]) * len(
             result.partitions
         )
     assert len(result.entries) > 0
+
+
+def test_group_keys_are_relative_and_verbatim(catalog, signal_map, tmp_path):
+    directory = tmp_path / "export"
+    export_tokamap_directory(catalog, [signal_map], directory=directory)
+
+    first_shot = sorted(machine_map.first_shot for machine_map in catalog.maps)[0]
+    mappings = json.loads(
+        (directory / "magnetics" / str(first_shot) / "mappings.json").read_text()
+    )
+    # A known MAST key appears exactly as the reference mappings write it: the
+    # structure array marked, and the IDS group not repeated in the key.
+    assert "flux_loop[#]/name" in mappings
+    assert not any(key.startswith("magnetics/") for key in mappings)

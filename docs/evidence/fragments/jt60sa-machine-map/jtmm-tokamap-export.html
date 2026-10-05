@@ -22,19 +22,23 @@
     <code>scale</code> is the product of its unit factor, its
     sign-convention factor and its COCOS factor; a
     <code>unknown-unvalidated</code> binding takes no sign and says so in its
-    comment. A mapping's tokamap key keeps its IDS prefix, so a group's file
-    can be read for foreign bindings on its own.
+    comment. A mapping's tokamap key is relative to its group &mdash; the key
+    names the path below the IDS and does not repeat it, matching UKAEA's
+    <code>IMAS_MAST_mappings</code> and what libtokamap and the UDA plugin
+    resolve within a group.
   </p>
 
   <h4>Measure, run on the fleet allocation (job 1277272)</h4>
   <ul>
     <li>
-      Each group's <code>mappings.json</code> holds only keys that begin with
-      that group's IDS, no key appears in two groups, and the per-group entry
-      counts sum to the exported entry count; the export result carries those
-      per-group counts and the number of <code>mappings.json</code> files
-      written, so a duplicated write cannot hide behind a de-duplicated
-      total.
+      Each group's <code>mappings.json</code> holds only entries whose Data
+      Dictionary path begins with that group's IDS, no <code>dd_path</code>
+      appears in two groups, and the per-group entry counts match the files;
+      the export result carries those per-group counts and the number of
+      <code>mappings.json</code> files written, so a duplicated write cannot
+      hide behind a de-duplicated total. A known key appears verbatim and
+      unprefixed &mdash; <code>flux_loop[#]/name</code> in
+      <code>magnetics</code>.
     </li>
     <li>
       <code>uvx --from tokamap==0.3.2 tokamap-validator &lt;exported MAST
