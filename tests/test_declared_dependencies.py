@@ -10,10 +10,12 @@ Every distribution that something under ``imas_ambix/``, ``tests/`` or
   ``imas_ambix/`` outside an optional subsystem, or from anywhere under
   ``tests/``; or it is the test and lint tooling every session runs.
 * **optional** -- only an optional subsystem imports it: the GPU model serving
-  stack (``imas_ambix/agent``) or the world-model training stack
-  (``imas_ambix/train``).  A distribution reached only from ``scripts/`` (the
+  stack (``imas_ambix/agent``), the world-model training stack
+  (``imas_ambix/train``) or the FAIR-MAST acquisition package
+  (``imas_ambix/data``).  A distribution reached only from ``scripts/`` (the
   analysis and figure tooling) counts as optional too: no core ``imas_ambix/``
-  code outside those subsystems and no test reaches it.
+  code outside those subsystems and no test reaches it.  The video extra's
+  members (``LAZY_VIDEO_MODULES``) are optional by name.
 * **unused** -- nothing under those three trees imports it.
 * **transitive** -- nothing imports it, but another directly imported
   distribution requires it, so it needs no declaration of its own.
@@ -30,13 +32,10 @@ WHY
 ---
 The declaration must match what the code and tests actually import, so a plain
 ``uv sync`` installs the working stack and nothing a session relies on lives
-outside the project's declared dependencies.  Committing the census as a test
-makes it a guard rather than a one-off scan: its first run, against the current
-declaration, is expected to fail -- the failure lines name each undeclared
-``default`` and ``optional`` distribution -- so it is marked
-``xfail(strict=True)``.  That reports an expected failure now, and a hard
-failure the moment the census passes without the declaration having caught up
-with it.
+outside the project's declared dependencies.  Keeping the census as a test
+makes it a guard rather than a one-off scan: the failure lines name each
+undeclared ``default`` and ``optional`` distribution, and the guard turns red
+the moment the declaration falls behind the tree.
 
 Regenerate the fragment after changing the tree::
 
@@ -46,7 +45,7 @@ Regenerate the fragment after changing the tree::
 from __future__ import annotations
 
 import ast
-import json
+import os
 import re
 import sys
 import tomllib
@@ -54,23 +53,52 @@ from collections import defaultdict
 from dataclasses import dataclass
 from importlib.metadata import distributions, packages_distributions
 from pathlib import Path
-from urllib.parse import urlsplit
 
-import pytest
+TESTS_DIR = Path(__file__).resolve().parent
+if str(TESTS_DIR) not in sys.path:
+    sys.path.insert(0, str(TESTS_DIR))
 
-ROOT = Path(__file__).resolve().parents[1]
+from distribution_sources import editable_checkout  # noqa: E402
+
+ROOT = TESTS_DIR.parent
 SCAN_DIRS = ("imas_ambix", "tests", "scripts")
 
 # Importing code under these roots belongs to an optional subsystem, so an
 # import there does not make a distribution default.  Everything else under
-# imas_ambix/, and every test import, does.
-OPTIONAL_SUBSYSTEM_ROOTS = ("imas_ambix/agent", "imas_ambix/train")
+# imas_ambix/, and every test import, does.  The FAIR-MAST acquisition package
+# is optional too: its remote and object-store paths carry the data extra.
+OPTIONAL_SUBSYSTEM_ROOTS = (
+    "imas_ambix/agent",
+    "imas_ambix/train",
+    "imas_ambix/data",
+)
+
+# Video rendering and perceptual-metric paths import these only inside
+# functions, and none is installed in an ordinary session.  They are named here
+# as the video extra's members so the census checks each is declared there
+# rather than pulling the video stack into a plain sync.
+LAZY_VIDEO_MODULES = {
+    "cv2": "opencv-python",
+    "torchvision": "torchvision",
+    "imageio": "imageio",
+    "imageio_ffmpeg": "imageio-ffmpeg",
+    "lpips": "lpips",
+}
 
 # Tooling every session runs; default even though no import names some of them.
-TOOLING = ("pytest", "ruff", "mypy", "tokamap", "pytest-timeout", "pytest-xdist")
+TOOLING = (
+    "pytest",
+    "pytest-cov",
+    "pytest-timeout",
+    "pytest-xdist",
+    "ruff",
+    "mypy",
+    "pre-commit",
+    "tokamap",
+)
 
-NODE_ID = "ped-census"
-_FRAGMENT_NAME = "ped-census.html"
+NODE_ID = "ped-declare-relock"
+_FRAGMENT_NAME = "ped-declare-relock.html"
 
 
 def fragment_path() -> Path:
@@ -166,14 +194,8 @@ def installation_top_level_modules(dist) -> set[str]:
         return set()
     if not raw:
         return set()
-    try:
-        direct_url = json.loads(raw)
-    except ValueError:
-        return set()
-    url = direct_url.get("url")
-    if isinstance(url, str) and url.startswith("file:"):
-        return checkout_top_level_modules(Path(urlsplit(url).path))
-    return set()
+    source_root = editable_checkout(raw)
+    return checkout_top_level_modules(source_root) if source_root else set()
 
 
 def module_distribution_map(sources: dict) -> dict[str, set[str]]:
@@ -278,8 +300,17 @@ def transitive_closure(roots: set[str]) -> dict[str, str]:
 
 
 def build_census(pyproject_path: Path | None = None) -> Census:
-    """Classify every directly imported distribution against the declaration."""
-    project = tomllib.loads((pyproject_path or ROOT / "pyproject.toml").read_text())
+    """Classify every directly imported distribution against the declaration.
+
+    ``pyproject_path`` names the declaration to read; when it is omitted the
+    ``AMBX_PYPROJECT`` environment variable, then the tree's own
+    ``pyproject.toml``, is used, so a mutated declaration can be censused
+    without editing the real file.
+    """
+    if pyproject_path is None:
+        override = os.environ.get("AMBX_PYPROJECT")
+        pyproject_path = Path(override) if override else ROOT / "pyproject.toml"
+    project = tomllib.loads(pyproject_path.read_text())
     declared = declaration_map(project)
     sources = project.get("tool", {}).get("uv", {}).get("sources", {})
     module_map = module_distribution_map(sources)
@@ -288,9 +319,13 @@ def build_census(pyproject_path: Path | None = None) -> Census:
     stdlib = set(sys.stdlib_module_names)
 
     importers: dict[str, set[str]] = defaultdict(set)
+    video_importers: dict[str, set[str]] = defaultdict(set)
     unmapped: set[str] = set()
     for module, files in imports.items():
         if module in stdlib or module in local:
+            continue
+        if module in LAZY_VIDEO_MODULES:
+            video_importers[LAZY_VIDEO_MODULES[module]].update(files)
             continue
         dists = module_map.get(module)
         if not dists:
@@ -310,6 +345,10 @@ def build_census(pyproject_path: Path | None = None) -> Census:
             rows.append(
                 Row(name, "optional", sorted(files)[0], declared.get(name, "none"))
             )
+    for name, files in video_importers.items():
+        rows.append(
+            Row(name, "optional", sorted(files)[0], declared.get(name, "none"))
+        )
     for tool in TOOLING:
         name = canonical(tool)
         if name not in importers:
@@ -419,11 +458,6 @@ def render_fragment(census: Census) -> str:
     return "\n".join(lines)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="the declaration has not yet caught up with the census: undeclared "
-    "default and optional distributions remain",
-)
 def test_every_directly_imported_distribution_is_declared() -> None:
     census = build_census()
     print("\n".join(census.failures))

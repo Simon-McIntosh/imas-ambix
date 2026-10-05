@@ -2,10 +2,10 @@
 
 import json
 import subprocess
+import sys
 import tomllib
 from importlib.metadata import distribution
 from pathlib import Path
-from urllib.parse import unquote, urlsplit
 
 from nova.biot.coupling import CircuitCoupling as NovaCircuitCoupling
 from nova.circuit import PassiveCircuitSystem as NovaPassiveCircuitSystem
@@ -25,6 +25,12 @@ from nova.transport import (
 from imas_ambix import physics
 from imas_ambix.fluxstate.adapters import REVIEWED_CURRENT_DIFFUSION_REVISION
 from imas_ambix.statespace.nova_ensemble_estimator import NOVA_REVISION
+
+TESTS_DIR = Path(__file__).resolve().parents[1]
+if str(TESTS_DIR) not in sys.path:
+    sys.path.insert(0, str(TESTS_DIR))
+
+from distribution_sources import editable_checkout  # noqa: E402
 
 ROOT = Path(__file__).parents[2]
 
@@ -59,11 +65,11 @@ def test_facade_types_are_owned_by_nova():
 
 def test_installed_nova_distribution_reports_checkout_revision():
     installed = distribution("nova-stella")
-    direct_url = json.loads(installed.read_text("direct_url.json"))
+    direct_url_json = installed.read_text("direct_url.json")
+    direct_url = json.loads(direct_url_json)
     assert direct_url["dir_info"]["editable"] is True
-    source_url = urlsplit(direct_url["url"])
-    assert source_url.scheme == "file"
-    source = Path(unquote(source_url.path))
+    source = editable_checkout(direct_url_json)
+    assert source is not None
     resolved = subprocess.run(
         ["git", "-C", str(source), "rev-parse", "HEAD"],
         check=True,
