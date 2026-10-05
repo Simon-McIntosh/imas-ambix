@@ -24,7 +24,7 @@
   <title>JT-60SA Machine Map for Equilibrium Reconstruction | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="15">
+<meta name="plan-version" content="17">
 <meta name="plan-modified" content="2026-10-05">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 </head>
@@ -268,6 +268,20 @@
       name, hard-codes the phase, and its comment still names the wrong machine.
     </p>
     <p>
+      <strong>Which source is the single source of truth is open.</strong> The lead's home on
+      the analysis server (<code>jt-60sa:~</code>) holds further <code>.dat</code> files, Python
+      processing scripts and IMAS IDS data that may be upstream of, newer than, or different
+      from the workstation decks. OP1 and OP2 are different geometric configurations, so the
+      question is answered per IDS and per phase. The investigation node
+      <code>jtmm-geometry-source</code> inventories both hosts, compares every source pair
+      per phase and recommends the file set each IDS is built from; the deck converter and the
+      description bindings wait on that recommendation and the lead's choice, and this
+      section is rewritten to name the chosen source. The lead ruled 2026-10-05 that JT-60SA
+      geometry is committed to the repository as MAST's is in <code>mast.json</code>, so
+      supplements and directional vacuum verdicts carry their coordinates inline; EDDB values
+      never enter the repository.
+    </p>
+    <p>
       This section rebinds that content as a <strong>range-scoped machine map</strong>:
       one binding set per operating phase, with the OP1→OP2 boundary expressed as a shot
       range exactly as MAST's two geometry transitions are, and every emitted conductor
@@ -310,10 +324,16 @@
       <code>gs/machine_selection.py</code> <code>select_machine</code>. The JT-60SA artifact the
       spine needs is authored from this source and published through that owner with a pin of
       its own (§7); the deck receipt is the field provenance that artifact's semantic identity
-      covers. Done-when: <code>transform_machine_description</code>
+      covers. The extension point is <code>imas_ambix/data/description_reader.py</code>
+      <code>read_geometry_table</code>, the sole acquisition route from catalogue to geometry
+      table, which today resolves one fixed store format and root and supplies MAST's probe
+      angles under a <code>machine == "mast"</code> branch. JT-60SA reaches the kernel through
+      it, with the store format, root and probe-angle source resolved from the catalogue
+      rather than from the machine name, so that branch is retired, not joined by a second.
+      Done-when: <code>transform_machine_description</code>
       emits a JT-60SA description for one OP1 and one OP2 shot through one code path,
-      <code>geometry_table_from_description</code> builds a <code>GeometryTable</code> from it
-      with zero machine-name branches, and the three identity assertions (determinism,
+      <code>read_geometry_table</code> and <code>geometry_table_from_description</code> build a
+      <code>GeometryTable</code> from it with zero machine-name branches, and the three identity assertions (determinism,
       partition consistency, visible change at the OP1/OP2 boundary) pass. Those are the
       assertions <code>imas_ambix/data/description_identity.py</code> already proves for MAST's
       two geometry transitions (<code>machine_description_bytes</code>,
@@ -379,10 +399,15 @@
       the sign products that the Sauter and Medvedev coefficients constrain are read from
       plasma shots: Ip against the sign of poloidal flux change at the loops, toroidal field
       polarity from the TF current, the handedness implied by q from FAME. For the
-      equilibrium side, the SELENE and FAME outputs are scored with the ambix convention
-      scorer (edge-minus-axis flux sense, flux-per-radian versus total flux by integrating
-      the Grad–Shafranov current, q sign), which is the same instrument that measured the
-      DIII-D challenge corpus. The result sets <code>source_cocos</code> in the catalogue and
+      equilibrium side, the SELENE and FAME outputs are scored on the convention scorer's
+      tests (edge-minus-axis flux sense, flux-per-radian versus total flux by integrating
+      the Grad–Shafranov current, q sign). The shipped entry point,
+      <code>imas_ambix/challenge/convention.py</code> <code>measure_diiid_convention</code>, reads
+      the DIII-D challenge corpus's own keys and accepts no SELENE or FAME record; the reusable
+      part is its Grad–Shafranov current integral, <code>_integrated_current</code>. §6
+      therefore generalises the entry point to take an equilibrium record through a loader,
+      with the DIII-D corpus as its first loader and SELENE and FAME as the next, rather than
+      writing a second scorer. The result sets <code>source_cocos</code> in the catalogue and
       the per-binding overrides where SELENE and the raw acquisition differ. Target
       convention is fixed: DD 4 in COCOS 17, and the engine applies the Sauter transform
       to each of the DD's COCOS-dependent leaves — seventeen in magnetics, three in
@@ -425,7 +450,12 @@
       and how the artifact is authored from the §4 source without a JT-60SA module in nova is
       settled in this section), recovers the equilibrium for a frozen set of OP2 shots and is compared against SELENE on the
       quantities SELENE reports: boundary distance, axis position, Ip, q95, and the whitened
-      magnetics residual. This is the MAST benchmark pattern with SELENE in EFIT's seat.
+      magnetics residual. This is the MAST benchmark pattern with SELENE in EFIT's seat, and
+      it is scored by the owner of that pattern: <code>imas_ambix/eval/efit_referee.py</code>
+      <code>judge_geometry</code> already scores model geometry against an injected reference
+      equilibrium into a <code>GeometryVerdict</code> (boundary RMS, axis position, q), so §7 adds
+      a SELENE reference loader and its firewall tier to it instead of a parallel
+      comparator.
       Nova consumes the emitted IDSs through its existing readers; nothing JT-60SA-specific
       is added to nova, which is the transfer claim of the north star exercised on a second
       machine without waiting for the sealed DIII-D rehearsal.
@@ -550,13 +580,9 @@
       config needs no change: on the ITER to jt-60sa path the laptop only forwards TCP.
     </p>
     <p>
-      <strong>Open on the user.</strong> The choice of OP2 shot set for the §7 baseline; and
-      whether JT-60SA coordinates (deck coil, loop and probe positions, and the positions a
-      directional vacuum verdict declares) may be committed to this repository, which is
-      public, as MAST's are in <code>mast.json</code>. Until that is ruled they stay on GPFS:
-      the packaged map carries bindings and evidence only, the §4 supplements and the §6
-      directional verdict coordinates wait on the ruling, and EDDB values never enter the
-      repository.
+      <strong>Open on the user.</strong> The choice of OP2 shot set for the §7 baseline, and
+      the single geometry source per IDS and phase once <code>jtmm-geometry-source</code>
+      reports (§4).
     </p>
 
     <section data-reckon="gates" id="gates" class="r-gates">
@@ -618,6 +644,16 @@
       <button class="r-opt chosen" data-value="iter-tunnel">The ITER graph through the systemd tunnel once it recovers</button>
       </p>
     <p class="r-dec-rat">Lead&#x27;s choice 2026-10-05. The ITER graph (SLURM job codex-neo4j on gpu-0002, beside the embedding server) already holds the 4,476 JT-60SA wiki pages, is direct from ITER where the work moves, and reaches the workstation through the codex tunnel on 17687 now that the supervisor&#x27;s connection grace is fixed. Rejected: a local per-facility graph, which needs a credential reset on the local Neo4j, a local embedding server without a usable GPU and a sync discipline back to ITER.</p>
+    </div>
+<div class="r-dec" data-key="geometry-publication" data-choice="commit-like-mast" data-by="Simon McIntosh" data-when="2026-10-05T06:35:15+00:00" data-sections="s4,s6">
+    <p class="r-dec-q">May JT-60SA geometry be committed to the public repository?</p>
+    <p class="r-dec-ctx">The machine-map schema carries static description values and vacuum-verdict coordinates inline in the packaged JSON, as mast.json does for open FAIR-MAST data; imas-ambix and its upstream are public.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="commit-like-mast">Commit JT-60SA geometry inline as MAST&#x27;s is</button>
+      <button class="r-opt" data-value="gpfs-only">Keep coordinates on GPFS; the packaged map holds bindings and evidence only</button>
+      <button class="r-opt" data-value="private-package">A private repository holds jt-60sa.json</button>
+      </p>
+    <p class="r-dec-rat">Lead&#x27;s choice 2026-10-05: JT-60SA geometry is committed like MAST&#x27;s, after checking whether the SELENE decks are the best single source given the further .dat files, processing scripts and IMAS IDS data in the lead&#x27;s analysis-server home, per phase because OP1 and OP2 are different configurations. EDDB signal values never enter the repository. Rejected: GPFS-only coordinates (a schema extension to reference netCDF values) and a private package (reopens the map-location decision).</p>
     </div>
 </section>
 
