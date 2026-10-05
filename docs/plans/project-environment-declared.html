@@ -23,7 +23,7 @@
   <title>Project Environment From Its Declaration | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="6">
+<meta name="plan-version" content="7">
 <meta name="plan-modified" content="2026-10-05">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;}">
 </head>
@@ -203,6 +203,9 @@
 </div>
 <div class="r-comment" data-section="s2" data-id="c-run-r-20261005T075715374151-ped-census" data-who="reckon-build" data-when="2026-10-05T08:50:09.364Z">
     <div class="r-comment-body"><p>Added tests/test_declared_dependencies.py - a single build_census() walks imas_ambix/, tests/ and scripts/ with ast at every import level (module and function), maps each top-level module to its distribution via importlib.metadata.packages_distributions (editable path installs that ship no top_level.txt recovered from their direct_url.json checkout), and classes each directly imported distribution default / optional / unused / transitive. An importing file under imas_ambix/ outside the optional subsystem roots, or anywhere under tests/, makes its distribution default; a distribution reached only from scripts/ (or only from the optional subsystem roots) is optional. build_census is read by BOTH test_every_directly_imported_distribution_is_declared and the fragment renderer, so the two cannot disagree. Naming is plan-free: the docstring, the xfail reason and the renderer strings state the mechanism, not a plan or section.</p></div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-run-r-20261005T085111526834-review-of-ped-census" data-who="reckon-build" data-when="2026-10-05T09:01:30.838Z">
+    <div class="r-comment-body"><p>Independent review of r-20261005T075715374151-ped-census at head be101b86 (superseding the review at d3124645): parsed record scores goal_fidelity 19, evidence 18, scope_discipline 20, durability 20, fit 19 (total 96); added_failure_count 0 with basis recording the reviewed manifest&#x27;s absent baseline/after suite arm; stored at both declared review paths.</p></div>
 </div>
 </section>
 </main>
