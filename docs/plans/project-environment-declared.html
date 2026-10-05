@@ -26,7 +26,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="80e9f492,8a58accb,9a4bad01,d0fb6648,a8c7ce1a,5d448418,f746157b">
 <meta name="plan-impl" content="0.8">
-<meta name="plan-version" content="51">
+<meta name="plan-version" content="52">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -229,6 +229,9 @@
 </div>
 <div class="r-comment" data-section="s5" data-id="c-run-r-20261005T223314729558-review-of-ped-timeout-suite-final" data-who="reckon-build" data-when="2026-10-05T22:37:32.776Z">
     <div class="r-comment-body"><p>independent review of r-20261005T205200205154-ped-timeout-suite-final stored at head af9fdf56 against base f1ec52fb: status parsed, 6 dimensions scored in 0..20, total 112 of 120 (goal_fidelity 19, evidence 18, scope_discipline 20, durability 16, fit 19, reuse 20), 1 follow-on finding (the corpus 5400s mark the single abort is classified against is itself exceeded), 0 blocking; added_failure_count unmeasured (the reviewed manifest arms no baseline_suite/after_suite gate logs).</p></div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-run-r-20261005T205200205154-ped-timeout-suite-final" data-who="reckon-build" data-when="2026-10-05T22:32:34.957Z">
+    <div class="r-comment-body"><p>whole-suite run at f1ec52fb as one SLURM batch job on sun (-n 8): 24 failed, 3986 passed, 0 errors, 4 skipped, wall 5751.47s; exactly one pytest-timeout abort (tests/fluxstate/test_consumer_contract.py::test_eager_jitted_and_batched_members_agree, call phase, raised 5400s mark) which ped-timeout-corpus accounts for, so no abort is unaccounted for and there are zero collection errors; the 23 non-timeout failures are listed with first error lines as pre-existing and unfixed; node complete.</p></div>
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20261005T155053774756-ped-import-walk" data-who="reckon-build" data-when="2026-10-05T16:02:28.683Z">
     <div class="r-comment-body"><p>folded the fresh-environment import walk into tests/test_declared_dependencies.py — a hand-off writer (optional set from build_census() + module_distribution_map()), an interpreter walk over imas_ambix/ that classifies each failure, and handoff/walk modes on main, with a synthetic-module classifier unit test; the walk imports 313 imas_ambix modules with 313 imported, 0 optional-missing, 0 hard failures in the synced shared environment</p></div>
