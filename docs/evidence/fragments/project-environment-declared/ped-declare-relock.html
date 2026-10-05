@@ -371,4 +371,50 @@
     <li><code>299.99s call tests/latent/test_patch_encoder_gaussian.py::test_gaussian_overfit_single_example_smoke</code></li>
     <li><code>298.61s call tests/worldmodel/test_rssm.py::test_overfit_smoke_camera_ce_drops</code></li>
   </ul>
+  <h4>Tests that aborted at the per-test timeout (measured)</h4>
+  <p>
+    Every test whose record in the whole-suite log carries a <code>pytest-timeout</code> abort at the 300&nbsp;s per-test bound, with the phase it aborted in and the duration the <code>--durations</code> table records for it where it is among the reported slowest. Recorded as a measured finding for a later section to triage, not as a defect of this node.
+  </p>
+  <table>
+    <thead><tr><th>Test</th><th>Phase</th><th>Duration [s]</th></tr></thead>
+    <tbody>
+      <tr><td><code>tests/latent/test_patch_inverse.py::test_policy_runs_end_to_end[fixed]</code></td><td>setup</td><td>300.06</td></tr>
+      <tr><td><code>tests/latent/test_patch_inverse.py::test_batching_reproducible[fixed]</code></td><td>setup</td><td>&mdash;</td></tr>
+      <tr><td><code>tests/latent/test_patch_inverse.py::test_ip_anchor_within_tolerance[fixed]</code></td><td>setup</td><td>&mdash;</td></tr>
+      <tr><td><code>tests/latent/test_patch_inverse.py::test_misfit_decreases[fixed]</code></td><td>setup</td><td>&mdash;</td></tr>
+      <tr><td><code>tests/latent/test_patch_inverse.py::test_candidate_mask_zeros_excluded_cells[fixed]</code></td><td>setup</td><td>&mdash;</td></tr>
+      <tr><td><code>tests/latent/test_patch_inverse.py::test_policy_runs_end_to_end[warm-start]</code></td><td>setup</td><td>300.03</td></tr>
+      <tr><td><code>tests/latent/test_patch_inverse.py::test_batching_reproducible[warm-start]</code></td><td>setup</td><td>&mdash;</td></tr>
+      <tr><td><code>tests/latent/test_patch_inverse.py::test_ip_anchor_within_tolerance[warm-start]</code></td><td>setup</td><td>&mdash;</td></tr>
+      <tr><td><code>tests/latent/test_patch_inverse.py::test_misfit_decreases[warm-start]</code></td><td>setup</td><td>&mdash;</td></tr>
+      <tr><td><code>tests/latent/test_patch_inverse.py::test_candidate_mask_zeros_excluded_cells[warm-start]</code></td><td>setup</td><td>&mdash;</td></tr>
+      <tr><td><code>tests/fluxstate/test_consumer_contract.py::test_manufactured_states_close_the_nova_force_and_current_ledgers[static]</code></td><td>setup</td><td>1294.30</td></tr>
+      <tr><td><code>tests/fluxstate/test_consumer_contract.py::test_manufactured_states_close_the_nova_force_and_current_ledgers[rotating]</code></td><td>setup</td><td>&mdash;</td></tr>
+      <tr><td><code>tests/fluxstate/test_consumer_contract.py::test_manufactured_states_close_the_nova_force_and_current_ledgers[sol]</code></td><td>setup</td><td>&mdash;</td></tr>
+      <tr><td><code>tests/fluxstate/test_consumer_contract.py::test_absolute_sources_and_inconsistent_targets_never_mutate_profiles</code></td><td>setup</td><td>&mdash;</td></tr>
+      <tr><td><code>tests/fluxstate/test_consumer_contract.py::test_eager_jitted_and_batched_members_agree</code></td><td>setup</td><td>&mdash;</td></tr>
+      <tr><td><code>tests/latent/test_patch_inverse.py::test_structure_regularisation_reduces_residual</code></td><td>call</td><td>&mdash;</td></tr>
+      <tr><td><code>tests/latent/test_engine.py::test_engine_grounds_in_raw_magnetics</code></td><td>call</td><td>300.20</td></tr>
+      <tr><td><code>tests/data/test_machine_map.py::test_mast_catalog_accounts_for_every_machine_description_array_in_the_corpus</code></td><td>call</td><td>300.09</td></tr>
+      <tr><td><code>tests/latent/test_patch_encoder.py::test_overfit_single_example_smoke</code></td><td>call</td><td>300.46</td></tr>
+      <tr><td><code>tests/test_agent.py::test_clive_unreachable_catalog_never_falls_back_to_openrouter</code></td><td>call</td><td>300.12</td></tr>
+      <tr><td><code>tests/latent/test_training.py::test_training_step_reduces_composite_loss_across_campaigns</code></td><td>call</td><td>300.42</td></tr>
+      <tr><td><code>tests/latent/test_synthetic_truth.py::test_basin_scout_reaches_confined_where_fixed_shape_drifts</code></td><td>call</td><td>300.25</td></tr>
+      <tr><td><code>tests/latent/test_patch_inverse.py::test_sign_prior_softplus_enforces_unidirectional</code></td><td>call</td><td>300.43</td></tr>
+      <tr><td><code>tests/data/test_machine_map.py::test_every_binding_targets_a_writable_shape_compatible_dd_leaf</code></td><td>call</td><td>300.01</td></tr>
+      <tr><td><code>tests/test_filaments3d.py::test_full_loop_flux_consistent_between_a_and_surface_b</code></td><td>call</td><td>300.03</td></tr>
+      <tr><td><code>tests/challenge/test_loader.py::test_real_diii_d_schema_on_one_hundred_shots</code></td><td>call</td><td>300.10</td></tr>
+      <tr><td><code>tests/latent/test_patch_encoder_gaussian.py::test_gaussian_overfit_single_example_smoke</code></td><td>call</td><td>299.99</td></tr>
+      <tr><td><code>tests/worldmodel/test_controllable_model.py::test_actuator_becomes_load_bearing_after_training</code></td><td>call</td><td>302.14</td></tr>
+      <tr><td><code>tests/worldmodel/test_controllable_model.py::test_controllability_gate_returns_structured_verdict</code></td><td>call</td><td>300.06</td></tr>
+      <tr><td><code>tests/latent/test_patch_inverse.py::test_sign_prior_penalty_suppresses_negative_current</code></td><td>call</td><td>302.86</td></tr>
+      <tr><td><code>tests/data/test_machine_map.py::test_every_mast_map_range_is_one_geometry_transition</code></td><td>call</td><td>300.31</td></tr>
+      <tr><td><code>tests/challenge/test_loader.py::test_facts_report_covers_every_circulated_claim</code></td><td>call</td><td>300.27</td></tr>
+      <tr><td><code>tests/worldmodel/test_spacetime_model.py::test_overfit_drops_loss</code></td><td>call</td><td>300.83</td></tr>
+      <tr><td><code>tests/worldmodel/test_spacetime_v2.py::test_overfit_drops_loss_with_signals</code></td><td>call</td><td>300.08</td></tr>
+      <tr><td><code>tests/worldmodel/test_timescale_camera_conditioning.py::test_timescale_becomes_load_bearing_after_training</code></td><td>call</td><td>300.48</td></tr>
+      <tr><td><code>tests/worldmodel/test_worldmodel_skeleton.py::test_overfit_loss_drops_substantially</code></td><td>call</td><td>301.15</td></tr>
+      <tr><td><code>tests/worldmodel/test_worldmodel_skeleton.py::test_real_shot_overfit_smoke</code></td><td>call</td><td>302.79</td></tr>
+    </tbody>
+  </table>
 </section>

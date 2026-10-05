@@ -391,13 +391,78 @@ def parse_durations(text: str) -> list[str]:
     return found
 
 
+def _timeout_abort(body: list[str]) -> bool:
+    """Whether a failure record carries a pytest-timeout abort."""
+    return any("from pytest-timeout" in line for line in body)
+
+
+def parse_timeouts(text: str) -> list[tuple[str, str, str | None]]:
+    """Extract every test that aborted at the per-test timeout from a pytest log.
+
+    Returns ``(test id, phase, duration or None)`` for each ``FAILED`` or
+    ``ERROR`` record whose traceback carries the pytest-timeout abort, so the
+    tests a timeout bound reaches are listed as evidence rather than left only
+    in the log.  The phase is ``setup`` or ``teardown`` for an error record and
+    ``call`` for a failure record; the duration is the one the ``--durations``
+    table records, or ``None`` when the test is not among the reported slowest.
+    """
+    lines = text.splitlines()
+
+    durations: dict[str, str] = {}
+    full_ids: dict[str, str] = {}
+    for line in lines:
+        match = _DURATION_RE.match(line)
+        if match:
+            durations[match.group(3).split("::")[-1]] = match.group(1)
+        summary = re.match(r"^(?:FAILED|ERROR) (\S+)", line)
+        if summary:
+            full_ids[summary.group(1).split("::")[-1]] = summary.group(1)
+
+    rows: list[tuple[str, str, str | None]] = []
+    name = ""
+    body: list[str] = []
+
+    def flush() -> None:
+        if not name or not _timeout_abort(body):
+            return
+        match = re.match(r"ERROR at (setup|teardown) of (.+)", name)
+        tail = match.group(2) if match else name
+        phase = match.group(1) if match else "call"
+        rows.append((full_ids.get(tail, tail), phase, durations.get(tail)))
+
+    for line in lines:
+        if line.startswith("=") and ("ERRORS" in line or "FAILURES" in line):
+            flush()
+            name, body = "", []
+            continue
+        if line.startswith("=") and (
+            "short test summary" in line or "slowest" in line
+        ):
+            flush()
+            name, body = "", []
+            continue
+        stripped = line.strip("_ \t")
+        if line.startswith("_") and line.rstrip().endswith("_") and stripped:
+            flush()
+            name, body = stripped, []
+            continue
+        if name:
+            body.append(line)
+    flush()
+    return rows
+
+
 def render_fragment(
-    census: Census, node: str, durations: list[str] | None = None
+    census: Census,
+    node: str,
+    durations: list[str] | None = None,
+    timeouts: list[tuple[str, str, str | None]] | None = None,
 ) -> str:
     """Render the census as an evidence fragment, from the same result.
 
     ``node`` labels the fragment (its ``id`` and header) and is supplied by the
-    caller; ``durations`` optionally records the slowest tests beside the census.
+    caller; ``durations`` optionally records the slowest tests beside the census,
+    and ``timeouts`` the tests aborting at the per-test timeout bound.
     """
     lines: list[str] = [
         f'<section class="evidence-fragment" data-reckon="evidence" id="{node}">',
@@ -465,12 +530,38 @@ def render_fragment(
         for item in durations:
             lines.append(f"    <li><code>{item}</code></li>")
         lines += ["  </ul>"]
+    if timeouts:
+        lines += [
+            "  <h4>Tests that aborted at the per-test timeout (measured)</h4>",
+            "  <p>",
+            "    Every test whose record in the whole-suite log carries a"
+            " <code>pytest-timeout</code> abort at the 300&nbsp;s per-test bound,"
+            " with the phase it aborted in and the duration the"
+            " <code>--durations</code> table records for it where it is among the"
+            " reported slowest. Recorded as a measured finding for a later section"
+            " to triage, not as a defect of this node.",
+            "  </p>",
+            "  <table>",
+            "    <thead><tr><th>Test</th><th>Phase</th>"
+            "<th>Duration [s]</th></tr></thead>",
+            "    <tbody>",
+        ]
+        for test_id, phase, seconds in timeouts:
+            shown = seconds if seconds is not None else "&mdash;"
+            lines.append(
+                f"      <tr><td><code>{test_id}</code></td><td>{phase}</td>"
+                f"<td>{shown}</td></tr>"
+            )
+        lines += ["    </tbody>", "  </table>"]
     lines += ["</section>", ""]
     return "\n".join(lines)
 
 
 def write_fragment(
-    census: Census, out_path: Path, durations: list[str] | None = None
+    census: Census,
+    out_path: Path,
+    durations: list[str] | None = None,
+    timeouts: list[tuple[str, str, str | None]] | None = None,
 ) -> None:
     """Write ``census`` as an evidence fragment to ``out_path``.
 
@@ -478,7 +569,7 @@ def write_fragment(
     no node identity of its own.
     """
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(render_fragment(census, out_path.stem, durations))
+    out_path.write_text(render_fragment(census, out_path.stem, durations, timeouts))
 
 
 def test_every_directly_imported_distribution_is_declared() -> None:
@@ -492,16 +583,21 @@ def test_every_directly_imported_distribution_is_declared() -> None:
 def main(argv: list[str] | None = None) -> int:
     """Write the census fragment to the path given and report the failures.
 
-    Usage: test_declared_dependencies.py <out.html> [durations.log]
+    Usage: test_declared_dependencies.py <out.html> [suite.log]
     """
     args = list(sys.argv[1:] if argv is None else argv)
     if not args:
-        print("usage: test_declared_dependencies.py <out.html> [durations.log]")
+        print("usage: test_declared_dependencies.py <out.html> [suite.log]")
         return 2
-    durations = parse_durations(Path(args[1]).read_text()) if len(args) > 1 else None
+    durations = None
+    timeouts = None
+    if len(args) > 1:
+        suite_text = Path(args[1]).read_text()
+        durations = parse_durations(suite_text)
+        timeouts = parse_timeouts(suite_text)
     out_path = Path(args[0])
     census = build_census()
-    write_fragment(census, out_path, durations)
+    write_fragment(census, out_path, durations, timeouts)
     count = len(census.failures)
     print(f"{len(census.rows)} distributions classified; {count} undeclared")
     for failure in census.failures:
