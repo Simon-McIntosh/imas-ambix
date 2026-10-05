@@ -24,9 +24,9 @@
   <title>JT-60SA Machine Map for Equilibrium Reconstruction | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="10">
+<meta name="plan-version" content="13">
 <meta name="plan-modified" content="2026-10-05">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 </head>
 <body>
   <main class="plan-doc">
@@ -288,7 +288,15 @@
       Whether the deck itself gets a store engine, or is converted once into an IDS netCDF
       with a recorded receipt that the existing netCDF engine reads, is a decision below;
       the recommendation is the receipt, because a static per-phase description has no
-      per-shot access cost to amortise. Done-when: <code>transform_machine_description</code>
+      per-shot access cost to amortise. The existing engine does not yet read such a file:
+      <code>NetCDFTransformEngine.open</code> resolves <code>{store_root}/{shot}/</code> and
+      reads one <code>{binding}.nc</code> per binding, a per-pulse layout that suits MAST, whose
+      geometry is written into every pulse, but would force a copy of a static description
+      for every JT-60SA shot. §4 therefore extends that engine, rather than adding one, so a
+      store can be addressed by the map a shot selects. The converted description is one IDS
+      netCDF per IDS per phase under <code>JT60SA_ROOT/machine_description/</code>, and any
+      schema slot this needs names the structure, a source that is static over a map's shot
+      range, never the machine. Done-when: <code>transform_machine_description</code>
       emits a JT-60SA description for one OP1 and one OP2 shot through one code path,
       <code>geometry_table_from_description</code> builds a <code>GeometryTable</code> from it
       with zero machine-name branches, and the three identity assertions (determinism,
@@ -408,8 +416,11 @@
     <h2 id="s8">§8 — Execution order</h2>
     <ol>
       <li>Lock the three placement decisions below (map location, schema versus tokamap,
-        description source), then land the empty JT-60SA catalogue that validates against
-        the schema with zero bindings — a scaffold the roadmap can see.</li>
+        description source). The JT-60SA catalogue first lands with the §4 description
+        bindings rather than as an empty scaffold: <code>load_machine_map</code> refuses a
+        catalogue whose <code>binding_sets</code> or whose set's <code>bindings</code> is empty,
+        and that refusal is kept because a map that silently binds nothing is the failure it
+        exists to stop.</li>
       <li>Build the remote extractor and the mirror writer (§3); fetch one C-shot and one
         E-shot; record timing and sizes.</li>
       <li>Run the EDDB census on the E-shot (§5); join to handbook and PID evidence in
@@ -620,6 +631,11 @@
 </section>
 
     
-  </main>
+  <section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="s1" data-id="c-20261005T0603-s1-closed-on-decisions" data-who="reckon-build" data-when="2026-10-05T06:03:00Z">
+    <div class="r-comment-body">s1 reclassified done: its deliverable is the locked map-persistence-location decision. The empty-catalogue scaffold named in s8 is not built, because load_machine_map refuses an empty binding set; the catalogue first lands with the s4 description bindings.</div>
+</div>
+</section>
+</main>
 </body>
 </html>
