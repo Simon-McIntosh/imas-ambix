@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;implementable&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;done&quot;}">
 <meta name="plan-impl" content="0.31">
-<meta name="plan-version" content="209">
+<meta name="plan-version" content="210">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -1452,6 +1452,9 @@
 </div>
 <div class="r-comment" data-section="s15" data-id="c-20261005T0845-s15-landed" data-who="reckon-build" data-when="2026-10-05T08:45:00Z">
     <div class="r-comment-body">gate run_gate.sh passed (exit 0, render and agreement checks FAILS none); section s15 closed by run r-20261005T080432482655, dotfiles 490fe13, evidence merged 84c2d9fd. Review follow-ons: the render checks live only in the run report directory, and one comment in serve_grid still names a slots row that is now band 3.</div>
+</div>
+<div class="r-comment" data-section="s15" data-id="c-run-r-20261005T080432482655-srw-gpu-watch-three-band-grid" data-who="reckon-build" data-when="2026-10-05T08:28:49.929Z">
+    <div class="r-comment-body"><p>gpu-watch&#x27;s serve grid rebuilt as three bands on the ledger&#x27;s own seven-column grid (grid Table uses the ledger&#x27;s box.SIMPLE_HEAD, padding (0,1) and pad_edge=False so every band&#x27;s column right edges equal the ledger header&#x27;s at 13,28,43,58,73,88,103 on the stripped render), engine band ordered running, queued, tok/s out, tok/s each, prefill/s, ttft s, cache %, availability_percent drawn by pct() in good mode and the stale-lane mark on the serve header line; modified copy plus unified diff against dotfiles HEAD 4dfef02 in the run report dir; the grid is 8 rows (3 label + 3 value + 2 blank separators), all 19 section-15 labels appear exactly once, card rows/ledger rows/job table byte-identical to the base revision&#x27;s render of the same inputs, a same-minute live capture agrees on all six named fields, and the negative control prints 106 against the document&#x27;s 69 when engine_headroom 17 differs from headroom 11.</p></div>
 </div>
 </section>
 </main>
