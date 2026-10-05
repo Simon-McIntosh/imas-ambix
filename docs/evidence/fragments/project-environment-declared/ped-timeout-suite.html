@@ -1,0 +1,173 @@
+<section class="evidence-fragment" data-reckon="evidence" id="ped-timeout-suite">
+  <header>
+    <h3>Whole-suite run against the synced environment: every pytest-timeout abort classified</h3>
+    <p class="meta">Node <code>ped-timeout-suite</code> &middot; revision <code>bdf18986</code> &middot; two SLURM batch jobs on <code>all_debug</code> (98dci4-clu-3141) &middot; run <code>r-20261005T145512577964</code></p>
+  </header>
+  <p>
+    The suite ran as two batch jobs from the worktree at its declared revision: job <code>1281038</code>
+    (<code>-n 16</code>, whole suite except <code>tests/fluxstate/test_consumer_contract.py</code>) and job
+    <code>1281039</code> (that file alone). A first single-process attempt (<code>suite-n8.log</code>) died at 91%
+    when the worker turn ended and is kept only as that record.
+  </p>
+  <h4 id="ped-timeout-suite-counts">Counts (job 1281038, <code>-n 16</code>)</h4>
+  <table id="ped-timeout-suite-counts-table">
+    <thead><tr><th>passed</th><th>failed</th><th>errors</th><th>skipped</th><th>wall [s]</th><th>pytest-timeout aborts</th></tr></thead>
+    <tbody><tr><td>3914</td><td>67</td><td>15</td><td>1</td><td>2975.74</td><td>55</td></tr></tbody>
+  </table>
+  <p>Summary line as emitted: <code>67 failed, 3914 passed, 1 skipped, 149 warnings, 15 errors in 2975.74s (0:49:35)</code>, <code>EXIT=1</code>.</p>
+  <h4 id="ped-timeout-suite-aborts">Every pytest-timeout abort, classified</h4>
+  <p>27 of 55 aborts fall inside the three measurement fragments (the test id appears in a table); <strong>28 do not</strong> and are the blocker this node reports.</p>
+  <table id="ped-timeout-suite-aborts-table">
+    <thead><tr><th>Test</th><th>Phase</th><th>Bound hit [s]</th><th>Classification</th></tr></thead>
+    <tbody>
+      <tr class="acct"><td><code>tests/challenge/test_loader.py::test_real_diii_d_schema_on_one_hundred_shots</code></td><td>call</td><td>raised 1560</td><td>accounted for</td></tr>
+      <tr class="acct"><td><code>tests/latent/test_engine.py::test_engine_grounds_in_raw_magnetics</code></td><td>call</td><td>default 300</td><td>accounted for</td></tr>
+      <tr class="acct"><td><code>tests/latent/test_patch_encoder.py::test_overfit_single_example_smoke</code></td><td>call</td><td>default 300</td><td>accounted for</td></tr>
+      <tr class="acct"><td><code>tests/latent/test_patch_encoder_gaussian.py::test_gaussian_overfit_single_example_smoke</code></td><td>call</td><td>default 300</td><td>accounted for</td></tr>
+      <tr class="acct"><td><code>tests/latent/test_patch_inverse.py::test_batching_reproducible[fixed]</code></td><td>setup</td><td>default 300</td><td>accounted for</td></tr>
+      <tr class="acct"><td><code>tests/latent/test_patch_inverse.py::test_batching_reproducible[warm-start]</code></td><td>setup</td><td>default 300</td><td>accounted for</td></tr>
+      <tr class="acct"><td><code>tests/latent/test_patch_inverse.py::test_candidate_mask_zeros_excluded_cells[fixed]</code></td><td>setup</td><td>default 300</td><td>accounted for</td></tr>
+      <tr class="acct"><td><code>tests/latent/test_patch_inverse.py::test_candidate_mask_zeros_excluded_cells[warm-start]</code></td><td>setup</td><td>default 300</td><td>accounted for</td></tr>
+      <tr class="acct"><td><code>tests/latent/test_patch_inverse.py::test_ip_anchor_within_tolerance[fixed]</code></td><td>setup</td><td>default 300</td><td>accounted for</td></tr>
+      <tr class="acct"><td><code>tests/latent/test_patch_inverse.py::test_ip_anchor_within_tolerance[warm-start]</code></td><td>setup</td><td>default 300</td><td>accounted for</td></tr>
+      <tr class="acct"><td><code>tests/latent/test_patch_inverse.py::test_misfit_decreases[fixed]</code></td><td>setup</td><td>default 300</td><td>accounted for</td></tr>
+      <tr class="acct"><td><code>tests/latent/test_patch_inverse.py::test_misfit_decreases[warm-start]</code></td><td>setup</td><td>default 300</td><td>accounted for</td></tr>
+      <tr class="acct"><td><code>tests/latent/test_patch_inverse.py::test_policy_runs_end_to_end[fixed]</code></td><td>setup</td><td>default 300</td><td>accounted for</td></tr>
+      <tr class="acct"><td><code>tests/latent/test_patch_inverse.py::test_policy_runs_end_to_end[warm-start]</code></td><td>setup</td><td>default 300</td><td>accounted for</td></tr>
+      <tr class="acct"><td><code>tests/latent/test_patch_inverse.py::test_sign_prior_penalty_suppresses_negative_current</code></td><td>call</td><td>default 300</td><td>accounted for</td></tr>
+      <tr class="acct"><td><code>tests/latent/test_patch_inverse.py::test_sign_prior_softplus_enforces_unidirectional</code></td><td>call</td><td>default 300</td><td>accounted for</td></tr>
+      <tr class="acct"><td><code>tests/latent/test_patch_inverse.py::test_structure_regularisation_reduces_residual</code></td><td>call</td><td>default 300</td><td>accounted for</td></tr>
+      <tr class="acct"><td><code>tests/latent/test_synthetic_truth.py::test_basin_scout_reaches_confined_where_fixed_shape_drifts</code></td><td>call</td><td>default 300</td><td>accounted for</td></tr>
+      <tr class="acct"><td><code>tests/latent/test_training.py::test_training_step_reduces_composite_loss_across_campaigns</code></td><td>call</td><td>default 300</td><td>accounted for</td></tr>
+      <tr class="acct"><td><code>tests/test_filaments3d.py::test_full_loop_flux_consistent_between_a_and_surface_b</code></td><td>call</td><td>default 300</td><td>accounted for</td></tr>
+      <tr class="acct"><td><code>tests/worldmodel/test_controllable_model.py::test_actuator_becomes_load_bearing_after_training</code></td><td>call</td><td>default 300</td><td>accounted for</td></tr>
+      <tr class="acct"><td><code>tests/worldmodel/test_controllable_model.py::test_controllability_gate_returns_structured_verdict</code></td><td>call</td><td>default 300</td><td>accounted for</td></tr>
+      <tr class="acct"><td><code>tests/worldmodel/test_spacetime_model.py::test_overfit_drops_loss</code></td><td>call</td><td>default 300</td><td>accounted for</td></tr>
+      <tr class="acct"><td><code>tests/worldmodel/test_spacetime_v2.py::test_overfit_drops_loss_with_signals</code></td><td>call</td><td>default 300</td><td>accounted for</td></tr>
+      <tr class="acct"><td><code>tests/worldmodel/test_timescale_camera_conditioning.py::test_timescale_becomes_load_bearing_after_training</code></td><td>call</td><td>default 300</td><td>accounted for</td></tr>
+      <tr class="acct"><td><code>tests/worldmodel/test_worldmodel_skeleton.py::test_overfit_loss_drops_substantially</code></td><td>call</td><td>default 300</td><td>accounted for</td></tr>
+      <tr class="acct"><td><code>tests/worldmodel/test_worldmodel_skeleton.py::test_real_shot_overfit_smoke</code></td><td>call</td><td>raised 1080</td><td>accounted for</td></tr>
+      <tr class="unc"><td><code>tests/camdyn/test_cond_ablation.py::test_compare_conditioning_end_to_end_cpu</code></td><td>call</td><td>default 300</td><td>UNACCOUNTED</td></tr>
+      <tr class="unc"><td><code>tests/latent/test_closure_readout.py::test_closure_aux_loss_decreases_on_overfit</code></td><td>call</td><td>default 300</td><td>UNACCOUNTED</td></tr>
+      <tr class="unc"><td><code>tests/latent/test_engine_patch_path.py::test_ip_anchor_drives_sum_toward_ip</code></td><td>call</td><td>default 300</td><td>UNACCOUNTED</td></tr>
+      <tr class="unc"><td><code>tests/latent/test_engine_patch_path.py::test_single_example_whitened_misfit_decreases_on_overfit</code></td><td>call</td><td>default 300</td><td>UNACCOUNTED</td></tr>
+      <tr class="unc"><td><code>tests/latent/test_patch_inverse.py::test_batching_reproducible[discrepancy]</code></td><td>setup</td><td>default 300</td><td>UNACCOUNTED</td></tr>
+      <tr class="unc"><td><code>tests/latent/test_patch_inverse.py::test_candidate_mask_zeros_excluded_cells[discrepancy]</code></td><td>setup</td><td>default 300</td><td>UNACCOUNTED</td></tr>
+      <tr class="unc"><td><code>tests/latent/test_patch_inverse.py::test_ip_anchor_within_tolerance[discrepancy]</code></td><td>setup</td><td>default 300</td><td>UNACCOUNTED</td></tr>
+      <tr class="unc"><td><code>tests/latent/test_patch_inverse.py::test_misfit_decreases[discrepancy]</code></td><td>setup</td><td>default 300</td><td>UNACCOUNTED</td></tr>
+      <tr class="unc"><td><code>tests/latent/test_patch_inverse.py::test_negative_fraction_matches_currents</code></td><td>call</td><td>default 300</td><td>UNACCOUNTED</td></tr>
+      <tr class="unc"><td><code>tests/latent/test_patch_inverse.py::test_policy_runs_end_to_end[discrepancy]</code></td><td>setup</td><td>default 300</td><td>UNACCOUNTED</td></tr>
+      <tr class="unc"><td><code>tests/latent/test_patch_inverse.py::test_support_prior_bounds_outside_current</code></td><td>call</td><td>default 300</td><td>UNACCOUNTED</td></tr>
+      <tr class="unc"><td><code>tests/latent/test_structure_residual_batch.py::test_forward_matches_per_example_loop_across_configs</code></td><td>call</td><td>default 300</td><td>UNACCOUNTED</td></tr>
+      <tr class="unc"><td><code>tests/test_demo.py::test_run_demo_metrics_json_has_expected_keys</code></td><td>call</td><td>default 300</td><td>UNACCOUNTED</td></tr>
+      <tr class="unc"><td><code>tests/test_demo.py::test_run_demo_mock_produces_all_artefacts</code></td><td>call</td><td>default 300</td><td>UNACCOUNTED</td></tr>
+      <tr class="unc"><td><code>tests/test_eval.py::test_compute_all_metrics_chord_y_passthrough</code></td><td>call</td><td>default 300</td><td>UNACCOUNTED</td></tr>
+      <tr class="unc"><td><code>tests/test_eval.py::test_rfid_different_is_positive</code></td><td>call</td><td>default 300</td><td>UNACCOUNTED</td></tr>
+      <tr class="unc"><td><code>tests/test_eval.py::test_rfid_identical_is_near_zero</code></td><td>call</td><td>default 300</td><td>UNACCOUNTED</td></tr>
+      <tr class="unc"><td><code>tests/test_preprocess.py::test_preprocess_frames_cli_from_bucket_all</code></td><td>call</td><td>default 300</td><td>UNACCOUNTED</td></tr>
+      <tr class="unc"><td><code>tests/test_toroidal_periodic_probe.py::test_mode_recovery_invariant_to_seam_crossing_offset</code></td><td>call</td><td>default 300</td><td>UNACCOUNTED</td></tr>
+      <tr class="unc"><td><code>tests/test_toroidal_periodic_probe.py::test_recovers_toroidal_mode_number</code></td><td>call</td><td>default 300</td><td>UNACCOUNTED</td></tr>
+      <tr class="unc"><td><code>tests/thomson/test_banked_evidence.py::test_detector_uncertainty_heldout_calibration_band</code></td><td>call</td><td>default 300</td><td>UNACCOUNTED</td></tr>
+      <tr class="unc"><td><code>tests/worldmodel/test_controllable_model.py::test_scheduled_sampling_in_overfit_smoke</code></td><td>call</td><td>default 300</td><td>UNACCOUNTED</td></tr>
+      <tr class="unc"><td><code>tests/worldmodel/test_controllable_model.py::test_temporal_causality_holds_after_training</code></td><td>call</td><td>default 300</td><td>UNACCOUNTED</td></tr>
+      <tr class="unc"><td><code>tests/worldmodel/test_rssm.py::test_overfit_smoke_camera_ce_drops</code></td><td>call</td><td>default 300</td><td>UNACCOUNTED</td></tr>
+      <tr class="unc"><td><code>tests/worldmodel/test_rssm_train.py::test_train_step_decreases_loss_with_action_contrastive</code></td><td>call</td><td>default 300</td><td>UNACCOUNTED</td></tr>
+      <tr class="unc"><td><code>tests/worldmodel/test_spacetime_v2.py::test_signal_ablation_loss_delta</code></td><td>call</td><td>default 300</td><td>UNACCOUNTED</td></tr>
+      <tr class="unc"><td><code>tests/worldmodel/test_timescale_camera_conditioning.py::test_camera_becomes_load_bearing_after_training</code></td><td>call</td><td>default 300</td><td>UNACCOUNTED</td></tr>
+      <tr class="unc"><td><code>tests/worldmodel/test_timescale_camera_conditioning.py::test_causality_preserved_with_conditioning_on</code></td><td>call</td><td>default 300</td><td>UNACCOUNTED</td></tr>
+    </tbody>
+  </table>
+  <h4 id="ped-timeout-suite-unaccounted">Unaccounted aborts (the blocker)</h4>
+  <ol id="ped-timeout-suite-unc-list">
+    <li><code>tests/camdyn/test_cond_ablation.py::test_compare_conditioning_end_to_end_cpu</code></li>
+    <li><code>tests/latent/test_closure_readout.py::test_closure_aux_loss_decreases_on_overfit</code></li>
+    <li><code>tests/latent/test_engine_patch_path.py::test_ip_anchor_drives_sum_toward_ip</code></li>
+    <li><code>tests/latent/test_engine_patch_path.py::test_single_example_whitened_misfit_decreases_on_overfit</code></li>
+    <li><code>tests/latent/test_patch_inverse.py::test_batching_reproducible[discrepancy]</code></li>
+    <li><code>tests/latent/test_patch_inverse.py::test_candidate_mask_zeros_excluded_cells[discrepancy]</code></li>
+    <li><code>tests/latent/test_patch_inverse.py::test_ip_anchor_within_tolerance[discrepancy]</code></li>
+    <li><code>tests/latent/test_patch_inverse.py::test_misfit_decreases[discrepancy]</code></li>
+    <li><code>tests/latent/test_patch_inverse.py::test_negative_fraction_matches_currents</code></li>
+    <li><code>tests/latent/test_patch_inverse.py::test_policy_runs_end_to_end[discrepancy]</code></li>
+    <li><code>tests/latent/test_patch_inverse.py::test_support_prior_bounds_outside_current</code></li>
+    <li><code>tests/latent/test_structure_residual_batch.py::test_forward_matches_per_example_loop_across_configs</code></li>
+    <li><code>tests/test_demo.py::test_run_demo_metrics_json_has_expected_keys</code></li>
+    <li><code>tests/test_demo.py::test_run_demo_mock_produces_all_artefacts</code></li>
+    <li><code>tests/test_eval.py::test_compute_all_metrics_chord_y_passthrough</code></li>
+    <li><code>tests/test_eval.py::test_rfid_different_is_positive</code></li>
+    <li><code>tests/test_eval.py::test_rfid_identical_is_near_zero</code></li>
+    <li><code>tests/test_preprocess.py::test_preprocess_frames_cli_from_bucket_all</code></li>
+    <li><code>tests/test_toroidal_periodic_probe.py::test_mode_recovery_invariant_to_seam_crossing_offset</code></li>
+    <li><code>tests/test_toroidal_periodic_probe.py::test_recovers_toroidal_mode_number</code></li>
+    <li><code>tests/thomson/test_banked_evidence.py::test_detector_uncertainty_heldout_calibration_band</code></li>
+    <li><code>tests/worldmodel/test_controllable_model.py::test_scheduled_sampling_in_overfit_smoke</code></li>
+    <li><code>tests/worldmodel/test_controllable_model.py::test_temporal_causality_holds_after_training</code></li>
+    <li><code>tests/worldmodel/test_rssm.py::test_overfit_smoke_camera_ce_drops</code></li>
+    <li><code>tests/worldmodel/test_rssm_train.py::test_train_step_decreases_loss_with_action_contrastive</code></li>
+    <li><code>tests/worldmodel/test_spacetime_v2.py::test_signal_ablation_loss_delta</code></li>
+    <li><code>tests/worldmodel/test_timescale_camera_conditioning.py::test_camera_becomes_load_bearing_after_training</code></li>
+    <li><code>tests/worldmodel/test_timescale_camera_conditioning.py::test_causality_preserved_with_conditioning_on</code></li>
+  </ol>
+  <p>
+    These aborted at the default 300&nbsp;s bound but appear in none of
+    <code>ped-timeout-latent.html</code>, <code>ped-timeout-worldmodel.html</code>,
+    <code>ped-timeout-corpus.html</code>, so the section&rsquo;s done-when is not met. They are named, not
+    fixed. The run used <code>-n 16</code> (the batch split this attempt was directed to use); the plan&rsquo;s own
+    gate text specifies <code>-n 8</code>, and 16 workers on a 20-CPU node oversubscribes the heavy ML tests, so
+    a re-run at <code>-n 8</code> is the natural next measurement before treating any of these as own-work overruns.
+  </p>
+  <h4 id="ped-timeout-suite-nontimeout">Non-timeout failures and errors (pre-existing, not this node&rsquo;s)</h4>
+  <table id="ped-timeout-suite-nontimeout-table">
+    <thead><tr><th>Test</th><th>First error line</th></tr></thead>
+    <tbody>
+      <tr><td><code>tests/agent/test_bench_provenance.py::test_parser_tolerates_a_malformed_line</code></td><td><code>E       KeyError: &#x27;draft_tokens_total&#x27;</code></td></tr>
+      <tr><td><code>tests/agent/test_flight_placement.py::test_clive_placement_declares_the_scheduler</code></td><td><code>E       KeyError: &#x27;backends&#x27;</code></td></tr>
+      <tr><td><code>tests/agent/test_flight_placement.py::test_placement_declares_nothing_but_the_scheduler_and_its_two_queries</code></td><td><code>E       KeyError: &#x27;backends&#x27;</code></td></tr>
+      <tr><td><code>tests/agent/test_flight_placement.py::test_placement_queries_carry_the_job_substitution_point</code></td><td><code>E       KeyError: &#x27;backends&#x27;</code></td></tr>
+      <tr><td><code>tests/gs/test_artifact_resolution.py::test_re_authoring_reproduces_the_identity_the_package_pins</code></td><td><code>E       AssertionError: assert &#x27;sha256:f20d6...a594ca7d039d5&#x27; == &#x27;sha256:8df7a...edc2bd4be220c&#x27;</code></td></tr>
+      <tr><td><code>tests/latent/test_gs_solve_smooth_topology.py::test_nk_smooth_map_runs_on_synthetic</code></td><td><code>E       AssertionError: assert np.float64(0.07724133838855211) &lt; (2.0 * 0.021874999999999978)</code></td></tr>
+      <tr><td><code>tests/latent/test_profile_greens_decoder.py::test_sensor_jacobian_matches_analytic</code></td><td><code>E       AssertionError: test setup must stay on the active branch</code></td></tr>
+      <tr><td><code>tests/test_agent.py::test_agent_serve_gpu_help_matches_core_scaling</code></td><td><code>E       AssertionError: assert (0 == 0 and &#x27;Host cores do not scale with cards&#x27; in &#x27;Usage: main agent serve [OPTIONS] [SLUG]\n\n  Generate and submit a model serving job.\n\nOption</code></td></tr>
+      <tr><td><code>tests/test_agent.py::test_clive_openrouter_opt_in_starts_proxy_and_presents_picker[mode_arguments0]</code></td><td><code>E       AssertionError: assert &#x27;or-opus-4.8, or-gpt-5.5, or-glm-5.2&#x27; in &#x27;clive: starting imas-ambix-llm.service ...\n&#x27;</code></td></tr>
+      <tr><td><code>tests/test_agent.py::test_clive_openrouter_opt_in_starts_proxy_and_presents_picker[mode_arguments1]</code></td><td><code>E       AssertionError: assert &#x27;or-opus-4.8, or-gpt-5.5, or-glm-5.2&#x27; in &#x27;clive: starting imas-ambix-llm.service ...\n&#x27;</code></td></tr>
+      <tr><td><code>tests/test_agent_clive_alias_dispatch.py::test_a_hosted_alias_mapping_is_visible_at_arrival</code></td><td><code>E       AssertionError: [claude-code:unrecognized_model] {&quot;model&quot;:&quot;fenced-hosted-model-sentinel&quot;,&quot;query_source&quot;:&quot;sdk&quot;}</code></td></tr>
+      <tr><td><code>tests/test_agent_clive_alias_dispatch.py::test_alias_request_arrives_naming_the_local_release</code></td><td><code>E       AssertionError: Ignoring 10 permissions.allow entries from .claude/settings.local.json: this workspace has not been trusted. Run Claude Code interactively here once and acc</code></td></tr>
+      <tr><td><code>tests/test_agent_clive_alias_dispatch.py::test_arrival_carries_no_readable_credential</code></td><td><code>E       AssertionError: Ignoring 10 permissions.allow entries from .claude/settings.local.json: this workspace has not been trusted. Run Claude Code interactively here once and acc</code></td></tr>
+      <tr><td><code>tests/test_agent_context_headroom.py::test_dsv41_dry_run_carries_all_context_headroom_levers</code></td><td><code>E       AssertionError: assert &#x27;--max-running-requests 64&#x27; in &#x27;        apptainer exec --nv --bind /home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/a663ef24-6dba-4b</code></td></tr>
+      <tr><td><code>tests/test_agent_decode_bins.py::test_harvest_reproduces_confirmed_single_width_spot_values</code></td><td><code>E       assert 126.41 &lt;= 118.0</code></td></tr>
+      <tr><td><code>tests/test_agent_endpoint_discovery.py::test_publish_command_omits_router_covering_only_some_releases</code></td><td><code>E           KeyError: &#x27;jobid&#x27;</code></td></tr>
+      <tr><td><code>tests/test_agent_endpoint_discovery.py::test_publish_command_omits_unreachable_router</code></td><td><code>E           KeyError: &#x27;jobid&#x27;</code></td></tr>
+      <tr><td><code>tests/test_agent_endpoint_discovery.py::test_publish_command_records_router_covering_every_release</code></td><td><code>E           KeyError: &#x27;jobid&#x27;</code></td></tr>
+      <tr><td><code>tests/test_agent_serving_receipts.py::test_record_receipts_compacts_its_record_between_samples</code></td><td><code>E       AssertionError: assert {&#x27;leaves&#x27;: {&#x27;...econds&#x27;: 10.0} == {&#x27;samples&#x27;: 2...econds&#x27;: 10.0}</code></td></tr>
+      <tr><td><code>tests/test_eval.py::test_compute_all_metrics_all_values_are_floats</code></td><td><code>E       RuntimeError: Given input size: (192x1x1). Calculated output size: (192x0x0). Output size is too small</code></td></tr>
+      <tr><td><code>tests/test_eval.py::test_compute_all_metrics_identical_centroid_mse_is_zero</code></td><td><code>E       RuntimeError: Given input size: (192x1x1). Calculated output size: (192x0x0). Output size is too small</code></td></tr>
+      <tr><td><code>tests/test_eval.py::test_compute_all_metrics_identical_psnr_is_inf</code></td><td><code>E       RuntimeError: Given input size: (192x1x1). Calculated output size: (192x0x0). Output size is too small</code></td></tr>
+      <tr><td><code>tests/test_eval.py::test_compute_all_metrics_returns_expected_keys</code></td><td><code>E       RuntimeError: Given input size: (192x1x1). Calculated output size: (192x0x0). Output size is too small</code></td></tr>
+      <tr><td><code>tests/test_preprocess.py::test_preprocess_frames_cli_shot_ids</code></td><td><code>E       AssertionError: assert False</code></td></tr>
+      <tr><td><code>tests/test_preprocess.py::test_preprocess_rbb_shot_no_skip_overwrites</code></td><td><code>E       assert 0 == 3</code></td></tr>
+      <tr><td><code>tests/worldmodel/test_camera_topology_robustness.py::test_report_parsers_resolve_every_subset</code></td><td><code>E           json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)</code></td></tr>
+      <tr><td><code>tests/worldmodel/test_label_cartoon_video.py::test_renderer_writes_aligned_tight_clipped_gifs_and_receipt</code></td><td><code>E           ValueError: the session&#x27;s slice has no stored boundary polyline: the label reader takes lcfs_r/lcfs_z as the authoritative boundary and refuses a frame without one rath</code></td></tr>
+    </tbody>
+  </table>
+  <h4 id="ped-timeout-suite-jobb">Job 1281039 &mdash; <code>tests/fluxstate/test_consumer_contract.py</code>: not confirmed</h4>
+  <p>
+    Run alone and serially (its <code>solved_contracts</code> fixture is <code>scope="module"</code>, so one setup).
+    The file collects six tests (four functions, one parametrized three ways; confirmed at the same revision by
+    <code>--collect-only</code>). Five completed &mdash; five progress dots in <code>suite-B.log</code> &mdash; and the
+    sixth was still running when the job was killed at its <code>00:59:04</code> partition limit
+    (<code>sacct</code> state <code>TIMEOUT</code>), so pytest wrote no summary and <code>suite-B.log</code> carries
+    no <code>EXIT=</code> line. The tests, in execution order, are:
+  </p>
+  <ul id="ped-timeout-suite-jobb-tests">
+    <li><code>test_nova_reference_source_is_the_installed_editable_checkout</code> &mdash; passed (dot)</li>
+    <li><code>test_manufactured_states_close_the_nova_force_and_current_ledgers[static]</code> &mdash; passed (dot)</li>
+    <li><code>test_manufactured_states_close_the_nova_force_and_current_ledgers[rotating]</code> &mdash; passed (dot)</li>
+    <li><code>test_manufactured_states_close_the_nova_force_and_current_ledgers[sol]</code> &mdash; passed (dot)</li>
+    <li><code>test_absolute_sources_and_inconsistent_targets_never_mutate_profiles</code> &mdash; passed (dot)</li>
+    <li><code>test_eager_jitted_and_batched_members_agree</code> &mdash; did not complete before the kill</li>
+  </ul>
+  <p>So the file exceeds a 59-minute debug slot when run serially: the module fixture setup alone measured
+  2694&nbsp;s under load in <code>ped-timeout-corpus.html</code>, and six tests do not reach a summary within the slot.
+  This row is not confirmed &mdash; neither a clean pass nor a failure. The environment cannot measure the file to a
+  summary in one <code>all_debug</code> slot at this revision.</p>
+</section>
