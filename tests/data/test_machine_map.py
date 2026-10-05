@@ -587,6 +587,10 @@ def test_engine_rejects_undeclared_catalog_cocos_for_dependent_binding(tmp_path)
         )
 
 
+# The full level-2 machine-description inventory scan measured 379 s on
+# 2026-10-05 (nproc 28, load1 39); the bound is twice that rounded up to a
+# whole minute so the corpus walk is not cut off by the 300 s default.
+@pytest.mark.timeout(780)
 def test_mast_catalog_accounts_for_every_machine_description_array_in_the_corpus():
     if not LEVEL2_ROOT.is_dir():
         pytest.skip("FAIR-MAST level-2 mirror is not mounted")

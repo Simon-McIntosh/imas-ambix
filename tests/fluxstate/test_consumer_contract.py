@@ -289,6 +289,10 @@ def solved_contracts(nova_references, flux_state):
     }
 
 
+# The shared nova-references module setup measured 2694 s on 2026-10-05 under
+# a shared node; the bound is twice that, rounded up to a whole minute, so the
+# fixture import is not cut off by the 300 s default.
+@pytest.mark.timeout(5400)
 @pytest.mark.parametrize("kind", ("static", "rotating", "sol"))
 def test_manufactured_states_close_the_nova_force_and_current_ledgers(
     solved_contracts, kind
@@ -342,6 +346,9 @@ def test_manufactured_states_close_the_nova_force_and_current_ledgers(
     )
 
 
+# Shares the nova-references module setup: measured 2694 s, bound set to
+# twice that rounded up to a whole minute.
+@pytest.mark.timeout(5400)
 def test_absolute_sources_and_inconsistent_targets_never_mutate_profiles(
     solved_contracts,
 ):
@@ -400,6 +407,7 @@ def test_absolute_sources_and_inconsistent_targets_never_mutate_profiles(
     np.testing.assert_array_equal(before.f_tm, after.f_tm)
 
 
+@pytest.mark.timeout(5400)
 def test_eager_jitted_and_batched_members_agree(solved_contracts, nova_references):
     static_ref, _rotation_ref, _sol_ref = nova_references
     _state, profile, seed, vacuum, converged = solved_contracts["static"]
