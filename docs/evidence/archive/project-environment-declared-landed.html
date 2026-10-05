@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="project-environment-declared-landed">
+  <meta name="plan-title" content="Project Environment From Its Declaration — landed record">
+  <meta name="plan-summary" content="Closure synthesis for Project Environment From Its Declaration: 0 committed run(s), 0 section-anchored comment(s), and 0 landed commit(s).">
+  <meta name="plan-evidence-for" content="project-environment-declared">
+  <meta name="plan-verdict" content="qualified">
+  <title>Project Environment From Its Declaration — landed record | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+ <main class="plan-doc">
+  <h1>Project Environment From Its Declaration — landed record</h1>
+  <p>Closure synthesis for Project Environment From Its Declaration: 0 committed run(s), 0 section-anchored comment(s), and 0 landed commit(s).</p>
+
+
+   <section id="s2">
+    <h2>§2 — import census landed as a declaration guard</h2>
+    <p>Merged as <code>80e9f492</code> after an independent review of 96/100 at <code>be101b86</code>. <code>tests/test_declared_dependencies.py</code> holds one classifier that walks <code>imas_ambix/</code>, <code>tests/</code> and <code>scripts/</code> with <code>ast</code> at every import level and classes 39 distributions: 33 default (including the tooling rows for pytest-timeout, pytest-xdist, ruff, mypy and tokamap) and 6 optional. It asserts the declaration covers them and is marked <code>xfail(strict=True)</code> with 21 undeclared distributions until section 3 relocks; it renders <code>docs/evidence/fragments/project-environment-declared/ped-census.html</code> from the same result. At the merged head the gate reports 1 passed, 1 xfailed, and ruff exits 0.</p><p>Findings carried to section 3: default but undeclared are aiohttp, contourpy, h5netcdf, matplotlib, mpmath, pillow, pyarrow, pyyaml, scikit-learn, scipy, sympy, pytest-timeout and pytest-xdist; chronos-forecasting is imported by core code but sits in the train extra; hydra-core and wandb are declared dependencies used only by training; uvicorn is used only by the agent router. Five imports map to no installed distribution (cv2, torchvision, imageio, imageio_ffmpeg, lpips), so the modules under <code>imas_ambix/eval</code> and <code>imas_ambix/demo</code> that import them cannot be imported today. The classifier's optional-subsystem roots cover <code>imas_ambix/agent</code> and <code>imas_ambix/train</code> only.</p>
+  </section>
+
+  <section id="s3">
+    <h2>§3 — declare and relock landed</h2>
+    <p>Merged 8a58accb from run r-20261005T090944644784-ped-declare-relock (commits 3c506b86, 7e576c53, 8f6d1058, ca2adc4e). Gate: <code>tests/test_declared_dependencies.py</code> and <code>tests/physics/test_dependency_contract.py</code>, 4 passed; whole-tree ruff clean; <code>uv lock --check</code> exit 0 at the merged head. Negative control: removing scipy from <code>[project.dependencies]</code> fails the census test naming scipy. Independent review 108, 0 added failures; its follow-ons were the collect count (3953 to 3952, explained) and a manifest placeholder for the interpreter path. Full record: <code>docs/evidence/fragments/project-environment-declared/ped-declare-relock.html</code>, which lists the 37 tests that hit the 300 s bound.</p>
+  </section>
+
+</main>
+</body>
+</html>

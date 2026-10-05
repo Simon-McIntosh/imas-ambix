@@ -23,10 +23,10 @@
   <title>Project Environment From Its Declaration | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;}">
-<meta name="plan-commits" content="80e9f492">
-<meta name="plan-impl" content="0.333">
-<meta name="plan-version" content="13">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;}">
+<meta name="plan-commits" content="80e9f492,8a58accb">
+<meta name="plan-impl" content="0.5">
+<meta name="plan-version" content="14">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -76,50 +76,12 @@
   <p class="landed-summary">Landed <code>tests/test_declared_dependencies.py</code> (merge <code>80e9f492</code>): one classifier both asserts the declaration and renders the census; 39 distributions classed, 21 undeclared, held <code>xfail(strict)</code> until §3 relocks. <a href="s2">full record</a></p>
 </section>
 
+    <section class="section-landed">
+  <header><span class="badge badge-shipped">&#10003; landed 2026-10-05</span>
     <h2 id="s3">§3 — Declare and relock</h2>
-<section data-reckon="section" data-id="s3" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links=""></section>
-    <p>
-      The declaration follows the census. A default distribution imported by code under
-      <code>imas_ambix/</code> goes in <code>[project.dependencies]</code>; one imported only by
-      <code>tests/</code>, and the test and lint tooling, go in a <code>[dependency-groups]</code>
-      <code>dev</code> group, which uv installs on a plain <code>uv sync</code>, and the <code>dev</code>
-      extra is removed. The <code>docs</code>, <code>viz</code>, <code>agent</code>, <code>data</code> and
-      <code>train</code> extras keep every member the census classed optional; a member it classed
-      default moves out by the same rule. Two corrections to the census come first. Its
-      optional-subsystem roots cover <code>imas_ambix/agent</code> and <code>imas_ambix/train</code>
-      only, so they gain the FAIR-MAST acquisition modules that import the <code>data</code>
-      extra's members. And five libraries are imported only inside functions, for video
-      rendering (<code>demo/runner.py</code>: imageio, imageio-ffmpeg), perceptual metrics
-      (<code>eval/metrics.py</code>: lpips, torchvision), a torchvision-based fine-tuning step
-      (<code>tokenizer/finetune_decoder.py</code>) and frame preprocessing (<code>data/preprocess.py</code>,
-      <code>worldmodel/exposure_balance.py</code>: opencv). None is installed today, so no session
-      relies on them. They go in a new <code>video</code> extra, and the classifier lists them by
-      name as that extra's lazily imported members rather than classing them default. The
-      relock rewrites the declaration that <code>tests/physics/test_dependency_contract.py</code>
-      already guards: <code>test_project_and_lock_declare_editable_nova_checkout</code> asserts the
-      nova path source and its <code>uv.lock</code> projection, so it must pass after the relock as
-      well. That test and the census both resolve an editable install's checkout from
-      <code>direct_url.json</code>, and the census's copy omits the <code>unquote</code> the existing
-      one applies, so both move onto one shared helper in
-      <code>tests/distribution_sources.py</code>. A version bound is added only for an incompatibility
-      that has been observed and is named in the commit; nothing else is pinned. The existing path
-      sources in <code>[tool.uv.sources]</code> (imas-ink and nova-stella) keep their entries, and no
-      new path source is added, because the census found no import of reckon. The pytest
-      configuration gains a default per-test <code>timeout</code> of 300 s, raised only for a test
-      whose measured duration needs more.
-    </p>
-    <p>
-      The node edits <code>pyproject.toml</code> and regenerates <code>uv.lock</code> with
-      <code>uv lock</code> only. It never runs <code>uv sync</code> against the shared environment,
-      because a sync from a worktree repoints the shared editable install at that worktree. Its
-      tests run with <code>--no-sync</code> against the restored shared environment, which already
-      holds every package the census found.
-    </p>
-    <p>
-      Done-when: <code>uv lock --check</code> passes; <code>tests/test_declared_dependencies.py</code>
-      passes; the <code>dev</code> extra no longer exists; and <code>pytest --collect-only -q</code>
-      run before and after the edit, each logged, reports the same test count and zero errors.
-    </p>
+<section data-reckon="section" data-id="s3" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-status="done" data-links=""></section></header>
+  <p class="landed-summary">Landed 8a58accb (review 108 at ca2adc4e, 0 added failures). <code>pyproject.toml</code> declares every directly imported distribution: census 46 classified, 0 undeclared. The dev extra is replaced by a <code>[dependency-groups] dev</code> group; hydra-core and wandb move to <code>train</code>, uvicorn to <code>agent</code>, and a <code>video</code> extra carries opencv-python-headless, imageio, imageio-ffmpeg, lpips and <code>torchvision==0.26.*</code>, pinned because an unbounded torchvision re-pins torch 2.11.0 to 2.14.1 and rewrites the CUDA stack. <code>uv.lock</code> adds 9 packages and changes no existing version; <code>uv lock --check</code> passes at the merged head. The default per-test timeout is 300 s. Collect-only reports 3953 before and 3952 after, because the census fragment-comparison test went when fragment rendering moved out of the census test. The whole suite at the shared environment hit the 300 s bound in 37 tests, which §5 triages. <a href="s3">full record</a></p>
+</section>
 
     <h2 id="s4">§4 — Prove it on a fresh environment</h2>
 <section data-reckon="section" data-id="s4" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links=""></section>
@@ -145,6 +107,10 @@
       plain sync removes nothing the census classed default.
     </p>
 
+    <h2 id="s5">§5 — Triage the tests the 300 s bound reaches</h2>
+<section data-reckon="section" data-id="s5" data-effort-hours="2.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+<p>The whole-suite run that §3 recorded, at <code>-n 16</code> against the shared environment, aborted 37 tests at the 300&nbsp;s per-test default; the list, with the phase each aborted in and the duration the <code>--durations</code> table records, is in <code>docs/evidence/fragments/project-environment-declared/ped-declare-relock.html</code>. The rule this plan set is that the default stays at 300&nbsp;s and is raised only for a test whose measured duration needs more, so each of the 37 is measured, not waived. Some are long work under contention (the training and overfit smoke tests, the MAST corpus scans in <code>tests/data/test_machine_map.py</code>, the nova ledger fixture in <code>tests/fluxstate/test_consumer_contract.py</code> at 1294&nbsp;s of setup); some are waits that should not take time at all, such as <code>tests/test_agent.py::test_clive_unreachable_catalog_never_falls_back_to_openrouter</code>, which is a network wait rather than work.</p><p>Each test is run alone on the fleet compute node with <code>-p no:cacheprovider --timeout=3600</code> and its wall time recorded. A test whose own work takes longer than 300&nbsp;s gets <code>@pytest.mark.timeout(N)</code> with N twice its measured time, and the mark's comment states the measurement. A test that spends its time waiting is a hang: its wait is removed or bounded in the test, or, where the fix belongs to another plan's code, it stays failing and that plan is named. Tests sharing a module- or session-scoped fixture are judged by the fixture's setup time. The 20 other failures in the same run (for example <code>tests/agent/test_flight_placement.py</code>, which raises <code>KeyError: 'backends'</code>) are not timeouts and are not this section's; they are listed with their first error line so their owners can find them.</p><p>Done-when: a table in the section's evidence fragment gives each of the 37 tests its measured duration and its outcome (marked with N, wait fixed, or left failing with the owning plan named), and a whole-suite run on the fleet compute node at <code>-n 8</code> reports no pytest-timeout abort that the table does not account for.</p>
+
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
 <div class="r-dec" data-key="dev-tooling-home" data-choice="dependency-group" data-by="Simon McIntosh" data-when="2026-10-05T07:45:00+00:00">
@@ -160,10 +126,16 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-ped-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-10-05" data-recommends-skill="/reckon-build project-environment-declared §2" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-ped-001" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-10-05" data-recommends-skill="/reckon-build project-environment-declared §2" data-resolved-at="2026-10-05T12:20:25+00:00" data-resolved-by="reckon-build">
     <h4 class="r-fu-title">Run the import census that decides which libraries are default</h4>
     <div class="r-fu-body">Section 2's census classifies every installed distribution as default, optional or unused; sections 3 and 4 declare, relock and prove from it.</div>
     <pre class="r-fu-prompt">/reckon-build project-environment-declared §2</pre>
+    <p class="r-fu-outcome">§2 census landed (80e9f492) and §3 declared and relocked from it (8a58accb).</p>
+    </article>
+<article class="r-fu" data-id="f-ped-002" data-status="open" data-written-by="reckon-build" data-written-at="2026-10-05T12:20:00Z" data-recommends-skill="/reckon-build project-environment-declared §4" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Prove the declaration on a fresh environment</h4>
+    <div class="r-fu-body">§4 builds a fresh environment from the declaration alone and the coordinator then syncs the main checkout; §5 triages the tests the 300 s bound reaches.</div>
+    <pre class="r-fu-prompt">/reckon-build project-environment-declared §4</pre>
     </article>
 </section>
 
