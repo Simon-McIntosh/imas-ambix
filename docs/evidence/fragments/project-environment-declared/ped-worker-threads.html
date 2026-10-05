@@ -1,0 +1,48 @@
+<section class="evidence-fragment" data-reckon="evidence" id="ped-worker-threads">
+  <header>
+    <h3>Per-xdist-worker thread-pool cap: share on this node and gate results</h3>
+    <p class="meta">Node <code>ped-worker-threads</code> &middot; revision <code>23ee56ab</code> &middot; fleet compute node <code>98dci4-clu-2018</code>, job <code>1277272</code> &middot; run <code>r-20261005T175306814457</code></p>
+  </header>
+  <p>
+    The cap reads the CPUs available to the process from
+    <code>os.sched_getaffinity(0)</code> and divides by
+    <code>PYTEST_XDIST_WORKER_COUNT</code>, floored at one, then pins
+    <code>OMP_NUM_THREADS</code>, <code>OPENBLAS_NUM_THREADS</code> and
+    <code>MKL_NUM_THREADS</code> <strong>before</strong> torch is resolved: torch
+    loads its OpenMP and MKL runtimes at import, which read those variables once,
+    so the pin must land first; <code>torch.set_num_threads</code> then states
+    the count explicitly. On this node the process affinity is <strong>28</strong>
+    CPUs, so the share is <code>28 // workers</code> (minimum one).
+  </p>
+  <h4 id="ped-worker-threads-shares">Share computed on the node</h4>
+  <table id="ped-worker-threads-shares-table">
+    <thead><tr><th>workers</th><th>affinity CPUs</th><th>share (OMP/OPENBLAS/MKL, torch)</th></tr></thead>
+    <tbody>
+      <tr><td><code>-n 4</code></td><td>28</td><td>7</td></tr>
+      <tr><td><code>-n 8</code></td><td>28</td><td>3</td></tr>
+    </tbody>
+  </table>
+  <h4 id="ped-worker-threads-gates">Gate results (this node's own change)</h4>
+  <table id="ped-worker-threads-gates-table">
+    <thead><tr><th>gate</th><th>result</th><th>EXIT</th><th>log</th></tr></thead>
+    <tbody>
+      <tr><td><code>pytest -p no:cacheprovider tests/test_worker_threads.py</code></td><td>9 passed, 1 skipped</td><td>0</td><td><code>gate-serial.r2.log</code></td></tr>
+      <tr><td><code>pytest -p no:cacheprovider -n 4 tests/test_worker_threads.py</code></td><td>10 passed</td><td>0</td><td><code>gate-xdist4.r2.log</code></td></tr>
+      <tr><td><code>pytest -p no:cacheprovider -n 8 tests/test_worker_threads.py</code></td><td>10 passed</td><td>0</td><td><code>gate-xdist8.r2.log</code></td></tr>
+      <tr><td><code>ruff check imas_ambix tests</code></td><td>All checks passed!</td><td>0</td><td><code>gate-ruff.r2.log</code></td></tr>
+      <tr><td><code>pytest -n 4</code> with the cap resolving torch before the environment pin (negative control)</td><td>1 failed, 9 passed &mdash; <code>test_environment_is_pinned_before_torch_is_resolved</code></td><td>1</td><td><code>negative-control-xdist4.r2.log</code></td></tr>
+    </tbody>
+  </table>
+  <p>
+    The negative control moves <code>_resolve_torch()</code> ahead of
+    <code>pin_thread_pools()</code> in the cap; the test that records
+    <code>os.environ</code> at the moment torch is resolved then sees the three
+    variables unset and fails. A pin-last ordering is the defect this cap exists
+    to prevent, so that mutation is the load-bearing one.
+    <code>threadpool_limits</code> is scoped to the <code>blas</code> API in the
+    cap: capping the <code>openmp</code> API caps the same runtime torch reports,
+    which would satisfy the torch assertion without the explicit torch call. No
+    xdist run sets nothing, and the gate logs are under the run directory
+    <code>r-20261005T175306814457-ped-worker-threads</code>.
+  </p>
+</section>
