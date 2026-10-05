@@ -1,0 +1,43 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtmm-selene-deck-converter">
+  <header>
+    <h3>selene deck converter: the facility decks become receipted per-phase IDS netCDF</h3>
+    <p class="meta">
+      Node <code>jtmm-selene-deck-converter</code> &middot;
+      date 2026-10-05 &middot; plan <code>jt60sa-machine-map</code> &sect;4
+    </p>
+  </header>
+
+  <div id="jtmm-selene-deck-converter-converter">
+    <p>
+      <code>imas_ambix/data/selene_deck.py</code> parses the three facility
+      grammars — <code>EQSLE.DATA</code> (the <code>PF COIL</code> block, the
+      <code>NV</code> vessel block, the TFC inside/outside arc segments and the
+      limiter/first-wall segment table), <code>geo.in</code> (the
+      <code>Magnetic Probe</code> and <code>Flux Loop</code> blocks) and
+      <code>coil_vv_*.dat</code> (its vessel block) — into provenance-carrying
+      element types, and writes the pf_active, pf_passive, magnetics, wall and
+      tf IDS netCDF for a phase at DD 4.1.1 alongside a <code>receipt.json</code>
+      naming each source file's path, sha256, line ranges and the converter's
+      git commit. pf_active coils carry positive turns with winding direction in
+      <code>pf_active/circuit/connections</code>; the angular
+      <code>geo.in</code> probe angle is converted degrees&rarr;radians for the
+      DD leaf.
+    </p>
+  </div>
+
+  <div id="jtmm-selene-deck-converter-evidence">
+    <p>
+      Gate (<code>EXIT=0</code>): 8 tests pass in
+      <code>tests/data/test_selene_deck.py</code>, writing synthetic decks in all
+      three grammars and reading every IDS back through
+      <code>imas.DBEntry</code> at DD 4.1.1. Logged parse of the real facility
+      copies reports exactly the deck content the plan names: 12 PF coils
+      (CS1&ndash;4, EF1&ndash;6, FPPC_UP/DOWN), 120 OP1 and 98 OP2 vessel
+      filaments, 7+7 TFC segments, 17 magnetic probes and 27 flux loops. The
+      whole-tree <code>ruff check imas_ambix tests</code> exits 0. Declared
+      negative control: dropping the line-range provenance from one PF element
+      fails <code>test_provenance_carries_path_sha256_and_line_range</code>
+      (<code>EXIT=1</code>) while the head arm passes it.
+    </p>
+  </div>
+</section>
