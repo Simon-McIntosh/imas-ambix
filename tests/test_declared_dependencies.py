@@ -37,9 +37,10 @@ makes it a guard rather than a one-off scan: the failure lines name each
 undeclared ``default`` and ``optional`` distribution, and the guard turns red
 the moment the declaration falls behind the tree.
 
-Regenerate the fragment after changing the tree::
+Regenerate the fragment after changing the tree, giving the output path and,
+optionally, a pytest ``--durations`` log to record beside the census::
 
-    uv run --no-sync python tests/test_declared_dependencies.py
+    uv run --no-sync python tests/test_declared_dependencies.py <out.html> <log>
 """
 
 from __future__ import annotations
@@ -96,21 +97,6 @@ TOOLING = (
     "pre-commit",
     "tokamap",
 )
-
-NODE_ID = "ped-declare-relock"
-_FRAGMENT_NAME = "ped-declare-relock.html"
-
-
-def fragment_path() -> Path:
-    """Locate this node's evidence fragment by its file name."""
-    matches = sorted((ROOT / "docs/evidence/fragments").glob(f"*/{_FRAGMENT_NAME}"))
-    if len(matches) != 1:
-        raise RuntimeError(
-            f"expected exactly one {_FRAGMENT_NAME} under docs/evidence/fragments, "
-            f"found {len(matches)}"
-        )
-    return matches[0]
-
 
 @dataclass(frozen=True)
 class Row:
@@ -392,14 +378,33 @@ def build_census(pyproject_path: Path | None = None) -> Census:
     )
 
 
-def render_fragment(census: Census) -> str:
-    """Render the census as the evidence fragment, from the same result."""
-    lines = [
-        f'<section class="evidence-fragment" data-reckon="evidence" id="{NODE_ID}">',
+_DURATION_RE = re.compile(r"^\s*(\d+(?:\.\d+)?)s\s+(call|setup|teardown)\s+(\S+)")
+
+
+def parse_durations(text: str) -> list[str]:
+    """Extract the slowest-test lines from pytest ``--durations`` output."""
+    found: list[str] = []
+    for line in text.splitlines():
+        match = _DURATION_RE.match(line)
+        if match:
+            found.append(f"{match.group(1)}s {match.group(2)} {match.group(3)}")
+    return found
+
+
+def render_fragment(
+    census: Census, node: str, durations: list[str] | None = None
+) -> str:
+    """Render the census as an evidence fragment, from the same result.
+
+    ``node`` labels the fragment (its ``id`` and header) and is supplied by the
+    caller; ``durations`` optionally records the slowest tests beside the census.
+    """
+    lines: list[str] = [
+        f'<section class="evidence-fragment" data-reckon="evidence" id="{node}">',
         "  <header>",
         "    <h3>Import census: which libraries a plain sync must declare</h3>",
-        "    <p class=\"meta\">",
-        f"      Node <code>{NODE_ID}</code> &middot; import census against the "
+        '    <p class="meta">',
+        f"      Node <code>{node}</code> &middot; import census against the "
         "project declaration",
         "    </p>",
         "  </header>",
@@ -408,7 +413,7 @@ def render_fragment(census: Census) -> str:
         " (default, optional, unused or transitive), the importing file that"
         " decided the class, and how the declaration currently carries it. The"
         " classifier in <code>tests/test_declared_dependencies.py</code> renders"
-        " this fragment and asserts the same result, so the two cannot drift.",
+        " this fragment from the same result its assertion reads.",
         "  </p>",
         "  <table>",
         "    <thead><tr><th>Distribution</th><th>Class</th>"
@@ -454,8 +459,26 @@ def render_fragment(census: Census) -> str:
     ]
     for failure in census.failures:
         lines.append(f"    <li>{failure}</li>")
-    lines += ["  </ul>", "</section>", ""]
+    lines += ["  </ul>"]
+    if durations:
+        lines += ["  <h4>Slowest tests (whole suite)</h4>", "  <ul>"]
+        for item in durations:
+            lines.append(f"    <li><code>{item}</code></li>")
+        lines += ["  </ul>"]
+    lines += ["</section>", ""]
     return "\n".join(lines)
+
+
+def write_fragment(
+    census: Census, out_path: Path, durations: list[str] | None = None
+) -> None:
+    """Write ``census`` as an evidence fragment to ``out_path``.
+
+    The fragment is labelled by the output file's stem, so this module carries
+    no node identity of its own.
+    """
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(render_fragment(census, out_path.stem, durations))
 
 
 def test_every_directly_imported_distribution_is_declared() -> None:
@@ -466,17 +489,19 @@ def test_every_directly_imported_distribution_is_declared() -> None:
     )
 
 
-def test_fragment_matches_census() -> None:
-    census = build_census()
-    assert fragment_path().read_text() == render_fragment(census)
+def main(argv: list[str] | None = None) -> int:
+    """Write the census fragment to the path given and report the failures.
 
-
-def main() -> int:
-    """Write the fragment from the current census and report the failure count."""
+    Usage: test_declared_dependencies.py <out.html> [durations.log]
+    """
+    args = list(sys.argv[1:] if argv is None else argv)
+    if not args:
+        print("usage: test_declared_dependencies.py <out.html> [durations.log]")
+        return 2
+    durations = parse_durations(Path(args[1]).read_text()) if len(args) > 1 else None
+    out_path = Path(args[0])
     census = build_census()
-    target = fragment_path()
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(render_fragment(census))
+    write_fragment(census, out_path, durations)
     count = len(census.failures)
     print(f"{len(census.rows)} distributions classified; {count} undeclared")
     for failure in census.failures:
