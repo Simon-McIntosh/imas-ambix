@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;done&quot;}">
 <meta name="plan-impl" content="0.4">
-<meta name="plan-version" content="216">
+<meta name="plan-version" content="217">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -1426,6 +1426,9 @@
 </div>
 <div class="r-comment" data-section="s13" data-id="c-20261005T0950-s13-landed" data-who="reckon-build" data-when="2026-10-05T09:50:00Z">
     <div class="r-comment-body">gate tests passed (5, exit 0); section s13 closed by run r-20261005T084405666372 at merge 365ed7af. The worker did not write its evidence fragment; the coordinator wrote the landing record above from its manifest, logs and both reviews.</div>
+</div>
+<div class="r-comment" data-section="s13" data-id="c-run-r-20261005T084405666372-srw-ledger-carriers-never-split-runs" data-who="reckon-build" data-when="2026-10-05T09:32:20.306Z">
+    <div class="r-comment-body"><p>landed at worktree commit 0957a37e on base 53e20099; the ledger double count is fixed at the run boundary in counter_run_continues/_same_run (an unknown boot continues the same host and job&#x27;s run; only two declared, differing boots end it), so a read holding one job&#x27;s raw rows beside its tier rows totals each counter once and a day equals the sum of its 24 hours for prompt tokens, generation tokens and each cached tier; proven red at base and green at head by tests/test_ledger_additive_identity.py (4 cases) and tests/test_ingest_carrier_overlap.py (1 case); ruff clean; the serving-interpreter parse guard passes; the live index takes the fix once the ingest and publisher services are restarted, which is out of this node&#x27;s scope.</p></div>
 </div>
 </section>
 </main>
