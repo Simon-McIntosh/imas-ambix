@@ -109,13 +109,14 @@ def apply_worker_thread_cap(
     if available is None:
         available = available_cpus()
     share = worker_share(available, int(worker_count))
-    # Resolve torch before the environment pin: a pool torch has already sized
-    # is not reached by OMP_NUM_THREADS, so torch.set_num_threads is what caps
-    # it.  Resolving here covers a session whose plugins imported torch before
-    # this conftest ran.
-    torch = _resolve_torch()
+    # Pin the environment before torch is resolved: importing torch loads its
+    # OpenMP and MKL runtimes, which read the thread variables once at load
+    # time, so the pin must land first or torch's own pools start at one
+    # thread per core.  torch.set_num_threads then states the count explicitly
+    # rather than relying on the load-time value alone.
     pin_thread_pools(share)
     _limit_loaded_pools(share)
+    torch = _resolve_torch()
     if torch is not None:
         torch.set_num_threads(share)
     return share

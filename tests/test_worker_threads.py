@@ -57,6 +57,24 @@ def test_worker_share(available: int, worker_count: int, expected: int) -> None:
     assert conftest.worker_share(available, worker_count) == expected
 
 
+def test_environment_is_pinned_before_torch_is_resolved(
+    monkeypatch: pytest.MonkeyPatch, _clear_pool_env: None
+) -> None:
+    seen: dict[str, str | None] = {}
+
+    def fake_resolve():
+        seen.update({var: os.environ.get(var) for var in POOL_ENV_VARS})
+        return None
+
+    monkeypatch.setattr(conftest, "_resolve_torch", fake_resolve)
+    monkeypatch.setattr(conftest, "_limit_loaded_pools", lambda share: None)
+
+    share = conftest.apply_worker_thread_cap(worker_count="4", available=8)
+
+    assert share == 2
+    assert seen == {var: "2" for var in POOL_ENV_VARS}
+
+
 def test_no_cap_when_xdist_is_absent(
     monkeypatch: pytest.MonkeyPatch, _clear_pool_env: None
 ) -> None:
