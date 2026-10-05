@@ -25,9 +25,9 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
-<meta name="plan-commits" content="023dbf93,4bf5bf2f">
-<meta name="plan-impl" content="0.25">
-<meta name="plan-version" content="47">
+<meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4">
+<meta name="plan-impl" content="0.3">
+<meta name="plan-version" content="49">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -317,8 +317,8 @@
       carries 27 flux-loop and 17 probe positions. The lead's own extraction
       (<code>jt-60sa:~/work/efit_jt60sa/extract_jt60sa.py</code>, 2026-04-27) reads the same two
       files. Between OP1 and OP2 the PF coils, flux loops and probes are identical; only the
-      vessel changes, from 120 filaments at 7.76e-7 Ω·m to 98 at 7.20e-7 Ω·m, with the wall
-      contours. The nakamap IDS files are not sources: they are DD 3.42 fragments labelled
+      vessel changes, from 120 filaments (63 at 7.76e-7 Ω·m followed by 57 at 7.20e-7 Ω·m) to
+      98 at 7.20e-7 Ω·m, with the wall contours. The nakamap IDS files are not sources: they are DD 3.42 fragments labelled
       SST-1, with no provenance, and their magnetics IDS stores the probe coordinates in
       <code>flux_loop</code> (5.09 m from the true loop positions).
     </p>
@@ -361,7 +361,13 @@
       investigations made, in the <code>jtmm-geometry-source</code> and
       <code>jtmm-analysis-sensor-search</code> report directories, are the reference the grammar is
       read from, and parse checks against them are logged rather than committed. Running the
-      converter once against the facility files on GPFS is a separate node. The converter
+      converter once against the facility files on GPFS is a separate node, and it does not
+      need the IFERC link: the two investigations already copied <code>EQSLE.DATA</code>,
+      <code>geo.in</code> and <code>coil_vv_OP2.dat</code> into their report directories, and
+      the inventories record each copy's sha256 against the facility file. The run copies them
+      to <code>JT60SA_ROOT/machine_description/source/</code>, checks each sha256 against those
+      inventories, converts both phases into <code>JT60SA_ROOT/machine_description/OP1/</code> and
+      <code>OP2/</code>, and its receipts name the facility path and hash of each source. The converter
       supersedes <code>nakamap</code> as the JT-60SA deck converter: once it lands, nothing in this
       map reads nakamap's code or its <code>jt60sa_md_*.nc</code> outputs, which carry the probe
       coordinates in <code>flux_loop</code>, and the nakamap repository is left as the historical
@@ -908,7 +914,10 @@
     <div class="r-comment-body"><p>SELENE-deck converter landed: imas_ambix/data/selene_deck.py parses the EQSLE.DATA/geo.in/coil_vv grammars into provenance-carrying PF coil, vessel filament, TFC segment, limiter and sensor elements and writes per-phase pf_active, pf_passive, magnetics, wall and tf IDS netCDF at DD 4.1.1 with receipt.json naming each source path, sha256, line ranges and the converter commit; vessel filaments are grouped into one pf_passive loop per contiguous resistivity block so the deck 63/57 split at 7.76e-7 and 7.20e-7 ohm m survives the round trip, the deck extent columns are whole extents for PF and vessel elements alike, each TFC segment becomes one tf conductor element with distinct start and end points, its arc centre and the arc element type, the wall outline keeps the straight segments and the ten arcs by sampling each arc along its circle, the OP2 wall comes from the coil_vv deck's own nlim limiter contour rather than from EQSLE.DATA, wall/description_2d/type/index is set to the DD identifier for limiter units with no vessel structure filled, and tf turns/coils_n are left unset with a recorded validation gap because the deck states neither. tests/data/test_selene_deck.py has 12 passing tests and the real facility copies parse to 12 PF coils, 120 OP1 / 98 OP2 vessel filaments, 17 probes and 27 flux loops.</p></div>
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20261005T091913705439-review-of-jtmm-selene-deck-converter" data-who="reckon-build" data-when="2026-10-05T09:29:58.447Z">
-    <div class="r-comment-body"><p>Review of r-20261005T075837853987-jtmm-selene-deck-converter stored at head 31f57375 (base 395b6a68): parsed record scoring goal_fidelity 17, evidence 18, scope_discipline 18, durability 18, fit 17 (total 88), added_failure_count 0 / added_failure_ids [] from this review&#x27;s own base (EXIT=4, target absent) and head (12 passed, EXIT=0) arms of the node&#x27;s declared gate; the three defects fixed at 31f57375 (OP2 wall off coil_vv_OP2.dat&#x27;s nlim limiter, wall type.index 1, evidence gate count 12) independently reproduced, and the declared negative control reproduced (2 failed, 10 passed, EXIT=1).</p></div>
+    <div class="r-comment-body"><p>Review of r-20261005T075837853987-jtmm-selene-deck-converter stored at head 31f57375 (base 395b6a68): parsed record scoring goal_fidelity 17, evidence 18, scope_discipline 18, durability 18, fit 17 (total 88), added_failure_count 0 / added_failure_ids [] from this review's own base (EXIT=4, target absent) and head (12 passed, EXIT=0) arms of the node's declared gate; the three defects fixed at 31f57375 (OP2 wall off coil_vv_OP2.dat's nlim limiter, wall type.index 1, evidence gate count 12) independently reproduced, and the declared negative control reproduced (2 failed, 10 passed, EXIT=1).</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-20261005T0932-s4-converter-landed" data-who="reckon-build" data-when="2026-10-05T09:32:00Z">
+    <div class="r-comment-body">gate tests/data/test_selene_deck.py passed (12 tests, re-run at the merged head 6c76ccb4, exit 0); jtmm-selene-deck-converter merged after four repair rounds and an independent review of 88/100 at 31f57375. Its follow-ons belong to the description-bindings node: tf/coil/current and tf/b_field_phi_vacuum_r are pulse bindings to the MMSYS TF current, and the probe angle's unknown-unvalidated label is a catalogue binding attribute. Section 4 stays open: the one-off conversion run, the store-layout extension and the description bindings follow.</div>
 </div>
 </section>
 </main>
