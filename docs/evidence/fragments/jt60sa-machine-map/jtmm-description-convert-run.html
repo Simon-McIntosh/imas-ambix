@@ -1,0 +1,123 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtmm-description-convert-run">
+  <header>
+    <h3>description convert run: the facility decks become per-phase IDS netCDF on GPFS</h3>
+    <p class="meta">
+      Node <code>jtmm-description-convert-run</code> &middot;
+      date 2026-10-05 &middot; plan <code>jt60sa-machine-map</code> &sect;4
+    </p>
+  </header>
+
+  <div id="jtmm-description-convert-run-sources">
+    <p>
+      Ran <code>imas_ambix/data/selene_deck.py</code> once against the facility
+      copies with <strong>no repository code change</strong>. The three facility
+      copies were placed in
+      <code>/work/projects/imas_gpu/jt60sa/machine_description/source/</code>,
+      each verified byte-for-byte (sha256) against the
+      <code>inventory.json</code> of the investigation that copied it, refusing
+      on a mismatch; <code>source/provenance.json</code> then maps each landed
+      copy to its facility path on <code>nakasvr26</code> and its sha256. A
+      mutated copy of <code>EQSLE.DATA</code> (one appended byte) was refused
+      (<code>EXIT=1</code>, <code>negative_control_sha.log</code>) before any
+      write, showing the guard fires.
+    </p>
+    <table>
+      <thead><tr><th>copied file</th><th>facility path (nakasvr26)</th><th>sha256</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>EQSLE.DATA</code></td>
+          <td><code>/analysis/src/SAselene_v2.0_forPSRC/RUN/EQSLE.DATA</code></td>
+          <td><code>d2e9f0acdfe01f0c290dd48f68090c48415d50244b38cd448ddcbfd8ea277956</code></td>
+        </tr>
+        <tr>
+          <td><code>geo.in</code></td>
+          <td><code>/analysis/src/getseldata_v4.2/UTL/getseldata/geo.in</code></td>
+          <td><code>de826dc8676c8d164ae3b157912ff6282477e719da260b9ee919dec7fdef6b5d</code></td>
+        </tr>
+        <tr>
+          <td><code>coil_vv_OP2.dat</code></td>
+          <td><code>.local/share/machine_description/coil_geometry/coil_vv_OP2.dat</code> (home)</td>
+          <td><code>0077a0241fed5bd9469b7c3c65281a17c036a41cc1b6d512ca84d5904231d680</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div id="jtmm-description-convert-run-phases">
+    <p>
+      OP1 was converted from <code>EQSLE.DATA</code> and <code>geo.in</code>
+      alone (wall and vessel from the master deck); OP2 adds
+      <code>coil_vv_OP2.dat</code> for its own 98-filament vessel and limiter
+      contour. Each phase directory
+      (<code>machine_description/OP1/</code>, <code>OP2/</code>) holds
+      <code>pf_active.nc</code>, <code>pf_passive.nc</code>,
+      <code>magnetics.nc</code>, <code>wall.nc</code>, <code>tf.nc</code> and
+      <code>receipt.json</code>, and every IDS read back through
+      <code>imas.DBEntry</code> at DD 4.1.1 (<code>readback_ok</code> true for
+      all five in each phase).
+    </p>
+    <table>
+      <thead><tr><th>measure</th><th>OP1</th><th>OP2</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>PF coils (elements)</td>
+          <td colspan="2">12 coils: CS1&ndash;CS4 40 each, EF1&ndash;EF6 16 each, FPPC_UP 6, FPPC_DOWN 6 (phase-independent)</td>
+        </tr>
+        <tr>
+          <td>pf_passive loops (filaments @ resistivity)</td>
+          <td>2 loops: 63 @ 7.76e-7 &Omega;&middot;m, 57 @ 7.20e-7 &Omega;&middot;m (120 total)</td>
+          <td>1 loop: 98 @ 7.20e-7 &Omega;&middot;m</td>
+        </tr>
+        <tr><td>magnetic probes</td><td>17</td><td>17</td></tr>
+        <tr><td>flux loops</td><td>27</td><td>27</td></tr>
+        <tr><td>wall outline points</td><td>638</td><td>51</td></tr>
+        <tr><td>TF conductor elements (inside, outside)</td><td>7, 7</td><td>7, 7</td></tr>
+      </tbody>
+    </table>
+    <p>
+      The wall figures differ by construction: the OP1 outline is the master
+      deck's 43 limiter/first-wall segments (arcs sampled at 1&deg;), the OP2
+      outline is the <code>coil_vv_OP2.dat</code> limiter block's 50 line
+      segments (51 vertices, closing on the first). Both receipts record the
+      same <code>tf</code> validation gaps (<code>tf/coils_n</code> and
+      <code>tf/coil[:]/turns</code> left unset, since neither deck states a TF
+      coil or turn count) rather than a guessed zero. The converter's git commit
+      recorded in each receipt is
+      <code>6ea7df62b4c3d7c715d87bc5308c42a054557529</code>.
+    </p>
+  </div>
+
+  <div id="jtmm-description-convert-run-receipts">
+    <p>
+      Every receipt source path and hash (the receipt path is the landed copy;
+      its facility origin is the mapping in <code>source/provenance.json</code>,
+      joined by sha256):
+    </p>
+    <ul>
+      <li>
+        OP1 &mdash;
+        <code>eqsle_deck /work/projects/imas_gpu/jt60sa/machine_description/source/EQSLE.DATA</code>
+        <code>d2e9f0ac&hellip;277956</code> (PF COIL lines 24&ndash;291, NV 293&ndash;412, wall 415&ndash;458, TFC 459&ndash;472);
+        <code>geo_in /work/projects/imas_gpu/jt60sa/machine_description/source/geo.in</code>
+        <code>de826dc8&hellip;fdef6b5d</code> (Magnetic Probe 485&ndash;501, Flux Loop 503&ndash;529).
+      </li>
+      <li>
+        OP2 &mdash; the same two plus
+        <code>coil_vv_deck /work/projects/imas_gpu/jt60sa/machine_description/source/coil_vv_OP2.dat</code>
+        <code>0077a024&hellip;4231d680</code> (NV lines 273&ndash;370, wall 372&ndash;422).
+      </li>
+    </ul>
+  </div>
+
+  <div id="jtmm-description-convert-run-measure">
+    <p>
+      Measure (<code>EXIT=0</code>):
+      <code>uv run --no-sync python &hellip;/convert_jt60sa.py</code> prints a JSON
+      summary; the counts above are the summary's own values and each receipt's
+      <code>sources</code> list, and every <code>{ids}.nc</code> round-trips.
+      Log: <code>convert_jt60sa.log</code>; refusal log:
+      <code>negative_control_sha.log</code>. This node only ran the converter;
+      verifying the merged result belongs to a separately dispatched test node.
+    </p>
+  </div>
+</section>
