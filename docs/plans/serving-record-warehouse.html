@@ -22,9 +22,9 @@
   <title>Serving Record Warehouse | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;implementable&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;implementable&quot;}">
-<meta name="plan-impl" content="0.23">
-<meta name="plan-version" content="208">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;implementable&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;done&quot;}">
+<meta name="plan-impl" content="0.31">
+<meta name="plan-version" content="209">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -792,32 +792,12 @@
   <p class="landed-summary">Landed <code>lane.availability_percent</code>: the share of the router's effective generation width still open, defined once in <code>lane.py</code>, published by the router beside the clamped headroom, and copied or derived by <code>live_panel.lane_block</code>. 40 tests pass; review 91/100; live read 68.75 (11 of 16). The router publishes it from its next restart. <a href="s14">full record</a></p>
 </section>
 
+    <section class="section-landed">
+  <header><span class="badge badge-shipped">&#10003; landed 2026-10-05</span>
     <h2 id="s15">§15 — gpu-watch&#x27;s serve grid fits in three bands and draws availability as a bar</h2>
-<section data-reckon="section" data-id="s15" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
-<p><strong>Seen, 2026-10-05.</strong> gpu-watch's serve grid spends 14 rows on 21 figures. It has five bands, each a label row over a value row, with blank rows between them, and its six columns do not line up with the seven columns of the ledger below it. The lead asked for the parameters to be grouped onto longer lines.</p>
-<p><strong>The design.</strong> At most three bands, each on the ledger's own seven-column grid: the first column 13 characters wide, the rest 12, and no padding at the edge. The grid then takes at most eight rows: three label rows, three value rows and two blank separators. Every figure the grid shows today stays, grouped by what it describes:</p>
-<ol>
-<li><em>engine</em>: running, queued, tok/s out, tok/s each, prefill tok/s, ttft s, cache %;</li>
-<li><em>cards and pool</em>: °C mean, °C max, kW, % of cap, kv pool %;</li>
-<li><em>router and dispatch</em>: in flight as in-flight over effective width (for example <code>3/16</code>), router queue, oldest wait, verdict, headroom, worker slots, available %.</li>
-</ol>
-<p>The available % cell is §14's <code>availability_percent</code>, read from the <code>lane</code> block of <code>agent watch --json --live</code> and drawn by the panel's existing <code>pct()</code> helper in its <code>good</code> mode, where high is healthy. An absent key draws a dash. gpu-watch computes nothing from headroom or width itself.</p>
-<p>The stale-lane mark moves to the serve header line, as one mark for the whole lane, because every figure copied from the lane document now sits in band 3.</p>
-<p><strong>Delivery.</strong> As with §11's gpu-watch nodes, the node writes a full modified copy of <code>bin/gpu-watch</code> and a unified diff against dotfiles <code>HEAD</code> into its report directory. The coordinator lands the diff in the dotfiles repository.</p>
-<table>
-<caption>Nodes for this section.</caption>
-<thead><tr><th>Node</th><th>Runs after</th><th>Effort</th></tr></thead>
-<tbody>
-<tr><td>gpu-watch's serve grid in three bands with an availability bar</td><td>§14's node</td><td>1.5 h</td></tr>
-</tbody>
-</table>
-<p><strong>Done when:</strong></p>
-<ul>
-<li>A render from a captured <code>agent watch --json --live</code> document puts at most eight grid rows between the header line and the ledger. Every label listed above appears exactly once. The card rows, ledger rows and job table are byte-identical to a render of the same inputs at the base revision.</li>
-<li>One live capture, taken within the same minute as <code>agent watch --json --live</code>, agrees with it on running, in flight, effective width, router queue, headroom, worker slots and availability.</li>
-<li>The declared negative control computes availability inside gpu-watch from <code>engine_headroom</code>. With it applied, the captured figure must disagree with the document whenever <code>engine_headroom</code> differs from <code>headroom</code>, and that capture is recorded.</li>
-<li><code>python3 -m py_compile</code> passes on the copy.</li>
-</ul>
+<section data-reckon="section" data-id="s15" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="done" data-links=""></section></header>
+  <p class="landed-summary">Landed in dotfiles <code>490fe13</code>: gpu-watch's serve grid in three bands on the ledger's column grid (running first; cards with pool; router with available % drawn from <code>availability_percent</code>), the stale mark on the header line; 11 lines between header and ledger, down from 16; review 86. <a href="s15">full record</a></p>
+</section>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
@@ -1466,6 +1446,12 @@
 </div>
 <div class="r-comment" data-section="s14" data-id="c-run-r-20261005T081028283284-review-of-srw-lane-availability-rejects-non-finite" data-who="reckon-build" data-when="2026-10-05T08:14:27.504Z">
     <div class="r-comment-body"><p>review of r-20261005T080455168018-srw-lane-availability-rejects-non-finite stored as a parsed record scoring goal_fidelity 19, evidence 17, scope_discipline 19, durability 17, fit 18 (total 90); reviewed_base_sha 6ebdaca73bb550b9e669ac6432f26933d8f0f747, reviewed_head_sha dce1459bf683e9a11b8f202845dbb55fff501d84; added_failure_count 0, added_failure_ids [].</p></div>
+</div>
+<div class="r-comment" data-section="s14" data-id="c-20261005T0845-s14-gate-log" data-who="reckon-build" data-when="2026-10-05T08:45:00Z">
+    <div class="r-comment-body">Correction to the ledger row for r-20261005T080455168018 (non-finite repair): its gate_log_path reads none because the coordinator passed a path that did not exist. The gate's log is gate-tests.log in that run's directory (16 passed), and verify-gate re-ran it at the merged head into verify-gate.log, exit 0.</div>
+</div>
+<div class="r-comment" data-section="s15" data-id="c-20261005T0845-s15-landed" data-who="reckon-build" data-when="2026-10-05T08:45:00Z">
+    <div class="r-comment-body">gate run_gate.sh passed (exit 0, render and agreement checks FAILS none); section s15 closed by run r-20261005T080432482655, dotfiles 490fe13, evidence merged 84c2d9fd. Review follow-ons: the render checks live only in the run report directory, and one comment in serve_grid still names a slots row that is now band 3.</div>
 </div>
 </section>
 </main>
