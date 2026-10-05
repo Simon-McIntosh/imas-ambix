@@ -85,6 +85,24 @@ def test_the_frozen_ids_and_roles_under_another_machine_are_labelled_ad_hoc():
     assert resolve_shotset_version(other_machine) != SHOTSET_VERSION
 
 
+def test_the_cli_refuses_an_override_that_does_not_name_a_machine():
+    """--shots without --machine is refused by the parser, not assumed to be MAST."""
+    from scripts.spine_benchmark import build_parser
+
+    with pytest.raises(SystemExit) as excinfo:
+        build_parser().parse_args(["--shots", "21978"])
+    assert excinfo.value.code == 2
+
+
+def test_the_cli_does_not_require_a_machine_for_the_frozen_set():
+    """With no --shots the frozen set is used, so --machine is not needed."""
+    from scripts.spine_benchmark import build_parser
+
+    args = build_parser().parse_args([])
+    assert args.shots == ""
+    assert args.machine is None
+
+
 def _stamp(shotset_version: str) -> SpineBenchmarkStamp:
     return SpineBenchmarkStamp(
         shotset_version=shotset_version,
