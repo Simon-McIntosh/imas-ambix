@@ -1,0 +1,29 @@
+<section class="evidence-fragment" data-reckon="evidence" id="srw-gpu-watch-three-band-grid">
+  <header>
+    <h3>gpu-watch copy: the serve grid in three bands on the ledger's column grid</h3>
+    <p class="meta">
+      Node <code>srw-gpu-watch-three-band-grid</code> &middot;
+      date 2026-10-05 &middot;
+      plan <code>serving-record-warehouse</code> &sect;15 &middot;
+      dotfiles <code>bin/gpu-watch</code> at 4dfef02, edited as a copy under the
+      run report directory (no test file in scope; the node's write paths reach
+      no repository source, so this anchor carries the landing record only)
+    </p>
+  </header>
+
+  <p>
+    The serve grid is now three bands on the ledger's seven-column grid: the
+    grid Table is built with the ledger's own <code>box</code>, padding and
+    <code>pad_edge</code>, so each band's column right edges land on the
+    ledger header's own edges (13, 28, 43, 58, 73, 88, 103 on the stripped
+    render). Each band is one label row over one value row with a blank
+    separator between bands -- eight rows in all -- the engine band ordered
+    <code>running, queued, tok/s out, tok/s each, prefill/s, ttft s, cache
+    %</code> (<code>prefill tok/s</code> shortened to <code>prefill/s</code>
+    to fit a 12-character column), the <code>availability_percent</code> the
+    lane publishes drawn by <code>pct()</code> in its <code>good</code> mode,
+    and the stale-lane mark on the serve header line. The full modified copy
+    and its unified diff against dotfiles <code>HEAD</code> sit in the run
+    report directory for the coordinator to land.
+  </p>
+</section>
