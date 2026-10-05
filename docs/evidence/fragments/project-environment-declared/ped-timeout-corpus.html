@@ -2,7 +2,7 @@
   <header>
     <h3>Resolving the tests that hit the 300&nbsp;s per-test bound</h3>
     <p class="meta">
-      Node <code>ped-timeout-corpus</code> &middot; measured per-file durations and the outcome for each listed test
+      Node <code>ped-timeout-corpus</code> &middot; measured durations and confirmation for each listed test
     </p>
   </header>
   <p>
@@ -13,31 +13,48 @@
     seconds rounded up to a whole minute; a test whose time is spent waiting on something
     that never arrives has its wait bounded; a test that finishes under the bound alone is
     left unchanged. Work ran on the fleet compute node (job 1277272, nproc&nbsp;28); the
-    load at each run's start is shown, since the node was shared.
+    node was shared, so the load at each run's start is shown.
   </p>
   <table>
-    <thead><tr><th>Test</th><th>Phase</th><th>Measured [s]</th><th>Load1 at start</th><th>Outcome</th></tr></thead>
+    <thead><tr><th>Test</th><th>Phase</th><th>Measured [s]</th><th>Load1</th><th>Outcome</th></tr></thead>
     <tbody>
-      <tr><td><code>tests/fluxstate/test_consumer_contract.py::test_manufactured_states_close_the_nova_force_and_current_ledgers[static]</code></td><td>setup</td><td>1294.30</td><td>39</td><td>marked 2640</td></tr>
-      <tr><td><code>tests/fluxstate/test_consumer_contract.py::test_manufactured_states_close_the_nova_force_and_current_ledgers[rotating]</code></td><td>setup</td><td>1294.30</td><td>39</td><td>marked 2640</td></tr>
-      <tr><td><code>tests/fluxstate/test_consumer_contract.py::test_manufactured_states_close_the_nova_force_and_current_ledgers[sol]</code></td><td>setup</td><td>1294.30</td><td>39</td><td>marked 2640</td></tr>
-      <tr><td><code>tests/fluxstate/test_consumer_contract.py::test_absolute_sources_and_inconsistent_targets_never_mutate_profiles</code></td><td>setup</td><td>1294.30</td><td>39</td><td>marked 2640</td></tr>
-      <tr><td><code>tests/fluxstate/test_consumer_contract.py::test_eager_jitted_and_batched_members_agree</code></td><td>setup</td><td>1294.30</td><td>39</td><td>marked 2640</td></tr>
-      <tr><td><code>tests/data/test_machine_map.py::test_mast_catalog_accounts_for_every_machine_description_array_in_the_corpus</code></td><td>call</td><td>378.50</td><td>39</td><td>marked 780</td></tr>
+      <tr><td><code>tests/fluxstate/test_consumer_contract.py::test_manufactured_states_close_the_nova_force_and_current_ledgers[static]</code></td><td>setup</td><td>2693.92</td><td>6</td><td>marked 5400</td></tr>
+      <tr><td><code>tests/fluxstate/test_consumer_contract.py::test_manufactured_states_close_the_nova_force_and_current_ledgers[rotating]</code></td><td>setup</td><td>2693.92</td><td>6</td><td>marked 5400</td></tr>
+      <tr><td><code>tests/fluxstate/test_consumer_contract.py::test_manufactured_states_close_the_nova_force_and_current_ledgers[sol]</code></td><td>setup</td><td>2693.92</td><td>6</td><td>marked 5400</td></tr>
+      <tr><td><code>tests/fluxstate/test_consumer_contract.py::test_absolute_sources_and_inconsistent_targets_never_mutate_profiles</code></td><td>setup</td><td>2693.92</td><td>6</td><td>marked 5400</td></tr>
+      <tr><td><code>tests/fluxstate/test_consumer_contract.py::test_eager_jitted_and_batched_members_agree</code></td><td>setup</td><td>2693.92</td><td>6</td><td>marked 5400</td></tr>
+      <tr><td><code>tests/data/test_machine_map.py::test_mast_catalog_accounts_for_every_machine_description_array_in_the_corpus</code></td><td>call</td><td>378.50 / 195.68</td><td>39 / 8</td><td>marked 780</td></tr>
       <tr><td><code>tests/test_agent.py::test_clive_unreachable_catalog_never_falls_back_to_openrouter</code></td><td>call</td><td>900.28</td><td>41</td><td>wait fixed (now 5.68&nbsp;s)</td></tr>
-      <tr><td><code>tests/data/test_machine_map.py::test_every_binding_targets_a_writable_shape_compatible_dd_leaf</code></td><td>call</td><td>0.12</td><td>39</td><td>under bound</td></tr>
+      <tr><td><code>tests/data/test_machine_map.py::test_every_binding_targets_a_writable_shape_compatible_dd_leaf</code></td><td>call</td><td>0.12</td><td>8</td><td>under bound</td></tr>
       <tr><td><code>tests/test_filaments3d.py::test_full_loop_flux_consistent_between_a_and_surface_b</code></td><td>call</td><td>270.59</td><td>41</td><td>under bound</td></tr>
-      <tr><tr><td><code>tests/challenge/test_loader.py::test_real_diii_d_schema_on_one_hundred_shots</code></td><td>call</td><td>753.26</td><td>10</td><td>marked 1560</td></tr>
-      <tr><td><code>tests/data/test_machine_map.py::test_every_mast_map_range_is_one_geometry_transition</code></td><td>call</td><td>13.37</td><td>39</td><td>under bound</td></tr>
+      <tr><td><code>tests/challenge/test_loader.py::test_real_diii_d_schema_on_one_hundred_shots</code></td><td>call</td><td>753.26</td><td>10</td><td>marked 1560</td></tr>
+      <tr><td><code>tests/data/test_machine_map.py::test_every_mast_map_range_is_one_geometry_transition</code></td><td>call</td><td>13.37</td><td>8</td><td>under bound</td></tr>
       <tr><td><code>tests/challenge/test_loader.py::test_facts_report_covers_every_circulated_claim</code></td><td>call</td><td>724.46</td><td>10</td><td>marked 1500</td></tr>
     </tbody>
   </table>
+  <h4>Confirmation at the default bound</h4>
   <p>
-    The fluxstate rows carry the 1294.30&nbsp;s setup duration recorded for the shared
-    nova-references fixture in the relock census; this node's own fluxstate run did not
-    complete within its fence, having exceeded 1380&nbsp;s of setup under load1&nbsp;39, so
-    the mark uses the recorded figure. The two machine-map rows reported as aborts in the
-    census but measuring 0.12&nbsp;s and 13.37&nbsp;s here were suite contention, not own
-    work, and are left unchanged.
+    Each file re-run at the default 300&nbsp;s bound, its own process, its own
+    <code>--basetemp</code> under <code>$TMPDIR</code>.
+  </p>
+  <table>
+    <thead><tr><th>File</th><th>Result</th><th>Outcome</th></tr></thead>
+    <tbody>
+      <tr><td><code>tests/challenge/test_loader.py</code></td><td>3 passed in 1486.70&nbsp;s, EXIT=0</td><td>confirmed</td></tr>
+      <tr><td><code>tests/data/test_machine_map.py</code></td><td>29 passed in 337.00&nbsp;s, EXIT=0</td><td>confirmed</td></tr>
+      <tr><td><code>tests/test_agent.py</code></td><td>3 failed, 190 passed in 22.70&nbsp;s, EXIT=1</td><td>only the three pre-existing failures below</td></tr>
+      <tr><td><code>tests/fluxstate/test_consumer_contract.py</code></td><td>1 passed, 5 errors, EXIT=1 &mdash; setup 2693.92&nbsp;s</td><td colspan="">2640 mark too small; raised to 5400, re-run outstanding</td></tr>
+    </tbody>
+  </table>
+  <p>
+    The machine-map inventory row is load-borderline: 378.50&nbsp;s under load1&nbsp;39,
+    195.68&nbsp;s under light load, and a census abort at 300.09&nbsp;s. The mark is kept
+    because the test exceeds the default under shared-node load and a wider bound costs
+    nothing. The two other machine-map rows reported as aborts were suite contention
+    (0.12&nbsp;s and 13.37&nbsp;s alone), not own work, and are unchanged. The three
+    <code>tests/test_agent.py</code> failures are pre-existing and unrelated to this node:
+    <code>test_agent_serve_gpu_help_matches_core_scaling</code> and
+    <code>test_clive_openrouter_opt_in_starts_proxy_and_presents_picker[mode_arguments0]</code>
+    and <code>[mode_arguments1]</code>.
   </p>
 </section>
