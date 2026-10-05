@@ -24,8 +24,9 @@
   <title>JT-60SA Machine Map for Equilibrium Reconstruction | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="5">
+<meta name="plan-version" content="7">
 <meta name="plan-modified" content="2026-10-05">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 </head>
 <body>
   <main class="plan-doc">
@@ -440,8 +441,25 @@
       be copied to GPFS before §4 runs on ITER.
     </p>
     <p>
-      <strong>Open on the user.</strong> The five decisions above; whether the mirror lives on
-      GPFS beside the MAST mirror; and the choice of OP2 shot set for the §7 baseline.
+      <strong>Access measured at build start (2026-10-05 05:29 UTC, from fleet node
+      <code>98dci4-clu-2018</code>).</strong> <code>ssh -o BatchMode=yes jt-60sa</code> answers
+      (remote hostname <code>intr26-2</code>), so the §3 extractor and its operational fetch
+      can run from ITER compute now. The workstation itself answers as
+      <code>ssh laptop</code> (hostname <code>FR-IWL-MCINTOS1</code>): the SELENE decks and
+      the nakamap seeds are at <code>laptop:~/.local/share/machine_description/coil_geometry/</code>
+      (<code>coil_vv_OP1.dat</code>, <code>coil_vv_OP2.dat</code>, the per-phase
+      <code>loop_data</code>, <code>probe_data</code> and <code>contour_data</code> netCDF tables,
+      and <code>jt60sa_md_OP1.nc</code>/<code>jt60sa_md_OP2.nc</code>, about 330 kB in all) and
+      are copied with <code>scp laptop:…</code> to
+      <code>/work/projects/imas_gpu/jt60sa/machine_description/</code>, which does not yet exist.
+      The converter logic is the <code>nakamap</code> package,
+      <a href="https://github.com/Simon-McIntosh/nakamap">Simon-McIntosh/nakamap</a> at
+      <code>5fec869</code> (modules <code>coil_data</code>, <code>pf_active</code>,
+      <code>pf_passive</code>, <code>magnetics</code>, <code>wall</code>); clone it over HTTPS
+      because GitHub ssh on port 22 is refused from compute nodes.
+    </p>
+    <p>
+      <strong>Open on the user.</strong> The choice of OP2 shot set for the §7 baseline.
     </p>
 
     <section data-reckon="gates" id="gates" class="r-gates">
