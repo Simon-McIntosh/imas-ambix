@@ -27,6 +27,8 @@ from imas_ambix.data.machine_map import (
 from imas_ambix.data.transform_engine import (
     TRANSFORM_ENGINE_FORMATS,
     BindingTransformError,
+    TransformEngineError,
+    get_transform_engine,
     transform_machine_description,
 )
 
@@ -350,6 +352,77 @@ def test_source_only_catalog_uses_the_same_no_corpus_entry_point(
     assert result.emitted_array_count == 0
     assert result.missing_bindings == ("diii-d-plasma-current",)
     assert "pulse store is absent" in result.detail
+
+
+def test_netcdf_static_store_reads_one_directory_for_every_shot_in_the_map(tmp_path):
+    catalog = _catalog_with_only_plasma_current()
+    machine_map = replace(
+        catalog.maps[0],
+        name="synthetic-static-map",
+        first_shot=100,
+        last_shot=200,
+        transition=None,
+    )
+    catalog = replace(
+        catalog,
+        maps=(machine_map,),
+        description_store_layout="static-over-map",
+    )
+    binding = catalog.bindings_for(machine_map)[0]
+
+    factory = imas.IDSFactory(catalog.dd_version)
+    values = np.asarray([1.0, 2.0, 3.0], dtype=np.float64)
+    static_directory = tmp_path / machine_map.name
+    static_directory.mkdir(parents=True)
+    _write_netcdf_fixture(
+        static_directory / "magnetics.nc",
+        factory,
+        binding,
+        values,
+        catalog.dd_version,
+    )
+
+    for shot in (101, 199):
+        result = transform_machine_description(catalog, shot, "netcdf", tmp_path)
+        assert result.status == "emitted"
+        assert result.machine_map == machine_map
+        assert result.emitted_array_count == 1
+        _assert_array_equal(result.arrays[0].values, values)
+
+    assert not (tmp_path / "101").exists()
+    assert not (tmp_path / "199").exists()
+    assert {entry.name for entry in tmp_path.iterdir()} == {machine_map.name}
+    print(
+        f"STATIC_STORE map={machine_map.name} shot_dirs=0 "
+        f"reads=2 emitted=1"
+    )
+
+
+def test_zarr_engine_refuses_a_static_over_map_layout(tmp_path):
+    engine = get_transform_engine("zarr")
+    with pytest.raises(TransformEngineError, match="static-over-map"):
+        engine.open(tmp_path, 101, "4.1.1", store_layout="static-over-map")
+
+
+def test_zarr_catalog_declaring_static_over_map_is_refused_not_read_per_shot(
+    tmp_path,
+):
+    catalog = _catalog_with_only_plasma_current()
+    machine_map = replace(
+        catalog.maps[0],
+        name="synthetic-zarr-static-map",
+        first_shot=100,
+        last_shot=200,
+        transition=None,
+    )
+    catalog = replace(
+        catalog,
+        maps=(machine_map,),
+        description_store_format="zarr",
+        description_store_layout="static-over-map",
+    )
+    with pytest.raises(TransformEngineError, match="static-over-map"):
+        transform_machine_description(catalog, 150, "zarr", tmp_path)
 
 
 def test_engine_registry_is_format_scoped_and_has_no_machine_conditionals():
