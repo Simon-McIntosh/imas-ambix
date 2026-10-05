@@ -1,0 +1,23 @@
+<section class="evidence-fragment" data-reckon="evidence" id="ped-declare-threadpoolctl">
+  <header>
+    <h3>threadpoolctl declared in the dev group; the lock admits it without moving any version</h3>
+    <p class="meta">
+      Node <code>ped-declare-threadpoolctl</code> &middot; dev-group declaration relock
+    </p>
+  </header>
+  <p>
+    <code>threadpoolctl</code> is added to the <code>[dependency-groups]</code> <code>dev</code>
+    list of <code>pyproject.toml</code> with no version bound, so the test session's
+    per-worker thread-pool cap can reach a BLAS or OpenMP pool a library has already
+    loaded. The package was already resolved as a transitive dependency of
+    <code>scikit-learn</code> at 3.6.0, so the declaration admits the version already
+    present: relocking in a scratch copy of the worktree (whose <code>../nova</code> and
+    <code>../imas-ink</code> are symlinks to the sibling checkouts) and diffing package
+    names and versions against the base <code>uv.lock</code> reports
+    <strong>0 version changes across 236 packages</strong> — no package added, removed or
+    moved. The only lock change is the two <code>{ name = "threadpoolctl" }</code> edges
+    in the <code>dev</code> group's dependency and metadata lists. The relocked
+    <code>uv.lock</code> was copied back and <code>UV_OFFLINE=0 uv lock --check</code>
+    exits 0 against it.
+  </p>
+</section>
