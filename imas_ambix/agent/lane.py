@@ -701,6 +701,59 @@ def _is_finite_number(value: object) -> bool:
     )
 
 
+def engine_headroom(document: Mapping[str, object]) -> int | float | None:
+    """The engine's own headroom figure, whether it published or withheld it.
+
+    A lane that sized publishes ``headroom`` at the top level. A lane that
+    refused to size publishes no top-level headroom, but reports the figure it
+    withheld under ``withheld.headroom`` -- the engine's own estimate for the
+    cases it would not commit to, kept so a reader can see what it would have
+    said. Returns ``None`` when neither is a finite number, which is how an
+    unreadable lane is told from one that merely declined to size.
+    """
+    published = document.get("headroom")
+    if _is_finite_number(published):
+        return published
+    withheld = document.get("withheld")
+    if isinstance(withheld, dict):
+        estimate = withheld.get("headroom")
+        if _is_finite_number(estimate):
+            return estimate
+    return None
+
+
+def lane_headroom(document: Mapping[str, object]) -> int | float | None:
+    """The document's top-level headroom under the gate-bounded rule.
+
+    The engine's figure (:func:`engine_headroom`) is bounded by the gate's own
+    ``admission.headroom``, so a lane that cannot size its engine reads as open
+    exactly as far as the router gate admits rather than publishing nothing.
+    The gate is what makes that safe: it admits at most its effective width
+    whatever a reader takes from here, so an open reading cannot push the
+    engine past the throughput knee.
+
+    With no numeric engine figure at all the gate's figure stands alone, which
+    is the withheld estimate the engine did not commit to. A document carrying
+    no headroom, no withheld block and no sizing verdict is not a lane reading
+    at all -- an unreadable lane -- and yields ``None`` rather than a figure the
+    gate happened to be admitting at a moment the engine could not be read.
+    """
+    if (
+        "headroom" not in document
+        and "withheld" not in document
+        and "sizing_verdict" not in document
+    ):
+        return None
+    engine = engine_headroom(document)
+    admission = document.get("admission")
+    gate = admission.get("headroom") if isinstance(admission, dict) else None
+    if engine is None:
+        return gate if _is_finite_number(gate) else None
+    if not _is_finite_number(gate):
+        return engine
+    return min(engine, gate)
+
+
 def write_lane_document(
     capacity: LaneCapacity,
     path: str | Path,

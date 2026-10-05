@@ -19,7 +19,12 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 import aiohttp
 
-from imas_ambix.agent.lane import LaneCapacity, availability_percent
+from imas_ambix.agent.lane import (
+    LaneCapacity,
+    availability_percent,
+    engine_headroom,
+    lane_headroom,
+)
 from imas_ambix.agent.request_receipts import (
     DEFAULT_MAX_ROWS_PER_S,
     DEFAULT_WINDOW_S,
@@ -385,29 +390,35 @@ class _AdmissionLedger:
             and now - self._first_admission >= self._min_history
         )
         if live_runs < self._min_live_runs or not history_ready or keyed_busy <= 0:
-            fields["requests_per_run"] = None
-            fields["worker_slots"] = None
-            self._withhold_session_figures(fields)
-            return fields
+            return self._assume_one_request_per_run(
+                fields,
+                now=now,
+                effective_width=effective_width,
+                verdict=verdict,
+                live_runs=live_runs,
+            )
         published_ratio = round(keyed_busy / observed / live_runs, 3)
         if published_ratio <= 0:
             # A ratio that rounds to zero would divide by zero in the slot
             # arithmetic and describes no request a run can actually hold, so
-            # it is withheld on the same rule as a thin window rather than
-            # published as a figure no reader can apply.
-            fields["requests_per_run"] = None
-            fields["worker_slots"] = None
-            self._withhold_session_figures(fields)
-            return fields
+            # the ratio is withheld -- but the slots it would have sized are
+            # still published, from the assumed one request per run.
+            return self._assume_one_request_per_run(
+                fields,
+                now=now,
+                effective_width=effective_width,
+                verdict=verdict,
+                live_runs=live_runs,
+            )
         fields["requests_per_run"] = published_ratio
+        fields["worker_slots_basis"] = "measured"
         # The capacity the per-session share divides, from the published ratio so
         # a reader's own arithmetic on the two published figures is the figure
         # the router published.
         capacity = math.floor(effective_width / published_ratio)
-        if verdict in ("congested", "full", "paused"):
-            fields["worker_slots"] = 0
-        else:
-            fields["worker_slots"] = max(0, capacity - live_runs)
+        fields["worker_slots"] = self._slot_count(
+            verdict=verdict, capacity=capacity, live_runs=live_runs
+        )
         fields.update(
             self._session_figures(
                 now=now,
@@ -417,19 +428,51 @@ class _AdmissionLedger:
         )
         return fields
 
-    @staticmethod
-    def _withhold_session_figures(fields: dict[str, object]) -> None:
-        """Publish the per-session figures as null, beside a null slot count.
+    def _assume_one_request_per_run(
+        self,
+        fields: dict[str, object],
+        *,
+        now: float,
+        effective_width: int,
+        verdict: str,
+        live_runs: int,
+    ) -> dict[str, object]:
+        """Publish slots from an assumed one request per run.
 
-        A figure derived from a withheld ratio is withheld with it, so a reader
-        sees the refusal rather than a per-session count computed from a
-        denominator the router declined to publish.
+        The measured ratio cannot be formed on a thin window -- fewer than the
+        minimum live runs, less than the minimum history, no keyed busy time, or
+        a ratio that rounds to zero. Rather than withhold the slots, the ledger
+        assumes one request per run, the most a run can hold, so the figure is
+        an upper bound bounded by the gate and never overstates the measured one.
+        The ratio itself stays null and ``worker_slots_basis`` reads ``assumed``,
+        so reckon and gpu-watch can tell the two apart.
+
+        Capacity is then the whole effective width, and the per-session figures
+        divide that same capacity, so a lane that cannot measure its ratio still
+        offers a dispatcher the unit it works in.
         """
-        fields["active_sessions"] = None
-        fields["fair_share"] = None
-        fields["borrow_reserve"] = None
-        fields["new_session_worker_slots"] = None
-        fields["sessions"] = None
+        fields["requests_per_run"] = None
+        fields["worker_slots_basis"] = "assumed"
+        capacity = max(0, effective_width)
+        slots = self._slot_count(
+            verdict=verdict, capacity=capacity, live_runs=live_runs
+        )
+        fields["worker_slots"] = slots
+        fields.update(
+            self._session_figures(now=now, capacity=capacity, global_slots=slots)
+        )
+        return fields
+
+    @staticmethod
+    def _slot_count(*, verdict: str, capacity: int, live_runs: int) -> int:
+        """The remaining global slots: capacity less the runs, or 0 when clamped.
+
+        A congested, full or paused verdict admits nothing new whatever the
+        capacity, so every slot figure derived from it is zero.
+        """
+        if verdict in ("congested", "full", "paused"):
+            return 0
+        return max(0, capacity - live_runs)
 
     def _session_figures(
         self, *, now: float, capacity: int, global_slots: int
@@ -2138,12 +2181,18 @@ class RouterApp:
             admission = self._generation_gate.admission_document()
             document["router_generation_gate"] = gate_snapshot
             document["admission"] = admission
-            engine_headroom = document.get("headroom")
-            if isinstance(engine_headroom, int | float) and not isinstance(
-                engine_headroom, bool
-            ):
-                document["engine_headroom"] = engine_headroom
-                document["headroom"] = min(engine_headroom, admission["headroom"])
+            # The top-level headroom is the engine's own figure -- published
+            # when it sized, its withheld estimate when it refused to -- bounded
+            # by what the gate admits. With no numeric engine figure the gate's
+            # figure stands alone. `engine_headroom` records whichever engine
+            # figure entered the minimum, so a reader can still see that the
+            # engine refused to size even while the lane reads as open.
+            selected = lane_headroom(document)
+            if selected is not None:
+                engine_figure = engine_headroom(document)
+                if engine_figure is not None:
+                    document["engine_headroom"] = engine_figure
+                document["headroom"] = selected
             # Both inputs are final here: `headroom` is the admission-clamped
             # figure above, and the gate snapshot carries the width in force and
             # the pause. Publishing the percentage beside the field it derives

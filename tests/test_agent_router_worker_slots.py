@@ -47,6 +47,7 @@ def test_fleet_publishes_live_runs_ratio_and_worker_slots() -> None:
     snapshot = ledger.snapshot(now=_NOW, effective_width=16, verdict="open")
     assert snapshot["live_runs"] == 14
     assert snapshot["requests_per_run"] == 0.471
+    assert snapshot["worker_slots_basis"] == "measured"
     assert snapshot["worker_slots"] == 19
     assert snapshot["window_seconds"] == 900.0
     assert snapshot["samples"] == 14
@@ -161,7 +162,13 @@ def test_congested_verdict_clamps_worker_slots_to_zero() -> None:
         )
 
 
-def test_two_live_runs_publish_null_even_while_congested() -> None:
+def test_two_live_runs_assume_the_ratio_and_clamp_to_zero_when_congested() -> None:
+    """Below the ratio floor the slots are assumed, and a congested gate is 0.
+
+    Two runs are fewer than the ratio rests on, so no measured ratio is formed,
+    but the slots are still published from the assumed one request per run --
+    and a congested verdict clamps them to zero whatever the assumed capacity.
+    """
     now = _NOW
     ledger = _AdmissionLedger()
     for index in range(2):
@@ -170,7 +177,8 @@ def test_two_live_runs_publish_null_even_while_congested() -> None:
     snapshot = ledger.snapshot(now=now, effective_width=16, verdict="congested")
     assert snapshot["live_runs"] == 2
     assert snapshot["requests_per_run"] is None
-    assert snapshot["worker_slots"] is None
+    assert snapshot["worker_slots_basis"] == "assumed"
+    assert snapshot["worker_slots"] == 0
 
 
 def test_request_before_window_contributes_only_its_in_window_time() -> None:
@@ -211,14 +219,14 @@ def test_unkeyed_request_raises_share_and_leaves_ratio_unchanged() -> None:
     assert snapshot["unkeyed_share"] == 900.0 / (5940.0 + 900.0)
 
 
-def test_ratio_rounding_to_zero_withholds_both_derived_figures() -> None:
-    """A ratio that rounds to zero is withheld, withholds both derived figures.
+def test_ratio_rounding_to_zero_withholds_the_ratio_but_assumes_the_slots() -> None:
+    """A ratio that rounds to zero is withheld while the slots are assumed.
 
     Three live runs each hold 0.1 s inside the window, so keyed busy time is
     0.3 s over a 900 s window for three runs -- 0.0001, which rounds to 0.0 at
     three decimals. A published 0.0 would divide by zero in the slot
-    arithmetic, so ``requests_per_run`` and ``worker_slots`` are both withheld
-    while ``live_runs`` still reports the three runs sharing the lane.
+    arithmetic, so ``requests_per_run`` is withheld and the slots are published
+    from the assumed one request per run: 16 - 3 = 13.
     """
     now = _NOW
     ledger = _AdmissionLedger()
@@ -230,19 +238,21 @@ def test_ratio_rounding_to_zero_withholds_both_derived_figures() -> None:
     assert round(3 * 0.1 / snapshot["window_seconds"] / 3, 3) == 0.0
     assert snapshot["live_runs"] == 3
     assert snapshot["requests_per_run"] is None
-    assert snapshot["worker_slots"] is None
+    assert snapshot["worker_slots_basis"] == "assumed"
+    assert snapshot["worker_slots"] == 13
 
 
-def test_empty_window_publishes_zero_runs_and_null_share() -> None:
+def test_empty_window_publishes_zero_runs_and_the_whole_open_width() -> None:
     ledger = _AdmissionLedger()
     snapshot = ledger.snapshot(now=_NOW, effective_width=16, verdict="open")
     assert snapshot["live_runs"] == 0
     assert snapshot["unkeyed_share"] is None
     assert snapshot["requests_per_run"] is None
-    assert snapshot["worker_slots"] is None
+    assert snapshot["worker_slots_basis"] == "assumed"
+    assert snapshot["worker_slots"] == 16
 
 
-def test_fresh_ledger_withholds_derived_figures_until_history_elapses() -> None:
+def test_fresh_ledger_assumes_slots_then_measures_once_history_elapses() -> None:
     start = _NOW
     ledger = _AdmissionLedger()
     for index in range(4):
@@ -251,10 +261,43 @@ def test_fresh_ledger_withholds_derived_figures_until_history_elapses() -> None:
     early = ledger.snapshot(now=start + 299.0, effective_width=16, verdict="open")
     assert early["live_runs"] == 4
     assert early["requests_per_run"] is None
-    assert early["worker_slots"] is None
+    assert early["worker_slots_basis"] == "assumed"
+    assert early["worker_slots"] == 12
     ready = ledger.snapshot(now=start + 300.0, effective_width=16, verdict="open")
     assert ready["requests_per_run"] is not None
+    assert ready["worker_slots_basis"] == "measured"
     assert ready["worker_slots"] is not None
+
+
+def test_assumed_slots_follow_from_one_request_per_run() -> None:
+    """Two live runs with 100 s of history publish the assumed slots.
+
+    Below both the ratio's run floor and its history floor, the ledger assumes
+    one request per run, so at width 16 it offers 16 - 2 = 14 slots, with the
+    ratio still null and the basis reading ``assumed``.
+    """
+    now = _NOW
+    ledger = _AdmissionLedger()
+    for index in range(2):
+        busy = ledger.admit(f"r-{index}", now=now - 100.0)
+        ledger.release(busy, now=now)
+    snapshot = ledger.snapshot(now=now, effective_width=16, verdict="open")
+    assert snapshot["live_runs"] == 2
+    assert snapshot["requests_per_run"] is None
+    assert snapshot["worker_slots_basis"] == "assumed"
+    assert snapshot["worker_slots"] == 14
+
+
+def test_paused_verdict_zeroes_the_assumed_slots() -> None:
+    """A paused gate admits nothing, assumed basis or not."""
+    now = _NOW
+    ledger = _AdmissionLedger()
+    busy = ledger.admit("r-0", now=now - 100.0)
+    ledger.release(busy, now=now)
+    snapshot = ledger.snapshot(now=now, effective_width=16, verdict="paused")
+    assert snapshot["requests_per_run"] is None
+    assert snapshot["worker_slots_basis"] == "assumed"
+    assert snapshot["worker_slots"] == 0
 
 
 def test_live_runs_counts_run_ids_from_the_request_header() -> None:
@@ -451,26 +494,27 @@ def test_congested_verdict_zeroes_every_per_session_figure() -> None:
     assert snapshot["new_session_worker_slots"] == 0
 
 
-def test_session_figures_are_null_when_the_ratio_is_withheld() -> None:
-    """A withheld ratio withholds every figure derived from it.
+def test_session_figures_divide_the_assumed_capacity_when_the_ratio_is_withheld() -> (
+    None
+):
+    """A withheld ratio still offers the session its share of the assumed one.
 
-    Two live runs are below the minimum the ratio rests on, so the ratio and the
-    global figure are withheld -- and the session figures, which divide a
-    capacity derived from that ratio, are withheld with it rather than computed
-    from a denominator the router declined to publish.
+    Two live runs are below the minimum the ratio rests on, so the ratio is
+    withheld and the slots are assumed at one request per run. The per-session
+    figures divide that same assumed capacity: one session working alone takes
+    the whole figure of 12 - 2 = 10.
     """
     ledger = _session_ledger(_NOW, workers={"A": 2})
-    withheld = ledger.snapshot(now=_NOW, effective_width=12, verdict="open")
-    assert withheld["live_runs"] == 2
-    assert withheld["requests_per_run"] is None
-    for key in (
-        "active_sessions",
-        "fair_share",
-        "borrow_reserve",
-        "new_session_worker_slots",
-        "sessions",
-    ):
-        assert withheld[key] is None
+    assumed = ledger.snapshot(now=_NOW, effective_width=12, verdict="open")
+    assert assumed["live_runs"] == 2
+    assert assumed["requests_per_run"] is None
+    assert assumed["worker_slots_basis"] == "assumed"
+    assert assumed["worker_slots"] == 10
+    assert assumed["active_sessions"] == 1
+    assert assumed["fair_share"] == 12
+    assert assumed["borrow_reserve"] == 2
+    assert assumed["new_session_worker_slots"] == 8
+    assert assumed["sessions"] == {"A": {"live_runs": 2, "worker_slots": 10}}
 
 
 def test_session_share_is_keyed_from_the_caller_declared_headers() -> None:

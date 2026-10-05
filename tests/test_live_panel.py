@@ -403,11 +403,39 @@ def test_lane_block_derives_availability_when_the_document_lacks_it():
     assert block["availability_percent"] == 50.0
 
 
-def test_lane_block_omits_availability_when_the_headroom_is_withheld():
+def test_lane_block_derives_availability_from_a_withheld_document():
+    """A document predating the rule draws availability from its withheld estimate.
+
+    The document carries no top-level headroom -- it predates the rule that
+    publishes one bounded by the gate -- but it does carry the withheld estimate
+    of 7 against an effective width of 16, so the shared selection derives 43.75
+    rather than leaving the figure omitted.
+    """
     document = {
         "observed_at": _stamp(0.0),
         "state": "measured",
+        "sizing_verdict": "do-not-size",
         "withheld": {"headroom": 7, "concurrent_requests": 9, "why": "idle"},
+        "router_generation_gate": {
+            "width": 16,
+            "effective_width": 16,
+            "in_flight": 0,
+            "waiting": 0,
+            "paused": False,
+        },
+    }
+    block = lane_block(document, now=BASE)
+    assert block["availability_percent"] == 43.75
+    assert "headroom" not in block
+    assert block["withheld"]["headroom"] == 7
+
+
+def test_lane_block_omits_availability_when_the_document_is_unreadable():
+    """An unreadable lane has no figure to divide, so no percentage is derived."""
+    document = {
+        "observed_at": _stamp(0.0),
+        "state": "unavailable",
+        "reason": "metrics unreachable",
         "router_generation_gate": {
             "width": 16,
             "effective_width": 16,
@@ -516,6 +544,34 @@ def test_lane_block_copies_the_per_session_share_fields():
     assert slots["new_session_worker_slots"] == 8
     assert slots["sessions"] == {"A": {"live_runs": 2, "worker_slots": 10}}
     assert slots["worker_slots"] == 10
+
+
+def test_lane_block_copies_the_worker_slot_basis():
+    """The basis travels with the slots it qualifies.
+
+    ``worker_slots_basis`` says whether the figure was measured or assumed at
+    one request per run, so a reader can tell a level from an upper bound; a
+    copy that dropped it would report one as the other.
+    """
+    document = {
+        "observed_at": _stamp(0.0),
+        "admission": {
+            "headroom": 6,
+            "verdict": "open",
+            "waiting": 0,
+            "oldest_wait_seconds": 0.0,
+            "live_runs": 2,
+            "observed_seconds": 100.0,
+            "requests_per_run": None,
+            "worker_slots": 14,
+            "worker_slots_basis": "assumed",
+            "unkeyed_share": 0.0,
+        },
+    }
+    slots = lane_block(document, now=BASE)["worker_slots"]
+    assert slots["worker_slots_basis"] == "assumed"
+    assert slots["requests_per_run"] is None
+    assert slots["worker_slots"] == 14
 
 
 def test_lane_block_keeps_headroom_is_upper_bound_with_its_figure():
