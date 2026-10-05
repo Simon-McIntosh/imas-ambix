@@ -26,7 +26,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="80e9f492,8a58accb,9a4bad01,d0fb6648,a8c7ce1a,5d448418,f746157b">
 <meta name="plan-impl" content="0.8">
-<meta name="plan-version" content="36">
+<meta name="plan-version" content="37">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -196,6 +196,9 @@
 </div>
 <div class="r-comment" data-section="s5" data-id="c-20261005T145500-timeouts" data-who="reckon-build" data-when="2026-10-05T14:55:00Z">
     <div class="r-comment-body"><p>Three of four parts merged. Latent (d0fb6648): all 18 finish under 300 s alone, slowest 133 s, no marks; a 60 s bound aborts the slowest, so the bound is live. Worldmodel (a8c7ce1a): 6 of 7 under the bound; <code>test_real_shot_overfit_smoke</code> measured 540 s and is marked 1080. Corpus (5d448418): machine-map inventory 780, challenge-loader sweeps 1560 and 1500, three fluxstate consumer-contract tests 5400 over a shared fixture measured at 1294 s and then 2694 s under heavier load; the unreachable-catalog agent test bounds its launcher retry instead of waiting out 900 s. Remaining: the whole-suite run at <code>-n 8</code> in the synced environment, which also confirms the fluxstate mark. A 22 to 45 minute fixture in the default suite is for the fluxstate owner to make opt-in.</p></div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-run-r-20261005T145512577964-ped-timeout-suite" data-who="reckon-build" data-when="2026-10-05T17:28:27.140Z">
+    <div class="r-comment-body"><p>landing: docs/evidence/fragments/project-environment-declared/ped-timeout-suite.html — whole-suite run at bdf18986 (job 1281038, -n 16) aborted 55 pytest-timeout tests, 27 accounted for by the three measurement fragments and 28 not (the blocker); job 1281039 (fluxstate contract file alone) not confirmed, killed at the 59-minute slot with 5 of 6 tests passed and no summary.</p></div>
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20261005T155053774756-ped-import-walk" data-who="reckon-build" data-when="2026-10-05T16:02:28.683Z">
     <div class="r-comment-body"><p>folded the fresh-environment import walk into tests/test_declared_dependencies.py — a hand-off writer (optional set from build_census() + module_distribution_map()), an interpreter walk over imas_ambix/ that classifies each failure, and handoff/walk modes on main, with a synthetic-module classifier unit test; the walk imports 313 imas_ambix modules with 313 imported, 0 optional-missing, 0 hard failures in the synced shared environment</p></div>
