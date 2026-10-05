@@ -12,11 +12,15 @@
     <section id="jtmm-eddb-extractor-landing">
       <p>Built the ambix EDDB batch extractor and its on-demand cache:
       <code>imas_ambix/data/eddb_remote.py</code> reads a batch of
-      <code>(shot, category, dname)</code> channels in one remote process,
-      <code>imas_ambix/data/eddb.py</code> writes each raw channel to
+      <code>(shot, category, dname)</code> channels in one remote process over
+      the module-loaded python 3.12, niced, with the ssh config path expanded at
+      call time and a missing time base refused rather than invented;
+      <code>imas_ambix/data/eddb.py</code> normalises the shot token to its
+      integer form, writes each raw channel to
       <code>{shot}.zarr/{category}/{dname}</code> with its EDDB unit, channel
-      count and sequence number and refuses to overwrite one already cached,
-      and <code>JT60SA_ROOT</code> is declared once in
+      count and sequence number plus the EDDB time vector as a sibling array,
+      and refuses to overwrite one already cached through the one predicate the
+      reader shares; and <code>JT60SA_ROOT</code> is declared once in
       <code>imas_ambix/data/paths.py</code>.</p>
     </section>
   </main>

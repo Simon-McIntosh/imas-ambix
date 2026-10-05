@@ -2,16 +2,22 @@
 
 The remote process and the EDDB itself are not reachable from a test, so the
 transport seam is driven by a fake that answers with synthetic arrays in the
-EDDB record shape.  Every assertion below is about the extractor and the cache:
-one remote process per batch, the ssh prefix as configuration, the raw channel
-landing with its EDDB attributes, the no-op on an already-cached channel, the
-refusal to overwrite, and the cached store opening through the real engine and
-view with no transport call.
+EDDB record shape, and the real :data:`REMOTE_SCRIPT` is executed under the
+local python against a fake ``eddb_pwrapper`` module.  Every assertion below is
+about the extractor and the cache: one remote process per batch, the ssh prefix
+as configuration, the module-loaded remote command, the raw channel landing
+with its EDDB attributes and its own time base, the no-op on an already-cached
+channel, the refusal to overwrite, the one predicate shared by the reader and
+the writer, and the cached store opening through the real engine and view with
+no transport call.
 """
 
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 from dataclasses import replace
 
 import numpy as np
@@ -21,11 +27,17 @@ import zarr
 from imas_ambix.data.eddb import (
     EddbCacheError,
     channel_path,
+    channel_time_path,
     fetch_channels,
+    is_cached,
     write_channel,
 )
 from imas_ambix.data.eddb_remote import (
     DEFAULT_SSH_COMMAND,
+    NICE_LEVEL,
+    PYTHON_MODULE_LOAD,
+    PYTHON_MODULE_UNLOAD,
+    REMOTE_SCRIPT,
     ChannelRecord,
     ChannelRequest,
     RemoteEddbExtractor,
@@ -38,6 +50,37 @@ from imas_ambix.data.paths import JT60SA_ROOT
 from imas_ambix.data.signal_map import MAP_SCHEMA_VERSION, SignalMap, SignalRule
 from imas_ambix.data.transform_engine import ZarrTransformEngine
 from imas_ambix.data.virtual_zarr import VirtualZarrView
+
+# A stand-in for the analysis server's eddb_pwrapper.  It returns a known
+# time series for any name except NOTIME, which returns data with no time base
+# so the refusal path can be exercised.
+FAKE_WRAPPER = '''
+import numpy as np
+
+
+class eddbWrapper:
+    def __init__(self, lib_path):
+        self.lib_path = lib_path
+
+    def eddbOpen(self):
+        return True
+
+    def eddbClose(self):
+        return True
+
+    def eddbreadOne(self, *args, **kwargs):
+        return False, None
+
+    def eddbreadTime(self, shot, category, dname, t1, t2):
+        if dname == "NOTIME":
+            return True, {"data": np.arange(6.0).reshape(2, 3)}
+        return True, {
+            "data": np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]),
+            "time": np.array([0.0, 0.5, 1.0]),
+            "unit": "A",
+            "seq": 42,
+        }
+'''
 
 
 def _request(shot: str, category: str, dname: str) -> ChannelRequest:
@@ -76,6 +119,12 @@ class _FakeTransport:
         return encode_batch(
             [self._factory(spec) for spec in request_spec["requests"]]
         )
+
+
+def _extractor(transport=None) -> RemoteEddbExtractor:
+    return RemoteEddbExtractor(
+        transport=transport if transport is not None else _FakeTransport()
+    )
 
 
 def _binding(category: str, dname: str) -> ChannelBinding:
@@ -125,16 +174,42 @@ def _signal_map(category: str, dname: str) -> SignalMap:
     )
 
 
-def test_ssh_command_is_configuration_and_defaults_to_the_jt60sa_alias(tmp_path):
+def _run_remote_script(tmp_path, requests: list[dict[str, str]]):
+    """Run the real REMOTE_SCRIPT locally against the fake eddb_pwrapper."""
+
+    (tmp_path / "eddb_pwrapper.py").write_text(FAKE_WRAPPER)
+    payload = json.dumps(
+        {
+            "api_path": str(tmp_path),
+            "lib_path": "/analysis/lib/libeddb.so",
+            "requests": requests,
+        }
+    ).encode("utf-8")
+    return subprocess.run(
+        [sys.executable, "-c", REMOTE_SCRIPT],
+        input=payload,
+        capture_output=True,
+        timeout=120,
+        check=False,
+    )
+
+
+def test_ssh_command_defaults_to_the_jt60sa_alias_and_is_configurable(tmp_path):
     assert DEFAULT_SSH_COMMAND == ("ssh", "-F", "~/.ssh/config", "jt-60sa")
 
     default_transport = _FakeTransport()
-    default_extractor = RemoteEddbExtractor(transport=default_transport)
     fetch_channels(
-        default_extractor, tmp_path / "default", [_request("1", "MMSYS", "CS1")]
+        _extractor(default_transport),
+        tmp_path / "default",
+        [_request("1", "MMSYS", "CS1")],
     )
     default_argv, _ = default_transport.calls[0]
-    assert default_argv[: len(DEFAULT_SSH_COMMAND)] == list(DEFAULT_SSH_COMMAND)
+    assert default_argv[:4] == [
+        "ssh",
+        "-F",
+        os.path.expanduser("~/.ssh/config"),
+        "jt-60sa",
+    ]
 
     custom_transport = _FakeTransport()
     custom = RemoteEddbExtractor(
@@ -145,28 +220,49 @@ def test_ssh_command_is_configuration_and_defaults_to_the_jt60sa_alias(tmp_path)
     assert custom_argv[:4] == ["ssh", "-p", "2222", "jt-60sa"]
 
 
+def test_ssh_config_path_is_expanded_to_an_absolute_path_at_call_time(tmp_path):
+    transport = _FakeTransport()
+    fetch_channels(_extractor(transport), tmp_path, [_request("1", "MMSYS", "CS1")])
+    argv, _ = transport.calls[0]
+
+    assert argv[1] == "-F"
+    assert argv[2] == os.path.expanduser("~/.ssh/config")
+    assert argv[2].startswith("/")
+    assert "~" not in argv[2]
+
+
+def test_remote_command_loads_the_python_module_and_runs_niced(tmp_path):
+    transport = _FakeTransport()
+    fetch_channels(_extractor(transport), tmp_path, [_request("1", "MMSYS", "CS1")])
+    argv, _ = transport.calls[0]
+    shell_command = argv[4]
+
+    assert f"module unload {PYTHON_MODULE_UNLOAD}" in shell_command
+    assert f"module load {PYTHON_MODULE_LOAD}" in shell_command
+    assert f"nice -n {NICE_LEVEL}" in shell_command
+    assert NICE_LEVEL == 19
+    assert "python -c" in shell_command
+
+
 def test_one_transport_process_per_batch(tmp_path):
     transport = _FakeTransport()
-    extractor = RemoteEddbExtractor(transport=transport)
     requests = [
         _request("51234", "MMSYS", "CS1"),
         _request("51234", "MMSYS", "EF1"),
         _request("51234", "PSRC", "Ip"),
     ]
 
-    records = fetch_channels(extractor, tmp_path, requests)
+    records = fetch_channels(_extractor(transport), tmp_path, requests)
 
     assert len(transport.calls) == 1
     assert {record.dname for record in records} == {"CS1", "EF1", "Ip"}
 
 
-def test_each_channel_lands_raw_with_eddb_attributes(tmp_path):
+def test_each_channel_lands_raw_with_eddb_attributes_and_its_time_base(tmp_path):
     transport = _FakeTransport()
-    extractor = RemoteEddbExtractor(transport=transport)
-    request = _request("51234", "MMSYS", "CS1")
     expected = _record("51234", "MMSYS", "CS1")
 
-    fetch_channels(extractor, tmp_path, [request])
+    fetch_channels(_extractor(transport), tmp_path, [_request("51234", "MMSYS", "CS1")])
 
     path = channel_path(tmp_path, "51234", "MMSYS", "CS1")
     assert path.is_dir()
@@ -177,10 +273,16 @@ def test_each_channel_lands_raw_with_eddb_attributes(tmp_path):
     assert stored.attrs["channel_count"] == 2
     assert stored.attrs["sequence_number"] == 7
 
+    time_path = channel_time_path(tmp_path, "51234", "MMSYS", "CS1")
+    assert time_path.is_dir()
+    stored_time = zarr.open_array(time_path, mode="r")
+    assert np.array_equal(stored_time[...], expected.time)
+    assert stored_time.attrs["units"] == "s"
+
 
 def test_a_cached_channel_causes_no_transport_call(tmp_path):
     transport = _FakeTransport()
-    extractor = RemoteEddbExtractor(transport=transport)
+    extractor = _extractor(transport)
     first = _request("51234", "MMSYS", "CS1")
     second = _request("51234", "MMSYS", "EF1")
 
@@ -207,11 +309,45 @@ def test_writing_over_an_existing_channel_is_refused(tmp_path):
     assert np.array_equal(stored[...], record.data)
 
 
+def test_a_present_channel_is_cached_and_refused_even_when_not_an_array(tmp_path):
+    path = channel_path(tmp_path, "51234", "MMSYS", "CS1")
+    path.mkdir(parents=True)
+    (path / "junk").write_text("not a zarr array")
+
+    assert is_cached(tmp_path, "51234", "MMSYS", "CS1") is True
+
+    record = _record("51234", "MMSYS", "CS1")
+    with pytest.raises(EddbCacheError):
+        write_channel(tmp_path, record)
+
+    transport = _FakeTransport()
+    fetch_channels(_extractor(transport), tmp_path, [_request("51234", "MMSYS", "CS1")])
+    assert transport.calls == []
+
+
+def test_the_shot_token_is_normalised_to_its_int_form(tmp_path):
+    transport = _FakeTransport()
+    token = "051234"
+
+    fetch_channels(_extractor(transport), tmp_path, [_request(token, "MMSYS", "CS1")])
+
+    sent = json.loads(transport.calls[0][1])["requests"][0]["shot"]
+    assert sent == token
+
+    path = channel_path(tmp_path, token, "MMSYS", "CS1")
+    assert "051234" not in str(path)
+    assert str(path).endswith("51234.zarr/MMSYS/CS1")
+    assert is_cached(tmp_path, token, "MMSYS", "CS1") is True
+
+    with ZarrTransformEngine().open(tmp_path, 51234, "4.1.1") as arrays:
+        engine_values = arrays.read(_binding("MMSYS", "CS1"))
+    assert engine_values.shape == (2, 5)
+
+
 def test_cached_store_opens_through_engine_and_view_with_no_transport_call(tmp_path):
     transport = _FakeTransport()
-    extractor = RemoteEddbExtractor(transport=transport)
     shot = "51234"
-    fetch_channels(extractor, tmp_path, [_request(shot, "MMSYS", "CS1")])
+    fetch_channels(_extractor(transport), tmp_path, [_request(shot, "MMSYS", "CS1")])
     calls_after_fetch = len(transport.calls)
 
     with ZarrTransformEngine().open(tmp_path, shot, "4.1.1") as arrays:
@@ -228,13 +364,34 @@ def test_cached_store_opens_through_engine_and_view_with_no_transport_call(tmp_p
     assert len(transport.calls) == calls_after_fetch
 
 
-def test_the_remote_script_uses_stdlib_numpy_and_the_wrapper_only():
-    from imas_ambix.data.eddb_remote import REMOTE_SCRIPT
+def test_remote_script_executes_and_decodes_a_known_record(tmp_path):
+    completed = _run_remote_script(
+        tmp_path, [{"shot": "051234", "category": "MMSYS", "dname": "CS1"}]
+    )
+    assert completed.returncode == 0, completed.stderr.decode()
 
-    assert "eddb_pwrapper" in REMOTE_SCRIPT
-    assert "eddbreadTime" in REMOTE_SCRIPT
-    assert "numpy" in REMOTE_SCRIPT
-    assert "import requests" not in REMOTE_SCRIPT
+    records = decode_batch(completed.stdout)
+    assert len(records) == 1
+    record = records[0]
+    assert (record.shot, record.category, record.dname) == ("051234", "MMSYS", "CS1")
+    assert np.array_equal(record.data, [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+    assert np.array_equal(record.time, [0.0, 0.5, 1.0])
+    assert record.unit == "A"
+    assert record.nch == 2
+    assert record.seq == 42
+
+
+def test_remote_script_refuses_a_record_with_no_time_base(tmp_path):
+    completed = _run_remote_script(
+        tmp_path, [{"shot": "051234", "category": "MMSYS", "dname": "NOTIME"}]
+    )
+
+    assert completed.returncode != 0
+    stderr = completed.stderr.decode()
+    assert "no time base" in stderr
+    assert "051234" in stderr
+    assert "MMSYS" in stderr
+    assert "NOTIME" in stderr
 
 
 def test_envelope_round_trips_through_encode_and_decode():
@@ -246,8 +403,7 @@ def test_envelope_round_trips_through_encode_and_decode():
 
 
 def test_default_ssh_transport_is_the_only_network_seam():
-    extractor = RemoteEddbExtractor()
-    assert isinstance(extractor.transport, SshTransport)
+    assert isinstance(RemoteEddbExtractor().transport, SshTransport)
 
 
 def test_jt60sa_cache_root_is_declared_once():

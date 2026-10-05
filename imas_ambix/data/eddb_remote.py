@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import struct
 import subprocess
 from dataclasses import dataclass
@@ -34,10 +35,22 @@ if TYPE_CHECKING:
 
 #: The ssh invocation the extractor uses by default.  It is configuration, not
 #: a constant baked into the transport: a caller with a different control-master
-#: alias or config passes its own ``ssh_command``.
+#: alias or config passes its own ``ssh_command``.  ``ssh -F ~/.ssh/config``
+#: does not expand ``~`` itself, so the config path is expanded at call time in
+#: :meth:`RemoteEddbExtractor._argv`.
 DEFAULT_SSH_COMMAND: tuple[str, ...] = ("ssh", "-F", "~/.ssh/config", "jt-60sa")
 
-_SSH_STDERR = "EDDB_REMOTE_"
+#: The python on the analysis server is selected through the environment
+#: modules: the system ``python3`` is 3.9 without numpy, so the remote command
+#: loads the 3.12 module and calls that module's ``python``.  The unload first
+#: makes the command idempotent when an older module is already active.
+PYTHON_MODULE_UNLOAD = "python/3.5.6"
+PYTHON_MODULE_LOAD = "python/3.12"
+
+#: The extractor runs niced so a batch never competes with the analysis
+#: server's own work.
+NICE_LEVEL = 19
+
 _MAGIC = b"EDDB1\n"
 _STRUCT = struct.Struct("<I")
 
@@ -197,7 +210,7 @@ class RemoteEddbExtractor:
         self,
         *,
         ssh_command: Sequence[str] = DEFAULT_SSH_COMMAND,
-        remote_python: str = "python3",
+        remote_python: str = "python",
         api_path: str = "/analysis/src/eddb",
         lib_path: str = "/analysis/lib/libeddb.so",
         nice: bool = True,
@@ -212,11 +225,28 @@ class RemoteEddbExtractor:
             transport if transport is not None else SshTransport()
         )
 
-    def _argv(self) -> list[str]:
-        command = [self.remote_python, "-c", REMOTE_SCRIPT]
+    def _remote_shell_command(self) -> str:
+        """Build the one remote shell command: module select, then the script.
+
+        The system python on the analysis server is too old and lacks numpy, so
+        the command loads the 3.12 module and runs that module's ``python``.
+        The script is quoted as one argument to ``python -c`` and the request
+        JSON still arrives on stdin.
+        """
+        python_call = f"{self.remote_python} -c {shlex.quote(REMOTE_SCRIPT)}"
         if self.nice:
-            command = ["nice", "-n", "10", *command]
-        return [*self.ssh_command, *command]
+            python_call = f"nice -n {NICE_LEVEL} {python_call}"
+        return (
+            f"module unload {PYTHON_MODULE_UNLOAD}; "
+            f"module load {PYTHON_MODULE_LOAD}; "
+            f"{python_call}"
+        )
+
+    def _argv(self) -> list[str]:
+        # ssh -F does not expand ~ itself, so the config path is expanded here,
+        # at call time, to an absolute path.
+        prefix = [os.path.expanduser(part) for part in self.ssh_command]
+        return [*prefix, self._remote_shell_command()]
 
     def fetch_batch(
         self, requests: Iterable[ChannelRequest]
@@ -279,7 +309,10 @@ def _read_one(db, req):
         values = values.reshape(1, -1)
     time = rtn.get("time")
     if time is None:
-        time = np.arange(values.shape[-1], dtype="<f8")
+        raise RuntimeError(
+            "EDDB returned no time base for shot=%s category=%s dname=%s"
+            % (shot, cat, dname)
+        )
     time = np.asarray(time, dtype="<f8").reshape(-1)
     unit = rtn.get("unit") or rtn.get("units") or ""
     return {
