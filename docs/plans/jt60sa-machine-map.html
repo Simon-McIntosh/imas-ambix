@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f">
 <meta name="plan-impl" content="0.25">
-<meta name="plan-version" content="44">
+<meta name="plan-version" content="45">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -900,6 +900,9 @@
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20261005T082211605690-review-of-jtmm-selene-deck-converter" data-who="reckon-build" data-when="2026-10-05T08:35:58.584Z">
     <div class="r-comment-body"><p>reviewed r-20261005T075837853987-jtmm-selene-deck-converter (imas-ambix:jt60sa-machine-map §4): parse is correct and reproduced against the real facility decks, but the delivered machine description is wrong -- pf_active/pf_passive element extents are doubled (2*dr/2*dz where the deck columns are full extents), the tf conductor geometry is degenerate (start_points == end_points), the wall outline drops all 10 arcs, and tf turns is a guessed 0; the reviewed worktree is additionally dirty with 84 uncommitted insertions that supersede the commit and correct the extent convention.</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-run-r-20261005T085045765738-review-of-jtmm-selene-deck-converter" data-who="reckon-build" data-when="2026-10-05T09:07:21.215Z">
+    <div class="r-comment-body"><p>Independent review of SELENE-deck converter run r-20261005T075837853987 at head 82fed0c7 scored 86/100 (goal_fidelity 17, evidence 17, scope_discipline 18, durability 17, fit 17); both gate arms and the real-deck parse reproduced; the two head fixes (non-degenerate TFC segment elements, wall arcs restored to the outline) confirmed; five follow-ons recorded (OP2 wall source unresolved between the plan table and its decision rationale, tf/coil/current and tf/b_field_phi_vacuum_r never written to the IDS, evidence fragment gate count stale at 8 against 11, probe angle not marked unknown-unvalidated, plan text still calls the OP1 vessel a uniform 120 filaments at 7.76e-7).</p></div>
 </div>
 </section>
 </main>
