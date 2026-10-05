@@ -1177,6 +1177,7 @@ viz = [
 dev = [
     { name = "aiohttp" },
     { name = "mypy" },
+    { name = "nova-stella", extra = ["bokeh"] },
     { name = "pre-commit" },
     { name = "pytest" },
     { name = "pytest-cov" },
@@ -1246,6 +1247,7 @@ provides-extras = ["agent", "data", "docs", "train", "video", "viz"]
 dev = [
     { name = "aiohttp" },
     { name = "mypy", specifier = ">=1.14" },
+    { name = "nova-stella", extras = ["bokeh"], editable = "../nova" },
     { name = "pre-commit", specifier = ">=4.0" },
     { name = "pytest", specifier = ">=8.3" },
     { name = "pytest-cov", specifier = ">=6.0" },
@@ -2158,6 +2160,11 @@ dependencies = [
     { name = "xarray" },
     { name = "xxhash" },
     { name = "zarr" },
+]
+
+[package.optional-dependencies]
+bokeh = [
+    { name = "bokeh" },
 ]
 
 [package.metadata]
