@@ -1,0 +1,30 @@
+<section class="evidence-fragment" data-reckon="evidence" id="ped-slow-marker">
+  <header>
+    <h3>Registering the <code>slow</code> marker in the pytest configuration</h3>
+    <p class="meta">Node <code>ped-slow-marker</code> &middot; revision <code>40d0280a</code> &middot; fleet compute node <code>98dci4-clu-2018</code>, job <code>1277272</code> &middot; run <code>r-20261005T202405168165</code></p>
+  </header>
+  <p>
+    <code>tests/latent/test_synthetic_truth.py</code> and
+    <code>tests/latent/test_temporal_operator.py</code> carried
+    <code>@pytest.mark.slow</code> while the configuration registered no such
+    marker, so <code>--strict-markers</code> (set in
+    <code>[tool.pytest.ini_options]</code>) refused to collect either file. The
+    marker is declared once in <code>pyproject.toml</code> as
+    <code>"slow: a test that runs long by design"</code>, which is the only
+    change to product configuration; the two files then collect.
+  </p>
+  <h4 id="ped-slow-marker-collect">Collect-only counts before and after</h4>
+  <table id="ped-slow-marker-collect-table">
+    <thead><tr><th>state</th><th>collected</th><th>result</th><th>EXIT</th><th>log</th></tr></thead>
+    <tbody>
+      <tr><td>before (marker absent)</td><td>0</td><td>2 collection errors: <code>'slow' not found in `markers` configuration option</code></td><td>2</td><td><code>collect-before.log</code></td></tr>
+      <tr><td>after (marker declared)</td><td>33</td><td>both files collect cleanly</td><td>0</td><td><code>collect-after.log</code></td></tr>
+    </tbody>
+  </table>
+  <p>
+    The <code>before</code> run is the negative control: removing the
+    <code>markers</code> entry is exactly the declared mutation, and it turns the
+    collection back into the <code>'slow' not found</code> error with a non-zero
+    exit.
+  </p>
+</section>
