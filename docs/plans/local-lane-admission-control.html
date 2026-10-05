@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-impl" content="0.96">
-<meta name="plan-version" content="181">
+<meta name="plan-version" content="182">
 <meta name="plan-modified" content="2026-10-05">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s14&quot;:&quot;implementable&quot;,&quot;s15&quot;:&quot;done&quot;,&quot;s16&quot;:&quot;done&quot;,&quot;s17&quot;:&quot;implementable&quot;,&quot;s18&quot;:&quot;implementable&quot;,&quot;s19&quot;:&quot;implementable&quot;,&quot;s20&quot;:&quot;done&quot;,&quot;s21&quot;:&quot;implementable&quot;,&quot;s22&quot;:&quot;implementable&quot;,&quot;s23&quot;:&quot;done&quot;,&quot;s24&quot;:&quot;done&quot;}">
 <meta name="plan-artifacts" content="docs/evidence/archive/local-lane-admission-control-landed.html">
@@ -1416,6 +1416,9 @@
 </div>
 <div class="r-comment" data-section="s24" data-id="c-run-r-20261005T142112376890-review-of-llac-unsized-lane-reads-open" data-who="reckon-build" data-when="2026-10-05T14:31:11.798Z">
     <div class="r-comment-body"><p>review of llac-unsized-lane-reads-open at head 47ff0541 on base a30c1c71: 6 dimensions scored (goal_fidelity 19, evidence 18, scope_discipline 20, durability 18, fit 19, reuse 19, total 113), 0 added failures (after 187 passed vs base 177 passed, EXIT=0 each), declared negative control reproduced exactly (3 failed 9 passed, EXIT=1)</p></div>
+</div>
+<div class="r-comment" data-section="s24" data-id="c-20261005T1440-s24-router-cycle" data-who="reckon-build" data-when="2026-10-05T14:40:00Z">
+    <div class="r-comment-body">Deployed by a router cycle, run as an inline coordinator exception under ops/lane-cycle. Pause start 14:31:54Z, pause end 14:33:04Z (70 s). The engine drained to a measured zero by 14:32:14Z. Peak held at the gate: 2. Old router job 1280997 was cancelled at 14:32:21Z; new router job 1281014 was RUNNING at 14:32:52Z and read paused=True. Final failures: none observed. The new router log has no 529 or error lines, and a 153-token /v1/messages completion through it succeeded. The 2 requests held at the swap received dropped connections, and their retries were not traced. While paused, fresh and unsized, the new router published headroom 0, availability 0.0 and worker_slots 0 with basis assumed: numbers rather than nulls. After resume it published headroom 14 (engine 29, gate 14), availability 87.5 and worker_slots 14, basis assumed at 2 live runs. The dispatching coordinator, session a663ef24, held its dispatches across the pause. The user-global AGENTS.md (dotfiles 9ad0559) now describes the assumed basis and the numeric headroom through do-not-size.</div>
 </div>
 </section>
 </main>
