@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4">
 <meta name="plan-impl" content="0.4">
-<meta name="plan-version" content="58">
+<meta name="plan-version" content="59">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -623,12 +623,22 @@
       is never inferred: the frozen shot set declares (machine, shot) pairs, and
       <code>identity_for_shot</code>, which takes a registry rather than a machine, is handed the
       registry for the declared machine instead of <code>default_registry</code>'s MAST one.
-      The benchmark that stamps the baseline has a geometry resolver of its own,
-      <code>imas_ambix/spine_bench/transform_geometry_source.py</code>
-      <code>resolve_geometry_source</code>, whose sources (campaign, identity-bound, transform)
-      are frozen to MAST's <code>FROZEN_SHOTSET</code>. The JT-60SA stamp goes through that resolver
-      with a frozen JT-60SA shot set beside MAST's, keyed by machine, rather than a second
-      resolver, so the stamp and the spine read one geometry route.
+      The benchmark already holds a geometry source that reads the spine's own route:
+      <code>imas_ambix/spine_bench/machine_artifact_arm.py</code>
+      <code>MachineArtifactGeometrySource</code> hands the runner the table
+      <code>ArtifactMachineSelector</code> selects, read through
+      <code>MachineArtifactGeometryReader</code> from the artifact
+      <code>resolve_machine_description</code> resolves. The JT-60SA stamp uses that source,
+      with its expected physical and registry digests taken from the machine-keyed pin table
+      instead of the MAST constants it defaults to, so the stamp measures the description the
+      spine solves with and the two read one geometry route by construction. The other
+      benchmark resolver, <code>imas_ambix/spine_bench/transform_geometry_source.py</code>
+      <code>resolve_geometry_source</code>, is not extended: its campaign, identity-bound and
+      transform sources read through <code>description_reader.read_geometry_table</code> and
+      exist to compare MAST's efm campaign arrays against the level-2 transform, frozen to
+      MAST's <code>FROZEN_SHOTSET</code>. JT-60SA has no second geometry for that comparison to
+      make, and a JT-60SA key there would give the stamp a different reader from the spine,
+      which is the divergence a single route removes.
       How the JT-60SA artifact is authored from the §4 source without a JT-60SA module in nova
       is the open question <code>jt60sa-artifact-authoring</code>. Using only the mapped
       pf_active, pf_passive, tf and magnetics data, the ambix physics spine
@@ -655,7 +665,9 @@
     <p>
       Done-when: a stamped spine-benchmark record for a JT-60SA shot set with the
       comparator named as SELENE, boundary RMS distance and whitened magnetics residual
-      reported per shot, and the comparison run on a SLURM compute node with the
+      reported per shot, its geometry provenance naming
+      <code>MachineArtifactGeometrySource</code> and the JT-60SA physical digest the selector
+      resolved, and the comparison run on a SLURM compute node with the
       machine/env block recorded. The first stamp is a baseline, not a pass mark: the
       number it reports is what later map corrections are judged against.
     </p>
@@ -932,7 +944,7 @@
     <div class="r-comment-body"><p>EDDB PSRC magnetics read path: eddbreadTime(shot, cat='PSRC', dname='magFluxLp1') returns PSRC flux-loop data - populated on E101154 (irc=0, shape 2001), refused on E101173 (irc=1015, PSRC not populated), with the MDAC magFlxLp1 hardware channel available on both; the Selene PID route (cat='', dname='1626 S007', dim=[k,1,1]) returns a full record on E101154 but a one-point stub on E101173; return codes 1015 (shot's store present, datum not acquired) and 1013 (shot absent from that data set) are inferred from controlled reads because no header under /analysis/src/eddb defines them - the directory holds only eddb_pwrapper.py, which exposes irc/ircgrp with no value table.</p></div>
 </div>
 <div class="r-comment" data-section="s3" data-id="c-run-r-20261005T100545538723-review-of-jtmm-psrc-read-path" data-who="reckon-build" data-when="2026-10-05T10:13:05.915Z">
-    <div class="r-comment-body"><p>review-of-jtmm-psrc-read-path — the reviewed fragment&#x27;s PSRC read-path claims verified independently; record stored parsed, all six dimensions scored (goal_fidelity 19, evidence 19, scope_discipline 18, durability 14, fit 18, reuse 20), total 108, with two follow-on findings (a misplaced 1015 parenthetical in the landing sentence; a declared figures write path left unused).</p></div>
+    <div class="r-comment-body"><p>review-of-jtmm-psrc-read-path — the reviewed fragment's PSRC read-path claims verified independently; record stored parsed, all six dimensions scored (goal_fidelity 19, evidence 19, scope_discipline 18, durability 14, fit 18, reuse 20), total 108, with two follow-on findings (a misplaced 1015 parenthetical in the landing sentence; a declared figures write path left unused).</p></div>
 </div>
 <div class="r-comment" data-section="s2" data-id="c-run-r-20261005T065204728047-review-of-jtmm-tokamap-export" data-who="reckon-build" data-when="2026-10-05T07:08:54.445Z">
     <div class="r-comment-body"><p>jtmm-tokamap-export reviewed: the exporter, its validator run and its round-trip gate reproduce at the reviewed head, but every IDS group directory is written with the same cross-group mappings.json (all four groups' keys in every group), so the export is not group-scoped; added_failure_count 0.</p></div>
