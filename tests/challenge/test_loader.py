@@ -24,6 +24,10 @@ def _real_slice() -> list[Path]:
     return sorted(root.glob("*.parquet"))[:100]
 
 
+# The hundred-shot DIII-D schema sweep measured 753 s on 2026-10-05
+# (nproc 28, load1 10); the bound is twice that rounded up to a whole minute
+# so the corpus read is not cut off by the 300 s default.
+@pytest.mark.timeout(1560)
 def test_real_diii_d_schema_on_one_hundred_shots() -> None:
     paths = _real_slice()
     if len(paths) < 100:
@@ -38,6 +42,10 @@ def test_real_diii_d_schema_on_one_hundred_shots() -> None:
     assert validated == 100
 
 
+# The facts-report build over the same hundred-shot slice measured 724 s on
+# 2026-10-05 (nproc 28, load1 10); the bound is twice that rounded up to a
+# whole minute so the corpus read is not cut off by the 300 s default.
+@pytest.mark.timeout(1500)
 def test_facts_report_covers_every_circulated_claim() -> None:
     paths = _real_slice()
     if len(paths) < 100:

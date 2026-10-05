@@ -2744,6 +2744,12 @@ def test_clive_unreachable_catalog_never_falls_back_to_openrouter(tmp_path):
     _write_executable(fake_bin / "systemctl", f"#!/bin/sh\ntouch {marker}\n")
     env = os.environ.copy()
     env["PATH"] = f"{fake_bin}:{env['PATH']}"
+    # A refused catalog connection is retried up to the production bound
+    # (900 s). This test asserts the refusal path, not the retry schedule, so
+    # scale the bound down: otherwise the launch spends the whole production
+    # budget waiting on an origin the test knows is dead.
+    env["CLIVE_CATALOG_RETRY_BOUND"] = "5"
+    env["CLIVE_CATALOG_RETRY_START"] = "1"
     result = subprocess.run(
         [str(launcher), "--mode", "hybrid"],
         capture_output=True,
