@@ -11,7 +11,10 @@ The exporter writes the directory layout ``tokamap-validator`` accepts: a
 top-level ``mappings.cfg.json`` and ``globals.json``, one directory per Data
 Dictionary IDS group, and, beneath each group, one directory per partition
 selected by the catalogue's shot ranges.  Each leaf carries its own
-``globals.json`` and ``mappings.json``.
+``globals.json`` and ``mappings.json``, and each leaf holds only the mappings
+whose Data Dictionary path belongs to its own group.  A mapping's tokamap key
+keeps the IDS prefix, so a group's file can be read for foreign bindings
+without consulting anything else.
 
 A DD path that several source arrays feed -- two probe families both
 declaring ``b_field_pol_probe/name`` is an example -- has no tokamap
@@ -77,12 +80,21 @@ class TokamapEntry:
 
 @dataclass(frozen=True)
 class TokamapExport:
-    """The result of exporting one directory."""
+    """The result of exporting one directory, counting what landed on disk.
+
+    ``entries`` is the deduplicated list of mappings the exporter produced,
+    while ``group_entry_counts`` and ``mappings_file_count`` describe the
+    files themselves: each group's ``mappings.json`` is counted as written, so
+    a group that received another group's bindings cannot hide behind a
+    ``len(entries)`` that de-duplicates them away.
+    """
 
     directory: Path
     groups: tuple[str, ...]
     partitions: tuple[int, ...]
     entries: tuple[TokamapEntry, ...] = field(default_factory=tuple)
+    group_entry_counts: Mapping[str, int] = field(default_factory=dict)
+    mappings_file_count: int = 0
 
 
 _UNIT_CONVERSIONS: Mapping[tuple[str, str], float] = {
@@ -152,17 +164,19 @@ def _data_type_name(node: Any) -> str:
 
 @cache
 def _tokamap_key(dd_version: str, dd_path: str) -> str:
-    """Convert an absolute DD path into a tokamap key relative to its group.
+    """Render a DD path as a tokamap key that keeps its IDS group prefix.
 
-    Every Data Dictionary structure array is marked ``[#]`` because tokamap
-    expands that dimension; scalar and leaf-array components are emitted
-    unchanged.
+    The key is the full Data Dictionary path, with every structure array
+    marked ``[#]`` because tokamap expands that dimension.  Carrying the IDS
+    prefix means a binding's group is readable from its key alone, so each
+    group's ``mappings.json`` can be checked for bindings that belong to
+    another IDS.
     """
 
     ids_name, relative_path = dd_path.split("/", maxsplit=1)
     metadata = _ids_metadata(dd_version, ids_name)
     components = relative_path.split("/")
-    rendered: list[str] = []
+    rendered: list[str] = [ids_name]
     for index, component in enumerate(components):
         node = metadata["/".join(components[: index + 1])]
         if _data_type_name(node) == "STRUCT_ARRAY":
@@ -295,16 +309,28 @@ def _leaf_mappings(
     catalog: MachineMapCatalog,
     machine_map: MachineMap,
     signal_maps: tuple[SignalMap, ...],
+    group: str,
 ) -> tuple[dict[str, Any], list[tuple[str, dict[str, Any], TokamapEntry]]]:
+    """Return the mappings for one IDS group's leaf directory.
+
+    Only bindings and signals whose Data Dictionary path belongs to ``group``
+    are emitted: a group's ``mappings.json`` must hold that IDS and no other,
+    because tokamap applies the whole file to the group it is filed under.
+    """
+
     mappings: dict[str, Any] = {}
     records: list[tuple[str, dict[str, Any], TokamapEntry]] = []
     for binding in catalog.bindings_for(machine_map):
+        if binding.dd_path.split("/", maxsplit=1)[0] != group:
+            continue
         key, mapping, record = _catalogue_entry(binding, catalog)
         if key not in mappings:
             mappings[key] = mapping
             records.append((key, mapping, record))
     for signal_map in signal_maps:
         for rule in signal_map.signals:
+            if rule.target_path.split("/", maxsplit=1)[0] != group:
+                continue
             key, mapping, record = _signal_entry(rule, catalog.dd_version)
             if key not in mappings:
                 mappings[key] = mapping
@@ -375,7 +401,10 @@ def export_tokamap_directory(
     _write_json(root / "globals.json", {"source": catalog.source})
 
     records: list[TokamapEntry] = []
+    group_entry_counts: dict[str, int] = {}
+    mappings_file_count = 0
     for group in groups:
+        group_total = 0
         for machine_map in catalog.maps:
             leaf = root / group / str(machine_map.first_shot)
             leaf.mkdir(parents=True, exist_ok=True)
@@ -388,11 +417,13 @@ def export_tokamap_directory(
                     "shot_last": machine_map.last_shot,
                 },
             )
-            mappings, leaf_records = _leaf_mappings(catalog, machine_map, signal_maps)
+            mappings, leaf_records = _leaf_mappings(
+                catalog, machine_map, signal_maps, group
+            )
             _write_json(leaf / "mappings.json", mappings)
+            mappings_file_count += 1
+            group_total += len(mappings)
             for _key, _mapping, record in leaf_records:
-                if record.group != group:
-                    continue
                 records.append(
                     TokamapEntry(
                         group=group,
@@ -408,12 +439,15 @@ def export_tokamap_directory(
                         comment=record.comment,
                     )
                 )
+        group_entry_counts[group] = group_total
 
     return TokamapExport(
         directory=root,
         groups=tuple(groups),
         partitions=tuple(partitions),
         entries=tuple(records),
+        group_entry_counts=group_entry_counts,
+        mappings_file_count=mappings_file_count,
     )
 
 

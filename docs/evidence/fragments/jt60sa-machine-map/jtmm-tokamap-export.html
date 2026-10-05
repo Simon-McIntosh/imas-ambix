@@ -16,21 +16,33 @@
     one directory per IDS group, and beneath each group one partition
     directory per catalogue map, named by the map's <code>first_shot</code>
     and selected by <code>MAX_BELOW</code>. Each leaf carries its own
-    <code>globals.json</code> and <code>mappings.json</code>. Every binding
-    becomes a <code>DATA_SOURCE</code> mapping whose <code>scale</code> is the
-    product of its unit factor, its sign-convention factor and its COCOS
-    factor; a <code>unknown-unvalidated</code> binding takes no sign and says
-    so in its comment.
+    <code>globals.json</code> and <code>mappings.json</code>, and each leaf
+    holds only the mappings whose Data Dictionary path belongs to its own
+    IDS group. Every binding becomes a <code>DATA_SOURCE</code> mapping whose
+    <code>scale</code> is the product of its unit factor, its
+    sign-convention factor and its COCOS factor; a
+    <code>unknown-unvalidated</code> binding takes no sign and says so in its
+    comment. A mapping's tokamap key keeps its IDS prefix, so a group's file
+    can be read for foreign bindings on its own.
   </p>
 
   <h4>Measure, run on the fleet allocation (job 1277272)</h4>
   <ul>
     <li>
+      Each group's <code>mappings.json</code> holds only keys that begin with
+      that group's IDS, no key appears in two groups, and the per-group entry
+      counts sum to the exported entry count; the export result carries those
+      per-group counts and the number of <code>mappings.json</code> files
+      written, so a duplicated write cannot hide behind a de-duplicated
+      total.
+    </li>
+    <li>
       <code>uvx --from tokamap==0.3.2 tokamap-validator &lt;exported MAST
       directory&gt;</code> exits 0, &ldquo;Validation completed
       successfully.&rdquo;, for all four IDS groups the MAST map binds
-      (magnetics, pf_active, pf_passive, wall; 258 entries over 6 shot
-      partitions at 11766&ndash;22087).
+      (magnetics, pf_active, pf_passive, wall; 264 entries over 6 shot
+      partitions at 11766&ndash;22087, 24 mappings files, per-group counts
+      126 / 54 / 66 / 18).
     </li>
     <li>
       For every exported catalogue binding the on-disk scale equals
@@ -47,7 +59,7 @@
     <li>
       Negative control: omitting the COCOS factor from the exported scale
       fails the scale round-trip test on the COCOS-dependent binding
-      (1 failed, 3 passed; exit 1).
+      (1 failed, 4 passed; exit 1).
     </li>
   </ul>
 

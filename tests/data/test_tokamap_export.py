@@ -218,3 +218,39 @@ def test_unknown_unvalidated_sign_is_recorded_not_silently_signed(catalog, tmp_p
     assert written[entry.key]["scale"] == pytest.approx(
         entry.unit_factor * entry.cocos_factor, abs=1e-12
     )
+
+
+def test_each_group_file_holds_only_that_ids(catalog, signal_map, tmp_path):
+    directory = tmp_path / "export"
+    result = export_tokamap_directory(catalog, [signal_map], directory=directory)
+
+    keys_by_group: dict[str, set[str]] = {}
+    on_disk_total = 0
+    for group in result.groups:
+        keys: set[str] = set()
+        for first_shot in result.partitions:
+            leaf = directory / group / str(first_shot) / "mappings.json"
+            mappings = json.loads(leaf.read_text())
+            on_disk_total += len(mappings)
+            for key in mappings:
+                assert key.startswith(f"{group}/"), (group, key)
+                keys.add(key)
+        keys_by_group[group] = keys
+
+    for left in result.groups:
+        for right in result.groups:
+            if left < right:
+                assert not (keys_by_group[left] & keys_by_group[right]), (
+                    left,
+                    right,
+                    keys_by_group[left] & keys_by_group[right],
+                )
+
+    assert sum(result.group_entry_counts.values()) == len(result.entries)
+    assert on_disk_total == len(result.entries)
+    assert result.mappings_file_count == len(result.groups) * len(result.partitions)
+    for group in result.groups:
+        assert result.group_entry_counts[group] == len(keys_by_group[group]) * len(
+            result.partitions
+        )
+    assert len(result.entries) > 0
