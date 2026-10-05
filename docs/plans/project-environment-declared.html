@@ -23,9 +23,11 @@
   <title>Project Environment From Its Declaration | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="7">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;}">
+<meta name="plan-commits" content="80e9f492">
+<meta name="plan-impl" content="0.333">
+<meta name="plan-version" content="9">
 <meta name="plan-modified" content="2026-10-05">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;}">
 </head>
 <body>
   <main class="plan-doc">
@@ -67,50 +69,12 @@
       imperative installs exists to prevent.
     </p>
 
+    <section class="section-landed">
+  <header><span class="badge badge-shipped">&#10003; landed 2026-10-05</span>
     <h2 id="s2">§2 — Census: which libraries are truly default</h2>
-<section data-reckon="section" data-id="s2" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
-    <p>
-      Each distribution that something in the repository imports directly gets one class. It is
-      <strong>default</strong> when the repository cannot do its ordinary work without it: an
-      <code>import</code> statement at any level (module or function) reaches it from code under
-      <code>imas_ambix/</code> outside the optional subsystems named below, or from anywhere under
-      <code>tests/</code>, or it is the test and lint tooling every session runs. That tooling is
-      <code>pytest</code>, <code>ruff</code>, <code>mypy</code>, the tokamap validator, and the two
-      pytest plugins the workstation's test protocol requires, <code>pytest-timeout</code> for a
-      per-test bound and <code>pytest-xdist</code> for parallel runs, which no import names. It is
-      <strong>optional</strong> when only an optional subsystem imports it: the documentation build,
-      GPU model serving, the FAIR-MAST acquisition stack and the training stack, each of which runs
-      on hosts provisioned for it. It is <strong>unused</strong> when nothing under
-      <code>imas_ambix/</code>, <code>tests/</code> or <code>scripts/</code> imports it at any level.
-      A distribution nothing imports but that is installed because another one requires it is
-      <strong>transitive</strong>: it is listed by name with the distribution that requires it, and
-      needs no declaration of its own.
-    </p>
-    <p>
-      The census is a committed test rather than a one-off scan, so the declaration cannot drift
-      again. It sits beside the existing declaration check,
-      <code>tests/physics/test_dependency_contract.py</code>, which already reads
-      <code>pyproject.toml</code> and <code>uv.lock</code> to assert the nova path source, and it walks
-      sources with Python's <code>ast</code> as <code>scripts/circular_assertion_audit.py</code> does.
-      It maps each imported top-level module to its distribution through
-      <code>importlib.metadata.packages_distributions</code> and asserts that every default
-      distribution is declared in <code>[project.dependencies]</code> or the <code>dev</code> dependency
-      group, and every optional one in an extra. Its first run, against the restored environment,
-      is expected to fail, and its failure list is the census. Beside it the node writes the
-      classification table, one row per directly imported distribution with its class, the
-      importing file that decided the class, and its current declaration (dependency, extra name or
-      none), plus the transitive list, as the evidence fragment
-      <code>docs/evidence/fragments/project-environment-declared/ped-census.html</code>. Measured
-      2026-10-05: nothing under <code>imas_ambix/</code>, <code>tests/</code> or <code>scripts/</code>
-      imports <code>reckon</code> or <code>linkml</code> at any level, so reckon-plans and linkml
-      classify as unused and are not declared; reckon runs from its own environment.
-    </p>
-    <p>
-      Done-when: the test exists at <code>tests/test_declared_dependencies.py</code> and its log shows
-      it failing against the current declaration with one line per undeclared default or optional
-      distribution; the fragment holds one row per directly imported distribution and the
-      transitive list; and the fragment lists every declared dependency that nothing imports.
-    </p>
+<section data-reckon="section" data-id="s2" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="done" data-links=""></section></header>
+  <p class="landed-summary">Landed <code>tests/test_declared_dependencies.py</code> (merge <code>80e9f492</code>): one classifier both asserts the declaration and renders the census; 39 distributions classed, 21 undeclared, held <code>xfail(strict)</code> until §3 relocks. <a href="s2">full record</a></p>
+</section>
 
     <h2 id="s3">§3 — Declare and relock</h2>
 <section data-reckon="section" data-id="s3" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links=""></section>
@@ -121,7 +85,16 @@
       <code>dev</code> group, which uv installs on a plain <code>uv sync</code>, and the <code>dev</code>
       extra is removed. The <code>docs</code>, <code>viz</code>, <code>agent</code>, <code>data</code> and
       <code>train</code> extras keep every member the census classed optional; a member it classed
-      default moves out by the same rule. A version bound is added only for an incompatibility
+      default moves out by the same rule. Two corrections to the census come first. Its
+      optional-subsystem roots cover <code>imas_ambix/agent</code> and <code>imas_ambix/train</code>
+      only, so they gain the FAIR-MAST acquisition modules that import the <code>data</code>
+      extra's members. And five libraries are imported only inside functions, for video
+      rendering (<code>demo/runner.py</code>: imageio, imageio-ffmpeg), perceptual metrics
+      (<code>eval/metrics.py</code>: lpips, torchvision), a torchvision-based fine-tuning step
+      (<code>tokenizer/finetune_decoder.py</code>) and frame preprocessing (<code>data/preprocess.py</code>,
+      <code>worldmodel/exposure_balance.py</code>: opencv). None is installed today, so no session
+      relies on them. They go in a new <code>video</code> extra, and the classifier lists them by
+      name as that extra's lazily imported members rather than classing them default. A version bound is added only for an incompatibility
       that has been observed and is named in the commit; nothing else is pinned. The existing path
       sources in <code>[tool.uv.sources]</code> (imas-ink and nova-stella) keep their entries, and no
       new path source is added, because the census found no import of reckon. The pytest
@@ -205,7 +178,7 @@
     <div class="r-comment-body"><p>Added tests/test_declared_dependencies.py - a single build_census() walks imas_ambix/, tests/ and scripts/ with ast at every import level (module and function), maps each top-level module to its distribution via importlib.metadata.packages_distributions (editable path installs that ship no top_level.txt recovered from their direct_url.json checkout), and classes each directly imported distribution default / optional / unused / transitive. An importing file under imas_ambix/ outside the optional subsystem roots, or anywhere under tests/, makes its distribution default; a distribution reached only from scripts/ (or only from the optional subsystem roots) is optional. build_census is read by BOTH test_every_directly_imported_distribution_is_declared and the fragment renderer, so the two cannot disagree. Naming is plan-free: the docstring, the xfail reason and the renderer strings state the mechanism, not a plan or section.</p></div>
 </div>
 <div class="r-comment" data-section="s2" data-id="c-run-r-20261005T085111526834-review-of-ped-census" data-who="reckon-build" data-when="2026-10-05T09:01:30.838Z">
-    <div class="r-comment-body"><p>Independent review of r-20261005T075715374151-ped-census at head be101b86 (superseding the review at d3124645): parsed record scores goal_fidelity 19, evidence 18, scope_discipline 20, durability 20, fit 19 (total 96); added_failure_count 0 with basis recording the reviewed manifest&#x27;s absent baseline/after suite arm; stored at both declared review paths.</p></div>
+    <div class="r-comment-body"><p>Independent review of r-20261005T075715374151-ped-census at head be101b86 (superseding the review at d3124645): parsed record scores goal_fidelity 19, evidence 18, scope_discipline 20, durability 20, fit 19 (total 96); added_failure_count 0 with basis recording the reviewed manifest's absent baseline/after suite arm; stored at both declared review paths.</p></div>
 </div>
 </section>
 </main>
