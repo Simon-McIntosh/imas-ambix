@@ -23,8 +23,8 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;implementable&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;done&quot;}">
-<meta name="plan-impl" content="0.31">
-<meta name="plan-version" content="211">
+<meta name="plan-impl" content="0.35">
+<meta name="plan-version" content="213">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -777,10 +777,19 @@
 <li>Every read opens <code>~/.cache/ambix/watch-index.sqlite3</code> read-only, in place on the fleet allocation (<code>SLURM_JOB_ID</code> set; never the login node), and the logs sit under the node's report directory.</li>
 <li>The node writes no product code.</li>
 </ul>
+<p><strong>Located, 2026-10-05.</strong> The locating node and its review together give the mechanism.</p>
+<ul>
+<li>Recomputed at the inflated publication's own window end (07:23:00.6Z), today's index returns the sound figures: 1.80G prompt tokens for the day, against 1.81G at 07:29:26Z. So the 07:24 read saw an index state that no longer exists.</li>
+<li>No job has two carriers in the index now, and no row lacks a <code>job_id</code>.</li>
+<li>The carriers of one job disagree on their run key. The live job's raw file (<code>deepseek-v4-1-flash-1280470.jsonl</code>) carries <code>boot_id</code> null, which the index stores as its unknown-boot placeholder. Its <code>.minute</code> and <code>.hour</code> tiers carry <code>boot_id</code> <code>58cc3b8e-66b3-4b4f-baf3-e9e8b8f7c406</code>.</li>
+<li><code>_counter_runs</code> keys a run on <code>(host, boot_id, job_id)</code>. A read that sees a job's raw rows and its tier rows together therefore starts a new run at every alternation, and each tier row that opens a run adds its whole stride again through its declared opening. A window reaching such an overlap inflates. One that does not, such as the hour, stays sound.</li>
+<li>Every fifth ingest tick reads three files (the raw file and both tiers). The index counts each job from one tier (§8), so a tick that briefly holds both carriers of one job, between batch commits or across the tier choice, is the state a 85-second publisher read can land in.</li>
+</ul>
 <p><strong>Done when</strong> (the fixing node):</p>
 <ol>
-<li>A test under <code>tests/</code> builds the located mechanism from fixture rows. It asserts that the day total equals the sum of its 24 hourly totals for prompt tokens, generation tokens and each cached tier. The test fails at the base revision and passes at head. The declared negative control re-applies the defective step, and it must turn that test red.</li>
-<li>If the fix is on the read path, the reproducing window end from the locating node is recomputed at head on the live index. Its day total for each counter equals the sum of its four six-hour totals within 0.5%, and the same holds at two further window ends 15 minutes apart. If the fix is on the ingest's write path, the identity is shown instead on an index that the head ingest wrote under node-local <code>/tmp</code>, replaying the live job's receipt files across at least one tier switch. The fragment then states that the live index takes the fix only once the ingest service is restarted. Either way, the log sits under the node's report directory and is cited.</li>
+<li>A test under <code>tests/</code> builds the overlap from fixture rows: one job's raw rows with a null <code>boot_id</code> and its minute-tier rows with a real one, visible together. It asserts that the day total equals the sum of its 24 hourly totals for prompt tokens, generation tokens and each cached tier. The test fails at the base revision and passes at head. The declared negative control re-applies the defective step, and it must turn that test red.</li>
+<li>A second test drives the head ingest over fixture raw, minute and hour files for one job, with a small batch size. After every commit it reads the index the way the publisher does, and asserts the same identity at each of those reads. So the test proves that no state the ingest writes, even between batches, offers one read two carriers of one job, or that such a state no longer inflates a total.</li>
+<li>The fragment states which of those two the fix guarantees, and whether the live index takes it only once the ingest service is restarted. The logs sit under the node's report directory and are cited.</li>
 <li><code>uv run --no-sync ruff check imas_ambix tests</code> exits 0. If any module under <code>imas_ambix/agent/</code> changed, the serving-interpreter parse guard passes.</li>
 </ol>
 <p>Out of scope: restarting the publisher or ingest services (the coordinator does that after the merge), the price table, and the cost model.</p>
@@ -1458,6 +1467,9 @@
 </div>
 <div class="r-comment" data-section="s15" data-id="c-run-r-20261005T082928153397-review-of-srw-gpu-watch-three-band-grid" data-who="reckon-build" data-when="2026-10-05T08:38:58.514Z">
     <div class="r-comment-body"><p>review of r-20261005T080432482655-srw-gpu-watch-three-band-grid stored at reviews/imas-ambix/r-20261005T080432482655-srw-gpu-watch-three-band-grid(.at-68e548cdcd265f6bf36df9545fdc62f5dce07309).json: 5 dimensions scored (goal_fidelity 18, evidence 17, scope_discipline 19, durability 14, fit 18), total 86, added_failure_count 0 with added_failure_ids [].</p></div>
+</div>
+<div class="r-comment" data-section="s13" data-id="c-20261005T0855-s13-located" data-who="reckon-build" data-when="2026-10-05T08:55:00Z">
+    <div class="r-comment-body">gate not-run (evidence node); locating node r-20261005T075840592859 landed, merge 2aa3e9f8, review 87. Neither window end reproduces the inflation on today's index, so the 07:24 read saw a transient state. The review supplied the key fact the fragment left out: the live job's raw rows carry a null boot_id while its minute and hour tiers carry a real one, so the carriers of one job split counter runs whenever they are read together. Section stays open for the fixing node. An earlier attempt, r-20261005T074941492481, stopped at the implement role's 8-minute default fence with nothing committed and was discarded.</div>
 </div>
 </section>
 </main>
