@@ -40,6 +40,11 @@
     <p>Merged 20f7f6b4 from run r-20261005T155053774756-ped-import-walk (commit 216e3bcd; review 115, 0 added failures). Gate: <code>tests/test_declared_dependencies.py</code> 2 passed, exit 0; walk in the synced environment 313 imported, 0 optional-missing, 0 hard failures; ruff clean. Negative control: a classifier that accepts any <code>ModuleNotFoundError</code> inside an optional root fails the synthetic test on the default-distribution case. Fragment: <code>docs/evidence/fragments/project-environment-declared/ped-import-walk.html</code>.</p>
   </section>
 
+  <section id="s5">
+    <h2>§5 — the 300 s bound accounted for across the whole suite</h2>
+    <p>Measurement runs: ped-timeout-latent, ped-timeout-worldmodel, ped-timeout-corpus, ped-timeout-preprocess. Fixes: ped-worker-threads (4e306d1a), ped-declare-threadpoolctl (98ec5baf), ped-slow-marker (0271311b), ped-timeout-preprocess (28c192d2). Whole-suite checks: ped-timeout-suite (55 aborts uncapped at <code>-n 16</code>, the oversubscription finding), ped-timeout-suite-capped (2 aborts with the cap, finding the preprocess test and the unregistered marker), ped-timeout-suite-final (job 1281106: 24 failed, 3986 passed, 4 skipped, 0 errors, one accounted abort). Fragments under <code>docs/evidence/fragments/project-environment-declared/</code>.</p>
+  </section>
+
 </main>
 </body>
 </html>
