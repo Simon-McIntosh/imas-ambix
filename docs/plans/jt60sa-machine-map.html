@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f">
 <meta name="plan-impl" content="0.25">
-<meta name="plan-version" content="38">
+<meta name="plan-version" content="39">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -241,6 +241,34 @@
       metadata read no chunks, and a slice applies the compiled affine transform to only the
       returned chunk. The zarr engine then serves JT-60SA with no new engine, which is the
       test that the architecture scales the way its own plan claimed.
+    </p>
+    <p>
+      <strong>First cold fetch</strong> (node <code>jtmm-eddb-cold-fetch</code>, 2026-10-05). On
+      E101173, the newest E-shot, and C060033, the newest C-shot, EDDB served 26 of the 85
+      first-pass channels: the 22 MMSYS coil and TF currents and the 4 MDAC vessel Rogowski
+      coils, all in amperes. It refused all 59 PSRC channels (<code>Ip</code>,
+      <code>calIp</code>, <code>magFluxLp1..34</code>, <code>magPbTC1..23</code>) through both
+      <code>eddbreadTime</code> and <code>eddbreadOne</code>, with return code 1015 on E101173 and
+      1013 on C060033, although the E101173 table lists every one of those names. The cold wall
+      time was 101.3 s and 82.8 MB on disk for E101173 and 7.7 s and 1.2 MB for C060033, and a
+      warm re-read made no network call. The run also exposed two extractor defects. A batch with
+      any refused channel raises in <code>fetch_batch</code> and writes none of its served
+      channels, so the driver had to call the transport directly. And EDDB returns the unit as a
+      list, so the cache recorded <code>['A']</code> rather than <code>A</code>.
+    </p>
+    <p>
+      Two nodes follow. <strong>The PSRC read path</strong> (<code>jtmm-psrc-read-path</code>) is a
+      read-only investigation on the analysis server. It takes the meaning of return codes 1013
+      and 1015 from <code>/analysis/src/eddb</code>, reads how the lead's
+      <code>~/work/efit_jt60sa/extract_jt60sa.py</code> and <code>~/naka_explore.py</code> fetched
+      <code>E101154_signals.npz</code>, and lists which PSRC names that file holds. It then reads
+      one PSRC flux loop on E101154 and on E101173 by the call that worked there. It is done when
+      its evidence fragment names the call that returns PSRC data, or states that PSRC is not
+      populated for E101173 together with the shot it is populated for. <strong>The extractor
+      repair</strong> (<code>jtmm-eddb-partial-batch</code>) makes one session return its served
+      records together with each refused channel's return code, so the cache writes what was
+      served and reports the rest. It records the unit as the EDDB string. It adopts the PSRC call
+      the investigation names.
     </p>
     <p>
       Done-when: a cold fetch of one OP2 shot's first-pass signals completes through the
