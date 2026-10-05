@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;done&quot;,&quot;s16&quot;:&quot;implementable&quot;}">
 <meta name="plan-impl" content="0.4">
-<meta name="plan-version" content="220">
+<meta name="plan-version" content="221">
 <meta name="plan-modified" content="2026-10-05">
 </head>
 <body>
@@ -1109,6 +1109,9 @@
 <div class="r-comment" data-section="s8" data-id="c-run-r-20261002T190004714235-review-of-srw-retention-refuses-a-pair-with-no-total" data-who="reckon-build" data-when="2026-10-02T19:29:53.546Z">
     <div class="r-comment-body"><p>stored a parsed review of r-20261002T183002678308-srw-retention-refuses-a-pair-with-no-total at base 25e2d4c7 head ae205e56; scores goal_fidelity 20, evidence 19, scope_discipline 20, durability 20, fit 19, total 98; added_failure_count 0 and added_failure_ids [] from the reviewed run's own baseline_suite (25e2d4c7, 17 passed, EXIT=0) and after_suite (31f64ead, 19 passed, EXIT=0); the pair-with-no-total boundary is closed exactly and every branch is tested, no findings.</p></div>
 </div>
+<div class="r-comment" data-section="s8" data-id="c-20261005T1005-s8-plan-review" data-who="reckon-build" data-when="2026-10-05T10:05:00Z">
+    <div class="r-comment-body">Design review r-20261005T095719391442 raised two findings against this section; the next node built here answers them. (1) duplicate_owner: the retention liveness probe at telemetry_retention.py:112 forks its own squeue with no timeout, while node_probe.run_capture and read_jobs (node_probe.py:186, :667) already bound the call and tell an absent squeue from one that refused. Extend that owner rather than keep a second query. (2) interface_budget: this section adds agent retire-raw and its --apply flag without stating what it retires or merges, or why nothing can be, as sections 5, 11 and 12 do for their surface.</div>
+</div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20260924T122840994565-s26-currency-audit" data-who="reckon-ship" data-when="2026-09-24T12:30:00Z">
     <div class="r-comment-body"><p>stopped by the coordinator within a minute of launch: the repository's local-lane budget for the re-plan exercise was reallocated, and the audit was done in-session instead</p></div>
 </div>
@@ -1396,6 +1399,9 @@
 </div>
 <div class="r-comment" data-section="s5" data-id="c-run-r-20261002T184030460381-review-of-srw-ingest-survives-a-locked-index" data-who="reckon-build" data-when="2026-10-02T19:19:26.575Z">
     <div class="r-comment-body"><p>Independent review of srw-ingest-survives-a-locked-index stored (parsed, 5 dimensions, total 88): two-arm gate reproduces (base 175631f8 84 passed, head e95b68ad 87 passed, both EXIT=0), the guarded behaviour was made to happen and independently falsified, one finding + one follow-on recorded on the non-load-bearing TelemetryIndex.rollback and the fragment's overstated need for it.</p></div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-20261005T1005-s5-plan-review" data-who="reckon-build" data-when="2026-10-05T10:05:00Z">
+    <div class="r-comment-body">Design review r-20261005T095719391442, duplicate_owner against f-srw-020: the proposed hourly rollup (counter difference within the hour's runs, gauge time integral, coverage seconds) re-derives what the hour tier written by telemetry_store.py (around line 596) already stores per window. Before building a second aggregate, the f-srw-020 node must say why the hour tier cannot answer a long window, or extend the query's tier selection so a long window reads it.</div>
 </div>
 <div class="r-comment" data-section="s14" data-id="c-20261005T0810-s14-landed" data-who="reckon-build" data-when="2026-10-05T08:10:00Z">
     <div class="r-comment-body">gate tests passed (40, exit 0); section s14 closed by run r-20261005T074920909576 at merge b0dcb893. impl moves by one of twelve executable sections. Review follow-on: lane._is_finite_number accepts inf and nan, so availability_percent returns nan for a non-finite input; folded as a repair node.</div>
