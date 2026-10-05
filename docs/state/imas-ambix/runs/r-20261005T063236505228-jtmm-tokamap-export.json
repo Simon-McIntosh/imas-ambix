@@ -1,0 +1,614 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effective_input_window": 230144,
+    "effort": "high",
+    "launch": "cli",
+    "local": true,
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "worktree-full",
+    "usable_input_window": 230144
+  },
+  "attempt": 3,
+  "attempt_kind": "resume",
+  "backend": "clive",
+  "base_sha": "0111d5a1d575ab015e142c102d25fa3274c68bf4",
+  "boundary_waiver": null,
+  "brief": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "fallback_credit": null,
+      "inference_geo": "",
+      "input_tokens": 2203356,
+      "input_tokens_cumulative": 2203356,
+      "output_tokens": 9912,
+      "output_tokens_cumulative": 9912,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": {
+    "added": 830,
+    "files": 5,
+    "removed": 0
+  },
+  "clone_matches": [
+    {
+      "existing_function": {
+        "line": 47,
+        "name": "_transformation",
+        "path": "tests/data/test_tokamap_export.py"
+      },
+      "run_function": {
+        "line": 147,
+        "name": "_cocos_transformation",
+        "path": "imas_ambix/data/tokamap_export.py"
+      },
+      "window_line": 152
+    }
+  ],
+  "commit_resolution": null,
+  "commits": [
+    "6785dcdde8b451afcf014dda3590be8138aa1509",
+    "fcbf0f5eab180154a7da4d91018fdb4fedac130b",
+    "5a07dd95f369ff770b8ce87e059fed07f998cef8"
+  ],
+  "completed_at": "2026-10-05T07:17:40.574Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-10-05T06:32:42Z",
+  "disposition": null,
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": true,
+    "matched_measure": "pytest -p",
+    "override": false,
+    "role": "implement",
+    "status": "compatible"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [],
+  "gate": "passed",
+  "gate_check": {
+    "command": "uv run --no-sync --with tokamap==0.3.2 pytest -p no:cacheprovider -q tests/data/test_tokamap_export.py",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T063236505228-jtmm-tokamap-export/test_gate.log"
+  },
+  "impl_move": {
+    "at_complete": null,
+    "at_dispatch": null,
+    "plan": "jt60sa-machine-map",
+    "reason": "corrective-run:resume",
+    "verdict": "exempt"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-10-05T07:32:37.038630+00:00",
+    "horizon_seconds": 3600,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": null,
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-10-05T06:32:37Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 11,
+    "binding_observed": "unknown",
+    "detail": "",
+    "generating": 2,
+    "headroom": 14,
+    "mean_context": 120000,
+    "observed_at": "2026-10-05T06:32:26Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45,
+    "throughput": {
+      "age_seconds": 11,
+      "aggregate_tokens_per_second": 192.27,
+      "detail": "",
+      "mean_tokens_per_second": 96.135,
+      "observed_at": "2026-10-05T06:32:26Z",
+      "runs": 2.0,
+      "state": "measured"
+    },
+    "waiting": 0
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-10-05T07:17:40.574Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": true,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T063236505228-jtmm-tokamap-export/manifest.md",
+  "member": "disposable-r-20261005T063236505228-jtmm-tokamap-export",
+  "negative_control": {
+    "added_failure_ids": [
+      "tests/data/test_tokamap_export.py::test_exported_scale_round_trips_unit_sign_and_cocos"
+    ],
+    "baseline_failure_ids": [],
+    "comparison_arm": "baseline_suite",
+    "control_exit_status": 1,
+    "control_failure_ids": [
+      "tests/data/test_tokamap_export.py::test_exported_scale_round_trips_unit_sign_and_cocos"
+    ],
+    "declaration": "omit the COCOS factor from the exported scale; the scale round-trip test must then fail on every COCOS-dependent binding",
+    "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T063236505228-jtmm-tokamap-export/negative_control.log",
+    "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T063236505228-jtmm-tokamap-export/negative_control.log",
+    "test_paths": [
+      "tests/data/test_tokamap_export.py"
+    ],
+    "verdict": "matched"
+  },
+  "no_commit": null,
+  "node": "jtmm-tokamap-export",
+  "node_definition": {
+    "brief": "",
+    "brief_path": "",
+    "brief_sha256": "",
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 1033,
+          "cached_input_tokens": 431363,
+          "input_tokens": 432398,
+          "output_tokens": 316,
+          "reasoning_output_tokens": 0,
+          "total_tokens": 432714,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "a663ef24-6dba-4bb9-9ea5-3f1597c64253",
+      "session_id": "a663ef24-6dba-4bb9-9ea5-3f1597c64253"
+    },
+    "done_when": "tokamap 0.3.2 is a declared dev dependency: pyproject.toml and uv.lock change together through UV_OFFLINE=0 command uv add --dev --no-sync tokamap==0.3.2, and the shared environment is not synced. UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD command uv run --no-sync --with tokamap==0.3.2 pytest -p no:cacheprovider tests/data/test_tokamap_export.py exits 0 with at least 4 tests asserting: the packaged MAST catalogue and its signal maps export to a directory that tokamap.validator accepts for every IDS group the MAST map binds; for every exported binding, the exported scale equals the ambix unit factor times the sign-convention factor times the COCOS factor, compared to 1e-12; shot partitions follow the catalogue's map ranges; and a binding whose sign_convention is unknown-unvalidated is exported with that state in its comment rather than silently given a sign. uvx --from tokamap==0.3.2 tokamap-validator <exported MAST directory> exits 0 and its output is in the gate log. UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD command uv run --no-sync ruff check imas_ambix tests exits 0.",
+    "estimated_hours": null,
+    "goal": "export an ambix machine-map catalogue and its signal maps as a tokamap mapping directory",
+    "id": "jtmm-tokamap-export",
+    "lane_declaration": {
+      "backend": null,
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-10-05T06:32:37Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 11,
+      "binding_observed": "unknown",
+      "detail": "",
+      "generating": 2,
+      "headroom": 14,
+      "mean_context": 120000,
+      "observed_at": "2026-10-05T06:32:26Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45,
+      "throughput": {
+        "age_seconds": 11,
+        "aggregate_tokens_per_second": 192.27,
+        "detail": "",
+        "mean_tokens_per_second": 96.135,
+        "observed_at": "2026-10-05T06:32:26Z",
+        "runs": 2.0,
+        "state": "measured"
+      },
+      "waiting": 0
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T063236505228-jtmm-tokamap-export/manifest.md",
+    "negative_control": "omit the COCOS factor from the exported scale; the scale round-trip test must then fail on every COCOS-dependent binding",
+    "plan": "jt60sa-machine-map",
+    "requested_backend": null,
+    "requires_decisions": [],
+    "role": "implement",
+    "section": "§2",
+    "spec_level": "guided",
+    "time_budget": "60m",
+    "token_budget": null,
+    "write_paths": [
+      "imas_ambix/data/tokamap_export.py",
+      "tests/data/test_tokamap_export.py",
+      "pyproject.toml",
+      "uv.lock",
+      "docs/evidence/fragments/jt60sa-machine-map/jtmm-tokamap-export.html",
+      "docs/figures/jt60sa-machine-map/jtmm-tokamap-export"
+    ]
+  },
+  "orchestrator_lane_override": null,
+  "orientation_input_tokens": 3234674.0,
+  "outcome": "",
+  "pace": {
+    "allowance": null,
+    "bar": null,
+    "clocks": {
+      "five_hour": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "five_hour",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      },
+      "seven_day": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "seven_day",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      }
+    },
+    "group": null,
+    "hold": null,
+    "lane": "clive",
+    "member": null,
+    "node": "jtmm-tokamap-export",
+    "policy": {
+      "drain_lead_hours": 12.0,
+      "pace_multiple": 1.1
+    },
+    "reason": "the lane declares no budget group, so no wallet paced it",
+    "recorded_at": "2026-10-05T06:32:38.273557+00:00",
+    "score": 0.6625,
+    "source": null,
+    "state": "unknown"
+  },
+  "picker_selection": {
+    "action": "route",
+    "answering_model": "typesafe/jev-1.13-20260917",
+    "backend": "clive",
+    "comment": "",
+    "confidence": 0.87,
+    "decision_source": "jev",
+    "effort": "high",
+    "excluded": [
+      {
+        "availability": "not-probed",
+        "backend": "native",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "in-harness",
+        "local": false,
+        "model": null,
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reasons": [
+          "in-harness-backend"
+        ],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      }
+    ],
+    "fallback_reason": null,
+    "family": "local",
+    "jev_latency_ms": 380.228,
+    "jev_model": "typesafe/jev-1.13",
+    "latency_ms": 576.446,
+    "model": "deepseek-v4.1-flash",
+    "offered": [
+      {
+        "availability": "unknown",
+        "backend": "claude",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-sonnet-5-5",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "claude-haiku",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-haiku-4-5-20251001",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "claude-opus",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-opus-5-5",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "served",
+        "backend": "clive",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": {
+          "admission_verdict": "open",
+          "running": 2,
+          "slots_state": "measured",
+          "stale": false,
+          "waiting": 0
+        },
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "local",
+        "local": true,
+        "model": "deepseek-v4.1-flash",
+        "outcomes": {
+          "failed": 2,
+          "not-run": 0,
+          "passed": 49,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": 76
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex",
+        "budget_reason": "recorded account-window reading is stale",
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-sol",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex-astra",
+        "budget_reason": "recorded account-window reading is stale",
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-astra",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex-luna",
+        "budget_reason": "recorded account-window reading is stale",
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-luna",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      }
+    ],
+    "probabilities": {
+      "claude": 0,
+      "claude-haiku": 0.01,
+      "claude-opus": 0.01,
+      "clive": 0.89,
+      "codex": 0.01,
+      "codex-astra": 0,
+      "codex-luna": 0,
+      "hold": 0.08
+    },
+    "rendered_token_estimate": 1161,
+    "usage": {
+      "cost": 0.00013356,
+      "input_tokens": 3180,
+      "output_tokens": 89
+    }
+  },
+  "plan": "jt60sa-machine-map",
+  "plan_link": null,
+  "promoted_by": null,
+  "promoted_revision": "5a07dd95f369ff770b8ce87e059fed07f998cef8",
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "reviewed_base_sha": "0111d5a1d575ab015e142c102d25fa3274c68bf4",
+    "reviewed_head_sha": "5a07dd95f369ff770b8ce87e059fed07f998cef8",
+    "scores": {
+      "durability": 17,
+      "evidence": 15,
+      "fit": 17,
+      "goal_fidelity": 15,
+      "scope_discipline": 19
+    },
+    "status": "parsed",
+    "total": 83
+  },
+  "review_tier": "full",
+  "role": "implement",
+  "route_mode": "explicit",
+  "run_id": "r-20261005T063236505228-jtmm-tokamap-export",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§2",
+  "session": "a663ef24-6dba-4bb9-9ea5-3f1597c64253",
+  "session_harness": "claude",
+  "session_id": "205292e3-bafa-46ef-8d35-fb8628f02746",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "guided",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 6,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 19443284,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 230144",
+    "elapsed_seconds": 171.802,
+    "generated_tokens": 110314,
+    "generation_seconds": 123.367,
+    "input_budget_tokens": 230144,
+    "input_utilisation_pct": 52.6,
+    "machine_seconds": 48.435,
+    "peak_input_tokens": 121081,
+    "tokens_per_second": 894.19,
+    "wall_tokens_per_second": 642.1
+  },
+  "time_budget": "60m",
+  "tool_steps": 100.0,
+  "unplanned_reason": null,
+  "unreconciled_override": null,
+  "wall_seconds": 2698,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 3,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-10-05T07:17:42Z",
+    "last_record_type": "result",
+    "launched_at": "2026-10-05T07:14:44Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20261005T063236505228-jtmm-tokamap-export",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 17262,
+    "worker_pid": 154088
+  },
+  "worker_seconds": 2680,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
