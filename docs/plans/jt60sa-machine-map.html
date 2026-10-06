@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d">
 <meta name="plan-impl" content="0.5">
-<meta name="plan-version" content="73">
+<meta name="plan-version" content="74">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -994,6 +994,9 @@
 </div>
 <div class="r-comment" data-section="s3" data-id="c-run-r-20261006T005835782502-review-of-jtmm-eddb-second-cold-fetch" data-who="reckon-build" data-when="2026-10-06T01:04:50.437Z">
     <div class="r-comment-body"><p>independent review of run r-20261005T112402736155-jtmm-eddb-second-cold-fetch (plan imas-ambix:jt60sa-machine-map §3), reviewed_base_sha 3779b82cee1155c5eaa27060fbc926cee92631a3 / reviewed_head_sha 8da45002b997aaa51864a13f51dd914cda686dab, stored as a parsed record scoring all six dimensions in 0..20 (goal_fidelity 19, evidence 18, scope_discipline 19, durability 15, fit 18, reuse 20; total 109/120).</p></div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-run-r-20261005T112402736155-jtmm-eddb-second-cold-fetch" data-who="reckon-build" data-when="2026-10-06T00:57:24.715Z">
+    <div class="r-comment-body"><p>The E101154 first-pass channels and the EDDB-catalogue MDAC magFlxLp* flux loops were fetched cold through fetch_channels in one ssh session per shot (E101154 119/119 served, E101173 34/34 served, no refusals; cold wall 111.253 s and 104.348 s), the warm path re-read every fetched channel with no transport call, and the per-channel measures plus both shots&#x27; MDAC mag-name catalogues are recorded in the evidence fragment.</p></div>
 </div>
 <div class="r-comment" data-section="s2" data-id="c-run-r-20261005T065204728047-review-of-jtmm-tokamap-export" data-who="reckon-build" data-when="2026-10-05T07:08:54.445Z">
     <div class="r-comment-body"><p>jtmm-tokamap-export reviewed: the exporter, its validator run and its round-trip gate reproduce at the reviewed head, but every IDS group directory is written with the same cross-group mappings.json (all four groups' keys in every group), so the export is not group-scoped; added_failure_count 0.</p></div>

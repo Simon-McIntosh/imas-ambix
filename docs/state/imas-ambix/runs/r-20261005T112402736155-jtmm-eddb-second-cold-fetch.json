@@ -1,0 +1,582 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effective_input_window": 230144,
+    "effort": "high",
+    "launch": "cli",
+    "local": true,
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "worktree-full",
+    "usable_input_window": 230144
+  },
+  "attempt": 3,
+  "attempt_kind": "resume",
+  "backend": "clive",
+  "base_sha": "3779b82cee1155c5eaa27060fbc926cee92631a3",
+  "boundary_waiver": null,
+  "brief": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "fallback_credit": null,
+      "inference_geo": "",
+      "input_tokens": 6891555,
+      "input_tokens_cumulative": 6891555,
+      "output_tokens": 32759,
+      "output_tokens_cumulative": 32759,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": {
+    "added": 246,
+    "files": 1,
+    "removed": 0
+  },
+  "clone_matches": [],
+  "commit_resolution": null,
+  "commits": [
+    "8da45002b997aaa51864a13f51dd914cda686dab"
+  ],
+  "completed_at": "2026-10-06T00:57:24.715Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-10-05T11:24:10Z",
+  "disposition": null,
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": true,
+    "matched_measure": null,
+    "override": false,
+    "role": "implement",
+    "status": "no-execution-measure"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [],
+  "gate": "passed",
+  "gate_check": {
+    "command": "grep -c -E 'E101154|E101173' docs/evidence/fragments/jt60sa-machine-map/jtmm-eddb-second-cold-fetch.html",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T112402736155-jtmm-eddb-second-cold-fetch/coordinator-gate.log"
+  },
+  "impl_move": {
+    "at_complete": null,
+    "at_dispatch": 0.4375,
+    "plan": "jt60sa-machine-map",
+    "reason": "corrective-run:resume",
+    "verdict": "exempt"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-10-05T12:24:03.107051+00:00",
+    "horizon_seconds": 3600,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": null,
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-10-05T11:24:03Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 6,
+    "binding_observed": "unknown",
+    "detail": "",
+    "generating": 1,
+    "headroom": 10,
+    "mean_context": 160000,
+    "observed_at": "2026-10-05T11:23:57Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45,
+    "throughput": {
+      "age_seconds": 6,
+      "aggregate_tokens_per_second": 147.813,
+      "detail": "",
+      "mean_tokens_per_second": 105.58,
+      "observed_at": "2026-10-05T11:23:57Z",
+      "runs": 1.4,
+      "state": "measured"
+    },
+    "waiting": 0
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-10-06T00:57:24.715Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": true,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T112402736155-jtmm-eddb-second-cold-fetch/manifest.md",
+  "member": "disposable-r-20261005T112402736155-jtmm-eddb-second-cold-fetch",
+  "negative_control": {
+    "reason": "node-writes-no-test-path",
+    "verdict": "exempt"
+  },
+  "no_commit": null,
+  "node": "jtmm-eddb-second-cold-fetch",
+  "node_definition": {
+    "brief": "",
+    "brief_path": "",
+    "brief_sha256": "",
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 380,
+          "cached_input_tokens": 342937,
+          "input_tokens": 343319,
+          "output_tokens": 968,
+          "reasoning_output_tokens": 516,
+          "total_tokens": 344287,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "a663ef24-6dba-4bb9-9ea5-3f1597c64253",
+      "session_id": "a663ef24-6dba-4bb9-9ea5-3f1597c64253"
+    },
+    "done_when": "A driver run on the fleet compute node this session already holds, using imas_ambix.data.eddb.fetch_channels and the merged extractor with no new repository module, writes into JT60SA_ROOT: (a) on E101154, the first-pass channels MMSYS cur{CS1..CS4,EF1..EF6}{HiTe,LKAT}, cur1TFLKAT, cur2TFLKAT; PSRC Ip, calIp, magFluxLp1..34, magPbTC1..23; MDAC curAVVRC1..4; (b) on E101154 and on E101173, every MDAC data name EDDB's catalogue lists for that shot that begins magFlxLp, with the names enumerated from the catalogue rather than assumed. Each shot's fetch is one ssh session through fetch_channels, which skips channels already cached (E101173's first pass is). A warm re-read of every channel fetched in this run through VirtualZarrView, with a transport that raises if called, makes no transport call. The evidence fragment docs/evidence/fragments/jt60sa-machine-map/jtmm-eddb-second-cold-fetch.html records per shot: channels requested, served and refused, each refusal with the irc fetch_channels returned; cold wall time and per-signal wall time; bytes on disk; unit strings; the time-base length of each served channel; and the full list of MDAC data names beginning mag that the catalogue lists for each shot, with their counts, as names only. It states which of PSRC magFluxLp1..34 and MDAC magFlxLp* are served on each shot. No EDDB value is committed to the repository. Every ssh call uses the extractor's DEFAULT_SSH_COMMAND, which carries -F /home/ITER/mcintos/.ssh/config, and every remote command runs under nice -n 19.",
+    "estimated_hours": null,
+    "goal": "measure a cold EDDB fetch of E101154's first-pass channels and the raw MDAC flux loops on E101154 and E101173",
+    "id": "jtmm-eddb-second-cold-fetch",
+    "lane_declaration": {
+      "backend": null,
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-10-05T11:24:03Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 6,
+      "binding_observed": "unknown",
+      "detail": "",
+      "generating": 1,
+      "headroom": 10,
+      "mean_context": 160000,
+      "observed_at": "2026-10-05T11:23:57Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45,
+      "throughput": {
+        "age_seconds": 6,
+        "aggregate_tokens_per_second": 147.813,
+        "detail": "",
+        "mean_tokens_per_second": 105.58,
+        "observed_at": "2026-10-05T11:23:57Z",
+        "runs": 1.4,
+        "state": "measured"
+      },
+      "waiting": 0
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T112402736155-jtmm-eddb-second-cold-fetch/manifest.md",
+    "negative_control": "",
+    "plan": "jt60sa-machine-map",
+    "requested_backend": null,
+    "requires_decisions": [],
+    "role": "implement",
+    "section": "§3",
+    "spec_level": "guided",
+    "time_budget": "60m",
+    "token_budget": null,
+    "write_paths": [
+      "docs/evidence/fragments/jt60sa-machine-map/jtmm-eddb-second-cold-fetch.html",
+      "docs/figures/jt60sa-machine-map/jtmm-eddb-second-cold-fetch"
+    ]
+  },
+  "orchestrator_lane_override": null,
+  "orientation_input_tokens": null,
+  "outcome": "",
+  "pace": {
+    "allowance": null,
+    "bar": null,
+    "clocks": {
+      "five_hour": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "five_hour",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      },
+      "seven_day": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "seven_day",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      }
+    },
+    "group": null,
+    "hold": null,
+    "lane": "clive",
+    "member": null,
+    "node": "jtmm-eddb-second-cold-fetch",
+    "policy": {
+      "drain_lead_hours": 12.0,
+      "pace_multiple": 1.1
+    },
+    "reason": "the lane declares no budget group, so no wallet paced it",
+    "recorded_at": "2026-10-05T11:24:05.027005+00:00",
+    "score": 0.8125,
+    "source": null,
+    "state": "unknown"
+  },
+  "picker_selection": {
+    "action": "route",
+    "answering_model": "typesafe/jev-1.13-20260917",
+    "backend": "clive",
+    "comment": "",
+    "confidence": 0.82,
+    "decision_source": "jev",
+    "effort": "high",
+    "excluded": [
+      {
+        "availability": "not-probed",
+        "backend": "native",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "in-harness",
+        "local": false,
+        "model": null,
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reasons": [
+          "in-harness-backend"
+        ],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      }
+    ],
+    "fallback_reason": null,
+    "family": "local",
+    "jev_latency_ms": 483.604,
+    "jev_model": "typesafe/jev-1.13",
+    "latency_ms": 2519.972,
+    "model": "deepseek-v4.1-flash",
+    "offered": [
+      {
+        "availability": "unknown",
+        "backend": "claude",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-sonnet-5-5",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "claude-haiku",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-haiku-4-5-20251001",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "claude-opus",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-opus-5-5",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "served",
+        "backend": "clive",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": {
+          "admission_verdict": "open",
+          "running": 1,
+          "slots_state": "measured",
+          "stale": false,
+          "waiting": 0
+        },
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "local",
+        "local": true,
+        "model": "deepseek-v4.1-flash",
+        "outcomes": {
+          "failed": 1,
+          "not-run": 1,
+          "passed": 60,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": 45
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex",
+        "budget_reason": null,
+        "burn_multiple": 1.5130736933110323,
+        "congestion": null,
+        "days_to_reset": 4.409245661655093,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-sol",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": 0.407118306744213,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": "2026-10-09T21:13:34+00:00",
+        "utilisation_pct": 56.00000000000001,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex-astra",
+        "budget_reason": null,
+        "burn_multiple": 1.5130736933110323,
+        "congestion": null,
+        "days_to_reset": 4.409245661655093,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-astra",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": 0.407118306744213,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": "2026-10-09T21:13:34+00:00",
+        "utilisation_pct": 56.00000000000001,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex-luna",
+        "budget_reason": null,
+        "burn_multiple": 1.5130736933110323,
+        "congestion": null,
+        "days_to_reset": 4.409245661655093,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-luna",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": 0.407118306744213,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": "2026-10-09T21:13:34+00:00",
+        "utilisation_pct": 56.00000000000001,
+        "worker_slots": null
+      }
+    ],
+    "probabilities": {
+      "claude": 0,
+      "claude-haiku": 0,
+      "claude-opus": 0,
+      "clive": 0.85,
+      "codex": 0.05,
+      "codex-astra": 0,
+      "codex-luna": 0.02,
+      "hold": 0.08
+    },
+    "rendered_token_estimate": 1314,
+    "usage": {
+      "cost": 0.000150192,
+      "input_tokens": 3576,
+      "output_tokens": 89
+    }
+  },
+  "plan": "jt60sa-machine-map",
+  "plan_impl_at_dispatch": 0.4375,
+  "plan_link": null,
+  "promoted_by": null,
+  "promoted_revision": "8da45002b997aaa51864a13f51dd914cda686dab",
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "reviewed_base_sha": "3779b82cee1155c5eaa27060fbc926cee92631a3",
+    "reviewed_head_sha": "8da45002b997aaa51864a13f51dd914cda686dab",
+    "scores": {
+      "durability": 15,
+      "evidence": 18,
+      "fit": 18,
+      "goal_fidelity": 19,
+      "reuse": 20,
+      "scope_discipline": 19
+    },
+    "status": "parsed",
+    "total": 109
+  },
+  "review_tier": "none",
+  "role": "implement",
+  "route_mode": "explicit",
+  "run_id": "r-20261005T112402736155-jtmm-eddb-second-cold-fetch",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§3",
+  "session": "a663ef24-6dba-4bb9-9ea5-3f1597c64253",
+  "session_harness": "claude",
+  "session_id": "2b244160-f2d4-4aa5-a9e5-8c0434e74f00",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "guided",
+  "stalled": true,
+  "suite_delta": null,
+  "tests_added": 0,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 11846006,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 230144",
+    "elapsed_seconds": 940.39,
+    "generated_tokens": 63648,
+    "generation_seconds": 447.051,
+    "input_budget_tokens": 230144,
+    "input_utilisation_pct": 85.2,
+    "machine_seconds": 493.339,
+    "peak_input_tokens": 196148,
+    "tokens_per_second": 142.37,
+    "wall_tokens_per_second": 67.68
+  },
+  "time_budget": "60m",
+  "tool_steps": 50.0,
+  "unplanned_reason": null,
+  "unreconciled_override": null,
+  "wall_seconds": 48794,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 3,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-10-06T00:57:29Z",
+    "last_record_type": "result",
+    "launched_at": "2026-10-06T00:41:40Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20261005T112402736155-jtmm-eddb-second-cold-fetch",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 11753,
+    "worker_pid": 3646183
+  },
+  "worker_seconds": 48775,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
