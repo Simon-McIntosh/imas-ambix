@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5">
 <meta name="plan-impl" content="0.625">
-<meta name="plan-version" content="131">
+<meta name="plan-version" content="133">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -471,7 +471,23 @@
       and outer outlines of one annular vessel unit
       (<code>wall/description_2d/vessel/unit/annular/outline_inner</code> and
       <code>outline_outer</code>, checked against DD 4.1.1), so the limiter is the plasma-facing
-      contour alone in both phases.
+      contour alone in both phases. That split landed on 2026-10-06
+      (<code>jtmm-passive-cryostat-and-wall</code>, review 115/120), with the OP1 wall still drawn
+      from <code>EQSLE.DATA</code>'s segments.
+    </p>
+    <p>
+      By the lead's decision <code>wall-from-coil-vv-tables</code>, both phases now take the wall
+      and vessel contours from their own <code>coil_vv_OP{1,2}.dat</code>, which carry the
+      same geometry as continuous polylines. The limiter unit is the deck's <code>nlim=51</code>
+      first-wall polygon (OP1 line 393, OP2 line 371; the two differ, because the first wall
+      changed for OP2). The annular vessel unit's <code>outline_inner</code> and
+      <code>outline_outer</code> are the two 50-segment skins of the 128-row contour block
+      ("Inner VV=50", "Outer VV=50"), with the block's 28 D-probe rows excluded. Their chord
+      endpoints lie on <code>EQSLE.DATA</code>'s analytic vessel arcs, so this changes
+      representation, not geometry. The same node closes the cryostat review's follow-ons: the
+      boundary test's wall half requires the shared limiter to change; the cryostat is
+      identified by containment outside the vessel's outer skin rather than by a bounding box;
+      and the empty staging directory left on the store is removed.
     </p>
 
     <h2 id="s5">§5 — Pulse bindings and the EDDB census</h2>
@@ -1057,6 +1073,15 @@
       </p>
     <p class="r-dec-rat">Lead&#x27;s choice 2026-10-06. The cryostat did not change between OP1 and OP2, so both phases carry the same cryostat block from EQSLE.DATA beside their own vacuum vessel, named as separate loops. The passive difference at the boundary is then the vessel alone, which is the real change, and both phases carry the same eddy-current paths. Rejected: keeping each deck as given, which would record a deck difference as a machine change; and dropping the cryostat from OP1, which would depart from SELENE&#x27;s own input that the reconstruction comparison relies on.</p>
     </div>
+<div class="r-dec" data-key="wall-from-coil-vv-tables" data-choice="coil-vv-both-phases" data-by="Simon McIntosh" data-when="2026-10-06T08:30:00+00:00" data-sections="s4">
+    <p class="r-dec-q">Where do the JT-60SA wall and vessel contours come from?</p>
+    <p class="r-dec-ctx">Measured 2026-10-06: each coil_vv_OP{1,2}.dat carries an nlim=51 first-wall polygon (OP1 line 393, OP2 line 371; the two differ) and a 128-row contour block holding the vacuum vessel&#x27;s inner and outer skins as 50-segment polylines plus 28 D-probe rows. EQSLE.DATA describes the same skins analytically as arcs and lines, and its segment list was concatenated by the converter into one 638-point limiter. The coil_vv chord endpoints lie on the EQSLE.DATA arcs.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="coil-vv-both-phases">Both phases from their coil_vv contour tables</button>
+      <button class="r-opt" data-value="eqsle-for-op1">OP1 from EQSLE.DATA, OP2 from coil_vv</button>
+      </p>
+    <p class="r-dec-rat">Lead&#x27;s choice 2026-10-06, relayed by the figures session and confirmed directly. Both phases are built the same way from their own coil_vv deck: the nlim=51 first-wall polygon as the limiter unit, and the two VV skins as one annular vessel unit&#x27;s outline_inner and outline_outer, with the D-probe rows excluded. The contours are continuous polylines on the same geometry SELENE uses, so the phase comparison is like for like. Rejected: keeping EQSLE.DATA for OP1, which draws the two phases&#x27; walls from different representations.</p>
+    </div>
 </section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
@@ -1252,7 +1277,7 @@
     <div class="r-comment-body"><p>section:jt60sa-machine-map §4 — EQSLE.DATA's two passive resistivity runs are written as named pf_passive loops VV and CRYOSTAT (OP1 63+57, OP2 98+57), the wall splits into the limiter outline plus the vessel unit's annular inner/outer skins, and both phases' CRYOSTAT loops are identical.</p></div>
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20261006T080640162342-review-of-jtmm-passive-cryostat-and-wall" data-who="reckon-build" data-when="2026-10-06T08:15:32.064Z">
-    <div class="r-comment-body"><p>reviewed r-20261006T073451752408-jtmm-passive-cryostat-and-wall (imas-ambix:jt60sa-machine-map §4) at head 1d71de9f over base 17eeb037, scores 20/19/20/18/19/19 = 115/120, no blocking finding; the store readback, the fragment&#x27;s seven sha256 values, the before-hash reproduction by the parent converter, the gate (58 passed) and the declared negative control were all verified independently.</p></div>
+    <div class="r-comment-body"><p>reviewed r-20261006T073451752408-jtmm-passive-cryostat-and-wall (imas-ambix:jt60sa-machine-map §4) at head 1d71de9f over base 17eeb037, scores 20/19/20/18/19/19 = 115/120, no blocking finding; the store readback, the fragment's seven sha256 values, the before-hash reproduction by the parent converter, the gate (58 passed) and the declared negative control were all verified independently.</p></div>
 </div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20261005T131209269722-review-of-jtmm-shotset-machine" data-who="reckon-build" data-when="2026-10-05T13:20:34.081Z">
     <div class="r-comment-body"><p>Independent review stored for run r-20261005T125917372067-jtmm-shotset-machine (base adb67e5f, head cbef27a7, plan §7): parsed record scoring all six dimensions in 0..20 -- goal_fidelity 19, evidence 18, scope_discipline 19, durability 19, fit 19, reuse 20, total 114 -- with added_failure_count 0 and added_failure_ids [].</p></div>
