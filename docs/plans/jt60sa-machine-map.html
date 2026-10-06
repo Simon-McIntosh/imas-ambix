@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5">
 <meta name="plan-impl" content="0.625">
-<meta name="plan-version" content="86">
+<meta name="plan-version" content="87">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -398,6 +398,27 @@
       <code>geometry_description_for_transition</code>, <code>description_field_changes</code>),
       extended to the JT-60SA phases rather than rewritten.
     </p>
+    <p>
+      The first attempt at that catalogue stopped on the store's shape (2026-10-06,
+      <code>jtmm-catalogue</code>). The twelve <code>pf_active</code> coils carry 40, 40, 40,
+      40, 16, 16, 16, 16, 16, 16, 6 and 6 elements. The static netCDF read
+      (<code>imas_ambix/data/transform_engine.py</code> <code>_read_ids_path</code>) stacks the
+      rows of every struct array, so each coil-element binding raises before
+      <code>geometry_table_from_description</code> runs. MAST never meets this, because its
+      catalogue gives each coil its own binding family, each reading a distinct source array
+      and named by its own structure assembly. The repair gives a static netCDF binding the
+      same per-coil reach. A binding may name one entry of the first struct array on its
+      <code>dd_path</code> by that entry's <code>name</code> leaf, so the JT-60SA catalogue
+      declares one binding family and one structure assembly per coil, as MAST's does. The
+      selection is an optional binding slot, declared in <code>schema.yaml</code> and loaded
+      by <code>imas_ambix/data/machine_map.py</code>. A binding without it reads exactly as
+      today, and a name that matches no entry is refused at read time under the existing
+      <code>TransformEngineError</code> family. Re-converting the store to equal element
+      counts was rejected, because padding coils with empty elements writes conductors that
+      do not exist. The slot widens one binding contract and retires nothing, because no
+      binding could select a struct-array entry before. The catalogue node is redispatched
+      from the base that carries it.
+    </p>
 
     <h2 id="s5">§5 — Pulse bindings and the EDDB census</h2>
     <p>
@@ -539,7 +560,10 @@
       two-dimensional grid with its boundary and profiles, so <code>eddb.py</code> gains a grid
       record writer beside <code>write_channel</code> under the same
       <code>{shot}.zarr/{category}/{name}</code> layout and the same refuse-to-overwrite rule,
-      rather than a second store over <code>JT60SA_ROOT</code>. That writer's array layout waits
+      rather than a second store over <code>JT60SA_ROOT</code>. The two writers share the
+      store's invariants through the code that already enforces them, rather than restating
+      them: the pulse group's <code>EDDB_TOKEN_ATTR</code> token match, the
+      <code>_channel_present</code> test for a half-written record, and the overwrite refusal. That writer's array layout waits
       on the open question <code>eqdb-reader</code>, which settles the record shape. It retires
       nothing, because no equilibrium-database reader exists in ambix.
     </p>
