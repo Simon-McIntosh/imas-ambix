@@ -1,0 +1,7 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtmm-observation-signal-maps">
+  <ul>
+    <li id="jtmm-observation-signal-maps-reader">Retired <code>read_catalogue_observation</code> and added <code>imas_ambix/data/cocos_convention.py</code> <code>read_signal_map_observation(shot, machine, equilibrium, *, root)</code>: it takes the plasma-current and flux-loop rules from the machine's packaged <code>magnetics</code> map, reads each rule's <code>source_group</code>/<code>source_array</code> with its time sibling raw through <code>eddb.read_channel</code> with no sign, unit or COCOS factor, takes the vacuum toroidal field from the <code>EfitLabels</code> scalars, and reports the <code>tf</code> map's coil-current sign beside the observation.</li>
+    <li id="jtmm-observation-signal-maps-gate">Gate <code>tests/data/test_cocos_convention.py</code>: 14 passed, EXIT=0; ruff on the changed paths exits 0.</li>
+    <li id="jtmm-observation-signal-maps-negative-control">Negative control (plasma current read through <code>VirtualZarrView</code> with a <code>channel_factor -1</code> rule): 3 failed, 11 passed, EXIT=1 — the raw-read assertions fail, so the check fires.</li>
+  </ul>
+</section>
