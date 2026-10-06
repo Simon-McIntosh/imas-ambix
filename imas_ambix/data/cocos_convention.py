@@ -452,12 +452,17 @@ MAST_TO_COCOS_17_FACTORS: Mapping[str, float] = MappingProxyType(
         "b0_like": 1.0,
         "q_like": -1.0,
         "dodpsi_like": 1.0 / tau,
-        "tor_angle_like": 1.0,
-        "pol_angle_like": -1.0,
         "one_like": 1.0,
     }
 )
-"""Factors conditional on the external owner declaration being COCOS 3."""
+"""Factors conditional on the external owner declaration being COCOS 3.
+
+Each entry is a transformation class nova's ``TRANSFORMATIONS`` owns, so the
+table is a data mirror of the derived factors rather than an independent
+statement.  A sensitive-axis angle is authored from the binding's measured
+``sign_convention`` and carries no COCOS-digit factor, so no angle class
+appears here.
+"""
 
 
 def _ordered_polygon_area(r: np.ndarray, z: np.ndarray) -> float:
