@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.87">
-<meta name="plan-version" content="217">
+<meta name="plan-version" content="219">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -377,8 +377,13 @@
       compiled transform applied. The reader then reads each series through it, rather than
       resolving <code>source_group</code> and <code>source_array</code> itself. It interpolates every
       flux loop onto the plasma-current time base and refuses a loop whose time span does not cover
-      it. That leaves one owner of rule-to-channel resolution, adds one accessor to the view and
-      retires nothing.
+      it. The node adds one accessor to the view and retires nothing. It moves this plan's reader
+      onto the view, but not every reader that resolves a rule itself. The pulse mint,
+      <code>imas_ambix/data/pulse_mint.py</code> <code>_served_entries</code>, does the same through
+      <code>read_channel</code>, and it belongs to the plan <code>jt60sa-pulse-ids</code>. That plan
+      owns its migration onto the accessor once the accessor lands, and this plan hands it over as a
+      foreign-owner followup rather than editing another plan's module. Until then the view and the
+      mint each resolve rules, and the accessor is the one both are meant to share.
     </p>
     <p>
       The COCOS of the source is then identified rather than assumed. For the raw side,
@@ -983,6 +988,11 @@
     <div class="r-fu-body"><p>Codex's sensor-order receipt landed 2026-10-06 (imas-codex c9a7caec5), so §5's second wave is ready: measure the PID-to-named-channel join and the raw MDAC probe channels on E101154, then bind the 27 loops and 17 tangential probes, with the unit-spelling table and the carried-over blocked-reason guard.</p></div>
     <pre class="r-fu-prompt">/reckon-build jt60sa-machine-map §5</pre>
     <p class="r-fu-outcome">§5 closed: the flux-loop and tangential-probe bindings merged as 19e395d1 (review 117/120) after the sensor join (71ab249b) and the signal-rule validation state (80391ed0); the remaining convention work is tracked by f-jtmm-003.</p>
+    </article>
+<article class="r-fu" data-id="f-jtmm-005" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-build" data-written-at="2026-10-06" data-recommends-skill="/reckon-build jt60sa-pulse-ids" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Move the pulse mint&#x27;s raw rule reads onto VirtualZarrView&#x27;s untransformed accessor (foreign owner: jt60sa-pulse-ids)</h4>
+    <div class="r-fu-body"><p>Exemption claimed: foreign-owner. Once jtmm-observation-time-alignment lands VirtualZarrView's untransformed accessor, imas_ambix/data/pulse_mint.py _served_entries should read each rule through it instead of resolving source_group and source_array through read_channel itself. The module belongs to the plan jt60sa-pulse-ids, so that plan owns the change.</p></div>
+    <pre class="r-fu-prompt">/reckon-build jt60sa-pulse-ids</pre>
     </article>
 </section>
 
