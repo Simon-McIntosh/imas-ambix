@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5">
 <meta name="plan-impl" content="0.625">
-<meta name="plan-version" content="77">
+<meta name="plan-version" content="78">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -382,9 +382,12 @@
       the <code>static-over-map</code> layout and description-carried probe angles, with map
       <code>OP1</code> over integers 100001–101173 (<code>E100001</code>–<code>E101173</code>: the
       2021 integrated-commissioning block and the 2023 OP1 campaign, one geometry), map
-      <code>OP2</code> open-ended from 101174, because the geometry changed in the enhancement
-      shutdown after the last OP1 pulse and EDDB holds no OP2 pulse yet, and a shot outside
-      both ranges (the 2026 C-series records among them) refused rather than given a map, and
+      <code>OP2</code> over 101174–999999, because the geometry changed in the enhancement
+      shutdown after the last OP1 pulse and EDDB holds no OP2 pulse yet (a map declares an
+      inclusive integer range, so the open end is the top of the six-digit E-series
+      numbering rather than a new schema slot), and a shot outside both ranges refused by
+      <code>map_for_shot</code> rather than given a map: the 2026 C-series records number
+      60028–82002 today, below both ranges, and
       description bindings to the five IDS netCDF of each phase; <code>transform_machine_description</code>
       emits a JT-60SA description for the OP1 pulse <code>E101173</code> and one shot in the OP2 range through one code path,
       <code>read_geometry_table</code> and <code>geometry_table_from_description</code> build a
