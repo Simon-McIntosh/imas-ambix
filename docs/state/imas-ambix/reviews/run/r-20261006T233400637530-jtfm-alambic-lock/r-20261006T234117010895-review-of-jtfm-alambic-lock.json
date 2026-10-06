@@ -1,0 +1,71 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "base_log_revision": "f78cad45dc37eff71bd98fba59361afd89b82560",
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-06T23:46:59.093Z",
+  "dispatched_at": "2026-10-06T23:41:27Z",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T233400637530-jtfm-alambic-lock/manifest.md",
+      "line": "15",
+      "severity": "follow-on",
+      "text": "follow-on: the tests field claims `uv lock` -> EXIT=0 with \"Added imas-alambic (dynamic)\", but the log it cites in test_logs (runs/.../logs/uv-lock-scratch.log) contains EXIT=1 -- a hatchling build failure (OSError: Readme file does not exist: README.md) from the first scratch attempt before README.md was added. The successful EXIT=0 log exists only at /tmp/reckon-crew-scratch/.../alambic-lock-scratch/uv-lock-scratch.log (node-local scratch, not cited, dies with the allocation), so the cited receipt is red while the recorded claim is green."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T233400637530-jtfm-alambic-lock/manifest.md",
+      "line": "20",
+      "severity": "follow-on",
+      "text": "follow-on: the done-when says \"uv lock, run in this worktree only\", but uv lock/uv lock --check cannot run in the worktree: the .reckon-worktrees container is mounted read-only and pyproject's tool.uv.sources reach ../nova and ../imas-ink, which resolve into that read-only container. The measure ran in a $TMPDIR scratch mirror instead. Disclosed in evidence_inputs and compensated -- the scratch pyproject.toml is byte-identical to the worktree head and the 15 packages/imas-alambic files match, the lock records no absolute paths (grep -c /home = 0), and this review reproduced the check EXIT=0 -- but the literal done-when clause is unmet."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T233400637530-jtfm-alambic-lock/logs/before.json",
+      "line": "1",
+      "severity": "follow-on",
+      "text": "follow-on: the before/after name/version comparison cited by the manifest is against before.json, a 233-package snapshot that omits the four editable workspace packages present in the real base lock (imas-ambix, imas-ink, nova-cocos, nova-stella; base lock has 237). The claim still holds when checked against the actual base lock f78cad45:uv.lock -- imas-alambic added, 237->238 packages, zero version changes -- so the conclusion is right but the cited comparison base is not the base revision's lock."
+    }
+  ],
+  "head_log_revision": "ea4c205e8",
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "diff": "read at ea4c205e against f78cad45; uv.lock gains the [manifest] members block, the imas-alambic editable package with its requires-dist, imas-alambic in imas-ambix's dependencies and its editable source entry; the evidence fragment records the lock regeneration. No source or test code changes.",
+    "done_when": "the fence asks uv lock to rewrite uv.lock in this worktree, uv lock --check to exit 0 at the head, the commit to touch uv.lock and the evidence fragment only, a before/after name/version comparison showing imas-alambic added with no other version changed, and no uv sync / plain uv run; the commit touches exactly those two paths and the comparison holds against the base lock, uv lock --check exits 0 (reproduced by this review in the scratch mirror), but the run could not execute uv lock in the worktree itself -- the read-only container mount blocks the ../nova and ../imas-ink path sources -- so the measure ran in a scratch mirror.",
+    "goal": "the node goal is to regenerate imas-ambix uv.lock so it resolves the packages/imas-alambic workspace member added at f78cad45; commit ea4c205e adds the [manifest] members block (imas-alambic, imas-ambix) and the imas-alambic editable package entry to uv.lock, and adds imas-alambic to imas-ambix's dependencies -- exactly the deliverable.",
+    "lock_validity": "parsed uv.lock at head: 238 packages, changed_versions [] against f78cad45:uv.lock, added ['imas-alambic'], no absolute/scratch paths present; the committed lock is byte-identical to the scratch resolution, and this review ran `uv lock --check` in a faithful scratch mirror of the head (pyproject.toml identical, 15 packages/imas-alambic files identical) which resolved 238 packages and exited 0.",
+    "manifest": "read; it records commit ea4c205e8f481ce58cadd8de10e93a57f1662258, changed_paths uv.lock and the evidence fragment, states no blockers on the deliverable, and carries a correct follow_ons note that worktrees of this repo cannot run uv commands that resolve the path sources; its test_logs path for uv-lock-scratch.log points at a red (EXIT=1) log while the tests field claims EXIT=0.",
+    "write_paths": "the fence lists uv.lock, docs/evidence/fragments/jt60sa-facility-mint/jtfm-alambic-lock.html and docs/figures/jt60sa-facility-mint/jtfm-alambic-lock; `git diff --stat f78cad45 ea4c205e` touches uv.lock (+30) and the evidence fragment (+20) only, so the diff is inside the declared scope."
+  },
+  "justifications": {
+    "durability": "the resolved lock is committed and is the durable deliverable, and it records no absolute paths so it is location-independent; the evidence supporting it is weaker -- the green gate log lives only in /tmp node-local scratch (gone when the allocation ends) and the run's own logs directory holds the red attempt -- so a later reader cannot reconcile the manifest's EXIT=0 claim from the cited path alone.",
+    "evidence": "the artifact is independently verifiable and correct (name/version diff against the base lock shows imas-alambic added and zero version changes; this review reproduced uv lock --check EXIT=0 in a byte-faithful scratch mirror), but the manifest's cited uv-lock-scratch.log is the failed first attempt (EXIT=1, missing README.md) while the successful EXIT=0 log survives only in node-local scratch and is uncited, and the cited before.json omits the four editable packages the base lock carries.",
+    "fit": "the change follows uv's own workspace idiom -- regenerate the lock rather than hand-edit it -- and matches plan jt60sa-facility-mint \u00a72's requirement that ambix and imas-alambic share one lock and one version owner; it introduces no code and no new surface.",
+    "goal_fidelity": "uv.lock at ea4c205e resolves the packages/imas-alambic workspace member: the [manifest] members block lists imas-alambic and imas-ambix, the imas-alambic editable entry carries the engine's six declared deps, and imas-ambix depends on imas-alambic -- the goal's deliverable verbatim.",
+    "reuse": "the node reused `uv lock` to derive the resolution rather than editing uv.lock by hand, so the lock stays a generated artifact consistent with pyproject.toml and the workspace manifest; no duplication introduced.",
+    "scope_discipline": "git diff --stat f78cad45 ea4c205e touches only uv.lock and docs/evidence/fragments/jt60sa-facility-mint/jtfm-alambic-lock.html, both named in the node's write_paths; no source, test or other plan file was modified."
+  },
+  "project": "imas-ambix",
+  "raw_text": "\nVERDICT goal: the node goal is to regenerate imas-ambix uv.lock so it resolves the packages/imas-alambic workspace member added at f78cad45; commit ea4c205e adds the [manifest] members block (imas-alambic, imas-ambix) and the imas-alambic editable package entry to uv.lock, and adds imas-alambic to imas-ambix's dependencies -- exactly the deliverable.\nVERDICT done_when: the fence asks uv lock to rewrite uv.lock in this worktree, uv lock --check to exit 0 at the head, the commit to touch uv.lock and the evidence fragment only, a before/after name/version comparison showing imas-alambic added with no other version changed, and no uv sync / plain uv run; the commit touches exactly those two paths and the comparison holds against the base lock, uv lock --check exits 0 (reproduced by this review in the scratch mirror), but the run could not execute uv lock in the worktree itself -- the read-only container mount blocks the ../nova and ../imas-ink path sources -- so the measure ran in a scratch mirror.\nVERDICT write_paths: the fence lists uv.lock, docs/evidence/fragments/jt60sa-facility-mint/jtfm-alambic-lock.html and docs/figures/jt60sa-facility-mint/jtfm-alambic-lock; `git diff --stat f78cad45 ea4c205e` touches uv.lock (+30) and the evidence fragment (+20) only, so the diff is inside the declared scope.\nVERDICT manifest: read; it records commit ea4c205e8f481ce58cadd8de10e93a57f1662258 and every gate log path, but its test_logs path for uv-lock-scratch.log points at a red (EXIT=1) log while the tests field claims EXIT=0.\nVERDICT diff: read at ea4c205e against f78cad45; uv.lock gains the [manifest] members block, the imas-alambic editable package with its requires-dist, imas-alambic in imas-ambix's dependencies and its editable source entry; the evidence fragment records the regeneration. No source or test code changes.\nVERDICT lock_validity: parsed uv.lock at head: 238 packages, changed_versions [] against f78cad45:uv.lock, added ['imas-alambic'], no absolute paths; committed lock byte-identical to the scratch resolution, and this review ran `uv lock --check` in a faithful scratch mirror of the head which resolved 238 packages and exited 0.\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: uv.lock at ea4c205e resolves the packages/imas-alambic workspace member: the [manifest] members block lists imas-alambic and imas-ambix, the imas-alambic editable entry carries the engine's six declared deps, and imas-ambix depends on imas-alambic -- the goal's deliverable verbatim.\nSCORE evidence: 15\nJUSTIFICATION evidence: the artifact is independently verifiable and correct, but the manifest's cited uv-lock-scratch.log is the failed first attempt (EXIT=1, missing README.md) while the successful EXIT=0 log survives only in node-local scratch and is uncited, and the cited before.json omits the four editable packages the base lock carries.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff --stat f78cad45 ea4c205e touches only uv.lock and docs/evidence/fragments/jt60sa-facility-mint/jtfm-alambic-lock.html, both named in the node's write_paths; no source, test or other plan file was modified.\nSCORE durability: 16\nJUSTIFICATION durability: the resolved lock is committed and location-independent, but the green gate log lives only in /tmp node-local scratch and the run's own logs directory holds the red attempt, so the manifest's EXIT=0 claim cannot be reconciled from the cited path alone.\nSCORE fit: 18\nJUSTIFICATION fit: the change follows uv's own workspace idiom -- regenerate the lock rather than hand-edit it -- and matches plan jt60sa-facility-mint section 2's one-lock-one-version-owner requirement; it introduces no code and no new surface.\nSCORE reuse: 19\nJUSTIFICATION reuse: the node reused `uv lock` to derive the resolution rather than editing uv.lock by hand, so the lock stays a generated artifact consistent with pyproject.toml and the workspace manifest.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T233400637530-jtfm-alambic-lock/manifest.md:15 follow-on: the tests field claims `uv lock` -> EXIT=0, but the cited uv-lock-scratch.log contains EXIT=1 (missing README.md); the successful EXIT=0 log survives only in node-local scratch and is uncited.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T233400637530-jtfm-alambic-lock/manifest.md:20 follow-on: the done-when's \"uv lock, run in this worktree only\" could not be met -- the read-only worktree container blocks the ../nova and ../imas-ink path sources -- so the measure ran in a scratch mirror; disclosed and compensated, but the literal clause is unmet.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T233400637530-jtfm-alambic-lock/logs/before.json:1 follow-on: the cited before/after comparison base omits the four editable workspace packages the base lock carries; the claim holds against the real base lock f78cad45:uv.lock (imas-alambic added, zero version changes).\n",
+  "review_run_id": "r-20261006T234117010895-review-of-jtfm-alambic-lock",
+  "reviewed_base_sha": "f78cad45dc37eff71bd98fba59361afd89b82560",
+  "reviewed_head_sha": "ea4c205e8f481ce58cadd8de10e93a57f1662258",
+  "reviewed_run_id": "r-20261006T233400637530-jtfm-alambic-lock",
+  "reviewer": {
+    "backend": "clive",
+    "model": "deepseek-v4.1-flash"
+  },
+  "reviewer_run_id": "r-20261006T234117010895-review-of-jtfm-alambic-lock",
+  "scores": {
+    "durability": 16,
+    "evidence": 15,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "reuse": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "timestamp": "2026-10-06T23:47:22.360167+00:00",
+  "total": 107
+}
