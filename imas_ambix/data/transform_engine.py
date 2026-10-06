@@ -294,23 +294,36 @@ class _NetCDFStoreArrays(AbstractContextManager["_NetCDFStoreArrays"]):
             with imas.DBEntry(source, "r", dd_version=self.dd_version) as entry:
                 ids = entry.get(ids_name, autoconvert=False)
                 components = tuple(relative_path.split("/"))
-                positions = _struct_array_positions(ids, components)
+                try:
+                    positions = _struct_array_positions(ids, components)
+                except KeyError as error:
+                    if binding.struct_array_entry is not None:
+                        raise BindingTransformError(
+                            f"binding {binding.name!r} selects struct-array entry "
+                            f"{binding.struct_array_entry!r} on {binding.dd_path!r}, "
+                            "but a struct array on that path is empty"
+                        ) from error
+                    raise
                 if binding.struct_array_entry is not None and not positions:
                     raise BindingTransformError(
                         f"binding {binding.name!r} declares struct_array_entry "
                         f"{binding.struct_array_entry!r} but {binding.dd_path!r} "
                         "holds no struct array to select an entry from"
                     )
+                # The selector consumes the first struct-array level, so it
+                # contributes no axis; only the levels below it can be preserved.
+                consumed_levels = 1 if binding.struct_array_entry is not None else 0
+                available_levels = len(positions) - consumed_levels
                 leaf_rank = ids.metadata[relative_path].ndim
                 structural_rank = binding.source_rank - leaf_rank
-                if structural_rank < 0 or structural_rank > len(positions):
+                if structural_rank < 0 or structural_rank > available_levels:
                     raise BindingTransformError(
                         f"binding {binding.name!r} source rank {binding.source_rank} "
                         f"cannot be reconstructed from leaf rank {leaf_rank} and "
-                        f"{len(positions)} structural arrays"
+                        f"{available_levels} structural arrays"
                     )
                 preserved = (
-                    frozenset(positions[-structural_rank:])
+                    frozenset(positions[consumed_levels:][-structural_rank:])
                     if structural_rank
                     else frozenset()
                 )

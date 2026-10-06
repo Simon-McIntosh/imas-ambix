@@ -1,0 +1,30 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtmm-selector-rank-composition">
+  <header>
+    <h3>A selecting binding's source_rank counts only levels below the selected entry</h3>
+    <p class="meta">
+      Node <code>jtmm-selector-rank-composition</code> &middot;
+      date 2026-10-06 &middot;
+      plan <code>jt60sa-machine-map</code> &sect;4
+    </p>
+  </header>
+
+  <p>
+    The netCDF engine's rank check subtracts the struct-array level the
+    <code>struct_array_entry</code> selector consumes, so a selecting binding's
+    <code>source_rank</code> counts only the levels below the selected entry.
+    Selecting coil C (one element) reads shape <code>(1,)</code> at
+    <code>source_rank</code> 1 and a scalar at 0; <code>source_rank</code>
+    2, which would count the consumed coil level, is refused naming the binding
+    and the rank. A selecting binding whose first struct array is empty is
+    refused as a <code>BindingTransformError</code> naming the binding rather
+    than a bare <code>KeyError</code>. Bindings without the slot read as before.
+  </p>
+
+  <p>
+    Measure: gate <code>tests/data/test_transform_engine.py
+    tests/data/test_description_reader.py</code> passes (23 passed, EXIT=0);
+    <code>ruff check imas_ambix tests</code> exits 0. Negative control:
+    counting every struct level again reddens
+    <code>test_selecting_binding_counts_only_levels_below_the_consumed_struct_array</code>.
+  </p>
+</section>
