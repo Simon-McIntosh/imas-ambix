@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5">
 <meta name="plan-impl" content="0.625">
-<meta name="plan-version" content="83">
+<meta name="plan-version" content="84">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -477,14 +477,17 @@
       with the DIII-D corpus as its first loader and SELENE and FAME as the next, rather than
       writing a second scorer. Because <code>_integrated_current</code> and
       <code>_axis_and_boundary</code> read DIII-D corpus keys (<code>efit_grid_R</code>,
-      <code>efit_psirz</code>, <code>efit_z_axis</code>) directly, the loader boundary is a record
-      contract with canonical keys for the grid, psi, axis and boundary, which the DIII-D
-      loader maps onto and the kernel reads, so the kernel is reused rather than rewritten.
-      The DIII-D side of that contract already has an owner: <code>imas_ambix/challenge/loader.py</code>
-      loads a challenge shot in the canonical convention into typed records
-      (<code>load_shot</code>, <code>ChallengeShot</code>, <code>EfitLabels</code> with
-      <code>psirz</code>), so the DIII-D loader reads through it rather than reading the parquet
-      directly as <code>convention.py</code> does today. The
+      <code>efit_psirz</code>, <code>efit_z_axis</code>) directly, the loader boundary is the
+      typed record that already owns that data, not a second contract:
+      <code>imas_ambix/challenge/loader.py</code> <code>EfitLabels</code> carries
+      <code>grid_r_m</code>, <code>grid_z_m</code>, <code>psirz</code>, <code>cocos</code> and, in
+      <code>scalars</code>, <code>efit_r_axis</code>, <code>efit_z_axis</code> and
+      <code>efit_lcfs_n</code>. The kernel reads <code>EfitLabels</code>, which gains only the
+      last-closed-surface point arrays its boundary sample needs. The DIII-D loader is
+      <code>load_shot</code>, which already returns it inside <code>ChallengeShot</code>, rather
+      than the parquet read <code>convention.py</code> does today, and the SELENE and FAME
+      loaders each return an <code>EfitLabels</code>. The kernel is reused rather than rewritten,
+      and one equilibrium has one shape. The
       entry point also hard-codes DIII-D eligibility, <code>MINIMUM_PLASMA_CURRENT_KA</code>,
       <code>STANDARD_FIELD_BCOIL_MAXIMUM</code> and the <code>MINIMUM_AUDIT_SHOTS</code> guard, so
       those move into each loader's declaration as its corpus's eligibility, and the kernel keeps
