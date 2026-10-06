@@ -96,6 +96,22 @@ _fixtures = SimpleNamespace(
     SetupSignature=_Signature,
 )
 
+
+class _CircuitDrive(SimpleNamespace):
+    def __init__(
+        self, circuit, channel, ampere_turns_per_ampere, evidence="", conductor=""
+    ):
+        super().__init__(
+            circuit=circuit,
+            channel=channel,
+            ampere_turns_per_ampere=ampere_turns_per_ampere,
+            evidence=evidence,
+            conductor=conductor,
+        )
+
+
+_fixtures.CircuitDrive = _CircuitDrive
+
 # --- physics: Green's-function correctness ----------------------------
 
 
@@ -300,6 +316,26 @@ def test_assemble_pf_currents_units_and_xmult():
     assert operator.pf_amc_channels == ["p4u_coil_current"]
 
 
+def test_assemble_pf_currents_applies_declared_ampere_turns_per_ampere():
+    """A source that declares a drive scales each column by its ampere-turns per
+    ampere: a channel declared in amperes drives its winding's turn count, so one
+    ampere on a 40 A·turn/A conductor contributes 40 A·turn.  The drive's
+    declared channel is the source's own statement of the unit, and it replaces
+    the MAST ``kA · turn`` conversion rather than multiplying it."""
+    table = _synthetic_table()
+    table.amc_current_channels = ["p4u_coil_current"]
+    table.active_circuits = [1]
+    table.circuit_drives = [
+        _fixtures.CircuitDrive(1, "p4u_coil_current", 40.0, conductor="CS1")
+    ]
+    operator = op.build_operator(table)
+
+    assert operator.pf_amc_channels == ["p4u_coil_current"]
+    assert operator.pf_current_scales[0] == pytest.approx(40.0)
+    i_pf = operator.assemble_pf_currents({"p4u_coil_current": 1.0})
+    assert i_pf[0] == pytest.approx(40.0)
+
+
 def test_g_pf_folds_xmult_split():
     """The two xmult=0.5 filaments of circuit 1 must sum into one column whose
     response equals a single unit-weight filament at that (R, Z)."""
@@ -488,6 +524,22 @@ def _build_real_operators(tables: dict[str, object]) -> dict[str, op.ForwardOper
         assert historical_key in _frozen_geometry_summary()
         assert operator.signature_key == tables[historical_key].signature.key
     return operators
+
+
+@_skip_no_tables
+def test_assemble_pf_currents_unchanged_for_a_cached_mast_shot():
+    """MAST declares no circuit drives, so every KNOWN column keeps the flat
+    ``kA · turn → A`` conversion (× 1000, turns = 1) — the assembled currents
+    are identical to the pre-drive assembly on a real cached MAST shot."""
+    key = next(k for k in _FROZEN_CAMPAIGN_SHOTS if "fc938" in k)
+    operator = _build_real_operators(_load_real_tables())[key]
+    assert operator.pf_current_scales is not None
+    assert np.all(operator.pf_current_scales == op._KA_TURN_TO_A)
+
+    raw = {chan: float(i + 1.0) for i, chan in enumerate(operator.pf_amc_channels)}
+    i_pf = operator.assemble_pf_currents(raw)
+    expected = np.array([raw[chan] * op._KA_TURN_TO_A for chan in raw])
+    assert np.array_equal(i_pf, expected)
 
 
 @_skip_no_tables

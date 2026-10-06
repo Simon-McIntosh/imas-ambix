@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+  <meta name="reckon-type" content="doc">
+  <title>Drive turns applied in the current assembly — landed</title>
+</head>
+<body>
+<main class="plan-doc">
+  <h2 id="jtmm-drive-turns">Drive ampere-turns applied per channel in the current assembly</h2>
+  <ul>
+    <li id="jtmm-drive-turns-scales">ForwardOperator carries a per-column <code>pf_current_scales</code> vector; <code>assemble_pf_currents</code> multiplies each named channel by its own scale instead of the flat <code>_KA_TURN_TO_A</code>.</li>
+    <li id="jtmm-drive-turns-rule">build_operator sets the scale from the drive's declared <code>ampere_turns_per_ampere</code>. Where the description has already folded that weight into the element <code>xmult</code> (column weight equals the declared weight — MAST's amc channels, kA&middot;turn, turns&nbsp;=&nbsp;1) the scale stays the flat <code>&times;&nbsp;1000</code>; where the elements are normalised (&Sigma;xmult&nbsp;=&nbsp;1 — JT-60SA's SELENE deck) the declared weight is the missing turn count and becomes the scale (40&nbsp;A&middot;turn/A for CS, 16 for EF).</li>
+    <li id="jtmm-drive-turns-mast">Real-cache MAST check: every pf column scale equals <code>_KA_TURN_TO_A</code> and assembled currents equal raw&nbsp;&times;&nbsp;1000, so the near-vacuum SI round trip is unchanged.</li>
+    <li id="jtmm-drive-turns-jt60sa">Synthetic JT-60SA check: a CS drive declaring 40&nbsp;A&middot;turns/ampere over a normalised coil gives a scale of 40 and 1&nbsp;A of channel contributes 40&nbsp;A&middot;turn.</li>
+    <li id="jtmm-drive-turns-gate">Gate <code>tests/gs/test_operator.py</code>: 23 passed, EXIT=0; ruff on the changed paths exits 0.</li>
+    <li id="jtmm-drive-turns-negative-control">Negative control: restoring the fixed <code>kA</code>-turn conversion in <code>assemble_pf_currents</code> leaves the JT-60SA test red &mdash; obtained 1000.0 against the expected 40.0 (1 failed, 22 passed, EXIT=1).</li>
+    <li id="jtmm-drive-turns-caveat">The fold test keys on the column weight, the only in-scope signal of which convention a declared drive uses; a source that normalised &Sigma;xmult while declaring a weight of 1 would be indistinguishable from a folded kA&middot;turn channel. No such source is present, and the follow-on residual node refits the real JT-60SA channels.</li>
+  </ul>
+</main>
+</body>
+</html>

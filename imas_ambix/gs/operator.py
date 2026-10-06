@@ -550,6 +550,14 @@ class ForwardOperator:
     #: recognisable as the same hardware.  Empty when identity was not resolved,
     #: which keeps an operator built without registry access fully usable.
     physical_digest: str = ""
+    #: Per G_pf column, the factor converting that column's raw amc channel value
+    #: to amperes: the drive's declared ampere-turns per ampere times the
+    #: channel's declared unit factor.  A source that declares its coil-current
+    #: channels in amperes (JT-60SA MMSYS) therefore drives its winding's turn
+    #: count, while a channel whose source declares no drive keeps the MAST
+    #: ``kA · turn`` conversion (:data:`_KA_TURN_TO_A`).  ``None`` on an operator
+    #: built without declared drives falls back to that MAST conversion.
+    pf_current_scales: np.ndarray | None = None
 
     # ---- forward apply ----
 
@@ -583,18 +591,25 @@ class ForwardOperator:
         """Assemble the KNOWN per-COIL PF current [A] from raw amc channels.
 
         ``amc_values`` maps amc channel name → its (scalar, single-time-slice)
-        current in the RAW stored units (``kA · turn``).  One entry per G_pf
-        column = one physical coil; the value is the mapped amc channel converted
-        to amperes (``× 1000``; ``turns = 1`` so amp-turns = amps).  The
-        per-filament ``xmult`` split AND the merge of the coil's redundant fcoil
-        circuits are already folded into :attr:`g_pf` at build time, so each
-        coil current is applied exactly once.  Missing channels contribute zero
-        (and were already flagged at build).
+        current in the RAW stored units the source declares.  One entry per G_pf
+        column = one physical coil; each is converted to amperes by that
+        column's :attr:`pf_current_scales` factor — the drive's declared
+        ampere-turns per ampere times the channel's declared unit factor, so a
+        source that measures its coil channels in amperes (JT-60SA MMSYS) drives
+        its winding's turn count while a source whose channels are stored in
+        ``kA · turn`` (MAST amc; ``turns = 1``) keeps the flat ``× 1000``
+        conversion.  The per-filament ``xmult`` split AND the merge of the
+        coil's redundant fcoil circuits are already folded into :attr:`g_pf` at
+        build time, so each coil current is applied exactly once.  Missing
+        channels contribute zero (and were already flagged at build).
         """
         out = np.zeros(len(self.pf_amc_channels), dtype=np.float64)
+        scales = self.pf_current_scales
+        if scales is None:
+            scales = np.full(len(self.pf_amc_channels), _KA_TURN_TO_A)
         for j, chan in enumerate(self.pf_amc_channels):
             if chan and chan in amc_values:
-                out[j] = float(amc_values[chan]) * _KA_TURN_TO_A
+                out[j] = float(amc_values[chan]) * scales[j]
         return out
 
     # ---- summary ----
@@ -869,9 +884,13 @@ def build_operator(
                 stated_weight.get(cc.amc_channel, False) or cc.source_stated_weight
             )
 
+    drive_by_channel = {str(drive.channel): drive for drive in geometry.drive_map}
+    xmult_by_circuit = {cc.circuit: cc.sum_xmult for cc in classes}
+
     pf_circuits: list[int] = []  # representative (lowest) circuit per coil column
     pf_amc: list[str] = []
     pf_merged_circuits: list[list[int]] = []  # the circuits averaged into each col
+    pf_current_scales: list[float] = []  # raw channel unit → amperes
     pf_cols: list[np.ndarray] = []
     for chan in sorted(pf_by_chan):
         circs = sorted(pf_by_chan[chan])
@@ -884,6 +903,35 @@ def build_operator(
             # the weight has already answered the question the correction was
             # measured to answer, and applying both counts it twice.
             merged = merged * SOLENOID_RESPONSE_SCALE
+        drive = drive_by_channel.get(chan)
+        if drive is None:
+            # No drive declared (MAST amc fallback): the channel's raw unit is
+            # kA · turn with turns = 1, so the weight is one and the unit factor
+            # is the flat kA → A conversion.
+            pf_current_scales.append(_KA_TURN_TO_A)
+        else:
+            # A declared drive names the channel and the ampere turns one ampere
+            # of it drives.  Two source conventions reach here, distinguished by
+            # whether the weight is already the column's own — the description
+            # states it either by folding it into the element xmult (so the
+            # column already carries it) or by leaving the elements normalised and
+            # the turn count to be applied here.
+            ampere_turns = float(drive.ampere_turns_per_ampere)
+            column_weight = float(xmult_by_circuit.get(circs[0], 0.0))
+            folded = column_weight > 0.0 and abs(
+                column_weight - abs(ampere_turns)
+            ) <= 1e-6 * max(1.0, abs(ampere_turns))
+            if folded:
+                # The elements already carry the declared weight, so this is a
+                # raw kA · turn channel (MAST amc) and only the flat unit
+                # conversion is left — the weight would otherwise be counted
+                # twice.
+                pf_current_scales.append(_KA_TURN_TO_A)
+            else:
+                # The elements are normalised, so the channel is measured in
+                # amperes and the declared weight is the turn count the column
+                # is missing.
+                pf_current_scales.append(ampere_turns)
         pf_circuits.append(circs[0])
         pf_amc.append(chan)
         pf_merged_circuits.append(circs)
@@ -951,6 +999,7 @@ def build_operator(
         pf_circuits=pf_circuits,
         pf_amc_channels=pf_amc,
         pf_merged_circuits=pf_merged_circuits,
+        pf_current_scales=np.array(pf_current_scales, dtype=np.float64),
         plasma_rz=np.column_stack([pr, pz]) if pr.size else np.zeros((0, 2)),
         passive_rz=np.array(passive_rz, dtype=np.float64)
         if passive_rz
