@@ -25,9 +25,9 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
-<meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5">
-<meta name="plan-impl" content="0.625">
-<meta name="plan-version" content="138">
+<meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2">
+<meta name="plan-impl" content="0.67">
+<meta name="plan-version" content="140">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -494,7 +494,21 @@
       representation, not geometry. The same node closes the cryostat review's follow-ons: the
       boundary test's wall half requires the shared limiter to change; the cryostat is
       identified by containment outside the vessel's outer skin rather than by a bounding box;
-      and the empty staging directory left on the store is removed.
+      and the empty staging directory left on the store is removed. That landed on 2026-10-06
+      (<code>jtmm-wall-from-coil-vv</code>, review 115/120, gate re-run green on the merged head).
+    </p>
+    <p>
+      One item remains before this section closes. The contour parse finds its block by shape
+      (a bare count followed by a row of at least five numbers) and assigns each row to the last
+      label it saw, so a deck with an unlabelled first row, an unknown label or a short run would
+      be sliced wrongly without an error. The remaining node makes the parser refuse each of
+      those, checks every <code>Inner VV</code> and <code>Outer VV</code> run against the count
+      its label declares, and requires each skin's chords to join end to start and close. Its
+      test measures every coil_vv skin vertex against <code>EQSLE.DATA</code>'s skins, with arcs
+      measured as arcs, and holds them within 1&nbsp;mm, so the representation-only claim above
+      is measured rather than asserted. The before/after wall figure the review asked for
+      belongs to <code>jt60sa-geometry-and-signal-figures</code>, which draws the store's wall
+      through imas-ink under the lead's figure-owner decision.
     </p>
 
     <h2 id="s5">§5 — Pulse bindings and the EDDB census</h2>
@@ -1122,7 +1136,7 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-jtmm-001" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-create" data-written-at="2026-10-05" data-recommends-skill="/reckon-build jt60sa-machine-map §3" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-jtmm-001" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-create" data-written-at="2026-10-05" data-recommends-skill="/reckon-build jt60sa-machine-map §3" data-resolved-at="2026-10-06T10:06:54+00:00" data-resolved-by="reckon-build">
     <h4 class="r-fu-title">Build the EDDB remote extractor and immutable mirror, fetch one C-shot and one E-shot</h4>
     <div class="r-fu-body">The access path is proven interactively (catalogue, tables and the current shot
           all answered over <code>ssh jt-60sa</code>) but nothing is persisted. Land the
@@ -1130,6 +1144,12 @@
           vacuum adjudication have data to run on. Blocked only while the IFERC link is
           down; the §4 deck rebinding does not wait on it.</div>
     <pre class="r-fu-prompt">/reckon-build jt60sa-machine-map §3</pre>
+    <p class="r-fu-outcome">§3 shipped: the remote EDDB extractor, the immutable cache and both cold fetches landed 2026-10-05/06 (merges bdcce624, 63df11f5); the remaining work is tracked by f-jtmm-002.</p>
+    </article>
+<article class="r-fu" data-id="f-jtmm-002" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-build" data-written-at="2026-10-06" data-recommends-skill="/reckon-build jt60sa-machine-map §4" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Close §4: make the coil_vv contour parse refuse any deck it would mis-slice</h4>
+    <div class="r-fu-body"><p>§4's last node: refuse unlabelled, unknown-label and short runs, chain and close each skin, and measure every coil_vv skin vertex against EQSLE.DATA's arcs. §5's second wave and §6 follow from their own sections.</p></div>
+    <pre class="r-fu-prompt">/reckon-build jt60sa-machine-map §4</pre>
     </article>
 </section>
 
@@ -1320,6 +1340,9 @@
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20261006T091531440644-review-of-jtmm-wall-from-coil-vv" data-who="reckon-build" data-when="2026-10-06T09:57:43.090Z">
     <div class="r-comment-body"><p>Independent review of node jtmm-wall-from-coil-vv (base ebe33a68 -&gt; head 06a0b115, three commits) scores 115/120 (goal_fidelity 20, evidence 19, scope_discipline 20, durability 18, fit 19, reuse 19); the wall-and-vessel rebind is goal-complete and store-proven, with two follow-ons (no test pins the geometry-preservation invariant; the contour-block reader has no non-empty-skin refusal).</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-20261006T1210-jtmm-wall-from-coil-vv" data-who="reckon-build" data-when="2026-10-06T10:10:00Z">
+    <div class="r-comment-body"><p>Landed <code>jtmm-wall-from-coil-vv</code> (merge <code>5e45b7d2</code>; independent review 115/120, 0 added failures). Both phases take the limiter from their own coil_vv <code>nlim=51</code> polygon and the annular vessel unit from the <code>Inner VV=50</code> and <code>Outer VV=50</code> runs, with the 28 D-probe rows excluded. The cryostat is accepted by point-in-polygon outside the outer skin. <code>coil_vv_OP1.dat</code> joined the store's sha256-verified sources, and the store was re-converted. Gate re-run on clean main at <code>a42377f8</code>: passed (record <code>2c370fdc</code>). Review follow-ons: the contour-parse hardening and the vertex-to-arc measurement are this section's remaining node. The before/after figure is declined here, because <code>jt60sa-geometry-and-signal-figures</code> owns wall rendering through imas-ink. Progress: 22 nodes landed of an estimated 33 (remaining: §4 1, §5 2, §6 4, §7 3, §2 1).</p></div>
 </div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20261005T131209269722-review-of-jtmm-shotset-machine" data-who="reckon-build" data-when="2026-10-05T13:20:34.081Z">
     <div class="r-comment-body"><p>Independent review stored for run r-20261005T125917372067-jtmm-shotset-machine (base adb67e5f, head cbef27a7, plan §7): parsed record scoring all six dimensions in 0..20 -- goal_fidelity 19, evidence 18, scope_discipline 19, durability 19, fit 19, reuse 20, total 114 -- with added_failure_count 0 and added_failure_ids [].</p></div>
