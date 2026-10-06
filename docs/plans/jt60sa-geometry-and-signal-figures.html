@@ -23,7 +23,7 @@
   <title>JT-60SA Geometry and Signal Figures | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="19">
+<meta name="plan-version" content="20">
 <meta name="plan-modified" content="2026-10-06">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s1b&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;}">
 <meta name="plan-commits" content="369a705d,b36a5d93">
@@ -112,7 +112,8 @@
       than a title. The repository has no style module yet, so this section adds one,
       <code>imas_ambix/plot_style.py</code>, that applies the sheet and holds the colour roles by name.
       It is the first and retires nothing: <code>imas_ambix/</code> holds no plotting style code, and the
-      scripts that style inline, including the two hand-rolled palettes in
+      scripts that style inline, about a dozen with their own colour maps, among them the hand-rolled
+      palettes in
       <code>scripts/figures/wm_demonstration_figs.py</code> and
       <code>scripts/figures/playable_plasma_figs.py</code>, stay as they are, since restyling them is
       outside this plan. The geometry script's one command-line option,
@@ -165,8 +166,13 @@
 <section data-reckon="section" data-id="s3" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
     <p>
       Three figures, drawn by <code>scripts/figures_jt60sa_signals.py</code> from the cache, each channel
-      read through <code>eddb.channel_path</code> and <code>eddb.channel_time_path</code>, with units taken
-      from its <code>eddb.UNIT_ATTR</code> attribute and named on the axis. For E101154, the PF coil
+      read through a <code>read_channel</code> this section adds to <code>imas_ambix/data/eddb.py</code>
+      beside <code>write_channel</code>, returning the same <code>ChannelRecord</code> (data, time base and
+      the <code>UNIT_ATTR</code> unit) from <code>channel_path</code> and <code>channel_time_path</code>, so
+      the cache keeps one owner for its read as for its write; the unit is named on the axis.
+      <code>read_channel</code> is the one public name the section adds to <code>eddb</code>, the read
+      counterpart nothing there provides, and it retires nothing; a round-trip test in
+      <code>tests/data/test_eddb_cache.py</code> writes a channel and reads it back. For E101154, the PF coil
       currents from MMSYS against time, and the plasma current from PSRC. Also for E101154, the
       flux loops as small multiples: each processed PSRC <code>magFluxLp</code> channel beside the
       raw MDAC <code>magFlxLp</code> channel of the same index, which is the raw-to-processed
@@ -208,7 +214,13 @@
       The §1 reader landed with its own element-shape dispatch; this section moves it onto the
       <code>artifact_geometry</code> struct-level readers named in §1 and retires that dispatch, whose
       axis-window extent counted element centres only, and resolves each phase directory through
-      <code>NetCDFTransformEngine.open</code> as §1 states, retiring the reader's own root-and-name join. The section widens the candidate table behind
+      <code>NetCDFTransformEngine.open</code> as §1 states, retiring the reader's own root-and-name join.
+      <code>read_artifact_pf_passive</code> is called with <code>first_circuit=0</code>, since circuit
+      numbering never reaches the drawing, and its returned vertices are the drawn shape for every
+      element type this store carries (all rectangles). <code>read_artifact_limiter</code> returns the
+      first limiter unit, which in both phases is the store's only wall unit (no vessel units), so the
+      reader asserts exactly one wall unit per phase and fails rather than silently dropping a contour
+      if a later store carries more. The section widens the candidate table behind
       the script's one existing option, <code>--palette-candidates</code>, and adds no option, module
       or public name.
     </p>
