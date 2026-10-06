@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+  <meta name="plan-evidence-for" content="jt60sa-machine-map">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <section id="jtmm-catalogue-landing">
+      <h3>Blocked: the static netCDF engine cannot materialise the coil-element array</h3>
+      <p>The JT-60SA catalogue cannot be declared against the converted description
+      store as it stands. Reading the store through the existing
+      <code>netcdf</code> / <code>static-over-map</code> engine fails for every binding
+      under <code>pf_active/coil/element/&hellip;</code>, which
+      <code>geometry_table_from_description</code> requires to build the conductor
+      families. The failure is in engine code outside this node's write paths, so the
+      node stops rather than editing it.</p>
+    </section>
+
+    <section id="jtmm-catalogue-repro">
+      <h3>Reproduction</h3>
+      <p>A minimal catalogue naming the two maps, the netCDF store and a
+      <code>pf_active</code> binding set was loaded and driven against the real store
+      <code>/work/projects/imas_gpu/jt60sa/machine_description/OP1</code>. One
+      non-ragged leaf reads cleanly, which is the positive control; the element-geometry
+      leaves fail. RAggedness is visible directly: the twelve
+      <code>pf_active/coil</code> entries carry element counts
+      <code>[40, 40, 40, 40, 16, 16, 16, 16, 16, 16, 6, 6]</code>.</p>
+      <table>
+        <thead><tr><th>binding dd_path</th><th>read result</th></tr></thead>
+        <tbody>
+          <tr><td><code>pf_active/coil/name</code> (control)</td><td>ok &mdash; shape (12,)</td></tr>
+          <tr><td><code>pf_active/coil/element/geometry/rectangle/r</code></td><td><code>ValueError: all input arrays must have the same shape</code></td></tr>
+          <tr><td><code>pf_active/coil/element/geometry/rectangle/z</code></td><td>same failure</td></tr>
+          <tr><td><code>pf_active/coil/element/geometry/rectangle/width</code></td><td>same failure</td></tr>
+          <tr><td><code>pf_active/coil/element/geometry/rectangle/height</code></td><td>same failure</td></tr>
+          <tr><td><code>pf_active/coil/element/name</code></td><td>same failure</td></tr>
+          <tr><td><code>pf_active/coil/element/turns_with_sign</code></td><td>same failure</td></tr>
+          <tr><td><code>magnetics/b_field_pol_probe/&hellip;</code></td><td>ok &mdash; shape (17,)</td></tr>
+          <tr><td><code>magnetics/flux_loop/position/r</code></td><td>ok &mdash; shape (27, 1)</td></tr>
+          <tr><td><code>wall/description_2d/limiter/unit/outline/r</code></td><td>ok &mdash; shape (638,)</td></tr>
+        </tbody>
+      </table>
+      <p>The failure is raised by <code>_read_ids_path</code> at
+      <code>imas_ambix/data/transform_engine.py:210</code>
+      (<code>np.stack(rows)</code> at the coil level) through
+      <code>_NetCDFStoreArrays.read</code>, reached from
+      <code>transform_machine_description</code>. The consuming caller is
+      <code>geometry_table_from_description</code> &rarr;
+      <code>_conductors</code> (<code>imas_ambix/data/geometry_adapter.py:302</code>),
+      which walks families under <code>pf_active/coil/element/geometry/</code>.</p>
+    </section>
+
+    <section id="jtmm-catalogue-why-out-of-scope">
+      <h3>Why no catalogue declaration avoids it</h3>
+      <p>The static engine reads each binding by its Data Dictionary target and
+      reconstructs the structure from that target, so every binding into the element
+      geometry inherits the coil-level raggedness. There is no per-coil selector: a
+      static-over-map binding resolves <code>{root}/{map name}/{ids}.nc</code> and reads
+      the whole IDS path. The MAST catalogue's per-conductor binding families do not
+      transfer, because each such family relies on the zarr engine returning a distinct
+      per-binding array; a static netCDF binding that shares the target path returns the
+      same whole array for every family.</p>
+      <p>A repair needs a change in <code>transform_machine_description</code>'s engine
+      (read ragged structure arrays, or accept a per-coil selector) or in
+      <code>geometry_table_from_description</code>, neither of which is in this node's
+      declared write paths, or a re-conversion of the store to a uniform representation.
+      This node added only the store-root path constant
+      <code>JT60SA_DESCRIPTION_DIR</code> and stopped.</p>
+    </section>
+
+  </main>
+</body>
+</html>

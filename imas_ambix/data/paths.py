@@ -31,6 +31,7 @@ MIRROR_ROOT = Path("/work/projects/imas_gpu/mast")
 # It sits on GPFS beside the MAST mirror so every ITER session and worker
 # reads the same bytes.
 JT60SA_ROOT = Path("/work/projects/imas_gpu/jt60sa")
+JT60SA_DESCRIPTION_DIR = JT60SA_ROOT / "machine_description"
 LEVEL1_DIR = MIRROR_ROOT / "level1" / "shots"
 LEVEL2_DIR = MIRROR_ROOT / "level2" / "shots"
 MANIFEST_DIR = MIRROR_ROOT / "manifests"
