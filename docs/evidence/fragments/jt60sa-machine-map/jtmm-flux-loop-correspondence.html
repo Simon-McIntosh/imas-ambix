@@ -106,6 +106,25 @@
       </table>
     </section>
 
+    <section id="jtmm-flux-loop-correspondence-instrument">
+      <h3>Instrument check: the fitter sees a relation where one exists</h3>
+      <p>The absence claim for 28..34 rests on the same machinery that recovers
+      the relation for 1..27, so its sensitivity is checked separately
+      (<code>instrument_check.py</code>, <code>instrument_check.log</code>). For
+      PSRC <code>magFluxLp1</code>..<code>magFluxLp5</code> and
+      <code>magFluxLp27</code> the best-correlated raw channel is the same index at
+      Pearson <code>r</code> of 0.9995 to 0.9999 &mdash; three to four nines
+      &mdash; so a present linear partner is recovered unambiguously at those
+      indices. For 28..34 the best correlation is high (0.78 to 0.98) but the
+      partner it names moves off-identity (raw channels 26, 26, 24, 19, 31, 1, 14),
+      and correlation is not the discriminator here: every flux loop around a
+      tokamak tracks the plasma current during the ramp, so any two loops correlate
+      strongly without being the same sensor. The affine residual over a common
+      window is what separates a real partner (below 0.7&#8239;% of range at
+      1..27) from a coincidental one (above 5&#8239;% at 28..34), and that is the
+      measure the table reports.</p>
+    </section>
+
     <section id="jtmm-flux-loop-correspondence-provenance">
       <h3>Provenance</h3>
       <p>Script <code>flux_loop_correspondence.py</code>, log
