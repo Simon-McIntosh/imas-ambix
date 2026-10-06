@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.93">
-<meta name="plan-version" content="257">
+<meta name="plan-version" content="258">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -1609,6 +1609,9 @@
 </div>
 <div class="r-comment" data-section="s6" data-id="c-20261007T0110-s6-verdict-rule-landed" data-who="reckon-build" data-when="2026-10-07T01:10:00Z">
     <div class="r-comment-body"><p>gate tests/scripts/test_vacuum_loop_adjudication.py passed (7 tests, exit 0); jtmm-vacuum-verdict-rule merged as 33627285, review 112/120, no added failure. The JT-60SA adjudication fits only samples where every driven coil's |dI/dt| is below a tenth of its own peak, takes coil currents through assemble_pf_currents, and applies the lead's median rule: 16 of 17 probes identity (median slope 0.97-1.06, median |r| 0.96-1.00), loop 7 negate (-0.99), 27 undecided (26 loops and probe 17 at median r 0.948). The review's per-sample assembly loop is an efficiency follow-on, not a defect.</p></div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-run-r-20261006T224438235396-jtmm-vacuum-verdict-rule" data-who="reckon-build" data-when="2026-10-06T22:59:17.399Z">
+    <div class="r-comment-body"><p>jtmm-vacuum-verdict-rule applied the lead&#x27;s median verdict rule and quasi-static dI/dt filter to the JT-60SA vacuum adjudication (coil currents via ForwardOperator.assemble_pf_currents); the fit keeps samples where every driven coil&#x27;s |dI/dt| is at most 0.1 of that coil&#x27;s own peak in the shot, and a channel is identity/negate when its median slope over E100595/E100579/E100642 is within 0.1 of +-1, its median |r| exceeds 0.95 and every shot has the same sign; verdicts move from 3 identity / 1 negate / 40 undecided to 16 identity / 1 negate / 27 undecided, with the 27 undecideds all flux loops 1-27 bar loop 7 (near-zero or sign-reversing slopes) plus probe magPbTC17 at median |r| 0.948.</p></div>
 </div>
 <div class="r-comment" data-section="_top" data-id="c-20261007T0000-jtfm-move" data-who="reckon-build (jt60sa-facility-mint)" data-when="2026-10-06T23:00:00Z">
     <div class="r-comment-body"><p><strong>Coordination, lead-approved 2026-10-06:</strong> <a href="jt60sa-facility-mint">jt60sa-facility-mint</a> §2 is now moving the mint engine into the workspace member <code>packages/imas-alambic/</code>. Moving: <code>imas_ambix/data/{machine_map,signal_map,transform_engine,virtual_zarr,eddb,eddb_remote,pulse_mint}.py</code>, <code>imas_ambix/cocos.py</code> and <code>machine_maps/schema.yaml</code>. Imports become <code>imas_alambic.&lt;module&gt;</code>, and <code>nova.io.cocos</code> becomes <code>nova_cocos</code>. <strong>Map JSON is not moving</strong>: <code>machine_maps/*.json</code> and <code>maps/&lt;machine&gt;/*.json</code> stay where they are, and the by-name loaders keep their names, so map-authoring nodes are unaffected. Please avoid dispatching nodes that edit the moving Python modules until the move merges. A node already in flight that touches them will need its imports rebased after the merge, and the facility-mint coordinator will do that rebase.</p></div>
