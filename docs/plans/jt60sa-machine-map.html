@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.82">
-<meta name="plan-version" content="191">
+<meta name="plan-version" content="192">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -426,9 +426,11 @@
       probes were acquired. It then fetches the first-pass channels for at least three vacuum shots
       and three plasma shots through <code>fetch_channels</code>, never writing
       <code>101154.zarr</code>, and records the shots, wall time and bytes in one evidence fragment.
-      A vacuum shot is usable only on a geometry its catalogue range declares. If the usable vacuum
-      shots are 2026 C-series pulses, the lead decides their phase before any verdict is recorded
-      against them, because the OP2 vessel is provisional.
+      A vacuum shot is usable only on a geometry its catalogue range declares. The census settled
+      which phase that is (2026-10-06, over all 2157 EDDB pulses). Raw loops and probes exist only
+      on the E-series pulses of the OP1 range, and the six 2026 C-series shots drive the TF coil
+      alone. So the vacuum shots are OP1 pulses (E100595, E100579 and E100642) and every verdict
+      is recorded against the OP1 description. The plasma shots are E100658, E101154 and E101173.
     </p>
     <p>
       The equilibrium half reads two facility outputs, and §6 owns both reads, because its sign
@@ -479,8 +481,20 @@
       settles the record shape. Its first node, <code>jtmm-eqdb-entry-probe</code>, answers that
       question read-only on nakasvr26: the callable entry to <code>eqdbms</code> or
       <code>eqdbget</code> that needs no Fortran build, and the grid, boundary and profile fields of
-      one record for E101154. It writes one evidence fragment and no source. The transport node
-      follows it, then the SELENE and FAME loaders, then the JT-60SA cohort and the sign report.
+      one record for E101154. It writes one evidence fragment and no source. The probe found the
+      entry (merge d5f01b72): the shipped <code>eqread_pac</code> package calls the prebuilt
+      <code>libFLEDDPIC.so</code> through <code>GetTimeList</code>, <code>GetEqData</code> and
+      <code>GetEqItem</code>, with no Fortran build. It also found that the SELENE equilibrium is not
+      where this section assumed. E101154 lists 105 FAME slices and no SELENE <code>eqdbms</code> slice,
+      and a populated read returns IRET 300 on intr26-2, because the FAME database server it names
+      is not mounted there. So the transport is scoped only after <code>jtmm-selene-output-locate</code>
+      finds the source, read-only on nakasvr26. That node finds where the plasma-shape run of SELENE
+      writes its equilibrium for E101154: an EDDB category, an EQDB index other than
+      <code>eqdbms</code>, or a file tree under the run directory. It also names the reader that
+      consumes it, and tests whether a FAME record reads through the socket client
+      (<code>eqdbsockclient_connect</code>) from intr26-2. It writes one evidence fragment and no
+      source. The transport node follows it, then the SELENE and FAME loaders, then the JT-60SA
+      cohort and the sign report.
     </p>
     <p>
       Done-when: a sign report over at least three vacuum shots and three plasma shots,
