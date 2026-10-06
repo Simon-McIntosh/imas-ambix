@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+  <meta name="reckon-type" content="doc">
+  <title>SELENE tangential-probe field expression and its positive tangent</title>
+</head>
+<body>
+<main class="plan-doc">
+  <h2 id="jtmm-probe-axis-source">SELENE tangential-probe field expression and its positive tangent</h2>
+  <p>
+    Read-only on <code>nakasvr26</code> (host alias <code>jt-60sa</code>, every
+    call made as <code>ssh -F ~/.ssh/config jt-60sa</code>; nothing written
+    outside <code>/tmp</code>). Source trees: the symlink
+    <code>SAselene -&gt; SAselene_v2.0_forPSRC</code>, so the live source is
+    <code>/analysis/src/SAselene_v2.0_forPSRC</code>, and the reader
+    <code>/analysis/src/getseldata_v4.2</code>.
+  </p>
+  <p>
+    <strong>Verdict.</strong> SELENE forms the predicted tangential-probe signal
+    from the two in-plane field components and the deck angle
+    <code>ω = DMPT0</code> as
+  </p>
+  <pre>BOMGT(ω) = B_R sin ω − B_Z cos ω = (B_R, B_Z) · (sin ω, −cos ω)</pre>
+  <p>
+    so its sensing unit vector is <code>s(ω) = (sin ω, −cos ω)</code>
+    in the poloidal <code>(R, Z)</code> plane.
+    That is <em>identical</em> to the DDv4 directed axis at angle
+    <code>θ = 90° − ω</code>,
+    <code>u_DD = (cos θ, −sin θ) = (sin ω, −cos ω)</code>.
+    <strong>SELENE's positive tangential direction equals the DD axis
+    <code>(90° − ω)</code>; it is <em>not</em> its reverse.</strong>
+    The polarity the vacuum adjudication should expect is therefore slope
+    <code>+1</code> against a forward prediction built on
+    <code>θ = (90° − ω)</code>; a channel that measures opposite is a hardware
+    polarity, <code>channel_factor −1</code>, not a flipped angle.
+  </p>
+
+  <h3 id="jtmm-probe-axis-source-angle">The deck angle ω = DMPT0</h3>
+  <p>
+    <code>DMPT0</code> is the probe angle imported from the deck geometry
+    <code>geo.in</code>. In the reader it is the array <code>omeg</code>:
+  </p>
+  <ul>
+    <li><code>/analysis/src/getseldata_v4.2/eddbaccess.h:87</code>
+      &mdash; <code>GLOBAL double rprb[PBMAX],zprb[PBMAX],omeg[PBMAX],&hellip;</code>
+      (<code>PBMAX 17</code>, <code>eddbaccess.h:25</code>).</li>
+    <li><code>/analysis/src/getseldata_v4.2/inpgeo.c:113</code>
+      &mdash; <code>sscanf(buf,"%lf %lf %lf",&amp;rprb[i],&amp;zprb[i],&amp;omeg[i]);</code>
+      reads the <code>Magnetic Probe</code> block's third column.</li>
+    <li><code>/analysis/src/getseldata_v4.2/outeddb.c:274&ndash;276</code>
+      &mdash; the dump that feeds SELENE's namelist writes
+      <code>fprintf(fp,"DMPT0=%15.8e,\n",omeg[i]);</code> (the label
+      <code>"DMPT0="</code> at <code>outeddb.c:274</code>, <code>omeg[i]</code> at
+      <code>:276</code>), beside <code>BTMES=</code> from
+      <code>out96.tprbt[i]</code> (<code>outeddb.c:254&ndash;256</code>). So the
+      deck's probe column becomes <code>DMPT0</code> and the measured
+      tangential-probe B becomes <code>BTMES</code>; the EDDB channel behind it is
+      <code>btpidB = "1626 S006"</code> (<code>eddbaccess.h:53</code>).</li>
+  </ul>
+  <p>
+    The deck itself: <code>/analysis/SAdata/geo.in:484&ndash;501</code>, the
+    <code>17  Magnetic Probe</code> block, one <code>(R, Z, angle)</code> row per
+    probe. First row <code>4.7355 −0.0283 0.28</code> (outboard midplane,
+    <code>ω=0.28°</code>); the top probes carry <code>ω≈21&ndash;124°</code>; the
+    inboard wall probes <code>ω≈179&ndash;180°</code>; the bottom probe
+    <code>ω=274.28°</code>. <code>ω</code> is the outward wall-normal angle,
+    counter-clockwise from <code>+R</code>; these 17 values are exactly the
+    <code>DMPT0</code> array in the shipped namelist
+    <code>/analysis/src/SAselene_v2.0_forPSRC/RUNTIMESERIES/fort.96:157</code>.
+  </p>
+
+  <h3 id="jtmm-probe-axis-source-lines">Every line where DMPT0 enters the predicted tangential signal</h3>
+  <p>
+    <code>/analysis/src/SAselene_v2.0_forPSRC/mgprc.f:16</code> converts the
+    degrees to radians into the working angle <code>DMPT</code>:
+  </p>
+  <pre>mgprc.f:
+  12       DPI =PI/180.0
+  14       DO 100 I=1,IPROB
+  16       DMPT(I)=DMPT0(I)*DPI</pre>
+  <p>
+    <code>/analysis/src/SAselene_v2.0_forPSRC/mgfild.f:34&ndash;38</code> is the
+    probe-signal expression. Line 37 (<code>BROHT</code>) is the <em>orthogonal</em>
+    (wall-normal/rho) component; line 38 (<code>BOMGT</code>) is the
+    <em>tangential</em> component, the one whose measured counterpart is the
+    tangential-probe record <code>BTMES</code>/<code>btpidB</code>:
+  </p>
+  <pre>mgfild.f:
+  34       DO 200 K=1,IPROB
+  35       DCTK= COS(DMPT(K))
+  36       DSTK= SIN(DMPT(K))
+  37       BROHT(K)= BRT(K)*DCTK+BZT(K)*DSTK
+  38       BOMGT(K)=-BRT(K)*DSTK+BZT(K)*DCTK</pre>
+  <p>
+    The two field components feeding lines 37&ndash;38 are loaded at
+    <code>mgfild.f:22&ndash;25</code> (tangential probe) from the equilibrium
+    <code>psi</code>, and are the <em>negated</em> field:
+  </p>
+  <pre>mgfild.f:
+   4 C     LOAD BR,BZ AND PSI AT SENSOR POSITION
+   5 C     IN THIS CODE
+   6 C          BR =  (1/R)*(DPSI/DZ)
+   7 C          BZ = -(1/R)*(DPSI/DR)
+  ...
+  22       CALL MGBRZ(I ,IR,BR,BZ)
+  23       CALL MGADJ(BR,BZ,XX,YY,BX,BY)
+  24       BRT(K) = -BX
+  25       BZT(K) = -BY</pre>
+  <p>
+    <code>MGBRZ</code> computes <code>BR=(1/R)·dpsi/dZ</code> and
+    <code>BZ=−(1/R)·dpsi/dR</code>
+    (<code>mgbrz.f:30&ndash;37</code>) and <code>MGADJ</code> interpolates them
+    to the probe (<code>mgadj.f:9&ndash;10</code>). So
+    <code>BRT = −B_R</code> and <code>BZT = −B_Z</code>; substituting into line 38
+    gives the sensing vector quoted in the verdict. The same block's output
+    confirms which component is the probe signal: the dump at
+    <code>mgprc.f:40&ndash;43</code> writes a T probe's <code>BOMGT</code>
+    (labelled <code>BOMEGA</code> in format 8000) and an N probe's
+    <code>BROHN</code>, i.e. the tangential probe's report is the
+    <code>OMEGA</code> component. <code>mgset0.f:150</code> seeds
+    <code>DMPT</code> and <code>mgset0.f:156&ndash;157</code> seed
+    <code>BROHT</code>/<code>BOMGT</code> to zero.
+  </p>
+
+  <h3 id="jtmm-probe-axis-source-derivation">Why the positive tangent is the DD axis, not its reverse</h3>
+  <p>
+    Using the DD's own directed convention, taken from the operator the
+    reconstruction uses, <code>imas_ambix/gs/operator.py:202 _project_bprobe</code>
+    and <code>imas_ambix/cocos.py:113 project_poloidal_field</code>,
+    <code>B_probe = B_R cos θ − B_Z sin θ</code> at DDv4
+    <code>poloidal_angle θ</code> (the DD leaf is the sensing-axis angle,
+    <code>magnetics/b_field_pol_probe/poloidal_angle</code>). With
+    <code>θ = 90° − ω</code>:
+  </p>
+  <pre>B_probe = B_R cos(90°−ω) − B_Z sin(90°−ω)
+        = B_R sin ω − B_Z cos ω
+        = BOMGT(ω)</pre>
+  <p>
+    The two expressions are the same linear functional of <code>(B_R, B_Z)</code>,
+    so SELENE's positive <code>BOMGT</code> and the DD axis at
+    <code>90° − ω</code> name the same direction at every probe. Spot checks
+    against the tangents the section declares: at the outboard midplane
+    (<code>ω≈0</code>) both give <code>(0, −1)</code> = down
+    (<code>θ≈90°</code>); on the inboard wall (<code>ω≈180°</code>) both give
+    <code>(0, +1)</code> = up (<code>θ≈270°</code>). If instead the negated pair
+    <code>(BRT, BZT)</code> were taken as the field basis, the vector would be
+    <code>(−sin ω, cos ω)</code> and read as the reverse; the done-when names
+    <code>B_R</code> and <code>B_Z</code>, the equilibrium field, so the negation
+    is folded as above. Result: <strong>equals the DD axis
+    <code>(90° − ω)</code></strong>.
+  </p>
+  <p>
+    For the vacuum adjudication: a forward prediction built on
+    <code>θ = (90° − ω)</code> already shares SELENE's positive sense, so a
+    channel whose measured slope against that prediction is near <code>+1</code>
+    carries <code>sign_convention: identity</code>, and only a channel measuring
+    the opposite polarity takes <code>channel_factor −1</code> on its pulse rule.
+  </p>
+</main>
+</body>
+</html>
