@@ -1,0 +1,121 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtmm-coil-element-names">
+  <header>
+    <h3>every pf_active coil filament named, and the real identifiers carried into the catalogue</h3>
+    <p class="meta">
+      Node <code>jtmm-coil-element-names</code> &middot;
+      date 2026-10-06 &middot; plan <code>jt60sa-machine-map</code> &sect;4
+    </p>
+  </header>
+
+  <div id="jtmm-coil-element-names-change">
+    <p>
+      <code>build_pf_active</code> now names every conductor element
+      <code>{coil}_{position}</code> with the 1-based position in its coil
+      (<code>CS1_1</code>&hellip;<code>CS1_40</code>,
+      <code>EF1_1</code>&hellip;<code>EF1_16</code>,
+      <code>FPPC_UP_1</code>&hellip;<code>FPPC_UP_6</code>), and
+      <code>build_pf_passive</code> names each vessel filament
+      <code>{loop}_{position}</code> on the same rule. The module declares
+      <code>__all__</code> naming only <code>write_phase_description</code>,
+      its one converter entry point. The
+      <code>tests/data/test_selene_deck.py</code> every-entry-is-named sweep is
+      extended to the coil-element level: a test reads <code>pf_active</code>
+      back and requires every element named, in deck order, with no name
+      repeating within its coil.
+    </p>
+  </div>
+
+  <div id="jtmm-coil-element-names-conversion">
+    <p>
+      Both phases were re-converted from the sha256-verified copies already
+      landed in
+      <code>/work/projects/imas_gpu/jt60sa/machine_description/source/</code>
+      (all three hashes re-checked against <code>source/provenance.json</code>,
+      refusing on any mismatch) by converter commit
+      <code>8199811549fe423ebdd096d04aa4cdf4d97702f2</code>, which each
+      <code>receipt.json</code> names. Each output file was written under a
+      temporary sub-directory inside its phase directory and renamed into place
+      with <code>os.replace</code>, so a concurrent reader sees the old or the
+      new file and never a partial one. Nothing outside
+      <code>machine_description/OP1</code> and
+      <code>machine_description/OP2</code> was written, and the JT-60SA server
+      was never contacted.
+    </p>
+    <table>
+      <thead>
+        <tr><th>phase</th><th>file</th><th>replaced sha256</th><th>new sha256</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>OP1</td><td>pf_active.nc</td><td><code>c451d089a054121f627af0753febbbf44b565ef1d756f0a860913285cec66097</code></td><td><code>aa623601b34a90127879f10019753df4dc4defcbeabf36c7a7abd4031ab08777</code></td></tr>
+        <tr><td>OP1</td><td>pf_passive.nc</td><td><code>23ca965445a15ab0915abb2b95aa8c001324b5c900d65b559c3e718f547ab0e1</code></td><td><code>102322ae249f156e1c889a5ddc966145e0a66098931276dc721cd50fc7b6956d</code></td></tr>
+        <tr><td>OP1</td><td>receipt.json</td><td><code>6624545692f07e068f7a784532cc266bf68df800bf254ddc5c01a1eaa6f4c027</code></td><td><code>38f1edc1ade60c8a01a151cf990bad48463d5af1a390cdc39ef128ccc1968e79</code></td></tr>
+        <tr><td>OP1</td><td>magnetics.nc</td><td><code>bc8ed1acaa1573818c23baa5f52ec9dd2d9aec5f480a83ce3efcd3a39d3fdcfa</code></td><td><code>bc8ed1acaa1573818c23baa5f52ec9dd2d9aec5f480a83ce3efcd3a39d3fdcfa</code></td></tr>
+        <tr><td>OP1</td><td>tf.nc</td><td><code>c5549058c3f85d3725ff56431bf2d36b6eed2de4a200f59f9d92ff6d557ec0d2</code></td><td><code>c5549058c3f85d3725ff56431bf2d36b6eed2de4a200f59f9d92ff6d557ec0d2</code></td></tr>
+        <tr><td>OP1</td><td>wall.nc</td><td><code>31404ff72a94c8affeb386d2861f50a681fe7f69b4fb0cfe34132597a7bd583f</code></td><td><code>31404ff72a94c8affeb386d2861f50a681fe7f69b4fb0cfe34132597a7bd583f</code></td></tr>
+        <tr><td>OP2</td><td>pf_active.nc</td><td><code>c451d089a054121f627af0753febbbf44b565ef1d756f0a860913285cec66097</code></td><td><code>aa623601b34a90127879f10019753df4dc4defcbeabf36c7a7abd4031ab08777</code></td></tr>
+        <tr><td>OP2</td><td>pf_passive.nc</td><td><code>538349d3ffb402379cb274439cb2f7c51993793146eea54c060d65c56f713dd1</code></td><td><code>db24219edbcc6a1ce0350d1a4ca34c2fd60d429a9be435f8d112ea3ed3bd2c9d</code></td></tr>
+        <tr><td>OP2</td><td>receipt.json</td><td><code>bf5048f77879a8054d74e78e0e6ef1052fb6b7a307cfdc79cc63b4aec32caaf5</code></td><td><code>bcecf0e57f88dbb930d8187a5c9789a462e81bfcb91af8d6dff6f9ff55d4a38a</code></td></tr>
+        <tr><td>OP2</td><td>magnetics.nc</td><td><code>bc8ed1acaa1573818c23baa5f52ec9dd2d9aec5f480a83ce3efcd3a39d3fdcfa</code></td><td><code>bc8ed1acaa1573818c23baa5f52ec9dd2d9aec5f480a83ce3efcd3a39d3fdcfa</code></td></tr>
+        <tr><td>OP2</td><td>tf.nc</td><td><code>c5549058c3f85d3725ff56431bf2d36b6eed2de4a200f59f9d92ff6d557ec0d2</code></td><td><code>c5549058c3f85d3725ff56431bf2d36b6eed2de4a200f59f9d92ff6d557ec0d2</code></td></tr>
+        <tr><td>OP2</td><td>wall.nc</td><td><code>5d26b2ccde604967d102bb207bf1c134b614cd7bbf858869299361f8e8f721f5</code></td><td><code>5d26b2ccde604967d102bb207bf1c134b614cd7bbf858869299361f8e8f721f5</code></td></tr>
+      </tbody>
+    </table>
+    <p>
+      Only <code>pf_active.nc</code>, <code>pf_passive.nc</code> and the two
+      receipts change; <code>magnetics</code>, <code>tf</code> and
+      <code>wall</code> are byte-identical before and after, so the re-conversion
+      changed exactly the added element names.
+    </p>
+  </div>
+
+  <div id="jtmm-coil-element-names-readback">
+    <p>
+      Every file read back through <code>imas.DBEntry</code> at DD&nbsp;4.1.1.
+      The twelve coils and their element counts are unchanged (40 per CS,
+      16 per EF, 6 per FPPC &mdash; 268 coil filaments across both phases),
+      every element is named, and the vessel loops keep their names and counts
+      (OP1 <code>VV1</code>/<code>VV2</code> at 63/57; OP2 <code>VV1</code> at
+      98). One coil of each size, OP1:
+    </p>
+    <table>
+      <thead>
+        <tr><th>coil</th><th>filaments</th><th>element names</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>CS1</td><td>40</td><td><code>CS1_1</code>, <code>CS1_2</code>, &hellip;, <code>CS1_40</code></td></tr>
+        <tr><td>EF1</td><td>16</td><td><code>EF1_1</code>, <code>EF1_2</code>, &hellip;, <code>EF1_16</code></td></tr>
+        <tr><td>FPPC_UP</td><td>6</td><td><code>FPPC_UP_1</code>, <code>FPPC_UP_2</code>, &hellip;, <code>FPPC_UP_6</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div id="jtmm-coil-element-names-catalogue">
+    <p>
+      <code>imas_ambix/data/machine_maps/jt-60sa.json</code> was edited line by
+      line (never re-serialised): the 1290 trailing-slash placeholder element
+      identifiers &mdash; in the 24 <code>pf_active</code> and 3
+      <code>pf_passive</code> structure assemblies and in the drive-topology
+      <code>geometry_element_identifier</code> references &mdash; were each
+      replaced by the store's element name, so
+      <code>jt60sa-op1-pf-active-cs1/element-0/</code> becomes
+      <code>jt60sa-op1-pf-active-cs1/CS1_1</code>. The catalogue loads and
+      validates, and a new test asserts no element identifier in the catalogue
+      ends in a slash.
+    </p>
+  </div>
+
+  <div id="jtmm-coil-element-names-measure">
+    <p>
+      Gate:
+      <code>pytest -n 8 tests/data/test_selene_deck.py
+      tests/data/test_jt60sa_machine_map.py tests/data/test_description_reader.py
+      tests/data/test_description_identity.py tests/data/test_transform_engine.py</code>
+      &mdash; <strong>56 passed</strong> at revision
+      <code>1638229526085a285adc36a45a1bbe0d865e9273</code>, and
+      <code>ruff check imas_ambix tests</code> exits 0. Negative control
+      (scratch tree, name assignment removed from <code>build_pf_active</code>):
+      <code>test_every_pf_active_coil_element_is_named_by_coil_and_position</code>
+      <strong>fails</strong>.
+    </p>
+  </div>
+</section>
