@@ -17,6 +17,8 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
+
 from imas_ambix.data.geometry_adapter import geometry_table_from_description
 from imas_ambix.data.machine_map import (
     load_packaged_machine_map,
@@ -76,6 +78,59 @@ def _supply_declared_probe_angles(table: Any) -> Any:
             *table.provenance_flags,
             "sensor_map.angle_deg: directed probe axes supplied by the reviewed "
             "MAST acquisition-address convention",
+        ],
+    )
+
+
+_PROBE_ANGLE_DD_PATH = "magnetics/b_field_pol_probe/poloidal_angle"
+
+
+def _supply_emitted_probe_angles(description: Any, table: Any) -> Any:
+    """Fill sensor-map angles from the emitted DD probe-angle array.
+
+    The ``description`` probe-angle source carries the directed axis in the
+    emitted ``magnetics/b_field_pol_probe/poloidal_angle`` array rather than in
+    an acquisition address.  The array's ``target_unit`` decides the unit the
+    table reports: the DD leaf is radians while the geometry kernel's
+    ``angle_deg`` is degrees.  A description that emits no such array leaves
+    every probe's absent-angle flag standing.
+    """
+
+    angle_arrays = tuple(
+        array
+        for array in description.arrays
+        if array.dd_path == _PROBE_ANGLE_DD_PATH
+    )
+    if not angle_arrays:
+        return table
+    if len(angle_arrays) > 1:
+        raise DescriptionReadError(
+            "the emitted description carries more than one "
+            f"{_PROBE_ANGLE_DD_PATH} array"
+        )
+    emitted = angle_arrays[0]
+    values = np.asarray(emitted.values, dtype=np.float64).reshape(-1)
+    probe_indices = [
+        index
+        for index, mapping in enumerate(table.sensor_map)
+        if mapping.kind == "b_probe"
+    ]
+    if values.size != len(probe_indices):
+        raise DescriptionReadError(
+            f"the emitted {_PROBE_ANGLE_DD_PATH} array holds {values.size} "
+            f"angles for {len(probe_indices)} mapped probes"
+        )
+    angles = np.rad2deg(values) if emitted.target_unit == "rad" else values
+    mappings = list(table.sensor_map)
+    for index, angle in zip(probe_indices, angles, strict=True):
+        mappings[index] = replace(mappings[index], angle_deg=float(angle), flag="")
+    return replace(
+        table,
+        sensor_map=mappings,
+        provenance_flags=[
+            *table.provenance_flags,
+            "sensor_map.angle_deg: directed probe axes supplied by the emitted "
+            f"{_PROBE_ANGLE_DD_PATH}",
         ],
     )
 
@@ -143,6 +198,8 @@ def read_geometry_table(
     table = geometry_table_from_description(description, catalog)
     if catalog.probe_angle_source == "acquisition-address":
         table = _supply_declared_probe_angles(table)
+    elif catalog.probe_angle_source == "description":
+        table = _supply_emitted_probe_angles(description, table)
     return table
 
 

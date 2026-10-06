@@ -60,6 +60,23 @@ def _coil_element_binding(struct_array_entry=None):
     )
 
 
+def _probe_angle_binding(sign_convention="identity"):
+    return ChannelBinding(
+        name="jt60sa-probe-poloidal-angle",
+        source_group="magnetics",
+        source_array="poloidal_angle",
+        source_rank=1,
+        source_role="value",
+        source_location="file:///machine_description/poloidal_angle",
+        dd_path="magnetics/b_field_pol_probe/poloidal_angle",
+        source_unit="rad",
+        target_unit="rad",
+        sign_convention=sign_convention,
+        evidence="synthetic directed probe poloidal angle",
+        source_cocos_override=None,
+    )
+
+
 def _binding_payload(**overrides):
     payload = {
         "name": "synthetic-binding",
@@ -718,3 +735,48 @@ def test_both_polarities_round_trip_exactly_through_engine_cocos_transform(tmp_p
 
     assert current_signs.count(-1) == 2
     assert current_signs.count(+1) == 2
+
+
+def test_poloidal_angle_applies_no_cocos_factor_and_takes_sense_from_binding():
+    import imas_ambix.data.transform_engine as engine_module
+
+    values = np.asarray([0.0, 1.5707963267948966, -0.5], dtype=np.float64)
+
+    for sign_convention, expected_factor in (("identity", 1.0), ("negate", -1.0)):
+        binding = _probe_angle_binding(sign_convention)
+        emitted, transformation, factor = engine_module._apply_cocos_convention(
+            values, binding, "4.1.1", None
+        )
+
+        assert transformation == "pol_angle_like"
+        assert factor == expected_factor
+        assert np.array_equal(emitted, values * expected_factor)
+
+
+def test_poloidal_angle_refuses_an_unvalidated_sign_convention():
+    import imas_ambix.data.transform_engine as engine_module
+
+    binding = _probe_angle_binding("unknown-unvalidated")
+
+    with pytest.raises(BindingTransformError, match="unknown-unvalidated"):
+        engine_module._apply_cocos_convention(
+            np.asarray([0.0], dtype=np.float64), binding, "4.1.1", None
+        )
+
+
+def test_poloidal_angle_emit_path_negates_exactly_once():
+    import imas_ambix.data.transform_engine as engine_module
+
+    class ConstantArrays:
+        def read(self, binding: ChannelBinding) -> np.ndarray:
+            return np.asarray([1.0, -2.0], dtype=np.float64)
+
+    binding = _probe_angle_binding("negate")
+    emitted, missing = engine_module._emit_arrays(
+        ConstantArrays(), (binding,), "4.1.1", MAST_SOURCE_COCOS
+    )
+
+    assert missing == ()
+    assert emitted[0].cocos_transformation == "pol_angle_like"
+    assert emitted[0].cocos_factor == -1.0
+    assert np.array_equal(emitted[0].values, np.asarray([-1.0, 2.0]))

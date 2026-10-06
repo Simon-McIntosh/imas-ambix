@@ -1,0 +1,58 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtmm-probe-angle-engine">
+  <header>
+    <h3>probe-angle engine: no COCOS digit for a poloidal angle, and the description route supplies it</h3>
+    <p class="meta">
+      Node <code>jtmm-probe-angle-engine</code> &middot;
+      date 2026-10-06 &middot; plan <code>jt60sa-machine-map</code> &sect;6
+    </p>
+  </header>
+
+  <p>
+    The transform engine gained a <code>pol_angle_like</code> branch in
+    <code>transform_engine._apply_cocos_convention</code>. A directed
+    poloidal-probe angle states an installed sensitive-axis orientation, so no
+    COCOS-digit factor expresses it; the branch calls <code>canonical_factor</code>
+    for no angle binding and takes the rotation sense only from the binding's
+    authored <code>sign_convention</code>. <code>identity</code> keeps the
+    stored angle and <code>negate</code> mirrors it; every other value &
+    mdash; <code>unknown-unvalidated</code> included &mdash; is refused with
+    <code>BindingTransformError</code> naming the convention rather than served.
+    The branch precedes the <code>source_cocos is None</code> refusal, so an
+    angle binding needs no declared source convention. In
+    <code>_emit_arrays</code> the generic sign pass is skipped for a
+    <code>pol_angle_like</code> binding, because the branch now owns that
+    negation, so a <code>negate</code> binding negates exactly once on the emit
+    path.
+  </p>
+
+  <p>
+    <code>cocos.py</code> retires the directed-angle helper
+    <code>mast_angle_to_canonical</code>: its only caller was its own test, its
+    negation is what a binding's <code>sign_convention</code>
+    <code>negate</code> now expresses, and <code>project_poloidal_field</code>
+    (the forward-operator seam) is untouched. <code>read_geometry_table</code>
+    gained the description route's supplier: when the catalog declares
+    <code>probe_angle_source</code> <code>description</code>, each probe's
+    <code>angle_deg</code> is filled from the emitted
+    <code>magnetics/b_field_pol_probe/poloidal_angle</code> array, converted
+    from the array's declared target unit (the DD leaf is radians, the geometry
+    kernel reports degrees), beside the acquisition-address supplier. A
+    description that emits no such array leaves the probes' absent-angle flag
+    standing; a count mismatch between emitted angles and mapped probes is
+    refused rather than guessed.
+  </p>
+
+  <ul>
+    <li>Gate: <code>pytest tests/test_cocos.py tests/data/test_transform_engine.py tests/data/test_description_reader.py tests/data/test_cocos_convention.py</code> &mdash; 46 passed, EXIT=0 (<code>gate.log</code>); <code>ruff check</code> on the six changed paths exits 0.</li>
+    <li>New engine tests cover identity (factor +1.0), negate (factor -1.0), the emit path negating exactly once, and the <code>unknown-unvalidated</code> refusal; new reader tests cover the emit-fills-angles path, the absent-array path, and the count-mismatch refusal.</li>
+    <li>Negative control: serving a <code>pol_angle_like</code> binding with <code>sign_convention</code> <code>unknown-unvalidated</code> turns <code>test_poloidal_angle_refuses_an_unvalidated_sign_convention</code> red (<code>negative_control.log</code>, EXIT=1).</li>
+  </ul>
+
+  <p class="meta">
+    This node implements the engine and reader branch only. The JT-60SA
+    catalogue's own <code>poloidal_angle</code> binding (whose
+    <code>sign_convention</code> the vacuum adjudication is to author as
+    <code>identity</code>) is not in this node's write scope, so the description
+    route stays inert for JT-60SA until that binding lands.
+  </p>
+</section>

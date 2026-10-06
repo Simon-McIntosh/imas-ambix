@@ -13,7 +13,6 @@ from imas_ambix.cocos import (
     ConventionContractError,
     canonical_factor,
     identify_source_cocos,
-    mast_angle_to_canonical,
     project_poloidal_field,
     require_canonical_contract,
     source_cocos_digits,
@@ -71,18 +70,14 @@ def test_measured_digits_identify_diii_d_source_cocos() -> None:
     assert canonical_factor("dodpsi_like", source_cocos=source) == -1.0 / tau
 
 
-def test_mast_probe_axis_is_converted_without_changing_its_directed_field():
-    source_angles = np.array([0.0, 90.0, 45.0])
-    canonical_angles = mast_angle_to_canonical(source_angles)
-    assert canonical_angles.tolist() == [0.0, -90.0, -45.0]
-
+def test_ddv4_poloidal_angle_projects_along_its_directed_axis():
     br = np.array([3.0, 3.0, 3.0])
     bz = np.array([2.0, 2.0, 2.0])
-    source_projection = br * np.cos(np.deg2rad(source_angles)) + bz * np.sin(
-        np.deg2rad(source_angles)
-    )
-    canonical_projection = project_poloidal_field(br, bz, canonical_angles)
-    assert canonical_projection == pytest.approx(source_projection)
+    angles = np.array([0.0, -90.0, 90.0])
+
+    projection = project_poloidal_field(br, bz, angles)
+
+    assert projection == pytest.approx([3.0, 2.0, -2.0])
 
 
 @pytest.mark.parametrize(
