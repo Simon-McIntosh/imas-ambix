@@ -1,0 +1,92 @@
+{
+  "absent": [],
+  "added_failure_count": null,
+  "added_failure_ids": [],
+  "added_failures_note": "unmeasured: the reviewed manifest carries no baseline_suite and no after_suite arm (both empty at 836e32fa) and the run directory holds no base/after gate log, so there are no gate logs to difference. Its only external read is a live SSH probe (105 FAME slices, IRET=300), not a repository suite. A count that was never taken is stored as null, not zero.",
+  "blockers": [],
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-06T16:33:41.460Z",
+  "dimension_dispositions": {
+    "durability": {
+      "kind": "exempted",
+      "reason": "a read-only facility probe writes no source or test to guard; the EQDB transport node that consumes its findings carries the durable tests",
+      "recorded_at": "2026-10-06T16:33:07.454390+00:00"
+    }
+  },
+  "dispatched_at": "2026-10-06T16:20:53Z",
+  "evidence_inputs": [
+    "The reviewed head 836e32fad1b901fee601e38ee78541fada8ff223 is not an ancestor of origin/main; it lives only in the reviewed worktree (now at 836e32fa, clean tree) and the shared object store, so it was read with 'git -C /home/ITER/mcintos/Code/imas-ambix show 836e32fa:...' rather than from this review worktree.",
+    "The reviewed run's own stream (r-20261006T155904453024-jtmm-eqdb-entry-probe/stream.jsonl) corroborates the fragment independently: 'eqdb=0 n=105 times=[500, 800, 900, ... 11500]', 'eqdb=1..5 n=0', 'GetEqData(eqdb=0, shot=101154, t=...) -> IRET=300' for every slice, and the GetEqItem enumeration (INT: EQISH..NCOIL; FLOAT: EQTIM..PNOFER; STR: EQIDX,EQTTL; FAME: RHO..RSP2), all printed shape=(0,) because the read failed.",
+    "The reader declares 'Size.Integer: NSR (R grid points), NSZ (Z grid points), NV (SIV mesh points)', which the fragment's Size row quotes; every field name in the fragment's table matches the run's own GetEqItem enumeration -- none invented, none dropped.",
+    "The dispatch's CONTRACT-LANDING block states 'Your done-when names no artifact, so this node writes no figure and no evidence prose', yet the same block mandates a fragment under docs/evidence/fragments/<plan>/<node-id>.html and the done-when names that fragment's required content. The node resolved this by writing the fragment the done-when required; the tension is in the dispatch, not the node's delivery."
+  ],
+  "findings": [
+    {
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-eqdb-entry-probe.html",
+      "line": "jtmm-eqdb-entry-probe-iret",
+      "severity": "follow-on",
+      "text": "The populated field read of E101154 was not achieved: GetEqData(0,101154,t) returned IRET=300 for every slice read (500..11500 ms), so GetEqItem returned empty arrays and the field shapes, dtypes and units in section -fields are the reader's declared schema, not an E101154 measurement. The fragment states this plainly at section -iret, so it is a follow-on rather than a blocking gap: the eqdb-reader question is about the entry and the record's field set, both of which are answered."
+    },
+    {
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-eqdb-entry-probe.html",
+      "line": "jtmm-eqdb-entry-probe-followon",
+      "severity": "follow-on",
+      "text": "The claim that the 129x129 vs 1025x1025 mesh 'maps to the libEQDBMS.a vs libEQDBMS_1025.a variants and is not selectable per-record at read time' is asserted without a quoted source line, unlike the three load-bearing lines quoted at section -entry-lines, and it is not verifiable from the run's recorded output (the shared library was not disassembled and the read itself failed). Record the source line or mark it as unverified."
+    }
+  ],
+  "follow_ons": [
+    "The populated per-field read of E101154 (measured shapes, dtypes and units for PSI, RG, ZG, RSU/ZSU, RAXIS/ZAXIS, PDS/FDS, TTCU, EQTIM) remains for the transport node: reading it needs the FAME database server reachable (eqdbsockclient_connect in libEQDBMSPIC.so) or a synthetic record via Eqdata_Set(eqdb, time, path, len), because /JT60SA_EQ (echoFameHost dbsvr17p) is not mounted on intr26-2.",
+    "docs/evidence/fragments/jt60sa-machine-map/jtmm-eqdb-entry-probe.html: the 'not selectable per-record at read time' claim about the 129/1025 mesh variants should be tied to a source line or marked unverified."
+  ],
+  "gate_logs": {
+    "reviewed_probe_arm": {
+      "completed": true,
+      "exit_status": 0,
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T155904453024-jtmm-eqdb-entry-probe/stream.jsonl",
+      "note": "the reviewed run's only gate is the read-only ssh probe; its numbers (105 FAME slices, 0 SELENE, IRET=300) are corroborated from this stream, not re-run, because the probe contacts nakasvr26 and the review bound is a reading.",
+      "revision": "836e32fad1b901fee601e38ee78541fada8ff223"
+    }
+  },
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "diff": "Read 836e32fa against 520cddc6: one file added, docs/evidence/fragments/jt60sa-machine-map/jtmm-eqdb-entry-probe.html, 144 insertions, 0 deletions. Nothing else changed -- no source, test, plan, meta or figure.",
+    "done_when": "The done-when requires the fragment to name the entry point with path, signature and module environment, and to list for one E101154 record read through it every field with shape, dtype and unit plus the time slices. The entry and environment are quoted from source (sections jtmm-eqdb-entry-probe-entry / -entry-env); the time slices are a live read (105 slices, section jtmm-eqdb-entry-probe-result); the populated per-field listing was NOT achieved -- GetEqData returned IRET=300 for every slice (section jtmm-eqdb-entry-probe-iret), so the shapes, dtypes and units are the reader's declared schema, not an E101154 measurement.",
+    "goal": "The goal is to settle the eqdb-reader question read-only: the callable entry to the SELENE equilibrium database and the fields of one E101154 record. Section jtmm-eqdb-entry-probe-entry names the entry -- the eqread_pac Python package wrapping the prebuilt /analysis/lib/libFLEDDPIC.so through ctypes (GetTimeList / GetEqData / GetEqItem), with the three load-bearing source lines and the C symbols -- and section jtmm-eqdb-entry-probe-fields lists every record field with its shape, dtype and unit. The entry half is fully answered; the 'fields of one E101154 record' half is delivered as the reader's declared schema, with the live 105-slice time list, but not as a populated E101154 read.",
+    "manifest": "Read at 836e32fa: status complete; commits [836e32fad1b901fee601e38ee78541fada8ff223]; changed_paths the fragment; tests the read-only ssh probe ('eqdb=0 n=105', 'eqdb=1..5 n=0', GetEqData->IRET=300); an evidence_inputs block quoting the entry, API, C symbols and record schema. baseline_suite and after_suite are empty -- the gate is a remote probe, not a repository suite -- and the manifest's test_logs field points at the manifest itself.",
+    "write_paths": "Declared paths are the fragment HTML and the figures directory. Commit 836e32fa touches exactly the fragment, docs/evidence/fragments/jt60sa-machine-map/jtmm-eqdb-entry-probe.html (144 added lines, no other file); the figures directory is untouched, which the dispatch permits because the done-when names no figure. Every ssh call in the run uses 'ssh -F ~/.ssh/config jt-60sa' as the done-when requires."
+  },
+  "justifications": {
+    "durability": "No test covers this change: the fragment is evidence prose and nothing in the suite fails if the quoted schema, the entry path or the 105-slice figure regress. The remote-only claims cannot be pinned in-repo, so the fragment is backed by a one-time live read plus inspection, not by a guard.",
+    "evidence": "The gate result is recorded, not merely claimed: section jtmm-eqdb-entry-probe-result gives the live 105 FAME time slices and zero SELENE slices, and section -iret gives GetEqData IRET=300, all corroborated from the reviewed run's own stream. Docked to 13 because the done-when's 'for one E101154 record read through it ... every field with its shape' was not met -- the shapes are declared, not measured, and one asserted (the 129/1025 mesh mapping) carries no source line.",
+    "fit": "The fragment follows the sibling fragment idiom (a section[data-reckon=fragment] with node-id-prefixed element ids, no plan-version or plan-modified meta line edited) and introduces no name the repository naming rules forbid.",
+    "goal_fidelity": "Sections jtmm-eqdb-entry-probe-entry and -entry-env name the callable entry (eqread_pac -> libFLEDDPIC.so via ctypes) with its path, signature and module environment, and section jtmm-eqdb-entry-probe-fields lists every record field with shape, dtype and unit, so the eqdb-reader question is answered; docked to 16 because the 'fields of one E101154 record' is the reader's declared schema rather than a populated read of that record.",
+    "reuse": "The node adds no code, so nothing can fork a capability; the entry it identifies, eqread_pac, is the existing owner of the EQDB read and is named rather than re-wrapped.",
+    "scope_discipline": "Commit 836e32fa adds exactly the one declared fragment path docs/evidence/fragments/jt60sa-machine-map/jtmm-eqdb-entry-probe.html (144 lines) and touches no source, test, plan, meta or figure; every ssh call uses 'ssh -F ~/.ssh/config jt-60sa' and nothing was written on nakasvr26 outside /tmp."
+  },
+  "node": "review-of-jtmm-eqdb-entry-probe",
+  "project": "imas-ambix",
+  "review_run_id": "r-20261006T162044038697-review-of-jtmm-eqdb-entry-probe",
+  "review_scope": "Whole of node jtmm-eqdb-entry-probe: the single commit 836e32fa against base 520cddc6, adding one file, docs/evidence/fragments/jt60sa-machine-map/jtmm-eqdb-entry-probe.html (144 lines). Read the fragment, the reviewed manifest, and the reviewed run's own stream to corroborate the probe numbers. The change is docs-only: no source, test, config or plan was touched. The review is a reading; the remote probe was not re-run (it contacts nakasvr26), and the fragment's own recorded output plus the run's stream are the evidence read.",
+  "reviewed_base_sha": "520cddc69db9bac6f160d1d2c8a3a58b8a03851a",
+  "reviewed_commits": [
+    "836e32fad1b901fee601e38ee78541fada8ff223"
+  ],
+  "reviewed_head_sha": "836e32fad1b901fee601e38ee78541fada8ff223",
+  "reviewed_run_id": "r-20261006T155904453024-jtmm-eqdb-entry-probe",
+  "reviewer": "review-of-jtmm-eqdb-entry-probe",
+  "scores": {
+    "durability": 8,
+    "evidence": 13,
+    "fit": 19,
+    "goal_fidelity": 16,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "timestamp": "2026-10-06T16:32:28.000497+00:00",
+  "total": 96,
+  "verification_logs": [
+    "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T155904453024-jtmm-eqdb-entry-probe/stream.jsonl"
+  ]
+}
