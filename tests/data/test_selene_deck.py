@@ -125,19 +125,24 @@ def test_eqsle_parses_pf_coils(decks):
 def test_eqsle_parses_vessel_tfc_and_wall(decks):
     eqsle, _, _ = decks
     deck = sd.parse_eqsle_deck(eqsle)
-    assert len(deck.vessel) == 3
+    # The passive block splits into the vessel run and the cryostat run.
+    assert len(deck.vessel) == 2
+    assert len(deck.cryostat) == 1
     fil = deck.vessel[0]
     assert fil.r == pytest.approx(4.9)
     assert fil.z == pytest.approx(0.3)
     assert fil.dr == pytest.approx(0.04)
     assert fil.dz == pytest.approx(0.25)
     assert fil.resistivity == pytest.approx(7.76e-7)
+    assert deck.cryostat[0].resistivity == pytest.approx(7.20e-7)
     assert len(deck.tfc_inside) == 2
     assert len(deck.tfc_outside) == 2
-    kinds = {seg.kind for seg in deck.limiter_and_first_wall}
-    assert kinds == {"line", "arc"}
-    assert any("First Wall" in s.comment for s in deck.limiter_and_first_wall)
-    line = next(s for s in deck.limiter_and_first_wall if s.kind == "line")
+    # The contour table's labels split the first wall from the vessel skin.
+    assert {seg.kind for seg in deck.first_wall} == {"line"}
+    assert {seg.kind for seg in deck.vessel_skin_outer} == {"arc"}
+    assert deck.vessel_skin_inner == []
+    assert any("First Wall" in s.comment for s in deck.first_wall)
+    line = deck.first_wall[0]
     (r1, z1), (r2, z2) = line.line_points()
     assert (r1, z1) == pytest.approx((3.316, 1.897))
     assert (r2, z2) == pytest.approx((3.612, 1.516))
@@ -151,8 +156,10 @@ def test_provenance_carries_path_sha256_and_line_range(decks):
 
     elements = [e for c in deck.pf_coils for e in c.elements]
     elements += list(deck.vessel)
+    elements += list(deck.cryostat)
     elements += list(deck.tfc_inside) + list(deck.tfc_outside)
-    elements += list(deck.limiter_and_first_wall)
+    elements += list(deck.first_wall)
+    elements += list(deck.vessel_skin_inner) + list(deck.vessel_skin_outer)
     for element in elements:
         prov = element.provenance
         assert prov.source == str(eqsle)
@@ -321,7 +328,7 @@ def test_b_field_phi_vacuum_r_relation():
     assert value > 0
 
 
-def test_pf_passive_preserves_two_resistivities(decks, tmp_path: Path):
+def test_pf_passive_names_the_vessel_and_cryostat_loops(decks, tmp_path: Path):
     eqsle, geo, _ = decks
     receipt = sd.write_phase_description(
         phase="OP1",
@@ -333,13 +340,89 @@ def test_pf_passive_preserves_two_resistivities(decks, tmp_path: Path):
         tmp_path / "OP1" / "pf_passive.nc", "r", dd_version="4.1.1"
     ) as entry:
         passive = entry.get("pf_passive")
-    # The two deck resistivities become two loops, each carrying its own value.
-    assert len(passive.loop) == 2
+    # The vessel run and the cryostat run become two named loops, each carrying
+    # its own resistivity, and their filaments are named after their loop.
+    assert [str(loop.name) for loop in passive.loop] == ["VV", "CRYOSTAT"]
     assert [len(loop.element) for loop in passive.loop] == [2, 1]
     assert [float(loop.resistivity) for loop in passive.loop] == pytest.approx(
         [7.76e-7, 7.20e-7]
     )
+    assert [str(el.name) for el in passive.loop[0].element] == ["VV_1", "VV_2"]
+    assert [str(el.name) for el in passive.loop[1].element] == ["CRYOSTAT_1"]
     assert receipt["phase"] == "OP1"
+
+
+def _fil(r: float, z: float, resistivity: float) -> sd.VesselFilament:
+    return sd.VesselFilament(
+        turns=1.0,
+        r=r,
+        z=z,
+        dr=0.1,
+        dz=0.1,
+        resistivity=resistivity,
+        provenance=sd.Provenance(
+            source="synthetic", sha256="0" * 64, line_start=1, line_end=1
+        ),
+    )
+
+
+def test_cryostat_group_inside_the_vessel_envelope_is_refused():
+    factory = imas.IDSFactory("4.1.1")
+    vessel = [_fil(1.0, 0.0, 7.76e-7), _fil(2.0, 1.0, 7.76e-7)]
+    # A filament inside the vessel's R and Z envelope is vessel material, not a
+    # cryostat, so labelling the group CRYOSTAT must be refused.
+    inside = [_fil(1.5, 0.5, 7.20e-7)]
+    with pytest.raises(sd.CryostatEnvelopeError):
+        sd.build_pf_passive(factory, vessel, inside)
+
+    # A group entirely outside the envelope is accepted and becomes the loop.
+    outside = [_fil(3.0, 0.0, 7.20e-7)]
+    passive = sd.build_pf_passive(factory, vessel, outside)
+    assert [str(loop.name) for loop in passive.loop] == ["VV", "CRYOSTAT"]
+
+
+def test_cryostat_loop_carries_57_filaments_in_both_phases(tmp_path: Path):
+    """The cryostat is the same 57-filament loop in OP1 and OP2.
+
+    OP2's vessel comes from its own coil_vv deck (98 filaments) while its
+    cryostat is read from the shared EQSLE deck, so the CRYOSTAT loop must be
+    identical across the phase boundary even though the VV loop is not.
+    """
+    if not (REAL_EQSLE.exists() and REAL_GEO.exists() and REAL_COIL_VV.exists()):
+        pytest.skip("real deck copies absent")
+    eqsle = sd.parse_eqsle_deck(REAL_EQSLE)
+    geo = sd.parse_geo_in(REAL_GEO)
+    coil_vv = sd.parse_coil_vv_deck(REAL_COIL_VV)
+
+    def cryostat(phase, **kwargs):
+        sd.write_phase_description(
+            phase=phase, out_dir=tmp_path, eqsle=eqsle, geo=geo, **kwargs
+        )
+        with imas.DBEntry(
+            tmp_path / phase / "pf_passive.nc", "r", dd_version="4.1.1"
+        ) as entry:
+            passive = entry.get("pf_passive")
+        loops = {str(loop.name): loop for loop in passive.loop}
+        return loops["CRYOSTAT"], loops["VV"]
+
+    op1_cryostat, op1_vessel = cryostat("OP1")
+    op2_cryostat, op2_vessel = cryostat("OP2", coil_vv=coil_vv)
+
+    assert str(op1_cryostat.name) == str(op2_cryostat.name) == "CRYOSTAT"
+    assert len(op1_cryostat.element) == len(op2_cryostat.element) == 57
+    assert float(op1_cryostat.resistivity) == pytest.approx(7.20e-7)
+    assert float(op2_cryostat.resistivity) == pytest.approx(7.20e-7)
+    # The two cryostat loops carry the same filament geometry.
+    for a, b in zip(op1_cryostat.element, op2_cryostat.element):
+        assert float(a.geometry.rectangle.r) == pytest.approx(
+            float(b.geometry.rectangle.r)
+        )
+        assert float(a.geometry.rectangle.z) == pytest.approx(
+            float(b.geometry.rectangle.z)
+        )
+    # The vessel differs across the boundary: 63 EQSLE filaments, 98 coil_vv.
+    assert len(op1_vessel.element) == 63
+    assert len(op2_vessel.element) == 98
 
 
 def test_extent_columns_are_full_extents_of_a_real_element():
@@ -361,7 +444,8 @@ def test_extent_columns_are_full_extents_of_a_real_element():
     assert (max(zs) - min(zs)) + first.dz == pytest.approx(1.574, abs=1e-3)
 
     factory = imas.IDSFactory("4.1.1")
-    passive = sd.build_pf_passive(factory, deck.vessel)
+    passive = sd.build_pf_passive(factory, deck.vessel, deck.cryostat)
+    assert [str(loop.name) for loop in passive.loop] == ["VV", "CRYOSTAT"]
     assert [len(loop.element) for loop in passive.loop] == [63, 57]
     assert [float(loop.resistivity) for loop in passive.loop] == pytest.approx(
         [7.76e-7, 7.20e-7]
@@ -402,16 +486,43 @@ def test_real_tfc_sections_and_wall_arcs_round_trip(tmp_path: Path):
     types = list(np.asarray(tf.coil[0].conductor[0].elements.types))
     assert types == [2, 2, 2, 1, 2, 2, 2]
 
-    # Every one of the ten wall arcs is represented in the outline, with a
-    # point within 1e-6 m of its circle.
-    arcs = [seg for seg in deck.limiter_and_first_wall if seg.kind == "arc"]
-    assert len(arcs) == 10
-    outline_r = np.asarray(wall.description_2d[0].limiter.unit[0].outline.r)
-    outline_z = np.asarray(wall.description_2d[0].limiter.unit[0].outline.z)
-    for arc in arcs:
+    # The limiter outline is the first wall alone: one closed contour whose
+    # first point repeats as its last.  Every first-wall arc is represented,
+    # with a point within 1e-6 m of its circle.
+    limiter_r = np.asarray(wall.description_2d[0].limiter.unit[0].outline.r)
+    limiter_z = np.asarray(wall.description_2d[0].limiter.unit[0].outline.z)
+    assert int(wall.description_2d[0].type.index) == 2
+    assert limiter_r[0] == pytest.approx(limiter_r[-1])
+    assert limiter_z[0] == pytest.approx(limiter_z[-1])
+    first_wall_arcs = [seg for seg in deck.first_wall if seg.kind == "arc"]
+    assert len(first_wall_arcs) == 2
+    for arc in first_wall_arcs:
         rc, zc, radius = arc.params[:3]
-        distance = np.abs(np.hypot(outline_r - rc, outline_z - zc) - radius)
+        distance = np.abs(np.hypot(limiter_r - rc, limiter_z - zc) - radius)
         assert float(np.min(distance)) < 1e-6
+
+    # The vessel unit's two skins become its annular inner and outer outlines,
+    # each carrying its own arcs.
+    annular = wall.description_2d[0].vessel.unit[0].annular
+    for skin, key in (
+        (deck.vessel_skin_inner, "outline_inner"),
+        (deck.vessel_skin_outer, "outline_outer"),
+    ):
+        outline = getattr(annular, key)
+        skin_r = np.asarray(outline.r)
+        skin_z = np.asarray(outline.z)
+        # Each skin is six deck segments: five arcs and the one straight run
+        # that closes it.
+        assert len(skin) == 6
+        assert len([s for s in skin if s.kind == "arc"]) == 5
+        for arc in (s for s in skin if s.kind == "arc"):
+            rc, zc, radius = arc.params[:3]
+            distance = np.abs(np.hypot(skin_r - rc, skin_z - zc) - radius)
+            assert float(np.min(distance)) < 1e-6
+    # The outer skin sits outside the inner skin at the outboard midplane.
+    assert float(np.max(annular.outline_outer.r)) > float(
+        np.max(annular.outline_inner.r)
+    )
 
 
 def test_op2_wall_comes_from_the_coil_vv_limiter(tmp_path: Path):
@@ -431,7 +542,7 @@ def test_op2_wall_comes_from_the_coil_vv_limiter(tmp_path: Path):
     for seg in coil_vv.limiter_and_first_wall:
         assert seg.provenance.source == str(REAL_COIL_VV)
         assert seg.provenance.sha256 == vv_sha
-    for seg in eqsle.limiter_and_first_wall:
+    for seg in eqsle.first_wall:
         assert seg.provenance.source == str(REAL_EQSLE)
         assert seg.provenance.sha256 == eqsle_sha
 
@@ -451,7 +562,10 @@ def test_op2_wall_comes_from_the_coil_vv_limiter(tmp_path: Path):
     op1_r, op1_z, op1_type = outline("OP1")
     op2_r, op2_z, op2_type = outline("OP2", coil_vv=coil_vv)
 
-    assert op1_type == op2_type == 1
+    # The OP1 wall carries the EQSLE vessel unit; the OP2 source carries no
+    # skins, so its wall is the limiter alone.
+    assert op1_type == 2
+    assert op2_type == 1
     # The OP2 contour is the coarser closed polygon of the coil_vv block, so it
     # differs from the OP1 outline in both its size and the points it covers.
     assert op2_r.size == 51
@@ -528,12 +642,12 @@ def test_every_written_struct_array_entry_is_named(phase_ids, ids_name):
 
 
 def test_expected_names_are_assigned_in_deck_order(decks, phase_ids):
-    # The EQSLE vessel holds two resistivity blocks, so its two loops are named
-    # VV1, VV2 in deck order.
+    # The EQSLE passive block holds two resistivity groups, so its loops are
+    # named for what each group is: the vessel and the cryostat.
     eqsle, _, _ = decks
-    vessel = sd.parse_eqsle_deck(eqsle).vessel
-    passive = sd.build_pf_passive(imas.IDSFactory("4.1.1"), vessel)
-    assert [str(loop.name) for loop in passive.loop] == ["VV1", "VV2"]
+    deck = sd.parse_eqsle_deck(eqsle)
+    passive = sd.build_pf_passive(imas.IDSFactory("4.1.1"), deck.vessel, deck.cryostat)
+    assert [str(loop.name) for loop in passive.loop] == ["VV", "CRYOSTAT"]
     assert [str(p.name) for p in phase_ids["magnetics"].b_field_pol_probe] == [
         "MP1",
         "MP2",
