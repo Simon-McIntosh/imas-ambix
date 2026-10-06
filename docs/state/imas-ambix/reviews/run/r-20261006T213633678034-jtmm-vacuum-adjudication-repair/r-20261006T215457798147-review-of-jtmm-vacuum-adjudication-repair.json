@@ -1,0 +1,100 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "The reviewed run recorded no baseline_suite or after_suite (its manifest sets both null; its gates are a file-scoped ruff check and two script runs, not pytest). To supply the arms the reviewed run omits I ran the focused pytest that reaches the machinery the script drives -- tests/gs/test_operator.py (pf_current_scales / assemble_pf_currents), tests/data/test_jt60sa_machine_map.py (catalogue drive topologies) and tests/data/test_description_reader.py (read_geometry_table probe-angle branch) -- in scratch git-archive trees of both revisions. base f94bc702: 55 passed EXIT=0 (gate-base.log). head 8ba17d07: 55 passed EXIT=0 (gate-head.log). head failing ids ([]) minus base failing ids ([]) is 0, so added_failure_count is 0. The commit touches no file under test (only scripts/ and docs/), so the arms are a no-regression guard on the machinery, not a direct exercise of the changed lines.",
+  "after_suite": {
+    "command": "PYTHONPATH=<scratch> /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q tests/gs/test_operator.py tests/data/test_jt60sa_machine_map.py tests/data/test_description_reader.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/tmp/reckon-crew-scratch/r-20261006T215457798147-review-of-jtmm-vacuum-adjudication-repair/gate-head.log",
+    "revision": "8ba17d07bc584dee879e68c60a60dbc4d7cd9cd7"
+  },
+  "baseline_suite": {
+    "command": "PYTHONPATH=<scratch> /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q tests/gs/test_operator.py tests/data/test_jt60sa_machine_map.py tests/data/test_description_reader.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/tmp/reckon-crew-scratch/r-20261006T215457798147-review-of-jtmm-vacuum-adjudication-repair/gate-base.log",
+    "revision": "f94bc7028d221e3cd83800b95c4e5542e80f01b2"
+  },
+  "call_site_count": 3,
+  "call_sites": [
+    "imas_ambix/gs/operator.py:907 (build_operator sets pf_current_scales)",
+    "imas_ambix/gs/operator.py:600 (assemble_pf_currents applies the same factor)",
+    "imas_ambix/data/description_reader.py (read_geometry_table probe_angle_source branch)"
+  ],
+  "completed_at": "2026-10-06T22:06:47.545Z",
+  "dispatched_at": "2026-10-06T21:55:07Z",
+  "findings": [
+    {
+      "category": "duplication",
+      "file": "scripts/vacuum_loop_adjudication.py",
+      "line": "1175",
+      "severity": "follow-on",
+      "text": "follow-on: the script reproduces assemble_pf_currents' scaling inline (currents = currents * pf_current_scales) instead of calling operator.assemble_pf_currents, so the 'raw channel unit -> amperes' conversion now lives in two places. The two agree today (verified read-only: operator.pf_amc_channels equals the script's channel list, and scales[13.725 x4, 8.875, 9.625, 15.4375, 22.0625, 9.5, 11.25] pair correctly), but the alignment is implicit -- it holds only because _jt60sa_coil_channels() returns the channels in alphabetical order, which is also sorted(pf_by_chan)'s order. A channel list in a different order would silently mis-scale every coil. Calling assemble_pf_currents per time slice, or asserting the channel order, would remove the assumption."
+    },
+    {
+      "category": "evidence-note",
+      "file": "docs/notes/vacuum-loop-adjudication.md",
+      "line": "5",
+      "severity": "follow-on",
+      "text": "follow-on: the MAST default path regenerates 2 nominal-table / 12 reconstruction / 5 null against the committed receipt's 2 / 14 / 3. The node discloses this and argues the range-representative candidate build is neutral (representation key equal per range), so both differences predate the node. Reproduced: the head run prints 2/12/5; the receipt's two flips are the single borderline loop fl_p5l_1 (margin +0.000475 [+0.000193,+0.000785] committed vs -0.000313 here, both ~1e-3). The base at f94bc702 raises LookupError on the MAST default path, so the pre-node MAST verdicts cannot be re-derived directly and the 'predate this node' claim is argued from neutrality, not measured. The receipt should be regenerated and relanded once the follow-on is settled."
+    },
+    {
+      "category": "test-coverage",
+      "file": "scripts/vacuum_loop_adjudication.py",
+      "line": "1110",
+      "severity": "follow-on",
+      "text": "follow-on (coverage): the change has no automated test. The angle-route repair (removal of the direct magnetics.nc read) and the per-column scale application are exercised only by the reviewed run's manual script invocations; a regression would be caught only by re-running the script and noticing the verdict counts move. The swap-control raise is the one in-script guard, and it does fire (verified). A test that read_geometry_table supplies every JT-60SA probe angle (non-None) would pin the route the first review found broken."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "diff": "read 8ba17d07 against f94bc702 file by file: the script +121/-? (angle route removed, scale applied, |r| rule, swap-control guard, --output-root), the two evidence artifacts regenerated (data-only), and the repair fragment added (+70).",
+    "done_when": "the measure is this review record; the reviewed run's own gates (ruff EXIT=0; jt60sa 3/1/40; MAST 2/12/5) all reproduced, and the two pytest arms I ran are 55 passed EXIT=0 at both base and head.",
+    "goal": "plan section 6's brief for this node -- angles via read_geometry_table, the root-cause turn correction applied, MAST default run into scratch compared with the receipt, swap control replaced -- is met and reproduced.",
+    "manifest": "read; it names the three gate logs, the byte-identical artifacts, the swap-control pair and the MAST follow-on, and every clause I checked reconciles. Its baseline_suite/after_suite are null, which is honest -- it ran no pytest.",
+    "write_paths": "exactly the four declared paths are touched; the declared figure directory is unused."
+  },
+  "justifications": {
+    "durability": "The change carries one in-script guard and it is non-vacuous: forcing the superseded no-change control pair (magPbTC1/magPbTC2) makes the run raise RuntimeError and exit 1 (reproduced), so the control is shown to fail when the fit stops responding. The |r| correction is verified to move the verdict distribution from 3 identity / 0 negate / 41 undecided to 3 / 1 / 40, i.e. negate becomes reachable. But there is no automated test: the angle route and the scale application are guarded only by re-running the script, and the scale/channel alignment is implicit (see the duplication follow-on).",
+    "evidence": "The gates named in the manifest ran and their results reconcile: ruff on the script EXIT=0; the JT-60SA run EXIT=0 with 3/1/40 and 2 changed verdicts under swap; the MAST --output-root run EXIT=0 with 2/12/5. I reproduced all three independently: the jt60sa run in a scratch tree returns identical verdict counts, and the regenerated jtmm-vacuum-adjudication.json and .html are BYTE-IDENTICAL to the committed artifacts (diff empty), so the committed evidence is genuinely the script's output at this revision. The swap-control guard was shown to fire by mutation (exit 1). Soft spots: the MAST receipt mismatch is disclosed but not measured against a pre-node MAST run (the base crashes), and the change carries no test.",
+    "fit": "The docstring on _jt60sa_operator and the regenerated evidence fragment state the mechanism (selector supplies axes; operator scale carries the turn totals) and the fragment honestly quantifies the borderline MAST flip. Two fit costs: the inline re-implementation of assemble_pf_currents' conversion, and the implicit reliance on pf_amc_channels being alphabetically sorted for the scales to pair with the right coil. The new --output-root option is documented in argparse help and reuses NOTE_PATH/FIGURE_ROOT by rebasing them, which is tidy.",
+    "goal_fidelity": "Plan section 6's node brief is that the repair reads probe angles through read_geometry_table, applies the root-cause correction, runs MAST's default path into a scratch directory and compares with the committed receipt, and replaces the swap control with one whose verdict can change. All four are done and reproduced: the direct netCDF4 read of magnetics.nc is gone (grep finds only a docstring mention) and read_geometry_table supplies the axes; the MMSYS currents are multiplied by operator.pf_current_scales = [13.725 x4, 8.875, 9.625, 15.4375, 22.0625, 9.5, 11.25], the deck turn totals the drive-topology repair declared; the verdict rule now tests |pearson_r| so the negate branch is reachable, and magFlxLp7 lands negate at slope -0.986/-1.086/-0.988 with r -1.000/-0.995/-0.999; and the swap control is the differing pair magFlxLp7/magPbTC8. The re-run returns 3 identity / 1 negate / 40 undecided over E100595, E100579, E100642, matching the node's claim exactly.",
+    "reuse": "The node extends existing owners rather than adding a parallel source of truth: read_geometry_table's probe_angle_source branch supplies the angles (retiring the script's second supplier), build_operator's pf_current_scales supplies the turn factor, and --output-root rebases the existing NOTE_PATH/FIGURE_ROOT constants. It removes _jt60sa_probe_angles outright. The one duplication is the inline scaling noted above.",
+    "scope_discipline": "git diff f94bc702 8ba17d07 touches exactly the four declared write paths: scripts/vacuum_loop_adjudication.py, docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-adjudication.html, .../jtmm-vacuum-adjudication.json and .../jtmm-vacuum-adjudication-repair.html (784 insertions, 673 deletions). No source under imas_ambix/ or tests/ is touched. The declared grant also covered a docs/figures/jt60sa-machine-map/jtmm-vacuum-adjudication-repair directory, which no file populates -- an unused grant, not an overrun. The commit's parent is f94bc702, which contains 892715c4 as an ancestor, so the node is built on the first adjudication as the plan requires."
+  },
+  "model": "deepseek-v4.1-flash",
+  "negative_control": {
+    "exit_status": 1,
+    "failing_ids": [
+      "scripts/vacuum_loop_adjudication.py::_run_jt60sa swap-control guard"
+    ],
+    "log_path": "/tmp/reckon-crew-scratch/r-20261006T215457798147-review-of-jtmm-vacuum-adjudication-repair/negctrl.log",
+    "mutation": "set JT60SA_SWAP_CONTROL to the superseded pair ('magPbTC1','magPbTC2'), whose swap leaves both verdicts unchanged -- exactly the vacuous control this node replaced",
+    "note": "Reproduced independently in a scratch copy of the head tree: with the old control pair the script raises RuntimeError ('the swap control must change both channels' verdicts, but [magPbTC1, magPbTC2] changed []') and exits 1, so the guard added by this node is non-vacuous. The node's own control pair (magFlxLp7 negate / magPbTC8 identity) changes both verdicts at head (negate->undecided, identity->undecided), the 2 changed verdicts the run reports."
+  },
+  "project": "imas-ambix",
+  "raw_text": "Independent review of node jtmm-vacuum-adjudication-repair (plan imas-ambix:jt60sa-machine-map section 6), read at head 8ba17d07bc584dee879e68c60a60dbc4d7cd9cd7 on base f94bc7028d221e3cd83800b95c4e5542e80f01b2.\nRead: the diff of 8ba17d07 against f94bc702, the script around the change, build_operator's pf_current_scales and assemble_pf_currents, read_geometry_table, the reviewed run's own logs, and the regenerated evidence artifacts. The reviewed commit is not an ancestor of main and sits on no ref at review time; scratch git-archive trees of both revisions were run since a crew worker cannot archive another worktree and the reviewed worktree is read-only.\n\nVERDICT goal: ...\nVERDICT done_when: ...\nVERDICT write_paths: ...\nVERDICT manifest: ...\nVERDICT diff: ...\nSCORE goal_fidelity: 19\nSCORE evidence: 18\nSCORE scope_discipline: 20\nSCORE durability: 17\nSCORE fit: 16\nSCORE reuse: 18\nTotal 108/120.",
+  "review_run_id": "r-20261006T215457798147-review-of-jtmm-vacuum-adjudication-repair",
+  "reviewed_base_sha": "f94bc7028d221e3cd83800b95c4e5542e80f01b2",
+  "reviewed_head_sha": "8ba17d07bc584dee879e68c60a60dbc4d7cd9cd7",
+  "reviewed_run_id": "r-20261006T213633678034-jtmm-vacuum-adjudication-repair",
+  "reviewer": "review-of-jtmm-vacuum-adjudication-repair",
+  "scores": {
+    "durability": 17,
+    "evidence": 18,
+    "fit": 16,
+    "goal_fidelity": 19,
+    "reuse": 18,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "timestamp": "2026-10-06T22:06:13.559576+00:00",
+  "total": 108
+}

@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.92">
-<meta name="plan-version" content="252">
+<meta name="plan-version" content="253">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -1580,7 +1580,10 @@
     <div class="r-comment-body"><p>gate ruff over scripts/vacuum_loop_adjudication.py passed and the JT-60SA and MAST runs exited 0; jtmm-vacuum-adjudication-repair merged as 8bc8e99c, review 108/120, no added failure. With the deck's coil turns and probe angles read through read_geometry_table, the adjudication gives 3 identity (probes 8, 9, 13), 1 negate (loop 7, slope -0.99/-1.09/-0.99) and 40 undecided. Every probe tracks at slope near 1.0, r 0.95-0.999; loops 15-27 read about -0.88 on E100595 but near 0 on E100579 and about +1 on E100642, and loops 1-14 barely respond. MAST's default run reproduces the receipt except the borderline loop fl_p5l_1 (margin about 1e-3), which predates this node. The lead's verdict rule follows as jtmm-vacuum-verdict-rule.</p></div>
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20261006T213633678034-jtmm-vacuum-adjudication-repair" data-who="reckon-build" data-when="2026-10-06T21:53:32.570Z">
-    <div class="r-comment-body"><p>JT-60SA vacuum re-adjudication repaired — probe angles now read through read_geometry_table (no direct magnetics.nc read) and the operator&#x27;s corrected per-column turn scales applied, so the negate branch is reachable: 3 identity / 1 negate / 40 undecided over E100595, E100579, E100642, with loop 7 negate at slope −0.99/−1.09/−0.99 and the identity↔negate swap control changing both verdicts; MAST default path reproduced into scratch (2 nominal-table / 12 reconstruction / 5 null vs receipt 2/14/3, differing only in fl_p5l_1 in both ranges).</p></div>
+    <div class="r-comment-body"><p>JT-60SA vacuum re-adjudication repaired — probe angles now read through read_geometry_table (no direct magnetics.nc read) and the operator's corrected per-column turn scales applied, so the negate branch is reachable: 3 identity / 1 negate / 40 undecided over E100595, E100579, E100642, with loop 7 negate at slope −0.99/−1.09/−0.99 and the identity↔negate swap control changing both verdicts; MAST default path reproduced into scratch (2 nominal-table / 12 reconstruction / 5 null vs receipt 2/14/3, differing only in fl_p5l_1 in both ranges).</p></div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-run-r-20261006T215457798147-review-of-jtmm-vacuum-adjudication-repair" data-who="reckon-build" data-when="2026-10-06T22:06:47.545Z">
+    <div class="r-comment-body"><p>Independent review of r-20261006T213633678034-jtmm-vacuum-adjudication-repair (node jtmm-vacuum-adjudication-repair, plan imas-ambix:jt60sa-machine-map section 6) at head 8ba17d07 on base f94bc702: 108/120 (goal 19, evidence 18, scope 20, durability 17, fit 16, reuse 18), added_failure_count 0. Reproduced the jt60sa run (3 identity / 1 negate / 40 undecided, 2 changed under swap) with the regenerated evidence JSON/HTML byte-identical to the committed artifacts; reproduced the MAST scratch run (2/12/5 vs receipt 2/14/3, disclosed); showed the swap-control guard fires (exit 1) under the superseded no-change pair.</p></div>
 </div>
 </section>
 </main>
