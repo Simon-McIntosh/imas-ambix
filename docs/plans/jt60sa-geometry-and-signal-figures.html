@@ -23,7 +23,7 @@
   <title>JT-60SA Geometry and Signal Figures | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="2">
+<meta name="plan-version" content="3">
 <meta name="plan-modified" content="2026-10-06">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;}">
 </head>
@@ -63,7 +63,8 @@
       record C060033 (MMSYS 22, MDAC 4).
     </p>
     <p>
-      Reuse, from a search of <code>imas_ambix/data/</code> and <code>scripts/</code> on 2026-10-06.
+      Reuse, from a search of <code>imas_ambix/data/</code>, <code>imas_ambix/gs/</code> and
+      <code>scripts/</code> on 2026-10-06.
       Every root resolves through <code>imas_ambix.data.paths</code> (<code>JT60SA_ROOT</code>,
       <code>JT60SA_DESCRIPTION_DIR</code>), never a literal path in a script. A cached channel is read
       through the cache's own addressing in <code>imas_ambix.data.eddb</code>
@@ -74,8 +75,14 @@
       the sole acquisition route, for two reasons. That route resolves a packaged machine map, and
       <code>load_packaged_machine_map</code> serves only <code>mast</code> until the machine map packages
       JT-60SA. And these figures are evidence of what the converter wrote, which the geometry adapter
-      would transform before the figure saw it. The figure scripts consume the store and nothing reads
-      geometry back from them, so they open no second acquisition route.
+      would transform before the figure saw it. The projection facade in <code>imas_ambix/gs/</code>
+      (<code>MachineGeometryService.operator()</code> returning <code>OperatorGeometry</code>,
+      <code>build_geometry_fields_from_table</code> in <code>geometry_export.py</code>) and the MAST
+      cross-section drawn by <code>scripts/validate_mast_geometry.py</code> from it sit downstream of the
+      same route, through <code>machine_selection</code> into <code>description_reader</code>, so they
+      cannot address JT-60SA before the map packages it either; once it does, a figure of the adapted
+      table drawn through that facade is the natural companion to these. The figure scripts consume the
+      store and nothing reads geometry back from them, so they open no second acquisition route.
     </p>
     <p>
       Figures follow the workstation plot style: the installed <code>data-ink</code> sheet, a
@@ -84,8 +91,10 @@
       than a title. The repository has no style module yet, so this section adds one,
       <code>imas_ambix/plot_style.py</code>, that applies the sheet and holds the colour roles by name.
       It is the first and retires nothing: <code>imas_ambix/</code> holds no plotting style code, and the
-      scripts that set <code>rcParams</code> inline stay as they are, since restyling them is outside this
-      plan. Its public surface is the named roles and the function that applies the sheet:
+      scripts that style inline, including the two hand-rolled palettes in
+      <code>scripts/figures/wm_demonstration_figs.py</code> and
+      <code>scripts/figures/playable_plasma_figs.py</code>, stay as they are, since restyling them is
+      outside this plan. Its public surface is the named roles and the function that applies the sheet:
       one role per component the figures draw (PF coils, OP1 vessel, OP2 vessel, wall, flux loops,
       pickup probes) and the neutrals for references. Because this is the repository's first colour
       assignment, the lead chooses it: the section renders two to four candidate palettes on the real
