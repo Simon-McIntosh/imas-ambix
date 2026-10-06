@@ -1,0 +1,66 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": null,
+  "added_failure_ids": [],
+  "added_failures_note": "unmeasured: the reviewed manifest names no base gate log, so the added-failure count was not taken",
+  "base_log_revision": null,
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-06T20:31:51.242Z",
+  "dispatched_at": "2026-10-06T20:23:55Z",
+  "findings": [
+    {
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-residual-rca.html",
+      "line": "153",
+      "severity": "follow-on",
+      "text": "follow-on: the refit table reports only aggregate medians (loops 1-14, loops 15-27, probes) per refit while the done-when requires per-channel slope and r for all 44 channels under each of the three refits, so the artifact under-reports its own measure and the per-channel refit values are readable only in the run-dir residual_rca.json."
+    },
+    {
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-residual-rca.html",
+      "line": "154",
+      "severity": "follow-on",
+      "text": "follow-on: the probes column header reads \"med slope / med r\" without the absolute-value bars the loops columns carry, yet the saved values are magnitudes, so under a signed reading the \"probe axes flipped\" row appears identical to plain and contradicts the prose at docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-residual-rca.html:191 that the flip negates each probe slope."
+    }
+  ],
+  "head_log_revision": null,
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "no production call sites found",
+    "diff": "read commit by commit; 1f1fae117948 is a single commit adding 201 lines to the one evidence fragment, changing no source and no test.",
+    "done_when": "the done_when requires the per-channel slope and Pearson r for all 27 loops and 17 probes under three refits; docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-residual-rca.html:16 gives per-channel values for the plain fit only and docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-residual-rca.html:153 gives aggregate medians per refit, so the per-channel-under-refit report is not delivered.",
+    "goal": "the node goal is to find what leaves JT-60SA's turn-corrected vacuum prediction short of slope 1 and loops 1 to 14 untracked; docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-residual-rca.html:195 attributes the residual to the operator's per-coil response pattern G_pf and names the specific geometry defect inconclusive.",
+    "manifest": "read; status complete; tests is `python -I vacuum_residual_rca.py` exit 0, test_logs names residual_refits.log and free_per_coil_fit.log; the read-only node declares no baseline_suite/after_suite, which is expected for a node that changes no source or tests.",
+    "write_paths": "the manifest declares docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-residual-rca.html and a figures dir; git show --name-only 1f1fae117948 lists exactly docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-residual-rca.html and nothing else, inside the declaration."
+  },
+  "justifications": {
+    "durability": "no test is added (a docs node has no behaviour to regress) and the measurement script vacuum_residual_rca.py and the full residual_rca.json live only in the run directory, so the numbers in docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-residual-rca.html cannot be regenerated from the repository.",
+    "evidence": "the per-channel plain slopes/r in docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-residual-rca.html:16 and the refit medians in docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-residual-rca.html:153 reconcile with the run's residual_rca.json, but the done-when's per-channel-under-refit values exist only in that run-dir JSON, and the moved/flipped medians are absent from the named logs residual_refits.log and free_per_coil_fit.log.",
+    "fit": "docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-residual-rca.html follows the sibling evidence-fragment HTML idiom, every element id is prefixed with the node id (e.g. docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-residual-rca.html:16 id=jtmm-vacuum-residual-rca-base), and it introduces no forbidden name.",
+    "goal_fidelity": "docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-residual-rca.html:195 answers the goal by attributing the residual scale and the untracked loops 1-14 to the operator's per-coil pattern (G_pf) and names the specific defect inconclusive, so the question \"what leaves it short\" is answered at the level G_pf without naming the exact geometry fault.",
+    "reuse": "the fragment adds no definition; it reuses imas_ambix/gs/operator.py read_geometry_table and vacuum_prediction, and no capability is forked.",
+    "scope_discipline": "git show --name-only 1f1fae117948 lists only docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-residual-rca.html, which is inside the manifest's declared write paths, and the node changed no source or test."
+  },
+  "project": "imas-ambix",
+  "raw_text": "reviewed_base_sha: 28a6ec3d647414a07c7de1702abc9960a4094316\nreviewed_head_sha: 1f1fae117948add19bb9426b3553ef51eaf07fcd\nVERDICT goal: the node goal is to find what leaves JT-60SA's turn-corrected vacuum prediction short of slope 1 and loops 1 to 14 untracked; docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-residual-rca.html:195 attributes the residual to the operator's per-coil response pattern G_pf and names the specific geometry defect inconclusive.\nVERDICT done_when: the done_when requires the per-channel slope and Pearson r for all 27 loops and 17 probes under three refits; docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-residual-rca.html:16 gives per-channel values for the plain fit only and docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-residual-rca.html:153 gives aggregate medians per refit, so the per-channel-under-refit report is not delivered.\nVERDICT write_paths: the manifest declares docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-residual-rca.html and a figures dir; git show --name-only 1f1fae117948 lists exactly docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-residual-rca.html and nothing else, inside the declaration.\nVERDICT manifest: read; status complete; tests is `python -I vacuum_residual_rca.py` exit 0, test_logs names residual_refits.log and free_per_coil_fit.log; the read-only node declares no baseline_suite/after_suite, which is expected for a node that changes no source or tests.\nVERDICT diff: read commit by commit; 1f1fae117948 is a single commit adding 201 lines to the one evidence fragment, changing no source and no test.\nCALL_SITES: none\nSCORE goal_fidelity: 17\nJUSTIFICATION goal_fidelity: docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-residual-rca.html:195 answers the goal by attributing the residual scale and the untracked loops 1-14 to the operator's per-coil pattern (G_pf) and names the specific defect inconclusive, so the question \"what leaves it short\" is answered at the level G_pf without naming the exact geometry fault.\nSCORE evidence: 15\nJUSTIFICATION evidence: the per-channel plain slopes/r in docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-residual-rca.html:16 and the refit medians in docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-residual-rca.html:153 reconcile with the run's residual_rca.json, but the done-when's per-channel-under-refit values exist only in that run-dir JSON, and the moved/flipped medians are absent from the named logs residual_refits.log and free_per_coil_fit.log.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git show --name-only 1f1fae117948 lists only docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-residual-rca.html, which is inside the manifest's declared write paths, and the node changed no source or test.\nSCORE durability: 12\nJUSTIFICATION durability: no test is added (a docs node has no behaviour to regress) and the measurement script vacuum_residual_rca.py and the full residual_rca.json live only in the run directory, so the numbers in docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-residual-rca.html cannot be regenerated from the repository.\nSCORE fit: 18\nJUSTIFICATION fit: docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-residual-rca.html follows the sibling evidence-fragment HTML idiom, every element id is prefixed with the node id (e.g. docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-residual-rca.html:16 id=jtmm-vacuum-residual-rca-base), and it introduces no forbidden name.\nSCORE reuse: 20\nJUSTIFICATION reuse: the fragment adds no definition; it reuses imas_ambix/gs/operator.py read_geometry_table and vacuum_prediction, and no capability is forked.\nFINDING docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-residual-rca.html:153 follow-on: the refit table reports only aggregate medians (loops 1-14, loops 15-27, probes) per refit while the done-when requires per-channel slope and r for all 44 channels under each of the three refits, so the artifact under-reports its own measure and the per-channel refit values are readable only in the run-dir residual_rca.json.\nFINDING docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-residual-rca.html:154 follow-on: the probes column header reads \"med slope / med r\" without the absolute-value bars the loops columns carry, yet the saved values are magnitudes, so under a signed reading the \"probe axes flipped\" row appears identical to plain and contradicts the prose at docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-residual-rca.html:191 that the flip negates each probe slope.\n",
+  "review_run_id": "r-20261006T202345840597-review-of-jtmm-vacuum-residual-rca",
+  "reviewed_base_sha": "28a6ec3d647414a07c7de1702abc9960a4094316",
+  "reviewed_head_sha": "1f1fae117948add19bb9426b3553ef51eaf07fcd",
+  "reviewed_run_id": "r-20261006T200430771816-jtmm-vacuum-residual-rca",
+  "reviewer": {
+    "backend": "clive",
+    "model": "deepseek-v4.1-flash"
+  },
+  "rubric": "code",
+  "scores": {
+    "durability": 12,
+    "evidence": 15,
+    "fit": 18,
+    "goal_fidelity": 17,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "timestamp": "2026-10-06T20:30:32.867878+00:00",
+  "total": 102
+}
