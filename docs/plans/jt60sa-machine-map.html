@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85">
 <meta name="plan-impl" content="0.7">
-<meta name="plan-version" content="155">
+<meta name="plan-version" content="157">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -367,9 +367,13 @@
       measurement rather than transformed from another convention, and that a caller carrying an
       angle between conventions must say so where a reader will see it. So the engine gains a
       <code>pol_angle_like</code> branch that applies no COCOS-digit factor and takes the angle's
-      sense only from the binding's authored <code>sign_convention</code>, <code>negate</code> or
-      <code>identity</code> as §6's measurement sets it, refusing a binding whose sense is not
-      measured. The authored declaration is that statement. Ambix holds two directed-angle helpers in
+      rotation sense only from the binding's authored <code>sign_convention</code>, refusing a
+      binding whose sense is <code>unknown-unvalidated</code>. <code>identity</code> says the stored
+      angle is already measured clockwise, as the DD leaf is; <code>negate</code> says it is
+      measured counter-clockwise, which is MAST's mirror. Neither expresses a probe's measured
+      polarity: reversing the sense along an axis is θ to θ+π, which a sign on the angle cannot
+      express, so a polarity the vacuum shots measure lands on the pulse rule's
+      <code>channel_factor</code>. The authored declaration is that statement. Ambix holds two directed-angle helpers in
       <code>imas_ambix/cocos.py</code>. <code>project_poloidal_field</code> is in use (the
       forward operator, <code>imas_ambix/gs/operator.py</code>, projects predicted fields with
       it), so the vacuum prediction reuses it unchanged. <code>mast_angle_to_canonical</code>
@@ -409,6 +413,46 @@
       machine-agnostic. A channel whose vacuum
       prediction does not track its measurement with slope near one is left
       <code>unknown-unvalidated</code> and reported, never forced.
+    </p>
+    <p>
+      The stored angles are wrong as well as unbound, and the binding cannot repair them. Read on
+      the lead's OP1/OP2 overlay (2026-10-06), every probe tick crosses the wall instead of lying
+      along it. The cause is in the converter: <code>imas_ambix/data/selene_deck.py</code>
+      <code>build_magnetics</code> writes the deck's angle ω straight into
+      <code>poloidal_angle</code>, converting only degrees to radians. ω is the outward wall-normal
+      angle measured counter-clockwise from +R: it is 0.28° at the outboard midplane, about 180° on
+      the inboard wall and 85° at the top, and it matches the wall normal at all 17 probes. The DD
+      leaf is the sensing-axis angle measured clockwise, and these probes are tangential: SELENE's
+      loader reads them as <code>btpidB</code>, the tangential probe record. A sign on the binding
+      cannot turn a normal into a tangent, so <code>negate</code> or <code>identity</code> applied
+      to ω gives the wrong axis at every probe off the midplanes. The repair is in the converter,
+      so every reader of the DD-shaped store sees the true axis, including imas-ink and nova, which
+      read the netCDF directly. The converter writes θ = (90° − ω) mod 360°, in radians: the
+      tangent in the direction of increasing clockwise poloidal angle, which is 90° (down) at the
+      outboard midplane, 270° (up) on the inboard midplane and about 5° over the top. The direction
+      along the axis is a declared convention, stated in the converter, and not a measurement. The
+      JT-60SA description binding then carries <code>identity</code> once the vacuum adjudication
+      confirms the axis, and a channel measured with the opposite polarity gets
+      <code>channel_factor</code> −1 on its pulse rule, not a flipped angle. The same defect was
+      found independently by the session that owns the figures plan, whose measurement put every
+      stored angle 90° ± 3° from the vessel inner-skin tangent.
+    </p>
+    <p>
+      Two nodes do this, before the vacuum adjudication. <code>jtmm-probe-axis-source</code> reads
+      SELENE's tangential-probe field expression read-only on nakasvr26 (where
+      <code>DMPT0</code>, the geo.in angle, forms the predicted probe signal from B<sub>R</sub>
+      and B<sub>Z</sub>), quotes the lines and states which tangent direction SELENE treats as
+      positive, so the vacuum adjudication knows the polarity to expect. It writes one evidence
+      fragment, and the store node does not wait for it.
+      <code>jtmm-probe-axis-store</code> changes <code>build_magnetics</code> to write θ, with a
+      test that every stored axis lies within 5° of the vessel inner-skin tangent at the nearest
+      skin point and points down at the outboard-midplane probe. It regenerates both phase
+      stores through <code>write_phase_description</code> with new receipts. The superseded OP1 and
+      OP2 directories are moved, not deleted, under
+      <code>machine_description/superseded/</code>, and both moves are listed in the fragment. It
+      re-renders the two SVGs in <code>docs/figures/jt60sa-geometry/</code> with the unchanged
+      <code>scripts/figures_jt60sa_geometry.py</code>, so the overlay shows each tick along the
+      wall. It retires nothing and adds no public definition.
     </p>
     <p>
       The COCOS of the source is then identified rather than assumed. For the raw side,
