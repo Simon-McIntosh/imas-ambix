@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.76">
-<meta name="plan-version" content="173">
+<meta name="plan-version" content="174">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -1267,6 +1267,9 @@
 </div>
 <div class="r-comment" data-section="s5" data-id="c-20261006T1650-s5-validation-state-landed" data-who="reckon-build" data-when="2026-10-06T16:50:00Z">
     <div class="r-comment-body"><p>gate 70 passed across test_virtual_zarr, test_eddb_cache, test_signal_map, test_jt60sa_signal_maps and test_tokamap_export (exit 0); jtmm-signal-rule-validation-state (26c3bb46, review 112/120) and jtmm-signal-rule-test-constructors (170b6dba, review 107/120, no added failure) merged together as 80391ed0. SignalRule requires validation_state from the machine map's vocabulary; MAST's packaged rule is corpus-validated and all twelve JT-60SA rules are source-only; the tokamap exporter writes the state into each rule's comment. The node's first head reddened five tests in two files outside its scope, which the follow-on node repaired before either landed. Section 5 stays open for the second-wave loop and probe bindings.</p></div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-run-r-20261006T162004217768-jtmm-signal-rule-test-constructors" data-who="reckon-build" data-when="2026-10-06T16:26:43.976Z">
+    <div class="r-comment-body"><p>test(data): declared validation_state on the two broken SignalRule constructions — test_virtual_zarr.py MAST equilibrium rule corpus-validated, test_eddb_cache.py JT-60SA EDDB-cache rule source-only; gate 70 passed, ruff 0.</p></div>
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20261006T155904453024-jtmm-eqdb-entry-probe" data-who="reckon-build" data-when="2026-10-06T16:15:48.720Z">
     <div class="r-comment-body"><p>docs/evidence/fragments/jt60sa-machine-map/jtmm-eqdb-entry-probe.html — EQDB reader entry is the shipped eqread_pac Python package loading the prebuilt /analysis/lib/libFLEDDPIC.so via ctypes (GetTimeList/GetEqData/GetEqItem), no Fortran build; E101154 returns 105 FAME time slices (500-11500 ms) through it and 0 SELENE eqdbms slices; record schema (NSR/NSZ/NV, RG, ZG, PSI, PDS, FDS, RSU/ZSU, RAXIS/ZAXIS, TTCU, EQTIM, ...) quoted from the reader's NameList.</p></div>
