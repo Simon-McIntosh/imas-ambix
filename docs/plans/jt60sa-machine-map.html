@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85">
 <meta name="plan-impl" content="0.7">
-<meta name="plan-version" content="148">
+<meta name="plan-version" content="150">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -278,14 +278,42 @@
       qualifications.
     </p>
     <p>
-      The flux loops and pickup probes wait on two inputs. The first is the raw-to-processed
-      correspondence, measured offline from E101154, where both the 34 processed PSRC
-      <code>magFluxLp</code> and the 34 raw MDAC <code>magFlxLp</code> channels are cached: for each
-      processed loop, the raw channel and the scale, sign and offset that relate them. The second
-      is the sensor-to-position index that SELENE's <code>getseldata_v4.2</code> fills into the
-      <code>#MAG</code> arrays <code>JLOOP</code>, <code>JTPRB</code> and <code>JNPRB</code>, which
-      ties each channel to a <code>geo.in</code> position. Codex is indexing that source under its
-      discovery plan. The second wave binds the loops and probes once both are in hand.
+      The flux loops and pickup probes now wait on one measurement. Codex's sensor-order receipt
+      (imas-codex <code>docs/evidence/receipts/jt60sa-selene-sensor-order.json</code> at
+      <code>c9a7caec5</code>, read on nakasvr26 2026-10-06) settles the index. SELENE's loader
+      <code>getseldata_v4.2</code> reads flux loop <em>i</em> (1 to 27) as channel <em>i</em> of the
+      PID record <code>1626 S007</code> and takes its position from <code>geo.in</code> row
+      502+<em>i</em>; it reads tangential probe <em>j</em> (1 to 17) as channel <em>j</em> of
+      <code>1626 S006</code>, whose <code>geo.in</code> row 484+<em>j</em> also carries the probe
+      angle. The 17 normal probes have no EDDB channel in <code>getseldata</code> and enter as
+      source qualifications. The raw-to-processed correspondence for the loops is measured
+      (<code>jtmm-flux-loop-correspondence</code>): PSRC <code>magFluxLp</code><em>i</em> is raw MDAC
+      <code>magFlxLp</code><em>i</em> for <em>i</em> = 1 to 27, and 28 to 34 have no unique raw partner.
+    </p>
+    <p>
+      Two facts remain, and the node <code>jtmm-sensor-channel-join</code> measures both on E101154,
+      where the PID route returns a full record. The first is which named channel each PID channel
+      is: correlate every channel of <code>1626 S007</code> and <code>1626 S006</code> against the
+      PSRC <code>magFluxLp</code>, <code>magPbTC</code> and raw MDAC channels, as the loop
+      correspondence did. The second is the raw MDAC probe channels, which no census has listed:
+      read the MDAC catalogue for E101154 and match each raw probe to its processed
+      <code>magPbTC</code> channel. The node also compares each <code>geo.in</code> position in the
+      receipt with the §4 description's loop and probe (R, Z), so the binding node inherits a
+      checked join. It writes one evidence fragment and no source. It may add channels to
+      <code>101154.zarr</code> through <code>fetch_channels</code>, and writes no other shot.
+    </p>
+    <p>
+      The binding node <code>jtmm-loop-probe-bindings</code> then writes the second wave into
+      <code>magnetics.json</code>. It binds the raw acquisition where it exists, because §6's vacuum
+      shots carry no PSRC, and declares the processed channel as the blocked alternate naming it,
+      as the first wave does for the two coil-current chains. A probe with no raw channel binds its
+      processed PSRC channel and says so in its evidence. Every signed binding carries
+      <code>sign_convention: unknown-unvalidated</code> until §6 replaces it. The loops and probes
+      beyond SELENE's 27 and 17 enter as source qualifications stating that SELENE does not read
+      them and the description carries no position for them. The same node writes the
+      unit-spelling table this section describes, with its test, and adds the guard carried over
+      from the signal-map evidence review: a blocked reason that says a choice rests on E101154
+      alone while citing a corroborating shot fails the test.
     </p>
 
     <h2 id="s6">§6 — Prove the conventions: vacuum shots, COCOS scoring, DD unit checks</h2>
@@ -437,6 +465,33 @@
       to each of the DD's COCOS-dependent leaves — seventeen in magnetics, three in
       pf_active, one in tf, one hundred and fifty-one in equilibrium — by the DD's own
       transformation table, not by a hand list.
+    </p>
+    <p>
+      The section starts from data it does not yet hold. The cache carries two plasma shots
+      (E101154 with PSRC, E101173 without) and one 2026 commissioning shot, C060033, with coil
+      currents and vessel Rogowski coils but no flux loops or probes. No catalogue range covers a
+      C-series pulse number either: OP1 spans 100001 to 101173 and OP2 starts at 101174. So the first
+      node, <code>jtmm-vacuum-shot-census</code>, is a census over <code>ssh -F ~/.ssh/config
+      jt-60sa</code>. It lists the pulses on which the PF coils were driven with no plasma current,
+      giving each one's series, date, TF current and polarity, and whether the raw MDAC loops and
+      probes were acquired. It then fetches the first-pass channels for at least three vacuum shots
+      and three plasma shots through <code>fetch_channels</code>, never writing
+      <code>101154.zarr</code>, and records the shots, wall time and bytes in one evidence fragment.
+      A vacuum shot is usable only on a geometry its catalogue range declares. If the usable vacuum
+      shots are 2026 C-series pulses, the lead decides their phase before any verdict is recorded
+      against them, because the OP2 vessel is provisional.
+    </p>
+    <p>
+      The equilibrium half needs SELENE's output, which is read through the EQDB transport §7
+      describes: one request type and one record type in <code>eddb_remote.py</code>, the grid
+      writer and its two extracted helpers in <code>eddb.py</code>, and the open question
+      <code>eqdb-reader</code>. §6 builds that transport, because its SELENE loader is the
+      transport's first consumer and the gate holds every §7 node on §6's sign report. §7 keeps
+      the equilibrium bindings and the reconstruction gate. The transport's first node,
+      <code>jtmm-eqdb-reader-probe</code>, settles <code>eqdb-reader</code> read-only on nakasvr26:
+      the callable entry to <code>eqdbms</code> or <code>eqdbget</code> that needs no Fortran build,
+      and the grid, boundary and profile fields of one record for E101154. It writes one evidence
+      fragment and no source.
     </p>
     <p>
       Done-when: a sign report over at least three vacuum shots and three plasma shots,
@@ -863,6 +918,11 @@
     <h4 class="r-fu-title">Prove the conventions (§6): vacuum shots, sign and COCOS scoring, probe-angle sense</h4>
     <div class="r-fu-body"><p>§6 is next: it needs no codex input, and §7's equilibrium work is gated on it. §5's flux-loop and probe bindings wait on codex's SELENE sensor-position arrays.</p></div>
     <pre class="r-fu-prompt">/reckon-build jt60sa-machine-map §6</pre>
+    </article>
+<article class="r-fu" data-id="f-jtmm-004" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-build" data-written-at="2026-10-06" data-recommends-skill="/reckon-build jt60sa-machine-map §5" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Bind the flux loops and tangential probes (§5 second wave) from codex&#x27;s sensor-order receipt</h4>
+    <div class="r-fu-body"><p>Codex's sensor-order receipt landed 2026-10-06 (imas-codex c9a7caec5), so §5's second wave is ready: measure the PID-to-named-channel join and the raw MDAC probe channels on E101154, then bind the 27 loops and 17 tangential probes, with the unit-spelling table and the carried-over blocked-reason guard.</p></div>
+    <pre class="r-fu-prompt">/reckon-build jt60sa-machine-map §5</pre>
     </article>
 </section>
 
