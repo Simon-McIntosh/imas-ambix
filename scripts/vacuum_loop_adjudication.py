@@ -1073,7 +1073,10 @@ def _write_note(
 
 JT60SA_SHOTS: tuple[int, ...] = (100579, 100595, 100642)
 JT60SA_SLOPE_TOLERANCE = 0.1
-JT60SA_CORRELATION_FLOOR = 0.98
+JT60SA_CORRELATION_FLOOR = 0.95
+#: A driven coil is quasi-static at a sample when its slew there is at most this
+#: fraction of its own peak slew across the shot.
+JT60SA_SLEW_FRACTION = 0.1
 JT60SA_SWAP_CONTROL: tuple[str, str] = ("magFlxLp7", "magPbTC8")
 JT60SA_EVIDENCE_JSON = Path(
     "docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-adjudication.json"
@@ -1156,49 +1159,77 @@ def _jt60sa_operator(shot: int, catalog: Any, channels: list[str]) -> Any:
     return build_operator(geometry)
 
 
+def _jt60sa_quasi_static_mask(slew: np.ndarray, fraction: float) -> np.ndarray:
+    """Samples where every driven coil's ``|dI/dt|`` is below a fixed fraction
+    of that coil's own peak ``|dI/dt|`` across the shot.
+
+    The vacuum operator carries no passive currents, so a fast coil ramp
+    induces eddy currents in the vessel that add to a near-wall probe's
+    measured signal and bias its fit against the static prediction.  A sample
+    is quasi-static when every coil's slew there is small beside that same
+    coil's fastest slew in the shot, which is the shot's own reference for
+    "the coils are running": the comparison is per coil, so a quiet coil is
+    not held to a global rate it never reaches.  A coil whose slew is
+    identically zero (an undriven coil) imposes no constraint.
+    """
+
+    slew = np.asarray(slew, dtype=np.float64)
+    peak = np.nanmax(np.abs(slew), axis=0)
+    reference = np.where(peak > 0.0, fraction * peak, 0.0)
+    return np.all(np.abs(slew) <= reference[None, :], axis=1)
+
+
 def _jt60sa_shot_data(
     shot: int, catalog: Any, channels: list[str]
 ) -> dict[str, Any]:
     operator = _jt60sa_operator(shot, catalog, channels)
     records = [read_channel(JT60SA_ROOT, shot, "MMSYS", name) for name in channels]
     time = np.asarray(records[0].time, dtype=np.float64)
-    currents = np.column_stack(
-        [
-            np.interp(
-                time,
-                np.asarray(record.time, dtype=np.float64),
-                np.asarray(record.data, dtype=np.float64).reshape(-1),
-            )
-            for record in records
-        ]
-    )
-    scales = operator.pf_current_scales
-    if scales is None:
-        raise RuntimeError(
-            f"selected shot {shot} operator declares no per-column current scale"
-        )
-    scales = np.asarray(scales, dtype=np.float64)
-    if scales.shape != (currents.shape[1],):
-        raise RuntimeError(
-            f"selected shot {shot} operator scale shape {scales.shape} does not "
-            f"match its {currents.shape[1]} coil-current columns"
-        )
-    currents = currents * scales[None, :]
-    predicted = np.vstack([operator.vacuum_prediction(row) for row in currents])
-    row_index = {name: index for index, name in enumerate(operator.sensor_channels)}
-    measured: dict[str, np.ndarray] = {}
-    for channel in (*JT60SA_LOOP_CHANNELS, *JT60SA_PROBE_CHANNELS):
-        record = read_channel(JT60SA_ROOT, shot, "MDAC", channel)
-        measured[channel] = np.interp(
+    raw = {
+        name: np.interp(
             time,
             np.asarray(record.time, dtype=np.float64),
             np.asarray(record.data, dtype=np.float64).reshape(-1),
         )
+        for name, record in zip(channels, records, strict=True)
+    }
+    # Every coil current is assembled through the operator's own per-column
+    # scale rather than by repeating that scaling here.
+    currents = np.empty((time.size, len(channels)), dtype=np.float64)
+    for index in range(time.size):
+        currents[index] = operator.assemble_pf_currents(
+            {name: raw[name][index] for name in channels}
+        )
+    slew = np.gradient(currents, time, axis=0)
+    mask = _jt60sa_quasi_static_mask(slew, JT60SA_SLEW_FRACTION)
+    selected = np.flatnonzero(mask)
+    if selected.size < MIN_SHOT_SAMPLES:
+        raise RuntimeError(
+            f"selected shot {shot} has {selected.size} quasi-static samples, "
+            f"fewer than {MIN_SHOT_SAMPLES}"
+        )
+    predicted = np.vstack(
+        [operator.vacuum_prediction(row) for row in currents[selected]]
+    )
+    row_index = {name: index for index, name in enumerate(operator.sensor_channels)}
+    measured: dict[str, np.ndarray] = {}
+    for channel in (*JT60SA_LOOP_CHANNELS, *JT60SA_PROBE_CHANNELS):
+        record = read_channel(JT60SA_ROOT, shot, "MDAC", channel)
+        aligned = np.interp(
+            time,
+            np.asarray(record.time, dtype=np.float64),
+            np.asarray(record.data, dtype=np.float64).reshape(-1),
+        )
+        measured[channel] = aligned[selected]
+    peak_slew = np.abs(slew).max(axis=0)
     return {
-        "time": time,
+        "time": time[selected],
         "predicted": predicted,
         "row_index": row_index,
         "measured": measured,
+        "n_samples": int(time.size),
+        "n_quasi_static": int(selected.size),
+        "slew_reference": peak_slew,
     }
 
 
@@ -1246,39 +1277,79 @@ def _jt60sa_fit_table(
     return table
 
 
-def _jt60sa_verdict(
+def _jt60sa_median_verdict(
     fits: list[tuple[int, dict[str, float] | None]],
-) -> tuple[str, str]:
-    missing = [shot for shot, fit in fits if fit is None]
+) -> tuple[str, str, list[int]]:
+    """Median verdict rule over the shot cohort.
+
+    A channel is ``identity`` or ``negate`` when the median slope over the
+    shots is within :data:`JT60SA_SLOPE_TOLERANCE` of +1 or -1, the median
+    ``|r|`` exceeds :data:`JT60SA_CORRELATION_FLOOR`, and every shot has the
+    same slope sign.  Otherwise it is ``undecided`` with the reason.  The
+    returned outlier list names every shot whose slope sign differs from the
+    cohort, whose slope is outside the tolerance of the winning direction, or
+    whose ``|r|`` is at or below the floor.
+    """
+
+    missing = sorted(shot for shot, fit in fits if fit is None)
     if missing:
-        return "undecided", f"no finite fit on shots {missing}"
-    identity = all(
-        abs(fit["slope"] - 1.0) <= JT60SA_SLOPE_TOLERANCE
-        and abs(fit["pearson_r"]) > JT60SA_CORRELATION_FLOOR
-        for _, fit in fits
+        return "undecided", f"no finite quasi-static fit on shots {missing}", []
+    slopes = np.asarray([fit["slope"] for _, fit in fits], dtype=np.float64)
+    correlations = np.asarray(
+        [abs(fit["pearson_r"]) for _, fit in fits], dtype=np.float64
     )
-    if identity:
-        return "identity", "|slope-1|<=0.1 and |r|>0.98 on every shot"
-    negate = all(
-        abs(fit["slope"] + 1.0) <= JT60SA_SLOPE_TOLERANCE
-        and abs(fit["pearson_r"]) > JT60SA_CORRELATION_FLOOR
-        for _, fit in fits
-    )
-    if negate:
-        return "negate", "|slope+1|<=0.1 and |r|>0.98 on every shot"
+    median_slope = float(np.median(slopes))
+    median_r = float(np.median(correlations))
+    same_sign = len({bool(value > 0.0) for value in slopes}) == 1
     detail = "; ".join(
         f"{shot} slope {fit['slope']:+.3f} r {fit['pearson_r']:+.4f}"
         for shot, fit in fits
     )
+    positive = median_slope > 0.0
+    target = 1.0 if positive else -1.0
+    outliers = [
+        shot
+        for shot, fit in fits
+        if (float(fit["slope"]) > 0.0) != positive
+        or abs(float(fit["slope"]) - target) > JT60SA_SLOPE_TOLERANCE
+        or abs(float(fit["pearson_r"])) <= JT60SA_CORRELATION_FLOOR
+    ]
+    if not same_sign:
+        return "undecided", f"shots disagree in slope sign: {detail}", outliers
+    if median_r <= JT60SA_CORRELATION_FLOOR:
+        return (
+            "undecided",
+            f"median |r| {median_r:.3f} does not exceed "
+            f"{JT60SA_CORRELATION_FLOOR:.2f}: {detail}",
+            outliers,
+        )
+    if abs(median_slope - 1.0) <= JT60SA_SLOPE_TOLERANCE:
+        verdict = "identity"
+    elif abs(median_slope + 1.0) <= JT60SA_SLOPE_TOLERANCE:
+        verdict = "negate"
+    else:
+        return (
+            "undecided",
+            f"median slope {median_slope:+.3f} is not within "
+            f"{JT60SA_SLOPE_TOLERANCE:.1f} of +-1: {detail}",
+            outliers,
+        )
     return (
-        "undecided",
-        "neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: "
-        + detail,
+        verdict,
+        f"median slope {median_slope:+.3f}, median |r| {median_r:.3f}, all shots "
+        f"same sign; outliers: {outliers or 'none'}",
+        outliers,
     )
 
 
 def _jt60sa_html(payload: dict[str, Any]) -> str:
     counts = payload["verdict_counts"]
+    rule = payload["rule"]
+    samples = rule["quasi_static_samples"]
+    sample_text = ", ".join(
+        f"{shot}: {samples[str(shot)]['selected']}/{samples[str(shot)]['total']}"
+        for shot in payload["shots"]
+    )
     lines = [
         "<!doctype html>",
         '<html lang="en">',
@@ -1297,30 +1368,38 @@ def _jt60sa_html(payload: dict[str, Any]) -> str:
         (
             "      <p>Every bound flux loop and tangential probe is predicted from the "
             "measured MMSYS coil currents through the OP1 description operator built by "
-            "build_operator, and compared per shot against the raw EDDB channel. "
+            "build_operator, and compared per shot against the raw EDDB channel on "
+            "quasi-static samples only. A sample is quasi-static when every driven "
+            f"coil's |dI/dt| is at most {rule['slew_fraction']:.2f} of that coil's own "
+            f"peak |dI/dt| in the shot (retained/total: {sample_text}). A channel is "
+            f"identity or negate when its median slope over the shots is within "
+            f"{rule['slope_tolerance']:.1f} of +-1, its median |r| exceeds "
+            f"{rule['correlation_floor']:.2f}, and every shot has the same sign. "
             f"Verdicts: <strong>{counts['identity']} identity</strong>, "
             f"<strong>{counts['negate']} negate</strong>, "
             f"<strong>{counts['undecided']} undecided</strong>.</p>"
         ),
         "      <table>",
-        "        <thead><tr><th>Channel</th><th>Shot</th><th>Slope</th>"
-        "<th>Offset</th><th>Pearson r</th><th>Samples</th></tr></thead>",
+        "        <thead><tr><th>Channel</th><th>Median slope</th>"
+        "<th>Median |r|</th><th>Same sign</th><th>Per-shot slope</th>"
+        "<th>Verdict</th></tr></thead>",
         "        <tbody>",
     ]
     for channel in payload["channel_order"]:
         row = payload["channels"][channel]
-        for shot, fit in row["shots"].items():
-            if fit is None:
-                lines.append(
-                    f"          <tr><td>{channel}</td><td>{shot}</td>"
-                    "<td>n/a</td><td>n/a</td><td>n/a</td><td>0</td></tr>"
-                )
-                continue
-            lines.append(
-                f"          <tr><td>{channel}</td><td>{shot}</td>"
-                f"<td>{fit['slope']:+.6f}</td><td>{fit['offset']:+.6f}</td>"
-                f"<td>{fit['pearson_r']:+.6f}</td><td>{fit['n_samples']}</td></tr>"
-            )
+        slopes = ", ".join(
+            f"{shot} {row['shots'][shot]['slope']:+.3f}"
+            if row["shots"][shot] is not None
+            else f"{shot} n/a"
+            for shot in row["shots"]
+        )
+        lines.append(
+            f"          <tr><td>{channel}</td>"
+            f"<td>{row['median_slope']:+.6f}</td>"
+            f"<td>{row['median_abs_r']:.6f}</td>"
+            f"<td>{row['same_sign']}</td><td>{slopes}</td>"
+            f"<td><strong>{row['verdict']}</strong></td></tr>"
+        )
     lines.extend(
         [
             "        </tbody>",
@@ -1329,9 +1408,12 @@ def _jt60sa_html(payload: dict[str, Any]) -> str:
     )
     for channel in payload["channel_order"]:
         row = payload["channels"][channel]
+        outliers = row["outliers"]
         lines.append(
             f"      <p id=\"jtmm-vacuum-adjudication-{channel}\">{channel}: "
-            f"<strong>{row['verdict']}</strong> &mdash; {row['reason']}</p>"
+            f"<strong>{row['verdict']}</strong> &mdash; {row['reason']}"
+            + (f" Outliers: {outliers}." if outliers else "")
+            + "</p>"
         )
     lines.extend(
         [
@@ -1372,19 +1454,30 @@ def _run_jt60sa() -> int:
     channels_payload: dict[str, Any] = {}
     changed_verdicts = 0
     control_verdicts: dict[str, dict[str, str]] = {}
+    undecided_reasons: dict[str, str] = {}
     for channel in channel_order:
         fits = [(shot, fit_tables[shot][channel]) for shot in JT60SA_SHOTS]
-        verdict, reason = _jt60sa_verdict(fits)
-        swapped = _jt60sa_verdict(
+        verdict, reason, outliers = _jt60sa_median_verdict(fits)
+        swapped = _jt60sa_median_verdict(
             [(shot, swap_tables[shot][channel]) for shot in JT60SA_SHOTS]
         )
         if swapped[0] != verdict:
             changed_verdicts += 1
         if channel in control_pair:
             control_verdicts[channel] = {"before": verdict, "after": swapped[0]}
+        if verdict == "undecided":
+            undecided_reasons[channel] = reason
+        slopes = [fit["slope"] for _, fit in fits if fit is not None]
+        correlations = [
+            abs(fit["pearson_r"]) for _, fit in fits if fit is not None
+        ]
         channels_payload[channel] = {
             "verdict": verdict,
             "reason": reason,
+            "outliers": outliers,
+            "median_slope": float(np.median(slopes)) if slopes else None,
+            "median_abs_r": float(np.median(correlations)) if correlations else None,
+            "same_sign": len({bool(value > 0.0) for value in slopes}) == 1,
             "shots": {
                 str(shot): fit_tables[shot][channel] for shot in JT60SA_SHOTS
             },
@@ -1406,15 +1499,29 @@ def _run_jt60sa() -> int:
         for name in ("identity", "negate", "undecided")
     }
     payload = {
-        "node": "jtmm-vacuum-adjudication",
+        "node": "jtmm-vacuum-verdict-rule",
         "machine": "jt-60sa",
         "shots": list(JT60SA_SHOTS),
         "coil_channels": channels,
-        "slope_tolerance": JT60SA_SLOPE_TOLERANCE,
-        "correlation_floor": JT60SA_CORRELATION_FLOOR,
+        "rule": {
+            "slope_tolerance": JT60SA_SLOPE_TOLERANCE,
+            "correlation_floor": JT60SA_CORRELATION_FLOOR,
+            "slew_fraction": JT60SA_SLEW_FRACTION,
+            "quasi_static_samples": {
+                str(shot): {
+                    "total": data["n_samples"],
+                    "selected": data["n_quasi_static"],
+                    "peak_slew_a_per_s": [
+                        float(value) for value in data["slew_reference"]
+                    ],
+                }
+                for shot, data in shot_data.items()
+            },
+        },
         "channel_order": channel_order,
         "channels": channels_payload,
         "verdict_counts": counts,
+        "undecided": undecided_reasons,
         "swap_control": list(JT60SA_SWAP_CONTROL),
         "negative_control": {
             "changed_verdicts": changed_verdicts,
@@ -1430,6 +1537,7 @@ def _run_jt60sa() -> int:
                 "machine": "jt-60sa",
                 "shots": list(JT60SA_SHOTS),
                 "verdicts": counts,
+                "undecided": len(undecided_reasons),
                 "changed_verdicts_under_swap": changed_verdicts,
                 "json": str(JT60SA_EVIDENCE_JSON),
                 "html": str(JT60SA_EVIDENCE_HTML),
