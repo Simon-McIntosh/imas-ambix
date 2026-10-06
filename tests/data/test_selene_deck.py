@@ -373,9 +373,9 @@ def test_stored_probe_axes_lie_along_the_vessel_inner_skin():
     each against the deck its store draws the vessel skin from.
     """
     if not (
-        REAL_EQSLE.exists()
-        and REAL_GEO.exists()
+        REAL_GEO.exists()
         and REAL_COIL_VV.exists()
+        and REAL_COIL_VV_OP1.exists()
     ):
         pytest.skip("real facility deck copies absent")
     geo = sd.parse_geo_in(REAL_GEO)
@@ -385,8 +385,9 @@ def test_stored_probe_axes_lie_along_the_vessel_inner_skin():
         math.degrees(float(probe.poloidal_angle))
         for probe in magnetics.b_field_pol_probe
     ]
+    # Each phase's store draws its vessel skin from its own coil_vv deck.
     skins = {
-        "OP1": sd.parse_eqsle_deck(REAL_EQSLE).vessel_skin_inner,
+        "OP1": sd.parse_coil_vv_deck(REAL_COIL_VV_OP1).vessel_skin_inner,
         "OP2": sd.parse_coil_vv_deck(REAL_COIL_VV).vessel_skin_inner,
     }
     for phase, skin in skins.items():
