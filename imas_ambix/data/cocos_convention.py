@@ -42,6 +42,7 @@ MAST_LEVEL2_ROOT = Path("/work/projects/imas_gpu/mast/level2/shots")
 
 _RAW_PLASMA_CURRENT_TARGETS = ("magnetics/ip",)
 _RAW_FLUX_LOOP_TARGETS = ("magnetics/flux_loop_flux", "magnetics/flux_loop/flux")
+_PER_SHOT_LAYOUT = "per-shot"
 _RAW_TOROIDAL_FIELD_TARGETS = (
     "magnetics/b_field_tor_probe/field",
     "magnetics/b_field_tor",
@@ -716,6 +717,34 @@ def _binding_targeting(
     )
 
 
+def _bindings_targeting(
+    bindings: Sequence[ChannelBinding],
+    targets: tuple[str, ...],
+    quantity: str,
+) -> tuple[ChannelBinding, ...]:
+    """Gather every binding that serves ``quantity``, ordered by target index.
+
+    A quantity may be bound by more than one rule — each flux loop its own —
+    so every match is kept rather than the first.  The declared target
+    spellings are ordered, so channels come out by the target that matched and
+    then by declaration order within it.
+    """
+
+    selected: list[ChannelBinding] = []
+    for target in targets:
+        selected.extend(
+            binding
+            for binding in bindings
+            if binding.dd_path == target or binding.dd_path.startswith(f"{target}/")
+        )
+    if not selected:
+        raise ValueError(
+            f"catalogue declares no binding targeting {quantity} "
+            f"(expected one of {targets})"
+        )
+    return tuple(selected)
+
+
 def read_catalogue_observation(
     shot: int,
     catalogue: MachineMapCatalog,
@@ -729,20 +758,31 @@ def read_catalogue_observation(
     The raw half — plasma current, flux-loop flux and toroidal field — is read
     from the shot store the catalogue addresses, each source array through the
     store engine the catalogue's declared format selects, with its EDDB time
-    base read from the sibling array beside it.  The equilibrium half is the
-    :class:`EfitLabels` record the caller's loader supplies.  Raw values are
+    base read from the sibling array beside it.  Every binding that targets the
+    flux-loop flux leaf contributes its channels, ordered by target index and
+    then by declaration order, so a catalogue that binds each loop as its own
+    rule reports them all rather than only the first.  The equilibrium half is
+    the :class:`EfitLabels` record the caller's loader supplies.  Raw values are
     read deliberately: this reader exists to measure the source convention, so
     no per-binding sign or unit factor may be applied before the kernel sees
-    them.
+    them.  The sibling time-base mechanism assumes a per-shot layout, where a
+    channel's time array is its own source array; a catalogue that is not
+    per-shot is refused rather than read with a time base equal to its values.
     """
 
     shot_id = int(shot)
+    if catalogue.description_store_layout != _PER_SHOT_LAYOUT:
+        raise ValueError(
+            "read_catalogue_observation needs a per-shot store layout so each "
+            "channel's time base is a sibling array; catalogue declares "
+            f"{catalogue.description_store_layout!r}"
+        )
     machine_map = map_for_shot(catalogue, shot_id)
     bindings = catalogue.bindings_for(machine_map)
     plasma_current_binding = _binding_targeting(
         bindings, _RAW_PLASMA_CURRENT_TARGETS, "the plasma current"
     )
-    flux_loop_binding = _binding_targeting(
+    flux_loop_bindings = _bindings_targeting(
         bindings, _RAW_FLUX_LOOP_TARGETS, "the flux-loop flux"
     )
     toroidal_field_binding = _binding_targeting(
@@ -760,7 +800,14 @@ def read_catalogue_observation(
         plasma_current = np.asarray(
             source.read(plasma_current_binding), dtype=np.float64
         )
-        flux_loops = np.asarray(source.read(flux_loop_binding), dtype=np.float64)
+        flux_loops = np.concatenate(
+            [
+                _channel_series(
+                    np.asarray(source.read(binding), dtype=np.float64)
+                )
+                for binding in flux_loop_bindings
+            ]
+        )
         toroidal_field = np.asarray(
             source.read(toroidal_field_binding), dtype=np.float64
         )
@@ -775,7 +822,7 @@ def read_catalogue_observation(
         shot_id,
         plasma_current_time=plasma_current_time,
         plasma_current=_single_channel(plasma_current, plasma_current_binding),
-        flux_loops=_channel_series(flux_loops),
+        flux_loops=flux_loops,
         toroidal_field_time=toroidal_field_time,
         toroidal_field=_single_channel(toroidal_field, toroidal_field_binding),
         equilibrium=equilibrium,

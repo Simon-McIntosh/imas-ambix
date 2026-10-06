@@ -277,12 +277,30 @@ def _binding(name, source_array, dd_path):
     )
 
 
-def _synthetic_catalogue(plasma_current_array="Ip"):
+def _synthetic_catalogue(plasma_current_array="Ip", *, store_layout="per-shot"):
     binding_set = (
         _binding("synthetic-ip", plasma_current_array, "magnetics/ip"),
         _binding("synthetic-flux", "FL", "magnetics/flux_loop_flux"),
         _binding("synthetic-bt", "BT", "magnetics/b_field_tor_probe/field"),
     )
+    return _catalogue(binding_set, store_layout=store_layout)
+
+
+def _multichannel_catalogue():
+    """A catalogue binding three flux loops as three separate rules."""
+
+    return _catalogue(
+        (
+            _binding("synthetic-ip", "Ip", "magnetics/ip"),
+            _binding("synthetic-flux-a", "FLA", "magnetics/flux_loop_flux"),
+            _binding("synthetic-flux-b", "FLB", "magnetics/flux_loop_flux"),
+            _binding("synthetic-flux-c", "FLC", "magnetics/flux_loop_flux"),
+            _binding("synthetic-bt", "BT", "magnetics/b_field_tor_probe/field"),
+        )
+    )
+
+
+def _catalogue(binding_set, *, store_layout="per-shot"):
     machine_map = MachineMap(
         name="synthetic",
         machine="jt-60sa",
@@ -291,9 +309,9 @@ def _synthetic_catalogue(plasma_current_array="Ip"):
         transition=None,
         binding_set="synthetic",
         drive_topology=None,
+        source_representation_signature=None,
         description_supplement=None,
         validation_state="source-only",
-        source_representation_signature=None,
     )
     return MachineMapCatalog(
         schema_version="1.0.0",
@@ -303,7 +321,7 @@ def _synthetic_catalogue(plasma_current_array="Ip"):
         source_cocos=None,
         description_store_format="zarr",
         description_store_root="JT60SA_ROOT",
-        description_store_layout="per-shot",
+        description_store_layout=store_layout,
         probe_angle_source="description",
         binding_sets=MappingProxyType({"synthetic": binding_set}),
         maps=(machine_map,),
@@ -329,6 +347,9 @@ def _write_synthetic_store(root):
     flux = np.vstack((2.0e-3 * _SYNTHETIC_CURRENT, 3.0e-3 * _SYNTHETIC_CURRENT))
     category.create_array("FL", data=flux)
     category.create_array("FL_time", data=_SYNTHETIC_TIME)
+    for name, factor in (("FLA", 2.0e-3), ("FLB", 3.0e-3), ("FLC", 4.0e-3)):
+        category.create_array(name, data=factor * _SYNTHETIC_CURRENT)
+        category.create_array(f"{name}_time", data=_SYNTHETIC_TIME)
     category.create_array("BT", data=np.full(_SYNTHETIC_TIME.size, 2.5))
     category.create_array("BT_time", data=np.linspace(0.0, 7.0, _SYNTHETIC_TIME.size))
 
@@ -402,3 +423,38 @@ def test_catalogue_reader_follows_the_plasma_current_binding(tmp_path, monkeypat
 
     assert observation.plasma_current_a == pytest.approx(-3.0e5)
     assert observation.plasma_current_sign == -1
+
+
+def test_catalogue_reader_stacks_every_bound_flux_loop_channel(tmp_path, monkeypatch):
+    _write_synthetic_store(tmp_path)
+    monkeypatch.setattr(
+        MachineMapCatalog,
+        "description_store_root_path",
+        lambda self, _root=tmp_path: _root,
+    )
+
+    observation = read_catalogue_observation(
+        _SYNTHETIC_SHOT, _multichannel_catalogue(), _synthetic_equilibrium()
+    )
+
+    assert observation.raw_flux_loop_channels == 3
+    assert observation.raw_flux_loop_opposite_sign_channels == 0
+    assert observation.raw_flux_loop_response_sign == 1
+
+
+def test_catalogue_reader_refuses_a_store_layout_that_is_not_per_shot(
+    tmp_path, monkeypatch
+):
+    _write_synthetic_store(tmp_path)
+    monkeypatch.setattr(
+        MachineMapCatalog,
+        "description_store_root_path",
+        lambda self, _root=tmp_path: _root,
+    )
+
+    with pytest.raises(ValueError, match="per-shot store layout"):
+        read_catalogue_observation(
+            _SYNTHETIC_SHOT,
+            _synthetic_catalogue(store_layout="static-over-map"),
+            _synthetic_equilibrium(),
+        )
