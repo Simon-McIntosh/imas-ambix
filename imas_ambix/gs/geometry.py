@@ -17,8 +17,8 @@ from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 import numpy as np
 
-from imas_ambix.data.paths import MANIFEST_DIR
 from imas_alambic.signal_map import CompiledSignal, load_packaged_signal_map
+from imas_ambix.data.paths import MANIFEST_DIR
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence

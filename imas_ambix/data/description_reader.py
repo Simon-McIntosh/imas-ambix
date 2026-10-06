@@ -19,12 +19,12 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from imas_ambix.data.geometry_adapter import geometry_table_from_description
 from imas_alambic.machine_map import (
     load_packaged_machine_map,
     resolve_description_store_root,
 )
 from imas_alambic.transform_engine import transform_machine_description
+from imas_ambix.data.geometry_adapter import geometry_table_from_description
 
 if TYPE_CHECKING:
     from collections.abc import Iterable

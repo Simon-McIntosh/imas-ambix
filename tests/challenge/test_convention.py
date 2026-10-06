@@ -7,6 +7,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from imas_alambic.cocos import CANONICAL_COCOS, identify_source_cocos
 from imas_ambix.challenge.convention import (
     DIIID_CONVENTION,
     DIIID_SOURCE_COCOS,
@@ -16,7 +17,6 @@ from imas_ambix.challenge.convention import (
     measure_diiid_convention,
 )
 from imas_ambix.challenge.loader import EfitLabels
-from imas_alambic.cocos import CANONICAL_COCOS, identify_source_cocos
 
 
 def _train_paths() -> list[Path]:
