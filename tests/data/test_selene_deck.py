@@ -413,7 +413,7 @@ def test_cryostat_loop_carries_57_filaments_in_both_phases(tmp_path: Path):
     assert float(op1_cryostat.resistivity) == pytest.approx(7.20e-7)
     assert float(op2_cryostat.resistivity) == pytest.approx(7.20e-7)
     # The two cryostat loops carry the same filament geometry.
-    for a, b in zip(op1_cryostat.element, op2_cryostat.element):
+    for a, b in zip(op1_cryostat.element, op2_cryostat.element, strict=True):
         assert float(a.geometry.rectangle.r) == pytest.approx(
             float(b.geometry.rectangle.r)
         )

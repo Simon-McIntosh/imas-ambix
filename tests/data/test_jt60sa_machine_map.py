@@ -62,27 +62,28 @@ def _emit(shot):
     return catalog, description
 
 
-def _ids_payload(description):
-    """Stable per-IDS content keyed by DD path and value bytes.
+def _binding_payload(description):
+    """Per-binding content keyed by a phase-neutral binding name.
 
-    Phase maps select different binding sets, so a whole-description digest
-    differs at the boundary for a reason that is not geometry.  Comparing the
-    emitted DD content per IDS isolates the physical change.
+    Phase maps select different binding sets whose names carry the phase
+    token (``jt60sa-op1-…`` / ``jt60sa-op2-…``).  Stripping that token lets a
+    binding be matched across the boundary, so the vessel, cryostat, PF coil
+    and magnetics content can each be compared on its own.
     """
-    payload: dict[str, list[tuple[str, str, str, tuple[int, ...], str]]] = {}
+    payload: dict[str, tuple[str, str, tuple[int, ...], str]] = {}
     for array in description.arrays:
-        ids_name = array.dd_path.split("/", 1)[0]
-        values = np.asarray(array.values)
-        payload.setdefault(ids_name, []).append(
-            (
-                array.dd_path,
-                array.source_group,
-                values.dtype.str,
-                tuple(values.shape),
-                np.ascontiguousarray(values).tobytes().hex(),
-            )
+        key = (
+            array.binding_name.replace("jt60sa-op1-", "jt60sa-")
+            .replace("jt60sa-op2-", "jt60sa-")
         )
-    return {ids_name: sorted(rows) for ids_name, rows in payload.items()}
+        values = np.asarray(array.values)
+        payload[key] = (
+            array.dd_path,
+            values.dtype.str,
+            tuple(values.shape),
+            np.ascontiguousarray(values).tobytes().hex(),
+        )
+    return payload
 
 
 def test_catalogue_declares_the_two_phase_store_and_maps():
@@ -185,17 +186,18 @@ def test_ragged_struct_arrays_declared_per_entry():
         for binding in op2.values()
         if binding.dd_path.startswith("pf_passive/loop/element/")
     }
-    # The OP1 vessel is two ragged loops; the OP2 vessel is one.
-    assert op1_vessel == {"VV1", "VV2"}
-    assert op2_vessel == {"VV1"}
+    # The vessel and the cryostat are separate ragged loops in both phases: the
+    # vessel changes at the boundary, the cryostat is the same 57 filaments.
+    assert op1_vessel == {"VV", "CRYOSTAT"}
+    assert op2_vessel == {"VV", "CRYOSTAT"}
 
-    # A single loop assembly per vessel loop, as for a coil.
+    # A single loop assembly per vessel and cryostat loop, in each phase.
     vessels = [
         assembly
         for assembly in catalog.structure_assemblies
         if assembly.structure_path == "pf_passive/loop/element/geometry/rectangle"
     ]
-    assert len(vessels) == 3
+    assert len(vessels) == 4
 
 
 @requires_store
@@ -210,7 +212,9 @@ def test_each_phase_emits_and_adapts_through_one_code_path(phase, shot):
     assert len(table.b_probes) == 17
     assert len(table.flux_loops) == 27
     assert len(table.amc_current_channels) == 12
-    expected_vessel = 120 if phase == "OP1" else 98
+    # Both phases carry the vessel loop and the shared 57-filament cryostat
+    # loop; only the vessel filament count differs (63 OP1, 98 OP2).
+    expected_vessel = 120 if phase == "OP1" else 155
     assert len(table.passive_structures) == expected_vessel
 
 
@@ -269,29 +273,50 @@ def test_phase_identity_is_deterministic_and_partitions_the_range():
 def test_phase_boundary_changes_only_the_vessel_and_wall():
     _, before = _emit(101173)
     _, after = _emit(101174)
-    before_payload = _ids_payload(before)
-    after_payload = _ids_payload(after)
+    before_payload = _binding_payload(before)
+    after_payload = _binding_payload(after)
 
     assert before_payload != after_payload
-    changed_ids = sorted(
-        ids_name
-        for ids_name in set(before_payload) | set(after_payload)
-        if before_payload.get(ids_name) != after_payload.get(ids_name)
-    )
-    unchanged_ids = sorted(
-        (set(before_payload) & set(after_payload)) - set(changed_ids)
+    shared = set(before_payload) & set(after_payload)
+    changed = {key for key in shared if before_payload[key] != after_payload[key]}
+
+    # The vacuum vessel moves at the boundary: OP1's 63 EQSLE filaments give
+    # way to OP2's 98 coil_vv filaments.
+    vessel_keys = [key for key in shared if key.startswith("jt60sa-pf-passive-vv")]
+    assert vessel_keys
+    assert all(key in changed for key in vessel_keys)
+
+    # The cryostat loop is the same 57 filaments in both phases, so those
+    # bindings are byte-equal across the boundary.
+    cryostat_keys = [
+        key for key in shared if key.startswith("jt60sa-pf-passive-cryostat")
+    ]
+    assert cryostat_keys
+    assert all(
+        before_payload[key] == after_payload[key] for key in cryostat_keys
     )
 
-    # The vessel and the wall move at the boundary; pf_active and magnetics do
-    # not, so the boundary is a description change and not a re-addressing.
-    assert "pf_passive" in changed_ids
-    assert "pf_active" in unchanged_ids
-    assert "magnetics" in unchanged_ids
+    # The wall moves: OP1 carries a vessel unit the OP2 source has no skins for.
+    wall_keys = {
+        key
+        for key in set(before_payload) | set(after_payload)
+        if key.startswith("jt60sa-wall-")
+    }
+    assert wall_keys
+    assert any(
+        key not in shared or key in changed for key in wall_keys
+    )
+
+    # pf_active and magnetics are phase-independent, so the boundary is a
+    # description change and not a re-addressing.
+    for family in ("jt60sa-pf-active-", "jt60sa-magnetics-"):
+        family_keys = [key for key in shared if key.startswith(family)]
+        assert family_keys
+        assert all(key not in changed for key in family_keys)
 
     print(
         "JT60SA_PHASE_BOUNDARY "
-        f"boundary=101174 changed_ids={','.join(changed_ids)} "
-        f"unchanged_ids={','.join(unchanged_ids)}"
+        f"boundary=101174 changed={len(changed)} shared={len(shared)}"
     )
 
 
