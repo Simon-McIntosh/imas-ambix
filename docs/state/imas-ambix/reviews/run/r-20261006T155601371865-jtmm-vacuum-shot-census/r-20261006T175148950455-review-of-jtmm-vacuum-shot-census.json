@@ -1,0 +1,67 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "the reviewed manifest declares tests: none (no test path in scope) and no baseline_suite or after_suite arm (both read none), so there is no base arm to difference against and no head gate log; the node is an evidence census whose only gate is the done-when itself, checked here by re-deriving the table, enumerating the cached stores and reproducing the classifier. added_failure_ids is empty because no test arm exists to add a failure to.",
+  "base_log_revision": null,
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-06T18:07:46.618Z",
+  "dispatched_at": "2026-10-06T17:51:57Z",
+  "findings": [
+    {
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-shot-census.html",
+      "line": "cached-shots-summary",
+      "severity": "follow-on",
+      "text": "the third plasma shot E101173 is counted among the three plasma shots carrying the raw MDAC loops and probes, but its store /work/projects/imas_gpu/jt60sa/101173.zarr holds all 34 magFlxLp loops and zero of the 23 magPbTC probes (verified by enumerating the store's MDAC category: 34 loops, no magPbTC arrays), while its commit body 1331cb48 and the fragment's summary both assert it holds magPbTC1..23. The node's own MDAC census (scratch/mdac_presence.json) records 23/23 probes present in the EDDB MDAC catalogue for E101173, so the probes were fetchable with one fetch_channels call; the manifest follow_ons flags a similar E100595 channel gap but not this one, so the gap is unreported. Result: only two of the three plasma examples (E100658, E101154) carry loops and probes."
+    },
+    {
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-shot-census.html",
+      "line": "candidate-table",
+      "severity": "follow-on",
+      "text": "E101173 has no PSRC/Ip store (its table row reads 'absent (irc 1015)'), so by the fragment's own plasma criterion ('real Ip waveform') it does not qualify as a plasma example and the classifier returns no verdict for it; the census lists E100666 and E101035 as plasma candidates carrying a real Ip waveform that it did not cache, so a genuine third plasma shot was available alongside the one it counted."
+    }
+  ],
+  "head_log_revision": null,
+  "item_aggregate": 0,
+  "item_verdicts": {
+    "call_sites": "none -- the node adds an evidence fragment only; it introduces no production definition and its calls are to fetch_channels, read_channel, JT60SA_ROOT and the EDDB ssh transport.",
+    "diff": "read commit by commit; the chain 6e9ed292 -> 1331cb48 -> daab366f adds only docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-shot-census.html.",
+    "done_when": "the table has every required column and is faithful to the run's raw census; the three vacuum shots (E100595, E100579, E100642) carry loops and probes with the PF coils driven and Ip refused/zero, and two of three plasma shots carry loops and probes; 101154.zarr is untouched (mtime 2026-10-06 17:09 local, before the run's 18:19 first fetch) and every fetch uses ssh -F ~/.ssh/config jt-60sa (scratch/fetch_one.py SSH tuple).",
+    "goal": "the node goal is section 6's census of JT-60SA vacuum and plasma shots carrying the raw MDAC loops and probes, recorded in one evidence fragment with wall time and bytes; the landed fragment tables every candidate pulse and records the six cached shots, one of them short of its probes.",
+    "manifest": "read; status complete, three commits (6e9ed292, 1331cb48, daab366f), changed path the one fragment, tests none, test_logs empty, artifacts naming the six stores with byte sizes that all match disk.",
+    "write_paths": "git diff --name-status 21ef21de..daab366f lists exactly docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-shot-census.html and nothing else; this reviewer wrote only the two fenced record paths."
+  },
+  "justifications": {
+    "durability": "the record is durable for the vacuum shots and the fetched plasma shot, whose write-once zarr stores have stable byte sizes verified on disk. Docked because durability is what the E101173 claim breaks: the commit body 1331cb48 and the fragment summary both state E101173 holds magPbTC1..23, and a later reader trusting the durable record gets a probe set the store does not carry.",
+    "evidence": "all six store byte sizes match the fragment and manifest exactly on disk (108,001,536 / 199,246,248 / 271,005,711 / 123,777,686 / 236,491,919 / 213,807,361); the per-request receipts corroborate every wall time and request count (E100579 308.016+55.244 s, E100642 230.572+69.904 s, E100658 116.784+52.774 s); the declared negative control reproduces independently (classifier returns plasma for E101154 at 998,576.25 A, and no verdict rather than a vacuum default for a shot with no cached PSRC/Ip); table values re-derive from the run's raw census JSON. Docked because the fragment asserts a probe set the store does not hold.",
+    "fit": "the fragment follows the repo's evidence idiom, its element ids all begin with the node id, it declares a falsifiable classifier with an explicit 10 kA threshold, and every fetch uses ssh -F ~/.ssh/config jt-60sa through fetch_channels; the commits carry conventional subjects and bodies with no attribution, and the done-when names no figure so none was written.",
+    "goal_fidelity": "the done-when's fragment clause is landed exactly -- the table names every candidate pulse's series, date, peak PSRC/Ip, peak PF coil currents, TF current and polarity, loops, probes and catalogue range -- and the three vacuum shots meet their clause. The plasma clause is short by one: E101173 is counted as a plasma shot carrying loops and probes but holds no probes.",
+    "reuse": "no capability is forked: the node reuses fetch_channels, read_channel and JT60SA_ROOT, adds no repository module, and retires nothing.",
+    "scope_discipline": "git diff --name-status 21ef21de..daab366f lists exactly the one declared fragment path; no plan file is edited, no test path is touched, and this reviewer wrote only the two fenced record paths."
+  },
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20261006T155601371865-jtmm-vacuum-shot-census (plan imas-ambix:jt60sa-machine-map section 6), read at its head daab366f220eac3d2d3fc83be2ea1ffc13c8aeae on base 21ef21dec29c3a8d342366bde3b51ad09ee3f281. The node is an evidence-only census: it enumerates the JT-60SA EDDB over ssh -F ~/.ssh/config jt-60sa, tables every candidate pulse carrying the raw MDAC loops magFlxLp1..34 and probes magPbTC1..23 with its series, date, peak PSRC/Ip, peak PF coil currents, TF current and polarity, and catalogue range, and caches three vacuum shots (E100595, E100579, E100642) and three plasma shots (E100658, E101154, E101173) under /work/projects/imas_gpu/jt60sa through fetch_channels. The single commit chain is 6e9ed292, 1331cb48, daab366f, each adding only docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-shot-census.html.\n\nThis reviewer re-derived the fragment's table from the run's own raw census JSON, enumerated the six cached zarr stores for their channel membership and byte sizes, ran the node's own vacuum classifier, and read the per-request fetch receipts. Nothing ran on GPU; the checks are zarr directory reads and one-second python probes.\n\nVERDICT goal: the fragment clause of the done-when is met fully; the cache clause is met for the three vacuum shots and for two of the three plasma shots, the third plasma shot E101173 carrying loops but no probes.\nVERDICT done_when: the table columns all present and faithful to the existing census; the three vacuum shots and two of three plasma shots carry loops and probes; 101154.zarr untouched (mtime 2026-10-06 17:09 local, before the run) and every ssh call uses ssh -F ~/.ssh/config jt-60sa.\nVERDICT write_paths: git diff --name-status 21ef21de..daab366f lists exactly the one declared fragment path and nothing else.\nVERDICT manifest: read; status complete, three commits, tests none (no test path in scope).\nVERDICT diff: read commit by commit; the fragment is the only changed file.\nVERDICT call_sites: none\nSCORE goal_fidelity: 16\nJUSTIFICATION goal_fidelity: the done-when's fragment clause is landed exactly -- the table names every candidate pulse's series, date, peak PSRC/Ip, peak PF coil currents, TF current and polarity, loops, probes and catalogue range -- and the three vacuum shots meet their clause (PF coils driven, Ip refused/zero). The plasma clause is short by one: E101173 is counted as a plasma shot carrying loops and probes, but its store holds all 34 loops and none of the 23 probes, so only E100658 and E101154 carry both.\nSCORE evidence: 16\nJUSTIFICATION evidence: the cache evidence is strong where it can be checked -- all six store byte sizes match the fragment and manifest exactly (100595 108,001,536; 100579 199,246,248; 100642 271,005,711; 100658 123,777,686; 101154 236,491,919; 101173 213,807,361), the per-request receipts (nf3_E100579_1.out 308.016 s, nf3_E100642_2.out 230.572 s, nf3_E100658_1.out 116.784 s, mf_E100579_1.out 55.244 s, mf_E100642_1.out 69.904 s, mf_E100658_1.out 52.774 s) corroborate every wall time and request count, the declared negative control reproduces (the classifier returns plasma for E101154 at 998,576.25 A and no verdict for a shot with no cached PSRC/Ip), and table values re-derive from the run's raw census. Docked because the record asserts a probe set the store does not hold.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff --name-status 21ef21de..daab366f lists exactly docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-shot-census.html; no plan file is edited, no test path is touched, and no other source path changes.\nSCORE durability: 15\nJUSTIFICATION durability: the record is durable for the vacuum shots and for the fetched plasma shot, whose stores are immutable write-once zarr and whose byte sizes are stable on disk. Docked because durability is exactly what the E101173 claim breaks: the commit body 1331cb48 and the fragment summary both state E101173 holds magPbTC1..23, and a later reader trusting the durable record gets a probe set the store does not carry.\nSCORE fit: 19\nJUSTIFICATION fit: the fragment follows the repo's evidence idiom, its element ids all begin with the node id, it declares a falsifiable classifier with an explicit threshold, and every fetch uses ssh -F ~/.ssh/config jt-60sa through imas_ambix.data.eddb.fetch_channels; the three commits carry conventional subjects and bodies and no attribution, and the done-when names no figure so none was written.\nSCORE reuse: 20\nJUSTIFICATION reuse: no capability is forked -- the node reuses fetch_channels, read_channel and JT60SA_ROOT, adds no repository module, and retires nothing.\nFINDING docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-shot-census.html:cached-shots-summary follow-on: the third plasma shot E101173 is counted among the three plasma shots carrying the raw MDAC loops and probes, but its store /work/projects/imas_gpu/jt60sa/101173.zarr holds all 34 magFlxLp loops and zero of the 23 magPbTC probes (verified by enumerating the store's MDAC category (34 loops, no magPbTC arrays)), while its commit body 1331cb48 and this fragment's summary both assert it holds magPbTC1..23. The node's own MDAC census (scratch/mdac_presence.json) records 23/23 probes present in the EDDB MDAC catalogue for E101173, so the probes were fetchable with a single fetch_channels call and the gap is neither unavoidable nor reported -- the manifest follow_ons flags a similar E100595 channel gap but not this one. Result: only two of three plasma examples carry loops and probes.\nFINDING docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-shot-census.html:candidate-table follow-on: E101173 has no PSRC/Ip store (its table row reads 'absent (irc 1015)'), so by the fragment's own plasma criterion ('real Ip waveform') it does not qualify as a plasma example; the census lists E100666 and E101035 as plasma candidates with a real Ip waveform it did not cache, so a genuine third plasma shot was available alongside the one it counted.\n",
+  "review_run_id": "r-20261006T175148950455-review-of-jtmm-vacuum-shot-census",
+  "reviewed_base_sha": "21ef21dec29c3a8d342366bde3b51ad09ee3f281",
+  "reviewed_head_sha": "daab366f220eac3d2d3fc83be2ea1ffc13c8aeae",
+  "reviewed_run_id": "r-20261006T155601371865-jtmm-vacuum-shot-census",
+  "reviewer": {
+    "backend": "clive",
+    "effort": "high",
+    "model": "deepseek-v4.1-flash"
+  },
+  "rubric": null,
+  "scores": {
+    "durability": 15,
+    "evidence": 16,
+    "fit": 19,
+    "goal_fidelity": 16,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "timestamp": "2026-10-06T18:03:46+00:00",
+  "total": 106
+}
