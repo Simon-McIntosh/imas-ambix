@@ -1,0 +1,72 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "the reviewed manifest declares no baseline_suite/after_suite keys (its gate arms are recorded under tests/test_logs), so no base arm exists to difference against; its single gate arm gate-head.txt ran to its summary line at 35 passed EXIT=0 with zero failures, so this change adds no failing test and added_failure_ids is empty",
+  "base_log_revision": null,
+  "call_site_count": 4,
+  "call_sites": [
+    "imas_ambix/data/signal_map.py:641",
+    "imas_ambix/data/pulse_mint.py:311",
+    "imas_ambix/data/virtual_zarr.py",
+    "imas_ambix/data/tokamap_export.py:281"
+  ],
+  "completed_at": "2026-10-06T17:16:09.269Z",
+  "dispatched_at": "2026-10-06T17:05:04Z",
+  "findings": [
+    {
+      "file": "tests/data/test_jt60sa_signal_maps.py",
+      "line": "370",
+      "severity": "follow-on",
+      "text": "follow-on: the unit-table coverage is bounded by `assert checked > 0` while the two continues at :357/:360 silently skip any bound rule whose source channel is absent from the E101154 cache, so the test can pass while most bindings are never checked; the loop and probe channels are separately guaranteed present by the pin tests, but Ip and the pf_active/tf channels are not, so a wrong table entry for those would go unseen."
+    },
+    {
+      "file": "tests/data/test_jt60sa_signal_maps.py",
+      "line": "412",
+      "severity": "follow-on",
+      "text": "follow-on: the blocked-reason guard triggers on the literal substring \"E101154 alone\", so a future reason that rests a choice on E101154 without the word \"alone\" (for example \"rests on E101154\") while citing a corroborating shot would not be caught, which is the exact self-contradiction the guard exists to stop."
+    }
+  ],
+  "head_log_revision": "4d4c3b212894f32f5895cd13d24ecf1200eea83f",
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 4 production call site(s)",
+    "diff": "read commit by commit; 4d4c3b21 (+1250/-3 over four files) writes the 27 loop and 17 probe rules, 6 PSRC blocked alternates naming their raw partner, 13 beyond-SELENE blocks, the unit table and its test, the Pearson pin tests and the guard.",
+    "done_when": "the done_when is the two-file gate at 35 passed plus the map contents; the gate reproduces independently in a scratch extraction of 4d4c3b21 (35 passed, EXIT=0) and the map validates and loads (45 signals, 57 blocked, all source-only, no signal/blocked overlap).",
+    "goal": "the node goal is to bind JT-60SA's 27 SELENE flux loops and 17 tangential probes in magnetics.json as source-only rules, with the unit-spelling table and the blocked-reason guard; the landed map holds 27 loop rules (magFlxLp1..27 -> flux_loop/flux/data 0..26), 17 probe rules (magPbTC1..17 -> b_field_pol_probe/field/data 0..16), all source-only, the unit table and the guard test.",
+    "manifest": "read; status complete, one commit 4d4c3b21, tests naming the two-file gate at 35 passed, test_logs naming gate-head.txt and two negative-control logs, negative_control_log naming the first-two-loops swap.",
+    "write_paths": "git diff --name-status b9b6600a..4d4c3b21 lists exactly the four declared paths and nothing else; this reviewer wrote only the fenced record paths."
+  },
+  "justifications": {
+    "durability": "every guard has teeth -- the declared swap reddens the ordering and pin tests (2 failed, EXIT=1, reproduced) and the guard condition trips on a self-contradictory reason while respecting \"do not corroborate\" -- but the unit-table coverage is unverified (checked > 0, :370) and the guard's trigger is the narrow literal \"E101154 alone\" (:412).",
+    "evidence": "the node's gate reproduces independently -- 35 passed EXIT=0 in a scratch extraction of 4d4c3b21 (gate-head-review.txt) -- and the declared swap reproduces (2 failed, 21 passed, EXIT=1, negative-control-review.txt); docked one because test_eddb_unit_spellings_resolve_to_each_bound_rule (:370) asserts only checked > 0 and silently skips any bound channel absent from the cache.",
+    "fit": "the tests follow the file's _group/_channel idiom (tests/data/test_jt60sa_signal_maps.py:60), ruff check tests/data/test_jt60sa_signal_maps.py passes, the commit carries a conventional subject and a body, and no plan, ticket or attribution string appears.",
+    "goal_fidelity": "the map holds all 27 loop and 17 probe rules in SELENE order with validation_state source-only (imas_ambix/data/maps/jt-60sa/magnetics.json), plus the unit table and the guard the goal names.",
+    "reuse": "no capability is forked -- the tests reuse PACKAGED_MACHINE_MAP_ROOT and load_packaged_signal_map, and jt-60sa-eddb-units.json is a new authoring-time spelling table with no existing owner to extend.",
+    "scope_discipline": "git diff --name-status b9b6600a..4d4c3b21 lists only the four declared paths; the unused figure directory is untouched and no plan file is edited."
+  },
+  "project": "imas-ambix",
+  "raw_text": "Second review of run r-20261006T164216179694-jtmm-loop-probe-bindings (plan imas-ambix:jt60sa-machine-map section 5), read at its single head 4d4c3b212894f32f5895cd13d24ecf1200eea83f on base b9b6600a2e33cb10aff44dd2976e0f67b9a4fd72. The node writes the second-wave pulse bindings: it binds the 27 raw SELENE flux loops and 17 raw tangential probes, blocks the processed PSRC alternates naming their raw partner, blocks the channels beyond SELENE, adds the packaged EDDB unit-spelling table with its test, pins each raw channel to its processed partner at Pearson r > 0.999, and adds the blocked-reason guard. This reviewer extracted the committed tree to a node-local scratch (git archive 4d4c3b21), ran the node's own gate there in the shared project environment, and falsified the declared swap. Nothing ran on a GPU node.\n\nVERDICT goal: the node goal is to bind JT-60SA's 27 SELENE flux loops and 17 tangential probes in magnetics.json as source-only rules, with the unit-spelling table and the blocked-reason guard; the landed map holds 27 loop rules (magFlxLp1..27 -> magnetics/flux_loop/flux/data 0..26) and 17 probe rules (magPbTC1..17 -> magnetics/b_field_pol_probe/field/data 0..16), all validation_state source-only, the jt-60sa-eddb-units.json table (A/Wb/T) and the guard test (imas_ambix/data/maps/jt-60sa/magnetics.json).\nVERDICT done_when: the done_when is the two-file gate at 35 passed plus the map contents; the gate reproduces independently in a scratch extraction of 4d4c3b21 (35 passed, EXIT=0) and the map validates and loads (45 signals, 57 blocked, every rule source-only, no signal/blocked source overlap).\nVERDICT write_paths: git diff --name-status b9b6600a..4d4c3b21 lists exactly the four declared paths (imas_ambix/data/maps/jt-60sa/magnetics.json, imas_ambix/data/machine_maps/jt-60sa-eddb-units.json, tests/data/test_jt60sa_signal_maps.py, docs/evidence/fragments/jt60sa-machine-map/jtmm-loop-probe-bindings.html) and nothing else; this reviewer wrote only the fenced record paths.\nVERDICT manifest: read; status complete, one commit 4d4c3b21, tests naming the two-file gate at 35 passed, test_logs naming gate-head.txt and two negative-control logs, and negative_control_log naming the first-two-loops swap.\nVERDICT diff: read commit by commit; the single commit 4d4c3b21 (+1250/-3 over four files) writes the 27 loop and 17 probe rules, 44 PSRC blocked alternates each naming its raw partner, 13 beyond-SELENE blocks, the unit table and its test, the two Pearson pin tests and the blocked-reason guard.\nCALL_SITES: imas_ambix/data/signal_map.py:641, imas_ambix/data/pulse_mint.py:311, imas_ambix/data/virtual_zarr.py, imas_ambix/data/tokamap_export.py:281\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: the map holds all 27 loop and 17 probe rules in SELENE order with validation_state source-only (imas_ambix/data/maps/jt-60sa/magnetics.json), plus the unit table and the guard the goal names.\nSCORE evidence: 19\nJUSTIFICATION evidence: the node's gate reproduces independently -- 35 passed EXIT=0 in a scratch extraction of 4d4c3b21 (gate-head-review.txt) -- and the declared swap reproduces (2 failed, 21 passed, EXIT=1, negative-control-review.txt); docked one because test_eddb_unit_spellings_resolve_to_each_bound_rule (:370) asserts only checked > 0 and silently skips any bound channel absent from the cache.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff --name-status b9b6600a..4d4c3b21 lists only the four declared paths; the unused figure directory is untouched and no plan file is edited.\nSCORE durability: 18\nJUSTIFICATION durability: every guard has teeth -- the declared swap reddens the ordering and pin tests (2 failed, EXIT=1, reproduced) and the guard condition trips on a self-contradictory reason while respecting \"do not corroborate\" -- but the unit-table coverage is unverified (checked > 0, :370) and the guard's trigger is the narrow literal \"E101154 alone\" (:412).\nSCORE fit: 20\nJUSTIFICATION fit: the tests follow the file's _group/_channel idiom (tests/data/test_jt60sa_signal_maps.py:60), ruff check tests/data/test_jt60sa_signal_maps.py passes, the commit carries a conventional subject and a body, and no plan, ticket or attribution string appears.\nSCORE reuse: 20\nJUSTIFICATION reuse: no capability is forked -- the tests reuse PACKAGED_MACHINE_MAP_ROOT and load_packaged_signal_map, and jt-60sa-eddb-units.json is a new authoring-time spelling table with no existing owner to extend.\nFINDING tests/data/test_jt60sa_signal_maps.py:370 follow-on: the unit-table coverage is bounded by `assert checked > 0` while the two continues at :357/:360 silently skip any bound rule whose source channel is absent from the E101154 cache, so the test can pass while most bindings are never checked; the loop and probe channels are separately guaranteed present by the pin tests, but Ip and the pf_active/tf channels are not, so a wrong table entry for those would go unseen.\nFINDING tests/data/test_jt60sa_signal_maps.py:412 follow-on: the blocked-reason guard triggers on the literal substring \"E101154 alone\", so a future reason that rests a choice on E101154 without the word \"alone\" (for example \"rests on E101154\") while citing a corroborating shot would not be caught, which is the exact self-contradiction the guard exists to stop.\n",
+  "review_run_id": "r-20261006T170456653084-review-of-jtmm-loop-probe-bindings",
+  "reviewed_base_sha": "b9b6600a2e33cb10aff44dd2976e0f67b9a4fd72",
+  "reviewed_head_sha": "4d4c3b212894f32f5895cd13d24ecf1200eea83f",
+  "reviewed_run_id": "r-20261006T164216179694-jtmm-loop-probe-bindings",
+  "reviewer": {
+    "backend": "clive",
+    "effort": "high",
+    "model": "deepseek-v4.1-flash"
+  },
+  "rubric": "code",
+  "scores": {
+    "durability": 18,
+    "evidence": 19,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "timestamp": "2026-10-06T17:20:00+00:00",
+  "total": 117
+}

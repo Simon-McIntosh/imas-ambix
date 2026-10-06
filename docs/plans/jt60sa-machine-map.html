@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.81">
-<meta name="plan-version" content="187">
+<meta name="plan-version" content="188">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -1164,6 +1164,9 @@
 </div>
 <div class="r-comment" data-section="s5" data-id="c-run-r-20261006T164216179694-jtmm-loop-probe-bindings" data-who="reckon-build" data-when="2026-10-06T17:04:30.190Z">
     <div class="r-comment-body"><p>magnetics.json binds raw MDAC magFlxLp1..27 to flux-loop indices 0..26 and magPbTC1..17 to probe indices 0..16 as source-only rules with each processed PSRC alternate blocked naming its raw partner and the beyond-SELENE raw channels magFlxLp28..34 / magPbTC18..23 blocked; jt-60sa-eddb-units.json maps A/Wb/T; the gate is 35 passed EXIT=0 and the raw-to-processed identity pin holds at Pearson r 0.9995..1.0000 (loops) and 0.9998..1.0000 (probes) on E101154.</p></div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-run-r-20261006T170456653084-review-of-jtmm-loop-probe-bindings" data-who="reckon-build" data-when="2026-10-06T17:16:09.269Z">
+    <div class="r-comment-body"><p>review of run r-20261006T164216179694-jtmm-loop-probe-bindings stored parsed over b9b6600a..4d4c3b21 with all 6 dimensions scored (goal_fidelity 20, evidence 19, scope_discipline 20, durability 18, fit 20, reuse 20; total 117/120) and two follow-on findings, none blocking; the node&#x27;s two-file gate (35 passed EXIT=0) and its declared first-two-loops swap (2 failed, EXIT=1) both reproduced independently in a git-archive scratch of 4d4c3b21.</p></div>
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20261006T155904453024-jtmm-eqdb-entry-probe" data-who="reckon-build" data-when="2026-10-06T16:15:48.720Z">
     <div class="r-comment-body"><p>docs/evidence/fragments/jt60sa-machine-map/jtmm-eqdb-entry-probe.html — EQDB reader entry is the shipped eqread_pac Python package loading the prebuilt /analysis/lib/libFLEDDPIC.so via ctypes (GetTimeList/GetEqData/GetEqItem), no Fortran build; E101154 returns 105 FAME time slices (500-11500 ms) through it and 0 SELENE eqdbms slices; record schema (NSR/NSZ/NV, RG, ZG, PSI, PDS, FDS, RSU/ZSU, RAXIS/ZAXIS, TTCU, EQTIM, ...) quoted from the reader's NameList.</p></div>
