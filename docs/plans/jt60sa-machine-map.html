@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85">
 <meta name="plan-impl" content="0.7">
-<meta name="plan-version" content="152">
+<meta name="plan-version" content="155">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -234,8 +234,24 @@
       codex EDAS scanner from the workstation so the same catalogue lands in the graph as
       FacilitySignal nodes beside the handbook pages it already holds; publish the join as
       evidence. Only then are the
-      magnetics bindings written, with <code>sign_convention: unknown-unvalidated</code> on
-      every signed quantity until §6 replaces it. Unit strings in EDDB are free text
+      magnetics bindings written, with <code>validation_state: source-only</code> on every
+      signal rule whose sign or scale is not yet measured, until §6 replaces it. A pulse
+      signal map has no <code>sign_convention</code>: its sign is the numeric
+      <code>channel_factor</code> (<code>imas_ambix/data/signal_map.py</code> <code>SignalRule</code>),
+      so the landed JT-60SA maps hold an assumed +1 whose caveat lives only in prose. The
+      lead's choice of 2026-10-06 (decision <code>signal-rule-validation-state</code>) gives
+      <code>SignalRule</code> one required field, <code>validation_state</code>, with the machine
+      map's own vocabulary (<code>source-only</code>, <code>corpus-validated</code>, held once in
+      <code>imas_ambix/data/machine_map.py</code> and imported rather than copied).
+      <code>channel_factor</code> still carries the value. Every packaged signal map declares it per
+      rule: MAST's one rule is <code>corpus-validated</code>, and every JT-60SA rule is
+      <code>source-only</code> until §6 measures its sign and scale and flips it. A reader that
+      needs a proven convention can refuse a <code>source-only</code> rule, and the tokamap
+      exporter carries the state into the rule's comment. The node
+      <code>jtmm-signal-rule-validation-state</code> lands the field, its validation, the four map
+      files and their tests, before the second-wave binding node edits
+      <code>magnetics.json</code>. It adds one schema field and retires nothing, because no
+      signal-rule validation state exists. Unit strings in EDDB are free text
       (<code>KA</code>, <code>DEG</code>, <code>T.m</code>, <code>deg. C</code>); the census
       produces the normalisation table that maps each to a DD unit, checked with the
       imas-cx server's path and unit tools, and a string that cannot be normalised blocks
@@ -307,8 +323,8 @@
       <code>magnetics.json</code>. It binds the raw acquisition where it exists, because §6's vacuum
       shots carry no PSRC, and declares the processed channel as the blocked alternate naming it,
       as the first wave does for the two coil-current chains. A probe with no raw channel binds its
-      processed PSRC channel and says so in its evidence. Every signed binding carries
-      <code>sign_convention: unknown-unvalidated</code> until §6 replaces it. The loops and probes
+      processed PSRC channel and says so in its evidence. Every new rule is
+      <code>validation_state: source-only</code> until §6 replaces it. The loops and probes
       beyond SELENE's 27 and 17 enter as source qualifications stating that SELENE does not read
       them and the description carries no position for them. The same node writes the
       unit-spelling table this section describes, with its test, and adds the guard carried over
@@ -496,9 +512,8 @@
       internal inductance, axis position, X-point height, strike-point angles, boundary gaps and
       <code>Bt·R</code>. §6 binds them to <code>equilibrium/time_slice/global_quantities</code> and
       <code>boundary</code> leaves and to <code>vacuum_toroidal_field</code> in an equilibrium signal
-      map under <code>imas_ambix/data/maps/jt-60sa/</code>, with
-      <code>sign_convention: unknown-unvalidated</code> on every signed quantity, as §5 does for
-      magnetics. They are time series in EDDB, so they ride the §3 path unchanged, and the FAME
+      map under <code>imas_ambix/data/maps/jt-60sa/</code>, every rule
+      <code>validation_state: source-only</code>, as §5 does for magnetics. They are time series in EDDB, so they ride the §3 path unchanged, and the FAME
       loader reads them through that map. None is a <code>profiles_2d</code> binding, so the gate's
       measure is untouched. The second is SELENE's offline equilibria. The server holds the SELENE
       sources, the equilibrium database client (<code>client_eqdbms</code>) and the FAME reader
@@ -694,7 +709,8 @@
       <li>Rebind the SELENE deck as range-scoped description bindings (§4); build the
         geometry table; pass the identity assertions.</li>
       <li>Vacuum-shot adjudication and COCOS identification (§6); replace every
-        <code>unknown-unvalidated</code> that the data settles.</li>
+        <code>unknown-unvalidated</code> description sign and every <code>source-only</code>
+        signal rule that the data settles.</li>
       <li>FAME scalar bindings and the EQDB transport (§6), then the SELENE map bindings (§7).</li>
       <li>Stamp the reconstruction baseline on the spine with SELENE as comparator (§7);
         export tokamap and validate it (§2).</li>
@@ -904,6 +920,16 @@
       <button class="r-opt" data-value="eqsle-for-op1">OP1 from EQSLE.DATA, OP2 from coil_vv</button>
       </p>
     <p class="r-dec-rat">Lead&#x27;s choice 2026-10-06, relayed by the figures session and confirmed directly. Both phases are built the same way from their own coil_vv deck: the nlim=51 first-wall polygon as the limiter unit, and the two VV skins as one annular vessel unit&#x27;s outline_inner and outline_outer, with the D-probe rows excluded. The contours are continuous polylines on the same geometry SELENE uses, so the phase comparison is like for like. Rejected: keeping EQSLE.DATA for OP1, which draws the two phases&#x27; walls from different representations.</p>
+    </div>
+<div class="r-dec" data-key="signal-rule-validation-state" data-choice="per-rule-validation-state" data-by="Simon McIntosh" data-when="2026-10-06T15:20:00+00:00" data-sections="s5,s6">
+    <p class="r-dec-q">Where does an unvalidated sign live on a pulse signal-map rule?</p>
+    <p class="r-dec-ctx">Measured 2026-10-06 by the plan&#x27;s design re-review: SignalRule (imas_ambix/data/signal_map.py) has no sign_convention and requires a finite nonzero channel_factor, so the landed JT-60SA magnetics, pf_active and tf maps hold an assumed +1 whose caveat lives only in the evidence string.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="per-rule-validation-state">SignalRule gains a required validation_state with the machine map&#x27;s vocabulary; channel_factor keeps the value</button>
+      <button class="r-opt" data-value="signal-rule-sign-convention">SignalRule gains a sign_convention enum and channel_factor keeps only magnitude</button>
+      <button class="r-opt" data-value="block-until-measured">Every signed JT-60SA rule is a blocked signal until §6 measures it</button>
+      </p>
+    <p class="r-dec-rat">Lead&#x27;s choice 2026-10-06. One required field with the vocabulary the machine map already owns (source-only, corpus-validated) records which rules carry a measured sign and scale, while channel_factor keeps carrying the value, so MAST&#x27;s maps and the tokamap exporter keep their arithmetic. JT-60SA rules are source-only until §6 flips them, and a reader needing a proven convention can refuse them. Rejected: a sign_convention enum on SignalRule, which splits the sign out of channel_factor in every existing map and the exporter; and blocking signed rules, which would stop §6&#x27;s vacuum adjudication from reading the raw channels through the catalogue.</p>
     </div>
 </section>
 
