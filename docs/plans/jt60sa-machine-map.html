@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85">
 <meta name="plan-impl" content="0.7">
-<meta name="plan-version" content="158">
+<meta name="plan-version" content="159">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -1246,6 +1246,9 @@
 </div>
 <div class="r-comment" data-section="s5" data-id="c-20261006-codex-sensor-order" data-who="reckon-build" data-when="2026-10-06T11:40:00Z">
     <div class="r-comment-body"><p>From imas-codex, read 2026-10-06 in <code>/analysis/src/SAselene_v2.0_forPSRC</code> on nakasvr26: SELENE's <code>JLOOP</code>, <code>JTPRB</code> and <code>JNPRB</code> are computational-grid cell indices that <code>MGPOS</code> computes from each sensor's (R,Z) (<code>mgprc.f</code> lines 14-28, <code>eqvacu.f</code> lines 212-229), not a channel-to-position map. The correspondence is the shared sensor index: position I comes from the geometry input's sensor order, and measurement I from the order the data loader (<code>getseldata_v4.2</code>) reads EDDB channels by name. So the flux-loop and probe bindings wait on getseldata's ordered channel-name list for loops and probes, joined index by index to <code>geo.in</code>'s sensor order, which codex will publish once those chunks are in its graph.</p></div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-run-r-20261006T152819119347-review-of-jtmm-sensor-channel-join" data-who="reckon-build" data-when="2026-10-06T15:33:26.493Z">
+    <div class="r-comment-body"><p>Reviewed r-20261006T145754291964-jtmm-sensor-channel-join (fragment jtmm-sensor-channel-join.html at cbcb28c1 vs b86020a3): total 95/120, one blocking finding — PSRC magPbTC18 is called raw-identity though its own table row gives slope -4.197 and r=-0.977 — plus two follow-on findings on the S007 ratio wording and the exact-zero geo join.</p></div>
 </div>
 </section>
 </main>
