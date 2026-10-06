@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+  <meta name="plan-evidence-for" content="jt60sa-machine-map">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <section id="jtmm-observation-time-alignment-landing">
+      <h3>Raw observation read moved onto the view's untransformed accessor</h3>
+      <p><code>VirtualZarrView.raw_series</code> returns one rule's raw source values
+      and that channel's own time base with no compiled transform applied, so a
+      <code>source-only</code> rule's assumed <code>channel_factor</code> sign is not
+      pre-applied and the reader can measure it. <code>read_signal_map_observation</code>
+      now resolves every series through that accessor rather than resolving
+      <code>source_group</code> and <code>source_array</code> itself, interpolates each
+      flux loop onto the plasma-current time base, and refuses a loop whose time span
+      does not cover it instead of aligning by sample index or extrapolating.</p>
+      <p>Measure: <code>uv run --no-sync pytest -p no:cacheprovider
+      tests/data/test_virtual_zarr.py tests/data/test_cocos_convention.py</code> &mdash;
+      <code>23 passed</code>, exit 0; ruff on the four changed paths exits 0. The
+      declared negative control (a same-length loop with shifted times aligned by index)
+      fails both new guards: <code>2 failed, 21 passed</code>, exit 1.</p>
+    </section>
+
+  </main>
+</body>
+</html>
