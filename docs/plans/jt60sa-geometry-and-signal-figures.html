@@ -23,7 +23,7 @@
   <title>JT-60SA Geometry and Signal Figures | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="4">
+<meta name="plan-version" content="5">
 <meta name="plan-modified" content="2026-10-06">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;}">
 </head>
@@ -49,8 +49,8 @@
       Every input is already on GPFS, so no node in this plan contacts the JT-60SA analysis server
       (no <code>ssh jt-60sa</code>, no EDDB call) and none writes under
       <code>/work/projects/imas_gpu/jt60sa</code>. The geometry is the converted description store under
-      <code>JT60SA_DESCRIPTION_DIR</code> (<code>imas_ambix/data/paths.py</code>), <code>OP1/</code> and
-      <code>OP2/</code>, one IMAS netCDF file per IDS (<code>pf_active</code>, <code>pf_passive</code>,
+      <code>JT60SA_DESCRIPTION_DIR</code> (<code>imas_ambix/data/paths.py</code>), one directory per phase
+      map the JT-60SA catalogue declares (OP1 and OP2), one IMAS netCDF file per IDS (<code>pf_active</code>, <code>pf_passive</code>,
       <code>magnetics</code>, <code>wall</code>, <code>tf</code>) at DD 4.1.1, read through
       <code>imas.DBEntry</code>. Measured 2026-10-06: both phases carry twelve PF coils
       (CS1–CS4, EF1–EF6 and the two FPPC coils) with 40, 40, 40, 40, 16, 16, 16, 16, 16, 16, 6 and 6
@@ -72,16 +72,20 @@
       re-deriving its layout; <code>VirtualZarrView</code> is not used because it reads through a
       compiled signal map and none is packaged for JT-60SA yet. The geometry is read from the store
       with <code>imas.DBEntry</code>, not through <code>description_reader.read_geometry_table</code>,
-      the sole acquisition route, for two reasons. That route resolves a packaged machine map, and
-      <code>load_packaged_machine_map</code> serves only <code>mast</code> until the machine map packages
-      JT-60SA. And these figures are evidence of what the converter wrote, which the geometry adapter
-      would transform before the figure saw it. The projection facade in <code>imas_ambix/gs/</code>
+      the sole acquisition route, because these figures are evidence of what the converter wrote and
+      that route hands back the geometry adapter's table, transformed before the figure would see it.
+      The store is still addressed through the catalogue that owns it,
+      <code>imas_ambix/data/machine_maps/jt-60sa.json</code> (landed 2026-10-06): the reader loads it
+      with <code>load_packaged_machine_map("jt-60sa")</code>, takes the root from
+      <code>description_store_root_path()</code>, and joins each phase map's <code>name</code> from
+      <code>catalog.maps</code>, the static-over-map addressing <code>transform_engine</code> applies, so
+      no script names a phase directory itself. The projection facade in <code>imas_ambix/gs/</code>
       (<code>MachineGeometryService.operator()</code> returning <code>OperatorGeometry</code>,
       <code>build_geometry_fields_from_table</code> in <code>geometry_export.py</code>) and the MAST
       cross-section drawn by <code>scripts/validate_mast_geometry.py</code> from it sit downstream of the
-      same route, through <code>machine_selection</code> into <code>description_reader</code>, so they
-      cannot address JT-60SA before the map packages it either; once it does, a figure of the adapted
-      table drawn through that facade is the natural companion to these. The figure scripts consume the
+      same route, through <code>machine_selection</code> into <code>description_reader</code>, and
+      draw the adapted table, so a JT-60SA figure through that facade is a companion to these rather
+      than a substitute for them. The figure scripts consume the
       store and nothing reads geometry back from them, so they open no second acquisition route.
     </p>
     <p>
