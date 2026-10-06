@@ -104,34 +104,43 @@
     <section id="jtmm-vacuum-shot-census-cache">
       <h3>Cached shots</h3>
       <p>Fetched through <code>fetch_channels</code> (no new repository module), one
-      ssh session per shot; each shot's channels are requested once and cached under
-      <code>/work/projects/imas_gpu/jt60sa/&lt;shot&gt;.zarr</code>. The set requested
-      per shot is the raw <code>MDAC</code> loops <code>magFlxLp1..34</code> and probes
-      <code>magPbTC1..23</code>, <code>MDAC/curAVVRC1..4</code>, the ten MMSYS PF coil
-      chains and <code>cur1TFLKAT</code>, and <code>PSRC/Ip</code> (73 channels).</p>
+      ssh session per shot; each shot's channel is requested once and cached under
+      <code>/work/projects/imas_gpu/jt60sa/&lt;shot&gt;.zarr</code>.
+      <code>E100595</code> was taken with the wider channel set (the raw loops and
+      probes plus <code>MDAC/curAVVRC1..4</code>, the ten MMSYS PF coil chains,
+      <code>cur1TFLKAT</code> and <code>PSRC/Ip</code>: 73 channels); the resumed
+      fetches take the required raw <code>MDAC</code> loops <code>magFlxLp1..34</code>
+      and probes <code>magPbTC1..23</code> (57 channels) only.</p>
       <table>
         <thead><tr><th>shot</th><th>role</th><th>requested</th><th>served</th>
           <th>refused</th><th>cold wall time [s]</th><th>bytes on disk</th></tr></thead>
         <tbody>
-<tr><td>E100595</td><td>vacuum</td><td>73</td><td>72</td><td>1 (<code>PSRC/Ip</code>)</td><td>171.5</td><td>108,001,536</td></tr>
+        <tr><td>E100595</td><td>vacuum</td><td>73</td><td>72</td><td>1 (<code>PSRC/Ip</code>)</td><td>171.5</td><td>108,001,536</td></tr>
+        <tr><td>E100579</td><td>vacuum</td><td>57</td><td>57</td><td>0</td><td>308.0</td><td>165,311,455</td></tr>
+        <tr><td>E100642</td><td>vacuum</td><td>57</td><td>57</td><td>0</td><td>230.6</td><td>214,769,356</td></tr>
+        <tr><td>E100658</td><td>plasma</td><td>57</td><td>57</td><td>0</td><td>116.8</td><td>85,675,241</td></tr>
         <tr><td>E101154</td><td>plasma</td><td>&mdash;</td><td>warm</td><td>0</td><td>pre-existing</td><td>236,491,919</td></tr>
         <tr><td>E101173</td><td>plasma</td><td>&mdash;</td><td>warm</td><td>0</td><td>pre-existing</td><td>213,807,361</td></tr>
         </tbody>
       </table>
-      <p>Only <code>E100595</code> of this node's cold-fetch set completed: the
-      <code>jt-60sa</code> ProxyJump chain (the laptop reverse tunnel) served a short
-      command but dropped during every long EDDB batch, so the other four cold
-      fetches (<code>E100579</code>, <code>E100642</code> vacuum;
-      <code>E100658</code>, <code>E100730</code> plasma) failed at the ssh layer
-      before writing a store. The vacuum and plasma targets are therefore
-      <em>not</em> met by this node: only <code>E100595</code> (vacuum) is newly
-      cached, against the three-plus-three required. <code>E101154</code> and
-      <code>E101173</code> were already cached by earlier cold-fetch nodes and are
-      served warm here (<code>fetch_channels</code> makes no transport call for a
-      cached channel); <code>E101154</code> is the shot whose <code>PSRC/Ip</code>
-      draws the ~1 MA flat top. <code>E100595</code> serves 72 of 73 requested
-      channels (the refusal is <code>PSRC/Ip</code>, absent on a vacuum shot) and
-      writes 108 MB.</p>
+      <p>Three vacuum (<code>E100595</code>, <code>E100579</code>,
+      <code>E100642</code>) and three plasma (<code>E100658</code>,
+      <code>E101154</code>, <code>E101173</code>) shots are cached, each channel
+      fetched once. <code>E101154</code> and <code>E101173</code> were already cached
+      by earlier cold-fetch nodes and are served warm here
+      (<code>fetch_channels</code> makes no transport call for a cached channel);
+      <code>E101154</code> is the shot whose <code>PSRC/Ip</code> draws the ~1 MA flat
+      top. <code>E100595</code> serves 72 of 73 requested channels (the refusal is
+      <code>PSRC/Ip</code>, absent on a vacuum shot).</p>
+      <p>The first cold wave failed at the ssh layer: the <code>jt-60sa</code>
+      ProxyJump chain (laptop reverse tunnel) carried a short command but dropped
+      during every long EDDB batch (exit 255, broken pipe, &ldquo;Connection closed
+      by UNKNOWN&rdquo;). The resumed wave gave each fetch its own connection and
+      widened the keepalive tolerance
+      (<code>ServerAliveInterval=30</code>, <code>ServerAliveCountMax=10</code>), and
+      then the batches ran to completion. <code>E100730</code> (plasma) failed twice on
+      the resumed wave (&ldquo;server not responding&rdquo;, then refused) and is
+      uncached; the three-plus-three target is met without it.</p>
     </section>
 
     <section id="jtmm-vacuum-shot-census-negative-control">
