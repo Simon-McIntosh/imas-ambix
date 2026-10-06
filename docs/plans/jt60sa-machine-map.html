@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.92">
-<meta name="plan-version" content="255">
+<meta name="plan-version" content="256">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -683,7 +683,11 @@
       time vector, and an EQDB record is psi on a two-dimensional grid with its boundary and
       profiles, so <code>eddb.py</code> gains a grid record writer beside <code>write_channel</code>
       under the same <code>{shot}.zarr/{category}/{name}</code> layout and the same
-      refuse-to-overwrite rule, rather than a second store over <code>JT60SA_ROOT</code>. The two
+      refuse-to-overwrite rule, rather than a second store over <code>JT60SA_ROOT</code>. That layout
+      already has an owner, <code>channel_path</code>, so the grid writer resolves every path it
+      writes through <code>channel_path</code>, with the record's category and name, and builds no
+      path of its own. The layout then stays single, which is what lets the two writers share one
+      store. The two
       writers must share the store's invariants, and today two of them are inline statements in
       <code>write_channel</code>'s body, not code a second writer could call: the pulse group's
       <code>EDDB_TOKEN_ATTR</code> token match and the overwrite refusal. So the node that adds the
