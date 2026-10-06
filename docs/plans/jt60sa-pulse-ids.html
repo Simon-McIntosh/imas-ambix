@@ -21,12 +21,12 @@
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-tags" content="jt-60sa,machine-map,equilibrium,figures">
   <meta name="plan-informs" content="jt60sa-machine-map">
-  <meta name="plan-section-depends-on" content="{&quot;s2&quot;: [&quot;jt60sa-machine-map#s7&quot;], &quot;s3&quot;: [&quot;imas-ink:geometry-figure-vessel-units#s1&quot;], &quot;s4&quot;: [&quot;imas-ink:geometry-figure-vessel-units#s1&quot;]}">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;}">
+  <meta name="plan-section-depends-on" content="{&quot;s2&quot;: [&quot;jt60sa-machine-map#s7&quot;], &quot;s3&quot;: [&quot;imas-ink:geometry-figure-vessel-units#s1&quot;], &quot;s4&quot;: [&quot;imas-ink:geometry-figure-vessel-units#s1&quot;, &quot;imas-ink:geometry-figure-vessel-units#s5&quot;]}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;}">
   <title>JT-60SA Pulse IDSs and Equilibrium Animation | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="2">
+<meta name="plan-version" content="6">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -66,24 +66,52 @@
       description store already uses.
     </p>
     <p>
-      The writer extends the two owners rather than adding a third path: the description comes
-      from <code>StoreEngine</code> and the samples from the compiled signal map, so a unit, sign or
+      The join lives in one module, <code>imas_ambix/data/pulse_mint.py</code>, behind one function,
+      <code>mint_pulse</code>. It takes the machine, the shot and an output root, and returns a
+      receipt naming each IDS written, each time-dependent leaf filled, and each declared signal
+      left out with its reason. The description comes whole from the phase directory the catalogue
+      selects: <code>map_for_shot</code> and the catalogue's <code>static-over-map</code> layout,
+      the same <code>{root}/{map name}/{ids}.nc</code> that <code>NetCDFTransformEngine</code> opens.
+      So the static content is the converter's own output, never re-derived. The samples come from
+      the compiled signal map through <code>VirtualZarrView.for_target</code>, so a unit, sign or
       COCOS factor is applied in exactly the place it is applied today. A signal the maps block
       (the second TF chain, the PF chains the cached shots do not corroborate) is not written.
-      <code>ids_properties.homogeneous_time</code> is 1 only when every signal written into that IDS
-      shares one time base, and otherwise 0 with each signal carrying its own time vector. The
-      entry point is a <code>mint</code> command beside the existing ones in
-      <code>imas_ambix/data/cli.py</code>, taking the machine and the shot.
+      Neither FPPC coil has a served channel, so <code>FPPC_UP</code> and <code>FPPC_DOWN</code>
+      carry geometry and no current. <code>ids_properties.homogeneous_time</code> is 1 only when
+      every signal written into that IDS shares one time base, and otherwise 0 with each signal
+      carrying its own time vector. That rule, which leaf takes which time base, and the write
+      layout live in <code>pulse_mint.py</code> and nowhere in the CLI. Each IDS is written with
+      <code>imas.DBEntry(path, "w", dd_version=...)</code> and <code>put</code>, the call
+      <code>selene_deck.write_phase_description</code> makes for the description store.
+      <code>imas_ambix/bench/store_arms.py</code> <code>write_imas_netcdf</code> is a benchmark arm
+      with its own receipt type, and the data package does not import from the bench.
     </p>
     <p>
-      Done-when: <code>imas-ambix data mint --machine jt-60sa --shot 101154</code> writes
-      <code>pf_active</code>, <code>pf_passive</code>, <code>wall</code>, <code>magnetics</code> and
-      <code>tf</code> for E101154, and a test reads each back through <code>imas.DBEntry</code> at
-      DD 4.1.1. In that test the 12 coils' currents equal the compiled signal map applied to the
-      cached channels sample for sample, <code>magnetics/ip</code> peaks near 1&nbsp;MA, and the static
-      geometry equals the OP1 description byte for byte. Minting a shot with no cache refuses and
+      The interface account: one public function, <code>mint_pulse</code>, and one command,
+      <code>mint</code>, in <code>imas_ambix/data/cli.py</code>, taking <code>--machine</code>,
+      <code>--shot</code> and <code>--out</code>. The command is a thin entry over the function. It
+      retires nothing because no existing data command writes an IDS: <code>download</code> fetches
+      raw sources, <code>encode-shot</code> and <code>bulk-encode-signals</code> write token stores,
+      and <code>manifest</code>, <code>inventory</code>, <code>audit</code> and <code>status</code>
+      read. <a href="jt60sa-facility-mint">jt60sa-facility-mint</a> §2 and §3 package this same
+      command at the facility, so it is the one entry point both plans share.
+    </p>
+    <p>
+      Done-when: <code>imas-ambix data mint --machine jt-60sa --shot 101154 --out &lt;dir&gt;</code>
+      writes <code>pf_active</code>, <code>pf_passive</code>, <code>wall</code>, <code>magnetics</code>
+      and <code>tf</code> for E101154, and a test reads each back through <code>imas.DBEntry</code> at
+      DD 4.1.1. In that test the 10 coils the signal map serves (CS1 to CS4, EF1 to EF6) carry
+      currents equal to the compiled signal map applied to the cached channels sample for sample,
+      <code>FPPC_UP</code> and <code>FPPC_DOWN</code> carry none, the TF coil current equals the
+      served TF chain, and <code>magnetics/ip</code> peaks near 1&nbsp;MA. For each IDS,
+      <code>imas.util.idsdiffgen</code> between the minted IDS and the OP1 description yields no path
+      outside <code>ids_properties</code> other than the time-dependent leaves the receipt names, so
+      the static content is the description unchanged. Minting a shot with no cache refuses and
       names the missing cache. The mint reads only the cache and the store and never contacts the
-      JT-60SA server.
+      JT-60SA server. The node's test writes to a temporary directory. E101154 is minted into
+      <code>/work/projects/imas_gpu/jt60sa/ids/101154/</code> only once the description store carries
+      the corrected probe axis (<a href="jt60sa-machine-map">jt60sa-machine-map</a>
+      <code>jtmm-probe-axis-store</code>), because the mint copies the description's probe angles.
     </p>
 
     <h2 id="s2">§2 — The equilibrium IDS, with its topology</h2>
@@ -105,10 +133,19 @@
       <code>constraints.x_point[].position_reconstructed</code>; and each strike point in
       <code>constraints.strike_point[].position_reconstructed</code>. Where the EQDB record already
       carries the X-points and strike points, the map binds them. Where it does not, they are
-      computed from the mapped psi and the coil_vv first wall by nova's equilibrium topology
-      (<code>nova/equilibrium</code>), which owns separatrix and X-point finding, rather than by a
-      new finder in ambix. The decision <code>topology-source</code> settles which, once the
-      machine map's open question <code>eqdb-reader</code> fixes the record's fields.
+      computed from the mapped psi and the coil_vv first wall, and never by a new finder. Two
+      owners can compute them. nova's equilibrium topology (<code>nova/equilibrium</code>) owns
+      separatrix and X-point finding. In ambix, <code>imas_ambix/latent/topology.py</code>
+      <code>read_topology</code> already finds the O-point and X-points from psi by critical-point
+      search, and <code>imas_ambix/worldmodel/camera_topology_targets.py</code>
+      <code>_strike_points</code> intersects the separatrix level set with a wall polygon for MAST's
+      evaluator labels. The other ambix sites are not finders:
+      <code>imas_ambix/worldmodel/equilibrium_labels.py</code> <code>xpoint_null_set</code> filters
+      nulls a store already carries, and <code>imas_ambix/challenge/convention.py</code>
+      <code>_axis_and_boundary</code> samples EFIT rows. The decision <code>topology-source</code>
+      settles which owner serves, once the machine map's open question <code>eqdb-reader</code> fixes
+      the record's fields. If it is computed, the decision says whether
+      <code>latent/topology.py</code> serves as it is, or is set aside for nova and why.
     </p>
     <p>
       Done-when: E101154's minted <code>equilibrium</code> reads back through
@@ -120,41 +157,25 @@
       slice without falling back to an empty field.
     </p>
 
+    <section class="section-landed">
+  <header><span class="badge badge-shipped">&#10003; landed 2026-10-06</span>
     <h2 id="s3">§3 — What imas-ink provides, and what it must add</h2>
-<section data-reckon="section" data-id="s3" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
-    <p>
-      imas-ink already draws most of what the animation needs, and by the lead's figure-owner
-      ruling every JT-60SA figure renders through it, in its own style and without labels.
-      <code>imas_ink.animate.animate_pulse(eq_ids, geom)</code> iterates an equilibrium IDS's time
-      slices, renders each with <code>imas_ink.figures.equilibrium_figure_mpl</code> and encodes a
-      GIF. That figure layers flux contours, the separatrix, the O-point, X-point markers, divertor
-      legs and strike points over <code>geometry_figure_mpl</code>: the wall outline, coil outlines,
-      probes and flux loops. <code>imas_ink.extract.extract_geometry(wall, pf_active, magnetics)</code>
-      builds that geometry from IDSs. Coils are drawn as outlines; the animation carries no
-      coil-current shading, by the lead's decision <code>animation-content</code>.
-    </p>
-    <p>
-      Two things are missing for JT-60SA, and both belong to imas-ink, not ambix. First, the vessel:
-      the minted <code>wall</code> carries the vacuum vessel as an annular unit
-      (<code>description_2d/vessel/unit/annular/outline_inner</code> and <code>outline_outer</code>),
-      which imas-ink does not draw yet. imas-ink's own plan
-      <code>imas-ink:geometry-figure-vessel-units</code> owns that, and §4 waits on it. Second,
-      <code>animate_pulse</code> does not pass <code>equilibrium_figure_mpl</code>'s
-      <code>show_probes</code> and <code>show_flux_loops</code> through, so the animation cannot leave
-      the 17 probes and 27 flux loops out of an equilibrium frame. If the lead keeps sensors out of
-      the animation, that pass-through is a node in imas-ink's repository, recorded on its plan,
-      never a wrapper in ambix. This section is complete when both needs are recorded on imas-ink's
-      plan and the decision <code>animation-sensors</code> is locked.
-    </p>
+<section data-reckon="section" data-id="s3" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="done" data-links=""></section></header>
+  <p class="landed-summary">imas-ink's two needs are on its own plan: the vessel drawing shipped as <code>imas-ink:geometry-figure-vessel-units</code> §1, and the sensor pass-through in <code>animate_pulse</code> is its §5. <code>animation-sensors</code> locked to <code>omit</code>. <a href="s3">full record</a></p>
+</section>
 
     <h2 id="s4">§4 — The E101154 animation, from IDSs alone</h2>
 <section data-reckon="section" data-id="s4" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
     <p>
-      A short script, <code>scripts/jt60sa_pulse_animation.py</code>, opens only the minted IDSs
-      in <code>/work/projects/imas_gpu/jt60sa/ids/101154/</code>, builds the geometry with
-      <code>extract_geometry</code> from <code>wall</code>, <code>pf_active</code> and
-      <code>magnetics</code>, and calls <code>animate_pulse</code> on <code>equilibrium</code>. It
-      draws nothing itself and holds no style constant, so a rendering change is an imas-ink change.
+      The animation is a second output of <code>scripts/figures_jt60sa_geometry.py</code>, the one
+      JT-60SA imas-ink driver, rather than a parallel script. That script already opens a directory
+      of <code>{ids}.nc</code> files at the catalogue's DD version and builds the geometry with
+      <code>extract_geometry</code>, and a minted pulse directory has the same layout. It gains one
+      option naming the pulse. With it, the script opens only the minted IDSs in
+      <code>/work/projects/imas_gpu/jt60sa/ids/101154/</code>, builds the geometry from
+      <code>wall</code>, <code>pf_active</code> and <code>magnetics</code>, and calls
+      <code>animate_pulse</code> on <code>equilibrium</code> with the probes and flux loops left out.
+      It draws nothing itself and holds no style constant, so a rendering change is an imas-ink change.
       The GIF is written to <code>docs/figures/jt60sa-pulse/E101154.gif</code>; it is raster by
       nature, so no SVG twin is written.
     </p>
@@ -192,13 +213,13 @@
       </p>
     <p class="r-dec-rat"></p>
     </div>
-<div class="r-dec" data-key="animation-sensors" data-choice="" data-by="" data-when="" data-sections="s3,s4">
+<div class="r-dec" data-key="animation-sensors" data-choice="omit" data-by="Simon McIntosh" data-when="2026-10-06T15:35:25+00:00" data-sections="s3,s4">
     <p class="r-dec-q">Do the 17 probes and 27 flux loops appear in the animation frames?</p>
     <p class="r-dec-opts">
-      <button class="r-opt" data-value="omit">Omit them (needs an imas-ink pass-through)</button>
+      <button class="r-opt chosen" data-value="omit">Omit them (needs an imas-ink pass-through)</button>
       <button class="r-opt" data-value="show">Show them, as animate_pulse does today</button>
       </p>
-    <p class="r-dec-rat"></p>
+    <p class="r-dec-rat">The lead&#x27;s ruling: the 17 probes and 27 flux loops are left out of the animation frames, which carry equilibrium information only. The pass-through this needs is imas-ink:geometry-figure-vessel-units §5, never a wrapper in ambix.</p>
     </div>
 </section>
 
@@ -213,6 +234,9 @@
   <section data-reckon="comments" id="comments" class="r-comments">
 <div class="r-comment" data-section="s1" data-id="c-20261006-jtpi-s1-ready" data-who="reckon-create" data-when="2026-10-06T11:40:00Z">
     <div class="r-comment-body"><p>§1 is dispatchable now: the catalogue, the three signal maps and the E101154 cache it joins have all landed, and it waits on nothing. jt60sa-facility-mint §2 and §3 package this section's writer.</p></div>
+</div>
+<div class="r-comment" data-section="s1" data-id="c-20261006-jtpi-design-review" data-who="reckon-build" data-when="2026-10-06T15:45:00Z">
+    <div class="r-comment-body"><p>Design review <code>r-20261006T143944825482</code> (5 findings, each verified against the tree) answered in plan v3–v5. <b>deep_module</b>, acted: §1 names <code>imas_ambix/data/pulse_mint.py</code> <code>mint_pulse</code> as the one owner of the join; the CLI is a thin entry. <b>interface_budget</b>, acted: §1 carries the interface account. One function and one command, retiring nothing, because no data command writes an IDS. <b>duplicate_owner</b>: acted on the identity check, declined on the writer. The static-content assertion now uses <code>imas.util.idsdiffgen</code>, which compares every leaf. <code>machine_description_bytes</code> covers only the catalogue's declared bindings and would need a read path that no engine opens for a minted directory. The writer stays the one <code>DBEntry.put</code> call <code>selene_deck.write_phase_description</code> makes; <code>bench/store_arms.write_imas_netcdf</code> is a benchmark arm with its own receipt, and data does not import from bench. <b>reuse_search</b>, acted: §2 names <code>latent/topology.read_topology</code> and <code>camera_topology_targets._strike_points</code> as ambix's finders. The decision <code>topology-source</code> must say whether they serve. <b>thin_wrapper</b>, acted: §4 extends <code>scripts/figures_jt60sa_geometry.py</code> instead of adding a script. Also corrected: the coil count. The OP1 description has 12 coils, but the signal map serves 10 (CS1 to CS4, EF1 to EF6); FPPC_UP and FPPC_DOWN carry no current.</p></div>
 </div>
 <div class="r-comment" data-section="s3" data-id="c-20261006-imas-ink-vessel-shipped" data-who="reckon-build" data-when="2026-10-06T12:30:00Z">
     <div class="r-comment-body"><p>The vessel need is met: <code>imas-ink:geometry-figure-vessel-units</code> shipped (imas-ink main, commits <code>94bd8f3</code>, <code>aca351d</code>, <code>db2ee9f</code>, <code>16fd030</code>, verified on <code>origin/main</code>). <code>imas_ink.extract.extract_vessel_shells</code> reads the annular <code>outline_inner</code> and <code>outline_outer</code>, and <code>MachineGeometry.vessel_shells</code> is drawn by both wall renderers. What remains of this section is the <code>animation-sensors</code> decision and, if it is to omit them, the sensor pass-through in <code>animate_pulse</code>.</p></div>
