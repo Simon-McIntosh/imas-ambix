@@ -1,0 +1,70 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "the reviewed run is an evidence node that writes no test path and runs no test suite; its manifest carries no baseline_suite/after_suite arms. This review ran the section gate itself at base b86020a3 and at head: both arms 35 passed, EXIT=0, so the docs-only fragment adds no test failure. added_failure_count 0 with ids [].",
+  "base_log_revision": "b86020a35783ee1771a4226813fe9361252cbc85",
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-06T15:48:31.690Z",
+  "dispatched_at": "2026-10-06T15:36:22Z",
+  "findings": [
+    {
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-sensor-channel-join.html",
+      "line": "66",
+      "severity": "follow-on",
+      "text": "follow-on: the S007 section at :66-68 says every channel is best matched by the same loop 'with runner-up ratios near 1 (no unique partner)', but the table rows at :77-103 carry ratios from 1.3 to 25.328 (five above 10), so the ratio characterisation is contradicted by the table. The supported reason all 27 fail to resolve is that every channel best-matches the same loop magFluxLp7 (runner-up a different loop), which the table does show; the ratio clause should be restated or dropped. Unchanged by the repair, which touched only the PSRC magPbTC identity text."
+    },
+    {
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-sensor-channel-join.html",
+      "line": "163",
+      "severity": "follow-on",
+      "text": "follow-on: :163-171 reports all 44 codex geo.in positions joining their nearest section-4 description loop/probe at exactly 0.0 mm, which indicates the description R,Z derive from the same SELENE source as the receipt, so the join is a provenance match rather than the independent corroboration the wording implies; the run shows a family-separation control (66.1 mm) but no check that a displaced position would read non-zero. Unchanged by the repair."
+    }
+  ],
+  "head_log_revision": "f2a3ffe19a1d40ccbb9ad874ee291dee5bc2239d",
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "no production call sites found",
+    "diff": "read cbcb28c1 (base b86020a3) and the repair b7517a66: the repair changes 14 lines in the one fragment (identity criterion stated, count 18->17, table unique flag, conclusion), no source and no test.",
+    "done_when": "the done_when names per-channel best PSRC/MDAC match with slope, offset, Pearson r and runner-up ratio, the PSRC-to-raw partner with the MDAC names searched, the geo.in-to-description distance, and a positive control at 27/27; the fragment carries each and after the repair the PSRC identity count is 17 of 23 with channel 18 stated non-identity.",
+    "goal": "measure on E101154 which named EDDB channel each SELENE PID magnetics channel is and which raw MDAC channel each processed probe is, in one evidence fragment; docs/evidence/fragments/jt60sa-machine-map/jtmm-sensor-channel-join.html carries the S007 1..27, S006 1..17, PSRC magPbTC1..23 partner and geo.in tables, so the goal is met.",
+    "manifest": "read the reviewed manifest at HEAD b7517a66; it records status complete, changed_paths the single fragment, commits cbcb28c1 and b7517a66, and the run-dir evidence files.",
+    "write_paths": "the diff is one file, docs/evidence/fragments/jt60sa-machine-map/jtmm-sensor-channel-join.html, inside the declared fragment path; no figure directory was written, which the goal permits."
+  },
+  "justifications": {
+    "durability": "the fragment's numbers carry no executable guard and the repair is prose only, so a transcription error or a reinstatement of the channel-18 identity would pass every check; the plan names no test for this evidence node (the guard is the binding node's carry-over).",
+    "evidence": "the tables reconcile cell-by-cell with the run-dir channel-join-results.json (pc identity 27/27; s006_psrc and s006_mdac 17/17; tc identity 1..17 with channel 18 a=-4.197 r=-0.977 excluded), and the repair states the criterion that excludes channel 18; the two residual follow-ons are the S007 ratio wording contradicted by its own table and the geo-join wording overstating independence.",
+    "fit": "docs/evidence/fragments/jt60sa-machine-map/jtmm-sensor-channel-join.html follows the sibling evidence-fragment idiom, element ids prefixed jtmm-sensor-channel-join, with no plan, sprint or ticket identifier in its content.",
+    "goal_fidelity": "docs/evidence/fragments/jt60sa-machine-map/jtmm-sensor-channel-join.html:14-24 landing, :36-63 the S006 1..17 join, :64-104 the S007 1..27 join, :105-150 the PSRC magPbTC1..23 raw partner, :161-219 the geo.in join \u2014 every element the goal names is present, and the S007 negative result is stated rather than forced to the expected identity.",
+    "reuse": "the diff adds no definition and no loader; no capability the repository owns is forked.",
+    "scope_discipline": "the only changed path across cbcb28c1 and b7517a66 is the declared fragment docs/evidence/fragments/jt60sa-machine-map/jtmm-sensor-channel-join.html; no source, no test, no figure directory."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: measure on E101154 which named EDDB channel each SELENE PID magnetics channel is and which raw MDAC channel each processed probe is, in one evidence fragment; docs/evidence/fragments/jt60sa-machine-map/jtmm-sensor-channel-join.html carries the S007 1..27, S006 1..17, PSRC magPbTC1..23 partner and geo.in tables, so the goal is met.\nVERDICT done_when: the done_when names per-channel best PSRC/MDAC match with slope, offset, Pearson r and runner-up ratio, the PSRC-to-raw partner with the MDAC names searched, the geo.in-to-description distance, and a positive control at 27/27; the fragment carries each and after the repair the PSRC identity count is 17 of 23 with channel 18 stated non-identity.\nVERDICT write_paths: the diff is one file, docs/evidence/fragments/jt60sa-machine-map/jtmm-sensor-channel-join.html, inside the declared fragment path; no figure directory was written, which the goal permits.\nVERDICT manifest: read the reviewed manifest at HEAD b7517a66; it records status complete, changed_paths the single fragment, commits cbcb28c1 and b7517a66, and the run-dir evidence files.\nVERDICT diff: read cbcb28c1 (base b86020a3) and the repair b7517a66: the repair changes 14 lines in the one fragment (identity criterion stated, count 18->17, table unique flag, conclusion), no source and no test.\nCALL_SITES: none\nSCORE goal_fidelity: 17\nJUSTIFICATION goal_fidelity: docs/evidence/fragments/jt60sa-machine-map/jtmm-sensor-channel-join.html:14-24 landing, :36-63 the S006 1..17 join, :64-104 the S007 1..27 join, :105-150 the PSRC magPbTC1..23 raw partner, :161-219 the geo.in join \u2014 every element the goal names is present, and the S007 negative result is stated rather than forced to the expected identity.\nSCORE evidence: 17\nJUSTIFICATION evidence: the tables reconcile cell-by-cell with the run-dir channel-join-results.json (pc identity 27/27; s006_psrc and s006_mdac 17/17; tc identity 1..17 with channel 18 a=-4.197 r=-0.977 excluded), and the repair states the criterion that excludes channel 18; the two residual follow-ons are the S007 ratio wording contradicted by its own table and the geo-join wording overstating independence.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: the only changed path across cbcb28c1 and b7517a66 is the declared fragment docs/evidence/fragments/jt60sa-machine-map/jtmm-sensor-channel-join.html; no source, no test, no figure directory.\nSCORE durability: 6\nJUSTIFICATION durability: the fragment's numbers carry no executable guard and the repair is prose only, so a transcription error or a reinstatement of the channel-18 identity would pass every check; the plan names no test for this evidence node (the guard is the binding node's carry-over).\nSCORE fit: 18\nJUSTIFICATION fit: docs/evidence/fragments/jt60sa-machine-map/jtmm-sensor-channel-join.html follows the sibling evidence-fragment idiom, element ids prefixed jtmm-sensor-channel-join, with no plan, sprint or ticket identifier in its content.\nSCORE reuse: 20\nJUSTIFICATION reuse: the diff adds no definition and no loader; no capability the repository owns is forked.\nFINDING docs/evidence/fragments/jt60sa-machine-map/jtmm-sensor-channel-join.html:66 follow-on: the S007 section at :66-68 says every channel is best matched by the same loop 'with runner-up ratios near 1 (no unique partner)', but the table rows at :77-103 carry ratios from 1.3 to 25.328 (five above 10), so the ratio characterisation is contradicted by the table. The supported reason all 27 fail to resolve is that every channel best-matches the same loop magFluxLp7 (runner-up a different loop), which the table does show; the ratio clause should be restated or dropped. Unchanged by the repair, which touched only the PSRC magPbTC identity text.\nFINDING docs/evidence/fragments/jt60sa-machine-map/jtmm-sensor-channel-join.html:163 follow-on: :163-171 reports all 44 codex geo.in positions joining their nearest section-4 description loop/probe at exactly 0.0 mm, which indicates the description R,Z derive from the same SELENE source as the receipt, so the join is a provenance match rather than the independent corroboration the wording implies; the run shows a family-separation control (66.1 mm) but no check that a displaced position would read non-zero. Unchanged by the repair.\nRESOLVED docs/evidence/fragments/jt60sa-machine-map/jtmm-sensor-channel-join.html:107 resolved at b7517a66: the earlier blocking finding (PSRC magPbTC18 counted as a raw identity at slope -4.197 / r -0.977) is answered. The paragraph at :107-116 now states the identity criterion (index match AND slope near 1 AND high positive r), counts 17 of 23 (i=1..17), gives the range slope 0.995-1.008 / r>0.9998 / ratio>7.8, marks channel 18 as the one index match that is not an identity, the table row at :144 flips unique from yes to no, and the conclusion at :222-224 now reads magPbTC1..17. Verified against channel-join-results.json tc: 1..17 identity, channel 18 a=-4.19704 r=-0.97719 ratio 1.151, 19..23 index mismatch.",
+  "resolved_findings": [
+    {
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-sensor-channel-join.html",
+      "line": "107",
+      "severity": "blocking",
+      "text": "resolved at b7517a66: the earlier blocking finding (PSRC magPbTC18 counted as a raw identity at slope -4.197 / r -0.977) is answered. The paragraph at :107-116 now states the identity criterion (index match AND slope near 1 AND high positive r), counts 17 of 23 (i=1..17), gives the range slope 0.995-1.008 / r>0.9998 / ratio>7.8, marks channel 18 as the one index match that is not an identity, the table row at :144 flips unique from yes to no, and the conclusion at :222-224 now reads magPbTC1..17. Verified against channel-join-results.json tc: 1..17 identity, channel 18 a=-4.19704 r=-0.97719 ratio 1.151, 19..23 index mismatch."
+    }
+  ],
+  "review_run_id": "r-20261006T153615252252-review-of-jtmm-sensor-channel-join",
+  "reviewed_base_sha": "b86020a35783ee1771a4226813fe9361252cbc85",
+  "reviewed_head_sha": "b7517a66bd44e16f450a1935da4070698b7beb11",
+  "reviewed_run_id": "r-20261006T145754291964-jtmm-sensor-channel-join",
+  "reviewer_run_id": "r-20261006T153615252252-review-of-jtmm-sensor-channel-join",
+  "scores": {
+    "durability": 6,
+    "evidence": 17,
+    "fit": 18,
+    "goal_fidelity": 17,
+    "reuse": 20,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "timestamp": "2026-10-06T15:43:21.482970+00:00",
+  "total": 97
+}
