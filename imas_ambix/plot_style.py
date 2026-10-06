@@ -80,15 +80,17 @@ REFERENCE_ROLES: tuple[str, ...] = ("reference", "limit", "model")
 ALL_ROLES: tuple[str, ...] = COMPONENT_ROLES + REFERENCE_ROLES
 
 #: The repository default colour roles.  The two vessel roles are lightness
-#: steps of one hue, because the OP1 and OP2 vessels are the same structure at
-#: the two phase geometries; the remaining components take distinct hues.
+#: steps of one blue hue, because the OP1 and OP2 vessels are the same structure
+#: at the two phase geometries; the remaining components take distinct hues.
+#: Red is reserved for a limit being broken, so no role here is red.  Every
+#: colour holds at least 3:1 contrast against the white chart surface.
 DEFAULT_PALETTE: dict[str, str] = {
-    "pf_coils": "#2a78d6",
-    "vessel_op1": "#eb6834",
-    "vessel_op2": "#9c3d12",
-    "wall": "#1baf7a",
-    "flux_loops": "#eda100",
-    "pickup_probes": "#7b5aa6",
+    "pf_coils": "#872b6d",
+    "vessel_op1": "#588cfe",
+    "vessel_op2": "#345dba",
+    "wall": "#016900",
+    "flux_loops": "#a08d00",
+    "pickup_probes": "#1e9ea7",
     "reference": "#52514e",
     "limit": "#8a8a8a",
     "model": "#0b0b0b",
