@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+  <meta name="plan-evidence-for" content="jt60sa-machine-map">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="jtmm-vacuum-residual-rca-report" data-reckon="evidence">
+      <h3>Vacuum residual: what leaves the turn-corrected prediction short</h3>
+      <p>Read-only. No source written. Operator built from the OP1 machine description (<code>read_geometry_table</code>) with the catalogue drive topology and the emitted probe angles, at <code>imas_ambix/gs/operator.py</code> (worktree revision <code>28a6ec3d</code>); each coil current scaled by its declared ampere-turns per ampere (40 for CS1&ndash;CS4, 16 for EF1&ndash;EF6) before <code>vacuum_prediction</code>. Raw MDAC loops/probes and MMSYS coil currents read with <code>read_channel</code> from <code>/work/projects/imas_gpu/jt60sa</code>. Heavy reads ran in place on the fleet compute node (98dci4-clu-2018, SLURM job 1277272).</p>
+      <table id="jtmm-vacuum-residual-rca-base">
+        <thead><tr><th>Channel</th><th>Shot</th><th>slope</th><th>Pearson r</th><th>free per-coil r</th></tr></thead>
+        <tbody>
+          <tr><td>magFlxLp1</td><td>100595</td><td>-0.0150</td><td>-0.1734</td><td>+0.9972</td></tr>
+          <tr><td>magFlxLp1</td><td>100579</td><td>-0.0102</td><td>-0.9409</td><td>+0.9976</td></tr>
+          <tr><td>magFlxLp1</td><td>100642</td><td>-0.1563</td><td>-0.3637</td><td>+0.9992</td></tr>
+          <tr><td>magFlxLp2</td><td>100595</td><td>+0.0218</td><td>+0.5173</td><td>+0.9886</td></tr>
+          <tr><td>magFlxLp2</td><td>100579</td><td>+0.0101</td><td>+0.8831</td><td>+0.9975</td></tr>
+          <tr><td>magFlxLp2</td><td>100642</td><td>-0.1926</td><td>-0.5144</td><td>+0.9992</td></tr>
+          <tr><td>magFlxLp3</td><td>100595</td><td>+0.0128</td><td>+0.4993</td><td>+0.9860</td></tr>
+          <tr><td>magFlxLp3</td><td>100579</td><td>+0.0041</td><td>+0.7205</td><td>+0.9958</td></tr>
+          <tr><td>magFlxLp3</td><td>100642</td><td>-0.1503</td><td>-0.4700</td><td>+0.9992</td></tr>
+          <tr><td>magFlxLp4</td><td>100595</td><td>+0.0057</td><td>+0.5107</td><td>+0.9780</td></tr>
+          <tr><td>magFlxLp4</td><td>100579</td><td>+0.0006</td><td>+0.2528</td><td>+0.9948</td></tr>
+          <tr><td>magFlxLp4</td><td>100642</td><td>-0.0883</td><td>-0.3652</td><td>+0.9992</td></tr>
+          <tr><td>magFlxLp5</td><td>100595</td><td>+0.0007</td><td>+0.3452</td><td>+0.8411</td></tr>
+          <tr><td>magFlxLp5</td><td>100579</td><td>-0.0015</td><td>-0.7267</td><td>+0.9983</td></tr>
+          <tr><td>magFlxLp5</td><td>100642</td><td>-0.0645</td><td>-0.3477</td><td>+0.9992</td></tr>
+          <tr><td>magFlxLp6</td><td>100595</td><td>-0.0013</td><td>-0.5710</td><td>+0.9896</td></tr>
+          <tr><td>magFlxLp6</td><td>100579</td><td>-0.0016</td><td>-0.9454</td><td>+0.9993</td></tr>
+          <tr><td>magFlxLp6</td><td>100642</td><td>-0.0239</td><td>-0.2372</td><td>+0.9993</td></tr>
+          <tr><td>magFlxLp7</td><td>100595</td><td>-0.3951</td><td>-0.9888</td><td>+0.9965</td></tr>
+          <tr><td>magFlxLp7</td><td>100579</td><td>-0.3622</td><td>-0.9998</td><td>+1.0000</td></tr>
+          <tr><td>magFlxLp7</td><td>100642</td><td>-0.3389</td><td>-0.9992</td><td>+0.9992</td></tr>
+          <tr><td>magFlxLp8</td><td>100595</td><td>-0.0009</td><td>-0.4357</td><td>+0.9843</td></tr>
+          <tr><td>magFlxLp8</td><td>100579</td><td>-0.0008</td><td>-0.8829</td><td>+0.9979</td></tr>
+          <tr><td>magFlxLp8</td><td>100642</td><td>-0.0098</td><td>-0.1487</td><td>+0.9994</td></tr>
+          <tr><td>magFlxLp9</td><td>100595</td><td>+0.0001</td><td>+0.0183</td><td>+0.9862</td></tr>
+          <tr><td>magFlxLp9</td><td>100579</td><td>+0.0002</td><td>+0.1246</td><td>+0.9887</td></tr>
+          <tr><td>magFlxLp9</td><td>100642</td><td>-0.0265</td><td>-0.1751</td><td>+0.9995</td></tr>
+          <tr><td>magFlxLp10</td><td>100595</td><td>+0.0027</td><td>+0.2008</td><td>+0.9849</td></tr>
+          <tr><td>magFlxLp10</td><td>100579</td><td>+0.0028</td><td>+0.6936</td><td>+0.9938</td></tr>
+          <tr><td>magFlxLp10</td><td>100642</td><td>+0.0001</td><td>+0.0006</td><td>+0.9994</td></tr>
+          <tr><td>magFlxLp11</td><td>100595</td><td>+0.0048</td><td>+0.3174</td><td>+0.9766</td></tr>
+          <tr><td>magFlxLp11</td><td>100579</td><td>+0.0048</td><td>+0.7431</td><td>+0.9953</td></tr>
+          <tr><td>magFlxLp11</td><td>100642</td><td>+0.0310</td><td>+0.1111</td><td>+0.9993</td></tr>
+          <tr><td>magFlxLp12</td><td>100595</td><td>+0.0169</td><td>+0.3770</td><td>+0.9831</td></tr>
+          <tr><td>magFlxLp12</td><td>100579</td><td>+0.0103</td><td>+0.5207</td><td>+0.9966</td></tr>
+          <tr><td>magFlxLp12</td><td>100642</td><td>+0.0652</td><td>+0.1143</td><td>+0.9992</td></tr>
+          <tr><td>magFlxLp13</td><td>100595</td><td>-0.0254</td><td>-0.2908</td><td>+0.9579</td></tr>
+          <tr><td>magFlxLp13</td><td>100579</td><td>-0.0342</td><td>-0.6575</td><td>+0.9973</td></tr>
+          <tr><td>magFlxLp13</td><td>100642</td><td>+0.2075</td><td>+0.2954</td><td>+0.9994</td></tr>
+          <tr><td>magFlxLp14</td><td>100595</td><td>-0.0839</td><td>-0.8738</td><td>+0.9113</td></tr>
+          <tr><td>magFlxLp14</td><td>100579</td><td>-0.0573</td><td>-0.7392</td><td>+0.9977</td></tr>
+          <tr><td>magFlxLp14</td><td>100642</td><td>+0.2953</td><td>+0.4065</td><td>+0.9994</td></tr>
+          <tr><td>magFlxLp15</td><td>100595</td><td>-0.1343</td><td>-0.6170</td><td>+0.9943</td></tr>
+          <tr><td>magFlxLp15</td><td>100579</td><td>-0.0541</td><td>-0.9972</td><td>+0.9999</td></tr>
+          <tr><td>magFlxLp15</td><td>100642</td><td>-0.0667</td><td>-0.1400</td><td>+0.9992</td></tr>
+          <tr><td>magFlxLp16</td><td>100595</td><td>-0.2218</td><td>-0.6860</td><td>+0.9943</td></tr>
+          <tr><td>magFlxLp16</td><td>100579</td><td>-0.0404</td><td>-0.9517</td><td>+0.9994</td></tr>
+          <tr><td>magFlxLp16</td><td>100642</td><td>+0.0014</td><td>+0.0031</td><td>+0.9964</td></tr>
+          <tr><td>magFlxLp17</td><td>100595</td><td>-0.3834</td><td>-0.8294</td><td>+0.9949</td></tr>
+          <tr><td>magFlxLp17</td><td>100579</td><td>-0.0077</td><td>-0.2145</td><td>+0.9955</td></tr>
+          <tr><td>magFlxLp17</td><td>100642</td><td>+0.0726</td><td>+0.1620</td><td>+0.9991</td></tr>
+          <tr><td>magFlxLp18</td><td>100595</td><td>-0.4415</td><td>-0.8821</td><td>+0.9949</td></tr>
+          <tr><td>magFlxLp18</td><td>100579</td><td>+0.0016</td><td>+0.0331</td><td>+0.9956</td></tr>
+          <tr><td>magFlxLp18</td><td>100642</td><td>+0.1156</td><td>+0.2709</td><td>+0.9990</td></tr>
+          <tr><td>magFlxLp19</td><td>100595</td><td>-0.4630</td><td>-0.9029</td><td>+0.9946</td></tr>
+          <tr><td>magFlxLp19</td><td>100579</td><td>+0.0043</td><td>+0.0793</td><td>+0.9958</td></tr>
+          <tr><td>magFlxLp19</td><td>100642</td><td>+0.1419</td><td>+0.3434</td><td>+0.9989</td></tr>
+          <tr><td>magFlxLp20</td><td>100595</td><td>-0.4838</td><td>-0.9261</td><td>+0.9938</td></tr>
+          <tr><td>magFlxLp20</td><td>100579</td><td>+0.0043</td><td>+0.0688</td><td>+0.9960</td></tr>
+          <tr><td>magFlxLp20</td><td>100642</td><td>+0.1855</td><td>+0.4753</td><td>+0.9988</td></tr>
+          <tr><td>magFlxLp21</td><td>100595</td><td>-0.4961</td><td>-0.9426</td><td>+0.9930</td></tr>
+          <tr><td>magFlxLp21</td><td>100579</td><td>+0.0010</td><td>+0.0138</td><td>+0.9962</td></tr>
+          <tr><td>magFlxLp21</td><td>100642</td><td>+0.2378</td><td>+0.6460</td><td>+0.9986</td></tr>
+          <tr><td>magFlxLp22</td><td>100595</td><td>-0.4954</td><td>-0.9435</td><td>+0.9924</td></tr>
+          <tr><td>magFlxLp22</td><td>100579</td><td>+0.0029</td><td>+0.0399</td><td>+0.9963</td></tr>
+          <tr><td>magFlxLp22</td><td>100642</td><td>+0.2569</td><td>+0.7055</td><td>+0.9986</td></tr>
+          <tr><td>magFlxLp23</td><td>100595</td><td>-0.4817</td><td>-0.9420</td><td>+0.9916</td></tr>
+          <tr><td>magFlxLp23</td><td>100579</td><td>+0.0207</td><td>+0.2238</td><td>+0.9969</td></tr>
+          <tr><td>magFlxLp23</td><td>100642</td><td>+0.3554</td><td>+0.8235</td><td>+0.9991</td></tr>
+          <tr><td>magFlxLp24</td><td>100595</td><td>-0.4731</td><td>-0.9439</td><td>+0.9927</td></tr>
+          <tr><td>magFlxLp24</td><td>100579</td><td>+0.0286</td><td>+0.2808</td><td>+0.9970</td></tr>
+          <tr><td>magFlxLp24</td><td>100642</td><td>+0.3737</td><td>+0.7776</td><td>+0.9993</td></tr>
+          <tr><td>magFlxLp25</td><td>100595</td><td>-0.4612</td><td>-0.9429</td><td>+0.9929</td></tr>
+          <tr><td>magFlxLp25</td><td>100579</td><td>+0.0349</td><td>+0.3274</td><td>+0.9971</td></tr>
+          <tr><td>magFlxLp25</td><td>100642</td><td>+0.3818</td><td>+0.7428</td><td>+0.9993</td></tr>
+          <tr><td>magFlxLp26</td><td>100595</td><td>-0.4359</td><td>-0.9374</td><td>+0.9926</td></tr>
+          <tr><td>magFlxLp26</td><td>100579</td><td>+0.0356</td><td>+0.3373</td><td>+0.9970</td></tr>
+          <tr><td>magFlxLp26</td><td>100642</td><td>+0.3855</td><td>+0.6961</td><td>+0.9994</td></tr>
+          <tr><td>magFlxLp27</td><td>100595</td><td>-0.2486</td><td>-0.8915</td><td>+0.9827</td></tr>
+          <tr><td>magFlxLp27</td><td>100579</td><td>-0.0270</td><td>-0.3536</td><td>+0.9961</td></tr>
+          <tr><td>magFlxLp27</td><td>100642</td><td>+0.3666</td><td>+0.5366</td><td>+0.9994</td></tr>
+          <tr><td>magPbTC1</td><td>100595</td><td>+0.5590</td><td>+0.9657</td><td>+0.9891</td></tr>
+          <tr><td>magPbTC1</td><td>100579</td><td>+0.2320</td><td>+0.7198</td><td>+0.9963</td></tr>
+          <tr><td>magPbTC1</td><td>100642</td><td>+0.3223</td><td>+0.9540</td><td>+0.9926</td></tr>
+          <tr><td>magPbTC2</td><td>100595</td><td>+0.5736</td><td>+0.9787</td><td>+0.9937</td></tr>
+          <tr><td>magPbTC2</td><td>100579</td><td>+0.2392</td><td>+0.6546</td><td>+0.9954</td></tr>
+          <tr><td>magPbTC2</td><td>100642</td><td>+0.3117</td><td>+0.9310</td><td>+0.9915</td></tr>
+          <tr><td>magPbTC3</td><td>100595</td><td>+0.5746</td><td>+0.9776</td><td>+0.9950</td></tr>
+          <tr><td>magPbTC3</td><td>100579</td><td>+0.2353</td><td>+0.7860</td><td>+0.9960</td></tr>
+          <tr><td>magPbTC3</td><td>100642</td><td>+0.3345</td><td>+0.9784</td><td>+0.9960</td></tr>
+          <tr><td>magPbTC4</td><td>100595</td><td>+0.5488</td><td>+0.9634</td><td>+0.9961</td></tr>
+          <tr><td>magPbTC4</td><td>100579</td><td>+0.1339</td><td>+0.6864</td><td>+0.9958</td></tr>
+          <tr><td>magPbTC4</td><td>100642</td><td>+0.3495</td><td>+0.9886</td><td>+0.9935</td></tr>
+          <tr><td>magPbTC5</td><td>100595</td><td>-1.0316</td><td>-0.9620</td><td>+0.9966</td></tr>
+          <tr><td>magPbTC5</td><td>100579</td><td>-1.0762</td><td>-0.9985</td><td>+0.9999</td></tr>
+          <tr><td>magPbTC5</td><td>100642</td><td>+0.3459</td><td>+0.9993</td><td>+0.9997</td></tr>
+          <tr><td>magPbTC6</td><td>100595</td><td>+0.4846</td><td>+0.8422</td><td>+0.9923</td></tr>
+          <tr><td>magPbTC6</td><td>100579</td><td>-0.0482</td><td>-0.5256</td><td>+0.9958</td></tr>
+          <tr><td>magPbTC6</td><td>100642</td><td>+0.3426</td><td>+0.9981</td><td>+0.9986</td></tr>
+          <tr><td>magPbTC7</td><td>100595</td><td>+0.4629</td><td>+0.8486</td><td>+0.9910</td></tr>
+          <tr><td>magPbTC7</td><td>100579</td><td>-0.2049</td><td>-0.7613</td><td>+0.9989</td></tr>
+          <tr><td>magPbTC7</td><td>100642</td><td>+0.3430</td><td>+0.9992</td><td>+0.9993</td></tr>
+          <tr><td>magPbTC8</td><td>100595</td><td>+0.4643</td><td>+0.9304</td><td>+0.9937</td></tr>
+          <tr><td>magPbTC8</td><td>100579</td><td>+0.0442</td><td>+0.3980</td><td>+0.9965</td></tr>
+          <tr><td>magPbTC8</td><td>100642</td><td>+0.3490</td><td>+0.9994</td><td>+0.9996</td></tr>
+          <tr><td>magPbTC9</td><td>100595</td><td>+0.4555</td><td>+0.9339</td><td>+0.9927</td></tr>
+          <tr><td>magPbTC9</td><td>100579</td><td>+0.0516</td><td>+0.3827</td><td>+0.9961</td></tr>
+          <tr><td>magPbTC9</td><td>100642</td><td>+0.3388</td><td>+0.9987</td><td>+0.9993</td></tr>
+          <tr><td>magPbTC10</td><td>100595</td><td>+0.4346</td><td>+0.9198</td><td>+0.9908</td></tr>
+          <tr><td>magPbTC10</td><td>100579</td><td>+0.0664</td><td>+0.4406</td><td>+0.9962</td></tr>
+          <tr><td>magPbTC10</td><td>100642</td><td>+0.3518</td><td>+0.9989</td><td>+0.9991</td></tr>
+          <tr><td>magPbTC11</td><td>100595</td><td>+0.3194</td><td>+0.7835</td><td>+0.9798</td></tr>
+          <tr><td>magPbTC11</td><td>100579</td><td>-0.0743</td><td>-0.3329</td><td>+0.9965</td></tr>
+          <tr><td>magPbTC11</td><td>100642</td><td>+0.3461</td><td>+0.9967</td><td>+0.9977</td></tr>
+          <tr><td>magPbTC12</td><td>100595</td><td>+0.7690</td><td>+0.9398</td><td>+0.9971</td></tr>
+          <tr><td>magPbTC12</td><td>100579</td><td>-0.1048</td><td>-0.9913</td><td>+0.9989</td></tr>
+          <tr><td>magPbTC12</td><td>100642</td><td>+0.3440</td><td>+0.9981</td><td>+0.9985</td></tr>
+          <tr><td>magPbTC13</td><td>100595</td><td>-0.9003</td><td>-0.5369</td><td>+0.9968</td></tr>
+          <tr><td>magPbTC13</td><td>100579</td><td>-0.5658</td><td>-0.8883</td><td>+0.9994</td></tr>
+          <tr><td>magPbTC13</td><td>100642</td><td>+0.3500</td><td>+0.9975</td><td>+0.9990</td></tr>
+          <tr><td>magPbTC14</td><td>100595</td><td>+0.5634</td><td>+0.9795</td><td>+0.9954</td></tr>
+          <tr><td>magPbTC14</td><td>100579</td><td>+0.3025</td><td>+0.9339</td><td>+0.9985</td></tr>
+          <tr><td>magPbTC14</td><td>100642</td><td>+0.3385</td><td>+0.9750</td><td>+0.9950</td></tr>
+          <tr><td>magPbTC15</td><td>100595</td><td>+0.5926</td><td>+0.9749</td><td>+0.9939</td></tr>
+          <tr><td>magPbTC15</td><td>100579</td><td>+0.2723</td><td>+0.7911</td><td>+0.9968</td></tr>
+          <tr><td>magPbTC15</td><td>100642</td><td>+0.3443</td><td>+0.9857</td><td>+0.9943</td></tr>
+          <tr><td>magPbTC16</td><td>100595</td><td>+0.5775</td><td>+0.9566</td><td>+0.9875</td></tr>
+          <tr><td>magPbTC16</td><td>100579</td><td>+0.2566</td><td>+0.7983</td><td>+0.9969</td></tr>
+          <tr><td>magPbTC16</td><td>100642</td><td>+0.3458</td><td>+0.9802</td><td>+0.9881</td></tr>
+          <tr><td>magPbTC17</td><td>100595</td><td>+0.5479</td><td>+0.9486</td><td>+0.9843</td></tr>
+          <tr><td>magPbTC17</td><td>100579</td><td>+0.2105</td><td>+0.6983</td><td>+0.9962</td></tr>
+          <tr><td>magPbTC17</td><td>100642</td><td>+0.3606</td><td>+0.8353</td><td>+0.8586</td></tr>
+        </tbody>
+      </table>
+      <table id="jtmm-vacuum-residual-rca-refits">
+        <thead><tr><th>refit</th><th>shot</th><th>loops 1-14 med|slope| / med|r|</th><th>loops 15-27 med|slope| / med|r|</th><th>probes med slope / med r</th></tr></thead>
+        <tbody>
+          <tr><td>plain (turn-corrected)</td><td>100595</td><td>0.009 / 0.406</td><td>0.461 / 0.926</td><td>0.559 / 0.949</td></tr>
+          <tr><td>passive columns enabled</td><td>100595</td><td>0.009 / 0.406</td><td>0.461 / 0.926</td><td>0.559 / 0.949</td></tr>
+          <tr><td>probe axes flipped</td><td>100595</td><td>0.009 / 0.406</td><td>0.461 / 0.926</td><td>0.559 / 0.949</td></tr>
+          <tr><td>sensors moved +R@50mm</td><td>100595</td><td>0.009 / 0.425</td><td>0.453 / 0.930</td><td>0.566 / 0.952</td></tr>
+          <tr><td>sensors moved +Z@50mm</td><td>100595</td><td>0.009 / 0.405</td><td>0.463 / 0.927</td><td>0.551 / 0.946</td></tr>
+          <tr><td>plain (turn-corrected)</td><td>100579</td><td>0.004 / 0.733</td><td>0.021 / 0.224</td><td>0.210 / 0.720</td></tr>
+          <tr><td>passive columns enabled</td><td>100579</td><td>0.004 / 0.733</td><td>0.021 / 0.224</td><td>0.210 / 0.720</td></tr>
+          <tr><td>probe axes flipped</td><td>100579</td><td>0.004 / 0.733</td><td>0.021 / 0.224</td><td>0.210 / 0.720</td></tr>
+          <tr><td>sensors moved +R@50mm</td><td>100579</td><td>0.004 / 0.734</td><td>0.020 / 0.221</td><td>0.219 / 0.720</td></tr>
+          <tr><td>sensors moved +Z@50mm</td><td>100579</td><td>0.004 / 0.732</td><td>0.021 / 0.226</td><td>0.213 / 0.727</td></tr>
+          <tr><td>plain (turn-corrected)</td><td>100642</td><td>0.077 / 0.322</td><td>0.238 / 0.537</td><td>0.344 / 0.997</td></tr>
+          <tr><td>passive columns enabled</td><td>100642</td><td>0.077 / 0.322</td><td>0.238 / 0.537</td><td>0.344 / 0.997</td></tr>
+          <tr><td>probe axes flipped</td><td>100642</td><td>0.077 / 0.322</td><td>0.238 / 0.537</td><td>0.344 / 0.997</td></tr>
+          <tr><td>sensors moved +R@50mm</td><td>100642</td><td>0.083 / 0.326</td><td>0.239 / 0.546</td><td>0.360 / 0.996</td></tr>
+          <tr><td>sensors moved +Z@50mm</td><td>100642</td><td>0.082 / 0.333</td><td>0.236 / 0.542</td><td>0.342 / 0.991</td></tr>
+        </tbody>
+      </table>
+      <table id="jtmm-vacuum-residual-rca-coil-disagreement">
+        <thead><tr><th>loop</th><th>measured best coil (100595)</th><th>operator dominant coil (100595)</th></tr></thead>
+        <tbody>
+          <tr><td>FL1</td><td>curEF6HiTe</td><td>curEF3LKAT</td></tr>
+          <tr><td>FL2</td><td>curEF4LKAT</td><td>curCS1LKAT</td></tr>
+          <tr><td>FL3</td><td>curEF4LKAT</td><td>curCS1LKAT</td></tr>
+          <tr><td>FL4</td><td>curEF4LKAT</td><td>curCS2LKAT</td></tr>
+          <tr><td>FL5</td><td>curEF4LKAT</td><td>curCS2LKAT</td></tr>
+          <tr><td>FL6</td><td>curEF4LKAT</td><td>curCS2LKAT</td></tr>
+          <tr><td>FL7</td><td>curCS4LKAT</td><td>curCS3LKAT</td></tr>
+          <tr><td>FL8</td><td>curEF6HiTe</td><td>curCS3LKAT</td></tr>
+          <tr><td>FL9</td><td>curEF2LKAT</td><td>curCS3LKAT</td></tr>
+          <tr><td>FL10</td><td>curEF2LKAT</td><td>curCS3LKAT</td></tr>
+          <tr><td>FL11</td><td>curEF4LKAT</td><td>curCS4LKAT</td></tr>
+          <tr><td>FL12</td><td>curEF6HiTe</td><td>curCS4LKAT</td></tr>
+          <tr><td>FL13</td><td>curEF4LKAT</td><td>curEF5LKAT</td></tr>
+          <tr><td>FL14</td><td>curCS4LKAT</td><td>curEF5LKAT</td></tr>
+        </tbody>
+      </table>
+      <p id="jtmm-vacuum-residual-rca-passive">Refit 1 (operator passive columns enabled): the operator exposes only 2 passive columns; adding them changes the joint residual by nothing (2.91e+03 &rarr; 2.91e+03, ratio 1.000) and leaves every per-channel slope and r identical to the plain fit on all three shots. Induced currents in the passive structure, as the description represents it, are not the residual.</p>
+      <p id="jtmm-vacuum-residual-rca-moved">Refit 2 (each sensor moved within 50 mm): on E100595 the probes&rsquo; median |r| moves 0.940 &rarr; 0.948 at +R 50 mm and &rarr; 0.933 at &minus;R 50 mm, and the loops&rsquo; median |r| 0.686 &rarr; 0.706 / 0.666; no channel reaches |slope&minus;1|&le;0.1 at |r|&gt;0.98 on any shot. The signed, magnitude-scaling movement of the metric shows the refit is live, not a no-op. A declared-position error of &le;50 mm is not the residual.</p>
+      <p id="jtmm-vacuum-residual-rca-flipped">Refit 3 (each probe axis flipped): flipping every probe negates each probe slope and r (E100595 MP1 +0.559/+0.966 &rarr; &minus;0.559/&minus;0.966) and changes nothing else; |slope| and |r| are unchanged and no channel reaches identity. A probe-axis or sign error is not the residual (the probe signs are already consistent, e.g. MP5 tracks at &minus;1.03/&minus;0.962).</p>
+      <p id="jtmm-vacuum-residual-rca-cause">Cause the fits support: the residual lies in the operator&rsquo;s per-coil response pattern (G_pf), not in the acquisition, time base or units. A free per-coil least-squares fit of every channel against the ten MMSYS coil currents reaches r&nbsp;&asymp;&nbsp;0.98&ndash;1.00 for all 44 channels on all three shots (loops 1&ndash;14 median r_free 0.985/0.997/0.999 on E100595/E100579/E100642), so each measured channel is a clean linear function of the drive and the operator&rsquo;s coil-mixing is what departs from it. For the residual scale: after the declared A&middot;turn/A the tracking channels sit at 0.32&ndash;0.58, not 1, and none of the three refits recovers identity. For loops 1&ndash;14: the operator&rsquo;s dominant coil disagrees with the measured dominant coil for most of them (table above) while their free-fit r is &asymp;1, so the description&rsquo;s geometry for those loops is mismatched; a &le;50 mm shift does not repair it, so the error is larger than 50 mm or is a coil-filament-weighting / channel-identity error.</p>
+      <p id="jtmm-vacuum-residual-rca-inconclusive">Inconclusive: the specific geometry defect (loop position beyond 50 mm versus per-coil filament/turn weighting) and whether the 0.32&ndash;0.58 scale is one factor or a composition. The operator as built exposes only two passive columns and no coil-to-vessel coupling, so the residual cannot be attributed further from it alone; naming it needs a free per-coil refit of G_pf against the measured response.</p>
+      <p id="jtmm-vacuum-residual-rca-negative-control">Negative control: the passive refit was expected to be discriminating (eddy currents) and is not &mdash; it reproduces the plain fit&rsquo;s slopes and r exactly (residual ratio 1.000), while the sensor-move and axis-flip refits do move the metric (signed and monotone in the 50 mm step). The instrument therefore distinguishes a refit that changes the prediction from one that does not.</p>
+    </section>
+  </main>
+</body>
+</html>
