@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.73">
-<meta name="plan-version" content="168">
+<meta name="plan-version" content="169">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -1276,6 +1276,9 @@
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20261006T155655767879-jtmm-probe-axis-store" data-who="reckon-build" data-when="2026-10-06T16:20:42.042Z">
     <div class="r-comment-body"><p>build_magnetics now stores the tangential sensing axis theta=(90 deg - omega) mod 360 deg in radians; a both-phase test checks every stored axis within 5 deg (mod 180) of the vessel inner-skin tangent at the nearest skin point (max 3.33 deg over 17 probes, all &lt; 0.021 m from the skin) and MP1 reads 89.72 deg within 1 deg; OP1 and OP2 regenerated through write_phase_description with receipts at converter commit 4ad783e6 and the superseded stores moved to machine_description/superseded/; both geometry SVGs re-rendered; pytest tests/data/test_selene_deck.py 31 passed</p></div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-run-r-20261006T162047209303-review-of-jtmm-probe-axis-store" data-who="reckon-build" data-when="2026-10-06T16:35:01.730Z">
+    <div class="r-comment-body"><p>reviewed r-20261006T155655767879-jtmm-probe-axis-store (head a106fc2b) — parsed record scores goal_fidelity 18, evidence 17, scope_discipline 19, durability 14, fit 18, reuse 19 (total 105); added_failure_count 0 derived from a base arm at 520cddc6 (30 passed) and a head arm at a106fc2b (31 passed).</p></div>
 </div>
 </section>
 </main>

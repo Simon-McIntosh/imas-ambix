@@ -1,0 +1,57 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "the reviewed run is a converter-and-store node whose manifest carries no baseline_suite/after_suite arms (both null). This review ran the section gate itself: at base 520cddc6 tests/data/test_selene_deck.py -> 30 passed, EXIT=0 (arm_base_section_gate.log); at head a106fc2b the same command -> 31 passed, EXIT=0 (arm_head_section_gate.log, matching the run's own gate_test_selene_deck.log). added_failure_count 0 with ids [].",
+  "base_log_revision": "520cddc69db9bac6f160d1d2c8a3a58b8a03851a",
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-06T16:35:01.730Z",
+  "dispatched_at": "2026-10-06T16:20:54Z",
+  "findings": [
+    {
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-probe-axis-store.html",
+      "line": "3",
+      "severity": "follow-on",
+      "text": "follow-on: the phase-vs-skin cross-check test_stored_probe_axes_lie_along_the_vessel_inner_skin skips (pytest.skip) when the facility copies at REAL_GEO/REAL_COIL_VV under ~/.config/reckon/crew/reports are absent -- paths outside the repository -- so in a clean checkout the stronger geometric corroboration silently disables itself while the repo-resident synthetic test_writer_reads_back_at_dd_4_1_1 assertion still pins the 89.72 deg transform. Consider vendoring the three source decks into a repo fixture so the tangent test always runs, or record the skip-without-fixture as an accepted limitation."
+    }
+  ],
+  "head_log_revision": "a106fc2b7fa92e4e6ee2985e75885a69588d88ce",
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "no production call site changed; build_magnetics is the sole writer of magnetics/b_field_pol_probe/poloidal_angle on the SELENE deck route.",
+    "diff": "read c203652e (converter fix), 4ad783e6 (both-phase skin-tangent test), 583675bb (figures), a106fc2b (fragment): 11 source lines and 75 test lines added, no other product source.",
+    "done_when": "the done-when names the converter formula, a both-phase test within 5 deg (mod 180) of the vessel inner-skin tangent with MP1 at 90 deg within 1 deg, the store regeneration through write_phase_description with the superseded OP1/OP2 moves listed in the fragment, the two re-rendered SVGs, and ruff on the changed paths; each element is present and verified.",
+    "goal": "make the SELENE converter store each tangential probe's DD sensing-axis angle, regenerate both phase stores and re-render the two geometry figures; imas_ambix/data/selene_deck.py build_magnetics now writes (90 deg - omega) mod 360 deg in radians, OP1/OP2 are regenerated under /work with new receipts, and both docs/figures/jt60sa-geometry SVGs are re-rendered, so the goal is met.",
+    "manifest": "read the reviewed manifest at head a106fc2b: status complete, changed_paths the five files, commits c203652e/4ad783e6/583675bb/a106fc2b, negative_control_log set, artifacts and evidence_inputs populated; it records no baseline_suite/after_suite arms, which this review supplies.",
+    "write_paths": "the diff from 520cddc6 to a106fc2b is exactly the five declared write paths: imas_ambix/data/selene_deck.py, tests/data/test_selene_deck.py, the two docs/figures/jt60sa-geometry SVGs, and the fragment; the sixth declared grant, docs/figures/jt60sa-machine-map/jtmm-probe-axis-store, was permitted but not written."
+  },
+  "justifications": {
+    "durability": "the transform is pinned by a repo-resident synthetic test (test_writer_reads_back_at_dd_4_1_1 asserts 89.72 deg from an in-repo deck), so a revert is caught without external data. The stronger phase-vs-skin cross-check is guarded by REAL_GEO/REAL_COIL_VV paths under ~/.config/reckon/crew/reports (outside the repository) and skips with pytest.skip when absent, so in a clean checkout it silently skips. The regenerated stores and figures live under /work and are not reproducible from the repository alone.",
+    "evidence": "the both-phase test is an independent cross-check: the stored axis derives from geo.in omega, the reference tangent from the coil_vv vessel inner skin, and both phase skins are correctly taken from their own deck (coil_vv_OP1 for OP1). The declared mutation (restoring deg2rad(omega)) turns the skin-tangent test and the synthetic read-back red (negative_control_probe_axis.log: 2 failed, EXIT=1), so the guard fires. Re-measured independently at head: max departure 3.33 deg (OP1 and OP2), MP1 89.72 deg, every probe's nearest skin chord within 0.018 m (<= the fragment's 0.021 m bound).",
+    "fit": "the fragment's element ids are all prefixed jtmm-probe-axis-store- and it follows the sibling evidence-fragment idiom; the four commits carry conventional subjects with bodies and no attribution; the converter comment states the mechanism and its declared convention, with no plan or ticket identifier in source or tests.",
+    "goal_fidelity": "imas_ambix/data/selene_deck.py now writes float(np.deg2rad((90.0 - probe.angle) % 360.0)) with the convention stated in the comment; tests/data/test_selene_deck.py adds test_stored_probe_axes_lie_along_the_vessel_inner_skin (both phases within 5 deg mod 180 of the nearest skin tangent, MP1 within 1 deg of 90) and updates test_writer_reads_back_at_dd_4_1_1 to 89.72 deg; the OP1/OP2 receipts under /work record converter commit 4ad783e6, 17 probes and MP1 89.72 deg; superseded/OP1 and superseded/OP2 exist; both SVGs are re-rendered with the unchanged scripts/figures_jt60sa_geometry.py; ruff check on the changed paths exits 0.",
+    "reuse": "build_magnetics is changed in place, no public definition is added or retired, and the re-render reuses the existing geometry script; the diff forks no capability the repository owns.",
+    "scope_discipline": "the five changed paths across the run's four commits are exactly declared; nothing outside the grants was written, and the unused figure grant was not populated."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: make the SELENE converter store each tangential probe's DD sensing-axis angle, regenerate both phase stores and re-render the two geometry figures; build_magnetics writes (90-omega) mod 360 in radians, OP1/OP2 are regenerated with new receipts and both SVGs re-rendered, so the goal is met.\nVERDICT done_when: every named element is present and verified -- the converter formula, the both-phase 5 deg (mod 180) skin-tangent test with MP1 90 deg within 1 deg, the regenerated stores with listed superseded moves, the re-rendered SVGs, and ruff green on the changed paths.\nVERDICT write_paths: the diff is exactly the declared source, test, two SVGs and fragment; the unused figure grant was not populated.\nVERDICT manifest: read at head a106fc2b; status complete, five changed paths, four commits, negative control set; no baseline_suite/after_suite arms, supplied by this review.\nVERDICT diff: c203652e converter fix, 4ad783e6 both-phase test, 583675bb figures, a106fc2b fragment; 11 source and 75 test lines added.\nCALL_SITES: none\nSCORE goal_fidelity: 18\nJUSTIFICATION goal_fidelity: imas_ambix/data/selene_deck.py now writes float(np.deg2rad((90.0 - probe.angle) % 360.0)) with the convention stated in the comment; tests/data/test_selene_deck.py adds test_stored_probe_axes_lie_along_the_vessel_inner_skin (both phases within 5 deg mod 180 of the nearest skin tangent, MP1 within 1 deg of 90) and updates test_writer_reads_back_at_dd_4_1_1 to 89.72 deg; the OP1/OP2 receipts under /work record converter commit 4ad783e6, 17 probes and MP1 89.72 deg; superseded/OP1 and superseded/OP2 exist; both SVGs are re-rendered with the unchanged scripts/figures_jt60sa_geometry.py; ruff check on the changed paths exits 0.\nSCORE evidence: 17\nJUSTIFICATION evidence: the both-phase test is an independent cross-check: the stored axis derives from geo.in omega, the reference tangent from the coil_vv vessel inner skin, and both phase skins are correctly taken from their own deck (coil_vv_OP1 for OP1). The declared mutation (restoring deg2rad(omega)) turns the skin-tangent test and the synthetic read-back red (negative_control_probe_axis.log: 2 failed, EXIT=1), so the guard fires. Re-measured independently at head: max departure 3.33 deg (OP1 and OP2), MP1 89.72 deg, every probe's nearest skin chord within 0.018 m (<= the fragment's 0.021 m bound).\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: the five changed paths across the run's four commits are exactly declared; nothing outside the grants was written, and the unused figure grant was not populated.\nSCORE durability: 14\nJUSTIFICATION durability: the transform is pinned by a repo-resident synthetic test (test_writer_reads_back_at_dd_4_1_1 asserts 89.72 deg from an in-repo deck), so a revert is caught without external data. The stronger phase-vs-skin cross-check is guarded by REAL_GEO/REAL_COIL_VV paths under ~/.config/reckon/crew/reports (outside the repository) and skips with pytest.skip when absent, so in a clean checkout it silently skips. The regenerated stores and figures live under /work and are not reproducible from the repository alone.\nSCORE fit: 18\nJUSTIFICATION fit: the fragment's element ids are all prefixed jtmm-probe-axis-store- and it follows the sibling evidence-fragment idiom; the four commits carry conventional subjects with bodies and no attribution; the converter comment states the mechanism and its declared convention, with no plan or ticket identifier in source or tests.\nSCORE reuse: 19\nJUSTIFICATION reuse: build_magnetics is changed in place, no public definition is added or retired, and the re-render reuses the existing geometry script; the diff forks no capability the repository owns.\nFINDING docs/evidence/fragments/jt60sa-machine-map/jtmm-probe-axis-store.html:3 follow-on: follow-on: the phase-vs-skin cross-check test_stored_probe_axes_lie_along_the_vessel_inner_skin skips (pytest.skip) when the facility copies at REAL_GEO/REAL_COIL_VV under ~/.config/reckon/crew/reports are absent -- paths outside the repository -- so in a clean checkout the stronger geometric corroboration silently disables itself while the repo-resident synthetic test_writer_reads_back_at_dd_4_1_1 assertion still pins the 89.72 deg transform. Consider vendoring the three source decks into a repo fixture so the tangent test always runs, or record the skip-without-fixture as an accepted limitation.",
+  "resolved_findings": [],
+  "review_run_id": "r-20261006T162047209303-review-of-jtmm-probe-axis-store",
+  "reviewed_base_sha": "520cddc69db9bac6f160d1d2c8a3a58b8a03851a",
+  "reviewed_head_sha": "a106fc2b7fa92e4e6ee2985e75885a69588d88ce",
+  "reviewed_run_id": "r-20261006T155655767879-jtmm-probe-axis-store",
+  "reviewer_run_id": "r-20261006T162047209303-review-of-jtmm-probe-axis-store",
+  "scores": {
+    "durability": 14,
+    "evidence": 17,
+    "fit": 18,
+    "goal_fidelity": 18,
+    "reuse": 19,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "timestamp": "2026-10-06T16:33:53.508557+00:00",
+  "total": 105
+}
