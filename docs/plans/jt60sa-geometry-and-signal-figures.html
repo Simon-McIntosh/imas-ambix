@@ -23,7 +23,7 @@
   <title>JT-60SA Geometry and Signal Figures | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="3">
+<meta name="plan-version" content="4">
 <meta name="plan-modified" content="2026-10-06">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;}">
 </head>
@@ -94,12 +94,16 @@
       scripts that style inline, including the two hand-rolled palettes in
       <code>scripts/figures/wm_demonstration_figs.py</code> and
       <code>scripts/figures/playable_plasma_figs.py</code>, stay as they are, since restyling them is
-      outside this plan. Its public surface is the named roles and the function that applies the sheet:
-      one role per component the figures draw (PF coils, OP1 vessel, OP2 vessel, wall, flux loops,
+      outside this plan. Its public surface is the named roles, the function that applies the sheet and
+      the direct-label helper §2 and §3 share: one role per component the figures draw (PF coils, OP1 vessel, OP2 vessel, wall, flux loops,
       pickup probes) and the neutrals for references. Because this is the repository's first colour
       assignment, the lead chooses it: the section renders two to four candidate palettes on the real
       OP1 and OP2 cross-section, each pair of colours that meet in a figure checked to a colour-blind
-      &Delta;E of at least 8, and records the choice as a decision before §2 and §3 draw with it.
+      &Delta;E of at least 8, and records the choice as a decision before §2 and §3 draw with it. The
+      candidates are drawn by <code>scripts/figures_jt60sa_geometry.py</code>, whose one reader turns a
+      phase's store into drawable families (coil elements, vessel filaments, wall outline, flux loops,
+      probes) and whose one cross-section function draws them; §2 extends that script and calls the same
+      reader rather than reading the store a second time.
     </p>
     <p>
       Done-when: <code>imas_ambix/plot_style.py</code> exists and applies <code>data-ink</code>; two to
