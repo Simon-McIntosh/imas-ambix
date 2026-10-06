@@ -97,19 +97,6 @@ def source_cocos_digits(source_cocos: int) -> tuple[int, int, int, int]:
     return tuple(int(value) for value in convention(int(source_cocos)).digits)
 
 
-def mast_angle_to_canonical(angle_degrees: Any) -> np.ndarray:
-    """Convert FAIR-MAST probe-axis angles to DDv4 poloidal angles.
-
-    ``magpr_ang`` increases counter-clockwise in the ``(R, Z)`` plane: 0 degrees
-    reads ``B_R`` and +90 degrees reads ``+B_Z``.  DDv4's
-    ``b_field_pol_probe/poloidal_angle`` increases in the opposite sense and
-    projects as ``B_R cos(theta) - B_Z sin(theta)``.  Negating the source angle
-    preserves the directed sensitive axis, including its polarity.
-    """
-
-    return -np.asarray(angle_degrees, dtype=np.float64)
-
-
 def project_poloidal_field(
     br: Any,
     bz: Any,
@@ -128,7 +115,6 @@ __all__ = [
     "ConventionContractError",
     "canonical_factor",
     "identify_source_cocos",
-    "mast_angle_to_canonical",
     "project_poloidal_field",
     "require_canonical_contract",
     "source_cocos_digits",

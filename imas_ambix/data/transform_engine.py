@@ -422,6 +422,28 @@ def _target_cocos_transformation(dd_version: str, dd_path: str) -> str | None:
     return None
 
 
+def _poloidal_angle_sense_factor(binding: ChannelBinding) -> float:
+    """Return a probe angle's rotation sense from its authored declaration.
+
+    A ``pol_angle_like`` DD leaf states an installed sensitive-axis orientation,
+    so no COCOS-digit factor expresses it.  The binding's ``sign_convention`` is
+    the author's statement of the sense: ``identity`` keeps the stored angle,
+    ``negate`` mirrors it.  Any other value leaves the sense undecided and is
+    refused rather than assumed.
+    """
+
+    if binding.sign_convention == "identity":
+        return 1.0
+    if binding.sign_convention == "negate":
+        return -1.0
+    raise BindingTransformError(
+        f"binding {binding.name!r} targets the COCOS pol_angle_like DD path "
+        f"{binding.dd_path!r} but declares sign_convention "
+        f"{binding.sign_convention!r}; a probe angle takes its rotation sense "
+        "only from an authored identity or negate, never from a COCOS digit"
+    )
+
+
 def _apply_cocos_convention(
     values: np.ndarray,
     binding: ChannelBinding,
@@ -431,6 +453,11 @@ def _apply_cocos_convention(
     transformation = _target_cocos_transformation(dd_version, binding.dd_path)
     if transformation is None:
         return values, None, 1.0
+    if transformation == "pol_angle_like":
+        factor = _poloidal_angle_sense_factor(binding)
+        emitted = np.multiply(values, factor)
+        emitted.setflags(write=False)
+        return emitted, transformation, factor
     if source_cocos is None:
         raise BindingTransformError(
             f"binding {binding.name!r} targets COCOS-dependent DD path "
@@ -464,9 +491,17 @@ def _emit_arrays(
         except KeyError:
             missing.append(binding.name)
             continue
-        signed_values = _apply_sign_convention(values, binding)
+        # A pol_angle_like binding takes its sense from sign_convention inside
+        # _apply_cocos_convention, so its sign is applied once, there, rather
+        # than a second time here.
+        declared_values = (
+            values
+            if _target_cocos_transformation(dd_version, binding.dd_path)
+            == "pol_angle_like"
+            else _apply_sign_convention(values, binding)
+        )
         transformed_values, transformation, factor = _apply_cocos_convention(
-            signed_values,
+            declared_values,
             binding,
             dd_version,
             (

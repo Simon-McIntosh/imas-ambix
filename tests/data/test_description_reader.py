@@ -6,6 +6,7 @@ import ast
 from pathlib import Path
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 
 from imas_ambix.data.description_reader import (
@@ -151,7 +152,12 @@ def test_declared_probe_angle_source_selects_the_angle_rule(
     monkeypatch.setattr(
         reader,
         "_supply_declared_probe_angles",
-        lambda table: applied.append(table) or sentinel,
+        lambda table: applied.append("declared") or sentinel,
+    )
+    monkeypatch.setattr(
+        reader,
+        "_supply_emitted_probe_angles",
+        lambda description, table: applied.append("emitted") or sentinel,
     )
 
     monkeypatch.setattr(
@@ -160,7 +166,7 @@ def test_declared_probe_angle_source_selects_the_angle_rule(
         lambda machine: catalog_with_angle_source("acquisition-address"),
     )
     assert read_geometry_table(1) is sentinel
-    assert applied == [sentinel]
+    assert applied == ["declared"]
 
     applied.clear()
     monkeypatch.setattr(
@@ -169,7 +175,7 @@ def test_declared_probe_angle_source_selects_the_angle_rule(
         lambda machine: catalog_with_angle_source("description"),
     )
     assert read_geometry_table(1) is sentinel
-    assert applied == []
+    assert applied == ["emitted"]
 
 
 def test_catalog_with_no_description_store_refuses_a_read(
@@ -278,3 +284,79 @@ def test_enkf_operator_uses_declared_target_and_representative(
     assert built == ("declared-operator", 21_983)
     assert cache == {"mast-declared": built}
     assert reads == [21_978, 21_983]
+
+
+def _probe_angle_description(values, target_unit="rad"):
+    array = SimpleNamespace(
+        dd_path="magnetics/b_field_pol_probe/poloidal_angle",
+        target_unit=target_unit,
+        values=np.asarray(values, dtype=np.float64),
+    )
+    return SimpleNamespace(arrays=(array,))
+
+
+def _probe_angle_table():
+    from dataclasses import dataclass
+
+    from imas_ambix.gs.geometry import SensorMapping
+
+    @dataclass
+    class _Table:
+        sensor_map: list
+        provenance_flags: list
+
+    def mapping(channel, kind, angle_deg, flag):
+        return SensorMapping(
+            amb_channel=channel,
+            kind=kind,
+            efm_index=0,
+            r=1.0,
+            z=0.0,
+            angle_deg=angle_deg,
+            residual_m=0.0,
+            flag=flag,
+        )
+
+    return _Table(
+        sensor_map=[
+            mapping("p1", "b_probe", None, "poloidal angle is absent"),
+            mapping("fl1", "flux_loop", None, ""),
+            mapping("p2", "b_probe", None, "poloidal angle is absent"),
+        ],
+        provenance_flags=[],
+    )
+
+
+def test_description_source_fills_probe_angles_from_the_emitted_array():
+    from imas_ambix.data.description_reader import _supply_emitted_probe_angles
+
+    description = _probe_angle_description([0.0, np.pi / 2.0])
+    table = _supply_emitted_probe_angles(description, _probe_angle_table())
+
+    angles = {item.amb_channel: item.angle_deg for item in table.sensor_map}
+    assert angles["p1"] == pytest.approx(0.0)
+    assert angles["p2"] == pytest.approx(90.0)
+    assert angles["fl1"] is None
+    assert all(item.flag == "" for item in table.sensor_map)
+    assert any(
+        "poloidal_angle" in flag for flag in table.provenance_flags
+    )
+
+
+def test_description_source_leaves_absent_angles_when_nothing_was_emitted():
+    from imas_ambix.data.description_reader import _supply_emitted_probe_angles
+
+    description = SimpleNamespace(arrays=())
+    table = _supply_emitted_probe_angles(description, _probe_angle_table())
+
+    assert all(item.angle_deg is None for item in table.sensor_map)
+    assert table.provenance_flags == []
+
+
+def test_description_source_refuses_an_angle_count_that_misses_a_probe():
+    from imas_ambix.data.description_reader import _supply_emitted_probe_angles
+
+    description = _probe_angle_description([0.0])
+
+    with pytest.raises(DescriptionReadError, match="1 angles for 2 mapped probes"):
+        _supply_emitted_probe_angles(description, _probe_angle_table())
