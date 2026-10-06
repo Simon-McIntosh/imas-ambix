@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.85">
-<meta name="plan-version" content="204">
+<meta name="plan-version" content="205">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -246,7 +246,10 @@
       today. Nova declines that class on purpose: <code>nova/io/cocos.py</code> states that a
       sensitive-axis orientation is a statement about installed hardware, authored from the
       measurement rather than transformed from another convention, and that a caller carrying an
-      angle between conventions must say so where a reader will see it. So the engine gains a
+      angle between conventions must say so where a reader will see it. Landed 2026-10-06 by
+      <code>jtmm-probe-angle-engine</code> (merge da973c15) and hardened by
+      <code>jtmm-probe-angle-guards</code> (merge 835aec7b), so none of the next five sentences is open
+      work: the engine has a
       <code>pol_angle_like</code> branch that applies no COCOS-digit factor and takes the angle's
       rotation sense only from the binding's authored <code>sign_convention</code>, refusing a
       binding whose sense is <code>unknown-unvalidated</code>. <code>identity</code> says the stored
@@ -259,10 +262,11 @@
       forward operator, <code>imas_ambix/gs/operator.py</code>, projects predicted fields with
       it), so the vacuum prediction reuses it unchanged. <code>mast_angle_to_canonical</code>
       has no production caller (its only caller is its own test in
-      <code>tests/test_cocos.py</code>, which retires with it), and the negation it hard-codes is what a binding's
-      <code>sign_convention</code> <code>negate</code> expresses, so §6 retires it. The
-      interface account: ambix retires one public definition and adds none, and nova gains
-      nothing. Ambix keeps one factor table of its own,
+      <code>tests/test_cocos.py</code>, which retired with it), and the negation it hard-coded is what a binding's
+      <code>sign_convention</code> <code>negate</code> expresses, so it is retired, already gone from
+      the tree (merge da973c15). The interface account for that change was one public definition
+      retired and none added, with nothing added to nova. What remains of it is
+      <code>jtmm-angle-factor-retire</code> below. Ambix keeps one factor table of its own,
       <code>imas_ambix/data/cocos_convention.py</code> <code>MAST_TO_COCOS_17_FACTORS</code>, which
       carries <code>pol_angle_like: -1.0</code>. It is a test-only agreement guard on nova's
       factors (<code>tests/data/test_cocos_convention.py</code>), not a runtime owner. Its
@@ -275,9 +279,9 @@
       test after the observation reader's repair lands, because both edit that file. Second, an emit path that lets a description binding whose
       sense §6 has now measured stop being <code>unknown-unvalidated</code>. Third, the angle reaches the
       geometry table through the selector §4 built rather than a parallel read:
-      <code>imas_ambix/data/description_reader.py</code> <code>read_geometry_table</code> applies
-      nothing for <code>probe_angle_source</code> <code>description</code> today, so that branch
-      fills each probe's angle from the emitted <code>poloidal_angle</code>, beside the
+      <code>imas_ambix/data/description_reader.py</code> <code>read_geometry_table</code> now has a
+      branch for <code>probe_angle_source</code> <code>description</code> (merges da973c15 and
+      835aec7b). It fills each probe's angle from the emitted <code>poloidal_angle</code>, beside the
       <code>acquisition-address</code> branch's <code>_supply_declared_probe_angles</code>.
       <code>geometry_adapter._b_probes</code> keeps building probes without an angle, and the
       catalogue's declared source decides who supplies it. That makes
@@ -402,7 +406,8 @@
       part is its Grad–Shafranov current integral, <code>_integrated_current</code>. §6
       therefore generalises the entry point to take an equilibrium record through a loader,
       with the DIII-D corpus as its first loader and SELENE and FAME as the next, rather than
-      writing a second scorer. The generic entry is one new public definition in
+      writing a second scorer. The generic entry, landed by <code>jtmm-convention-entry</code>
+      (merge cd8e9a7a), is one public definition in
       <code>imas_ambix/challenge/convention.py</code>, <code>measure_convention(records,
       eligibility, *, shots)</code>, which takes the loader's <code>EfitLabels</code> records and
       the loader's declared eligibility and returns the existing
@@ -1292,7 +1297,7 @@
     <div class="r-comment-body"><p>jtmm-vacuum-shot-census-landing</p></div>
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20261006T175148950455-review-of-jtmm-vacuum-shot-census" data-who="reckon-build" data-when="2026-10-06T18:07:46.618Z">
-    <div class="r-comment-body"><p>review of r-20261006T155601371865-jtmm-vacuum-shot-census at head daab366f: parsed record total 106/120 (goal_fidelity 16, evidence 16, scope_discipline 20, durability 15, fit 19, reuse 20); the fragment and cache are faithful and the negative control reproduces, docked because the third plasma shot E101173&#x27;s cache holds loops but no magPbTC probes while the record asserts it holds them</p></div>
+    <div class="r-comment-body"><p>review of r-20261006T155601371865-jtmm-vacuum-shot-census at head daab366f: parsed record total 106/120 (goal_fidelity 16, evidence 16, scope_discipline 20, durability 15, fit 19, reuse 20); the fragment and cache are faithful and the negative control reproduces, docked because the third plasma shot E101173's cache holds loops but no magPbTC probes while the record asserts it holds them</p></div>
 </div>
 </section>
 </main>
