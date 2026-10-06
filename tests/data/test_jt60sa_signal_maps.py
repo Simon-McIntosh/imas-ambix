@@ -110,7 +110,10 @@ def test_pf_active_binds_one_chain_per_coil_at_the_store_index():
         assert len(blocked) == 1, f"coil {coil} blocks {len(blocked)} chains"
         # The blocked row names the unserved chain structurally rather than by
         # the served semantic id, so it does not imply the two chains agree.
-        assert "the other measurement chain of the same coil current" in blocked[0].reason
+        assert (
+            "the other measurement chain of the same coil current"
+            in blocked[0].reason
+        )
         assert blocked[0].reason.startswith("the other measurement chain")
 
 
