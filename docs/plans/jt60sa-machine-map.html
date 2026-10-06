@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5">
 <meta name="plan-impl" content="0.625">
-<meta name="plan-version" content="134">
+<meta name="plan-version" content="135">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -768,7 +768,11 @@
       through <code>gs/artifact_resolution.py</code> with a JT-60SA pin rather than through a second
       resolver, so <code>resolve_machine_description</code> gains a machine to resolve: its pins,
       today the single <code>PINNED_SEMANTIC_IDENTITY</code>, <code>PINNED_PHYSICAL_DIGEST</code> and
-      <code>PINNED_REGISTRY_DIGEST</code> constants, become a table keyed by machine, and
+      <code>PINNED_REGISTRY_DIGEST</code> constants, become a table keyed by machine. Those three
+      exported names become the table's MAST row and are retired as names: their importers
+      (<code>imas_ambix/spine_bench/machine_artifact_arm.py</code> uses them as field defaults)
+      read the row for their declared machine instead. That retires three public definitions
+      and adds one, the table; and
       <code>author_pinned_description</code>, which hard-imports
       <code>nova.imas.mast_geometry</code>, takes each machine's authoring route from that table.
       The selection path is pinned to MAST as well: <code>gs/machine_selection.py</code>
@@ -776,8 +780,17 @@
       <code>gs/machine_identity.py</code> <code>identity_for_shot</code>, whose
       <code>default_registry</code> is nova's MAST geometry registry, and reads channels with
       <code>read_acquisition_channels</code> at its default machine. The selector therefore takes
-      the machine from the catalogue the shot belongs to and passes it to the identity registry,
-      the pin table and the acquisition read, rather than JT-60SA growing a selector of its own.
+      the machine the frozen shot set declares for the shot and passes it to the identity
+      registry, the pin table, the acquisition read and the geometry reader, rather than JT-60SA
+      growing a selector of its own. The geometry reader is the one silent default on that route:
+      <code>imas_ambix/gs/artifact_geometry.py</code> <code>MachineArtifactGeometryReader.machine</code>
+      defaults to <code>"mast"</code>, and <code>ArtifactMachineSelector</code> builds it without
+      one, so a JT-60SA selection would be tagged <code>SetupSignature(machine="mast")</code>. Unlike
+      the description reader's default, which refuses an unmapped shot, this tag would collide
+      with MAST's <code>SetupSignature.key</code>, whose MAST spelling carries no machine prefix.
+      So the reader's <code>machine</code> becomes required, the selector passes the declared
+      machine, and <code>SetupSignature.key</code> keeps its MAST spelling unchanged, because
+      stored MAST keys depend on it, while every other machine's key carries its prefix.
       No file maps a shot to a catalogue today, and a JT-60SA pulse integer (E101173 is
       <code>101173</code>) cannot be told from another machine's shot number by value, so the machine
       is never inferred: the frozen shot set declares it. The machine-map registry cannot
