@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.87">
-<meta name="plan-version" content="215">
+<meta name="plan-version" content="217">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -265,18 +265,12 @@
       <code>tests/test_cocos.py</code>, which retired with it), and the negation it hard-coded is what a binding's
       <code>sign_convention</code> <code>negate</code> expresses, so it is retired, already gone from
       the tree (merge da973c15). The interface account for that change was one public definition
-      retired and none added, with nothing added to nova. What remains of it is
-      <code>jtmm-angle-factor-retire</code> below. Ambix keeps one factor table of its own,
-      <code>imas_ambix/data/cocos_convention.py</code> <code>MAST_TO_COCOS_17_FACTORS</code>, which
-      carries <code>pol_angle_like: -1.0</code>. It is a test-only agreement guard on nova's
-      factors (<code>tests/data/test_cocos_convention.py</code>), not a runtime owner. Its
-      <code>pol_angle_like</code> entry has no nova counterpart, and it is not consulted for a
-      probe's sense, which comes from the binding alone. Kept, it would state an angle factor in a
-      second place that disagrees with the engine's factorless branch, so §6 retires it together
-      with the <code>tor_angle_like</code> entry, which has the same shape. The table then holds only
-      classes nova owns, and its agreement test covers every entry it carries. The node
-      <code>jtmm-angle-factor-retire</code> does this in <code>cocos_convention.py</code> and its
-      test after the observation reader's repair lands, because both edit that file. Second, an emit path that lets a description binding whose
+      retired and none added, with nothing added to nova. Ambix's own factor table,
+      <code>imas_ambix/data/cocos_convention.py</code> <code>MAST_TO_COCOS_17_FACTORS</code>, a
+      test-only agreement guard on nova's factors, no longer states any angle factor:
+      <code>jtmm-angle-factor-retire</code> (merge 60c8c912) retired its <code>pol_angle_like</code>
+      and <code>tor_angle_like</code> entries, which disagreed with the engine's factorless branch,
+      and its agreement test now covers every entry. Second, an emit path that lets a description binding whose
       sense §6 has now measured stop being <code>unknown-unvalidated</code>. Third, the angle reaches the
       geometry table through the selector §4 built rather than a parallel read:
       <code>imas_ambix/data/description_reader.py</code> <code>read_geometry_table</code> now has a
@@ -305,8 +299,9 @@
       <code>unknown-unvalidated</code> and reported, never forced.
     </p>
     <p>
-      The stored angles are wrong as well as unbound, and the binding cannot repair them. Read on
-      the lead's OP1/OP2 overlay (2026-10-06), every probe tick crosses the wall instead of lying
+      Landed 2026-10-06, so this paragraph and the next record history, not open work. The stored
+      angles were wrong as well as unbound, and the binding could not repair them. Read on
+      the lead's OP1/OP2 overlay, every probe tick crossed the wall instead of lying
       along it. The cause is in the converter: <code>imas_ambix/data/selene_deck.py</code>
       <code>build_magnetics</code> writes the deck's angle ω straight into
       <code>poloidal_angle</code>, converting only degrees to radians. ω is the outward wall-normal
@@ -328,7 +323,10 @@
       stored angle 90° ± 3° from the vessel inner-skin tangent.
     </p>
     <p>
-      Two nodes do this, before the vacuum adjudication. <code>jtmm-probe-axis-source</code> reads
+      Two nodes did this, both merged: <code>jtmm-probe-axis-store</code> as b0c94d35, so
+      <code>build_magnetics</code> now writes θ and both stores and figures are regenerated, and
+      <code>jtmm-probe-axis-source</code> as 11d0d631, whose quoted <code>mgfild.f:38</code> expression
+      confirms SELENE's positive sense equals the stored axis. <code>jtmm-probe-axis-source</code> read
       SELENE's tangential-probe field expression read-only on nakasvr26 (where
       <code>DMPT0</code>, the geo.in angle, forms the predicted probe signal from B<sub>R</sub>
       and B<sub>Z</sub>), quotes the lines and states which tangent direction SELENE treats as
@@ -400,7 +398,7 @@
       (<code>magnetics/ip</code>, <code>magnetics/flux_loop_flux</code>,
       <code>equilibrium/psi</code> under <code>{root}/{shot}.zarr</code>). MAST's catalogue cannot
       replace those reads: its signal map binds one level-1 signal and no level-2 or equilibrium
-      leaf. So §6 separates the computation from the read. A private kernel in
+      leaf. So §6 separated the computation from the read (landed, merge 07add818). A private kernel in
       <code>imas_ambix/data/cocos_convention.py</code> takes the plasma-current, flux-loop and
       toroidal-field time series and an <code>EfitLabels</code> equilibrium record, the typed
       record §6's convention entry already reads, and returns the
@@ -412,10 +410,13 @@
       <code>{shot}.zarr/{category}/{dname}</code> store that the zarr engine already reads as
       <code>{source_group}/{source_array}</code>, so the §5 JT-60SA bindings serve the raw half,
       and the SELENE loader below serves the equilibrium half. No parallel EDDB observation reader
-      is added, and it retires nothing, because no catalogue-driven observation reader exists. As
-      built (merges 07add818 and 149763e2), <code>read_catalogue_observation</code> reads a machine-map
-      catalogue's per-shot bindings, the way MAST's catalogue declares its pulse data. JT-60SA's
-      pulse channels are not catalogue bindings, though. They are the §5 signal-map rules under
+      is added, and it retires nothing, because no catalogue-driven observation reader exists. The
+      catalogue form landed first (merges 07add818 and 149763e2) and is already gone:
+      <code>jtmm-observation-signal-maps</code> (merge 5efcd915) replaced it with
+      <code>read_signal_map_observation</code>, and only <code>jtmm-observation-time-alignment</code>
+      remains open here. The catalogue form read a machine-map catalogue's per-shot bindings, the
+      way MAST's catalogue declares its pulse data. JT-60SA's pulse channels are not catalogue
+      bindings, though. They are the §5 signal-map rules under
       <code>imas_ambix/data/maps/jt-60sa/</code>, read by <code>load_packaged_signal_map</code> and
       <code>VirtualZarrView</code> over the EDDB cache. And <code>jt-60sa.json</code> declares a
       static-over-map description store, which the reader refuses. The catalogue form has no
@@ -492,7 +493,7 @@
       (E101154 with PSRC, E101173 without) and one 2026 commissioning shot, C060033, with coil
       currents and vessel Rogowski coils but no flux loops or probes. No catalogue range covers a
       C-series pulse number either: OP1 spans 100001 to 101173 and OP2 starts at 101174. So the first
-      node, <code>jtmm-vacuum-shot-census</code>, is a census over <code>ssh -F ~/.ssh/config
+      node, <code>jtmm-vacuum-shot-census</code> (merged as d745240a, landed), was a census over <code>ssh -F ~/.ssh/config
       jt-60sa</code>. It lists the pulses on which the PF coils were driven with no plasma current,
       giving each one's series, date, TF current and polarity, and whether the raw MDAC loops and
       probes were acquired. It then fetches the first-pass channels for at least three vacuum shots
