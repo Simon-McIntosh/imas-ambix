@@ -23,7 +23,7 @@
   <title>JT-60SA Geometry and Signal Figures | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="27">
+<meta name="plan-version" content="28">
 <meta name="plan-modified" content="2026-10-06">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s1b&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;}">
 <meta name="plan-commits" content="369a705d,b36a5d93">
@@ -146,13 +146,18 @@
       <code>description_2d.vessel</code> never reaches <code>geometry_figure_mpl</code>. The machine map
       now writes JT-60SA's vessel there, as an annular unit built from the inner and outer VV skins of
       <code>coil_vv_OP{1,2}.dat</code>. The lead ruled on 2026-10-06 that any drawing the figures lack
-      is added to imas-ink, not ambix, so this section extends imas-ink in its own repository:
-      <code>extract_geometry</code> also returns each vessel unit's contours, an annular unit's
-      <code>outline_inner</code> and <code>outline_outer</code> when they are filled and otherwise its
-      <code>centreline</code>, and <code>geometry_figure_mpl</code> draws them in imas-ink's existing
-      ink style beside the limiter, adding a style constant only if the vessel needs a weight distinct
-      from the wall. It adds one field on <code>MachineGeometry</code> for the vessel contours and no
-      other public name.
+      is added to imas-ink, not ambix, so this section extends imas-ink in its own repository through
+      the vessel owner it already has: <code>extract_vessel_shells</code>
+      (<code>imas_ink/three_d/walls.py:151</code>) and its <code>VesselShell</code> type. That owner
+      reads an annular unit's <code>centreline</code> (with <code>thickness</code>) or a plain
+      <code>outline</code>, but not <code>outline_inner</code> and <code>outline_outer</code>, which is
+      what the JT-60SA store writes (two closed 51-point skins, the same in both phases); the section
+      adds that reading, one <code>VesselShell</code> per skin, ahead of the centreline path.
+      <code>extract_geometry</code> then carries those shells on <code>MachineGeometry</code> in a field
+      typed with the existing <code>VesselShell</code>, and <code>geometry_figure_mpl</code> draws them in
+      imas-ink's ink style beside the limiter, adding a style constant only if the vessel needs a
+      weight distinct from the wall. The 2D geometry has no vessel representation today, so the field
+      retires nothing; it is the one public addition, reusing the type the 3D path already exports.
     </p>
     <p>
       Done-when: a new imas-ink test builds a wall IDS with one limiter unit and one annular vessel
