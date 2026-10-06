@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5">
 <meta name="plan-impl" content="0.625">
-<meta name="plan-version" content="119">
+<meta name="plan-version" content="122">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -222,8 +222,11 @@
       carries 27 flux-loop and 17 probe positions. The lead's own extraction
       (<code>jt-60sa:~/work/efit_jt60sa/extract_jt60sa.py</code>, 2026-04-27) reads the same two
       files. Between OP1 and OP2 the PF coils, flux loops and probes are identical; only the
-      vessel changes, from 120 filaments (63 at 7.76e-7 Ω·m followed by 57 at 7.20e-7 Ω·m) to
-      98 at 7.20e-7 Ω·m, with the wall contours. The nakamap IDS files are not sources: they are DD 3.42 fragments labelled
+      vacuum vessel changes, from 63 filaments at 7.76e-7 Ω·m to 98 at 7.20e-7 Ω·m, with the
+      wall contours. The OP1 deck's passive block (NV=120) also carries 57 slabs at
+      7.20e-7 Ω·m after the vessel (deck lines 356–412): a lid from Z ≈ +5.4 to +7.1 m, a
+      base at Z = −7.49 m and walls to R 6.7 m, which is the cryostat, not vessel. The OP2 deck
+      has no such block (found 2026-10-06 while drawing the store). The nakamap IDS files are not sources: they are DD 3.42 fragments labelled
       SST-1, with no provenance, and their magnetics IDS stores the probe coordinates in
       <code>flux_loop</code> (5.09 m from the true loop positions).
     </p>
@@ -446,12 +449,29 @@
       store holds 12 PF coils, and each <code>pf_active/coil/element</code> entry is one of the
       SELENE deck's rectangular current filaments of a coil, carrying part of its turns: 40 per
       CS module (549 turns each), 16 per EF coil and 6 per FPPC coil, 268 filaments in all.
-      The vessel is separate (120 filaments in OP1, 98 in OP2). The converter writes no name on
-      a filament, so the catalogue's structure assemblies carry placeholder identifiers. The
-      converter names each filament after its coil and position, the store is re-converted, and
-      the catalogue takes the real identifiers; the same node narrows the converter's public
-      surface to its one entry point, <code>write_phase_description</code>, with an
-      <code>__all__</code>. Both edit <code>jt-60sa.json</code>, so they run in that order.
+      The passive structure is separate. The converter wrote no name on a filament, so the
+      catalogue's structure assemblies carried placeholder identifiers. The converter now names
+      each filament after its coil and position, the store is re-converted, and the catalogue
+      takes the real identifiers; the same node narrows the converter's public surface to its one
+      entry point, <code>write_phase_description</code>, with an <code>__all__</code>. Both edit
+      <code>jt-60sa.json</code>, so they run in that order.
+    </p>
+    <p>
+      Two converter corrections follow from drawing the OP1 store. First, the passive block's
+      second resistivity group is the cryostat, but the converter named it <code>VV2</code> as
+      if it were vessel. By the lead's decision (<code>cryostat-in-both-phases</code>) both
+      phases carry the vacuum vessel and the cryostat as separately named loops, the vessel
+      from each phase's deck and the cryostat from <code>EQSLE.DATA</code>'s block in both,
+      since the cryostat did not change. So the passive difference at the OP1/OP2 boundary is
+      the vessel alone, the real change. Second, the OP1 wall: the converter concatenates the
+      deck's segment list, which holds the vessel outer skin, the vessel inner skin and the first
+      wall, into one 638-point limiter unit that draws as nested contours joined by strokes.
+      OP2's comes from a single 51-point outline. The first-wall segments become the limiter unit
+      (<code>wall/description_2d/limiter/unit</code>), and the two vessel skins become the inner
+      and outer outlines of one annular vessel unit
+      (<code>wall/description_2d/vessel/unit/annular/outline_inner</code> and
+      <code>outline_outer</code>, checked against DD 4.1.1), so the limiter is the plasma-facing
+      contour alone in both phases.
     </p>
 
     <h2 id="s5">§5 — Pulse bindings and the EDDB census</h2>
@@ -573,7 +593,8 @@
       <code>imas_ambix/cocos.py</code>. <code>project_poloidal_field</code> is in use (the
       forward operator, <code>imas_ambix/gs/operator.py</code>, projects predicted fields with
       it), so the vacuum prediction reuses it unchanged. <code>mast_angle_to_canonical</code>
-      has no caller, and the negation it hard-codes is what a binding's
+      has no production caller (its only caller is its own test in
+      <code>tests/test_cocos.py</code>, which retires with it), and the negation it hard-codes is what a binding's
       <code>sign_convention</code> <code>negate</code> expresses, so §6 retires it. The
       interface account: nova gains one transformation class, and ambix retires one public
       definition and adds none. Second, an emit path that lets a description binding whose
@@ -745,19 +766,15 @@
       <code>transform_machine_description</code>. The benchmark shot set is where a bare shot
       first enters, so it declares the machine there. That set has one owner,
       <code>imas_ambix/spine_bench/shots.py</code>, whose <code>BenchShot</code> carries
-      <code>shot_id</code> and <code>role</code> and whose <code>resolve_shotset_version</code>
-      labels a stamp by comparing <code>(shot_id, role)</code> against MAST's
-      <code>FROZEN_SHOTSET</code>. <code>BenchShot</code> therefore gains a machine field, which
-      MAST's six shots declare as <code>mast</code>; <code>resolve_shotset_version</code> compares
-      <code>(machine, shot_id, role)</code>; and the JT-60SA frozen set is a second named set in
-      that module with its own version label, so a JT-60SA shot whose digits coincide with a
-      MAST id can never be stamped under the MAST label. The machine field and the second set
-      retire nothing, because no shot set records its machine today; the label is widened in
-      <code>resolve_shotset_version</code> rather than a second labeller added. The same node adds
-      one command-line option, <code>scripts/spine_benchmark.py --machine</code>, which has no
-      default and is required with <code>--shots</code>. It replaces the implicit MAST default an
-      explicit shot list used to carry, so a list of bare shot ids is never read as MAST by
-      accident; it retires nothing else. The selector reads the machine from
+      <code>shot_id</code>, <code>role</code> and, since 2026-10-05 (<code>jtmm-shotset-machine</code>),
+      <code>machine</code>, which MAST's six shots declare as <code>mast</code>; its
+      <code>resolve_shotset_version</code> already compares <code>(machine, shot_id, role)</code>, and
+      <code>scripts/spine_benchmark.py</code> already requires <code>--machine</code> with
+      <code>--shots</code>, with no default, so a list of bare shot ids is never read as MAST by
+      accident. Those landed and retire nothing beyond the implicit MAST default. What remains
+      for this section is the JT-60SA frozen set, a second named set in that module with its own
+      version label, so a JT-60SA shot whose digits coincide with a MAST id can never be stamped
+      under the MAST label; it is drawn from the 2023 OP1 shots on which SELENE ran. The selector reads the machine from
       that declaration, and <code>identity_for_shot</code>, which takes a registry rather than a
       machine, is handed the registry for the declared machine instead of
       <code>default_registry</code>'s MAST one. That registry has one owner, extended rather
@@ -1029,6 +1046,16 @@
       <button class="r-opt" data-value="op2-is-2023">2021 is OP1 and 2023 is OP2</button>
       </p>
     <p class="r-dec-rat">Lead&#x27;s choice 2026-10-06. OP1 is the 2023 campaign, and the 2021 block is the integrated commissioning before it on the same geometry, so map OP1 covers E100001–E101173 and every existing pulse, E101154 and E101173 included, reads the OP1 description (EQSLE.DATA, 120-filament vessel). OP2 is the configuration after the enhancement shutdown. Its map is open-ended from 101174, and its 98-filament vessel stays provisional until an OP2 pulse exists to check it against. Rejected: 2023 as OP2, which would have bound the 2023 pulses to the OP2 vessel.</p>
+    </div>
+<div class="r-dec" data-key="cryostat-in-both-phases" data-choice="cryostat-in-both" data-by="Simon McIntosh" data-when="2026-10-06T07:25:00+00:00" data-sections="s4">
+    <p class="r-dec-q">How does the JT-60SA passive structure treat the cryostat?</p>
+    <p class="r-dec-ctx">Measured 2026-10-06 while drawing the store: the OP1 deck EQSLE.DATA passive block (NV=120) is the vacuum vessel (lines 293-355, 63 filaments at 7.76e-7 ohm m, R 1.45-4.94 m, |Z| up to 3.3 m) followed by 57 cryostat-scale slabs at 7.20e-7 ohm m (lines 356-412, lid Z 5.4-7.1 m, base Z -7.49 m, walls to R 6.7 m). The converter named the slabs VV2. The OP2 deck coil_vv_OP2.dat (provisional) carries the vessel only, 98 filaments.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="cryostat-in-both">Cryostat in both phases, from EQSLE.DATA</button>
+      <button class="r-opt" data-value="each-phase-as-its-deck">Each phase exactly as its deck</button>
+      <button class="r-opt" data-value="vessel-only">Vessel only in both phases</button>
+      </p>
+    <p class="r-dec-rat">Lead&#x27;s choice 2026-10-06. The cryostat did not change between OP1 and OP2, so both phases carry the same cryostat block from EQSLE.DATA beside their own vacuum vessel, named as separate loops. The passive difference at the boundary is then the vessel alone, which is the real change, and both phases carry the same eddy-current paths. Rejected: keeping each deck as given, which would record a deck difference as a machine change; and dropping the cryostat from OP1, which would depart from SELENE&#x27;s own input that the reconstruction comparison relies on.</p>
     </div>
 </section>
 
