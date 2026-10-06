@@ -1,0 +1,48 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "imas-alambic"
+dynamic = ["version"]
+description = "Slim IMAS mint engine — machine maps, signal maps and the COCOS contract"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [{ name = "Simon McIntosh", email = "simon.mcintosh@iter.org" }]
+license = { text = "LGPL-3.0-or-later" }
+keywords = ["IMAS", "mint", "machine map", "signal map", "COCOS", "fusion"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+# The mint needs only the readers and the factor table.  The training stack the
+# parent distribution carries (torch, lightning, jax, torax) is deliberately
+# absent, because the facility analysis server runs Python 3.12 and cannot
+# install it.
+dependencies = [
+    "numpy>=2.2",
+    "imas-python>=2.3.0",
+    "zarr>=3.0",
+    "pyyaml",
+    "nova-cocos",
+    "click>=8.1",
+]
+
+[project.scripts]
+imas-alambic = "imas_alambic.cli:main"
+
+[tool.hatch.version]
+source = "vcs"
+
+# One version number for the workspace: this member reads the repository root's
+# git tags through the same owner and scheme as imas-ambix, so the two cannot
+# drift.
+[tool.hatch.version.raw-options]
+root = "../.."
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/imas_alambic"]

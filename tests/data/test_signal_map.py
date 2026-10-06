@@ -7,7 +7,7 @@ import json
 import numpy as np
 import pytest
 
-from imas_ambix.data.signal_map import (
+from imas_alambic.signal_map import (
     MAP_SCHEMA_VERSION,
     BlockedSignal,
     CalibrationRule,

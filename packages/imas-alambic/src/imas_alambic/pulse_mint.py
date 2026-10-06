@@ -37,21 +37,21 @@ import imas
 import numpy as np
 from imas.ids_struct_array import IDSStructArray
 
-from imas_ambix.data.eddb import eddb_token, normalised_shot, read_channel
-from imas_ambix.data.machine_map import (
+from imas_alambic.eddb import eddb_token, normalised_shot, read_channel
+from imas_alambic.machine_map import (
     MachineMap,
     MachineMapCatalog,
     load_packaged_machine_map,
     map_for_shot,
+    resolve_description_store_root,
 )
-from imas_ambix.data.paths import JT60SA_ROOT
-from imas_ambix.data.signal_map import SignalMap, load_packaged_signal_map
-from imas_ambix.data.virtual_zarr import VirtualZarrView
+from imas_alambic.signal_map import SignalMap, load_packaged_signal_map
+from imas_alambic.virtual_zarr import VirtualZarrView
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
-    from imas_ambix.data.signal_map import SignalRule
+    from imas_alambic.signal_map import SignalRule
 
 #: The description IDSs a pulse is minted as, in write order.  The three the
 #: maps serve receive dynamic signals; the other two are written whole from the
@@ -297,7 +297,7 @@ def mint_pulse(machine: str, shot: object, out_root: Path | str) -> MintReceipt:
     phase_map = map_for_shot(catalog, shot_int)
     description_root = _phase_directory(catalog, phase_map)
 
-    cache_root = Path(JT60SA_ROOT)
+    cache_root = resolve_description_store_root("JT60SA_ROOT")
     cache_dir = cache_root / f"{shot_int}.zarr"
     if not cache_dir.is_dir():
         raise PulseMintError(

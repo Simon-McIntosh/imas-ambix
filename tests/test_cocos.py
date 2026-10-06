@@ -7,7 +7,7 @@ from math import tau
 import numpy as np
 import pytest
 
-from imas_ambix.cocos import (
+from imas_alambic.cocos import (
     CANONICAL_COCOS,
     MAST_SOURCE_COCOS,
     ConventionContractError,

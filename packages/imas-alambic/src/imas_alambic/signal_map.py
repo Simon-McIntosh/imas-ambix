@@ -32,17 +32,14 @@ from typing import Any
 
 import numpy as np
 
-from imas_ambix.cocos import (
+from imas_alambic.cocos import (
     canonical_factor,
     require_canonical_contract,
 )
-from imas_ambix.data.machine_map import _VALIDATION_STATES
+from imas_alambic.machine_map import _VALIDATION_STATES, bundle_for_machine
 
 MAP_SCHEMA_VERSION = "1.0.0"
 """Schema understood by this reader."""
-
-PACKAGED_MAP_ROOT = Path(__file__).with_name("maps")
-"""Reviewed, Git-versioned maps shipped with Ambix."""
 
 _SEMANTIC_VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
 _MAP_COMPONENT = re.compile(r"^[a-z][a-z0-9_-]*$")
@@ -646,7 +643,7 @@ def load_packaged_signal_map(machine: str, system: str) -> SignalMap:
             raise SignalMapError(
                 f"packaged map {label} must match {_MAP_COMPONENT.pattern!r}"
             )
-    path = PACKAGED_MAP_ROOT / machine / f"{system}.json"
+    path = bundle_for_machine(machine).signal_map_path(machine, system)
     source_map = load_signal_map(path)
     if source_map.machine != machine or source_map.system != system:
         raise SignalMapError(
@@ -658,7 +655,6 @@ def load_packaged_signal_map(machine: str, system: str) -> SignalMap:
 
 __all__ = [
     "MAP_SCHEMA_VERSION",
-    "PACKAGED_MAP_ROOT",
     "BlockedSignal",
     "CalibrationRule",
     "CompiledSignal",

@@ -20,8 +20,8 @@ import numpy as np
 import zarr
 from imas.ids_struct_array import IDSStructArray
 
-from imas_ambix.cocos import canonical_factor
-from imas_ambix.data.machine_map import (
+from imas_alambic.cocos import canonical_factor
+from imas_alambic.machine_map import (
     ChannelBinding,
     MachineMap,
     MachineMapCatalog,

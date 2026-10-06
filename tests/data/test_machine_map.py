@@ -15,12 +15,7 @@ import pytest
 import zarr
 from imas.ids_struct_array import IDSStructArray
 
-from imas_ambix.data.geometry_adapter import geometry_table_from_description
-from imas_ambix.data.geometry_transitions import (
-    build_geometry_transitions,
-    load_geometry_table_payload,
-)
-from imas_ambix.data.machine_map import (
+from imas_alambic.machine_map import (
     LINKML_SCHEMA_PATH,
     MachineMapError,
     assert_transition_alignment,
@@ -29,11 +24,17 @@ from imas_ambix.data.machine_map import (
     load_packaged_machine_map,
     map_for_shot,
 )
-from imas_ambix.data.manifest import load_index
-from imas_ambix.data.transform_engine import (
+from imas_alambic.transform_engine import (
     BindingTransformError,
     transform_machine_description,
 )
+from imas_ambix.data.geometry_adapter import geometry_table_from_description
+from imas_ambix.data.geometry_transitions import (
+    build_geometry_transitions,
+    load_geometry_table_payload,
+)
+from imas_ambix.data.manifest import load_index
+from imas_ambix.data.paths import PACKAGED_MACHINE_MAP_ROOT
 from imas_ambix.gs.operator import classify_circuits
 
 LEVEL2_ROOT = Path("/work/projects/imas_gpu/mast/level2/shots")
@@ -199,7 +200,7 @@ def _source_data_kind(data_type: object) -> str:
 
 
 def _plasma_current_catalog_document(source_cocos: int) -> dict[str, Any]:
-    document = json.loads((LINKML_SCHEMA_PATH.parent / "mast.json").read_text())
+    document = json.loads((PACKAGED_MACHINE_MAP_ROOT / "mast.json").read_text())
     binding = next(
         item
         for item in document["binding_sets"][0]["bindings"]
@@ -1701,7 +1702,7 @@ def test_machine_maps_exclude_reconstruction_derived_bindings():
 
 
 def test_loader_rejects_an_undeclared_conditional_slot(tmp_path):
-    source = json.loads((LINKML_SCHEMA_PATH.parent / "mast.json").read_text())
+    source = json.loads((PACKAGED_MACHINE_MAP_ROOT / "mast.json").read_text())
     source["maps"][0]["condition"] = "shot > 12000"
     invalid = tmp_path / "conditional.json"
     invalid.write_text(json.dumps(source))
@@ -1721,7 +1722,7 @@ def test_loader_rejects_an_undeclared_conditional_slot(tmp_path):
 def test_loader_rejects_nonpositive_magnitudes_and_unsigned_connections(
     tmp_path, field, value, message
 ):
-    source = json.loads((LINKML_SCHEMA_PATH.parent / "mast.json").read_text())
+    source = json.loads((PACKAGED_MACHINE_MAP_ROOT / "mast.json").read_text())
     source["drive_topologies"][0]["connections"][0][field] = value
     invalid = tmp_path / f"invalid-{field}.json"
     invalid.write_text(json.dumps(source))

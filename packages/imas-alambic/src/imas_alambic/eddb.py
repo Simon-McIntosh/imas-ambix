@@ -1,7 +1,7 @@
 """On-demand cache for JT-60SA EDDB channels.
 
 Only the channels a map binds, for the shots a run asks for, are landed, as
-``{shot}.zarr/{category}/{dname}`` under :data:`~imas_ambix.data.paths.JT60SA_ROOT`,
+``{shot}.zarr/{category}/{dname}`` under :data:`~imas_alambic.paths.JT60SA_ROOT`,
 with the channel's EDDB time base stored as a sibling array
 (``{category}/{dname}_time``) so a cached channel carries its own time.
 
@@ -20,8 +20,8 @@ rather than allowed to silently replace measured data.  A half-written channel â
 data present, time missing or length-mismatched, as a failure between the two
 writes would leave it â€” is completed by the next fetch rather than refused.  The
 store is a plain Zarr group laid out so the existing
-:class:`~imas_ambix.data.transform_engine.ZarrTransformEngine` and
-:class:`~imas_ambix.data.virtual_zarr.VirtualZarrView` read it with no new
+:class:`~imas_alambic.transform_engine.ZarrTransformEngine` and
+:class:`~imas_alambic.virtual_zarr.VirtualZarrView` read it with no new
 engine; :func:`read_channel` is the raw read beside that engine path, returning
 one cached channel's data, time base and unit whole from the arrays
 :func:`write_channel` laid down.
@@ -40,12 +40,12 @@ from typing import TYPE_CHECKING
 import numpy as np
 import zarr
 
-from imas_ambix.data.eddb_remote import BatchResult, ChannelRecord
+from imas_alambic.eddb_remote import BatchResult, ChannelRecord
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-    from imas_ambix.data.eddb_remote import RemoteEddbExtractor
+    from imas_alambic.eddb_remote import RemoteEddbExtractor
 
 #: Attribute names carried on the cached arrays.  ``units`` is the EDDB unit
 #: string verbatim, ``channel_count`` the number of channels in the record and
