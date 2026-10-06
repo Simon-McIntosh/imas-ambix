@@ -22,11 +22,11 @@
   <meta name="plan-tags" content="jt-60sa,machine-map,equilibrium,figures">
   <meta name="plan-informs" content="jt60sa-machine-map">
   <meta name="plan-section-depends-on" content="{&quot;s2&quot;: [&quot;jt60sa-machine-map#s7&quot;], &quot;s3&quot;: [&quot;imas-ink:geometry-figure-vessel-units#s1&quot;], &quot;s4&quot;: [&quot;imas-ink:geometry-figure-vessel-units#s1&quot;, &quot;imas-ink:geometry-figure-vessel-units#s5&quot;]}">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;}">
   <title>JT-60SA Pulse IDSs and Equilibrium Animation | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="12">
+<meta name="plan-version" content="13">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -47,87 +47,12 @@
       </p>
     </header>
 
+    <section class="section-landed">
+  <header><span class="badge badge-shipped">&#10003; landed 2026-10-06</span>
     <h2 id="s1">§1 — Mint a pulse: one writer from data load to IDS write</h2>
-<section data-reckon="section" data-id="s1" data-effort-hours="3.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links=""></section>
-    <p>
-      Two halves of the transformation exist and nothing joins them. The static half is the
-      catalogue <code>imas_ambix/data/machine_maps/jt-60sa.json</code>, served through
-      <code>imas_ambix/data/transform_engine.py</code> <code>StoreEngine</code>: it emits the five
-      description IDSs (<code>pf_active</code>, <code>pf_passive</code>, <code>wall</code>,
-      <code>magnetics</code>, <code>tf</code>) of the phase a shot falls in, from the store under
-      <code>/work/projects/imas_gpu/jt60sa/machine_description/{OP1,OP2}</code>. The dynamic half is
-      the signal maps <code>imas_ambix/data/maps/jt-60sa/{pf_active,tf,magnetics}.json</code>, which
-      <code>imas_ambix/data/virtual_zarr.py</code> <code>VirtualZarrView</code> applies over the EDDB
-      cache <code>/work/projects/imas_gpu/jt60sa/{shot}.zarr</code>, producing arrays for the
-      reconstruction spine. The mint takes the description IDSs for the shot's phase, writes into
-      them the time-dependent quantities the signal maps serve (each PF coil's
-      <code>current</code>, the TF coil current, <code>magnetics/ip</code>), and writes one DD 4.1.1
-      netCDF file per IDS under <code>/work/projects/imas_gpu/jt60sa/ids/{shot}/</code>, the layout the
-      description store already uses.
-    </p>
-    <p>
-      The join lives in one module, <code>imas_ambix/data/pulse_mint.py</code>, behind one function,
-      <code>mint_pulse</code>. It takes the machine, the shot and an output root, and returns a
-      receipt naming each IDS written, each time-dependent leaf filled, and each declared signal
-      left out with its reason. The description comes whole from the phase directory the catalogue
-      selects: <code>map_for_shot</code> and the catalogue's <code>static-over-map</code> layout,
-      the same <code>{root}/{map name}/{ids}.nc</code> that <code>NetCDFTransformEngine</code> opens.
-      So the static content is the converter's own output, never re-derived. Each signal's values
-      come from the compiled signal map through <code>VirtualZarrView.for_target</code>, so a unit,
-      sign or COCOS factor is applied in exactly the place it is applied today. Its time base comes
-      from <code>imas_ambix/data/eddb.py</code> <code>read_channel</code>, the owner of the cache's
-      time base, because the view returns values with none. <code>scripts/figures_jt60sa_signals.py</code>
-      already reads E101154 this way, values through the view and time through
-      <code>read_channel</code>, and the mint follows it rather than resolving cache paths itself. A signal the maps block
-      (the second TF chain, the PF chains the cached shots do not corroborate) is not written.
-      Neither FPPC coil has a served channel, so <code>FPPC_UP</code> and <code>FPPC_DOWN</code>
-      carry geometry and no current. <code>ids_properties.homogeneous_time</code> is 1 only when
-      every signal written into that IDS shares one time base, and otherwise 0 with each signal
-      carrying its own time vector. That rule, which leaf takes which time base, and the write
-      layout live in <code>pulse_mint.py</code> and nowhere in the CLI. Each IDS is checked with
-      <code>ids.validate()</code> and written with <code>imas.DBEntry(path, "w", dd_version=...)</code>
-      and one <code>put</code>, so a malformed IDS is refused before it reaches disk.
-    </p>
-    <p>
-      No existing writer fits. nova's <code>nova/io/egress.py</code> <code>IdsEgress</code>, over
-      <code>nova/imas/ids_entry.py</code> <code>IdsEntry</code>, is the closest mechanism, and the mint
-      takes its validate-then-<code>put</code> rule from it. It cannot be the owner. It builds a fresh
-      IDS from a standard-name xarray store whose one shared <code>time</code> coordinate it always
-      writes as <code>homogeneous_time</code> = 1. The mint instead starts from the whole description
-      IDS, its signal-map rules carry no standard name, and its signals need not share a time base.
-      The other writers each own one product's IDS:
-      <code>selene_deck.write_phase_description</code> writes the description store,
-      <code>imas_ambix/challenge/thomson_ids.py</code> the challenge's Thomson IDS, and
-      <code>imas_ambix/bench/store_arms.py</code> <code>write_imas_netcdf</code> a benchmark arm with
-      its own receipt type; the data package imports from none of them.
-    </p>
-    <p>
-      The interface account: one public function, <code>mint_pulse</code>, and one command,
-      <code>mint</code>, in <code>imas_ambix/data/cli.py</code>, taking <code>--machine</code>,
-      <code>--shot</code> and <code>--out</code>. The command is a thin entry over the function. It
-      retires nothing because no existing data command writes an IDS: <code>download</code> fetches
-      raw sources, <code>encode-shot</code> and <code>bulk-encode-signals</code> write token stores,
-      and <code>manifest</code>, <code>inventory</code>, <code>audit</code> and <code>status</code>
-      read. <a href="jt60sa-facility-mint">jt60sa-facility-mint</a> §2 and §3 package this same
-      command at the facility, so it is the one entry point both plans share.
-    </p>
-    <p>
-      Done-when: <code>imas-ambix data mint --machine jt-60sa --shot 101154 --out &lt;dir&gt;</code>
-      writes <code>pf_active</code>, <code>pf_passive</code>, <code>wall</code>, <code>magnetics</code>
-      and <code>tf</code> for E101154, and a test reads each back through <code>imas.DBEntry</code> at
-      DD 4.1.1. In that test the 10 coils the signal map serves (CS1 to CS4, EF1 to EF6) carry
-      currents equal to the compiled signal map applied to the cached channels sample for sample,
-      <code>FPPC_UP</code> and <code>FPPC_DOWN</code> carry none, the TF coil current equals the
-      served TF chain, and <code>magnetics/ip</code> peaks near 1&nbsp;MA. For each IDS,
-      <code>imas.util.idsdiffgen</code> between the minted IDS and the OP1 description yields no path
-      outside <code>ids_properties</code> other than the time-dependent leaves the receipt names, so
-      the static content is the description unchanged. Minting a shot with no cache refuses and
-      names the missing cache. The mint reads only the cache and the store and never contacts the
-      JT-60SA server. The node's test writes to a temporary directory. E101154 is minted into
-      <code>/work/projects/imas_gpu/jt60sa/ids/101154/</code> only once the description store carries
-      the corrected probe axis (<a href="jt60sa-machine-map">jt60sa-machine-map</a>
-      <code>jtmm-probe-axis-store</code>), because the mint copies the description's probe angles.
-    </p>
+<section data-reckon="section" data-id="s1" data-effort-hours="3.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-status="done" data-links=""></section></header>
+  <p class="landed-summary"><code>imas_ambix/data/pulse_mint.py</code> <code>mint_pulse</code> and <code>imas-ambix data mint</code> landed at <code>6ad72530</code> (gate 38 passed, review 108/120). E101154 is minted on disk in <code>/work/projects/imas_gpu/jt60sa/ids/101154/</code> from the corrected probe-axis store: 10 served coil currents, ip 0.9986&nbsp;MA, MP1 89.72° (review 115/120). <a href="s1">full record</a></p>
+</section>
 
     <h2 id="s2">§2 — The equilibrium IDS, with its topology</h2>
 <section data-reckon="section" data-id="s2" data-effort-hours="3.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links=""></section>
@@ -245,10 +170,16 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-jtpi-001" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-create" data-written-at="2026-10-06" data-recommends-skill="/reckon-build jt60sa-pulse-ids §1" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-jtpi-001" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-create" data-written-at="2026-10-06" data-recommends-skill="/reckon-build jt60sa-pulse-ids §1" data-resolved-at="2026-10-06T17:00:34+00:00" data-resolved-by="reckon-build">
     <h4 class="r-fu-title">Mint E101154 as IDSs through the machine map</h4>
     <div class="r-fu-body"><p>§1 needs nothing new from the machine map: the catalogue and the signal maps it joins have landed, and E101154 is cached. §2 waits on the machine map's §7, and §4 on imas-ink's vessel drawing.</p></div>
     <pre class="r-fu-prompt">/reckon-build jt60sa-pulse-ids §1</pre>
+    <p class="r-fu-outcome">§1 landed: writer at 6ad72530, E101154 minted on disk at 8be72504.</p>
+    </article>
+<article class="r-fu" data-id="f-jtpi-002" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-build" data-written-at="2026-10-06" data-recommends-skill="/reckon-build jt60sa-pulse-ids §2" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Mint E101154&#x27;s equilibrium with its topology</h4>
+    <div class="r-fu-body"><p>§2 waits on jt60sa-machine-map §7's SELENE equilibrium rung and on the decision <code>topology-source</code>, which follows that plan's open question <code>eqdb-reader</code>. §4 then waits on §2; its imas-ink prerequisites (vessel drawing, sensor flags) have both shipped.</p></div>
+    <pre class="r-fu-prompt">/reckon-build jt60sa-pulse-ids §2</pre>
     </article>
 </section>
   <section data-reckon="comments" id="comments" class="r-comments">
@@ -266,6 +197,9 @@
 </div>
 <div class="r-comment" data-section="s1" data-id="c-run-r-20261006T162938901484-review-of-jtpi-pulse-mint" data-who="reckon-build" data-when="2026-10-06T16:40:40.735Z">
     <div class="r-comment-body"><p>independent review attached to r-20261006T160357737696-jtpi-pulse-mint: six dimensions scored (goal_fidelity 19, evidence 17, scope_discipline 16, durability 19, fit 18, reuse 19; total 108) at base 271479e2 head 60b71be7, three follow-on findings, added-failure count unmeasured because the reviewed manifest names no baseline_suite/after_suite gate logs.</p></div>
+</div>
+<div class="r-comment" data-section="s1" data-id="c-20261006-jtpi-s1-landed" data-who="reckon-build" data-when="2026-10-06T17:05:00Z">
+    <div class="r-comment-body"><p>gate pulse-mint passed; section s1 closed. Three notes for whoever extends the mint. <code>mint_pulse</code> takes <code>machine</code> but reads the cache from <code>JT60SA_ROOT</code>; jt60sa-facility-mint §2 or §6 moves the function into <code>imas_alambic</code> and must resolve the cache root there, since the facility's cache lives elsewhere. A multi-channel source array would keep only its first row; every rule today serves one channel. The static-identity test also accepts a diff at an ancestor of a written leaf, so a change in a struct array's length would pass it; the mint never resizes one except <code>magnetics/ip</code>, which the description leaves empty.</p></div>
 </div>
 <div class="r-comment" data-section="s3" data-id="c-20261006-imas-ink-vessel-shipped" data-who="reckon-build" data-when="2026-10-06T12:30:00Z">
     <div class="r-comment-body"><p>The vessel need is met: <code>imas-ink:geometry-figure-vessel-units</code> shipped (imas-ink main, commits <code>94bd8f3</code>, <code>aca351d</code>, <code>db2ee9f</code>, <code>16fd030</code>, verified on <code>origin/main</code>). <code>imas_ink.extract.extract_vessel_shells</code> reads the annular <code>outline_inner</code> and <code>outline_outer</code>, and <code>MachineGeometry.vessel_shells</code> is drawn by both wall renderers. What remains of this section is the <code>animation-sensors</code> decision and, if it is to omit them, the sensor pass-through in <code>animate_pulse</code>.</p></div>
