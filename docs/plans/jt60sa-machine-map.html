@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.84">
-<meta name="plan-version" content="200">
+<meta name="plan-version" content="201">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -379,9 +379,19 @@
       static-over-map description store, which the reader refuses. The catalogue form has no
       consumer, so the node <code>jtmm-observation-signal-maps</code> replaces it rather than add a
       second path. <code>read_signal_map_observation(shot, machine, equilibrium, *, root)</code>
-      reads the plasma current and every flux loop from the machine's packaged magnetics map. It
-      derives the toroidal field from the TF map's coil current through the tf description's field
-      per ampere, reads every value raw with no sign or unit factor applied, and passes the
+      takes the plasma-current and flux-loop rules from the machine's packaged magnetics map, but
+      it does not read them through <code>VirtualZarrView</code>. That view applies each rule's
+      compiled transform on every read, and for a <code>source-only</code> rule the transform
+      carries the assumed +1 sign §6 exists to measure. So the reader reads each rule's
+      <code>source_group</code> and <code>source_array</code>, with its time sibling, straight from
+      the EDDB cache through <code>imas_ambix/data/eddb.py</code> <code>read_channel</code>, the cache's
+      own reader, with no sign, unit or COCOS factor applied. The toroidal field comes from the
+      equilibrium half, as MAST's reader takes <code>bvac_rmag</code> from the level-2 equilibrium
+      group: the <code>EfitLabels</code> record's vacuum field. That leaves no field-per-ampere
+      relation to own. The description store has no TF turn count, and the relation's one
+      implementation is the converter's <code>derive_b_field_phi_vacuum_r</code>, which this reader
+      must not copy. The TF map's coil current, read raw the same way, enters only as a polarity
+      cross-check reported beside the observation, by sign alone. The reader passes the
       <code>EfitLabels</code> it is given to the same kernel. <code>read_catalogue_observation</code>
       retires with its tests, so the interface account is one definition retired and one added. For the
       equilibrium side, the SELENE and FAME outputs are scored on the convention scorer's
