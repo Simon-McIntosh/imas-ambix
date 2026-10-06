@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85">
 <meta name="plan-impl" content="0.7">
-<meta name="plan-version" content="157">
+<meta name="plan-version" content="158">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -629,8 +629,12 @@
       exported names become the table's MAST row and are retired as names. Every use site
       migrates to read the row for its declared machine, and the node that retires them declares
       all four files as its scope. <code>imas_ambix/spine_bench/machine_artifact_arm.py</code>
-      imports them, uses them as dataclass field defaults, and re-exports them in its own
-      <code>__all__</code>, a second public surface that retires with them. Three test modules
+      imports two of them, <code>PINNED_PHYSICAL_DIGEST</code> and
+      <code>PINNED_REGISTRY_DIGEST</code>, uses them as dataclass field defaults, and re-exports those
+      two in its own <code>__all__</code>, a second public surface that retires with them. It never
+      reads <code>PINNED_SEMANTIC_IDENTITY</code>, which its docstring excludes on purpose so the arm
+      runs on any description revision. <code>CACHE_ENV</code> and <code>DIGEST_ENV</code>, which it
+      also re-exports, are not pins and stay. Three test modules
       read them: <code>tests/gs/test_artifact_resolution.py</code> (eight sites),
       <code>tests/gs/test_artifact_geometry.py</code> (three) and
       <code>tests/spine_bench/test_machine_artifact_arm.py</code> (nine). That retires three
