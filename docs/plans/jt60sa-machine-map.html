@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.88">
-<meta name="plan-version" content="224">
+<meta name="plan-version" content="225">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -1419,6 +1419,9 @@
 </div>
 <div class="r-comment" data-section="s6" data-id="c-20261006T2000-s6-probe-angle-binding-landed" data-who="reckon-build" data-when="2026-10-06T20:00:00Z">
     <div class="r-comment-body"><p>gate tests/data/test_jt60sa_machine_map.py and test_description_reader.py passed (28 tests, exit 0); jtmm-probe-angle-binding merged as 752a459c, review 112/120, no added failure. The JT-60SA catalogue binds the probe poloidal_angle description leaf for OP1 and OP2 with sign_convention identity, citing the stored axis and SELENE's mgfild.f:38 expression; read_geometry_table returns all 17 probe angles through its description branch, and the three refusal branches the guards review found unguarded now each carry a test.</p></div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-run-r-20261006T193702300259-jtmm-probe-angle-binding" data-who="reckon-build" data-when="2026-10-06T19:48:16.650Z">
+    <div class="r-comment-body"><p>jt-60sa.json binds magnetics/b_field_pol_probe/poloidal_angle for OP1 and OP2 with sign_convention identity, its evidence citing the stored axis theta = (90 deg - omega) and SELENE&#x27;s mgfild.f:38 expression; read_geometry_table(100595, machine=&#x27;jt-60sa&#x27;) returns 17 probe angles equal to the stored poloidal_angle in degrees; test_jt60sa_machine_map.py asserts that and test_description_reader.py adds the exactly-one-name-array, duplicate-name and names-versus-angles refusal tests; gate 28 passed EXIT=0.</p></div>
 </div>
 </section>
 </main>
