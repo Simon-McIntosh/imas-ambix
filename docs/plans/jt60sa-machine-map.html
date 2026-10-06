@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5">
 <meta name="plan-impl" content="0.625">
-<meta name="plan-version" content="112">
+<meta name="plan-version" content="114">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -434,9 +434,15 @@
       96/100) as <code>imas_ambix/data/machine_maps/jt-60sa.json</code>. Two items remain before
       this section closes. First, the probe angles: the store carries
       <code>magnetics/b_field_pol_probe/poloidal_angle</code> for all 17 probes, but the catalogue
-      binds none, so its declared description-carried angles read as NaN. The catalogue binds
-      them, with their sense declared as an identity qualification, unvalidated until §6
-      measures it, rather than left in a test comment. Second, the coil-element identifiers: the
+      binds none, so its declared description-carried angles read as NaN. Binding them turned
+      out not to be data-only (<code>jtmm-catalogue-probe-angles</code>, 2026-10-06). The COCOS
+      factor table the transform engine uses (<code>nova.io.cocos</code>
+      <code>TRANSFORMATIONS</code>) has no class for <code>pol_angle_like</code>. The engine
+      refuses an executable binding whose sign is <code>unknown-unvalidated</code>. And
+      <code>imas_ambix/data/geometry_adapter.py</code> <code>_b_probes</code> sets every probe
+      angle to NaN rather than reading one. So this section records the angles as a source
+      qualification in <code>jt-60sa.json</code>, naming the stored array and those three gaps.
+      §6, which measures the angle's sense, binds them together with the three changes. Second, the coil-element identifiers: the
       converter writes no name on a <code>pf_active</code> coil element, so the catalogue's
       structure assemblies carry placeholder identifiers. The converter names each element after
       its coil and position, the store is re-converted, and the catalogue takes the real
@@ -476,15 +482,20 @@
       produces the normalisation table that maps each to a DD unit, checked with the
       imas-cx server's path and unit tools, and a string that cannot be normalised blocks
       its binding rather than defaulting.
-      The table is a spelling map, not a second conversion mechanism. It is a packaged data
-      file beside <code>jt-60sa.json</code> that turns each EDDB spelling into the unit string
-      a binding declares as its <code>source_unit</code>. Conversion keeps its existing
+      The table is a spelling map, not a second conversion mechanism, and it is resolved when a
+      binding is authored, not consulted at run time. A binding's <code>source_unit</code> holds
+      the DD unit (<code>imas_ambix/data/signal_map.py</code>); the raw EDDB spelling is not
+      stored on the binding. The table is a packaged data file beside
+      <code>jt-60sa.json</code> listing each EDDB spelling the census met and the DD unit it
+      resolves to. A test reads every JT-60SA binding's source channel spelling from the EDDB
+      cache's unit attribute and requires the table to map it to that binding's
+      <code>source_unit</code>. Conversion keeps its existing
       owners: the per-channel <code>unit_factor</code> the packaged signal map
       (<code>imas_ambix/data/signal_map.py</code>) declares, and
       <code>imas_ambix/data/tokamap_export.py</code> <code>_unit_factor</code>, which converts
-      only between declared binding units. An EDDB spelling with no entry is refused when the
-      catalogue loads, under the existing <code>MachineMapError</code>, so the section adds one
-      data file and no public definition or refusal family. It retires nothing, because no
+      only between declared binding units. A spelling with no entry fails that test rather than
+      defaulting, so the section adds one data file and no public definition or refusal
+      family. It retires nothing, because no
       EDDB unit spelling is recorded anywhere today.
     </p>
     <p>
@@ -541,7 +552,14 @@
       a second forward model here. Comparison against the
       measured channel fixes, per channel, the loop sign, the probe sensitive axis, the unit
       factor and whether the declared position is consistent — exactly the adjudication
-      that settled MAST's nineteen disputed loop positions. Each JT-60SA verdict is recorded
+      that settled MAST's nineteen disputed loop positions. The probe sensitive axis it fixes
+      is what lets the 17 stored probe <code>poloidal_angle</code> values, which §4 records as a
+      source qualification, be bound. That binding needs three changes, and §6 owns all three:
+      a <code>pol_angle_like</code> factor class where the COCOS transform factors are resolved
+      (<code>imas_ambix/cocos.py</code> <code>canonical_factor</code>, which today defers to
+      nova's table and so refuses an angle); an emit path that lets a description binding whose
+      sense §6 has now measured stop being <code>unknown-unvalidated</code>; and
+      <code>geometry_adapter._b_probes</code> reading the emitted angle instead of NaN. Each JT-60SA verdict is recorded
       as MAST's are, as a <code>FluxLoopPositionDeclaration</code> over the shot range it was
       measured on, undecided verdicts included, and read back through
       <code>MachineMapCatalog.flux_loop_positions_for</code>, so the reader stays
@@ -580,7 +598,12 @@
       part is its Grad–Shafranov current integral, <code>_integrated_current</code>. §6
       therefore generalises the entry point to take an equilibrium record through a loader,
       with the DIII-D corpus as its first loader and SELENE and FAME as the next, rather than
-      writing a second scorer. Because <code>_integrated_current</code> and
+      writing a second scorer. The generic entry is one new public definition in
+      <code>imas_ambix/challenge/convention.py</code>, <code>measure_convention(records,
+      eligibility, *, shots)</code>, which takes the loader's <code>EfitLabels</code> records and
+      the loader's declared eligibility and returns the existing
+      <code>ConventionReceipt</code>. <code>measure_diiid_convention</code> becomes a call to it
+      with the DIII-D loader. It retires nothing, because no generic convention entry exists. Because <code>_integrated_current</code> and
       <code>_axis_and_boundary</code> read DIII-D corpus keys (<code>efit_grid_R</code>,
       <code>efit_psirz</code>, <code>efit_z_axis</code>) directly, the loader boundary is the
       typed record that already owns that data, not a second contract:
