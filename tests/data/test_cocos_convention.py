@@ -193,21 +193,15 @@ def test_declared_source_to_seventeen_factors_are_committed_as_data():
             "b0_like": 1.0,
             "q_like": -1.0,
             "dodpsi_like": 1.0 / tau,
-            "tor_angle_like": 1.0,
-            "pol_angle_like": -1.0,
             "one_like": 1.0,
         }
     )
 
-    for transformation in (
-        "psi_like",
-        "ip_like",
-        "b0_like",
-        "q_like",
-        "dodpsi_like",
-        "one_like",
-    ):
-        assert MAST_TO_COCOS_17_FACTORS[transformation] == pytest.approx(
+    # Every committed entry agrees with nova's derived factor, and no entry is
+    # excluded from the cross-check: a class nova does not own has no factor to
+    # agree with, so the loop refuses it rather than skipping it.
+    for transformation, factor in MAST_TO_COCOS_17_FACTORS.items():
+        assert factor == pytest.approx(
             transform_factor(
                 transformation,
                 source=MAST_SOURCE_COCOS,
