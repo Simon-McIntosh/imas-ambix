@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="jtmm-eddb-second-cold-fetch-landing">
+      <p>Second cold EDDB fetch, 2026-10-06, through
+      <code>imas_ambix.data.eddb.fetch_channels</code> and the merged extractor, one
+      ssh session per shot (the extractor's <code>DEFAULT_SSH_COMMAND</code>, remote
+      under <code>nice -n 19</code>), no new repository module. On E101154 the
+      first-pass channels (MMSYS coil and TF currents, PSRC <code>Ip</code>,
+      <code>calIp</code>, <code>magFluxLp1..34</code>, <code>magPbTC1..23</code>,
+      MDAC <code>curAVVRC1..4</code>) and the MDAC <code>magFlxLp*</code> flux loops;
+      on E101173 the MDAC <code>magFlxLp*</code> flux loops (its first pass was
+      already cached, so <code>fetch_channels</code> skipped it). The
+      <code>magFlxLp*</code> names were enumerated from EDDB's catalogue
+      (<code>eddbreadTable(shot, 'MDAC')</code>) rather than assumed. Every channel
+      fetched this run was re-read warm through <code>VirtualZarrView</code> with a
+      transport that raises if called: 0 transport calls,
+      0 channels left unfetched. E101154 served all
+      119 requested channels and E101173 all
+      34. No EDDB value is committed to the
+      repository.</p>
+      <p><strong>Served:</strong> on E101154 every requested PSRC
+      <code>magFluxLp1..34</code> is served (34/34) and every MDAC
+      <code>magFlxLp*</code> is served (34/34); on E101173 every MDAC
+      <code>magFlxLp*</code> is served (34/34), and PSRC
+      <code>magFluxLp1..34</code> were not requested on that shot (PSRC is the
+      reconstruction's processed copy, populated for the shots it ran on; the
+      earlier read-path investigation records PSRC refused on E101173 with
+      <code>irc=1015</code>).</p>
+    </section>
+    <section id="jtmm-eddb-second-cold-fetch-E101154">
+      <h3>Shot E101154 (101154.zarr)</h3>
+      <table>
+        <thead><tr><th>measure</th><th>value</th></tr></thead>
+        <tbody>
+          <tr><td>channels requested</td><td>119</td></tr>
+          <tr><td>channels served</td><td>119</td></tr>
+          <tr><td>channels refused</td><td>0</td></tr>
+          <tr><td>cold fetch wall time (one ssh session)</td><td>111.253 s</td></tr>
+          <tr><td>per-signal wall time (mean over session)</td><td>0.934899 s</td></tr>
+          <tr><td>catalogue call wall time</td><td>2.511 s</td></tr>
+          <tr><td>bytes on disk (data + time arrays)</td><td>326,579,552</td></tr>
+          <tr><td>unit strings seen</td><td><code>A</code>, <code>T</code>, <code>Wb</code></td></tr>
+          <tr><td>channels read through VirtualZarrView</td><td>119</td></tr>
+        </tbody>
+      </table>
+      <p>Per-channel time base, unit, channel count, sequence number and bytes on disk:</p>
+      <table>
+        <thead><tr><th>channel</th><th>unit</th><th>nch</th><th>seq</th><th>time length</th><th>bytes on disk</th></tr></thead>
+        <tbody>
+          <tr><td>MMSYS/curCS1HiTe</td><td><code>A</code></td><td>1</td><td>1</td><td>310077</td><td>4,961,232</td></tr>
+          <tr><td>MMSYS/curCS1LKAT</td><td><code>A</code></td><td>1</td><td>1</td><td>310077</td><td>4,961,232</td></tr>
+          <tr><td>MMSYS/curCS2HiTe</td><td><code>A</code></td><td>1</td><td>1</td><td>310077</td><td>4,961,232</td></tr>
+          <tr><td>MMSYS/curCS2LKAT</td><td><code>A</code></td><td>1</td><td>1</td><td>310077</td><td>4,961,232</td></tr>
+          <tr><td>MMSYS/curCS3HiTe</td><td><code>A</code></td><td>1</td><td>1</td><td>310077</td><td>4,961,232</td></tr>
+          <tr><td>MMSYS/curCS3LKAT</td><td><code>A</code></td><td>1</td><td>1</td><td>310077</td><td>4,961,232</td></tr>
+          <tr><td>MMSYS/curCS4HiTe</td><td><code>A</code></td><td>1</td><td>1</td><td>310077</td><td>4,961,232</td></tr>
+          <tr><td>MMSYS/curCS4LKAT</td><td><code>A</code></td><td>1</td><td>1</td><td>310077</td><td>4,961,232</td></tr>
+          <tr><td>MMSYS/curEF1HiTe</td><td><code>A</code></td><td>1</td><td>1</td><td>310077</td><td>4,961,232</td></tr>
+          <tr><td>MMSYS/curEF1LKAT</td><td><code>A</code></td><td>1</td><td>1</td><td>310077</td><td>4,961,232</td></tr>
+          <tr><td>MMSYS/curEF2HiTe</td><td><code>A</code></td><td>1</td><td>1</td><td>310077</td><td>4,961,232</td></tr>
+          <tr><td>MMSYS/curEF2LKAT</td><td><code>A</code></td><td>1</td><td>1</td><td>310077</td><td>4,961,232</td></tr>
+          <tr><td>MMSYS/curEF3HiTe</td><td><code>A</code></td><td>1</td><td>1</td><td>310077</td><td>4,961,232</td></tr>
+          <tr><td>MMSYS/curEF3LKAT</td><td><code>A</code></td><td>1</td><td>1</td><td>310077</td><td>4,961,232</td></tr>
+          <tr><td>MMSYS/curEF4HiTe</td><td><code>A</code></td><td>1</td><td>1</td><td>310077</td><td>4,961,232</td></tr>
+          <tr><td>MMSYS/curEF4LKAT</td><td><code>A</code></td><td>1</td><td>1</td><td>310077</td><td>4,961,232</td></tr>
+          <tr><td>MMSYS/curEF5HiTe</td><td><code>A</code></td><td>1</td><td>1</td><td>310077</td><td>4,961,232</td></tr>
+          <tr><td>MMSYS/curEF5LKAT</td><td><code>A</code></td><td>1</td><td>1</td><td>310077</td><td>4,961,232</td></tr>
+          <tr><td>MMSYS/curEF6HiTe</td><td><code>A</code></td><td>1</td><td>1</td><td>310077</td><td>4,961,232</td></tr>
+          <tr><td>MMSYS/curEF6LKAT</td><td><code>A</code></td><td>1</td><td>1</td><td>310077</td><td>4,961,232</td></tr>
+          <tr><td>MMSYS/cur1TFLKAT</td><td><code>A</code></td><td>1</td><td>1</td><td>310077</td><td>4,961,232</td></tr>
+          <tr><td>MMSYS/cur2TFLKAT</td><td><code>A</code></td><td>1</td><td>1</td><td>310077</td><td>4,961,232</td></tr>
+          <tr><td>PSRC/Ip</td><td><code>A</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/calIp</td><td><code>A</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magFluxLp1</td><td><code>Wb</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magFluxLp2</td><td><code>Wb</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magFluxLp3</td><td><code>Wb</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magFluxLp4</td><td><code>Wb</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magFluxLp5</td><td><code>Wb</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magFluxLp6</td><td><code>Wb</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magFluxLp7</td><td><code>Wb</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magFluxLp8</td><td><code>Wb</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magFluxLp9</td><td><code>Wb</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magFluxLp10</td><td><code>Wb</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magFluxLp11</td><td><code>Wb</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magFluxLp12</td><td><code>Wb</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magFluxLp13</td><td><code>Wb</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magFluxLp14</td><td><code>Wb</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magFluxLp15</td><td><code>Wb</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magFluxLp16</td><td><code>Wb</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magFluxLp17</td><td><code>Wb</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magFluxLp18</td><td><code>Wb</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magFluxLp19</td><td><code>Wb</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magFluxLp20</td><td><code>Wb</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magFluxLp21</td><td><code>Wb</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magFluxLp22</td><td><code>Wb</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magFluxLp23</td><td><code>Wb</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magFluxLp24</td><td><code>Wb</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magFluxLp25</td><td><code>Wb</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magFluxLp26</td><td><code>Wb</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magFluxLp27</td><td><code>Wb</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magFluxLp28</td><td><code>Wb</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magFluxLp29</td><td><code>Wb</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magFluxLp30</td><td><code>Wb</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magFluxLp31</td><td><code>Wb</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magFluxLp32</td><td><code>Wb</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magFluxLp33</td><td><code>Wb</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magFluxLp34</td><td><code>Wb</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magPbTC1</td><td><code>T</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magPbTC2</td><td><code>T</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magPbTC3</td><td><code>T</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magPbTC4</td><td><code>T</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magPbTC5</td><td><code>T</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magPbTC6</td><td><code>T</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magPbTC7</td><td><code>T</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magPbTC8</td><td><code>T</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magPbTC9</td><td><code>T</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magPbTC10</td><td><code>T</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magPbTC11</td><td><code>T</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magPbTC12</td><td><code>T</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magPbTC13</td><td><code>T</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magPbTC14</td><td><code>T</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magPbTC15</td><td><code>T</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magPbTC16</td><td><code>T</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magPbTC17</td><td><code>T</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magPbTC18</td><td><code>T</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magPbTC19</td><td><code>T</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magPbTC20</td><td><code>T</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magPbTC21</td><td><code>T</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magPbTC22</td><td><code>T</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>PSRC/magPbTC23</td><td><code>T</code></td><td>1</td><td>1</td><td>46078</td><td>737,248</td></tr>
+          <tr><td>MDAC/curAVVRC1</td><td><code>A</code></td><td>1</td><td>1</td><td>286077</td><td>4,577,232</td></tr>
+          <tr><td>MDAC/curAVVRC2</td><td><code>A</code></td><td>1</td><td>1</td><td>286077</td><td>4,577,232</td></tr>
+          <tr><td>MDAC/curAVVRC3</td><td><code>A</code></td><td>1</td><td>1</td><td>286077</td><td>4,577,232</td></tr>
+          <tr><td>MDAC/curAVVRC4</td><td><code>A</code></td><td>1</td><td>1</td><td>286077</td><td>4,577,232</td></tr>
+          <tr><td>MDAC/magFlxLp1</td><td><code>Wb</code></td><td>1</td><td>1</td><td>286077</td><td>4,577,232</td></tr>
+          <tr><td>MDAC/magFlxLp10</td><td><code>Wb</code></td><td>1</td><td>1</td><td>286077</td><td>4,577,232</td></tr>
+          <tr><td>MDAC/magFlxLp11</td><td><code>Wb</code></td><td>1</td><td>1</td><td>286077</td><td>4,577,232</td></tr>
+          <tr><td>MDAC/magFlxLp12</td><td><code>Wb</code></td><td>1</td><td>1</td><td>286077</td><td>4,577,232</td></tr>
+          <tr><td>MDAC/magFlxLp13</td><td><code>Wb</code></td><td>1</td><td>1</td><td>286077</td><td>4,577,232</td></tr>
+          <tr><td>MDAC/magFlxLp14</td><td><code>Wb</code></td><td>1</td><td>1</td><td>286077</td><td>4,577,232</td></tr>
+          <tr><td>MDAC/magFlxLp15</td><td><code>Wb</code></td><td>1</td><td>1</td><td>286077</td><td>4,577,232</td></tr>
+          <tr><td>MDAC/magFlxLp16</td><td><code>Wb</code></td><td>1</td><td>1</td><td>286077</td><td>4,577,232</td></tr>
+          <tr><td>MDAC/magFlxLp17</td><td><code>Wb</code></td><td>1</td><td>1</td><td>286077</td><td>4,577,232</td></tr>
+          <tr><td>MDAC/magFlxLp18</td><td><code>Wb</code></td><td>1</td><td>1</td><td>286077</td><td>4,577,232</td></tr>
+          <tr><td>MDAC/magFlxLp19</td><td><code>Wb</code></td><td>1</td><td>1</td><td>286077</td><td>4,577,232</td></tr>
+          <tr><td>MDAC/magFlxLp2</td><td><code>Wb</code></td><td>1</td><td>1</td><td>286077</td><td>4,577,232</td></tr>
+          <tr><td>MDAC/magFlxLp20</td><td><code>Wb</code></td><td>1</td><td>1</td><td>286077</td><td>4,577,232</td></tr>
+          <tr><td>MDAC/magFlxLp21</td><td><code>Wb</code></td><td>1</td><td>1</td><td>286077</td><td>4,577,232</td></tr>
+          <tr><td>MDAC/magFlxLp22</td><td><code>Wb</code></td><td>1</td><td>1</td><td>286077</td><td>4,577,232</td></tr>
+          <tr><td>MDAC/magFlxLp23</td><td><code>Wb</code></td><td>1</td><td>1</td><td>286077</td><td>4,577,232</td></tr>
+          <tr><td>MDAC/magFlxLp24</td><td><code>Wb</code></td><td>1</td><td>1</td><td>286077</td><td>4,577,232</td></tr>
+          <tr><td>MDAC/magFlxLp25</td><td><code>Wb</code></td><td>1</td><td>1</td><td>286077</td><td>4,577,232</td></tr>
+          <tr><td>MDAC/magFlxLp26</td><td><code>Wb</code></td><td>1</td><td>1</td><td>286077</td><td>4,577,232</td></tr>
+          <tr><td>MDAC/magFlxLp27</td><td><code>Wb</code></td><td>1</td><td>1</td><td>286077</td><td>4,577,232</td></tr>
+          <tr><td>MDAC/magFlxLp28</td><td><code>Wb</code></td><td>1</td><td>1</td><td>286077</td><td>4,577,232</td></tr>
+          <tr><td>MDAC/magFlxLp29</td><td><code>Wb</code></td><td>1</td><td>1</td><td>286077</td><td>4,577,232</td></tr>
+          <tr><td>MDAC/magFlxLp3</td><td><code>Wb</code></td><td>1</td><td>1</td><td>286077</td><td>4,577,232</td></tr>
+          <tr><td>MDAC/magFlxLp30</td><td><code>Wb</code></td><td>1</td><td>1</td><td>286077</td><td>4,577,232</td></tr>
+          <tr><td>MDAC/magFlxLp31</td><td><code>Wb</code></td><td>1</td><td>1</td><td>286077</td><td>4,577,232</td></tr>
+          <tr><td>MDAC/magFlxLp32</td><td><code>Wb</code></td><td>1</td><td>1</td><td>286077</td><td>4,577,232</td></tr>
+          <tr><td>MDAC/magFlxLp33</td><td><code>Wb</code></td><td>1</td><td>1</td><td>286077</td><td>4,577,232</td></tr>
+          <tr><td>MDAC/magFlxLp34</td><td><code>Wb</code></td><td>1</td><td>1</td><td>286077</td><td>4,577,232</td></tr>
+          <tr><td>MDAC/magFlxLp4</td><td><code>Wb</code></td><td>1</td><td>1</td><td>286077</td><td>4,577,232</td></tr>
+          <tr><td>MDAC/magFlxLp5</td><td><code>Wb</code></td><td>1</td><td>1</td><td>286077</td><td>4,577,232</td></tr>
+          <tr><td>MDAC/magFlxLp6</td><td><code>Wb</code></td><td>1</td><td>1</td><td>286077</td><td>4,577,232</td></tr>
+          <tr><td>MDAC/magFlxLp7</td><td><code>Wb</code></td><td>1</td><td>1</td><td>286077</td><td>4,577,232</td></tr>
+          <tr><td>MDAC/magFlxLp8</td><td><code>Wb</code></td><td>1</td><td>1</td><td>286077</td><td>4,577,232</td></tr>
+          <tr><td>MDAC/magFlxLp9</td><td><code>Wb</code></td><td>1</td><td>1</td><td>286077</td><td>4,577,232</td></tr>
+        </tbody>
+      </table>
+      <p>No channel was refused on this shot.</p>
+      <p>MDAC data names beginning <code>mag</code> that the catalogue lists for this shot: <strong>79</strong> (catalogue count 264, <code>irc=0</code>); of those, <strong>34</strong> begin <code>magFlxLp</code>. Names only:</p>
+      <p><code>magATPL1, magATPL10, magATPL15S, magATPL1SP, magATPL22, magATPL27, magATPL29, magATPL3, magATPL5, magFlxLp1, magFlxLp10, magFlxLp11, magFlxLp12, magFlxLp13, magFlxLp14, magFlxLp15, magFlxLp16, magFlxLp17, magFlxLp18, magFlxLp19, magFlxLp2, magFlxLp20, magFlxLp21, magFlxLp22, magFlxLp23, magFlxLp24, magFlxLp25, magFlxLp26, magFlxLp27, magFlxLp28, magFlxLp29, magFlxLp3, magFlxLp30, magFlxLp31, magFlxLp32, magFlxLp33, magFlxLp34, magFlxLp4, magFlxLp5, magFlxLp6, magFlxLp7, magFlxLp8, magFlxLp9, magPbTC1, magPbTC10, magPbTC11, magPbTC12, magPbTC13, magPbTC14, magPbTC15, magPbTC16, magPbTC17, magPbTC18, magPbTC19, magPbTC2, magPbTC20, magPbTC21, magPbTC22, magPbTC23, magPbTC3, magPbTC4, magPbTC5, magPbTC6, magPbTC7, magPbTC8, magPbTC9, magRWM37, magRWM38, magRWM39, magRWM40, magRWM42, magRWM44, magRWM45, magRWM46, magRWM47, magRWM49, magRWM50, magRWM52, magRWM54</code></p>
+    </section>
+    <section id="jtmm-eddb-second-cold-fetch-E101173">
+      <h3>Shot E101173 (101173.zarr)</h3>
+      <table>
+        <thead><tr><th>measure</th><th>value</th></tr></thead>
+        <tbody>
+          <tr><td>channels requested</td><td>34</td></tr>
+          <tr><td>channels served</td><td>34</td></tr>
+          <tr><td>channels refused</td><td>0</td></tr>
+          <tr><td>cold fetch wall time (one ssh session)</td><td>104.348 s</td></tr>
+          <tr><td>per-signal wall time (mean over session)</td><td>3.069056 s</td></tr>
+          <tr><td>catalogue call wall time</td><td>2.543 s</td></tr>
+          <tr><td>bytes on disk (data + time arrays)</td><td>215,424,000</td></tr>
+          <tr><td>unit strings seen</td><td><code>Wb</code></td></tr>
+          <tr><td>channels read through VirtualZarrView</td><td>34</td></tr>
+        </tbody>
+      </table>
+      <p>Per-channel time base, unit, channel count, sequence number and bytes on disk:</p>
+      <table>
+        <thead><tr><th>channel</th><th>unit</th><th>nch</th><th>seq</th><th>time length</th><th>bytes on disk</th></tr></thead>
+        <tbody>
+          <tr><td>MDAC/magFlxLp1</td><td><code>Wb</code></td><td>1</td><td>1</td><td>396000</td><td>6,336,000</td></tr>
+          <tr><td>MDAC/magFlxLp10</td><td><code>Wb</code></td><td>1</td><td>1</td><td>396000</td><td>6,336,000</td></tr>
+          <tr><td>MDAC/magFlxLp11</td><td><code>Wb</code></td><td>1</td><td>1</td><td>396000</td><td>6,336,000</td></tr>
+          <tr><td>MDAC/magFlxLp12</td><td><code>Wb</code></td><td>1</td><td>1</td><td>396000</td><td>6,336,000</td></tr>
+          <tr><td>MDAC/magFlxLp13</td><td><code>Wb</code></td><td>1</td><td>1</td><td>396000</td><td>6,336,000</td></tr>
+          <tr><td>MDAC/magFlxLp14</td><td><code>Wb</code></td><td>1</td><td>1</td><td>396000</td><td>6,336,000</td></tr>
+          <tr><td>MDAC/magFlxLp15</td><td><code>Wb</code></td><td>1</td><td>1</td><td>396000</td><td>6,336,000</td></tr>
+          <tr><td>MDAC/magFlxLp16</td><td><code>Wb</code></td><td>1</td><td>1</td><td>396000</td><td>6,336,000</td></tr>
+          <tr><td>MDAC/magFlxLp17</td><td><code>Wb</code></td><td>1</td><td>1</td><td>396000</td><td>6,336,000</td></tr>
+          <tr><td>MDAC/magFlxLp18</td><td><code>Wb</code></td><td>1</td><td>1</td><td>396000</td><td>6,336,000</td></tr>
+          <tr><td>MDAC/magFlxLp19</td><td><code>Wb</code></td><td>1</td><td>1</td><td>396000</td><td>6,336,000</td></tr>
+          <tr><td>MDAC/magFlxLp2</td><td><code>Wb</code></td><td>1</td><td>1</td><td>396000</td><td>6,336,000</td></tr>
+          <tr><td>MDAC/magFlxLp20</td><td><code>Wb</code></td><td>1</td><td>1</td><td>396000</td><td>6,336,000</td></tr>
+          <tr><td>MDAC/magFlxLp21</td><td><code>Wb</code></td><td>1</td><td>1</td><td>396000</td><td>6,336,000</td></tr>
+          <tr><td>MDAC/magFlxLp22</td><td><code>Wb</code></td><td>1</td><td>1</td><td>396000</td><td>6,336,000</td></tr>
+          <tr><td>MDAC/magFlxLp23</td><td><code>Wb</code></td><td>1</td><td>1</td><td>396000</td><td>6,336,000</td></tr>
+          <tr><td>MDAC/magFlxLp24</td><td><code>Wb</code></td><td>1</td><td>1</td><td>396000</td><td>6,336,000</td></tr>
+          <tr><td>MDAC/magFlxLp25</td><td><code>Wb</code></td><td>1</td><td>1</td><td>396000</td><td>6,336,000</td></tr>
+          <tr><td>MDAC/magFlxLp26</td><td><code>Wb</code></td><td>1</td><td>1</td><td>396000</td><td>6,336,000</td></tr>
+          <tr><td>MDAC/magFlxLp27</td><td><code>Wb</code></td><td>1</td><td>1</td><td>396000</td><td>6,336,000</td></tr>
+          <tr><td>MDAC/magFlxLp28</td><td><code>Wb</code></td><td>1</td><td>1</td><td>396000</td><td>6,336,000</td></tr>
+          <tr><td>MDAC/magFlxLp29</td><td><code>Wb</code></td><td>1</td><td>1</td><td>396000</td><td>6,336,000</td></tr>
+          <tr><td>MDAC/magFlxLp3</td><td><code>Wb</code></td><td>1</td><td>1</td><td>396000</td><td>6,336,000</td></tr>
+          <tr><td>MDAC/magFlxLp30</td><td><code>Wb</code></td><td>1</td><td>1</td><td>396000</td><td>6,336,000</td></tr>
+          <tr><td>MDAC/magFlxLp31</td><td><code>Wb</code></td><td>1</td><td>1</td><td>396000</td><td>6,336,000</td></tr>
+          <tr><td>MDAC/magFlxLp32</td><td><code>Wb</code></td><td>1</td><td>1</td><td>396000</td><td>6,336,000</td></tr>
+          <tr><td>MDAC/magFlxLp33</td><td><code>Wb</code></td><td>1</td><td>1</td><td>396000</td><td>6,336,000</td></tr>
+          <tr><td>MDAC/magFlxLp34</td><td><code>Wb</code></td><td>1</td><td>1</td><td>396000</td><td>6,336,000</td></tr>
+          <tr><td>MDAC/magFlxLp4</td><td><code>Wb</code></td><td>1</td><td>1</td><td>396000</td><td>6,336,000</td></tr>
+          <tr><td>MDAC/magFlxLp5</td><td><code>Wb</code></td><td>1</td><td>1</td><td>396000</td><td>6,336,000</td></tr>
+          <tr><td>MDAC/magFlxLp6</td><td><code>Wb</code></td><td>1</td><td>1</td><td>396000</td><td>6,336,000</td></tr>
+          <tr><td>MDAC/magFlxLp7</td><td><code>Wb</code></td><td>1</td><td>1</td><td>396000</td><td>6,336,000</td></tr>
+          <tr><td>MDAC/magFlxLp8</td><td><code>Wb</code></td><td>1</td><td>1</td><td>396000</td><td>6,336,000</td></tr>
+          <tr><td>MDAC/magFlxLp9</td><td><code>Wb</code></td><td>1</td><td>1</td><td>396000</td><td>6,336,000</td></tr>
+        </tbody>
+      </table>
+      <p>No channel was refused on this shot.</p>
+      <p>MDAC data names beginning <code>mag</code> that the catalogue lists for this shot: <strong>79</strong> (catalogue count 264, <code>irc=0</code>); of those, <strong>34</strong> begin <code>magFlxLp</code>. Names only:</p>
+      <p><code>magATPL1, magATPL10, magATPL15S, magATPL1SP, magATPL22, magATPL27, magATPL29, magATPL3, magATPL5, magFlxLp1, magFlxLp10, magFlxLp11, magFlxLp12, magFlxLp13, magFlxLp14, magFlxLp15, magFlxLp16, magFlxLp17, magFlxLp18, magFlxLp19, magFlxLp2, magFlxLp20, magFlxLp21, magFlxLp22, magFlxLp23, magFlxLp24, magFlxLp25, magFlxLp26, magFlxLp27, magFlxLp28, magFlxLp29, magFlxLp3, magFlxLp30, magFlxLp31, magFlxLp32, magFlxLp33, magFlxLp34, magFlxLp4, magFlxLp5, magFlxLp6, magFlxLp7, magFlxLp8, magFlxLp9, magPbTC1, magPbTC10, magPbTC11, magPbTC12, magPbTC13, magPbTC14, magPbTC15, magPbTC16, magPbTC17, magPbTC18, magPbTC19, magPbTC2, magPbTC20, magPbTC21, magPbTC22, magPbTC23, magPbTC3, magPbTC4, magPbTC5, magPbTC6, magPbTC7, magPbTC8, magPbTC9, magRWM37, magRWM38, magRWM39, magRWM40, magRWM42, magRWM44, magRWM45, magRWM46, magRWM47, magRWM49, magRWM50, magRWM52, magRWM54</code></p>
+    </section>
+  </main>
+</body>
+</html>
