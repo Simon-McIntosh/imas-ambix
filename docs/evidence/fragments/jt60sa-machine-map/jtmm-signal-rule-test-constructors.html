@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="jtmm-signal-rule-test-constructors-landing">
+      <p>Two out-of-scope <code>SignalRule</code> test constructions now declare
+      the required <code>validation_state</code>. In
+      <code>tests/data/test_virtual_zarr.py</code> the synthetic MAST
+      equilibrium rule declares <code>corpus-validated</code>, matching the
+      MAST magnetics map it mirrors; in
+      <code>tests/data/test_eddb_cache.py</code> the JT-60SA EDDB-cache rule
+      declares <code>source-only</code>, matching the JT-60SA map. The gate —
+      <code>pytest tests/data/test_virtual_zarr.py test_eddb_cache.py
+      test_signal_map.py test_jt60sa_signal_maps.py
+      test_tokamap_export.py</code> — passes 70 tests with zero failures at the
+      head; ruff on the two changed paths exits 0.</p>
+    </section>
+  </main>
+</body>
+</html>

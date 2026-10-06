@@ -82,6 +82,16 @@ def test_packaged_maps_load_and_name_the_eddb_cache():
         assert source_map.target_dd_version == "4.1.1"
 
 
+def test_every_jt60sa_signal_rule_is_source_only():
+    for system in SYSTEMS:
+        source_map = load_packaged_signal_map("jt-60sa", system)
+        assert source_map.signals, f"jt-60sa/{system} serves no signal rule"
+        for rule in source_map.signals:
+            assert rule.validation_state == "source-only", (
+                f"{system}:{rule.semantic_id} declares {rule.validation_state}"
+            )
+
+
 @needs_store
 def test_pf_active_binds_one_chain_per_coil_at_the_store_index():
     source_map = load_packaged_signal_map("jt-60sa", "pf_active")

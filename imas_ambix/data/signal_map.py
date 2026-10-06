@@ -36,6 +36,7 @@ from imas_ambix.cocos import (
     canonical_factor,
     require_canonical_contract,
 )
+from imas_ambix.data.machine_map import _VALIDATION_STATES
 
 MAP_SCHEMA_VERSION = "1.0.0"
 """Schema understood by this reader."""
@@ -96,6 +97,7 @@ class SignalRule:
     channel_factor: float
     standard_name: str | None
     evidence: str
+    validation_state: str
 
     @property
     def source_key(self) -> tuple[str, str]:
@@ -136,6 +138,11 @@ class SignalRule:
             _text(value, label)
         if self.standard_name is not None:
             _text(self.standard_name, "standard name")
+        _text(self.validation_state, "validation state")
+        if self.validation_state not in _VALIDATION_STATES:
+            raise SignalMapError(
+                f"validation state must be one of {sorted(_VALIDATION_STATES)}"
+            )
         if self.target_index is not None:
             if isinstance(self.target_index, bool) or not isinstance(
                 self.target_index, int
@@ -175,6 +182,7 @@ class SignalRule:
             "target_unit": self.target_unit,
             "transformation": self.transformation,
             "unit_factor": float(self.unit_factor),
+            "validation_state": self.validation_state,
         }
 
     @classmethod
@@ -193,6 +201,7 @@ class SignalRule:
             "target_unit",
             "transformation",
             "unit_factor",
+            "validation_state",
         }
         _exact_keys(row, expected, "signal rule")
         rule = cls(
@@ -209,6 +218,7 @@ class SignalRule:
             channel_factor=row["channel_factor"],
             standard_name=row["standard_name"],
             evidence=row["evidence"],
+            validation_state=row["validation_state"],
         )
         rule.validate()
         return rule
