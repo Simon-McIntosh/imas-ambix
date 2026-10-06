@@ -31,7 +31,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import zarr
 
-from imas_ambix.data.paths import LEVEL1_DIR, LEVEL2_DIR
+from imas_ambix.data.eddb import read_channel
+from imas_ambix.data.machine_map import load_packaged_machine_map
+from imas_ambix.data.paths import JT60SA_ROOT, LEVEL1_DIR, LEVEL2_DIR
 from imas_ambix.gs.machine_geometry import MachineGeometryService
 from imas_ambix.gs.operator import COIL_MODEL_VERSION, build_operator
 
@@ -1064,10 +1066,373 @@ def _write_note(
     NOTE_PATH.write_text("\n".join(lines))
 
 
+JT60SA_SHOTS: tuple[int, ...] = (100579, 100595, 100642)
+JT60SA_SLOPE_TOLERANCE = 0.1
+JT60SA_CORRELATION_FLOOR = 0.98
+JT60SA_SWAP_CONTROL: tuple[str, str] = ("magPbTC1", "magPbTC2")
+JT60SA_EVIDENCE_JSON = Path(
+    "docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-adjudication.json"
+)
+JT60SA_EVIDENCE_HTML = Path(
+    "docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-adjudication.html"
+)
+JT60SA_COIL_MAP = (
+    Path(__file__).resolve().parents[1] / "imas_ambix/data/maps/jt-60sa/pf_active.json"
+)
+JT60SA_LOOP_CHANNELS: tuple[str, ...] = tuple(
+    f"magFlxLp{index}" for index in range(1, 28)
+)
+JT60SA_PROBE_CHANNELS: tuple[str, ...] = tuple(
+    f"magPbTC{index}" for index in range(1, 18)
+)
+
+
+def _jt60sa_map_entry(catalog: Any, shot: int) -> Any:
+    for entry in catalog.maps:
+        if entry.first_shot <= shot <= entry.last_shot:
+            return entry
+    raise RuntimeError(f"no JT-60SA machine map covers shot {shot}")
+
+
+def _jt60sa_coil_channels() -> list[str]:
+    """Ordered PF coil-current channels the DD map binds, by coil index."""
+
+    payload = json.loads(JT60SA_COIL_MAP.read_text())
+    rows = sorted(payload["signals"], key=lambda row: int(row["target_index"]))
+    return [str(row["source_array"]) for row in rows]
+
+
+def _jt60sa_probe_angles(catalog: Any, shot: int) -> dict[str, float]:
+    """Tangential-probe sensitive-axis angles from the emitted description."""
+
+    entry = _jt60sa_map_entry(catalog, shot)
+    supplement = next(
+        item
+        for item in catalog.description_supplements
+        if item.name == entry.description_supplement
+    )
+    root = Path(str(supplement.source_location).removeprefix("file://"))
+    import netCDF4  # noqa: PLC0415
+
+    with netCDF4.Dataset(root / "magnetics.nc") as store:
+        group = store.groups["magnetics"].groups["0"]
+        names = [
+            str(value) for value in group.variables["b_field_pol_probe.name"][...]
+        ]
+        angles = np.degrees(
+            np.asarray(
+                group.variables["b_field_pol_probe.poloidal_angle"][...],
+                dtype=np.float64,
+            )
+        )
+    return {name: float(angle) for name, angle in zip(names, angles, strict=True)}
+
+
+def _jt60sa_operator(shot: int, catalog: Any, channels: list[str]) -> Any:
+    """Build the OP description operator with catalogue drives and probe axes."""
+
+    from imas_ambix.data.description_reader import read_geometry_table  # noqa: PLC0415
+    from imas_ambix.gs.geometry import CircuitDrive  # noqa: PLC0415
+
+    table = read_geometry_table(shot, machine="jt-60sa")
+    entry = _jt60sa_map_entry(catalog, shot)
+    topology = next(
+        item for item in catalog.drive_topologies if item.name == entry.drive_topology
+    )
+    order = list(dict.fromkeys(item.circuit_identifier for item in topology.connections))
+    per_ampere = {
+        identity: float(
+            sum(
+                item.turns * item.current_weight * item.direction
+                for item in topology.connections
+                if item.circuit_identifier == identity
+            )
+        )
+        for identity in order
+    }
+    drives = [
+        CircuitDrive(
+            circuit=index + 1,
+            channel=channels[index],
+            ampere_turns_per_ampere=per_ampere[identity],
+            evidence="catalogue drive topology",
+            conductor=identity,
+        )
+        for index, identity in enumerate(order)
+        if index < len(channels)
+    ]
+    angles = _jt60sa_probe_angles(catalog, shot)
+    sensor_map = tuple(
+        replace(mapping, angle_deg=angles[mapping.amb_channel], flag="")
+        if mapping.kind == "b_probe" and mapping.angle_deg is None
+        else mapping
+        for mapping in table.sensor_map
+    )
+    geometry = replace(
+        table,
+        circuit_drives=tuple(drives),
+        amc_current_channels=list(channels),
+        sensor_map=sensor_map,
+    )
+    return build_operator(geometry)
+
+
+def _jt60sa_shot_data(
+    shot: int, catalog: Any, channels: list[str]
+) -> dict[str, Any]:
+    operator = _jt60sa_operator(shot, catalog, channels)
+    records = [read_channel(JT60SA_ROOT, shot, "MMSYS", name) for name in channels]
+    time = np.asarray(records[0].time, dtype=np.float64)
+    currents = np.column_stack(
+        [
+            np.interp(
+                time,
+                np.asarray(record.time, dtype=np.float64),
+                np.asarray(record.data, dtype=np.float64).reshape(-1),
+            )
+            for record in records
+        ]
+    )
+    predicted = np.vstack([operator.vacuum_prediction(row) for row in currents])
+    row_index = {name: index for index, name in enumerate(operator.sensor_channels)}
+    measured: dict[str, np.ndarray] = {}
+    for channel in (*JT60SA_LOOP_CHANNELS, *JT60SA_PROBE_CHANNELS):
+        record = read_channel(JT60SA_ROOT, shot, "MDAC", channel)
+        measured[channel] = np.interp(
+            time,
+            np.asarray(record.time, dtype=np.float64),
+            np.asarray(record.data, dtype=np.float64).reshape(-1),
+        )
+    return {
+        "time": time,
+        "predicted": predicted,
+        "row_index": row_index,
+        "measured": measured,
+    }
+
+
+def _jt60sa_fit(measured: np.ndarray, predicted: np.ndarray) -> dict[str, float] | None:
+    good = np.isfinite(measured) & np.isfinite(predicted)
+    if int(good.sum()) < 8:
+        return None
+    x = predicted[good] - float(np.mean(predicted[good]))
+    y = measured[good] - float(np.mean(measured[good]))
+    denominator = float(np.sqrt(np.sum(x * x) * np.sum(y * y)))
+    slope = float(np.sum(x * y) / np.sum(x * x)) if float(np.sum(x * x)) > 0.0 else np.nan
+    correlation = float(np.sum(x * y) / denominator) if denominator > 0.0 else np.nan
+    return {
+        "slope": slope,
+        "offset": float(np.mean(measured[good]) - slope * np.mean(predicted[good])),
+        "pearson_r": correlation,
+        "n_samples": int(good.sum()),
+    }
+
+
+def _jt60sa_sensor_name(channel: str) -> str:
+    """Map an EDDB acquisition channel to its description sensor name."""
+
+    if channel.startswith("magFlxLp"):
+        return f"FL{channel.removeprefix('magFlxLp')}"
+    if channel.startswith("magPbTC"):
+        return f"MP{channel.removeprefix('magPbTC')}"
+    return channel
+
+
+def _jt60sa_fit_table(
+    data: dict[str, Any], swap: tuple[str, str] | None = None
+) -> dict[str, dict[str, float] | None]:
+    measured = dict(data["measured"])
+    if swap is not None:
+        left, right = swap
+        measured[left], measured[right] = measured[right], measured[left]
+    table: dict[str, dict[str, float] | None] = {}
+    for channel in (*JT60SA_LOOP_CHANNELS, *JT60SA_PROBE_CHANNELS):
+        index = data["row_index"].get(_jt60sa_sensor_name(channel))
+        if index is None:
+            table[channel] = None
+            continue
+        table[channel] = _jt60sa_fit(measured[channel], data["predicted"][:, index])
+    return table
+
+
+def _jt60sa_verdict(
+    fits: list[tuple[int, dict[str, float] | None]],
+) -> tuple[str, str]:
+    missing = [shot for shot, fit in fits if fit is None]
+    if missing:
+        return "undecided", f"no finite fit on shots {missing}"
+    identity = all(
+        abs(fit["slope"] - 1.0) <= JT60SA_SLOPE_TOLERANCE
+        and fit["pearson_r"] > JT60SA_CORRELATION_FLOOR
+        for _, fit in fits
+    )
+    if identity:
+        return "identity", "|slope-1|<=0.1 and r>0.98 on every shot"
+    negate = all(
+        abs(fit["slope"] + 1.0) <= JT60SA_SLOPE_TOLERANCE
+        and fit["pearson_r"] > JT60SA_CORRELATION_FLOOR
+        for _, fit in fits
+    )
+    if negate:
+        return "negate", "|slope+1|<=0.1 and r>0.98 on every shot"
+    detail = "; ".join(
+        f"{shot} slope {fit['slope']:+.3f} r {fit['pearson_r']:+.4f}"
+        for shot, fit in fits
+    )
+    return (
+        "undecided",
+        "neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at r>0.98 on every shot: "
+        + detail,
+    )
+
+
+def _jt60sa_html(payload: dict[str, Any]) -> str:
+    counts = payload["verdict_counts"]
+    lines = [
+        "<!doctype html>",
+        '<html lang="en">',
+        "<head>",
+        '  <meta charset="utf-8">',
+        '  <meta name="viewport" content="width=device-width, initial-scale=1">',
+        '  <meta name="docs-project" content="imas-ambix">',
+        '  <meta name="reckon-type" content="evidence">',
+        '  <meta name="plan-slug" content="jt60sa-machine-map">',
+        '  <meta name="plan-evidence-for" content="jt60sa-machine-map">',
+        "</head>",
+        "<body>",
+        '  <main class="plan-doc">',
+        '    <section id="jtmm-vacuum-adjudication-landing" data-reckon="evidence">',
+        "      <h3>Vacuum loop and probe adjudication</h3>",
+        (
+            "      <p>Every bound flux loop and tangential probe is predicted from the "
+            "measured MMSYS coil currents through the OP1 description operator built by "
+            "build_operator, and compared per shot against the raw EDDB channel. "
+            f"Verdicts: <strong>{counts['identity']} identity</strong>, "
+            f"<strong>{counts['negate']} negate</strong>, "
+            f"<strong>{counts['undecided']} undecided</strong>.</p>"
+        ),
+        "      <table>",
+        "        <thead><tr><th>Channel</th><th>Shot</th><th>Slope</th>"
+        "<th>Offset</th><th>Pearson r</th><th>Samples</th></tr></thead>",
+        "        <tbody>",
+    ]
+    for channel in payload["channel_order"]:
+        row = payload["channels"][channel]
+        for shot, fit in row["shots"].items():
+            if fit is None:
+                lines.append(
+                    f"          <tr><td>{channel}</td><td>{shot}</td>"
+                    "<td>n/a</td><td>n/a</td><td>n/a</td><td>0</td></tr>"
+                )
+                continue
+            lines.append(
+                f"          <tr><td>{channel}</td><td>{shot}</td>"
+                f"<td>{fit['slope']:+.6f}</td><td>{fit['offset']:+.6f}</td>"
+                f"<td>{fit['pearson_r']:+.6f}</td><td>{fit['n_samples']}</td></tr>"
+            )
+    lines.extend(
+        [
+            "        </tbody>",
+            "      </table>",
+        ]
+    )
+    for channel in payload["channel_order"]:
+        row = payload["channels"][channel]
+        lines.append(
+            f"      <p id=\"jtmm-vacuum-adjudication-{channel}\">{channel}: "
+            f"<strong>{row['verdict']}</strong> &mdash; {row['reason']}</p>"
+        )
+    lines.extend(
+        [
+            (
+                "      <p id=\"jtmm-vacuum-adjudication-negative-control\">Negative "
+                f"control: swapping the measured channels of {payload['swap_control'][0]} "
+                f"and {payload['swap_control'][1]} leaves every verdict unchanged "
+                f"(&lt;{payload['negative_control']['changed_verdicts']} changed).</p>"
+            ),
+            "    </section>",
+            "  </main>",
+            "</body>",
+            "</html>",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def _run_jt60sa() -> int:
+    catalog = load_packaged_machine_map("jt-60sa")
+    channels = _jt60sa_coil_channels()
+    shot_data = {
+        shot: _jt60sa_shot_data(shot, catalog, channels) for shot in JT60SA_SHOTS
+    }
+    fit_tables = {shot: _jt60sa_fit_table(data) for shot, data in shot_data.items()}
+    swap_tables = {
+        shot: _jt60sa_fit_table(data, JT60SA_SWAP_CONTROL)
+        for shot, data in shot_data.items()
+    }
+    channel_order = [*JT60SA_LOOP_CHANNELS, *JT60SA_PROBE_CHANNELS]
+    channels_payload: dict[str, Any] = {}
+    changed_verdicts = 0
+    for channel in channel_order:
+        fits = [(shot, fit_tables[shot][channel]) for shot in JT60SA_SHOTS]
+        verdict, reason = _jt60sa_verdict(fits)
+        swapped = _jt60sa_verdict(
+            [(shot, swap_tables[shot][channel]) for shot in JT60SA_SHOTS]
+        )
+        if swapped[0] != verdict:
+            changed_verdicts += 1
+        channels_payload[channel] = {
+            "verdict": verdict,
+            "reason": reason,
+            "shots": {
+                str(shot): fit_tables[shot][channel] for shot in JT60SA_SHOTS
+            },
+        }
+    counts = {
+        name: sum(row["verdict"] == name for row in channels_payload.values())
+        for name in ("identity", "negate", "undecided")
+    }
+    payload = {
+        "node": "jtmm-vacuum-adjudication",
+        "machine": "jt-60sa",
+        "shots": list(JT60SA_SHOTS),
+        "coil_channels": channels,
+        "slope_tolerance": JT60SA_SLOPE_TOLERANCE,
+        "correlation_floor": JT60SA_CORRELATION_FLOOR,
+        "channel_order": channel_order,
+        "channels": channels_payload,
+        "verdict_counts": counts,
+        "swap_control": list(JT60SA_SWAP_CONTROL),
+        "negative_control": {"changed_verdicts": changed_verdicts},
+    }
+    JT60SA_EVIDENCE_JSON.parent.mkdir(parents=True, exist_ok=True)
+    JT60SA_EVIDENCE_JSON.write_text(json.dumps(payload, indent=2) + "\n")
+    JT60SA_EVIDENCE_HTML.write_text(_jt60sa_html(payload))
+    print(
+        json.dumps(
+            {
+                "machine": "jt-60sa",
+                "shots": list(JT60SA_SHOTS),
+                "verdicts": counts,
+                "changed_verdicts_under_swap": changed_verdicts,
+                "json": str(JT60SA_EVIDENCE_JSON),
+                "html": str(JT60SA_EVIDENCE_HTML),
+            },
+            indent=2,
+        )
+    )
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--seed", type=int, default=20260816)
+    parser.add_argument("--machine", choices=("mast", "jt60sa"), default="mast")
     args = parser.parse_args()
+
+    if args.machine == "jt60sa":
+        return _run_jt60sa()
 
     early_records = _derive_positions(EARLY_REPRESENTATIVE, EARLY_RANGE)
     late_records = _derive_positions(LATE_REPRESENTATIVE, LATE_RANGE)
