@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.85">
-<meta name="plan-version" content="205">
+<meta name="plan-version" content="206">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -1298,6 +1298,9 @@
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20261006T175148950455-review-of-jtmm-vacuum-shot-census" data-who="reckon-build" data-when="2026-10-06T18:07:46.618Z">
     <div class="r-comment-body"><p>review of r-20261006T155601371865-jtmm-vacuum-shot-census at head daab366f: parsed record total 106/120 (goal_fidelity 16, evidence 16, scope_discipline 20, durability 15, fit 19, reuse 20); the fragment and cache are faithful and the negative control reproduces, docked because the third plasma shot E101173's cache holds loops but no magPbTC probes while the record asserts it holds them</p></div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-20261006T1815-s6-probe-angle-census-addendum" data-who="reckon-build" data-when="2026-10-06T18:15:00Z">
+    <div class="r-comment-body"><p>Census addendum to this section's list of sites that touch probe angles, from the v205 design review. <code>imas_ambix/physics/equilibrium.py</code> <code>magnetics_from_records</code> builds Nova's magnetics rows from the <code>angle_deg</code> each field-probe record carries. It is a consumer of the geometry table, not a supplier: on the description route it receives whatever <code>read_geometry_table</code>'s <code>probe_angle_source</code> branch supplies, so the stored axis θ = (90° − ω) reaches it in degrees with no change to it, and a JT-60SA probe with no measured sense keeps its absent-angle flag. <code>imas_ambix/gs/geometry.py</code> <code>load_tables</code> (lines 868-877) applies MAST's compiled <code>poloidal_field_probe_directed_angle</code> conversion when it loads a MAST table; it has no caller and reads only MAST tables, so it stays MAST's. The section's claim that the selector branch is the one supplier on the description route holds with both named.</p></div>
 </div>
 </section>
 </main>
