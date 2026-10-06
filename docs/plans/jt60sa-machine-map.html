@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.87">
-<meta name="plan-version" content="220">
+<meta name="plan-version" content="221">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -390,8 +390,13 @@
       <code>imas_ambix/data/pulse_mint.py</code> <code>_served_entries</code>, does the same through
       <code>read_channel</code>, and it belongs to the plan <code>jt60sa-pulse-ids</code>. That plan
       owns its migration onto the accessor once the accessor lands, and this plan hands it over as a
-      foreign-owner followup rather than editing another plan's module. Until then the view and the
-      mint each resolve rules, and the accessor is the one both are meant to share.
+      foreign-owner followup rather than editing another plan's module. The two readers need different
+      halves of what the accessor returns. The observation reader needs the raw values and their
+      time base. The mint takes transformed values through <code>for_target</code> and needs only each
+      channel's own time base beside them, which it now reads through <code>read_channel</code>. So
+      the accessor returns both halves, the raw values and that channel's time base, and the mint's
+      migration takes the time base from it. Until that lands, the view and the mint each resolve a
+      rule's time base.
     </p>
     <p>
       The COCOS of the source is then identified rather than assumed. For the raw side,
