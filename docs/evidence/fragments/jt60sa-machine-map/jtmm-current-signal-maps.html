@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="jtmm-current-signal-maps-landing">
+      <p>Bound the JT-60SA commissioning-shot currents over the on-demand EDDB
+      cache as three packaged signal maps read by
+      <code>imas_ambix.data.signal_map.load_packaged_signal_map</code>:
+      <code>imas_ambix/data/maps/jt-60sa/pf_active.json</code> serves one
+      MMSYS chain per coil for CS1-CS4 and EF1-EF6 at that coil's index in the
+      converted <code>OP1/pf_active.nc</code> store, blocking the other chain as
+      a duplicate; <code>tf.json</code> serves <code>cur1TFLKAT</code> at the
+      store's one coil and blocks <code>cur2TFLKAT</code>; and
+      <code>magnetics.json</code> serves PSRC <code>Ip</code> to
+      <code>magnetics/ip/data</code>. The served chain rests on the measured
+      HiTe/LKAT agreement on E101154, where EF6 is the sole circuit beyond a 15%
+      agreement bound (29.5%) and is served from HiTe; the rest use LKAT.</p>
+      <p>PSRC <code>Ip</code> is bound with unit factor 1.0, not the plan's
+      1000: the cache carries Amperes (~1 MA flat top, max 9.986e5) and the
+      EDDB census records PSRC/Ip's unit as A, so a 1000 factor would serve a
+      gigaampere current. The declared negative control (set the factor to 1.0)
+      is the identity under this binding; the equivalent units mutation — the
+      plan's own 1000 factor — was applied instead, and the peak-Ip test on
+      101154 fails as required. Every channel factor is 1.0 and every rule
+      records the sign as unknown-unvalidated. The two FPPC coils are absent
+      because no EDDB current channel is known for them.</p>
+    </section>
+  </main>
+</body>
+</html>
