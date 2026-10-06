@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.93">
-<meta name="plan-version" content="264">
+<meta name="plan-version" content="265">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -853,15 +853,34 @@
       the MAST channel-gap study, <code>transform_geometry_source.py</code>
       <code>resolve_geometry_source</code> picks the evidence shot for the MAST campaign sources,
       and <code>__init__.py</code> re-exports the two names. The selector reads the machine from
-      that declaration, and <code>identity_for_shot</code>, which takes a registry rather than a
-      machine, is handed the registry for the declared machine instead of
-      <code>default_registry</code>'s MAST one. That registry has one owner, extended rather
-      than forked: <code>imas_ambix/gs/machine_identity.py</code> <code>default_registry</code>
-      takes the machine as its key and keeps one cached registry per machine. MAST's key still
-      returns nova's packaged MAST registry, so every existing caller is unchanged. The
-      JT-60SA key returns the registry built from the JT-60SA artifact, whose authoring is the
-      open question <code>jt60sa-artifact-authoring</code>, and a machine with no registry is
-      refused by name rather than answered with MAST's. The registry and the pin table are not two
+      that declaration. <code>ArtifactMachineSelector</code> is the one entry that takes it: it
+      gains a required <code>machine</code> and from it alone resolves the pin row, the registry,
+      the acquisition read and the geometry reader. No caller threads the machine past it. Its three
+      constructors (<code>machine_selection.py</code> <code>select_machine</code>,
+      <code>machine_geometry.py</code> and <code>machine_artifact_arm.py</code>) each pass the machine
+      once, and a machine missing from the pin table or the registry is refused by name when the
+      selector is built, before any read. The registry has one owner, extended rather than forked:
+      <code>imas_ambix/gs/machine_identity.py</code> <code>default_registry</code> takes the machine
+      as its key and keeps one cached registry per machine. MAST's key returns nova's packaged MAST
+      registry. The JT-60SA key returns the registry built from the JT-60SA artifact, whose
+      authoring is the open question <code>jt60sa-artifact-authoring</code>, and a machine with no
+      registry is refused by name rather than answered with MAST's. All four public resolvers in
+      that module fall back to <code>default_registry()</code> today, so all four change, not only
+      the one on the route. <code>identity_for_representation</code>,
+      <code>identity_for_table</code> and <code>same_machine</code> each receive a table signature,
+      which carries its <code>machine</code>, so with no registry passed each takes the registry for
+      that signature's machine. A JT-60SA table can then never be resolved against MAST's registry,
+      including in <code>machine_geometry.py</code>'s identity projection, which needs no edit.
+      <code>identity_for_shot</code> receives a bare shot, and a shot integer cannot name its
+      machine, so it gains a required <code>machine</code> keyword. Its two production callers pass
+      it: the selector, and the geometry reader's <code>_shot_evidence</code>, from its own now
+      required <code>machine</code>. The interface account for the registry is two silent MAST
+      defaults retired (the resolvers' fallback and <code>identity_for_shot</code>'s implicit machine)
+      and nothing added beyond the key. The three machine-keyed tables are not merged into one
+      record. The pin table is a frozen expectation that must not be derived from the registry it
+      guards, as below, and the frozen shot set is the benchmark's own declaration in
+      <code>spine_bench</code>, which <code>gs</code> must not import. The selector's
+      construction-time refusal is what keeps a new machine from being half-wired across them. The registry and the pin table are not two
       owners of one identity. The registry is the live object and owns the digest it computes; the
       pin table's registry digest is a frozen expectation of that value, recorded when a benchmark
       is stamped, so a registry change fails the stamp loudly instead of silently re-labelling it.
