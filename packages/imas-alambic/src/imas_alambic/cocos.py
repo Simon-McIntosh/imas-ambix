@@ -4,11 +4,12 @@ Ambix serves Data Dictionary v4 quantities in COCOS 17.  Facility archives may
 use another convention, but that fact belongs to a reviewed source map and is
 resolved at the read boundary.  Raw arrays are never rewritten.
 
-The scalar algebra is reused from :mod:`nova.io.cocos`, whose complete COCOS
-digit table is already a pinned Ambix dependency.  Directed poloidal probe
-angles need an explicit adapter because an installed sensor orientation is a
-property of the source description, not something that can be inferred from
-equilibrium magnitudes.
+The scalar algebra is reused from :mod:`nova_cocos`, the standalone
+distribution that carries the complete COCOS digit table.  It is a dependency of
+the engine rather than of the full nova stack, whose Python floor the facility
+server cannot meet.  Directed poloidal probe angles need an explicit adapter
+because an installed sensor orientation is a property of the source description,
+not something that can be inferred from equilibrium magnitudes.
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ import re
 from typing import Any
 
 import numpy as np
-from nova.io.cocos import convention, identify_convention, transform_factor
+from nova_cocos import convention, identify_convention, transform_factor
 
 CANONICAL_COCOS = 17
 """COCOS convention served by Ambix and Data Dictionary v4."""

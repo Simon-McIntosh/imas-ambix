@@ -182,25 +182,37 @@ def load_bundle_descriptor(root: Path | str) -> MapBundle:
 def discover_bundles() -> tuple[MapBundle, ...]:
     """Return every reachable bundle, once each, in resolution order.
 
-    Installed packages register a bundle directory under the
-    ``imas_alambic.bundles`` entry-point group; directories that are not Python
-    packages are named in ``IMAS_ALAMBIC_MAP_PATH``.  The same directory reached
-    by both routes is one bundle, because bundles are de-duplicated by their
-    resolved directory.
+    Installed packages register a bundle under the ``imas_alambic.bundles``
+    entry-point group; the target may be a directory, or a :class:`MapBundle`
+    the package builds itself so its store roots come from one owner rather than
+    a second copy in ``bundle.json``.  Directories that are not Python packages
+    are named in ``IMAS_ALAMBIC_MAP_PATH``.  The same directory reached by both
+    routes is one bundle, because bundles are de-duplicated by their resolved
+    directory.
     """
 
+    declared: list[MapBundle] = []
     roots: list[Path] = []
     for entry_point in entry_points(group=_BUNDLE_ENTRY_POINT_GROUP):
         target = entry_point.load()
         if callable(target):
             target = target()
-        roots.append(Path(target))
+        if isinstance(target, MapBundle):
+            declared.append(target)
+        else:
+            roots.append(Path(target))
     for entry in os.environ.get(_BUNDLE_ENV_VAR, "").split(os.pathsep):
         if entry:
             roots.append(Path(entry))
 
     bundles: list[MapBundle] = []
     seen: set[Path] = set()
+    for bundle in declared:
+        marker = bundle.root.expanduser().resolve()
+        if marker in seen:
+            continue
+        seen.add(marker)
+        bundles.append(bundle)
     for root in roots:
         marker = root.expanduser().resolve()
         if marker in seen:

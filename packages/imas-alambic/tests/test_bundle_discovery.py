@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
+from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 import pytest
@@ -11,6 +13,7 @@ from imas_alambic.machine_map import (
     MachineMapError,
     bundle_for_machine,
     discover_bundles,
+    load_bundle_descriptor,
     resolve_description_store_root,
 )
 
@@ -83,6 +86,55 @@ def test_relative_store_roots_resolve_under_the_bundle(tmp_path, monkeypatch):
 
     assert resolve_description_store_root("REL") == tmp_path / "synth" / "machines"
     assert resolve_description_store_root("ABS") == tmp_path / "abs"
+
+
+def test_an_entry_point_may_supply_a_ready_bundle(tmp_path, monkeypatch):
+    root = _bundle(tmp_path / "synth", name="synth", machines=["synth-machine"])
+    declared = replace(
+        load_bundle_descriptor(root),
+        store_roots=MappingProxyType({"EXT": tmp_path / "ext"}),
+    )
+    monkeypatch.delenv("IMAS_ALAMBIC_MAP_PATH", raising=False)
+    monkeypatch.setattr(
+        "imas_alambic.machine_map.entry_points",
+        lambda group: [_FakeEntryPoint(declared)],
+    )
+
+    (bundle,) = discover_bundles()
+
+    assert bundle is declared
+    assert resolve_description_store_root("EXT") == tmp_path / "ext"
+
+
+def test_a_declared_bundle_wins_over_the_same_directory_on_the_map_path(
+    tmp_path, monkeypatch
+):
+    root = _bundle(
+        tmp_path / "synth",
+        name="synth",
+        machines=["synth-machine"],
+        store_roots={"JSON": "json-root"},
+    )
+    declared = replace(
+        load_bundle_descriptor(root),
+        store_roots=MappingProxyType({"EXT": tmp_path / "ext"}),
+    )
+    monkeypatch.setenv("IMAS_ALAMBIC_MAP_PATH", str(root))
+    monkeypatch.setattr(
+        "imas_alambic.machine_map.entry_points",
+        lambda group: [_FakeEntryPoint(declared)],
+    )
+
+    assert len(discover_bundles()) == 1
+    assert resolve_description_store_root("EXT") == tmp_path / "ext"
+
+
+class _FakeEntryPoint:
+    def __init__(self, target):
+        self._target = target
+
+    def load(self):
+        return self._target
 
 
 def os_sep() -> str:
