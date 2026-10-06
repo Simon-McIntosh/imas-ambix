@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+  <meta name="plan-evidence-for" content="jt60sa-machine-map">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="jtmm-coil-turns-source-report" data-reckon="evidence">
+      <h3>PF coil turns: what the SELENE deck states, what the converter writes, and what the vacuum response can identify</h3>
+      <p>Read-only. No source written. The deck is
+      <code>/work/projects/imas_gpu/jt60sa/machine_description/source/EQSLE.DATA</code>
+      as <code>imas_ambix/data/selene_deck.py</code> parses it at main
+      (<code>parse_eqsle_deck</code>); the converter side is
+      <code>build_pf_active</code> and the committed OP1 store; the drive and
+      catalogue side is <code>imas_ambix/data/machine_maps/jt-60sa.json</code>
+      (<code>drive_topologies</code>). The measured vacuum response is read from the
+      EDDB cache under <code>JT60SA_ROOT</code> with <code>read_channel</code>, and
+      the per-coil operator <code>G_pf</code> is <code>build_operator</code> over
+      <code>read_geometry_table(shot, machine='jt-60sa')</code>. Heavy reads ran in
+      place on the fleet compute node (98dci4-clu-2018, SLURM job 1277272); log
+      <code>coil_turns.log</code> in the run directory.</p>
+
+      <h4 id="jtmm-coil-turns-source-deck">1. What the SELENE deck states (EQSLE.DATA, line-numbered)</h4>
+      <p>The <code>12&nbsp;&nbsp;PF COIL</code> header is line 22; line 23 carries the
+      twelve filament counts <code>40 40 40 40 16 16 16 16 16 16&nbsp;&nbsp;6&nbsp;&nbsp;6</code>.
+      Each following row is one filament and its first column is the filament's
+      turn count, which <code>_parse_pf_coils</code> reads as <code>turns</code>
+      (<code>nums[:5] = turns, r, z, dr, dz</code>). The twelve coils, their
+      turn-per-filament, and the turn total (per-filament &times; filament count):</p>
+      <table id="jtmm-coil-turns-source-decktable">
+        <thead><tr><th>coil</th><th>deck label</th><th>filaments</th><th>turns/filament</th><th>total turns</th><th>EQSLE.DATA lines</th></tr></thead>
+        <tbody>
+          <tr><td>CS1</td><td>PF1</td><td>40</td><td>13.725</td><td>549.0</td><td>24&ndash;63</td></tr>
+          <tr><td>CS2</td><td>PF2</td><td>40</td><td>13.725</td><td>549.0</td><td>64&ndash;103</td></tr>
+          <tr><td>CS3</td><td>PF3</td><td>40</td><td>13.725</td><td>549.0</td><td>104&ndash;143</td></tr>
+          <tr><td>CS4</td><td>PF4</td><td>40</td><td>13.725</td><td>549.0</td><td>144&ndash;183</td></tr>
+          <tr><td>EF1</td><td>PF5</td><td>16</td><td>8.875</td><td>142.0</td><td>184&ndash;199</td></tr>
+          <tr><td>EF2</td><td>PF6</td><td>16</td><td>9.625</td><td>154.0</td><td>200&ndash;215</td></tr>
+          <tr><td>EF3</td><td>PF7</td><td>16</td><td>15.4375</td><td>247.0</td><td>216&ndash;231</td></tr>
+          <tr><td>EF4</td><td>PF8</td><td>16</td><td>22.0625</td><td>353.0</td><td>232&ndash;247</td></tr>
+          <tr><td>EF5</td><td>PF9</td><td>16</td><td>9.5</td><td>152.0</td><td>248&ndash;263</td></tr>
+          <tr><td>EF6</td><td>PF10</td><td>16</td><td>11.25</td><td>180.0</td><td>264&ndash;279</td></tr>
+          <tr><td>FPPC_UP</td><td>FPPC-up</td><td>6</td><td>3.83</td><td>22.98</td><td>280&ndash;285</td></tr>
+          <tr><td>FPPC_DOWN</td><td>FPPC-down</td><td>6</td><td>3.83</td><td>22.98</td><td>286&ndash;291</td></tr>
+        </tbody>
+      </table>
+      <p id="jtmm-coil-turns-source-decknote">The per-filament turn count is fractional
+      because the coil's whole turn count is spread evenly over its filaments:
+      <code>13.725 &times; 40 = 549</code> for every CS module and
+      <code>8.875 &times; 16 = 142</code> for EF1, and so on. The FPPC block carries
+      two values (3.83 and 3.84) across its six filaments; 3.83&nbsp;&times;&nbsp;6&nbsp;=&nbsp;22.98,
+      i.e. 23 turns.</p>
+
+      <h4 id="jtmm-coil-turns-source-converter">2. What the converter writes into pf_active</h4>
+      <p><code>build_pf_active</code> writes <code>element.turns_with_sign = abs(el.turns)</code>,
+      i.e. the deck's per-filament value straight through. Read back from the
+      committed store <code>machine_description/OP1/pf_active.nc</code>, every
+      element of CS1&ndash;CS4 carries <code>turns_with_sign&nbsp;=&nbsp;13.725</code>,
+      and EF1&ndash;EF6 carry 8.875/9.625/15.4375/22.0625/9.5/11.25. <strong>The converter
+      did not drop the deck's turns into pf_active</strong> &mdash; the parenthetical
+      &ldquo;1.0 per filament&rdquo; in the section-6 measure is not what the store holds.</p>
+
+      <h4 id="jtmm-coil-turns-source-topology">3. Where the 1.0 is written, and where the turns were dropped</h4>
+      <p>The 1.0 lives one layer up, in the catalogue's drive topology. Both
+      <code>jt60sa-pf-drive-op1</code> and <code>-op2</code> carry
+      <strong>268 connections</strong> (one per deck filament; 40&times;4&nbsp;+&nbsp;16&times;6&nbsp;+&nbsp;6&times;2),
+      and every connection has <code>turns = 1.0</code> and
+      <code>current_weight = 1.0</code>, even though each topology also sets
+      <code>turns_path = "pf_active/coil/element/turns_with_sign"</code>. Because
+      <code>geometry_adapter._materialise_circuit_drives</code> forms each circuit's
+      weight as <code>&sum; turns &times; current_weight &times; direction</code> over its
+      connections, the declared
+      <code>ampere_turns_per_ampere</code> comes out as <strong>the filament count</strong>:
+      40.0 for CS1&ndash;CS4, 16.0 for EF1&ndash;EF6, 6.0 for the two FPPC, confirmed by
+      reading the packaged catalogue. Those 40/16/6 are exactly the deck's line-23
+      filament counts, not the 549/142/154/247/353/152/180 turn totals. <strong>So the
+      deck's turns were dropped by the drive-topology emission, not by
+      <code>build_pf_active</code></strong>; the emission wrote a per-filament turn
+      and weight of 1.0 where the deck states 13.725 (CS) and 8.875&ndash;22.0625 (EF).</p>
+
+      <h4 id="jtmm-coil-turns-source-fit">4. What the vacuum response can and cannot identify</h4>
+      <p>The operator <code>G_pf</code> was built for E100595, E100579 and E100642
+      (44 sensor rows &times; 10 driven-coil columns) and a free per-coil weight was
+      fitted to the measured MDAC loops and probes. Two estimators were run:
+      a joint least-squares over all 44 channels (unit-normalised per channel so
+      the Wb loops and T probes do not compete), which gives one multiplier
+      <code>&phi;<sub>k</sub></code> per driven coil on its declared ampere-turns per
+      ampere; and a well-conditioned group/global scale.</p>
+      <table id="jtmm-coil-turns-source-fittable">
+        <thead><tr><th>shot</th><th>joint per-coil fit r</th><th>per-coil &phi;<sub>k</sub> range</th><th>CS group eff A&middot;turn/A</th><th>EF group eff A&middot;turn/A</th></tr></thead>
+        <tbody>
+          <tr><td>E100595</td><td>0.613</td><td>&minus;0.20 .. +0.96</td><td>&minus;5.5</td><td>+1.8</td></tr>
+          <tr><td>E100579</td><td>0.811</td><td>&minus;0.08 .. +0.93</td><td>&minus;0.1</td><td>+4.6</td></tr>
+          <tr><td>E100642</td><td>0.641</td><td>&minus;1.50 .. +0.44</td><td>+7.5</td><td>&minus;0.1</td></tr>
+        </tbody>
+      </table>
+      <p id="jtmm-coil-turns-source-unident">The per-coil weights are <strong>not
+      identifiable</strong> from these shots. All ten MMSYS coil currents are driven
+      together in every commissioning vacuum shot, so the operator's ten <code>G_pf</code>
+      columns are strongly collinear and a free per-coil fit trades magnitude between
+      them: the fitted per-coil &phi;<sub>k</sub> swing from &minus;1.5 to +0.96 between
+      coils and between shots, and the CS/EF group effective weights are not even of
+      one sign across the three shots. <strong>No per-coil turn count can be reported
+      as confirmed</strong> against this response: the fitted ampere-turns differ from
+      any candidate by far more than 10&nbsp;percent, and no per-coil figure survives
+      across the three shots. What the fit does say reliably is that the declared
+      40/16 (the filament counts) sit within a factor of a few of the measured
+      response &mdash; consistent with the "40/16 are filament counts, not turn counts"
+      reading &mdash; but the shots do not separate one coil from another enough to fix
+      each coil's turns.</p>
+
+      <h4 id="jtmm-coil-turns-source-named">5. The correct per-filament turns, and whether the converter dropped them</h4>
+      <p>The correct per-filament turn count is the deck's own column 1, quoted above
+      with its lines: <strong>13.725</strong> per CS filament (CS1&ndash;CS4, lines
+      24&ndash;183) and 8.875/9.625/15.4375/22.0625/9.5/11.25 per EF filament
+      (EF1&ndash;EF6, lines 184&ndash;279). These are what a per-filament weighting should
+      use. <strong>The converter is inconsistent, not simply dropping them:</strong>
+      <code>build_pf_active</code> preserves them in
+      <code>pf_active/coil/element/turns_with_sign</code>, but the drive-topology
+      emission overrides them with 1.0 per filament (its own <code>turns</code> and
+      <code>current_weight</code>), so the effective per-coil ampere-turns per ampere
+      the operator sees is the filament count (40/16/6), not the turn total
+      (549/142/154/247/353/152/180). The repair is in the drive-topology emission
+      (<code>turns</code>/<code>current_weight</code> from the deck, or a
+      <code>turns_path</code> read that is actually honoured), and both phase stores'
+      drive topologies would regenerate; the pulse-ids plan's mint copies the
+      description and must be told first.</p>
+      <p id="jtmm-coil-turns-source-negative">Negative control: a per-coil turn count
+      reported as confirmed whose free-fit ampere-turns differ from it by more than
+      10&nbsp;percent. The free per-coil fit here fails that test for every coil (the
+      weights are unstable across the three shots), so no per-coil turn count is
+      reported as confirmed; the deck value is named from its source line, not from
+      the fit.</p>
+
+      <h4 id="jtmm-coil-turns-source-method">Method and logs</h4>
+      <p>Script: <code>coil_turns_source.py</code>; log <code>coil_turns.log</code>;
+      machine-readable fit <code>coil_turns_fit.json</code>, all in the run directory
+      <code>r-20261006T203523951249-jtmm-coil-turns-source</code>. Base revision
+      <code>a1980fe0</code>. No source changed.</p>
+    </section>
+  </main>
+</body>
+</html>
