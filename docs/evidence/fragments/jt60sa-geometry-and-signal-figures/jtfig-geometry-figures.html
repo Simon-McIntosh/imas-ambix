@@ -1,0 +1,76 @@
+<section id="jtfig-geometry-figures" data-node="jtfig-geometry-figures">
+  <h2 id="jtfig-geometry-figures-heading">JT-60SA OP1 and OP2 geometry, rendered through imas-ink</h2>
+
+  <p>
+    Two figures of the JT-60SA poloidal cross-section, read from the converted
+    description store addressed through the packaged <code>jt-60sa</code> machine
+    map (<code>load_packaged_machine_map("jt-60sa")</code> joined with
+    <code>description_store_root_path()</code>; each phase opened with
+    <code>NetCDFTransformEngine.open</code> and its <code>wall</code>,
+    <code>pf_active</code> and <code>magnetics</code> IDSs read with
+    <code>imas.DBEntry</code>). Both figures are drawn entirely by imas-ink:
+    <code>imas_ink.extract.extract_geometry</code> feeds
+    <code>imas_ink.figures.geometry_figure_mpl</code> in imas-ink's own
+    <code>DEFAULT_STYLE</code>; the script
+    <code>scripts/figures_jt60sa_geometry.py</code> lays out the axes and draws
+    no element, holds no colour, label or style constant of its own, and writes
+    exactly the two SVGs embedded below — no PNG twin.
+  </p>
+
+  <figure id="jtfig-geometry-figures-fig-side">
+    <img
+      src="/imas-ambix/figures/jt60sa-geometry/op1-op2-side-by-side.svg"
+      alt="OP1 (left) and OP2 (right) poloidal cross-sections on one shared viewport: first-wall limiter outline, two vacuum-vessel skins, 12 PF coil rectangles, 17 pickup probes and 27 flux loops"
+    />
+    <figcaption>
+      <strong>Side by side.</strong> Left panel OP1, right panel OP2, on two axes
+      sharing one viewport. In each panel the innermost closed contour is the
+      first wall (a limiter unit); the two contours outside it are the vacuum
+      vessel skins (the inner and outer walls of an annular vessel unit). Each
+      open rectangle outlines one of the <strong>12 PF coils</strong> — the
+      bounding envelope imas-ink draws around that coil's current filaments,
+      <strong>268 filaments in all</strong>, packed into the 12 coil envelopes.
+      Open circles are the <strong>27 flux loops</strong> and filled squares the
+      <strong>17 magnetic probes</strong>. The <strong>cryostat-scale passive
+      loop</strong> (the <code>pf_passive</code> IDS) is <em>not</em> drawn, and
+      neither are the sensors EDDB acquires without a facility position. Counts
+      printed by the script, per phase, equal to the store:
+    </figcaption>
+    <table id="jtfig-geometry-figures-counts">
+      <caption>Per phase: geometry passed to imas-ink, against the store</caption>
+      <tr><th>quantity</th><th>OP1</th><th>OP2</th><th>store</th></tr>
+      <tr><td>PF coils drawn</td><td>12</td><td>12</td><td>12</td></tr>
+      <tr><td>filaments enclosed</td><td>268</td><td>268</td><td>268</td></tr>
+      <tr><td>first-wall contour points</td><td>51</td><td>51</td><td>51</td></tr>
+      <tr><td>vessel-shell contour points</td><td>102</td><td>102</td><td>102</td></tr>
+      <tr><td>flux loops passed</td><td>27</td><td>27</td><td>27</td></tr>
+      <tr><td>probes passed</td><td>17</td><td>17</td><td>17</td></tr>
+    </table>
+  </figure>
+
+  <figure id="jtfig-geometry-figures-fig-overlay">
+    <img
+      src="/imas-ambix/figures/jt60sa-geometry/op1-op2-overlay.svg"
+      alt="OP1 and OP2 first wall and vessel contours overlaid on one panel: OP2 solid, OP1 dashed"
+    />
+    <figcaption>
+      <strong>Overlaid.</strong> Both phases on one panel, told apart by line
+      style alone: <strong>OP2 is solid</strong> (imas-ink's
+      <code>DEFAULT_STYLE</code>) and <strong>OP1 is dashed</strong>, drawn with
+      <code>replace(DEFAULT_STYLE, wall_linestyle=DEFAULT_STYLE.ref_lcfs_linestyle)</code>.
+      The line style governs both the first-wall limiter contour and the two
+      vacuum-vessel skins, so the components that change at the OP1-to-OP2
+      boundary separate cleanly. The PF coil envelopes, probes and flux loops
+      coincide between the phases and so read as a single set. The same
+      exclusions hold: no cryostat-scale passive loop, and no facility-positionless
+      EDDB sensors.
+    </figcaption>
+  </figure>
+
+  <p>
+    The measure: <code>uv run --no-sync ruff check imas_ambix tests
+    scripts/figures_jt60sa_geometry.py</code> exits 0, and the script prints the
+    per-phase counts above, each equal to the count the store holds before
+    extraction.
+  </p>
+</section>
