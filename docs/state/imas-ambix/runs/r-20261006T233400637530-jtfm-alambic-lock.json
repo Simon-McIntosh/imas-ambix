@@ -1,0 +1,593 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effective_input_window": 230144,
+    "effort": "high",
+    "launch": "cli",
+    "local": true,
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "worktree-full",
+    "usable_input_window": 230144
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "f78cad45dc37eff71bd98fba59361afd89b82560",
+  "boundary_waiver": null,
+  "brief": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "fallback_credit": null,
+      "inference_geo": "",
+      "input_tokens": 3380502,
+      "input_tokens_cumulative": 3380502,
+      "output_tokens": 24838,
+      "output_tokens_cumulative": 24838,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": {
+    "added": 50,
+    "files": 2,
+    "removed": 0
+  },
+  "clone_matches": [],
+  "commit_resolution": null,
+  "commits": [
+    "ea4c205e8f481ce58cadd8de10e93a57f1662258"
+  ],
+  "completed_at": "2026-10-06T23:40:43.314Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-10-06T23:34:10Z",
+  "disposition": null,
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": true,
+    "matched_measure": null,
+    "override": false,
+    "role": "implement",
+    "status": "no-execution-measure"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [
+    "../nova",
+    "../imas-ink",
+    "lock/uv",
+    "sync/uv"
+  ],
+  "gate": "passed",
+  "gate_check": {
+    "command": "uv lock --check",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T233400637530-jtfm-alambic-lock/logs/uv-lock-check.log"
+  },
+  "impl_move": {
+    "at_complete": 0.0,
+    "at_dispatch": 0.0,
+    "plan": "jt60sa-facility-mint",
+    "reason": "section 2 closes only after the merged-head integration run jtfm-alambic-integration; impl moves when the section collapses",
+    "verdict": "waived"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-10-06T23:54:02.044087+00:00",
+    "horizon_seconds": 1200,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": null,
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-10-06T23:34:02Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 23,
+    "binding_observed": "unknown",
+    "detail": "",
+    "generating": 0,
+    "headroom": 15,
+    "mean_context": 146667,
+    "observed_at": "2026-10-06T23:33:39Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45,
+    "throughput": {
+      "age_seconds": 23,
+      "aggregate_tokens_per_second": 210.588,
+      "detail": "",
+      "mean_tokens_per_second": 131.617,
+      "observed_at": "2026-10-06T23:33:39Z",
+      "runs": 1.6,
+      "state": "measured"
+    },
+    "waiting": 0
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-10-06T23:40:43.314Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": true,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T233400637530-jtfm-alambic-lock/manifest.md",
+  "member": "disposable-r-20261006T233400637530-jtfm-alambic-lock",
+  "negative_control": {
+    "reason": "node-writes-no-test-path",
+    "verdict": "exempt"
+  },
+  "no_commit": null,
+  "node": "jtfm-alambic-lock",
+  "node_definition": {
+    "brief": "",
+    "brief_path": "",
+    "brief_sha256": "",
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 3004,
+          "cached_input_tokens": 513410,
+          "input_tokens": 516416,
+          "output_tokens": 2078,
+          "reasoning_output_tokens": 1365,
+          "total_tokens": 518494,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "fa77649b-bcc4-4cb6-b999-0d55d8d30042",
+      "session_id": "fa77649b-bcc4-4cb6-b999-0d55d8d30042"
+    },
+    "done_when": "uv lock, run in this worktree only, rewrites uv.lock; uv lock --check exits 0 at the node's head; the commit touches uv.lock and the evidence fragment only; comparing resolved name/version pairs before and after shows imas-alambic added and no other package's version changed; the shared imas-ambix environment is never synced, so no uv sync and no plain uv run",
+    "estimated_hours": null,
+    "goal": "regenerate imas-ambix's uv.lock for the imas-alambic workspace member added at f78cad45",
+    "id": "jtfm-alambic-lock",
+    "lane_declaration": {
+      "backend": null,
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-10-06T23:34:02Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 23,
+      "binding_observed": "unknown",
+      "detail": "",
+      "generating": 0,
+      "headroom": 15,
+      "mean_context": 146667,
+      "observed_at": "2026-10-06T23:33:39Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45,
+      "throughput": {
+        "age_seconds": 23,
+        "aggregate_tokens_per_second": 210.588,
+        "detail": "",
+        "mean_tokens_per_second": 131.617,
+        "observed_at": "2026-10-06T23:33:39Z",
+        "runs": 1.6,
+        "state": "measured"
+      },
+      "waiting": 0
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T233400637530-jtfm-alambic-lock/manifest.md",
+    "negative_control": "",
+    "plan": "jt60sa-facility-mint",
+    "requested_backend": null,
+    "requires_decisions": [],
+    "role": "implement",
+    "section": "§2",
+    "spec_level": "exact",
+    "time_budget": "20m",
+    "token_budget": null,
+    "write_paths": [
+      "uv.lock",
+      "docs/evidence/fragments/jt60sa-facility-mint/jtfm-alambic-lock.html",
+      "docs/figures/jt60sa-facility-mint/jtfm-alambic-lock"
+    ]
+  },
+  "orchestrator_lane_override": null,
+  "orientation_input_tokens": 2242989.0,
+  "outcome": "",
+  "pace": {
+    "allowance": null,
+    "bar": null,
+    "clocks": {
+      "five_hour": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "five_hour",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      },
+      "seven_day": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "seven_day",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      }
+    },
+    "group": null,
+    "hold": null,
+    "lane": "clive",
+    "member": null,
+    "node": "jtfm-alambic-lock",
+    "policy": {
+      "drain_lead_hours": 12.0,
+      "pace_multiple": 1.1
+    },
+    "reason": "the lane declares no budget group, so no wallet paced it",
+    "recorded_at": "2026-10-06T23:34:05.691857+00:00",
+    "score": 0.64375,
+    "source": null,
+    "state": "unknown"
+  },
+  "picker_selection": {
+    "action": "route",
+    "answering_model": "typesafe/jev-1.13-20260917",
+    "backend": "clive",
+    "comment": "",
+    "confidence": 0.74,
+    "decision_source": "jev",
+    "effort": "high",
+    "excluded": [
+      {
+        "availability": "not-probed",
+        "backend": "native",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "in-harness",
+        "local": false,
+        "model": null,
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reasons": [
+          "in-harness-backend"
+        ],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      }
+    ],
+    "fallback_reason": null,
+    "family": "local",
+    "jev_latency_ms": 459.227,
+    "jev_model": "typesafe/jev-1.13",
+    "latency_ms": 565.92,
+    "model": "deepseek-v4.1-flash",
+    "offered": [
+      {
+        "availability": "unknown",
+        "backend": "claude",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-sonnet-5-5",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "claude-haiku",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-haiku-4-5-20251001",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "claude-opus",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-opus-5-5",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "served",
+        "backend": "clive",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": {
+          "admission_verdict": "open",
+          "running": 0,
+          "slots_state": "measured",
+          "stale": false,
+          "waiting": 0
+        },
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "local",
+        "local": true,
+        "model": "deepseek-v4.1-flash",
+        "outcomes": {
+          "failed": 1,
+          "not-run": 0,
+          "passed": 95,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": 55
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex",
+        "budget_reason": "recorded account-window reading is stale",
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-sol",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex-astra",
+        "budget_reason": "recorded account-window reading is stale",
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-astra",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex-luna",
+        "budget_reason": "recorded account-window reading is stale",
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-luna",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      }
+    ],
+    "probabilities": {
+      "claude": 0,
+      "claude-haiku": 0.01,
+      "claude-opus": 0,
+      "clive": 0.77,
+      "codex": 0.01,
+      "codex-astra": 0,
+      "codex-luna": 0.06,
+      "hold": 0.15
+    },
+    "rendered_token_estimate": 957,
+    "usage": {
+      "cost": 0.000123354,
+      "input_tokens": 2937,
+      "output_tokens": 89
+    }
+  },
+  "plan": "jt60sa-facility-mint",
+  "plan_impl_at_dispatch": 0.0,
+  "plan_link": null,
+  "predecessor_run": "r-20261006T225454290218-jtfm-alambic-move",
+  "promoted_by": null,
+  "promoted_revision": "ea4c205e8f481ce58cadd8de10e93a57f1662258",
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "reviewed_base_sha": "f78cad45dc37eff71bd98fba59361afd89b82560",
+    "reviewed_head_sha": "ea4c205e8f481ce58cadd8de10e93a57f1662258",
+    "scores": {
+      "durability": 16,
+      "evidence": 15,
+      "fit": 18,
+      "goal_fidelity": 19,
+      "reuse": 19,
+      "scope_discipline": 20
+    },
+    "status": "parsed",
+    "total": 107
+  },
+  "review_tier": "full",
+  "role": "implement",
+  "route_mode": "explicit",
+  "run_id": "r-20261006T233400637530-jtfm-alambic-lock",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§2",
+  "session": "fa77649b-bcc4-4cb6-b999-0d55d8d30042",
+  "session_harness": "claude",
+  "session_id": "a829b4cd-9ced-4b06-8ddf-9add126aafc5",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "exact",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 0,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 3380502,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 230144",
+    "elapsed_seconds": 383.247,
+    "generated_tokens": 24838,
+    "generation_seconds": 280.076,
+    "input_budget_tokens": 230144,
+    "input_utilisation_pct": 46.4,
+    "machine_seconds": 103.171,
+    "peak_input_tokens": 106852,
+    "tokens_per_second": 88.68,
+    "wall_tokens_per_second": 64.81
+  },
+  "time_budget": "20m",
+  "tool_steps": 42.0,
+  "unplanned_reason": null,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": []
+  },
+  "wall_seconds": 393,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-10-06T23:40:46Z",
+    "last_record_type": "result",
+    "launched_at": "2026-10-06T23:34:15Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20261006T233400637530-jtfm-alambic-lock",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 5529,
+    "worker_pid": 1049928
+  },
+  "worker_seconds": 372,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
