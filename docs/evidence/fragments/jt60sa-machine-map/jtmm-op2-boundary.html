@@ -6,18 +6,21 @@
   <meta name="docs-project" content="imas-ambix">
   <meta name="reckon-type" content="evidence">
   <meta name="plan-slug" content="jt60sa-machine-map">
+  <meta name="plan-evidence-for" content="jt60sa-machine-map">
 </head>
 <body>
   <main class="plan-doc">
 
     <section id="jtmm-op2-boundary-landing">
-      <p>The first JT-60SA OP2 pulse, read from EDDB's own shot records, is
-      <strong>E100356</strong> (start 2023-08-07T17:33:25.221Z); the last OP1 pulse is
-      <strong>E100353</strong> (start 2021-03-09T21:22:28.631Z). The E-series' only
-      internal campaign gap is between them, so the OP1 / OP2 shot ranges are
-      <code>E100001&ndash;E100353</code> and <code>E100356&ndash;E101173</code>. EDDB
-      exposes <em>no</em> campaign or run field; the boundary is read from the per-shot
-      <code>starttime</code>/<code>endtime</code> the shot catalogue returns.</p>
+      <p>Read from EDDB's own shot records, the E-series' only internal gap runs from
+      <strong>E100353</strong> (start 2021-03-09 21:22:28.631) to
+      <strong>E100356</strong> (start 2023-08-07 17:33:25.221), splitting it into a 2021
+      block <code>E100001&ndash;E100353</code> and a 2023 block
+      <code>E100356&ndash;E101173</code>. EDDB exposes <em>no</em> campaign or run field;
+      the gap is read from the per-shot <code>starttime</code>/<code>endtime</code> the
+      shot catalogue returns, which carry no time zone. Both blocks are OP1 by the
+      lead's ruling recorded at the end of this record; the node delivered them labelled
+      OP1 and OP2.</p>
     </section>
 
     <section id="jtmm-op2-boundary-field">
@@ -67,8 +70,8 @@
       <table>
         <thead><tr><th>E-series block</th><th>shot range</th><th>first &rarr; last date</th><th>shots</th></tr></thead>
         <tbody>
-          <tr><td>OP1</td><td><code>E100001&ndash;E100353</code></td><td>2021-01-13 &rarr; 2021-03-09</td><td>352</td></tr>
-          <tr><td>OP2</td><td><code>E100356&ndash;E101173</code></td><td>2023-08-07 &rarr; 2023-12-15</td><td>815</td></tr>
+          <tr><td>2021 block</td><td><code>E100001&ndash;E100353</code></td><td>2021-01-13 &rarr; 2021-03-09</td><td>352</td></tr>
+          <tr><td>2023 block</td><td><code>E100356&ndash;E101173</code></td><td>2023-08-07 &rarr; 2023-12-15</td><td>815</td></tr>
         </tbody>
       </table>
       <p>Numbers <code>E100354</code> and <code>E100355</code> are absent from the
@@ -76,24 +79,25 @@
       <table>
         <thead><tr><th>pulse</th><th>start (<code>starttime</code>)</th><th>end (<code>endtime</code>)</th></tr></thead>
         <tbody>
-          <tr><td>last OP1 &mdash; <code>E100353</code></td><td>2021-03-09T21:22:28.631</td><td>2021-03-09T21:22:32.693</td></tr>
-          <tr><td>first OP2 &mdash; <code>E100356</code></td><td>2023-08-07T17:33:25.221</td><td>2023-08-07T17:33:35.724</td></tr>
+          <tr><td>last of 2021 &mdash; <code>E100353</code></td><td>2021-03-09T21:22:28.631</td><td>2021-03-09T21:22:32.693</td></tr>
+          <tr><td>first of 2023 &mdash; <code>E100356</code></td><td>2023-08-07T17:33:25.221</td><td>2023-08-07T17:33:35.724</td></tr>
         </tbody>
       </table>
-      <p>Gap between them: <strong>880 days 20:10:57</strong>. The anchors hold:
-      <code>E100001</code> (2021-01-13) is an OP1 pulse and <code>E101154</code>
-      (2023-12-13) and <code>E101173</code> (2023-12-15) are OP2 pulses.</p>
+      <p>Gap between them: <strong>880 days 20:10:57</strong>. <code>E100001</code> is dated
+      2021-01-13, and <code>E101154</code> (2023-12-13) and <code>E101173</code> (2023-12-15)
+      are among the last pulses of the 2023 block.</p>
     </section>
 
     <section id="jtmm-op2-boundary-integer-map">
       <h3>Integer pulses mapped to the OP1 / OP2 shot ranges</h3>
       <p>The catalogue splits the E-series token <code>E&lt;digits&gt;</code> into the series
-      letter and the integer of the digits; the map ranges are therefore</p>
+      letter and the integer of the digits. Under the lead's ruling below, the map ranges
+      are</p>
       <table>
         <thead><tr><th>map</th><th>shot tokens</th><th>integers</th><th>dates</th></tr></thead>
         <tbody>
-          <tr><td>OP1</td><td><code>E100001&ndash;E100353</code></td><td><code>100001&ndash;100353</code></td><td>2021-01-13 &rarr; 2021-03-09</td></tr>
-          <tr><td>OP2</td><td><code>E100356&ndash;E101173</code></td><td><code>100356&ndash;101173</code></td><td>2023-08-07 &rarr; 2023-12-15</td></tr>
+          <tr><td>OP1</td><td><code>E100001&ndash;E101173</code></td><td><code>100001&ndash;101173</code></td><td>2021-01-13 &rarr; 2023-12-15</td></tr>
+          <tr><td>OP2</td><td>none in EDDB yet</td><td><code>101174&ndash;999999</code></td><td>after the enhancement shutdown</td></tr>
         </tbody>
       </table>
     </section>
@@ -101,7 +105,9 @@
     <section id="jtmm-op2-boundary-2026">
       <h3>What EDDB exposes for 2026, and the goal's date label</h3>
       <p>No E-series shot is dated later than <code>E101173</code> (2023-12-15). The only
-      2026 records in the catalogue are six <strong>C-series</strong> shots,
+      2026 records in the two series enumerated, E and C, are six <strong>C-series</strong> shots
+      (the all-series query <code>eddbreadShot("A000000","Z999999")</code> was refused with
+      <code>irc=1152</code>, so other series letters were not read),
       <code>C060028&ndash;C060033</code>, all on 2026-06-24 and 2026-06-25, and
       <code>eddbreadShotNow()</code> reports the current shot as <code>C082002</code>.
       The C-series is not the E-series, so these six shots are not E-series pulses either
@@ -114,6 +120,20 @@
       &rarr; <code>C060028</code> (first, 2026-06-24), which would make the given anchors
       <code>E101154</code>/<code>E101173</code> OP1 shots rather than OP2. EDDB's records
       cannot settle which naming is intended; they can only report the dates above.</p>
+    </section>
+
+    <section id="jtmm-op2-boundary-ruling">
+      <h3>The lead's ruling, 2026-10-06</h3>
+      <p>The second reading holds. OP1 is the 2023 campaign, and the 2021 block is the
+      integrated commissioning before it, on the same geometry. So every existing E-series
+      pulse, <code>E101154</code> and <code>E101173</code> included, reads the OP1
+      description (<code>EQSLE.DATA</code>, 120-filament vessel). OP2 is the configuration
+      after the enhancement shutdown. EDDB holds no OP2 pulse yet, so the OP2 map runs from
+      101174 to the top of the six-digit E-series numbering. The plan records this as the
+      decision <code>operating-phase-of-existing-pulses</code>. As delivered, this record
+      labelled the 2021 and 2023 blocks OP1 and OP2 and stamped the start times with a
+      trailing <code>Z</code>. The labels above were changed at merge, and the
+      <code>Z</code> was dropped because EDDB's start times carry no time zone.</p>
     </section>
 
   </main>
