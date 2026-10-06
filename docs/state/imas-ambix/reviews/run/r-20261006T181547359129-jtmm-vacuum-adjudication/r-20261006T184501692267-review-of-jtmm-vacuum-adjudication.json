@@ -1,0 +1,71 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": null,
+  "added_failure_ids": [],
+  "added_failures_note": "unmeasured: the reviewed manifest names no base gate log, so the added-failure count was not taken",
+  "backend": "clive",
+  "base_log_revision": null,
+  "call_site_count": 1,
+  "call_sites": [
+    "none (scripts/vacuum_loop_adjudication.py is a standalone entry point; no module imports it)"
+  ],
+  "completed_at": "2026-10-06T18:57:44.122Z",
+  "dispatched_at": "2026-10-06T18:45:15Z",
+  "findings": [
+    {
+      "file": "scripts/vacuum_loop_adjudication.py",
+      "line": "1105",
+      "severity": "follow-on",
+      "text": "follow-on: _jt60sa_probe_angles reads the probe poloidal_angle straight from magnetics.nc, a second supplier beside imas_ambix/data/description_reader.py:94 _supply_emitted_probe_angles, which plan \u00a76 designates the one supplier of a probe angle on the description route; read_geometry_table(100595, machine=\"jt-60sa\") leaves all 17 probe angles absent because the packaged description emits no magnetics/b_field_pol_probe/poloidal_angle array, so the owner does not fire and the script's parallel read stands in for it."
+    },
+    {
+      "file": "scripts/vacuum_loop_adjudication.py",
+      "line": "1371",
+      "severity": "follow-on",
+      "text": "follow-on: the declared negative control swaps magPbTC1 and magPbTC2 and reports zero changed verdicts, but because all 44 channels are undecided under every shot the swap cannot change a verdict, so the control passes by construction and does not exercise the fit."
+    },
+    {
+      "file": "scripts/vacuum_loop_adjudication.py",
+      "line": "1363",
+      "severity": "follow-on",
+      "text": "follow-on: the done_when's \"MAST's default run reproduces its existing verdicts\" is argued from a byte-unchanged path rather than reproduced; running the default path writes docs/notes/vacuum-loop-adjudication.md and docs/figures/vacuum-loop-adjudication/, both outside the node's write paths, so the clause could not be measured without first widening scope."
+    }
+  ],
+  "head_log_revision": null,
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 1 production call site(s)",
+    "diff": "read commit by commit against d2bb8d08; 366 added lines to the script (the one deletion is a replaced import line) plus the two fragments, and the MAST default path is additive-only.",
+    "done_when": "the machine selection (--machine jt60sa, scripts/vacuum_loop_adjudication.py:1413), build_operator (:1187), ForwardOperator.vacuum_prediction (:1196) and read_channel (:1192) are all present and the run is captured to jt60sa-vacuum-adjudication.log; the one clause not measured is \"MAST's default run reproduces its existing verdicts\".",
+    "goal": "the goal is to adjudicate 27 loops and 17 probes on three vacuum shots; scripts/vacuum_loop_adjudication.py:1363 _run_jt60sa tables all 44 channels on all three shots and docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-adjudication.json carries a verdict with slope, offset and Pearson r per channel per shot.",
+    "manifest": "read; it records the machine branch, the 44 undecided verdicts, the ruff result and the commit, and its MAST claim is a byte-unchanged argument rather than a reproduction.",
+    "write_paths": "the diff touches only scripts/vacuum_loop_adjudication.py, docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-adjudication.html and docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-adjudication.json, all inside the four declared paths; no test path and no figure was written."
+  },
+  "justifications": {
+    "durability": "no test is added and the node's write paths reach no test path, so nothing fails if _jt60sa_fit or _jt60sa_operator regresses; the in-run swap control at scripts/vacuum_loop_adjudication.py:1371 cannot fail while every channel shares one verdict.",
+    "evidence": "the run is recorded in jt60sa-vacuum-adjudication.log and the fragments, but the done_when clause \"MAST's default run reproduces its existing verdicts\" was not measured, and the log's first entry is a traceback from an earlier revision rather than the committed one.",
+    "fit": "ruff check over scripts/vacuum_loop_adjudication.py at 892715c4 exits 0 and the new helpers follow the file's module-constants plus private-helper idiom, with no plan label or ticket reference in the added names.",
+    "goal_fidelity": "scripts/vacuum_loop_adjudication.py:1363 adjudicates every one of the 44 named channels on all three shots and both fragments table the per-shot slope, offset and Pearson r with a verdict.",
+    "reuse": "the branch reuses build_operator, ForwardOperator.vacuum_prediction and read_channel, but _jt60sa_probe_angles at scripts/vacuum_loop_adjudication.py:1105 reads magnetics.nc directly, paralleling the read_geometry_table probe-angle owner imas_ambix/data/description_reader.py:94.",
+    "scope_discipline": "git diff --numstat d2bb8d08..892715c4 lists only scripts/vacuum_loop_adjudication.py, the html fragment and the json fragment, all inside the declared write paths."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20261006T181547359129-jtmm-vacuum-adjudication (node\njtmm-vacuum-adjudication, plan imas-ambix:jt60sa-machine-map \u00a76), read at head\n892715c4a9e8bb21cb01f04b47fef2b28eacb375 on base d2bb8d081559ca088c2d44e74f06416584f956dc.\nThe node adjudicates JT-60SA's 27 flux loops and 17 tangential probes against vacuum\npredictions on the three OP1 vacuum shots E100579, E100595, E100642. This review reads the\ncommit, the node manifest, the run log jt60sa-vacuum-adjudication.log and the two committed\nfragments; the one read outside the diff is the reuse check on the probe-angle supplier.\n\nVERDICT goal: the goal is to adjudicate 27 loops and 17 probes on three vacuum shots; scripts/vacuum_loop_adjudication.py:1363 _run_jt60sa tables all 44 channels on all three shots and docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-adjudication.json carries a verdict with slope, offset and Pearson r per channel per shot.\nVERDICT done_when: the machine selection (--machine jt60sa, scripts/vacuum_loop_adjudication.py:1413), build_operator (:1187), ForwardOperator.vacuum_prediction (:1196) and read_channel (:1192) are all present and the run is captured to jt60sa-vacuum-adjudication.log; the one clause not measured is \"MAST's default run reproduces its existing verdicts\".\nVERDICT write_paths: the diff touches only scripts/vacuum_loop_adjudication.py, docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-adjudication.html and docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-adjudication.json, all inside the four declared paths; no test path and no figure was written.\nVERDICT manifest: read; it records the machine branch, the 44 undecided verdicts, the ruff result and the commit, and its MAST claim is a byte-unchanged argument rather than a reproduction.\nVERDICT diff: read commit by commit against d2bb8d08; 366 added lines to the script (the one deletion is a replaced import line) plus the two fragments, and the MAST default path is additive-only.\nCALL_SITES: none (scripts/vacuum_loop_adjudication.py is a standalone entry point; no module imports it)\n\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: scripts/vacuum_loop_adjudication.py:1363 adjudicates every one of the 44 named channels on all three shots and both fragments table the per-shot slope, offset and Pearson r with a verdict.\nSCORE evidence: 15\nJUSTIFICATION evidence: the run is recorded in jt60sa-vacuum-adjudication.log and the fragments, but the done_when clause \"MAST's default run reproduces its existing verdicts\" was not measured, and the log's first entry is a traceback from an earlier revision rather than the committed one.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff --numstat d2bb8d08..892715c4 lists only scripts/vacuum_loop_adjudication.py, the html fragment and the json fragment, all inside the declared write paths.\nSCORE durability: 10\nJUSTIFICATION durability: no test is added and the node's write paths reach no test path, so nothing fails if _jt60sa_fit or _jt60sa_operator regresses; the in-run swap control at scripts/vacuum_loop_adjudication.py:1371 cannot fail while every channel shares one verdict.\nSCORE fit: 18\nJUSTIFICATION fit: ruff check over scripts/vacuum_loop_adjudication.py at 892715c4 exits 0 and the new helpers follow the file's module-constants plus private-helper idiom, with no plan label or ticket reference in the added names.\nSCORE reuse: 13\nJUSTIFICATION reuse: the branch reuses build_operator, ForwardOperator.vacuum_prediction and read_channel, but _jt60sa_probe_angles at scripts/vacuum_loop_adjudication.py:1105 reads magnetics.nc directly, paralleling the read_geometry_table probe-angle owner imas_ambix/data/description_reader.py:94.\n\nFINDING scripts/vacuum_loop_adjudication.py:1105 follow-on: _jt60sa_probe_angles reads the probe poloidal_angle straight from magnetics.nc, a second supplier beside imas_ambix/data/description_reader.py:94 _supply_emitted_probe_angles, which plan \u00a76 designates the one supplier of a probe angle on the description route; read_geometry_table(100595, machine=\"jt-60sa\") leaves all 17 probe angles absent because the packaged description emits no magnetics/b_field_pol_probe/poloidal_angle array, so the owner does not fire and the script's parallel read stands in for it.\nFINDING scripts/vacuum_loop_adjudication.py:1371 follow-on: the declared negative control swaps magPbTC1 and magPbTC2 and reports zero changed verdicts, but because all 44 channels are undecided under every shot the swap cannot change a verdict, so the control passes by construction and does not exercise the fit.\nFINDING scripts/vacuum_loop_adjudication.py:1363 follow-on: the done_when's \"MAST's default run reproduces its existing verdicts\" is argued from a byte-unchanged path rather than reproduced; running the default path writes docs/notes/vacuum-loop-adjudication.md and docs/figures/vacuum-loop-adjudication/, both outside the node's write paths, so the clause could not be measured without first widening scope.",
+  "review_run_id": "r-20261006T184501692267-review-of-jtmm-vacuum-adjudication",
+  "reviewed_base_sha": "d2bb8d081559ca088c2d44e74f06416584f956dc",
+  "reviewed_head_sha": "892715c4a9e8bb21cb01f04b47fef2b28eacb375",
+  "reviewed_run_id": "r-20261006T181547359129-jtmm-vacuum-adjudication",
+  "scores": {
+    "durability": 10,
+    "evidence": 15,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "reuse": 13,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "timestamp": "2026-10-06T18:55:09.857741+00:00",
+  "total": 95
+}
