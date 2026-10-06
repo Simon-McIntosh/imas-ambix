@@ -10,7 +10,7 @@
   <meta name="plan-summary" content="Draw the JT-60SA machine geometry the SELENE decks gave us, OP1 against OP2, and the EDDB signals already cached, so the map&#x27;s evidence can be read at a glance">
   <meta name="plan-status" content="draft">
   <meta name="plan-roi" content="mid">
-  <meta name="plan-effort-hours" content="5.0">
+  <meta name="plan-effort-hours" content="6.0">
   <meta name="plan-capability-version" content="1.0">
   <meta name="plan-capability-class" content="general">
   <meta name="plan-capability-reasoning" content="standard">
@@ -23,9 +23,9 @@
   <title>JT-60SA Geometry and Signal Figures | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="7">
+<meta name="plan-version" content="10">
 <meta name="plan-modified" content="2026-10-06">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;}">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s1b&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;}">
 </head>
 <body>
   <main class="plan-doc">
@@ -53,8 +53,9 @@
       map the JT-60SA catalogue declares (OP1 and OP2), one IMAS netCDF file per IDS (<code>pf_active</code>, <code>pf_passive</code>,
       <code>magnetics</code>, <code>wall</code>, <code>tf</code>) at DD 4.1.1, read through
       <code>imas.DBEntry</code>. Measured 2026-10-06: both phases carry twelve PF coils
-      (CS1–CS4, EF1–EF6 and the two FPPC coils) with 40, 40, 40, 40, 16, 16, 16, 16, 16, 16, 6 and 6
-      elements; OP1's vessel is two resistivity blocks, loops VV1 (63 filaments) and VV2 (57), and
+      (CS1–CS4, EF1–EF6 and the two FPPC coils) discretised into 268 current filaments, each
+      <code>pf_active</code> coil element being one of the SELENE deck's rectangular filaments carrying
+      part of its coil's turns: 40 per CS module, 16 per EF coil and 6 per FPPC coil; OP1's vessel is two resistivity blocks, loops VV1 (63 filaments) and VV2 (57), and
       OP2's is one loop VV1 (98); <code>magnetics</code> holds 17 pickup probes (MP1–MP17, with their
       poloidal angle) and 27 flux loops (FL1–FL27). The signals are the EDDB cache under
       <code>JT60SA_ROOT</code>, whose pulse layout, time-base sibling and unit attribute
@@ -122,17 +123,21 @@
     <p>
       Two figures, drawn by <code>scripts/figures_jt60sa_geometry.py</code> from the description
       store, read with <code>imas.DBEntry</code> as the reuse note in §1 explains, with the chosen palette. The first is the poloidal cross-section of OP1 and OP2 side by
-      side on one shared R and Z scale: every PF coil element as its rectangle, every vessel filament,
+      side on one shared R and Z scale: every current filament as its rectangle, labelled as filaments of its coil, every vessel filament,
       the wall and limiter outline, the flux loops as points and the pickup probes as short ticks
       along their measured poloidal angle, each coil and sensor family labelled directly. The second
       overlays the two phases' vessel and wall on one axis, the only components that change at the
       OP1 to OP2 boundary, so the change reads without comparing panels. Sensors EDDB acquires but no
-      facility file positions (7 flux loops and 6 probes) are listed in the caption, not drawn.
+      facility file positions (7 flux loops and 6 probes) are listed in the caption, not drawn. The
+      window holds every element the store carries, so OP1's vessel rectangles that the converter
+      placed metres outside the machine (loop VV1, reported to the machine map on 2026-10-06) are
+      drawn as stored and named in the caption with their element indices; direct labels sit in empty
+      space and no leader line crosses a drawn element.
     </p>
     <p>
       Done-when: both figures are written as PNG and SVG under <code>docs/figures/jt60sa-geometry/</code>
       and embedded with a project-absolute <code>src</code> and a caption in the node's evidence
-      fragment, which the landing carries into this plan; a check in the script asserts the counts drawn equal the counts read from the store (268 coil elements, 120 and
+      fragment, which the landing carries into this plan; a check in the script asserts the counts drawn equal the counts read from the store (12 PF coils discretised into 268 current filaments, 120 and
       98 vessel filaments, 27 flux loops, 17 probes) and prints them.
     </p>
 
@@ -158,6 +163,32 @@
     </p>
 
     
+
+    <h2 id="s1b">§1b — A wider range of palettes on the geometry</h2>
+<section data-reckon="section" data-id="s1b" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+<p>
+      The lead provisionally chose candidate A from §1's three and asked to see a wider range of
+      palettes drawn on the machine geometry, stored in this project's figures directory, before the
+      <code>palette</code> decision is locked. This section extends <code>CANDIDATES</code> in
+      <code>scripts/figures_jt60sa_geometry.py</code> to eight candidates, keeping A, B and C and adding
+      five, each a distinct hue assignment under §1's rules: no red, every role at 3:1 or better
+      against white, OKLCH chroma about 0.09–0.15, colour-blind &Delta;E of at least 8 over all pairs
+      as the script's own validator run records, and the OP1 and OP2 vessel as lightness steps of one
+      hue. At least one of the five spends colour on a single subject, the vessel, and draws the other
+      families in neutrals. Every candidate is drawn on one R, Z window shared by the OP1 and OP2
+      panels and sized to the machine, coils and wall with a margin, so the palettes are judged at a
+      readable scale; vessel rectangles the store places outside that window are counted in the
+      caption by phase and element index rather than drawn, and the rectangles are labelled as current
+      filaments of their coil. Direct labels sit in empty space and no leader line crosses a drawn
+      element.
+    </p>
+    <p>
+      Done-when: <code>--palette-candidates</code> writes the eight candidates as PNG and SVG under
+      <code>docs/figures/jt60sa-palette/</code>, every <code>validate_&lt;candidate&gt;.txt</code> reads
+      ALL CHECKS PASS, and the run exits 0; the node's evidence fragment embeds all eight with a
+      project-absolute <code>src</code> and their role-to-colour tables; the landing extends the
+      <code>palette</code> decision's options to the eight for the lead to choose.
+    </p>
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
