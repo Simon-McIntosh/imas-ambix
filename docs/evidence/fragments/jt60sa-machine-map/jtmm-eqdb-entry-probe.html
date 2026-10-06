@@ -1,0 +1,144 @@
+<section id="jtmm-eqdb-entry-probe" data-reckon="fragment">
+<h2 id="jtmm-eqdb-entry-probe-h">EQDB reader entry: callable, module environment, and record fields</h2>
+
+<p id="jtmm-eqdb-entry-probe-scope">
+Read-only probe of <code>nakasvr26</code> over <code>ssh -F ~/.ssh/config jt-60sa</code>
+(host <code>intr26-2</code>, user <code>d240044</code>), answering the open question
+<code>eqdb-reader</code> §6. Nothing was written on <code>nakasvr26</code> outside
+<code>/tmp</code>; the probe read files and executed the prebuilt reader only.
+No source was changed.
+</p>
+
+<h3 id="jtmm-eqdb-entry-probe-entry">The callable entry, with no Fortran build</h3>
+
+<p id="jtmm-eqdb-entry-probe-entry-p">
+The EQDB record is readable through a shipped Python package that wraps a
+<strong>prebuilt shared library</strong> with <code>ctypes</code>. No rebuild is
+needed: the shared object is already on disk. Three source lines are load-bearing.
+</p>
+
+<ul id="jtmm-eqdb-entry-probe-entry-lines">
+<li id="jtmm-eqdb-entry-probe-line-libpath">
+<code>eqread_pac/default/Fledd.py</code> sets the library path:
+<pre><code>self.LibraryPath = fledd_dir + "/libFLEDD.so"   # fledd.pac/libFLEDD.so</code></pre>
+That default file does <strong>not</strong> exist there (only
+<code>libFLEDD.so_rebuild</code> lives in <code>fledd.pac/</code>). The prebuilt
+library that does exist is <code>/analysis/lib/libFLEDDPIC.so</code>, and it is
+passed explicitly through the constructor's <code>libpath</code> argument.
+</li>
+<li id="jtmm-eqdb-entry-probe-line-load">
+<code>eqread_pac/db/Fledd.py</code> loads it:
+<pre><code>self.fledd_lib = ctypes.cdll.LoadLibrary( default.LibraryPath )</code></pre>
+</li>
+<li id="jtmm-eqdb-entry-probe-line-api">
+<code>eqread_pac/db/FleddTool.py</code> exposes the readable record:
+<pre><code>def GetTimeList( self, eqdb, shot ):  out = self.Fledd.Eqlist_Get( eqdb, shot, nmax )
+def GetEqData(  self, eqdb, shot, time ): out = self.Fledd.Eqdata_Get( eqdb, shot, time )
+def GetEqItem(  self, name, *options ):  # by field name, int / float / string</code></pre>
+</li>
+</ul>
+
+<p id="jtmm-eqdb-entry-probe-entry-sig">
+<strong>Signature and environment.</strong> Python package:
+<code>eqread_pac</code> at
+<code>/analysis/src/edas2/v2.2.1/edas_share/eqread_pac</code>. Entry:
+</p>
+<pre id="jtmm-eqdb-entry-probe-entry-pre"><code>from eqread_pac.db.FleddTool import Set as FleddTool
+tool = FleddTool("/analysis/lib/libFLEDDPIC.so")     # prebuilt, no build
+times = tool.GetTimeList(eqdb, shot)                  # -> list of int ms
+iret  = tool.GetEqData(eqdb, shot, time_ms)           # -> 0 on success
+val   = tool.GetEqItem("PSI")                         # -> record field by name</code></pre>
+<p id="jtmm-eqdb-entry-probe-entry-env">
+Module environment: the server Python 3.5.6 (conda env <code>edas_dev</code> at
+<code>/analysis/anaconda3/envs/edas_dev</code>, activated by the
+<code>/analysis/bin/eslice</code> and <code>/analysis/bin/egis</code> launchers).
+The underlying C symbols in the shared library are Fortran-underscore names:
+<code>eqlist_get_</code>, <code>eqdata_get_</code>, <code>eqdata_set_</code>,
+<code>eqitem_get_</code>, <code>eqint_get_</code>, <code>eqdbl_get_</code>,
+<code>gtmfld_</code> (all in <code>libFLEDDPIC.so</code>). The transport beneath is
+<code>/analysis/lib/JT60SAEQDB/libEQDBMSPIC.so</code> (EQDBMS:
+<code>eqdb_get_</code>, <code>eqdb_set_</code>, <code>eqdblist_</code>,
+<code>eqdbio_</code>, <code>eqdbsockclient_connect</code>). The higher-level
+equilibrium entry is <code>eqread_pac/eqread_main.py</code>
+<code>EQreadMain(fledd_tool).exec_( shot, time_s, eqdb, *psi_types )</code>, with
+<code>_connect_method="locallib"</code> calling
+<code>eqread.Eqdbget_direct( self, shot, time, eqdb )</code>.
+Older prebuilt front-ends also exist (<code>/analysis/bin/saeqread</code>,
+<code>saeqdb</code>, and the SELENE pair <code>getseldata</code> + <code>sel</code>),
+but they are Fortran-driver wrappers, not a record-field reader.
+</p>
+
+<h3 id="jtmm-eqdb-entry-probe-fields">Record fields (the reader's own schema)</h3>
+
+<p id="jtmm-eqdb-entry-probe-fields-p">
+The reader declares the record fields in
+<code>eqread_pac/default/Fledd.py</code> (<code>NameList</code>). Every field below
+is what <code>GetEqItem(name)</code> reads; integer fields are <code>int32</code>,
+floats <code>float64</code>, strings <code>char</code>. Grid geometry:
+<code>NSR</code>&times;<code>NSZ</code> points, from the two library variants
+(<code>libEQDBMS.a</code> and <code>libEQDBMS_1025.a</code>) either 129&times;129 or
+1025&times;1025; <code>NV</code> is the SIV (flux-surface) mesh size.
+</p>
+
+<table id="jtmm-eqdb-entry-probe-fields-table">
+<thead><tr><th>group</th><th>field</th><th>meaning / unit</th></tr></thead>
+<tbody>
+<tr><td>Size (int)</td><td>NSR, NSZ, NV</td><td>R grid, Z grid, SIV mesh point counts</td></tr>
+<tr><td>Eqdb (int)</td><td>EQISH</td><td>shot number</td></tr>
+<tr><td>Eqdb (int)</td><td>ICP, NSU</td><td>obtain parameter; separatrix axis points</td></tr>
+<tr><td>Eqdb (int)</td><td>ISEP, IRSEP, IZSEP</td><td>X-point flat index, R mesh, Z mesh</td></tr>
+<tr><td>Eqdb (int)</td><td>LIMFLG, IVAC, NCOIL</td><td>limiter/divertor flag; P-coil flag; coil turns</td></tr>
+<tr><td>Eqdb (float)</td><td>EQTIM</td><td>time of the slice [ms]</td></tr>
+<tr><td>Eqdb (float)</td><td>RG (NSR), ZG (NSZ)</td><td>R and Z grid [m]</td></tr>
+<tr><td>Eqdb (float)</td><td>PSI (NSR&times;NSZ)</td><td>poloidal flux on the RZ grid [Wb]</td></tr>
+<tr><td>Eqdb (float)</td><td>PDS, FDS (NV)</td><td>p&#8242; = &mu;<sub>0</sub>dP/d&psi;, FF&#8242; = F dF/d&psi; on SIV mesh</td></tr>
+<tr><td>Eqdb (float)</td><td>SIV, VLV, QQV, PRV, BTV (NV)</td><td>&psi; mesh, volume, q, pressure &mu;<sub>0</sub>P, F=R&middot;B<sub>T</sub></td></tr>
+<tr><td>Eqdb (float)</td><td>TTCU</td><td>plasma current I<sub>p</sub> [MA]</td></tr>
+<tr><td>Eqdb (float)</td><td>SAXIS, RAXIS, ZAXIS</td><td>magnetic-axis flux and (R,Z) [m]</td></tr>
+<tr><td>Eqdb (float)</td><td>RSU, ZSU (NSU), CSU</td><td>separatrix (boundary) R,Z and current density</td></tr>
+<tr><td>Eqdb (float)</td><td>RSEP, ZSEP, PSEP</td><td>X-point (R,Z) [m] and flux on separatrix [Wb]</td></tr>
+<tr><td>Eqdb (float)</td><td>RMAJ, RPLA, ZPLA, ELIP, TRIG</td><td>major R, minor R, its Z, ellipticity, triangularity</td></tr>
+<tr><td>Eqdb (float)</td><td>ZZLP, ZZLI, BETS/BETA/BETJ/BETAP</td><td>self-inductance, internal inductance, betas</td></tr>
+<tr><td>Eqdb (float)</td><td>ROUTM/ZOUTM, DELX, DSEP</td><td>max-R point, X-divertor gap, separatrix pitch</td></tr>
+<tr><td>Eqdb (float)</td><td>RVAC, ZVAC, CVAC, PNOFER, CP, TTPR</td><td>vacuum point R/Z, coil current, ferrite-excluded &psi;, etc.</td></tr>
+<tr><td>Eqdb (string)</td><td>EQIDX, EQTTL</td><td>equilibrium database ID and title</td></tr>
+<tr><td>Fame (float)</td><td>RHO, ARV, WSTR, Q95, QSEFF</td><td>&rho; mesh, W<sub>str</sub>, q<sub>95</sub>, q<sub>seff</sub></td></tr>
+<tr><td>Fame (float)</td><td>DMX, BFOSEP, BFISEP, XPNEW, XSTK, ANGLE, BFISTK, DLCN, DMSEP, ANAXI, RSP1, RSP2</td><td>FAME divertor / strike-point scalars</td></tr>
+</tbody>
+</table>
+
+<h3 id="jtmm-eqdb-entry-probe-result">Read through the entry: E101154</h3>
+
+<p id="jtmm-eqdb-entry-probe-result-p">
+<code>tool.GetTimeList(eqdb, 101154)</code> was called for
+<code>eqdb = 0..5</code>. The FAME database (<code>eqdb=0</code>) returns
+<strong>105 time slices</strong>, from <code>500</code> to <code>11500</code> ms
+(e.g. <code>500, 800, 900, 1000, 1100, 1200, &hellip;, 11300, 11400, 11500</code>).
+The SELENE/eqdbms numbers (<code>eqdb = 1..5</code>) return <strong>zero</strong>
+slices &mdash; E101154 holds no SELENE EQDB record on this host, only FAME.
+</p>
+
+<p id="jtmm-eqdb-entry-probe-iret">
+A populated field read could <strong>not</strong> be completed on this host: every
+<code>tool.GetEqData(0, 101154, t)</code> returned <code>IRET = 300</code> (not
+<code>0</code>), so <code>GetEqItem</code> then returned empty arrays for every
+field. The transport layer reaches <code>alleqdbio</code> with
+<code>eqtyp=0</code>, which dispatches to <code>FMEQDBIO</code> for FAME; the FAME
+data lives on the database server (<code>echoFameHost</code> =
+<code>dbsvr17p</code>, <code>echoFameDir</code> = <code>/JT60SA_EQ/FAME3</code>),
+and <code>/JT60SA_EQ</code> does <strong>not</strong> exist on <code>intr26-2</code>.
+So the record's field <em>shapes</em> above are the reader's declared schema and
+mesh variants, not a populated dump of E101154; the field <em>names, groups and
+units</em> are authoritative (quoted from <code>NameList</code>), and the
+105-slice time list is a live read through the same entry.
+</p>
+
+<p id="jtmm-eqdb-entry-probe-followon">
+Follow-on for the transport node: reading a populated record needs the FAME
+database server reachable (the socket client <code>eqdbsockclient_connect</code>
+in <code>libEQDBMSPIC.so</code>, or a synthetic record via
+<code>Eqdata_Set(eqdb, time, path, len)</code> from a supplied data directory). The
+129&times;129 vs 1025&times;1025 choice maps to the <code>libEQDBMS.a</code> vs
+<code>libEQDBMS_1025.a</code> variants and is not selectable per-record at read time.
+</p>
+</section>
