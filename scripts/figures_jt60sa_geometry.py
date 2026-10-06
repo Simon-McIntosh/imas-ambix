@@ -17,6 +17,8 @@ polyline so no stroke joins two separate contours.
 from __future__ import annotations
 
 import argparse
+import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -33,6 +35,7 @@ from imas_ambix.data.machine_map import (  # noqa: E402
     load_packaged_machine_map,
 )
 from imas_ambix.plot_style import (  # noqa: E402
+    COMPONENT_ROLES,
     SERIES_LINEWIDTH,
     apply_data_ink,
     direct_label,
@@ -84,6 +87,37 @@ CANDIDATES: dict[str, dict[str, str]] = {
         "pickup_probes": "#7033a4",
     },
 }
+
+# The palette checker the recorded verdicts come from.  It is scripted here so
+# the ALL CHECKS PASS lines cannot drift from the colours the figures draw: the
+# hex list is built from the same CANDIDATES entries, and a candidate that fails
+# stops the run.
+VALIDATOR = Path("/home/ITER/mcintos/.cache/dataviz/validate_palette.js")
+PASS_MARKER = "ALL CHECKS PASS"
+FAIL_MARKER = "[FAIL]"
+
+
+def validate_candidate(
+    name: str, colours: dict[str, str], out_dir: Path
+) -> tuple[Path, bool]:
+    """Check one candidate's role colours and record the checker's verdict.
+
+    The hex list is taken from the same role colours the candidate draws with,
+    so the recorded verdict and the figure cannot disagree.  Returns the verdict
+    file's path and whether the candidate passed.
+    """
+    hex_list = ",".join(colours[role] for role in COMPONENT_ROLES)
+    result = subprocess.run(
+        ["node", str(VALIDATOR), hex_list, "--mode", "light", "--pairs", "all"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    text = result.stdout + result.stderr
+    path = out_dir / f"validate_{name}.txt"
+    path.write_text(text)
+    passed = PASS_MARKER in text and FAIL_MARKER not in text
+    return path, passed
 
 
 @dataclass(frozen=True)
@@ -428,10 +462,9 @@ def _label_family(ax, x, y, anchor, text, colour, ha) -> None:
 
 
 def render_candidate(
-    name: str, overrides: dict[str, str], geometries, out_dir: Path
+    name: str, colours: dict[str, str], geometries, out_dir: Path
 ) -> tuple[Path, Path]:
     """Render one candidate palette on the OP1/OP2 cross-section pair."""
-    colours = palette(overrides)
     fig, axes = plt.subplots(1, len(geometries), figsize=(14.0, 8.0))
     for ax, geometry in zip(list(axes), geometries, strict=True):
         cross_section(ax, geometry, colours)
@@ -465,9 +498,21 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.palette_candidates:
         args.out_dir.mkdir(parents=True, exist_ok=True)
+        failed: list[str] = []
         for name, overrides in CANDIDATES.items():
-            png, svg = render_candidate(name, overrides, geometries, args.out_dir)
-            print(f"{name}: {png} {svg}")
+            colours = palette(overrides)
+            png, svg = render_candidate(name, colours, geometries, args.out_dir)
+            verdict_path, passed = validate_candidate(name, colours, args.out_dir)
+            verdict = "PASS" if passed else "FAIL"
+            print(f"{name}: {png} {svg} -> {verdict_path} [{verdict}]")
+            if not passed:
+                failed.append(name)
+        if failed:
+            print(
+                f"palette validation failed for: {', '.join(failed)}",
+                file=sys.stderr,
+            )
+            return 1
     return 0
 
 
