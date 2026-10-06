@@ -23,7 +23,7 @@
   <title>JT-60SA Geometry and Signal Figures | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="13">
+<meta name="plan-version" content="14">
 <meta name="plan-modified" content="2026-10-06">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s1b&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;}">
 </head>
@@ -96,7 +96,12 @@
       <code>read_artifact_limiter</code>) are pure functions of the raw IDS structs with no adapter
       transform, returning each element's true vertices as a <code>PolygonSection</code>, the probes
       and flux loops, and the limiter contour, so the figure script calls them on the IDS objects its
-      <code>DBEntry</code> read returns and draws what they return.
+      <code>DBEntry</code> read returns and draws what they return. Their composer,
+      <code>MachineArtifactGeometryReader</code> (<code>artifact_geometry.py:726</code>), is not used: it
+      resolves a content-addressed nova machine artifact by manifest and digest, which the per-phase
+      JT-60SA store is not, and assembles a <code>GeometryTable</code> of circuits, drives and sensor
+      maps for the forward operator where the figure needs only shapes, so the script's reader is the
+      few lines that open a phase's IDS and call the four struct-level readers.
     </p>
     <p>
       Figures follow the workstation plot style: the installed <code>data-ink</code> sheet, a
@@ -108,7 +113,9 @@
       scripts that style inline, including the two hand-rolled palettes in
       <code>scripts/figures/wm_demonstration_figs.py</code> and
       <code>scripts/figures/playable_plasma_figs.py</code>, stay as they are, since restyling them is
-      outside this plan. Its public surface is the named roles, the function that applies the sheet and
+      outside this plan. The geometry script's one command-line option,
+      <code>--palette-candidates</code>, renders the candidate gallery; no existing script draws
+      JT-60SA, so it too retires and merges nothing. Its public surface is the named roles, the function that applies the sheet and
       the direct-label helper §2 and §3 share: one role per component the figures draw (PF coils, OP1 vessel, OP2 vessel, wall, flux loops,
       pickup probes) and the neutrals for references. Because this is the repository's first colour
       assignment, the lead chooses it: the section renders two to four candidate palettes on the real
