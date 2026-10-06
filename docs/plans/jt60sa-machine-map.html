@@ -24,10 +24,10 @@
   <title>JT-60SA Machine Map for Equilibrium Reconstruction | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
-<meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2">
-<meta name="plan-impl" content="0.67">
-<meta name="plan-version" content="146">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
+<meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85">
+<meta name="plan-impl" content="0.7">
+<meta name="plan-version" content="147">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -201,315 +201,11 @@
   <p class="landed-summary">Landed 2026-10-05/06. The remote EDDB extractor (<code>imas_ambix/data/eddb_remote.py</code>, one ssh process per batch, remote side under <code>nice -n 19</code>) and its zarr cache writer (<code>imas_ambix/data/eddb.py</code>, under <code>JT60SA_ROOT</code>) are merged, and one session returns the channels it served with each refused channel's EDDB return code read from <code>data['irc']</code> (bdcce624). PSRC holds the plasma-shape reconstruction's processed channels only for shots it ran on (E101154 yes, E101173 irc 1015), and MDAC holds the raw <code>magFlxLp*</code> flux loops on both. The first cold fetch (E101173, C060033) served the 22 MMSYS coil and TF currents and 4 MDAC Rogowski coils; the second (63df11f5) served all 119 first-pass channels on E101154, including PSRC <code>magFluxLp1..34</code> and <code>magPbTC1..23</code>, and the 34 raw MDAC <code>magFlxLp*</code> on E101154 and E101173, with no refusal; cold wall time about 105 to 111 s per shot, warm reads make no transport call. Which raw loop is which processed loop is a §5 census question. The access path adds two public modules, <code>eddb_remote.py</code> (<code>RemoteEddbExtractor</code>, <code>SshTransport</code>, <code>Transport</code>, <code>ChannelRequest</code>, <code>ChannelRecord</code>, <code>ChannelRefusal</code>, <code>BatchResult</code>) and <code>eddb.py</code> (<code>fetch_channels</code>, <code>write_channel</code>, <code>is_cached</code>, <code>channel_path</code>), and two refusal families, <code>EddbRemoteError</code> and <code>EddbCacheError</code>. They retire nothing, because ambix had no remote reader, and merge into nothing, because the FAIR-MAST mirror (<code>imas_ambix/data/manifest.py</code>, <code>imas_ambix/data/cli.py</code>) downloads from an object store rather than running a process on a facility host. <a href="s3">full record</a></p>
 </section>
 
-    <h2 id="s4">§4 — Machine description: the SELENE deck is the source</h2>
-    <p>
-      The JT-60SA conductor and sensor geometry already exists on this workstation as the
-      SELENE input decks <code>coil_vv_OP1.dat</code> and <code>coil_vv_OP2.dat</code> with
-      per-phase loop, probe and vessel-contour tables, and the <code>nakamap</code> package
-      has one-shot scripts that turn them into pf_active, pf_passive, wall and magnetics IDS
-      netCDF files (<code>jt60sa_md_OP1.nc</code>, <code>jt60sa_md_OP2.nc</code>). That work is
-      the seed, not the deliverable: it is imperative, carries no provenance beyond the file
-      name, hard-codes the phase, and its comment still names the wrong machine.
-    </p>
-    <p>
-      <strong>The source of truth is the facility's SELENE PSRC run tree</strong> (decision
-      below). Measured 2026-10-05 by <code>jtmm-geometry-source</code>: the workstation decks
-      <code>coil_vv_OP1.dat</code> and <code>coil_vv_OP2.dat</code> are byte-identical to the
-      copies in the lead's analysis-server home, both arrived in a OneDrive bundle dated
-      2024-10-21, and the OP1 deck is element-for-element identical (largest difference 0.0)
-      to <code>/analysis/src/SAselene_v2.0_forPSRC/RUN/EQSLE.DATA</code>, the input the
-      facility's plasma-shape reconstruction runs on (2020-12-14), whose <code>fort.96</code>
-      carries 27 flux-loop and 17 probe positions. The lead's own extraction
-      (<code>jt-60sa:~/work/efit_jt60sa/extract_jt60sa.py</code>, 2026-04-27) reads the same two
-      files. Between OP1 and OP2 the PF coils, flux loops and probes are identical; only the
-      vacuum vessel changes, from 63 filaments at 7.76e-7 Ω·m to 98 at 7.20e-7 Ω·m, with the
-      wall contours. The OP1 deck's passive block (NV=120) also carries 57 slabs at
-      7.20e-7 Ω·m after the vessel (deck lines 356–412): a lid from Z ≈ +5.4 to +7.1 m, a
-      base at Z = −7.49 m and walls to R 6.7 m, which is the cryostat, not vessel. The OP2 deck
-      has no such block (found 2026-10-06 while drawing the store). The nakamap IDS files are not sources: they are DD 3.42 fragments labelled
-      SST-1, with no provenance, and their magnetics IDS stores the probe coordinates in
-      <code>flux_loop</code> (5.09 m from the true loop positions).
-    </p>
-    <table>
-      <thead><tr><th>IDS</th><th>OP1</th><th>OP2</th></tr></thead>
-      <tbody>
-        <tr><td>pf_active</td><td colspan="2"><code>EQSLE.DATA</code> PF coil block; phase-independent</td></tr>
-        <tr><td>pf_passive</td><td><code>EQSLE.DATA</code> vessel block (120)</td><td><code>coil_vv_OP2.dat</code> vessel block (98), provisional: no facility file under <code>/analysis/src</code> carries a 98-filament vessel</td></tr>
-        <tr><td>tf</td><td colspan="2"><code>EQSLE.DATA</code> TFC inside and outside segments; the TF magnet is taken as unchanged between phases</td></tr>
-        <tr><td>wall</td><td><code>EQSLE.DATA</code> limiter and first-wall blocks</td><td>the limiter and first-wall blocks of <code>coil_vv_OP2.dat</code></td></tr>
-        <tr><td>magnetics</td><td colspan="2"><code>/analysis/src/getseldata_v4.2/UTL/getseldata/geo.in</code>: 17 poloidal probes (R, Z, angle) and 27 flux loops (R, Z), from which the <code>getseldata</code> preprocessor writes <code>fort.96</code>; the further 7 flux loops and 6 probes EDDB acquires have no position in any facility file and are declared as source qualifications rather than given positions</td></tr>
-      </tbody>
-    </table>
-    <p>
-      <strong>Facility sensor search</strong> (node <code>jtmm-analysis-sensor-search</code>,
-      2026-10-05). A read-only search of <code>/analysis/src</code> and <code>/analysis/lib</code>,
-      bounded by <code>timeout 180</code> and <code>-maxdepth 5</code> under <code>nice -n 19</code>, found
-      one sensor set. <code>geo.in</code> exists as ten byte-identical copies under
-      <code>getseldata_v4.1</code> and <code>getseldata_v4.2</code> (2020-12-08), and all five
-      <code>fort.96</code> files it produces declare <code>IPROB = 17</code> and
-      <code>ILOOP = 27</code>. EDDB carries <code>magFluxLp1..34</code> and <code>magPbTC1..23</code> on
-      E101173 as channel names with no positions, while its validity flags
-      <code>abnormFL1..27</code> and <code>abnormMP1..17</code> cover exactly the SELENE subset;
-      which EDDB indices are the 27 loops and the 17 probes is a §5 census question. No
-      98-filament vessel block exists under the searched roots, and <code>EQSLE.DATA</code>'s TFC
-      segments are the only TF geometry. A separate real-time acquisition
-      (<code>offlineTCCS.MAIN/RfmRtc.h</code>) carries 90 raw probes, outside this map's first pass.
-    </p>
-    <p>
-      The converter reads the facility file, records its path and sha256 as the receipt, and
-      treats the OneDrive deck as a verified mirror rather than as the source.
-      <strong>Converter node.</strong> The converter is <code>imas_ambix/data/selene_deck.py</code>.
-      It parses the SELENE PSRC deck grammar of <code>EQSLE.DATA</code> (the <code>&amp;DSK</code> header,
-      the PF coil block, the <code>NV</code> vessel block, the TFC inside and outside arc segments,
-      the limiter and first wall), the <code>geo.in</code> sensor blocks (<code>17 Magnetic Probe</code>
-      and <code>27 Flux Loop</code>), and the vessel block of <code>coil_vv_OP2.dat</code>, and writes
-      pf_active, pf_passive, magnetics, wall and tf IDS netCDF per phase at DD 4.1.1, with a
-      <code>receipt.json</code> naming each source file's path, sha256 and line ranges and the
-      converter's git commit. Its tests use synthetic files in those grammars. The copies the two
-      investigations made, in the <code>jtmm-geometry-source</code> and
-      <code>jtmm-analysis-sensor-search</code> report directories, are the reference the grammar is
-      read from, and parse checks against them are logged rather than committed. Running the
-      converter once against the facility files on GPFS is a separate node, and it does not
-      need the IFERC link: the two investigations already copied <code>EQSLE.DATA</code>,
-      <code>geo.in</code> and <code>coil_vv_OP2.dat</code> into their report directories, and
-      the inventories record each copy's sha256 against the facility file. The run copies them
-      to <code>JT60SA_ROOT/machine_description/source/</code>, checks each sha256 against those
-      inventories, converts both phases into <code>JT60SA_ROOT/machine_description/OP1/</code> and
-      <code>OP2/</code>. Each receipt names the landed copy it read and that copy's sha256, and
-      <code>source/provenance.json</code> maps every copy to its facility path by the same hash.
-      Neither deck states the TF coil count or turn count, so <code>tf/coils_n</code> and
-      <code>tf/coil/turns</code> are left unset and declared as validation gaps until a source
-      that states them is found. Landed 2026-10-05 (merge <code>dbea2656</code>):
-      <code>/work/projects/imas_gpu/jt60sa/machine_description/OP1</code> and <code>OP2</code> hold
-      all five IDSs with receipts citing converter commit <code>6ea7df62</code>. The converter
-      supersedes <code>nakamap</code> as the JT-60SA deck converter: once it lands, nothing in this
-      map reads nakamap's code or its <code>jt60sa_md_*.nc</code> outputs, which carry the probe
-      coordinates in <code>flux_loop</code>, and the nakamap repository is left as the historical
-      seed rather than maintained beside it. Its public surface is the one converter entry point;
-      it retires nothing inside ambix, because ambix has no deck reader today. The lead ruled
-      that JT-60SA geometry is committed to the repository as MAST's is in
-      <code>mast.json</code>, so supplements and directional vacuum verdicts carry their
-      coordinates inline; EDDB values never enter the repository.
-    </p>
-    <p>
-      This section rebinds that content as a <strong>range-scoped machine map</strong>:
-      one binding set per operating phase, with the OP1→OP2 boundary expressed as a shot
-      range exactly as MAST's two geometry transitions are, and every emitted conductor
-      element, loop position and probe position carrying a binding whose evidence names the
-      deck line range and the deck's hash. pf_active coils (CS1–4, EF1–6, FPPC upper and
-      lower) emit rectangular elements with positive turns and circuit direction in
-      <code>pf_active/circuit/connections</code>, following the rule the MAST map settled —
-      direction lives in the circuit, not in signed turns. pf_passive vessel filaments carry
-      resistivity so the loop resistance is derived, not asserted. The tf IDS is populated
-      from the deck's TF description with <code>tf/coil/current</code> bound to the MMSYS TF
-      current and <code>tf/b_field_phi_vacuum_r</code> derived from it and the turn count, so
-      the one COCOS-dependent tf field is produced by a declared relation rather than a
-      guess. Magnetics geometry (loop positions, probe positions and <em>directed</em> probe
-      angles) is bound from the deck's sensor tables, with the probe angle marked
-      <code>unknown-unvalidated</code> until §6 settles its sense against vacuum data.
-    </p>
-    <p>
-      Whether the deck itself gets a store engine, or is converted once into an IDS netCDF
-      with a recorded receipt that the existing netCDF engine reads, is a decision below;
-      the recommendation is the receipt, because a static per-phase description has no
-      per-shot access cost to amortise. The existing engine does not yet read such a file:
-      <code>NetCDFTransformEngine.open</code> resolves <code>{store_root}/{shot}/</code> and
-      reads one <code>{binding}.nc</code> per binding, a per-pulse layout that suits MAST, whose
-      geometry is written into every pulse, but would force a copy of a static description
-      for every JT-60SA shot. §4 therefore extends that engine, rather than adding one, so a
-      store can be addressed by the map a shot selects. The rule is a declared store layout. A
-      store declared per-shot keeps today's behaviour: <code>open</code> resolves
-      <code>{root}/{int(shot)}</code> and reads one <code>{binding}.nc</code> per binding. A store
-      declared static over its map resolves <code>{root}/{map name}</code> and reads one
-      <code>{ids}.nc</code> per IDS, so the shot selects the map and the map selects the directory,
-      and no description is copied per shot. The engine cannot choose a layout from what it is
-      given today: <code>NetCDFTransformEngine.open(root, shot, dd_version)</code> appends
-      <code>str(int(shot))</code> and never sees the map, while
-      <code>transform_machine_description</code> already holds the map it selected. The
-      <code>StoreEngine</code> protocol's <code>open</code> therefore gains that map as an argument,
-      both engines accept it, and a per-shot store ignores it. That widens one protocol method
-      and retires nothing, because no engine has a way to see the map today. Landed 2026-10-05 (merge
-      1eaa5c3d, node <code>jtmm-description-store-addressing</code>): the catalogue slots
-      <code>description_store_format</code>, <code>description_store_root</code>,
-      <code>description_store_layout</code> and <code>probe_angle_source</code> exist, MAST declares
-      its level-2 store and DIII-D declares no store, <code>StoreEngine.open</code> receives the
-      selected map, the netCDF engine reads a static store from
-      <code>{root}/{map name}/{ids}.nc</code>, and <code>read_geometry_table</code> has no
-      machine-name branch. What remains in this section is the JT-60SA catalogue that uses them. The converted description is one IDS netCDF per IDS
-      per phase under <code>JT60SA_ROOT/machine_description/</code>, which is that static layout
-      with the phase's map name as the directory. Being static
-      over a map's shot range is a property of how the engine addresses the store, not a new
-      catalogue slot: description values reach the DD through ordinary bindings to that
-      netCDF, and a value it cannot carry goes in the slots the schema already has for static
-      description, <code>DescriptionSupplement</code> (with its <code>point_flux_loops</code> and
-      <code>polygon_sections</code>) and <code>StructureAssembly</code>, used as
-      <code>mast.json</code> uses them, each entry's evidence naming the deck path, sha256 and
-      line range. That netCDF is the source layer, the counterpart of MAST's
-      level-2 store that the transform engine reads, and not a second machine-description
-      artifact store. The spine reads geometry through
-      <code>imas_ambix/gs/artifact_resolution.py</code>, whose content-addressed store
-      (<code>publish_object</code>, <code>resolve_machine_description</code>, a pinned semantic
-      identity) holds MAST's single pinned description and is consumed by
-      <code>gs/machine_selection.py</code> <code>select_machine</code>. The JT-60SA artifact the
-      spine needs is authored from this source and published through that owner with a pin of
-      its own (§7); the deck receipt is the field provenance that artifact's semantic identity
-      covers. The catalogue gains the slots this addressing needs, under the §2 slot rule:
-      the description's store format, its store root named through <code>paths.py</code>, its
-      store layout (per-shot or static over the map), and the source of directed probe angles, so <code>load_machine_map</code>'s fixed key set grows
-      by named structure rather than by machine. The two store-addressing keys retire nothing,
-      because the catalogue had no addressing slot: they move <code>read_geometry_table</code>'s
-      MAST defaults into each catalogue, and the probe-angle key retires the machine branch.
-      The extension point is <code>imas_ambix/data/description_reader.py</code>
-      <code>read_geometry_table</code>, the sole acquisition route from catalogue to geometry
-      table, whose store format and root are keyword parameters defaulting to MAST's zarr
-      level-2 store, and which supplies MAST's probe angles under a <code>machine == "mast"</code>
-      branch (<code>_supply_declared_probe_angles</code>). JT-60SA reaches the kernel through
-      it, with the store format, root and probe-angle source resolved from the catalogue
-      rather than from the machine name, so that branch is retired, not joined by a second.
-      One more machine-named angle path exists, and it is off the JT-60SA route:
-      <code>imas_ambix/gs/geometry.py</code> <code>load_tables</code> converts the probe angles of
-      MAST's efm campaign tables manifest (<code>gs_geometry_tables.json</code>) through
-      <code>load_packaged_signal_map("mast", "magnetics")</code>. That manifest holds only MAST
-      campaigns and nothing in ambix calls <code>load_tables</code> today, so no JT-60SA read
-      reaches it and it is left unchanged.
-      The benchmark's transform source keeps its own angle fill:
-      <code>spine_bench/transform_geometry_source.py</code> <code>_supply_probe_orientations</code>
-      joins probe angles from the MAST campaign sensor map, and
-      <code>TransformGeometrySource.table_for</code> calls <code>read_geometry_table</code> with no
-      machine, which resolves the MAST catalogue. That resolver stays MAST's (§7): the JT-60SA
-      stamp reads its geometry, angles included, from the artifact through
-      <code>MachineArtifactGeometrySource</code>, so no JT-60SA read reaches a machine-named
-      angle path and the transform source is left unchanged.
-      Done-when, for what remains: <code>imas_ambix/data/machine_maps/jt-60sa.json</code> declares
-      the netCDF format, a <code>paths.py</code> name for <code>JT60SA_ROOT/machine_description</code>,
-      the <code>static-over-map</code> layout and description-carried probe angles, with map
-      <code>OP1</code> over integers 100001–101173 (<code>E100001</code>–<code>E101173</code>: the
-      2021 integrated-commissioning block and the 2023 OP1 campaign, one geometry), map
-      <code>OP2</code> over 101174–999999, because the geometry changed in the enhancement
-      shutdown after the last OP1 pulse and EDDB holds no OP2 pulse yet (a map declares an
-      inclusive integer range, so the open end is the top of the six-digit E-series
-      numbering rather than a new schema slot), and a shot outside both ranges refused by
-      <code>map_for_shot</code> rather than given a map: the 2026 C-series records number
-      60028–82002 today, below both ranges, and
-      description bindings to the five IDS netCDF of each phase; <code>transform_machine_description</code>
-      emits a JT-60SA description for the OP1 pulse <code>E101173</code> and one shot in the OP2 range through one code path,
-      <code>read_geometry_table</code> and <code>geometry_table_from_description</code> build a
-      <code>GeometryTable</code> from it with zero machine-name branches (the one machine-name site on
-      the route is a default, not a branch: <code>read_geometry_table</code> and
-      <code>read_acquisition_channels</code> in <code>imas_ambix/data/description_reader.py</code>
-      default <code>machine</code> to <code>"mast"</code>. Measured 2026-10-06, a JT-60SA shot reaching
-      that default raises <code>LookupError</code>, because MAST's maps cover only 11766–30471, so
-      it fails loudly rather than reading MAST. The JT-60SA route passes the machine explicitly,
-      as the tests do with <code>machine="jt-60sa"</code> and as the §7 selector does from the
-      declared catalogue), and the three identity assertions (determinism,
-      partition consistency, visible change at the OP1/OP2 boundary) pass. Those are the
-      assertions <code>imas_ambix/data/description_identity.py</code> already proves for MAST's
-      two geometry transitions (<code>machine_description_bytes</code>,
-      <code>geometry_description_for_transition</code>, <code>description_field_changes</code>),
-      extended to the JT-60SA phases rather than rewritten.
-    </p>
-    <p>
-      The first attempt at that catalogue stopped on the store's shape (2026-10-06,
-      <code>jtmm-catalogue</code>). The twelve <code>pf_active</code> coils carry 40, 40, 40,
-      40, 16, 16, 16, 16, 16, 16, 6 and 6 elements. The static netCDF read
-      (<code>imas_ambix/data/transform_engine.py</code> <code>_read_ids_path</code>) stacks the
-      rows of every struct array, so each coil-element binding raises before
-      <code>geometry_table_from_description</code> runs. MAST never meets this, because its
-      catalogue gives each coil its own binding family, each reading a distinct source array
-      and named by its own structure assembly. The repair gives a static netCDF binding the
-      same per-coil reach. A binding may name one entry of the first struct array on its
-      <code>dd_path</code> by that entry's <code>name</code> leaf, so the JT-60SA catalogue
-      declares one binding family and one structure assembly per coil, as MAST's does. The
-      selection is an optional binding slot, declared in <code>schema.yaml</code> and loaded
-      by <code>imas_ambix/data/machine_map.py</code>. A binding without it reads exactly as
-      today, and a name that matches no entry is refused at read time under the existing
-      <code>TransformEngineError</code> family. The selector composes with the existing
-      traversal rather than replacing it. It consumes the first struct-array level: the named
-      entry is read and that level contributes no axis. <code>source_rank</code> then counts
-      the leaf and the struct levels below it, and <code>_struct_array_positions</code> and
-      the preserved-position rule apply to those levels as today. Rank and position decide
-      the shape of what is read, never which named entry, so they cannot express the
-      selection. The selector is not a second identity for the entry either: it is the
-      binding's source address, the job MAST's per-coil <code>source_array</code> (for example
-      <code>p2_inner_lower_r</code>) already does. <code>StructureAssembly</code> keeps naming
-      the emitted elements, read after the transform by
-      <code>geometry_adapter._assembly_identifiers</code>. Re-converting the store to equal element
-      counts was rejected, because padding coils with empty elements writes conductors that
-      do not exist. The slot widens one binding contract and retires nothing, because no
-      binding could select a struct-array entry before. The catalogue node is redispatched
-      from the base that carries it.
-    </p>
-    <p>
-      The catalogue landed on 2026-10-06 (<code>jtmm-catalogue-per-coil</code>, independent review
-      96/100) as <code>imas_ambix/data/machine_maps/jt-60sa.json</code>. Two items remain before
-      this section closes. First, the probe angles: the store carries
-      <code>magnetics/b_field_pol_probe/poloidal_angle</code> for all 17 probes, but the catalogue
-      binds none, so its declared description-carried angles read as NaN. Binding them turned
-      out not to be data-only (<code>jtmm-catalogue-probe-angles</code>, 2026-10-06). The COCOS
-      factor table the transform engine uses (<code>nova.io.cocos</code>
-      <code>TRANSFORMATIONS</code>) has no class for <code>pol_angle_like</code>. The engine
-      refuses an executable binding whose sign is <code>unknown-unvalidated</code>. And
-      <code>imas_ambix/data/geometry_adapter.py</code> <code>_b_probes</code> sets every probe
-      angle to NaN rather than reading one. So this section records the angles as a source
-      qualification in <code>jt-60sa.json</code>, naming the stored array and those three gaps.
-      §6, which measures the angle's sense, binds them together with the three changes. Second, the coil-filament identifiers. The
-      store holds 12 PF coils, and each <code>pf_active/coil/element</code> entry is one of the
-      SELENE deck's rectangular current filaments of a coil, carrying part of its turns: 40 per
-      CS module (549 turns each), 16 per EF coil and 6 per FPPC coil, 268 filaments in all.
-      The passive structure is separate. The converter wrote no name on a filament, so the
-      catalogue's structure assemblies carried placeholder identifiers. The converter now names
-      each filament after its coil and position, the store is re-converted, and the catalogue
-      takes the real identifiers; the same node narrows the converter's public surface to its one
-      entry point, <code>write_phase_description</code>, with an <code>__all__</code>. Both edit
-      <code>jt-60sa.json</code>, so they run in that order.
-    </p>
-    <p>
-      Two converter corrections follow from drawing the OP1 store. First, the passive block's
-      second resistivity group is the cryostat, but the converter named it <code>VV2</code> as
-      if it were vessel. By the lead's decision (<code>cryostat-in-both-phases</code>) both
-      phases carry the vacuum vessel and the cryostat as separately named loops, the vessel
-      from each phase's deck and the cryostat from <code>EQSLE.DATA</code>'s block in both,
-      since the cryostat did not change. So the passive difference at the OP1/OP2 boundary is
-      the vessel alone, the real change. Second, the OP1 wall: the converter concatenates the
-      deck's segment list, which holds the vessel outer skin, the vessel inner skin and the first
-      wall, into one 638-point limiter unit that draws as nested contours joined by strokes.
-      OP2's comes from a single 51-point outline. The first-wall segments become the limiter unit
-      (<code>wall/description_2d/limiter/unit</code>), and the two vessel skins become the inner
-      and outer outlines of one annular vessel unit
-      (<code>wall/description_2d/vessel/unit/annular/outline_inner</code> and
-      <code>outline_outer</code>, checked against DD 4.1.1), so the limiter is the plasma-facing
-      contour alone in both phases. That split landed on 2026-10-06
-      (<code>jtmm-passive-cryostat-and-wall</code>, review 115/120), with the OP1 wall still drawn
-      from <code>EQSLE.DATA</code>'s segments.
-    </p>
-    <p>
-      By the lead's decision <code>wall-from-coil-vv-tables</code>, both phases now take the wall
-      and vessel contours from their own <code>coil_vv_OP{1,2}.dat</code>, which carry the
-      same geometry as continuous polylines. The limiter unit is the deck's <code>nlim=51</code>
-      first-wall polygon (OP1 line 393, OP2 line 371; the two differ, because the first wall
-      changed for OP2). The annular vessel unit's <code>outline_inner</code> and
-      <code>outline_outer</code> are the two 50-segment skins of the 128-row contour block
-      ("Inner VV=50", "Outer VV=50"), with the block's 28 D-probe rows excluded. Their chord
-      endpoints lie on <code>EQSLE.DATA</code>'s analytic vessel arcs, so this changes
-      representation, not geometry. The same node closes the cryostat review's follow-ons: the
-      boundary test's wall half requires the shared limiter to change; the cryostat is
-      identified by containment outside the vessel's outer skin rather than by a bounding box;
-      and the empty staging directory left on the store is removed. That landed on 2026-10-06
-      (<code>jtmm-wall-from-coil-vv</code>, review 115/120, gate re-run green on the merged head).
-    </p>
-    <p>
-      One item remains before this section closes. The contour parse finds its block by shape
-      (a bare count followed by a row of at least five numbers) and assigns each row to the last
-      label it saw, so a deck with an unlabelled first row, an unknown label or a short run would
-      be sliced wrongly without an error. The remaining node makes the parser refuse each of
-      those, checks every <code>Inner VV</code> and <code>Outer VV</code> run against the count
-      its label declares, and requires each skin's chords to join end to start and close. Its
-      test measures every coil_vv skin vertex against <code>EQSLE.DATA</code>'s skins, with arcs
-      measured as arcs, and holds them within 1&nbsp;mm, so the representation-only claim above
-      is measured rather than asserted. The before/after wall figure the review asked for
-      belongs to <code>jt60sa-geometry-and-signal-figures</code>, which draws the store's wall
-      through imas-ink under the lead's figure-owner decision.
-    </p>
+    <section class="section-landed">
+  <header><span class="badge badge-shipped">&#10003; landed 2026-10-06</span>
+    <h2 id="s4">§4 — Machine description: the SELENE deck is the source</h2></header>
+  <p class="landed-summary">Landed 2026-10-05/06: <code>selene_deck.py</code> converts the SELENE decks into a DD 4.1.1 description per phase (12 PF coils as 268 filaments, VV and CRYOSTAT, coil_vv wall and vessel skins within 0.54&nbsp;mm of EQSLE's arcs, 17 probes, 27 flux loops, TF), and <code>machine_maps/jt-60sa.json</code> serves both phases through <code>StoreEngine</code>. Probe angles bind in §6. <a href="s4">full record</a></p>
+</section>
 
     <h2 id="s5">§5 — Pulse bindings and the EDDB census</h2>
     <p>
@@ -1157,10 +853,16 @@
     <pre class="r-fu-prompt">/reckon-build jt60sa-machine-map §3</pre>
     <p class="r-fu-outcome">§3 shipped: the remote EDDB extractor, the immutable cache and both cold fetches landed 2026-10-05/06 (merges bdcce624, 63df11f5); the remaining work is tracked by f-jtmm-002.</p>
     </article>
-<article class="r-fu" data-id="f-jtmm-002" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-build" data-written-at="2026-10-06" data-recommends-skill="/reckon-build jt60sa-machine-map §4" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-jtmm-002" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-build" data-written-at="2026-10-06" data-recommends-skill="/reckon-build jt60sa-machine-map §4" data-resolved-at="2026-10-06T11:17:08+00:00" data-resolved-by="reckon-build">
     <h4 class="r-fu-title">Close §4: make the coil_vv contour parse refuse any deck it would mis-slice</h4>
     <div class="r-fu-body"><p>§4's last node: refuse unlabelled, unknown-label and short runs, chain and close each skin, and measure every coil_vv skin vertex against EQSLE.DATA's arcs. §5's second wave and §6 follow from their own sections.</p></div>
     <pre class="r-fu-prompt">/reckon-build jt60sa-machine-map §4</pre>
+    <p class="r-fu-outcome">§4 closed by jtmm-contour-parse-hardening (merge a411ef85, review 115/120): the parse refuses mis-sliced decks and every coil_vv skin vertex lies within 0.54 mm of EQSLE.DATA's skins.</p>
+    </article>
+<article class="r-fu" data-id="f-jtmm-003" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-build" data-written-at="2026-10-06" data-recommends-skill="/reckon-build jt60sa-machine-map §6" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Prove the conventions (§6): vacuum shots, sign and COCOS scoring, probe-angle sense</h4>
+    <div class="r-fu-body"><p>§6 is next: it needs no codex input, and §7's equilibrium work is gated on it. §5's flux-loop and probe bindings wait on codex's SELENE sensor-position arrays.</p></div>
+    <pre class="r-fu-prompt">/reckon-build jt60sa-machine-map §6</pre>
     </article>
 </section>
 
@@ -1359,7 +1061,7 @@
     <div class="r-comment-body"><p>Make the coil_vv contour parse refuse any deck it would mis-slice: _find_* and _parse_contour_block now reject an unlabelled first row, an unknown run label, a VV run shorter than its "=N", a missing skin, and a skin whose chords do not close within 1e-4 m; the geometry test measures every coil_vv skin vertex within 5.36e-4 m of the matching EQSLE.DATA skin (100 vertices/skin, both phases), and the gate ran 41 passed EXIT=0.</p></div>
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20261006T104503627481-review-of-jtmm-contour-parse-hardening" data-who="reckon-build" data-when="2026-10-06T10:55:44.293Z">
-    <div class="r-comment-body"><p>Review of jtmm-contour-parse-hardening parsed (115/120: goal 20, evidence 18, scope 20, durability 18, fit 20, reuse 19). The node closes plan §4&#x27;s last remaining item: the coil_vv contour parse now refuses a deck whose header row is unlabelled, whose run label is unknown, whose Inner/Outer VV run is shorter than its &quot;=N&quot;, whose skins are absent, or whose chords do not join and close within 1e-4 m, and the &quot;representation, not geometry&quot; claim that the two skins of the 128-row contour block lie on EQSLE.DATA&#x27;s skins is now guarded by a real-deck test within 1 mm. Reproduced independently at head 072854b: two-file gate 41 passed EXIT=0 (base a07d84ef 32 passed EXIT=0, zero added failures), declared negative control red at EXIT=1 (DID NOT RAISE ValueError), and skin vertices re-measured at max 5.3581e-4 m inner / 4.7568e-4 m outer, matching the fragment.</p></div>
+    <div class="r-comment-body"><p>Review of jtmm-contour-parse-hardening parsed (115/120: goal 20, evidence 18, scope 20, durability 18, fit 20, reuse 19). The node closes plan §4's last remaining item: the coil_vv contour parse now refuses a deck whose header row is unlabelled, whose run label is unknown, whose Inner/Outer VV run is shorter than its "=N", whose skins are absent, or whose chords do not join and close within 1e-4 m, and the "representation, not geometry" claim that the two skins of the 128-row contour block lie on EQSLE.DATA's skins is now guarded by a real-deck test within 1 mm. Reproduced independently at head 072854b: two-file gate 41 passed EXIT=0 (base a07d84ef 32 passed EXIT=0, zero added failures), declared negative control red at EXIT=1 (DID NOT RAISE ValueError), and skin vertices re-measured at max 5.3581e-4 m inner / 4.7568e-4 m outer, matching the fragment.</p></div>
 </div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20261005T131209269722-review-of-jtmm-shotset-machine" data-who="reckon-build" data-when="2026-10-05T13:20:34.081Z">
     <div class="r-comment-body"><p>Independent review stored for run r-20261005T125917372067-jtmm-shotset-machine (base adb67e5f, head cbef27a7, plan §7): parsed record scoring all six dimensions in 0..20 -- goal_fidelity 19, evidence 18, scope_discipline 19, durability 19, fit 19, reuse 20, total 114 -- with added_failure_count 0 and added_failure_ids [].</p></div>
