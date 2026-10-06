@@ -1,0 +1,93 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "The reviewed run's own baseline_suite (revision dd641d49, tests/scripts/test_figures_jt60sa_geometry.py + tests/data/test_description_reader.py, 18 passed, EXIT=0) and after_suite (revision eb7a096f, base targets plus tests/scripts/test_vacuum_loop_adjudication.py, 25 passed, EXIT=0) both record failure_count 0 and failure_ids [], so head failing ids minus base failing ids is 0. I reproduced both arms independently in scratch git-archive trees under $TMPDIR: base 18 passed EXIT=0, head 25 passed EXIT=0, identical to the run's logs. The head arm adds the node's new test module and it is green, so the change adds no failure and no regression surface. The change touches no file under imas_ambix/, so the arms guard the machinery the script drives rather than the changed lines directly; the direct exercise is the node's own new test module.",
+  "after_suite": {
+    "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/c66d1ea6-525d-4cec-8114-013919000083/jtmm-vacuum-verdict-rule uv run --no-sync pytest -p no:cacheprovider tests/scripts/test_figures_jt60sa_geometry.py tests/data/test_description_reader.py tests/scripts/test_vacuum_loop_adjudication.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T224438235396-jtmm-vacuum-verdict-rule/head-arm.log",
+    "revision": "eb7a096f047c7b290619bbe7d44176f0b94860cb"
+  },
+  "baseline_suite": {
+    "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/c66d1ea6-525d-4cec-8114-013919000083/jtmm-vacuum-verdict-rule uv run --no-sync pytest -p no:cacheprovider tests/scripts/test_figures_jt60sa_geometry.py tests/data/test_description_reader.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T224438235396-jtmm-vacuum-verdict-rule/baseline-arm.log",
+    "revision": "dd641d49cbaa0581c73fce9a5628c8c0a6275fa0"
+  },
+  "call_site_count": 3,
+  "call_sites": [
+    "imas_ambix/gs/operator.py:594 (ForwardOperator.assemble_pf_currents applies pf_current_scales per PF column)",
+    "imas_ambix/data/description_reader.py (read_geometry_table supplies the JT-60SA probe angles)",
+    "scripts/vacuum_loop_adjudication.py:1163 (_jt60sa_shot_data consumes both)"
+  ],
+  "completed_at": "2026-10-06T23:08:21.437Z",
+  "dispatched_at": "2026-10-06T23:00:04Z",
+  "findings": [
+    {
+      "category": "efficiency",
+      "file": "scripts/vacuum_loop_adjudication.py",
+      "line": "1181",
+      "severity": "follow-on",
+      "text": "follow-on (efficiency): _jt60sa_shot_data now assembles every coil current through a Python-level loop, calling operator.assemble_pf_currents once per time sample -- roughly 145k/46k/26k calls per shot after the filter, over 230k/166k/396k raw samples. The call is the right owner (it retires the inline duplicated scaling the previous review flagged, and it is order-insensitive because it looks PF columns up by name), but a dict rebuild and an allocation per sample is unnecessary; precomputing the scale vector once per operator and applying it column-wise, or hoisting the assemble to a single pass over the sample matrix, would keep the single owner without the per-sample overhead. Correct today, and the artifact regenerates byte-identically, so this is a perf note, not a defect. The reason _jt60sa_shot_data was left reading raw values per sample is the low-level of the operator API."
+    },
+    {
+      "category": "evidence-note",
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-verdict-rule.html",
+      "line": "14",
+      "severity": "follow-on",
+      "text": "follow-on (prose): the landing fragment says 'All 27 undecided channels are flux loops 1-27 bar loop 7', which names 26 channels, then adds MagPbTC17 in the next sentence to reach 27. The receipt is correct (magFlxLp1-6 and 8-27 = 26 loops, plus magPbTC17), only the sentence's arithmetic reads loose. Verified against the regenerated jtmm-vacuum-adjudication.json: undecided keys are exactly those 27."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "diff": "read eb7a096f against dd641d49 file by file: the script (median rule replaces the every-shot rule, quasi-static mask added, currents via assemble_pf_currents, evidence schema gains rule/undecided/outliers), the new test module, and the two regenerated evidence artifacts plus the landing fragment.",
+    "done_when": "the node's gate is tests/scripts/test_vacuum_loop_adjudication.py passing on the fleet compute node (7 passed EXIT=0, reproduced) plus ruff on the changed paths (EXIT=0). Both arms reproduce (base 18, head 25, both EXIT=0), the artifact regenerates byte-identically, and the negative control fires.",
+    "goal": "plan section 6's brief for this node -- apply the median rule and the quasi-static dI/dt filter, take currents through assemble_pf_currents, add the three named tests, re-run the shots, rewrite the verdict tables and state the undecided set and why -- is met and reproduced.",
+    "manifest": "read; it names the gate, the three logs, the negative control with its note, the verdict move, the quasi-static per-shot counts, the swap-control pair, and the byte-identical artifacts -- every clause I checked reconciles. Its baseline_suite/after_suite are populated and match the arms I re-ran.",
+    "write_paths": "five of the six declared paths are touched; the declared figure directory is unused (no figure was required)."
+  },
+  "justifications": {
+    "durability": "The change carries automated tests (a new module with seven cases), a non-vacuous swap control, a fail-loud sample-count guard, and a fired negative control. The swap control magFlxLp7<->magPbTC8 changes 2 verdicts at head (negate->undecided, identity->undecided; reproduced in the regenerated artifact), so the control is not vacuous. _jt60sa_shot_data raises RuntimeError when fewer than MIN_SHOT_SAMPLES (80) quasi-static samples survive, so a bad filter cannot silently fit on a handful of points. The declared sign-disagreement mutation is shown to fail the new test (EXIT=1). Deductions: the new test module exercises the rule and the mask and the probe-angle supply, but not the per-shot current assembly path end-to-end (that path is covered only by re-running the script); and the per-sample assemble loop has no explicit bound on runtime.",
+    "evidence": "Every claim I could reproduce, I did, independently, in scratch git-archive trees of both revisions. Head gate: tests/scripts/test_vacuum_loop_adjudication.py 7 passed EXIT=0 (run log), matching the manifest. Base arm 18 passed EXIT=0 and head arm 25 passed EXIT=0, matching the reviewed run's baseline_suite/after_suite exactly. ruff on the head changed paths: All checks passed EXIT=0. Running the node's own `--machine jt60sa` at head returned 16 identity / 1 negate / 27 undecided and 2 changed verdicts under swap, and the regenerated jtmm-vacuum-adjudication.json AND .html are BYTE-IDENTICAL to the committed copies -- so the committed evidence is genuinely the script's output at eb7a096f, not hand-edited. The verdict breakdown reconciles with the manifest: identity = magPbTC1..16, negate = magFlxLp7 (median slope -0.9925, median |r| 0.9991), undecided = magFlxLp1-6/8-27 plus magPbTC17 (median |r| 0.948, just below the floor). Quasi-static sample counts match (100579 145508/230240, 100595 46425/166154, 100642 26094/396001). Negative control reproduces: the declared mutation makes test_sign_disagreement_is_undecided fail, EXIT=1. The one soft spot is a perf note (per-sample assemble loop), recorded as a follow-on rather than an evidence gap.",
+    "fit": "The new helpers and constants are named by what they measure (_jt60sa_quasi_static_mask, JT60SA_SLEW_FRACTION, JT60SA_CORRELATION_FLOOR, _jt60sa_median_verdict) and the docstrings state the mechanism and why the threshold is a per-coil fraction rather than an absolute rate. The commit message has a conventional subject and a body stating what changed and the verdict move (3/1/40 -> 16/1/27), with no plan or ticket identifiers and no attribution. The emitted payload keys 'node' and 'machine' carry the run identity as output DATA (the same pattern the prior adjudication node used), which is the permitted form. Deductions: the fragment prose counts loosely (see finding), and the per-sample assemble loop is inelegant where a vectorized form would read the same.",
+    "goal_fidelity": "Plan section 6's brief for jtmm-vacuum-verdict-rule is: apply the lead's median verdict rule and quasi-static dI/dt filter in scripts/vacuum_loop_adjudication.py; take coil currents through ForwardOperator.assemble_pf_currents rather than repeating its scaling inline; add tests for the 17 JT-60SA probe angles, the median rule on a noisy shot the every-shot rule drops, and exclusion of a sample above the dI/dt threshold; re-run the three shots, rewrite the verdict tables, and state how many loops stay undecided and why. All are present and reproduced. The rule is implemented verbatim in _jt60sa_median_verdict (median slope within 0.1 of +-1, median |r| > 0.95, every shot the same slope sign, else undecided with reason and per-shot outliers). The filter is _jt60sa_quasi_static_mask, a per-coil fraction (0.1) of each coil's own peak |dI/dt| in the shot -- the plan leaves the threshold to the node to state and justify, and both the docstring and the fragment justify it (a passive-free vacuum operator over a near-wall probe, and an absolute A/s threshold that is not comparable across coils of differing ramp rates). Currents go through assemble_pf_currents (confirmed: the ten map channels equal operator.pf_amc_channels exactly, so no coil is silently zeroed; scales are [13.725 x4, 8.875, 9.625, 15.4375, 22.0625, 9.5, 11.25]). The adjudication artifacts are rewritten and the undecided set is stated with reasons. One marginal deduction: the fragment's undecided-count sentence reads loose on its arithmetic.",
+    "reuse": "The node extends existing owners instead of adding parallel sources of truth: coil currents now go through operator.assemble_pf_currents (retiring the inline `currents * scales[None, :]` and its implicit reliance on the map channel order matching pf_amc_channels -- the new call looks columns up by name, so the order assumption the previous review flagged is gone); probe angles come from read_geometry_table (pinned by a test); the rule reuses JT60SA_SLOPE_TOLERANCE and the shot cohort constants. It removes the superseded _jt60sa_verdict every-shot rule and replaces it in place (rename, no _v2). The only duplication gone unrecovered is the perf pattern noted in the finding.",
+    "scope_discipline": "git diff dd641d49 eb7a096f touches exactly five of the six declared write paths: scripts/vacuum_loop_adjudication.py (+236 lines across the diff), tests/scripts/test_vacuum_loop_adjudication.py (new, +136), docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-adjudication.html (rewritten, data/prose), .../jtmm-vacuum-adjudication.json (rewritten, data), and .../jtmm-vacuum-verdict-rule.html (the landing fragment, +20). The declared figure directory docs/figures/jt60sa-machine-map/jtmm-vacuum-verdict-rule is unused, consistent with the brief ('your done-when names no artifact, so this node writes no figure'). No file under imas_ambix/ or any other path is touched. The commit's parent is dd641d49, matching the manifest's orientation_base_sha."
+  },
+  "model": "deepseek-v4.1-flash",
+  "negative_control": {
+    "exit_status": 1,
+    "failing_ids": [
+      "tests/scripts/test_vacuum_loop_adjudication.py::test_sign_disagreement_is_undecided"
+    ],
+    "log_path": "/tmp/reckon-crew-scratch/r-20261006T225956077975-review-of-jtmm-vacuum-verdict-rule/review-vacuum-verdict-N2Yxq3/negctrl.log",
+    "mutation": "remove the same-sign guard ('if not same_sign: return undecided') from _jt60sa_median_verdict, so a synthetic channel whose shots disagree in sign falls through to the median-slope branch and is assigned identity",
+    "note": "Applied the declared mutation to a scratch copy of the head tree and ran the node's own module: 1 failed, 6 passed, EXIT=1, and the failing id (test_sign_disagreement_is_undecided) is one the head arm passes. So the sign-disagreement guard is non-vacuous and the node's declared control reproduces."
+  },
+  "project": "imas-ambix",
+  "raw_text": "Independent review of node jtmm-vacuum-verdict-rule (plan imas-ambix:jt60sa-machine-map section 6), read at head eb7a096f047c7b290619bbe7d44176f0b94860cb on base dd641d49cbaa0581c73fce9a5628c8c0a6275fa0.\nRead: the diff of eb7a096f against dd641d49, the script around the change, ForwardOperator.assemble_pf_currents, read_geometry_table's probe-angle supply, the reviewed run's own gate and arm logs, and the regenerated evidence artifacts. The reviewed commit is not an ancestor of main at review time; scratch git-archive trees of both revisions were run since a crew worker cannot archive another worktree and the reviewed worktree is read-only.\nReproduced independently: head gate 7 passed EXIT=0; base arm 18 passed and head arm 25 passed, both EXIT=0; ruff on changed paths EXIT=0; the JT-60SA run returns 16/1/27 and regenerates jtmm-vacuum-adjudication.{json,html} BYTE-IDENTICAL to the committed copies; the declared sign-disagreement mutation fails test_sign_disagreement_is_undecided (EXIT=1). Map channels equal operator.pf_amc_channels, so no coil is silently zeroed.\n\nVERDICT goal: met and reproduced; the median rule and the per-coil-fraction quasi-static filter are implemented as the decision states, currents are taken through assemble_pf_currents, and the undecided set is stated with reasons.\nVERDICT done_when: the node's gate is tests/scripts/test_vacuum_loop_adjudication.py (7 passed EXIT=0) plus ruff on the changed paths (EXIT=0); both reproduce.\nVERDICT write_paths: five of the six declared paths touched, the declared figure directory unused.\nVERDICT manifest: read and reconciled clause by clause; its arms reproduce.\nVERDICT diff: read file by file.\nSCORE goal_fidelity: 19\nSCORE evidence: 19\nSCORE scope_discipline: 20\nSCORE durability: 18\nSCORE fit: 17\nSCORE reuse: 19\nTotal 112/120.",
+  "review_run_id": "r-20261006T225956077975-review-of-jtmm-vacuum-verdict-rule",
+  "reviewed_base_sha": "dd641d49cbaa0581c73fce9a5628c8c0a6275fa0",
+  "reviewed_head_sha": "eb7a096f047c7b290619bbe7d44176f0b94860cb",
+  "reviewed_run_id": "r-20261006T224438235396-jtmm-vacuum-verdict-rule",
+  "reviewer": "review-of-jtmm-vacuum-verdict-rule",
+  "scores": {
+    "durability": 18,
+    "evidence": 19,
+    "fit": 17,
+    "goal_fidelity": 19,
+    "reuse": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "timestamp": "2026-10-06T23:07:28.497342+00:00",
+  "total": 112
+}
