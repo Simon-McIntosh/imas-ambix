@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5">
 <meta name="plan-impl" content="0.625">
-<meta name="plan-version" content="98">
+<meta name="plan-version" content="99">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -477,6 +477,31 @@
       flux loops and poloidal probes has either an executable binding or a source
       qualification naming why not, and the signal map compiles to one affine operation per
       channel with no string lookup in the chunk loop.
+    </p>
+    <p>
+      The first pass runs in two waves (2026-10-06). The census's graph half is in place: codex's
+      receipt for the section's gate counts 6,298 FacilitySignal nodes on E101173, MMSYS, MDAC,
+      PSRC and MAG among them. The pulse maps are signal maps under
+      <code>imas_ambix/data/maps/jt-60sa/</code>, read by <code>load_packaged_signal_map</code>
+      and applied by <code>imas_ambix/data/virtual_zarr.py</code> <code>VirtualZarrView</code>
+      directly over the EDDB cache, which is already a <code>{shot}.zarr/{category}/{dname}</code>
+      zarr store. The first wave binds what has a known name: the twenty MMSYS coil currents
+      (<code>cur{CS1..CS4,EF1..EF6}</code> in two chains, <code>HiTe</code> and <code>LKAT</code>),
+      the two TF currents (<code>cur1TFLKAT</code>, <code>cur2TFLKAT</code>) and PSRC
+      <code>Ip</code> (kA, unit factor 1000). One chain per coil is the rule and the other is
+      declared as a blocked signal naming it, the choice resting on how the two agree on the
+      cached shots. The two FPPC coils have no known EDDB current channel and enter as source
+      qualifications.
+    </p>
+    <p>
+      The flux loops and pickup probes wait on two inputs. The first is the raw-to-processed
+      correspondence, measured offline from E101154, where both the 34 processed PSRC
+      <code>magFluxLp</code> and the 34 raw MDAC <code>magFlxLp</code> channels are cached: for each
+      processed loop, the raw channel and the scale, sign and offset that relate them. The second
+      is the sensor-to-position index that SELENE's <code>getseldata_v4.2</code> fills into the
+      <code>#MAG</code> arrays <code>JLOOP</code>, <code>JTPRB</code> and <code>JNPRB</code>, which
+      ties each channel to a <code>geo.in</code> position. Codex is indexing that source under its
+      discovery plan. The second wave binds the loops and probes once both are in hand.
     </p>
 
     <h2 id="s6">§6 — Prove the conventions: vacuum shots, COCOS scoring, DD unit checks</h2>
