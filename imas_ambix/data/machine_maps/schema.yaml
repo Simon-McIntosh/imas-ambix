@@ -203,6 +203,13 @@ slots:
     required: true
   dd_path:
     required: true
+  struct_array_entry:
+    description: >-
+      Optional name of one entry of the first struct array on the binding's
+      dd_path, matched by that entry's name leaf. A static store whose struct
+      array holds entries of unequal extent cannot be stacked as a whole, so a
+      binding selecting one entry reads that entry's own arrays. Omitted, every
+      entry is stacked exactly as before.
   source_unit:
     required: true
   target_unit:
@@ -406,6 +413,7 @@ classes:
       - sign_convention
       - evidence
       - source_cocos_override
+      - struct_array_entry
   MachineMap:
     slots:
       - name
