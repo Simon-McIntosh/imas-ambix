@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5">
 <meta name="plan-impl" content="0.625">
-<meta name="plan-version" content="97">
+<meta name="plan-version" content="98">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -825,10 +825,11 @@
     <p class="r-gate-required-evidence">The §6 sign report naming the identified source COCOS for SELENE/FAME output and
           for the raw acquisition, with per-channel vacuum slopes.</p>
     </div>
-<div class="r-gate" data-id="g-jt60sa-machine-map-1" data-section="s5" data-gated-sections="s5" data-status="open" data-verdict="">
+<div class="r-gate" data-id="g-jt60sa-machine-map-1" data-section="s5" data-gated-sections="s5" data-status="closed" data-verdict="passed">
     <h4 class="r-gate-measure">FacilitySignal nodes for JT-60SA E101173 exist in the codex graph with class, shot range and handbook linkage, so the census can join channels to handbook entries and PIDs</h4>
     <p class="r-gate-required-evidence">imas-codex:jt60sa-discovery-completion#s2</p>
-    </div>
+    <a class="r-gate-evidence" href="imas-codex docs/evidence/receipts/jt60sa-eddb-census-gate.json at 9c1d3cefc64aa6a2d58aea26645d2f406b1b54f4: exact Cypher and 73 category rows for jt-60sa example_shot 101173. 6,298 FacilitySignal nodes, 5,889 with data class, shot_range and a WikiChunk DOCUMENTS link together; MAG 18/18, MMSYS 47/47, MDAC 264/274, PSRC 311/325; 58 with a PID (MDAC 10, PSRC 13). Read by the coordinator 2026-10-06. Caveat: every handbook link comes from the single jt-60sa:CategoryInformation page, so linkage is per category, not a per-signal description.">Evidence</a>
+</div>
 </section>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
@@ -1075,13 +1076,16 @@
     <div class="r-comment-body"><p>every struct-array entry the SELENE deck converter writes now carries a unique non-empty name (pf_passive loops VV1/VV2, tf coil TF1, pf_active circuits) and both JT-60SA phases re-converted at converter commit 5c255d8d, reading back OP1 VV1=63 VV2=57 and OP2 VV1=98 with the 12 pf_active coil element counts unchanged (40,40,40,40,16,16,16,16,16,16,6,6)</p></div>
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20261006T035152473546-review-of-jtmm-passive-loop-names" data-who="reckon-build" data-when="2026-10-06T04:05:13.115Z">
-    <div class="r-comment-body"><p>independent review of r-20261006T033800242374-jtmm-passive-loop-names stored as a parsed record scoring all six dimensions (goal_fidelity 19, evidence 19, scope_discipline 20, durability 19, fit 19, reuse 19; total 115) over base 95f80f71 to head df77f9a0, with added_failure_count 0 derived from the reviewed node&#x27;s own gate run at both revisions; no blocking or follow-on findings.</p></div>
+    <div class="r-comment-body"><p>independent review of r-20261006T033800242374-jtmm-passive-loop-names stored as a parsed record scoring all six dimensions (goal_fidelity 19, evidence 19, scope_discipline 20, durability 19, fit 19, reuse 19; total 115) over base 95f80f71 to head df77f9a0, with added_failure_count 0 derived from the reviewed node's own gate run at both revisions; no blocking or follow-on findings.</p></div>
 </div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20261005T131209269722-review-of-jtmm-shotset-machine" data-who="reckon-build" data-when="2026-10-05T13:20:34.081Z">
     <div class="r-comment-body"><p>Independent review stored for run r-20261005T125917372067-jtmm-shotset-machine (base adb67e5f, head cbef27a7, plan §7): parsed record scoring all six dimensions in 0..20 -- goal_fidelity 19, evidence 18, scope_discipline 19, durability 19, fit 19, reuse 20, total 114 -- with added_failure_count 0 and added_failure_ids [].</p></div>
 </div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20261005T125917372067-jtmm-shotset-machine" data-who="reckon-build" data-when="2026-10-05T13:11:29.040Z">
     <div class="r-comment-body"><p>BenchShot gains a required machine field (no default); MAST's six frozen shots declare machine="mast"; resolve_shotset_version compares (machine, int(shot_id), role) so a set matching MAST's ids and roles under another machine resolves AD_HOC and never the frozen label; spine_benchmark.py takes --machine with no default and the parser refuses --shots without it; gate 72 passed, ruff clean.</p></div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-20261006T0430-gate-pass" data-who="reckon-build" data-when="2026-10-06T04:30:00Z">
+    <div class="r-comment-body"><p>Gate g-jt60sa-machine-map-1 passed on the codex census receipt (imas-codex <code>docs/evidence/receipts/jt60sa-eddb-census-gate.json</code> at <code>9c1d3cef</code>). The graph's coverage is enough for a first-pass map. What it does not hold is which raw MDAC flux-loop and pickup-coil channel feeds which <code>geo.in</code> position. SELENE's input code holds that: the <code>#MAG</code> index arrays <code>JLOOP</code>, <code>JTPRB</code> and <code>JNPRB</code>, filled by <code>getseldata_v4.2</code>, which codex is now indexing under its plan's §14. The processed PSRC and raw MDAC flux loops already cached for E101154 give the per-channel scale and sign offline.</p></div>
 </div>
 </section>
 </main>
