@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.83">
-<meta name="plan-version" content="195">
+<meta name="plan-version" content="196">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -267,7 +267,12 @@
       carries <code>pol_angle_like: -1.0</code>. It is a test-only agreement guard on nova's
       factors (<code>tests/data/test_cocos_convention.py</code>), not a runtime owner. Its
       <code>pol_angle_like</code> entry has no nova counterpart, and it is not consulted for a
-      probe's sense, which comes from the binding alone. Second, an emit path that lets a description binding whose
+      probe's sense, which comes from the binding alone. Kept, it would state an angle factor in a
+      second place that disagrees with the engine's factorless branch, so §6 retires it together
+      with the <code>tor_angle_like</code> entry, which has the same shape. The table then holds only
+      classes nova owns, and its agreement test covers every entry it carries. The node
+      <code>jtmm-angle-factor-retire</code> does this in <code>cocos_convention.py</code> and its
+      test after the observation reader's repair lands, because both edit that file. Second, an emit path that lets a description binding whose
       sense §6 has now measured stop being <code>unknown-unvalidated</code>. Third, the angle reaches the
       geometry table through the selector §4 built rather than a parallel read:
       <code>imas_ambix/data/description_reader.py</code> <code>read_geometry_table</code> applies
