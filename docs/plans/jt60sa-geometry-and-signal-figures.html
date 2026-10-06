@@ -24,7 +24,7 @@
   <title>JT-60SA Geometry and Signal Figures | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="46">
+<meta name="plan-version" content="47">
 <meta name="plan-modified" content="2026-10-06">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s1b&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s2b&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;deferred&quot;}">
 <meta name="plan-commits" content="369a705d,b36a5d93,bd84e83d,438c4d16,c35e1783,6f251699">
@@ -209,6 +209,9 @@
 </div>
 <div class="r-comment" data-section="s3" data-id="c-run-r-20261006T124146004865-review-of-jtfig-signal-figures" data-who="reckon-build" data-when="2026-10-06T12:49:44.078Z">
     <div class="r-comment-body"><p>review of r-20261006T122814917961-jtfig-signal-figures (commit 2aecdec7 over base 7e975e9c) stored as a parsed record scoring all six dimensions in 0..20 (goal_fidelity 20, evidence 19, scope_discipline 18, durability 17, fit 18, reuse 17; total 109) with three follow-on findings, none blocking; the reviewed change renders the three cached-pulse SVGs through imas-ink from a new eddb.read_channel exactly as its goal states.</p></div>
+</div>
+<div class="r-comment" data-section="§2b" data-id="c-run-r-20261006T130231484043-jtfig-geometry-guard-test" data-who="reckon-build" data-when="2026-10-06T13:05:52.579Z">
+    <div class="r-comment-body"><p>test(figures): tests/scripts/test_figures_jt60sa_geometry.py imports _report by file path and asserts it returns for equal store/drawn counts and raises a SystemExit naming &#x27;probes&#x27; when the drawn probe count differs from the store&#x27;s; gate &#x27;uv run --no-sync pytest -p no:cacheprovider tests/scripts/test_figures_jt60sa_geometry.py&#x27; -&gt; 2 passed, and &#x27;uv run --no-sync ruff check imas_ambix tests&#x27; -&gt; All checks passed (exit 0).</p></div>
 </div>
 </section>
 <section data-reckon="decisions" id="decisions" class="r-decisions">
