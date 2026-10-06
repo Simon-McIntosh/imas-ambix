@@ -24,10 +24,10 @@
   <title>JT-60SA Geometry and Signal Figures | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="35">
+<meta name="plan-version" content="36">
 <meta name="plan-modified" content="2026-10-06">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s1b&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;deferred&quot;}">
-<meta name="plan-commits" content="369a705d,b36a5d93">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s1b&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;deferred&quot;}">
+<meta name="plan-commits" content="369a705d,b36a5d93,bd84e83d,438c4d16">
 </head>
 <body>
   <main class="plan-doc">
@@ -137,23 +137,12 @@
 
     
 
+    <section class="section-landed">
+  <header><span class="badge badge-shipped">&#10003; landed 2026-10-06</span>
     <h2 id="s1b">§1b — Retire the ambix style module and palette figures</h2>
-<section data-reckon="section" data-id="s1b" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
-<p>
-      The lead ruled on 2026-10-06 that the JT-60SA figures render through imas-ink, called from
-      ambix, in imas-ink's own style with no labels, and that the repository palette is dropped. §1's
-      landing is therefore retired: this section deletes <code>imas_ambix/plot_style.py</code>, the
-      hand-drawn <code>scripts/figures_jt60sa_geometry.py</code> (§2 writes its replacement) and
-      <code>docs/figures/jt60sa-palette/</code>, and replaces the image links in
-      <code>docs/evidence/fragments/jt60sa-geometry-and-signal-figures/jtfig-palette-candidates.html</code>
-      with one sentence saying the candidates were withdrawn under that ruling, so the record of what
-      landed stays readable. It adds nothing.
-    </p>
-    <p>
-      Done-when: the three paths are gone from the tree; <code>grep -rn plot_style imas_ambix scripts
-      tests</code> finds nothing; the fragment links no deleted file; and <code>uv run --no-sync ruff
-      check imas_ambix tests</code> exits 0.
-    </p>
+<section data-reckon="section" data-id="s1b" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="done" data-links=""></section></header>
+  <p class="landed-summary">Retired <code>plot_style.py</code>, the hand-drawn geometry script and the palette figures (merge <code>438c4d16</code>); review 20/18/20/17/20/19, no findings. <a href="s1b">full record</a></p>
+</section>
 
     <h2 id="s4">§4 — imas-ink draws the wall&#x27;s vessel units</h2>
 <section data-reckon="section" data-id="s4" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="deferred" data-links=""></section>
