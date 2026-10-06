@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.93">
-<meta name="plan-version" content="259">
+<meta name="plan-version" content="260">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -793,18 +793,28 @@
       accident. Those landed and retire nothing beyond the implicit MAST default. What remains
       for this section is the JT-60SA frozen set, a second named set in that module with its own
       version label, so a JT-60SA shot whose digits coincide with a MAST id can never be stamped
-      under the MAST label; it is drawn from the 2023 OP1 shots on which SELENE ran. The set and its version label are
-      one public definition that retires and merges nothing, because it is a new shot-set identity
-      beside MAST's frozen set, not a replacement for it. Adding it means the two places that turn a
-      set into its label stop being single-valued.
+      under the MAST label; it is drawn from the 2023 OP1 shots on which SELENE ran. The set is a new shot-set identity
+      beside MAST's frozen set, not a replacement for it, so it retires and merges nothing. Adding it
+      means the two places that turn a set into its label stop being single-valued.
       <code>resolve_shotset_version</code> (<code>imas_ambix/spine_bench/shots.py</code>) compares a
       run's shots only against <code>FROZEN_SHOTSET</code> and returns the one
       <code>SHOTSET_VERSION</code>. The parity guard (<code>imas_ambix/spine_bench/parity.py</code>)
       rejects any stamp whose <code>shotset_version</code> is not that constant. Both become keyed by
-      machine, reading one table of frozen sets, each with its own version label. MAST's entry
-      reproduces today's label and parity verdicts unchanged, so a JT-60SA run resolves to its own
-      label rather than to <code>AD_HOC_SHOTSET_VERSION</code>. The table is the one public addition
-      here, and MAST's two constants stay as its MAST row. The selector reads the machine from
+      machine, reading one table of frozen sets, each with its own version label. That machine-keyed
+      table is the one public addition in this section: the JT-60SA set and its label are a row of
+      it, MAST's <code>FROZEN_SHOTSET</code> and <code>SHOTSET_VERSION</code> stay as the names of
+      its MAST row, and nothing retires. MAST's entry reproduces today's label and parity verdicts
+      unchanged, so a JT-60SA run resolves to its own label rather than to
+      <code>AD_HOC_SHOTSET_VERSION</code>. Those two constants have further production readers, all
+      under <code>imas_ambix/spine_bench/</code>, and each is assigned here. One reads the declared
+      machine's row: <code>machine_artifact_arm.py</code> <code>resolve_geometry_source</code>
+      takes its evidence shot and channel shots from the frozen set, and the JT-60SA stamp uses that
+      source. The rest keep reading MAST's row unchanged, because each serves only MAST:
+      <code>runner.py</code> uses it as the default when no shots are passed (a JT-60SA run always
+      passes <code>--machine</code> with <code>--shots</code>), <code>channel_gap.py</code> sweeps
+      the MAST channel-gap study, <code>transform_geometry_source.py</code>
+      <code>resolve_geometry_source</code> picks the evidence shot for the MAST campaign sources,
+      and <code>__init__.py</code> re-exports the two names. The selector reads the machine from
       that declaration, and <code>identity_for_shot</code>, which takes a registry rather than a
       machine, is handed the registry for the declared machine instead of
       <code>default_registry</code>'s MAST one. That registry has one owner, extended rather
