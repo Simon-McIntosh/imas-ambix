@@ -1,0 +1,86 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtmm-passive-loop-names">
+  <header>
+    <h3>named struct-array entries and a receipted re-conversion</h3>
+    <p class="meta">
+      Node <code>jtmm-passive-loop-names</code> &middot;
+      date 2026-10-06 &middot; plan <code>jt60sa-machine-map</code> &sect;4
+    </p>
+  </header>
+
+  <div id="jtmm-passive-loop-names-change">
+    <p>
+      <code>build_pf_passive</code> now names each of its loops
+      <code>VV1</code>, <code>VV2</code> and so on in deck order, the single
+      <code>tf</code> coil is named <code>TF1</code>, and each
+      <code>pf_active</code> circuit takes the name of the coil it drives, so
+      every populated first-level struct array the converter writes carries a
+      unique, non-empty name alongside the probes (<code>MP1</code>&hellip;) and
+      flux loops (<code>FL1</code>&hellip;) it already named. A metadata-driven
+      test reads every written IDS back at DD&nbsp;4.1.1 and asserts each
+      populated name-carrying struct array is fully and uniquely named.
+    </p>
+  </div>
+
+  <div id="jtmm-passive-loop-names-readback">
+    <p>
+      Both phases re-converted from the sha256-verified copies in
+      <code>/work/projects/imas_gpu/jt60sa/machine_description/source/</code>
+      (all three hashes re-checked against <code>source/provenance.json</code>)
+      by converter commit
+      <code>5c255d8d55dc1a6aadc75239c60f9160d306f388</code>, which each
+      <code>receipt.json</code> names. Read back through
+      <code>imas.DBEntry</code> at DD&nbsp;4.1.1:
+    </p>
+    <table>
+      <thead>
+        <tr><th>phase</th><th>pf_passive loops (name, elements)</th><th>pf_active coil element counts</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>OP1</td>
+          <td><code>VV1</code> 63, <code>VV2</code> 57</td>
+          <td>40, 40, 40, 40, 16, 16, 16, 16, 16, 16, 6, 6</td>
+        </tr>
+        <tr>
+          <td>OP2</td>
+          <td><code>VV1</code> 98</td>
+          <td>40, 40, 40, 40, 16, 16, 16, 16, 16, 16, 6, 6</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>
+      The 12 <code>pf_active</code> coils are <code>CS1</code>&ndash;<code>CS4</code>,
+      <code>EF1</code>&ndash;<code>EF6</code>, <code>FPPC_UP</code>&nbsp;and
+      <code>FPPC_DOWN</code>, unchanged in count from the prior store.
+    </p>
+  </div>
+
+  <div id="jtmm-passive-loop-names-hashes">
+    <p>sha256 of each output file, replaced (prior store) beside new:</p>
+    <table>
+      <thead><tr><th>file</th><th>replaced sha256</th><th>new sha256</th></tr></thead>
+      <tbody>
+        <tr><td>OP1/pf_active.nc</td><td><code>a59b767faf903d980e437b0cb4fa876eb89442c6a01add70dcb199963d5d7512</code></td><td><code>c451d089a054121f627af0753febbbf44b565ef1d756f0a860913285cec66097</code></td></tr>
+        <tr><td>OP1/pf_passive.nc</td><td><code>99f8a53b911f80110e9ce0f571d11db1fe05d34b85c7e5953fd6db0ba2ddf341</code></td><td><code>23ca965445a15ab0915abb2b95aa8c001324b5c900d65b559c3e718f547ab0e1</code></td></tr>
+        <tr><td>OP1/magnetics.nc</td><td><code>bc8ed1acaa1573818c23baa5f52ec9dd2d9aec5f480a83ce3efcd3a39d3fdcfa</code></td><td><code>bc8ed1acaa1573818c23baa5f52ec9dd2d9aec5f480a83ce3efcd3a39d3fdcfa</code></td></tr>
+        <tr><td>OP1/wall.nc</td><td><code>31404ff72a94c8affeb386d2861f50a681fe7f69b4fb0cfe34132597a7bd583f</code></td><td><code>31404ff72a94c8affeb386d2861f50a681fe7f69b4fb0cfe34132597a7bd583f</code></td></tr>
+        <tr><td>OP1/tf.nc</td><td><code>aa48eddbad61dfead3b80f0821d68c6a6dc600913991e344e7928d63da32dd8d</code></td><td><code>c5549058c3f85d3725ff56431bf2d36b6eed2de4a200f59f9d92ff6d557ec0d2</code></td></tr>
+        <tr><td>OP1/receipt.json</td><td><code>f771d33f17f82d09ee2421a8acd37fd316c633f5464f6604496a6ff0c83d49fb</code></td><td><code>6624545692f07e068f7a784532cc266bf68df800bf254ddc5c01a1eaa6f4c027</code></td></tr>
+        <tr><td>OP2/pf_active.nc</td><td><code>a59b767faf903d980e437b0cb4fa876eb89442c6a01add70dcb199963d5d7512</code></td><td><code>c451d089a054121f627af0753febbbf44b565ef1d756f0a860913285cec66097</code></td></tr>
+        <tr><td>OP2/pf_passive.nc</td><td><code>0ced38b0417210d200d74ff84e736fa9127dbe2bdb6ae3a71ea166ee707d19e9</code></td><td><code>538349d3ffb402379cb274439cb2f7c51993793146eea54c060d65c56f713dd1</code></td></tr>
+        <tr><td>OP2/magnetics.nc</td><td><code>bc8ed1acaa1573818c23baa5f52ec9dd2d9aec5f480a83ce3efcd3a39d3fdcfa</code></td><td><code>bc8ed1acaa1573818c23baa5f52ec9dd2d9aec5f480a83ce3efcd3a39d3fdcfa</code></td></tr>
+        <tr><td>OP2/wall.nc</td><td><code>5d26b2ccde604967d102bb207bf1c134b614cd7bbf858869299361f8e8f721f5</code></td><td><code>5d26b2ccde604967d102bb207bf1c134b614cd7bbf858869299361f8e8f721f5</code></td></tr>
+        <tr><td>OP2/tf.nc</td><td><code>aa48eddbad61dfead3b80f0821d68c6a6dc600913991e344e7928d63da32dd8d</code></td><td><code>c5549058c3f85d3725ff56431bf2d36b6eed2de4a200f59f9d92ff6d557ec0d2</code></td></tr>
+        <tr><td>OP2/receipt.json</td><td><code>2c612914308143ff0f9039d470dc36189acf40aadb3131aeaf9e9df49a26ebe9</code></td><td><code>bf5048f77879a8054d74e78e0e6ef1052fb6b7a307cfdc79cc63b4aec32caaf5</code></td></tr>
+      </tbody>
+    </table>
+    <p>
+      <code>magnetics.nc</code> and <code>wall.nc</code> are byte-identical to
+      the prior store in both phases: their entries (<code>MP</code>&hellip;,
+      <code>FL</code>&hellip;) were already named, and the wall's
+      <code>description_2d</code> carries no <code>name</code> leaf. The
+      remaining files differ because a name leaf was added or, for the receipt,
+      because it names this run's converter commit.
+    </p>
+  </div>
+</section>
