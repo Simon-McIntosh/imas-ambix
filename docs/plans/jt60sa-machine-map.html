@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.87">
-<meta name="plan-version" content="214">
+<meta name="plan-version" content="215">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -372,9 +372,15 @@
       default path into a scratch directory, compares its verdicts with the committed MAST receipt,
       and replaces the swap control with one whose verdict can change. It merges together with
       892715c4.
-      <code>jtmm-observation-time-alignment</code> makes <code>read_signal_map_observation</code> read
-      each flux loop with its own time sibling and interpolate every series onto the plasma-current
-      time base, refusing a loop whose time span does not cover it.
+      <code>jtmm-observation-time-alignment</code> moves <code>read_signal_map_observation</code>'s raw
+      read onto the view that already owns a rule's resolution to its source array.
+      <code>imas_ambix/data/virtual_zarr.py</code> <code>VirtualZarrView</code> gains one untransformed
+      accessor, which returns a rule's source values and that channel's own time base with no
+      compiled transform applied. The reader then reads each series through it, rather than
+      resolving <code>source_group</code> and <code>source_array</code> itself. It interpolates every
+      flux loop onto the plasma-current time base and refuses a loop whose time span does not cover
+      it. That leaves one owner of rule-to-channel resolution, adds one accessor to the view and
+      retires nothing.
     </p>
     <p>
       The COCOS of the source is then identified rather than assumed. For the raw side,
@@ -419,9 +425,10 @@
       it does not read them through <code>VirtualZarrView</code>. That view applies each rule's
       compiled transform on every read, and for a <code>source-only</code> rule the transform
       carries the assumed +1 sign §6 exists to measure. So the reader reads each rule's
-      <code>source_group</code> and <code>source_array</code>, with its time sibling, straight from
-      the EDDB cache through <code>imas_ambix/data/eddb.py</code> <code>read_channel</code>, the cache's
-      own reader, with no sign, unit or COCOS factor applied. The toroidal field comes from the
+      source values with their time base through the view's untransformed accessor, which
+      <code>jtmm-observation-time-alignment</code> adds, with no sign, unit or COCOS factor applied.
+      As first landed (merge 5efcd915), it resolves each rule itself through
+      <code>imas_ambix/data/eddb.py</code> <code>read_channel</code>, which that node replaces. The toroidal field comes from the
       equilibrium half, as MAST's reader takes <code>bvac_rmag</code> from the level-2 equilibrium
       group: the <code>EfitLabels</code> record's vacuum field. That leaves no field-per-ampere
       relation to own. The description store has no TF turn count, and the relation's one
