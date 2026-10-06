@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import replace
 from math import tau
-from types import MappingProxyType
 
 import numpy as np
 import pytest
@@ -25,15 +24,15 @@ from imas_ambix.data.cocos_convention import (
     RELATIVE_SIGN_PRODUCTS,
     SOURCE_COCOS_RECOMMENDATION,
     format_sign_report,
-    read_catalogue_observation,
     read_level2_sign_table,
+    read_signal_map_observation,
     score_conventions,
     surviving_conventions,
 )
-from imas_ambix.data.machine_map import (
-    ChannelBinding,
-    MachineMap,
-    MachineMapCatalog,
+from imas_ambix.data.signal_map import (
+    MAP_SCHEMA_VERSION,
+    SignalMap,
+    SignalRule,
 )
 
 
@@ -251,101 +250,132 @@ def test_live_level_two_cohort_reproduces_committed_signs():
 _SYNTHETIC_SHOT = 12345
 _SYNTHETIC_TIME = np.arange(8.0)
 _SYNTHETIC_CURRENT = np.array([0.0, 0.0, 8.0e5, 8.0e5, 8.0e5, 8.0e5, 0.0, 0.0])
-_DECOY_CURRENT = np.array([0.0, 0.0, -3.0e5, -3.0e5, -3.0e5, -3.0e5, 0.0, 0.0])
 
 
-def _binding(name, source_array, dd_path):
-    return ChannelBinding(
-        name=name,
-        source_group="PSRC",
+def _signal_rule(
+    semantic_id,
+    source_group,
+    source_array,
+    target_path,
+    *,
+    target_index=None,
+    channel_factor=1.0,
+):
+    return SignalRule(
+        semantic_id=semantic_id,
+        source_group=source_group,
         source_array=source_array,
-        source_rank=2,
-        source_role="value",
-        source_location="ssh://jt-60sa/EDDB/PSRC",
-        dd_path=dd_path,
-        source_unit="A",
-        target_unit="A",
-        sign_convention="identity",
-        evidence="synthetic store for the catalogue observation reader test",
-        source_cocos_override=None,
-    )
-
-
-def _synthetic_catalogue(plasma_current_array="Ip", *, store_layout="per-shot"):
-    binding_set = (
-        _binding("synthetic-ip", plasma_current_array, "magnetics/ip"),
-        _binding("synthetic-flux", "FL", "magnetics/flux_loop_flux"),
-        _binding("synthetic-bt", "BT", "magnetics/b_field_tor_probe/field"),
-    )
-    return _catalogue(binding_set, store_layout=store_layout)
-
-
-def _multichannel_catalogue():
-    """A catalogue binding three flux loops as three separate rules."""
-
-    return _catalogue(
-        (
-            _binding("synthetic-ip", "Ip", "magnetics/ip"),
-            _binding("synthetic-flux-a", "FLA", "magnetics/flux_loop_flux"),
-            _binding("synthetic-flux-b", "FLB", "magnetics/flux_loop_flux"),
-            _binding("synthetic-flux-c", "FLC", "magnetics/flux_loop_flux"),
-            _binding("synthetic-bt", "BT", "magnetics/b_field_tor_probe/field"),
-        )
-    )
-
-
-def _catalogue(binding_set, *, store_layout="per-shot"):
-    machine_map = MachineMap(
-        name="synthetic",
-        machine="jt-60sa",
-        first_shot=0,
-        last_shot=200_000,
-        transition=None,
-        binding_set="synthetic",
-        drive_topology=None,
-        source_representation_signature=None,
-        description_supplement=None,
+        source_unit="Wb",
+        target_path=target_path,
+        target_unit="Wb",
+        target_index=target_index,
+        transformation="one_like",
+        source_cocos=None,
+        unit_factor=1.0,
+        channel_factor=channel_factor,
+        standard_name=None,
+        evidence="synthetic signal map for the observation reader test",
         validation_state="source-only",
     )
-    return MachineMapCatalog(
-        schema_version="1.0.0",
-        dd_version="4.1.1",
-        source="synthetic",
-        source_revision="synthetic",
-        source_cocos=None,
-        description_store_format="zarr",
-        description_store_root="JT60SA_ROOT",
-        description_store_layout=store_layout,
-        probe_angle_source="description",
-        binding_sets=MappingProxyType({"synthetic": binding_set}),
-        maps=(machine_map,),
-        validation_gaps=(),
-        source_qualifications=(),
-        sensor_identity_rules=(),
-        identity_qualifications=(),
-        flux_loop_position_declarations=(),
-        drive_topologies=(),
-        structure_assemblies=(),
-        acquisition_declarations=(),
-        description_supplements=(),
+
+
+def _signal_map(system, signals):
+    return SignalMap.create(
+        schema_version=MAP_SCHEMA_VERSION,
+        set_version="0.1.0",
+        machine="jt-60sa",
+        system=system,
+        source_dataset="synthetic",
+        target_dd_version="4.1.1",
+        target_cocos=17,
+        discovery_producer="synthetic",
+        discovery_receipt="synthetic",
+        signals=signals,
     )
+
+
+def _synthetic_magnetics_map(*, plasma_current_factor=-1.0):
+    """A magnetics map whose plasma-current rule carries channel_factor -1.
+
+    The three flux-loop rules are declared with semantic ids out of target
+    order, so the reader's target-index ordering — not the declaration order —
+    is what gathers the channels.
+    """
+
+    return _signal_map(
+        "magnetics",
+        (
+            _signal_rule(
+                "synthetic-ip",
+                "PSRC",
+                "Ip",
+                "magnetics/ip/data",
+                channel_factor=plasma_current_factor,
+            ),
+            _signal_rule(
+                "synthetic-flux-c",
+                "MDAC",
+                "magFlxLp3",
+                "magnetics/flux_loop/flux/data",
+                target_index=2,
+            ),
+            _signal_rule(
+                "synthetic-flux-a",
+                "MDAC",
+                "magFlxLp1",
+                "magnetics/flux_loop/flux/data",
+                target_index=0,
+            ),
+            _signal_rule(
+                "synthetic-flux-b",
+                "MDAC",
+                "magFlxLp2",
+                "magnetics/flux_loop/flux/data",
+                target_index=1,
+            ),
+        ),
+    )
+
+
+def _synthetic_tf_map():
+    return _signal_map(
+        "tf",
+        (
+            _signal_rule(
+                "synthetic-tf-current",
+                "MMSYS",
+                "cur1TFLKAT",
+                "tf/coil/current/data",
+            ),
+        ),
+    )
+
+
+def _synthetic_maps(*, plasma_current_factor=-1.0):
+    return {
+        "magnetics": _synthetic_magnetics_map(
+            plasma_current_factor=plasma_current_factor
+        ),
+        "tf": _synthetic_tf_map(),
+    }
 
 
 def _write_synthetic_store(root):
     group = zarr.open_group(root / f"{_SYNTHETIC_SHOT}.zarr", mode="w")
-    category = group.require_group("PSRC")
-    category.create_array("Ip", data=_SYNTHETIC_CURRENT)
-    category.create_array("Ip_time", data=_SYNTHETIC_TIME)
-    category.create_array("IpDecoy", data=_DECOY_CURRENT)
-    category.create_array("IpDecoy_time", data=_SYNTHETIC_TIME)
-    flux = np.vstack((2.0e-3 * _SYNTHETIC_CURRENT, 3.0e-3 * _SYNTHETIC_CURRENT))
-    category.create_array("FL", data=flux)
-    category.create_array("FL_time", data=_SYNTHETIC_TIME)
-    for name, factor in (("FLA", 2.0e-3), ("FLB", 3.0e-3), ("FLC", 4.0e-3)):
-        category.create_array(name, data=factor * _SYNTHETIC_CURRENT)
-        category.create_array(f"{name}_time", data=_SYNTHETIC_TIME)
-    category.create_array("BT", data=np.full(_SYNTHETIC_TIME.size, 2.5))
-    category.create_array("BT_time", data=np.linspace(0.0, 7.0, _SYNTHETIC_TIME.size))
+    plasma_current = group.require_group("PSRC")
+    plasma_current.create_array("Ip", data=_SYNTHETIC_CURRENT)
+    plasma_current.create_array("Ip_time", data=_SYNTHETIC_TIME)
+    flux_loops = group.require_group("MDAC")
+    for name, factor in (
+        ("magFlxLp1", 2.0e-3),
+        ("magFlxLp2", 3.0e-3),
+        ("magFlxLp3", 4.0e-3),
+    ):
+        flux_loops.create_array(name, data=factor * _SYNTHETIC_CURRENT)
+        flux_loops.create_array(f"{name}_time", data=_SYNTHETIC_TIME)
+    tf = group.require_group("MMSYS")
+    tf.create_array("cur1TFLKAT", data=np.full(_SYNTHETIC_TIME.size, 3.0))
+    tf.create_array("cur1TFLKAT_time", data=np.linspace(0.0, 7.0, _SYNTHETIC_TIME.size))
 
 
 def _synthetic_equilibrium():
@@ -373,82 +403,65 @@ def _synthetic_equilibrium():
             "efit_q95": np.full(frames, 2.0),
             "efit_r_axis": np.full(frames, 3.0),
             "efit_z_axis": np.zeros(frames),
+            "magnetics_bcoil": np.full(frames, 2.5),
         },
         cocos=17,
     )
 
 
-def test_catalogue_reader_measures_the_bound_raw_arrays(tmp_path, monkeypatch):
-    _write_synthetic_store(tmp_path)
+def _stub_signal_maps(monkeypatch, maps):
     monkeypatch.setattr(
-        MachineMapCatalog,
-        "description_store_root_path",
-        lambda self, _root=tmp_path: _root,
+        "imas_ambix.data.cocos_convention.load_packaged_signal_map",
+        lambda machine, system: maps[system],
     )
 
-    observation = read_catalogue_observation(
-        _SYNTHETIC_SHOT, _synthetic_catalogue(), _synthetic_equilibrium()
+
+def test_signal_map_reader_measures_the_raw_cached_channels(tmp_path, monkeypatch):
+    _write_synthetic_store(tmp_path)
+    _stub_signal_maps(monkeypatch, _synthetic_maps())
+
+    observation = read_signal_map_observation(
+        _SYNTHETIC_SHOT, "jt-60sa", _synthetic_equilibrium(), root=tmp_path
     )
 
     assert observation.shot == _SYNTHETIC_SHOT
     assert observation.plasma_current_a == pytest.approx(8.0e5)
     assert observation.plasma_current_sign == 1
-    assert observation.raw_flux_loop_channels == 2
+    assert observation.raw_flux_loop_channels == 3
+    assert observation.raw_flux_loop_opposite_sign_channels == 0
     assert observation.raw_flux_loop_response_sign == 1
     assert observation.toroidal_field_t == pytest.approx(2.5)
     assert observation.toroidal_field_sign == 1
     assert observation.safety_factor_sign == 1
     assert observation.retained_slices == 4
+    assert observation.tf_coil_current_sign == 1
 
 
-def test_catalogue_reader_follows_the_plasma_current_binding(tmp_path, monkeypatch):
+def test_signal_map_reader_ignores_a_rules_channel_factor(tmp_path, monkeypatch):
     _write_synthetic_store(tmp_path)
-    monkeypatch.setattr(
-        MachineMapCatalog,
-        "description_store_root_path",
-        lambda self, _root=tmp_path: _root,
+    _stub_signal_maps(monkeypatch, _synthetic_maps(plasma_current_factor=-1.0))
+
+    observation = read_signal_map_observation(
+        _SYNTHETIC_SHOT, "jt-60sa", _synthetic_equilibrium(), root=tmp_path
     )
 
-    observation = read_catalogue_observation(
-        _SYNTHETIC_SHOT,
-        _synthetic_catalogue(plasma_current_array="IpDecoy"),
-        _synthetic_equilibrium(),
-    )
-
-    assert observation.plasma_current_a == pytest.approx(-3.0e5)
-    assert observation.plasma_current_sign == -1
+    # The plasma-current rule declares channel_factor -1, yet the reader must
+    # surface the raw cached value: the factor selects the assumed sign this
+    # reader exists to measure, so applying it here would erase the measurement.
+    assert observation.plasma_current_a == pytest.approx(8.0e5)
+    assert observation.plasma_current_sign == 1
 
 
-def test_catalogue_reader_stacks_every_bound_flux_loop_channel(tmp_path, monkeypatch):
-    _write_synthetic_store(tmp_path)
-    monkeypatch.setattr(
-        MachineMapCatalog,
-        "description_store_root_path",
-        lambda self, _root=tmp_path: _root,
-    )
-
-    observation = read_catalogue_observation(
-        _SYNTHETIC_SHOT, _multichannel_catalogue(), _synthetic_equilibrium()
-    )
-
-    assert observation.raw_flux_loop_channels == 3
-    assert observation.raw_flux_loop_opposite_sign_channels == 0
-    assert observation.raw_flux_loop_response_sign == 1
-
-
-def test_catalogue_reader_refuses_a_store_layout_that_is_not_per_shot(
+def test_signal_map_reader_stacks_every_flux_loop_rule_in_target_order(
     tmp_path, monkeypatch
 ):
     _write_synthetic_store(tmp_path)
-    monkeypatch.setattr(
-        MachineMapCatalog,
-        "description_store_root_path",
-        lambda self, _root=tmp_path: _root,
+    _stub_signal_maps(monkeypatch, _synthetic_maps())
+
+    observation = read_signal_map_observation(
+        _SYNTHETIC_SHOT, "jt-60sa", _synthetic_equilibrium(), root=tmp_path
     )
 
-    with pytest.raises(ValueError, match="per-shot store layout"):
-        read_catalogue_observation(
-            _SYNTHETIC_SHOT,
-            _synthetic_catalogue(store_layout="static-over-map"),
-            _synthetic_equilibrium(),
-        )
+    assert observation.raw_flux_loop_channels == 3
+    assert observation.raw_flux_loop_response_sign == 1
+    assert observation.raw_flux_loop_opposite_sign_channels == 0

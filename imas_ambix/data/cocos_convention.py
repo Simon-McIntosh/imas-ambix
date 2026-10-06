@@ -16,7 +16,7 @@ the consistency relation in Sauter and Medvedev Eq. 22.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from math import tau
 from pathlib import Path
 from types import MappingProxyType
@@ -25,28 +25,24 @@ from typing import TYPE_CHECKING, Literal
 import numpy as np
 from nova.io.cocos import CONVENTION_DIGITS
 
-from imas_ambix.data.eddb import TIME_SUFFIX, time_array_name
-from imas_ambix.data.machine_map import (
-    ChannelBinding,
-    MachineMapCatalog,
-    map_for_shot,
-)
-from imas_ambix.data.transform_engine import get_transform_engine
+from imas_ambix.data.eddb import read_channel
+from imas_ambix.data.signal_map import SignalRule, load_packaged_signal_map
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
     from imas_ambix.challenge.loader import EfitLabels
+    from imas_ambix.data.eddb import ChannelRecord
 
 MAST_LEVEL2_ROOT = Path("/work/projects/imas_gpu/mast/level2/shots")
 
 _RAW_PLASMA_CURRENT_TARGETS = ("magnetics/ip",)
 _RAW_FLUX_LOOP_TARGETS = ("magnetics/flux_loop_flux", "magnetics/flux_loop/flux")
-_PER_SHOT_LAYOUT = "per-shot"
-_RAW_TOROIDAL_FIELD_TARGETS = (
-    "magnetics/b_field_tor_probe/field",
-    "magnetics/b_field_tor",
-)
+_RAW_TF_COIL_TARGETS = ("tf/coil/current",)
+
+#: The ``EfitLabels.scalars`` key carrying the equilibrium half's vacuum
+#: toroidal field, the same key the convention audit reads.
+_VACUUM_FIELD_KEY = "magnetics_bcoil"
 
 EvidenceClassification = Literal[
     "measurable-from-data",
@@ -212,6 +208,9 @@ class ShotSignObservation:
     safety_factor: float
     flux_exponent: int
     retained_slices: int
+    tf_coil_current_sign: int | None = None
+    """Sign of the raw TF coil current, the polarity cross-check beside the
+    observation.  ``None`` when the source is a store that carries no TF map."""
 
     @property
     def plasma_current_sign(self) -> int:
@@ -691,168 +690,152 @@ def read_level2_observation(
     )
 
 
-def _time_binding(binding: ChannelBinding) -> ChannelBinding:
-    """Return the sibling binding naming a cached channel's EDDB time base."""
-
-    from dataclasses import replace  # noqa: PLC0415
-
-    return replace(
-        binding,
-        name=f"{binding.name}{TIME_SUFFIX}",
-        source_array=time_array_name(binding.source_array),
-    )
-
-
-def _binding_targeting(
-    bindings: Sequence[ChannelBinding],
+def _rules_targeting(
+    rules: Sequence[SignalRule],
     targets: tuple[str, ...],
     quantity: str,
-) -> ChannelBinding:
-    """Select the binding whose Data Dictionary target serves ``quantity``."""
+) -> tuple[SignalRule, ...]:
+    """Gather every signal-map rule whose DD target serves ``quantity``.
 
-    for binding in bindings:
-        if any(
-            binding.dd_path == target or binding.dd_path.startswith(f"{target}/")
-            for target in targets
-        ):
-            return binding
-    raise ValueError(
-        f"catalogue declares no binding targeting {quantity} "
-        f"(expected one of {targets})"
-    )
-
-
-def _bindings_targeting(
-    bindings: Sequence[ChannelBinding],
-    targets: tuple[str, ...],
-    quantity: str,
-) -> tuple[ChannelBinding, ...]:
-    """Gather every binding that serves ``quantity``, ordered by target index.
-
-    A quantity may be bound by more than one rule — each flux loop its own —
+    A quantity may be served by more than one rule — each flux loop its own —
     so every match is kept rather than the first.  The declared target
-    spellings are ordered, so channels come out by the target that matched and
-    then by declaration order within it.
+    spellings are ordered, and within one target the rules come out by their
+    structure index, so channels are gathered in target order.
     """
 
-    selected: list[ChannelBinding] = []
+    selected: list[SignalRule] = []
     for target in targets:
-        selected.extend(
-            binding
-            for binding in bindings
-            if binding.dd_path == target or binding.dd_path.startswith(f"{target}/")
+        matched = [
+            rule
+            for rule in rules
+            if rule.target_path == target or rule.target_path.startswith(f"{target}/")
+        ]
+        matched.sort(
+            key=lambda rule: (
+                rule.target_index is None,
+                rule.target_index if rule.target_index is not None else 0,
+                rule.semantic_id,
+            )
         )
+        selected.extend(matched)
     if not selected:
         raise ValueError(
-            f"catalogue declares no binding targeting {quantity} "
+            f"signal map declares no rule targeting {quantity} "
             f"(expected one of {targets})"
         )
     return tuple(selected)
 
 
-def read_catalogue_observation(
-    shot: int,
-    catalogue: MachineMapCatalog,
-    equilibrium: EfitLabels,
-    *,
-    minimum_current_a: float = 50_000.0,
-    baseline_current_a: float = 10_000.0,
-) -> ShotSignObservation:
-    """Read one observation through a catalogue's bindings and store engine.
+def _one_rule(
+    rules: Sequence[SignalRule],
+    targets: tuple[str, ...],
+    quantity: str,
+) -> SignalRule:
+    """Select the single rule serving ``quantity``, refusing zero or several."""
 
-    The raw half — plasma current, flux-loop flux and toroidal field — is read
-    from the shot store the catalogue addresses, each source array through the
-    store engine the catalogue's declared format selects, with its EDDB time
-    base read from the sibling array beside it.  Every binding that targets the
-    flux-loop flux leaf contributes its channels, ordered by target index and
-    then by declaration order, so a catalogue that binds each loop as its own
-    rule reports them all rather than only the first.  The equilibrium half is
-    the :class:`EfitLabels` record the caller's loader supplies.  Raw values are
-    read deliberately: this reader exists to measure the source convention, so
-    no per-binding sign or unit factor may be applied before the kernel sees
-    them.  The sibling time-base mechanism assumes a per-shot layout, where a
-    channel's time array is its own source array; a catalogue that is not
-    per-shot is refused rather than read with a time base equal to its values.
-    """
-
-    shot_id = int(shot)
-    if catalogue.description_store_layout != _PER_SHOT_LAYOUT:
+    selected = _rules_targeting(rules, targets, quantity)
+    if len(selected) != 1:
         raise ValueError(
-            "read_catalogue_observation needs a per-shot store layout so each "
-            "channel's time base is a sibling array; catalogue declares "
-            f"{catalogue.description_store_layout!r}"
+            f"signal map declares {len(selected)} rules targeting {quantity}; "
+            "exactly one is required"
         )
-    machine_map = map_for_shot(catalogue, shot_id)
-    bindings = catalogue.bindings_for(machine_map)
-    plasma_current_binding = _binding_targeting(
-        bindings, _RAW_PLASMA_CURRENT_TARGETS, "the plasma current"
-    )
-    flux_loop_bindings = _bindings_targeting(
-        bindings, _RAW_FLUX_LOOP_TARGETS, "the flux-loop flux"
-    )
-    toroidal_field_binding = _binding_targeting(
-        bindings, _RAW_TOROIDAL_FIELD_TARGETS, "the toroidal field"
-    )
-
-    engine = get_transform_engine(catalogue.description_store_format)
-    with engine.open(
-        catalogue.description_store_root_path(),
-        shot_id,
-        catalogue.dd_version,
-        machine_map,
-        catalogue.description_store_layout,
-    ) as source:
-        plasma_current = np.asarray(
-            source.read(plasma_current_binding), dtype=np.float64
-        )
-        flux_loops = np.concatenate(
-            [
-                _channel_series(
-                    np.asarray(source.read(binding), dtype=np.float64)
-                )
-                for binding in flux_loop_bindings
-            ]
-        )
-        toroidal_field = np.asarray(
-            source.read(toroidal_field_binding), dtype=np.float64
-        )
-        plasma_current_time = np.asarray(
-            source.read(_time_binding(plasma_current_binding)), dtype=np.float64
-        )
-        toroidal_field_time = np.asarray(
-            source.read(_time_binding(toroidal_field_binding)), dtype=np.float64
-        )
-
-    return _observation_from_series(
-        shot_id,
-        plasma_current_time=plasma_current_time,
-        plasma_current=_single_channel(plasma_current, plasma_current_binding),
-        flux_loops=flux_loops,
-        toroidal_field_time=toroidal_field_time,
-        toroidal_field=_single_channel(toroidal_field, toroidal_field_binding),
-        equilibrium=equilibrium,
-        minimum_current_a=minimum_current_a,
-        baseline_current_a=baseline_current_a,
-    )
+    return selected[0]
 
 
-def _single_channel(values: np.ndarray, binding: ChannelBinding) -> np.ndarray:
-    """Collapse a one-channel ``(channel, time)`` array to its time series."""
+def _raw_series(record: ChannelRecord, rule: SignalRule) -> np.ndarray:
+    """Collapse a raw channel record to its one time series."""
 
+    values = np.asarray(record.data, dtype=np.float64)
     if values.ndim == 1:
         return values
     if values.shape[0] == 1:
         return values[0]
     raise ValueError(
-        f"binding {binding.name!r} reads {values.shape[0]} channels where one "
+        f"rule {rule.semantic_id!r} reads {values.shape[0]} channels where one "
         "time series is expected"
     )
 
 
-def _channel_series(values: np.ndarray) -> np.ndarray:
-    """Present a flux-loop array as ``(channels, samples)``."""
+def read_signal_map_observation(
+    shot: int,
+    machine: str,
+    equilibrium: EfitLabels,
+    *,
+    root: Path | str,
+    minimum_current_a: float = 50_000.0,
+    baseline_current_a: float = 10_000.0,
+) -> ShotSignObservation:
+    """Read one observation through a machine's packaged signal maps.
 
-    return values[np.newaxis, :] if values.ndim == 1 else values
+    The raw half — plasma current and every flux-loop channel — comes from the
+    ``magnetics`` signal map's rules, but not through
+    :class:`~imas_ambix.data.virtual_zarr.VirtualZarrView`: that view applies
+    each rule's compiled transform on every read, and for a ``source-only``
+    rule the transform carries the assumed sign this reader exists to measure.
+    Each rule's ``source_group`` and ``source_array`` is read straight from the
+    EDDB cache through :func:`~imas_ambix.data.eddb.read_channel`, the cache's
+    own reader, with no sign, unit or COCOS factor applied.  The equilibrium
+    half supplies the vacuum toroidal field, the same way MAST's reader takes
+    ``bvac_rmag`` from the level-2 equilibrium group, so the reader owns no
+    field-per-ampere relation.  The ``tf`` map's coil current is read raw the
+    same way and enters only as a polarity cross-check reported beside the
+    observation, by sign alone.  The three raw series and the
+    :class:`EfitLabels` record are handed to the shared kernel, so a
+    signal-map read and a level-2 read share one computation of the signs.
+    """
+
+    shot_id = int(shot)
+    magnetics_map = load_packaged_signal_map(machine, "magnetics")
+    tf_map = load_packaged_signal_map(machine, "tf")
+    plasma_current_rule = _one_rule(
+        magnetics_map.signals, _RAW_PLASMA_CURRENT_TARGETS, "the plasma current"
+    )
+    flux_loop_rules = _rules_targeting(
+        magnetics_map.signals, _RAW_FLUX_LOOP_TARGETS, "the flux-loop flux"
+    )
+    tf_coil_rule = _one_rule(
+        tf_map.signals, _RAW_TF_COIL_TARGETS, "the TF coil current"
+    )
+
+    plasma_current_record = read_channel(
+        root,
+        shot_id,
+        plasma_current_rule.source_group,
+        plasma_current_rule.source_array,
+    )
+    plasma_current = _raw_series(plasma_current_record, plasma_current_rule)
+    plasma_current_time = np.asarray(plasma_current_record.time, dtype=np.float64)
+    flux_loops = np.vstack(
+        [
+            _raw_series(
+                read_channel(root, shot_id, rule.source_group, rule.source_array),
+                rule,
+            )[np.newaxis, :]
+            for rule in flux_loop_rules
+        ]
+    )
+    tf_record = read_channel(
+        root, shot_id, tf_coil_rule.source_group, tf_coil_rule.source_array
+    )
+    tf_coil_current = np.asarray(tf_record.data, dtype=np.float64).reshape(-1)
+    tf_coil_current_sign = _finite_sign(
+        float(np.nanmedian(tf_coil_current)), "TF coil current"
+    )
+
+    observation = _observation_from_series(
+        shot_id,
+        plasma_current_time=plasma_current_time,
+        plasma_current=plasma_current,
+        flux_loops=flux_loops,
+        toroidal_field_time=np.asarray(equilibrium.time_ms, dtype=np.float64),
+        toroidal_field=np.asarray(
+            equilibrium.scalars[_VACUUM_FIELD_KEY], dtype=np.float64
+        ),
+        equilibrium=equilibrium,
+        minimum_current_a=minimum_current_a,
+        baseline_current_a=baseline_current_a,
+    )
+    return replace(observation, tf_coil_current_sign=tf_coil_current_sign)
 
 
 def read_level2_sign_table(
@@ -977,9 +960,9 @@ __all__ = [
     "RelativeSignProduct",
     "ShotSignObservation",
     "format_sign_report",
-    "read_catalogue_observation",
     "read_level2_observation",
     "read_level2_sign_table",
+    "read_signal_map_observation",
     "score_convention",
     "score_conventions",
     "surviving_conventions",
