@@ -1,0 +1,69 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "the reviewed manifest declares no baseline_suite/after_suite keys (its arms are recorded under tests/test_logs as gate.log and negative-control.log), so no base arm exists to difference against; its head gate arm gate.log ran to its summary line at 13 passed EXIT=0 with zero failures, so this change adds no failing test and added_failure_ids is empty.",
+  "base_log_revision": null,
+  "call_site_count": 1,
+  "call_sites": [
+    "imas_ambix/data/cocos_convention.py:812"
+  ],
+  "completed_at": "2026-10-06T17:25:36.725Z",
+  "dispatched_at": "2026-10-06T17:16:58Z",
+  "findings": [
+    {
+      "file": "imas_ambix/data/cocos_convention.py",
+      "line": "700",
+      "severity": "follow-on",
+      "text": "follow-on: _binding_targeting returns the first binding whose dd_path matches the target, so a catalogue binding flux loops as separate bindings each targeting magnetics/flux_loop/flux is silently reduced to one channel (raw_flux_loop_channels reads 1) with no guard and no test for the multi-binding case."
+    },
+    {
+      "file": "imas_ambix/data/cocos_convention.py",
+      "line": "688",
+      "severity": "follow-on",
+      "text": "follow-on: _time_binding rewrites only source_array and leaves dd_path unchanged, so under the netcdf static-over-map engine the time-base sibling read resolves the same path as the value array and the time base silently equals the values; the mechanism is zarr/per-shot-specific though the reader accepts any catalogue format."
+    }
+  ],
+  "head_log_revision": "d52d5f6ebfcb8da7a8f046e91405eb1c221ca942",
+  "item_aggregate": 114,
+  "item_verdicts": {
+    "call_sites": "read_catalogue_observation has no production caller yet (it is the new section 6 public definition; its only callers are the two tests); read_level2_observation is called by the live-cohort reader at imas_ambix/data/cocos_convention.py:812.",
+    "diff": "read commit by commit; cc04c49b (+413/-43 over two files) splits the kernel and adds the catalogue reader and its two tests, and d52d5f6e (+45) adds the evidence fragment.",
+    "done_when": "the done_when is the single-file gate plus the declared negative control; the gate reproduces at 13 passed EXIT=0 and the negative control at 1 failed EXIT=1, both in a scratch extraction of d52d5f6e.",
+    "goal": "the node goal is the section 6 reader separation -- a private kernel, read_level2_observation unchanged in behaviour, and a new read_catalogue_observation reading the raw half through a catalogue's bindings and store engine; the landed code implements exactly that.",
+    "manifest": "read; status complete, two commits cc04c49b, d52d5f6e, tests naming the gate at 13 passed, test_logs naming gate.log and negative-control.log, and negative_control_log naming the plasma-current binding swap.",
+    "write_paths": "git diff --name-status e754d2f0..d52d5f6e lists exactly the three declared paths and nothing else; this reviewer wrote only the fenced record paths."
+  },
+  "justifications": {
+    "durability": "the two new tests have teeth -- the declared binding swap reddens exactly test_catalogue_reader_measures_the_bound_raw_arrays (1 failed, 12 passed, EXIT=1, reproduced) and the decoy test pins plasma_current_a to -3.0e5 -- and the eight pre-existing MAST tests are unchanged and green. Docked because two generalizations of a public, any-machine reader are untested and fail open: _binding_targeting returns only the first matching binding (a separately-bound flux loop is silently read as one channel), and _time_binding addresses the time base through zarr's source_group/source_array while leaving dd_path unchanged.",
+    "evidence": "the node's gate reproduces independently -- 13 passed EXIT=0 in a scratch extraction of d52d5f6e (gate-head-review.log) -- and the declared binding swap reproduces (1 failed, 12 passed, EXIT=1, negative-control-review.log, failing test_catalogue_reader_measures_the_bound_raw_arrays at the same line 379 with the same values). The reviewed manifest declares no baseline_suite/after_suite keys, so added_failure_count is read from the single head gate arm (zero failures) and its negative-control log header names the base revision e754d2f0 while the run collected the 13 head-only tests, so the log does not by itself name the tree it resolved from.",
+    "fit": "the change follows the module's idiom -- a private kernel beside the existing public readers, the engine's StoreArrays.read seam rather than transform_machine_description, and the eddb.time_array_name helper for the time suffix; ruff check on the two changed paths exits 0; both commits carry a conventional subject and a body and carry no plan, ticket or attribution string.",
+    "goal_fidelity": "plan section 6 separates the measurement from the read: a private kernel _observation_from_series takes the plasma-current, flux-loop and toroidal-field series plus an EfitLabels record and returns the existing ShotSignObservation; read_level2_observation keeps its signature, its psi-units guard and its MAST level-2 reads and now calls the kernel; and read_catalogue_observation(shot, catalogue, equilibrium) is the one new public definition, reading the three raw quantities through the catalogue's bindings and declared store engine and taking the equilibrium half as given (imas_ambix/data/cocos_convention.py:507,652,719).",
+    "reuse": "no capability is forked: the kernel is shared by both readers, _raw_flux_loop_response is reused unchanged, the catalogue read reuses get_transform_engine/EfitLabels/map_for_shot/time_array_name, and the change retires nothing (plan section 6 states read_level2_observation's MAST path stays).",
+    "scope_discipline": "git diff --name-status e754d2f0..d52d5f6e lists exactly the three declared paths (imas_ambix/data/cocos_convention.py, tests/data/test_cocos_convention.py, docs/evidence/fragments/jt60sa-machine-map/jtmm-observation-reader.html); the declared figure directory is untouched and no plan file is edited; this reviewer wrote only the fenced record paths."
+  },
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20261006T165834127927-jtmm-observation-reader (plan imas-ambix:jt60sa-machine-map section 6), read at its head d52d5f6ebfcb8da7a8f046e91405eb1c221ca942 on base e754d2f035e06350e262202e4786e5fc661e5d3c. The node splits the sign-observation measurement from the source it reads: a private kernel _observation_from_series in imas_ambix/data/cocos_convention.py takes the plasma-current, flux-loop and toroidal-field series plus an EfitLabels record and returns the existing ShotSignObservation; read_level2_observation keeps its signature and MAST level-2 reads and now catalogue's channel bindings and declared store engine for the raw half, with the equilibrium half supplied by the caller.\n\nThis reviewer extracted the committed tree to a node-local scratch (git archive d52d5f6e), ran the node's own gate there in the shared project environment, and independently reproduced the declared binding swap. Nothing ran on a GPU node; the gate is a 3-second unit test.\n\nVERDICT goal: the section 6 reader separation is landed exactly as written -- private kernel at :507, read_level2_observation at :652 keeping its MAST reads and its psi-units guard, and read_catalogue_observation at :719 as the one new public definition.\nVERDICT done_when: 13 passed EXIT=0 reproduces in the scratch extraction of d52d5f6e and the declared swap reproduces at 1 failed EXIT=1.\nVERDICT write_paths: git diff --name-status e754d2f0..d52d5f6e lists exactly the three declared paths and nothing else.\nVERDICT manifest: read; status complete, two commits, tests naming the gate at 13 passed.\nVERDICT diff: read commit by commit; cc04c49b (+413/-43 over two files) and d52d5f6e (+45 evidence fragment).\nCALL_SITES: read_catalogue_observation -- test-only (no production caller yet); read_level2_observation -- imas_ambix/data/cocos_convention.py:812\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: plan section 6 separates the measurement from the read: a private kernel _observation_from_series takes the plasma-current, flux-loop and toroidal-field series plus an EfitLabels record and returns the existing ShotSignObservation; read_level2_observation keeps its signature, its psi-units guard and its MAST level-2 reads and now calls the kernel; and read_catalogue_observation(shot, catalogue, equilibrium) is the one new public definition, reading the three raw quantities through the catalogue's bindings and declared store engine and taking the equilibrium half as given (imas_ambix/data/cocos_convention.py:507,652,719).\nSCORE evidence: 18\nJUSTIFICATION evidence: the node's gate reproduces independently -- 13 passed EXIT=0 in a scratch extraction of d52d5f6e (gate-head-review.log) -- and the declared binding swap reproduces (1 failed, 12 passed, EXIT=1, negative-control-review.log, failing test_catalogue_reader_measures_the_bound_raw_arrays at the same line 379 with the same values). The reviewed manifest declares no baseline_suite/after_suite keys, so added_failure_count is read from the single head gate arm (zero failures) and its negative-control log header names the base revision e754d2f0 while the run collected the 13 head-only tests, so the log does not by itself name the tree it resolved from.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff --name-status e754d2f0..d52d5f6e lists exactly the three declared paths (imas_ambix/data/cocos_convention.py, tests/data/test_cocos_convention.py, docs/evidence/fragments/jt60sa-machine-map/jtmm-observation-reader.html); the declared figure directory is untouched and no plan file is edited; this reviewer wrote only the fenced record paths.\nSCORE durability: 16\nJUSTIFICATION durability: the two new tests have teeth -- the declared binding swap reddens exactly test_catalogue_reader_measures_the_bound_raw_arrays (1 failed, 12 passed, EXIT=1, reproduced) and the decoy test pins plasma_current_a to -3.0e5 -- and the eight pre-existing MAST tests are unchanged and green. Docked because two generalizations of a public, any-machine reader are untested and fail open: _binding_targeting returns only the first matching binding (a separately-bound flux loop is silently read as one channel), and _time_binding addresses the time base through zarr's source_group/source_array while leaving dd_path unchanged.\nSCORE fit: 20\nJUSTIFICATION fit: the change follows the module's idiom -- a private kernel beside the existing public readers, the engine's StoreArrays.read seam rather than transform_machine_description, and the eddb.time_array_name helper for the time suffix; ruff check on the two changed paths exits 0; both commits carry a conventional subject and a body and carry no plan, ticket or attribution string.\nSCORE reuse: 20\nJUSTIFICATION reuse: no capability is forked: the kernel is shared by both readers, _raw_flux_loop_response is reused unchanged, the catalogue read reuses get_transform_engine/EfitLabels/map_for_shot/time_array_name, and the change retires nothing (plan section 6 states read_level2_observation's MAST path stays).\nFINDING imas_ambix/data/cocos_convention.py:700 follow-on: _binding_targeting returns the first binding whose dd_path matches the target, so a catalogue that binds flux loops (or toroidal-field channels) as separate bindings each targeting magnetics/flux_loop/flux is silently reduced to one channel -- raw_flux_loop_channels would read 1 and the observation would rest on a single loop -- with no guard and no test covering the multi-binding case (the synthetic test binds one FL array holding two channels, tests/data/test_cocos_convention.py:366).\nFINDING imas_ambix/data/cocos_convention.py:688 follow-on: _time_binding changes only source_array (zarr's source_group/source_array addressing) and leaves dd_path unchanged, so on the netcdf static-over-map engine -- which the JT-60SA description catalogue declares and get_transform_engine supports -- the time-base sibling read resolves the same file/path as the value array and the time base silently equals the values; the reader's time-base mechanism is zarr/per-shot-specific although the reader accepts any catalogue format the engine supports.\n",
+  "review_run_id": "r-20261006T171651213456-review-of-jtmm-observation-reader",
+  "reviewed_base_sha": "e754d2f035e06350e262202e4786e5fc661e5d3c",
+  "reviewed_head_sha": "d52d5f6ebfcb8da7a8f046e91405eb1c221ca942",
+  "reviewed_run_id": "r-20261006T165834127927-jtmm-observation-reader",
+  "reviewer": {
+    "backend": "clive",
+    "effort": "high",
+    "model": "deepseek-v4.1-flash"
+  },
+  "rubric": "code",
+  "scores": {
+    "durability": 16,
+    "evidence": 18,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "timestamp": "2026-10-06T17:24:00+00:00",
+  "total": 114
+}
