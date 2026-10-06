@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5">
 <meta name="plan-impl" content="0.625">
-<meta name="plan-version" content="78">
+<meta name="plan-version" content="79">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -952,6 +952,9 @@
 </div>
 <div class="r-comment" data-section="s4" data-id="c-20261005T121500-store-addressing" data-who="reckon-build" data-when="2026-10-05T12:15:00Z">
     <div class="r-comment-body"><p>jtmm-description-store-addressing merged (1eaa5c3d, review 92/100 at efb8c135, 0 added failures; gate re-run passed at the integrated head 6569042a in a clean checkout). Every catalogue declares <code>description_store_format</code>, <code>description_store_root</code> (a <code>paths.py</code> name), <code>description_store_layout</code> (<code>per-shot</code> or <code>static-over-map</code>) and <code>probe_angle_source</code>, or declares no store with all three store slots null, which DIII-D now does. <code>StoreEngine.open</code> receives the selected map, the netCDF engine reads a static store from <code>{root}/{map name}/{ids}.nc</code>, the zarr engine refuses the static layout, and <code>read_geometry_table</code> has no machine-name branch. MAST output is unchanged. §4 stays open: the next node is <code>jt-60sa.json</code> with maps named <code>OP1</code> and <code>OP2</code> (the store directories under <code>JT60SA_ROOT/machine_description/</code>), a <code>paths.py</code> name for that directory, and the OP1/OP2 identity assertions; it needs the first OP2 pulse, which no record states yet. impl is 8 of 16 executable nodes.</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-run-r-20261006T010720533615-jtmm-op2-boundary" data-who="reckon-build" data-when="2026-10-06T01:17:33.974Z">
+    <div class="r-comment-body"><p>docs/evidence/fragments/jt60sa-machine-map/jtmm-op2-boundary.html records the JT-60SA OP1/OP2 boundary from EDDB shot dates: last OP1 pulse E100353 (2021-03-09T21:22:28.631), first OP2 pulse E100356 (2023-08-07T17:33:25.221), OP2 range E100356-E101173.</p></div>
 </div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20261005T131209269722-review-of-jtmm-shotset-machine" data-who="reckon-build" data-when="2026-10-05T13:20:34.081Z">
     <div class="r-comment-body"><p>Independent review stored for run r-20261005T125917372067-jtmm-shotset-machine (base adb67e5f, head cbef27a7, plan §7): parsed record scoring all six dimensions in 0..20 -- goal_fidelity 19, evidence 18, scope_discipline 19, durability 19, fit 19, reuse 20, total 114 -- with added_failure_count 0 and added_failure_ids [].</p></div>
