@@ -1,6 +1,6 @@
 <section class="evidence-fragment" data-reckon="evidence" id="jtmm-catalogue-per-coil">
   <header>
-    <h3>Blocked: the OP1 <code>pf_passive</code> loops carry no name for the struct-array selector to match</h3>
+    <h3>The JT-60SA catalogue reads both phases through one machine-name-free path</h3>
     <p class="meta">
       Node <code>jtmm-catalogue-per-coil</code> &middot;
       date 2026-10-06 &middot;
@@ -9,59 +9,70 @@
   </header>
 
   <p>
-    The per-entry selector landed by <code>jtmm-static-entry-selector</code> reads one
-    named entry of the first struct array on a binding's <code>dd_path</code> and
-    consumed that level (<code>transform_engine._select_struct_array_entry</code>). The
-    <code>pf_active</code> coil-element arrays can be addressed this way, because the
-    converter names each <code>pf_active/coil</code>. The OP1 <code>pf_passive</code>
-    vessel cannot: the converter writes one loop per contiguous resistivity block (63
-    filaments at 7.76e-7 and 57 at 7.20e-7 ohm m) with no <code>loop.name</code>, and
-    the two loops are ragged, so neither the selector nor an unselected read can
-    materialise the 120 vessel filaments the section's identity test requires.
+    <code>imas_ambix/data/machine_maps/jt-60sa.json</code> declares the converted
+    SELENE-deck description under <code>JT60SA_DESCRIPTION_DIR</code> as a
+    <code>netcdf</code> / <code>static-over-map</code> store with
+    <code>probe_angle_source description</code>, and two range-scoped maps:
+    OP1 (100001&ndash;101173) and OP2 (101174&ndash;999999). A shot selects the
+    map, the map selects the phase directory, and no module compares the machine
+    name to choose a description.
   </p>
 
-  <section id="jtmm-catalogue-per-coil-repro">
-    <h4>Reproduction (positive control and failure)</h4>
+  <section id="jtmm-catalogue-per-coil-declaration">
+    <h4>Declaration</h4>
     <p>
-      Read against the real store
-      <code>/work/projects/imas_gpu/jt60sa/machine_description</code> through the
-      <code>netcdf</code> / <code>static-over-map</code> engine. One binding,
-      <code>dd_path = pf_passive/loop/element/geometry/rectangle/r</code>,
-      <code>source_rank = 1</code>: OP2 reads, OP1 does not, and no selector value can be
-      supplied because no loop carries a name.
+      Every ragged struct array in the five IDS is declared one binding family
+      and one structure assembly per entry, addressed by the entry name the
+      re-converted store carries. The twelve <code>pf_active</code> coils
+      (CS1&ndash;CS4, EF1&ndash;EF6, FPPC_UP, FPPC_DOWN) each have a
+      <code>-coordinate-element</code>, <code>-r</code>, <code>-z</code>,
+      <code>-width</code> and <code>-height</code> binding with
+      <code>struct_array_entry</code> set to the coil name and
+      <code>source_rank 1</code> (the leaf plus the <code>element</code> struct
+      level below the selected coil). The OP1 vessel is declared per loop
+      (<code>VV1</code> 63, <code>VV2</code> 57) and the OP2 vessel as its single
+      loop <code>VV1</code> (98); the phase-specific vessel bindings sit in the
+      phase's own binding set, so each map reads only the loops its store holds.
     </p>
     <table>
-      <thead><tr><th>phase</th><th>binding</th><th>result</th></tr></thead>
+      <thead><tr><th>IDS</th><th>ruled struct array</th><th>entries</th></tr></thead>
       <tbody>
-        <tr><td>OP2</td><td>no selector</td><td>ok &mdash; shape (98,), the single OP2 loop</td></tr>
-        <tr><td>OP1</td><td>no selector</td><td><code>BindingTransformError</code> &mdash; ragged loop array 63/57</td></tr>
-        <tr><td>OP1</td><td><code>struct_array_entry = "&hellip;"</code></td><td><code>BindingTransformError</code> &mdash; &ldquo;carries no entry with that name&rdquo;</td></tr>
+        <tr><td>pf_active</td><td><code>coil</code></td><td>12 coils &times; 40/16/6 elements = 268</td></tr>
+        <tr><td>pf_passive</td><td><code>loop</code></td><td>OP1 VV1+VV2 (120), OP2 VV1 (98)</td></tr>
+        <tr><td>magnetics</td><td><code>b_field_pol_probe</code>, <code>flux_loop</code></td><td>17 probes, 27 loops</td></tr>
+        <tr><td>wall</td><td><code>description_2d</code></td><td>one limiter outline</td></tr>
+        <tr><td>tf</td><td><code>coil</code></td><td>TF1</td></tr>
       </tbody>
     </table>
-    <p>
-      The absence is confirmed at the store, not only through imas: OP1
-      <code>pf_passive.nc</code> carries no string variable under
-      <code>pf_passive/loop</code> except <code>ids_properties.version_put.*</code>, and
-      the only <code>loop</code> leaf written is the numeric
-      <code>pf_passive/loop.resistivity</code>. The loops are genuinely unnamed, and
-      <code>struct_array_entry</code> refuses the empty string.
-    </p>
-    <p>
-      Log: runs/r-20261006T031641983435-jtmm-catalogue-per-coil/jt60sa-passive-repro.log.
-    </p>
   </section>
 
-  <section id="jtmm-catalogue-per-coil-fix-scope">
-    <h4>What unblocks it</h4>
+  <section id="jtmm-catalogue-per-coil-gate">
+    <h4>Gate</h4>
     <p>
-      Reading the OP1 vessel needs one of two changes, both outside this node's write
-      paths: the converter (<code>imas_ambix/data/selene_deck.py</code>
-      <code>build_pf_passive</code>) names each loop so the existing selector can address
-      it (<code>loop.name = "V1"</code> / <code>"V2"</code>, then a re-conversion of the
-      store); or the engine's selector
-      (<code>imas_ambix/data/transform_engine.py</code>
-      <code>_select_struct_array_entry</code>) accepts an index for an unnamed entry. The
-      catalogue cannot close the gap on its own, so it is not committed.
+      <code>tests/data/test_jt60sa_machine_map.py</code> asserts the two maps and
+      their ranges, <code>map_for_shot</code> refusing 60033 and 1000000, the
+      per-coil family and assembly declaration, and, against the real store,
+      that <code>read_geometry_table</code> and
+      <code>geometry_table_from_description</code> build an identical
+      <code>GeometryTable</code> for each phase (12 active PF circuits, 17
+      probes, 27 flux loops, 120 / 98 vessel filaments, 638 / 51 limiter
+      points), that the emitted <code>pf_active</code> arrays carry the 12 coils
+      with counts 40&times;4, 16&times;6, 6&times;2, and that the phase boundary
+      changes only <code>pf_passive</code> and <code>wall</code> while
+      <code>pf_active</code>, <code>magnetics</code> and <code>tf</code> are
+      byte-equal across it.
+    </p>
+    <p>
+      In-place gate (fleet allocation): 41 passed, exit 0. Whole-tree
+      <code>ruff check imas_ambix tests</code> exits 0. Negative control: dropping
+      <code>struct_array_entry</code> from every <code>pf_active</code>
+      coil-element binding (120 bindings) makes the OP1 read fail with the
+      ragged-counts <code>BindingTransformError</code> naming
+      <code>[40, 40, 40, 40, 16, 16, 16, 16, 16, 16, 6, 6]</code>.
+    </p>
+    <p>
+      Logs: runs/r-20261006T031641983435-jtmm-catalogue-per-coil/jt60sa-catalogue-gate.log
+      and jt60sa-negative-control.log.
     </p>
   </section>
 </section>
