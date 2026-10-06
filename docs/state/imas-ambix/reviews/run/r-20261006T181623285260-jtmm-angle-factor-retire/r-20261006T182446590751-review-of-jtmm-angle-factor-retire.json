@@ -1,0 +1,67 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "the reviewed manifest declares baseline_suite null and after_suite null (the node was not armed with a base/after test arm), so there is no base arm to difference against; its own gate log records 34 passed EXIT=0 with zero failures at the reviewed head, and this reviewer reproduced that head gate at 34 passed EXIT=0. added_failure_count is therefore 0 with added_failure_ids empty.",
+  "base_log_revision": null,
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-06T18:32:20.294Z",
+  "dispatched_at": "2026-10-06T18:24:59Z",
+  "findings": [
+    {
+      "file": "tests/data/test_cocos_convention.py",
+      "line": "189",
+      "severity": "follow-on",
+      "text": "follow-on: the declared negative control (restoring pol_angle_like: -1.0) fails on the hardcoded shape assert at :189 (dict length 6 vs 7) before the new every-entry loop at :203 is reached, so the committed control does not itself exercise the loop's refusal of an unowned class. The loop does have teeth -- nova's transform_factor('pol_angle_like') raises ConventionError, verified directly -- so this is a weaker demonstration than a control that reaches the loop, not a defective guard."
+    },
+    {
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-angle-factor-retire.html",
+      "line": "head",
+      "severity": "follow-on",
+      "text": "follow-on: the fragment commit body (309ab4e4) names the plan slug ('the jt60sa-machine-map plan'), which the repository's commit-message rule excludes; the body otherwise carries a useful mechanism account. Dock to fit, not code."
+    }
+  ],
+  "head_log_revision": "309ab4e40c69342058d5ba6c4115d33ef4eb3bba",
+  "item_aggregate": 117,
+  "item_verdicts": {
+    "call_sites": "none -- the node retires two data entries and rewrites a test; it introduces no production definition. MAST_TO_COCOS_17_FACTORS has no runtime consumer in imas_ambix (definition :448, __all__ :970), and nova's transform_factor is the sole derivation the test cross-checks against.",
+    "diff": "read commit by commit; 0113d0b9 retires the two angle entries from the MappingProxyType in imas_ambix/data/cocos_convention.py, extends its docstring, and rewrites the agreement test's second half to iterate MAST_TO_COCOS_17_FACTORS.items(); 309ab4e4 adds the one evidence fragment. Net +34/-14 over three files.",
+    "done_when": "the done-when is the two-file gate plus the declared negative control; the gate reproduces at 34 passed EXIT=0 and the declared restored-entry control at 1 failed, 14 passed EXIT=1, both in a scratch extraction of 309ab4e4.",
+    "goal": "plan section 6 retires pol_angle_like together with tor_angle_like so the table holds only classes nova owns and the agreement test covers every entry; the landed diff does exactly that, and nova's TRANSFORMATIONS carries the six remaining classes with a factorless pol_angle_like branch owned by the engine instead.",
+    "manifest": "read; status complete, two commits (0113d0b9, 309ab4e4), changed_paths the three diff paths, tests naming the gate at 34 passed EXIT=0, test_logs naming gate.log and negative-control.log, negative_control_log naming the restored-entry mutation, and both baseline_suite and after_suite null.",
+    "write_paths": "git diff --name-status d2bb8d08..309ab4e4 lists exactly the three declared changed paths; the declared orientation paths tests/data/test_transform_engine.py and docs/figures/jt60sa-machine-map/jtmm-angle-factor-retire are untouched and no plan file is edited."
+  },
+  "justifications": {
+    "durability": "the guard has teeth and is falsified here: restoring pol_angle_like: -1.0 reddens test_declared_source_to_seventeen_factors_are_committed_as_data (1 failed, 14 passed, EXIT=1, reproduced), and nova's transform_factor raises ConventionError for pol_angle_like so the new every-entry loop refuses an unowned class rather than skipping it. Docked one because the declared control stops at the shape assert (:189) and never reaches the loop (:203), so the loop's refusal is verified by this reviewer rather than by the committed control.",
+    "evidence": "the node's gate reproduces independently -- 34 passed EXIT=0 in a scratch extraction of 309ab4e4 (gate-head-review.log, header names rev, tree and the module file under the scratch root) -- and the declared restored-entry control reproduces (1 failed, 14 passed EXIT=1, negative-control-review.log). Docked one because the manifest declares no baseline_suite arm, so added_failure reads from the single head arm only.",
+    "fit": "the change follows the module's idiom -- the MappingProxyType keeps its shape, the docstring explains the mechanism, and the test's hardcoded-set assert is complemented by the items() loop; ruff check on both changed paths exits 0 and the subjects are conventional with bodies. Docked one because the fragment commit body names the plan slug, which the repository's commit-message rule excludes.",
+    "goal_fidelity": "section 6 names this node to retire both unowned angle entries and cover every committed entry; the table now holds the six nova-owned classes (cocos_convention.py:448-455), the loop covers every entry with no exclusion (test_cocos_convention.py:203), and the engine's factorless pol_angle_like branch is left to own the angle.",
+    "reuse": "no capability is forked: the test reuses nova's transform_factor and the existing MAST_SOURCE_COCOS constant, and the change removes rather than adds a data source; the docstring addition is the only new prose.",
+    "scope_discipline": "git diff --name-status d2bb8d08..309ab4e4 lists exactly imas_ambix/data/cocos_convention.py, tests/data/test_cocos_convention.py and the one fragment; the declared test_transform_engine.py and figures paths are untouched and no plan file is edited."
+  },
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20261006T181623285260-jtmm-angle-factor-retire (plan imas-ambix:jt60sa-machine-map section 6), read at its head 309ab4e40c69342058d5ba6c4115d33ef4eb3bba on base d2bb8d081559ca088c2d44e74f06416584f956dc.\n\nThe node retires `tor_angle_like` and `pol_angle_like` from `MAST_TO_COCOS_17_FACTORS` in imas_ambix/data/cocos_convention.py so the table carries only the six classes nova's `TRANSFORMATIONS` owns, and rewrites the agreement test to iterate every committed entry against nova's derived factor with no hardcoded exclusion. I extracted the committed head to a node-local scratch (git archive 309ab4e4), ran the node's own gate there in the shared project environment, and reproduced the declared negative control by mutation. Nothing ran on a GPU node; the gate is a ~50-second unit test run in place on the fleet allocation.\n\nVERDICT goal: section 6 states the table must hold only classes nova owns and its agreement test must cover every entry it carries. The diff removes exactly the two unowned entries (cocos_convention.py:454-455 area) and the loop at test_cocos_convention.py:203 is `for transformation, factor in MAST_TO_COCOS_17_FACTORS.items()`, so a class nova does not own refuses itself rather than being skipped by name. nova's cocos.py:87 declares TRANSFORMATIONS = frozenset({PSI_LIKE, IP_LIKE, B0_LIKE, Q_LIKE, DODPSI_LIKE, ONE_LIKE}) -- six classes, no angle class -- and transform_factor('pol_angle_like', source=3, target=17) raises ConventionError naming the six supported types, verified directly. The runtime engine keeps its own factorless pol_angle_like branch (transform_engine.py:456,494-500), and no production code reads MAST_TO_COCOS_17_FACTORS (it appears only at its definition :448, in __all__ :970, and in tests), so the retirement leaves no dangling consumer.\nVERDICT done_when: 34 passed EXIT=0 reproduces in the scratch extraction of 309ab4e4 (gate-head-review.log), and the declared control reproduces at 1 failed, 14 passed EXIT=1 (negative-control-review.log, test_declared_source_to_seventeen_factors_are_committed_as_data). ruff check on both changed paths exits 0.\nVERDICT write_paths: git diff --name-status d2bb8d08..309ab4e4 lists exactly the three declared changed paths (imas_ambix/data/cocos_convention.py, tests/data/test_cocos_convention.py, docs/evidence/fragments/jt60sa-machine-map/jtmm-angle-factor-retire.html); the broader orientation scope (tests/data/test_transform_engine.py, docs/figures/...) is untouched and no plan file is edited.\n\nThe declared negative control fires on the shape assert (dict size 6 vs 7) before the new iteration guard is reached, so the committed control demonstrates the table's committed shape but not the loop's own refusal; I verified the loop's refusal separately via ConventionError. Recorded as a follow-on rather than a defect.\n",
+  "review_run_id": "r-20261006T182446590751-review-of-jtmm-angle-factor-retire",
+  "reviewed_base_sha": "d2bb8d081559ca088c2d44e74f06416584f956dc",
+  "reviewed_head_sha": "309ab4e40c69342058d5ba6c4115d33ef4eb3bba",
+  "reviewed_run_id": "r-20261006T181623285260-jtmm-angle-factor-retire",
+  "reviewer": {
+    "backend": "clive",
+    "effort": "high",
+    "model": "deepseek-v4.1-flash"
+  },
+  "rubric": "code",
+  "scores": {
+    "durability": 19,
+    "evidence": 19,
+    "fit": 19,
+    "goal_fidelity": 20,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "timestamp": "2026-10-06T18:31:29+00:00",
+  "total": 117
+}
