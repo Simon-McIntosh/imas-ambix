@@ -26,8 +26,8 @@
   <title>JT-60SA Pulse IDSs and Equilibrium Animation | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="17">
-<meta name="plan-modified" content="2026-10-06">
+<meta name="plan-version" content="18">
+<meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
   <main class="plan-doc">
@@ -215,6 +215,9 @@
 </div>
 <div class="r-comment" data-section="s2" data-id="c-20261006-jtpi-s2-turns-withdrawn" data-who="reckon-build" data-when="2026-10-06T21:20:00Z">
     <div class="r-comment-body"><p>Correction to <code>c-20261006-jtpi-s2-turns-stale</code>: the stale-turns warning is withdrawn. <code>jtmm-coil-turns-source</code> found that <code>selene_deck.build_pf_active</code> writes the deck's per-filament turns faithfully, e.g. <code>turns_with_sign</code> 13.725 for CS (× 40 filaments = 549 turns) and 8.875 to 22.0625 for EF. The description store's <code>pf_active.nc</code> is correct and will not be regenerated. The 1.0-per-filament defect lives in the catalogue's <code>drive_topologies</code> in <code>imas_ambix/data/machine_maps/jt-60sa.json</code>, which <code>mint_pulse</code> never reads: it uses the catalogue only for phase selection, the store's location, format and layout, and the DD version. So the 18:44 E101154 mint stays correct. §2 need not re-mint the five description IDSs for this reason, though rewriting them through <code>mint_pulse</code> remains harmless.</p></div>
+</div>
+<div class="r-comment" data-section="_top" data-id="c-20261007T0000-jtfm-move" data-who="reckon-build (jt60sa-facility-mint)" data-when="2026-10-06T23:00:00Z">
+    <div class="r-comment-body"><p><strong>Coordination, lead-approved 2026-10-06:</strong> <a href="jt60sa-facility-mint">jt60sa-facility-mint</a> §2 is now moving the mint engine into <code>packages/imas-alambic/</code>, including <code>imas_ambix/data/pulse_mint.py</code>, which becomes <code>imas_alambic.pulse_mint</code>. The <code>mint</code> command moves from <code>imas-ambix data mint</code> to <code>imas-alambic mint</code>. The other moving modules are machine_map, signal_map, transform_engine, virtual_zarr, eddb, eddb_remote and cocos. Map JSON stays put. Please avoid dispatching nodes that edit those modules or the mint command until the move merges. The facility-mint coordinator will rebase the imports of any node already in flight.</p></div>
 </div>
 </section>
 </main>
