@@ -140,6 +140,36 @@ def test_pf_active_coils_declared_one_family_and_assembly_per_coil():
             assert len(assembly.element_identifiers) == count
 
 
+def test_no_element_identifier_is_a_trailing_slash_placeholder():
+    """Every structure-assembly element identifier names a real element.
+
+    A placeholder identifier ends in ``/`` so its last path segment is empty,
+    matching the empty element name the converter used to write.  Once the
+    converter names each element, the identifier must carry that name, so no
+    identifier in the catalogue may end in a slash.
+    """
+    source = (
+        Path(__file__).resolve().parents[2]
+        / "imas_ambix"
+        / "data"
+        / "machine_maps"
+        / "jt-60sa.json"
+    )
+    payload = json.loads(source.read_text())
+    offenders = [
+        identifier
+        for assembly in payload["structure_assemblies"]
+        for identifier in assembly["element_identifiers"]
+        if identifier.endswith("/")
+    ]
+    assert offenders == [], f"placeholder element identifiers remain: {offenders[:3]}"
+    # The identifiers also survive catalogue validation and name their element.
+    catalog = load_packaged_machine_map("jt-60sa")
+    for assembly in catalog.structure_assemblies:
+        for identifier in assembly.element_identifiers:
+            assert identifier and not identifier.endswith("/")
+
+
 def test_ragged_struct_arrays_declared_per_entry():
     catalog = load_packaged_machine_map("jt-60sa")
 
