@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5">
 <meta name="plan-impl" content="0.625">
-<meta name="plan-version" content="75">
+<meta name="plan-version" content="77">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -198,7 +198,7 @@
     <section class="section-landed">
   <header><span class="badge badge-shipped">&#10003; landed 2026-10-06</span>
     <h2 id="s3">§3 — Access path: EDDB over ssh, an on-demand cache, a lazy view</h2></header>
-  <p class="landed-summary">Landed 2026-10-05/06. The remote EDDB extractor (<code>imas_ambix/data/eddb_remote.py</code>, one ssh process per batch, remote side under <code>nice -n 19</code>) and its zarr cache writer (<code>imas_ambix/data/eddb.py</code>, under <code>JT60SA_ROOT</code>) are merged, and one session returns the channels it served with each refused channel's EDDB return code read from <code>data['irc']</code> (bdcce624). PSRC holds the plasma-shape reconstruction's processed channels only for shots it ran on (E101154 yes, E101173 irc 1015), and MDAC holds the raw <code>magFlxLp*</code> flux loops on both. The first cold fetch (E101173, C060033) served the 22 MMSYS coil and TF currents and 4 MDAC Rogowski coils; the second (63df11f5) served all 119 first-pass channels on E101154, including PSRC <code>magFluxLp1..34</code> and <code>magPbTC1..23</code>, and the 34 raw MDAC <code>magFlxLp*</code> on E101154 and E101173, with no refusal; cold wall time about 105 to 111 s per shot, warm reads make no transport call. Which raw loop is which processed loop is a §5 census question. <a href="s3">full record</a></p>
+  <p class="landed-summary">Landed 2026-10-05/06. The remote EDDB extractor (<code>imas_ambix/data/eddb_remote.py</code>, one ssh process per batch, remote side under <code>nice -n 19</code>) and its zarr cache writer (<code>imas_ambix/data/eddb.py</code>, under <code>JT60SA_ROOT</code>) are merged, and one session returns the channels it served with each refused channel's EDDB return code read from <code>data['irc']</code> (bdcce624). PSRC holds the plasma-shape reconstruction's processed channels only for shots it ran on (E101154 yes, E101173 irc 1015), and MDAC holds the raw <code>magFlxLp*</code> flux loops on both. The first cold fetch (E101173, C060033) served the 22 MMSYS coil and TF currents and 4 MDAC Rogowski coils; the second (63df11f5) served all 119 first-pass channels on E101154, including PSRC <code>magFluxLp1..34</code> and <code>magPbTC1..23</code>, and the 34 raw MDAC <code>magFlxLp*</code> on E101154 and E101173, with no refusal; cold wall time about 105 to 111 s per shot, warm reads make no transport call. Which raw loop is which processed loop is a §5 census question. The access path adds two public modules, <code>eddb_remote.py</code> (<code>RemoteEddbExtractor</code>, <code>SshTransport</code>, <code>Transport</code>, <code>ChannelRequest</code>, <code>ChannelRecord</code>, <code>ChannelRefusal</code>, <code>BatchResult</code>) and <code>eddb.py</code> (<code>fetch_channels</code>, <code>write_channel</code>, <code>is_cached</code>, <code>channel_path</code>), and two refusal families, <code>EddbRemoteError</code> and <code>EddbCacheError</code>. They retire nothing, because ambix had no remote reader, and merge into nothing, because the FAIR-MAST mirror (<code>imas_ambix/data/manifest.py</code>, <code>imas_ambix/data/cli.py</code>) downloads from an object store rather than running a process on a facility host. <a href="s3">full record</a></p>
 </section>
 
     <h2 id="s4">§4 — Machine description: the SELENE deck is the source</h2>
@@ -379,10 +379,14 @@
       angle path and the transform source is left unchanged.
       Done-when, for what remains: <code>imas_ambix/data/machine_maps/jt-60sa.json</code> declares
       the netCDF format, a <code>paths.py</code> name for <code>JT60SA_ROOT/machine_description</code>,
-      the <code>static-over-map</code> layout and description-carried probe angles, with maps
-      <code>OP1</code> and <code>OP2</code> over the shot ranges either side of the first OP2 pulse and
+      the <code>static-over-map</code> layout and description-carried probe angles, with map
+      <code>OP1</code> over integers 100001–101173 (<code>E100001</code>–<code>E101173</code>: the
+      2021 integrated-commissioning block and the 2023 OP1 campaign, one geometry), map
+      <code>OP2</code> open-ended from 101174, because the geometry changed in the enhancement
+      shutdown after the last OP1 pulse and EDDB holds no OP2 pulse yet, and a shot outside
+      both ranges (the 2026 C-series records among them) refused rather than given a map, and
       description bindings to the five IDS netCDF of each phase; <code>transform_machine_description</code>
-      emits a JT-60SA description for one OP1 and one OP2 shot through one code path,
+      emits a JT-60SA description for the OP1 pulse <code>E101173</code> and one shot in the OP2 range through one code path,
       <code>read_geometry_table</code> and <code>geometry_table_from_description</code> build a
       <code>GeometryTable</code> from it with zero machine-name branches, and the three identity assertions (determinism,
       partition consistency, visible change at the OP1/OP2 boundary) pass. Those are the
@@ -412,7 +416,7 @@
     </p>
     <p>
       The first node of this section is therefore a census, not a map: enumerate every
-      category table for the latest OP2 E-shot, record name, class, unit, description,
+      category table for the latest E-shot (<code>E101173</code>, the last OP1 pulse), record name, class, unit, description,
       channel count and shot validity, record the PID of every one-point datum, and run the
       codex EDAS scanner from the workstation so the same catalogue lands in the graph as
       FacilitySignal nodes beside the handbook pages it already holds; publish the join as
@@ -511,9 +515,14 @@
       needs a reader for the EQDB record (psi on its grid, boundary, p′ and FF′ or their
       profiles) wrapped in the same remote-extractor contract, and a COCOS verdict from §6
       before any map is written into <code>profiles_2d/psi</code>. The EQDB reader adds one
-      remote script and one fetch entry beside the §3 extractor's, using its transport and
-      cache rather than a second path; it retires nothing, because no equilibrium-database
-      reader exists in ambix.
+      remote script and one fetch entry beside the §3 extractor's and reuses its ssh
+      transport (<code>SshTransport</code> in <code>imas_ambix/data/eddb_remote.py</code>)
+      rather than a second path. It does not reuse the §3 cache: <code>imas_ambix/data/eddb.py</code>
+      <code>write_channel</code> stores a <code>(channel, time)</code> array with a sibling time
+      vector, and an EQDB record is psi on a two-dimensional grid with its boundary and
+      profiles, so the record store is declared beside the cache once the open question
+      <code>eqdb-reader</code> settles the record shape. It retires nothing, because no
+      equilibrium-database reader exists in ambix.
     </p>
     <p>
       The reconstruction gate is what makes the map honest. The spine reads JT-60SA geometry
@@ -566,7 +575,7 @@
       is the open question <code>jt60sa-artifact-authoring</code>. Using only the mapped
       pf_active, pf_passive, tf and magnetics data, the ambix physics spine
       (<code>greens-matvec</code>, with <code>grid-delstar</code> as the check) recovers the
-      equilibrium for a frozen set of OP2 shots, and the result is compared against SELENE on the
+      equilibrium for a frozen set of 2023 OP1 shots on which SELENE ran (PSRC populated, as on <code>E101154</code>), and the result is compared against SELENE on the
       quantities SELENE reports: boundary distance, axis position, Ip, q95, and the whitened
       magnetics residual. This is the MAST benchmark pattern with SELENE in EFIT's seat, and
       it is scored by the owner of that pattern: <code>imas_ambix/eval/efit_referee.py</code>
@@ -707,7 +716,7 @@
       config needs no change: on the ITER to jt-60sa path the laptop only forwards TCP.
     </p>
     <p>
-      <strong>Open on the user.</strong> The choice of OP2 shot set for the §7 baseline, and
+      <strong>Open on the user.</strong> The choice of the 2023 OP1 shot set for the §7 baseline, and
       the single geometry source per IDS and phase once <code>jtmm-geometry-source</code>
       reports (§4).
     </p>
@@ -791,6 +800,15 @@
       <button class="r-opt" data-value="search-analysis-first">Build nothing until /analysis/src is searched</button>
       </p>
     <p class="r-dec-rat">Lead&#x27;s choice 2026-10-05. The facility file the plasma-shape reconstruction runs on is upstream of the decks, which match it to 0.0 for OP1, and using SELENE&#x27;s own input keeps geometry out of the SELENE comparison in s7. pf_active, tf and wall are built now and OP2 pf_passive from coil_vv_OP2.dat provisionally; magnetics waits for the bounded /analysis/src sensor search because fort.96 covers 27 of 34 loops and 17 of 23 probes. Rejected: building everything from the OneDrive decks (ships an incomplete sensor set as authoritative) and building nothing until the search (holds geometry the facility file already settles).</p>
+    </div>
+<div class="r-dec" data-key="operating-phase-of-existing-pulses" data-choice="op1-is-2023" data-by="Simon McIntosh" data-when="2026-10-06T01:26:54+00:00" data-sections="s4,s7">
+    <p class="r-dec-q">Which operating phase do the existing E-series pulses belong to?</p>
+    <p class="r-dec-ctx">Measured 2026-10-06 by jtmm-op2-boundary from EDDB shot start times: the E-series holds a 2021 block E100001–E100353 (352 shots, 2021-01-13 to 2021-03-09) and a 2023 block E100356–E101173 (815 shots, 2023-08-07 to 2023-12-15), 880 days apart. No E-shot is later than E101173, the only 2026 records are C-series shots C060028–C060033, and EDDB carries no campaign field.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="op1-is-2023">2023 is OP1; OP2 begins after the enhancement shutdown</button>
+      <button class="r-opt" data-value="op2-is-2023">2021 is OP1 and 2023 is OP2</button>
+      </p>
+    <p class="r-dec-rat">Lead&#x27;s choice 2026-10-06. OP1 is the 2023 campaign, and the 2021 block is the integrated commissioning before it on the same geometry, so map OP1 covers E100001–E101173 and every existing pulse, E101154 and E101173 included, reads the OP1 description (EQSLE.DATA, 120-filament vessel). OP2 is the configuration after the enhancement shutdown. Its map is open-ended from 101174, and its 98-filament vessel stays provisional until an OP2 pulse exists to check it against. Rejected: 2023 as OP2, which would have bound the 2023 pulses to the OP2 vessel.</p>
     </div>
 </section>
 
