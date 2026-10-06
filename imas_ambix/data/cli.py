@@ -6,6 +6,7 @@ Subcommands:
 - ``ambix data inventory``     bulk shot → groups listing
 - ``ambix data manifest``      build / emit shot-id manifests
 - ``ambix data download``      (plan-only) print the SLURM bulk-download script
+- ``ambix data mint``          write a pulse's description IDSs with served signals
 - ``ambix data status``        local mirror progress
 
 The actual ``sbatch`` submission is intentionally not wired up to a
@@ -51,6 +52,52 @@ def _tier_option(fn):
         show_default=True,
         help="Which FAIR-MAST tier to probe / inventory / download.",
     )(fn)
+
+
+# --- mint -------------------------------------------------------------
+
+
+@data.command(name="mint")
+@click.option("--machine", required=True, help="Machine catalogue name, e.g. jt-60sa.")
+@click.option(
+    "--shot",
+    required=True,
+    help="EDDB shot token, e.g. E101154 or 101154.",
+)
+@click.option(
+    "--out",
+    "out_dir",
+    required=True,
+    type=click.Path(),
+    help="Output root; one directory per shot is written under it.",
+)
+def mint_cmd(machine: str, shot: str, out_dir: str) -> None:
+    """Mint a pulse's description IDSs with the signals the maps serve.
+
+    Reads the shot's phase description and its EDDB cache and writes one DD
+    netCDF file per description IDS under ``<out>/<shot>/``.  The work and the
+    write layout live in
+    :mod:`imas_ambix.data.pulse_mint`; this command is the thin entry over it.
+    """
+
+    from imas_ambix.data.pulse_mint import PulseMintError, mint_pulse
+
+    try:
+        receipt = mint_pulse(machine, shot, out_dir)
+    except PulseMintError as error:
+        raise click.ClickException(str(error)) from error
+
+    console.print(
+        f"Minted [bold]{receipt.shot}[/bold] phase {receipt.phase} into "
+        f"{receipt.out_dir}"
+    )
+    for ids_name in receipt.ids_written:
+        leaves = sum(1 for leaf in receipt.leaves if leaf.ids == ids_name)
+        console.print(f"  {ids_name}: {leaves} time-dependent leaves")
+    if receipt.excluded:
+        console.print(
+            f"  {len(receipt.excluded)} declared signals left out (see receipt)"
+        )
 
 
 # --- probe ------------------------------------------------------------
@@ -1152,9 +1199,7 @@ def training_grade_cmd(
         drop_categories=drop_tuple,
     )
     out_path = Path(output)
-    console.print(
-        f"Applying §4 training-grade gates to [bold]{audit_path}[/bold] …"
-    )
+    console.print(f"Applying §4 training-grade gates to [bold]{audit_path}[/bold] …")
     counts = filt.write_manifest(out_path)
 
     summary = Table(title="Training-grade filter (§4)")
