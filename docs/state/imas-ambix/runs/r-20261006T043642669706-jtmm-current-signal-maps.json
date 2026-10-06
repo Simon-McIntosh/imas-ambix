@@ -1,0 +1,718 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effective_input_window": 230144,
+    "effort": "high",
+    "launch": "cli",
+    "local": true,
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "worktree-full",
+    "usable_input_window": 230144
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "a9518f2d4f885b640c0eee7a3fb4636746357a66",
+  "boundary_waiver": null,
+  "brief": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "fallback_credit": null,
+      "inference_geo": "",
+      "input_tokens": 10070954,
+      "input_tokens_cumulative": 10070954,
+      "output_tokens": 84787,
+      "output_tokens_cumulative": 84787,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": {
+    "added": 577,
+    "files": 5,
+    "removed": 0
+  },
+  "clone_matches": [
+    {
+      "existing_function": {
+        "line": 175,
+        "name": "test_magnetics_binds_psrc_ip_in_amperes",
+        "path": "tests/data/test_jt60sa_signal_maps.py"
+      },
+      "run_function": {
+        "line": 151,
+        "name": "test_tf_binds_the_first_chain_and_blocks_the_second",
+        "path": "tests/data/test_jt60sa_signal_maps.py"
+      },
+      "window_line": 154
+    },
+    {
+      "existing_function": {
+        "line": 151,
+        "name": "test_tf_binds_the_first_chain_and_blocks_the_second",
+        "path": "tests/data/test_jt60sa_signal_maps.py"
+      },
+      "run_function": {
+        "line": 175,
+        "name": "test_magnetics_binds_psrc_ip_in_amperes",
+        "path": "tests/data/test_jt60sa_signal_maps.py"
+      },
+      "window_line": 177
+    }
+  ],
+  "commit_resolution": null,
+  "commits": [
+    "eca46d3147dd33ea546b8a9dda3c7bee3f6030e1",
+    "11dc5d02e98ac138452738647edc50ec0a394cea"
+  ],
+  "completed_at": "2026-10-06T05:08:08.393Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-10-06T04:36:55Z",
+  "disposition": null,
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": true,
+    "matched_measure": "pytest -p",
+    "override": false,
+    "role": "implement",
+    "status": "compatible"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [],
+  "gate": "passed",
+  "gate_check": {
+    "command": "TMPDIR=/tmp UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD command uv run --no-sync pytest -p no:cacheprovider -n 4 tests/data/test_jt60sa_signal_maps.py tests/data/test_signal_map.py tests/data/test_virtual_zarr.py",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T043642669706-jtmm-current-signal-maps/gate.log"
+  },
+  "impl_move": {
+    "at_complete": 0.625,
+    "at_dispatch": 0.625,
+    "plan": "jt60sa-machine-map",
+    "reason": "impl counts closed sections; section 5 stays open until the flux-loop and probe bindings land",
+    "verdict": "waived"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-10-06T05:36:47.045485+00:00",
+    "horizon_seconds": 3600,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": null,
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-10-06T04:36:47Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 20,
+    "binding_observed": "unknown",
+    "detail": "",
+    "generating": 3,
+    "headroom": 12,
+    "mean_context": 126667,
+    "observed_at": "2026-10-06T04:36:27Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45,
+    "throughput": {
+      "age_seconds": 20,
+      "aggregate_tokens_per_second": 404.658,
+      "detail": "",
+      "mean_tokens_per_second": 74.937,
+      "observed_at": "2026-10-06T04:36:27Z",
+      "runs": 5.4,
+      "state": "measured"
+    },
+    "waiting": 0
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-10-06T05:08:08.393Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": true,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T043642669706-jtmm-current-signal-maps/manifest.md",
+  "member": "disposable-r-20261006T043642669706-jtmm-current-signal-maps",
+  "negative_control": {
+    "added_failure_ids": [
+      "tests/data/test_jt60sa_signal_maps.py::test_magnetics_binds_psrc_ip_in_amperes",
+      "tests/data/test_jt60sa_signal_maps.py::test_psrc_ip_peak_on_the_plasma_shot_exceeds_a_megaampere_scale"
+    ],
+    "baseline_failure_ids": [],
+    "comparison_arm": "baseline_suite",
+    "control_exit_status": 1,
+    "control_failure_ids": [
+      "tests/data/test_jt60sa_signal_maps.py::test_magnetics_binds_psrc_ip_in_amperes",
+      "tests/data/test_jt60sa_signal_maps.py::test_psrc_ip_peak_on_the_plasma_shot_exceeds_a_megaampere_scale"
+    ],
+    "declaration": "set the Ip rule's unit factor to 1.0; the test asserting peak absolute Ip on 101154 exceeds 1e4 A must then fail",
+    "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T043642669706-jtmm-current-signal-maps/negative-control.log",
+    "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T043642669706-jtmm-current-signal-maps/negative-control.log",
+    "test_paths": [
+      "tests/data/test_jt60sa_signal_maps.py"
+    ],
+    "verdict": "matched"
+  },
+  "no_commit": null,
+  "node": "jtmm-current-signal-maps",
+  "node_definition": {
+    "brief": "",
+    "brief_path": "",
+    "brief_sha256": "",
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 1851,
+          "cached_input_tokens": 598172,
+          "input_tokens": 600025,
+          "output_tokens": 719,
+          "reasoning_output_tokens": 315,
+          "total_tokens": 600744,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "a663ef24-6dba-4bb9-9ea5-3f1597c64253",
+      "session_id": "a663ef24-6dba-4bb9-9ea5-3f1597c64253"
+    },
+    "done_when": "This session runs inside the fleet SLURM allocation (SLURM_JOB_ID is set), so the gate runs in place: TMPDIR=/tmp UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD command uv run --no-sync pytest -p no:cacheprovider -n 4 tests/data/test_jt60sa_signal_maps.py tests/data/test_signal_map.py tests/data/test_virtual_zarr.py > <your log> 2>&1; echo EXIT=$?. It exits 0 with tests in the new file tests/data/test_jt60sa_signal_maps.py asserting: (1) load_packaged_signal_map loads jt-60sa pf_active, tf and magnetics maps from imas_ambix/data/maps/jt-60sa/pf_active.json, tf.json and magnetics.json, each naming the EDDB cache as its source dataset. (2) pf_active holds ten rules, one per coil CS1-CS4 and EF1-EF6, each reading the MMSYS channel named cur, then the coil, then the chain (for example curCS1LKAT or curEF6HiTe) in A into pf_active/coil/current/data at that coil's index in the converted store (/work/projects/imas_gpu/jt60sa/machine_description/OP1/pf_active.nc, coil names as the store carries them); the other chain of each coil is a blocked signal naming the rule it duplicates; the chain chosen as the rule rests on a measured agreement, and the test prints, for each coil on 101154, 101173 and 60033, the largest absolute HiTe minus LKAT difference relative to the largest absolute LKAT value. (3) tf binds cur1TFLKAT to tf/coil/current/data at the store's one coil (TF1), with cur2TFLKAT blocked as its duplicate after the same agreement measurement. (4) magnetics binds PSRC Ip (kA) to magnetics/ip/data in A with unit factor 1000. (5) VirtualZarrView.open over /work/projects/imas_gpu/jt60sa/101154.zarr, /work/projects/imas_gpu/jt60sa/101173.zarr and /work/projects/imas_gpu/jt60sa/60033.zarr reads every rule that has a source array on that shot as a finite one-dimensional array; on 101154 the peak absolute Ip exceeds 1e4 A; on 101173 and 60033, which hold no PSRC, Ip is reported missing rather than raising an unrelated error. Every channel_factor is 1.0 with evidence saying the sign is unvalidated until the convention section proves it. The evidence fragment records the agreement table, the chosen chains and the two FPPC coils as unbound because no EDDB current channel is known for them. The gate log header names the base revision and the delta against it. UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD command uv run --no-sync ruff check imas_ambix tests exits 0. No catalogue JSON under imas_ambix/data/machine_maps is modified. This node reads the cache read-only, never writes under /work/projects/imas_gpu/jt60sa, and never contacts the JT-60SA server (no ssh jt-60sa, no EDDB call).",
+    "estimated_hours": 2.0,
+    "goal": "bind the JT-60SA coil currents, TF current and plasma current as packaged signal maps over the EDDB cache",
+    "id": "jtmm-current-signal-maps",
+    "lane_declaration": {
+      "backend": null,
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-10-06T04:36:47Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 20,
+      "binding_observed": "unknown",
+      "detail": "",
+      "generating": 3,
+      "headroom": 12,
+      "mean_context": 126667,
+      "observed_at": "2026-10-06T04:36:27Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45,
+      "throughput": {
+        "age_seconds": 20,
+        "aggregate_tokens_per_second": 404.658,
+        "detail": "",
+        "mean_tokens_per_second": 74.937,
+        "observed_at": "2026-10-06T04:36:27Z",
+        "runs": 5.4,
+        "state": "measured"
+      },
+      "waiting": 0
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T043642669706-jtmm-current-signal-maps/manifest.md",
+    "negative_control": "set the Ip rule's unit factor to 1.0; the test asserting peak absolute Ip on 101154 exceeds 1e4 A must then fail",
+    "plan": "jt60sa-machine-map",
+    "requested_backend": null,
+    "requires_decisions": [],
+    "role": "implement",
+    "section": "§5",
+    "spec_level": "guided",
+    "time_budget": "60m",
+    "token_budget": null,
+    "write_paths": [
+      "imas_ambix/data/maps/jt-60sa",
+      "tests/data/test_jt60sa_signal_maps.py",
+      "docs/evidence/fragments/jt60sa-machine-map/jtmm-current-signal-maps.html",
+      "docs/figures/jt60sa-machine-map/jtmm-current-signal-maps"
+    ]
+  },
+  "orchestrator_lane_override": null,
+  "orientation_input_tokens": 5469693.0,
+  "outcome": "",
+  "pace": {
+    "allowance": null,
+    "bar": null,
+    "clocks": {
+      "five_hour": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "five_hour",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      },
+      "seven_day": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "seven_day",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      }
+    },
+    "group": null,
+    "hold": null,
+    "lane": "clive",
+    "member": null,
+    "node": "jtmm-current-signal-maps",
+    "policy": {
+      "drain_lead_hours": 12.0,
+      "pace_multiple": 1.1
+    },
+    "reason": "the lane declares no budget group, so no wallet paced it",
+    "recorded_at": "2026-10-06T04:36:49.807936+00:00",
+    "score": 0.6625,
+    "source": null,
+    "state": "unknown"
+  },
+  "picker_selection": {
+    "action": "route",
+    "answering_model": "typesafe/jev-1.13-20260917",
+    "backend": "clive",
+    "comment": "",
+    "confidence": 0.91,
+    "decision_source": "jev",
+    "effort": "high",
+    "excluded": [
+      {
+        "availability": "not-probed",
+        "backend": "native",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "in-harness",
+        "local": false,
+        "model": null,
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reasons": [
+          "in-harness-backend"
+        ],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      }
+    ],
+    "fallback_reason": null,
+    "family": "local",
+    "jev_latency_ms": 325.163,
+    "jev_model": "typesafe/jev-1.13",
+    "latency_ms": 795.849,
+    "model": "deepseek-v4.1-flash",
+    "offered": [
+      {
+        "availability": "unknown",
+        "backend": "claude",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-sonnet-5-5",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "claude-haiku",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-haiku-4-5-20251001",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "claude-opus",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-opus-5-5",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "served",
+        "backend": "clive",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": {
+          "admission_verdict": "open",
+          "running": 4,
+          "slots_state": "measured",
+          "stale": false,
+          "waiting": 0
+        },
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "local",
+        "local": true,
+        "model": "deepseek-v4.1-flash",
+        "outcomes": {
+          "failed": 4,
+          "not-run": 1,
+          "passed": 65,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": 39
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex",
+        "budget_reason": "recorded account-window reading is stale",
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-sol",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex-astra",
+        "budget_reason": "recorded account-window reading is stale",
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-astra",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex-luna",
+        "budget_reason": "recorded account-window reading is stale",
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-luna",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      }
+    ],
+    "probabilities": {
+      "claude": 0,
+      "claude-haiku": 0,
+      "claude-opus": 0,
+      "clive": 0.93,
+      "codex": 0,
+      "codex-astra": 0,
+      "codex-luna": 0,
+      "hold": 0.06999999999999999
+    },
+    "rendered_token_estimate": 1544,
+    "usage": {
+      "cost": 0.00015309,
+      "input_tokens": 3645,
+      "output_tokens": 89
+    }
+  },
+  "plan": "jt60sa-machine-map",
+  "plan_impl_at_dispatch": 0.625,
+  "plan_link": null,
+  "promoted_by": null,
+  "promoted_revision": "11dc5d02e98ac138452738647edc50ec0a394cea",
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "reviewed_base_sha": "a9518f2d4f885b640c0eee7a3fb4636746357a66",
+    "reviewed_head_sha": "11dc5d02e98ac138452738647edc50ec0a394cea",
+    "scores": {
+      "durability": 18,
+      "evidence": 18,
+      "fit": 19,
+      "goal_fidelity": 18,
+      "reuse": 20,
+      "scope_discipline": 20
+    },
+    "status": "parsed",
+    "total": 113
+  },
+  "review_tier": "none",
+  "role": "implement",
+  "route_mode": "explicit",
+  "run_id": "r-20261006T043642669706-jtmm-current-signal-maps",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§5",
+  "session": "a663ef24-6dba-4bb9-9ea5-3f1597c64253",
+  "session_harness": "claude",
+  "session_id": "0a94aafe-a499-4413-bc41-dedbc4826744",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "guided",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": null,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 10268702,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 230144",
+    "elapsed_seconds": 1864.45,
+    "generated_tokens": 92003,
+    "generation_seconds": 1757.827,
+    "input_budget_tokens": 230144,
+    "input_utilisation_pct": 85.4,
+    "machine_seconds": 106.623,
+    "peak_input_tokens": 196448,
+    "tokens_per_second": 52.34,
+    "wall_tokens_per_second": 49.35
+  },
+  "time_budget": "60m",
+  "tool_steps": 95.0,
+  "unplanned_reason": null,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": [
+      {
+        "backend": "clive",
+        "budget_overrun": false,
+        "budget_overrun_seconds": 0,
+        "budget_seconds": 3600,
+        "classification": "scoring",
+        "commits_beyond_base": 0,
+        "detail": "the worker manifest reports completion, but no independent review is attached; an independent review must be produced before promotion",
+        "effective_phase": "complete",
+        "elapsed_seconds": 1543,
+        "exit_record": {
+          "attempt": 2,
+          "ended_during": "working",
+          "exit_code": 0,
+          "exited_at": "2026-10-06T04:17:19Z",
+          "last_record_type": "result",
+          "launched_at": "2026-10-06T03:51:45Z",
+          "recorded_by": "supervisor",
+          "run_id": "r-20261006T031641983435-jtmm-catalogue-per-coil",
+          "signal": null,
+          "signal_name": null,
+          "stream_records_seen": 31242,
+          "worker_pid": 22083
+        },
+        "external_wait": null,
+        "fleet_verdict": {
+          "detail": "",
+          "lifting_condition": null,
+          "recovery": "review",
+          "recovery_classification": "scoring",
+          "stall_base_detail": null,
+          "stall_base_state": null,
+          "stall_pause_reason": null,
+          "stall_process_state": null,
+          "stall_quiet_seconds": null,
+          "stall_window_seconds": 900,
+          "state": "completed_unpromoted"
+        },
+        "interruption": null,
+        "lane_cause": null,
+        "lane_ended_at": "2026-10-06T04:17:19Z",
+        "lane_event": null,
+        "lifting_condition": null,
+        "liveness_proven": true,
+        "log_age_seconds": 1170,
+        "log_fresh": false,
+        "manifest_commits": [
+          "ef6895dd ecf209b2"
+        ],
+        "manifest_derived": false,
+        "manifest_digest": "8b163926cd19cdb9b981c384c18282fcbaad7b5e45e72f1276ac6bb21af668df",
+        "manifest_error": null,
+        "manifest_file_present": true,
+        "manifest_fresh": true,
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T031641983435-jtmm-catalogue-per-coil/manifest.md",
+        "manifest_present": true,
+        "manifest_reported_status": "complete",
+        "manifest_status": "complete",
+        "marker": null,
+        "needs_help_complete": null,
+        "next_action": "reckon crew dispatch --project imas-ambix --plan jt60sa-machine-map --section '§4' --role review --spec-level exact --node review-of-jtmm-catalogue-per-coil --goal 'attach an independent review to run r-20261006T031641983435-jtmm-catalogue-per-coil' --done-when 'the review for r-20261006T031641983435-jtmm-catalogue-per-coil stores a parsed record scoring all 6 dimensions in the range 0..20, recording the revision it read as reviewed_base_sha and reviewed_head_sha, and carrying added_failure_count and added_failure_ids derived from the reviewed run'\"'\"'s own baseline_suite and after_suite gate logs; the turn ends once that record is stored and the manifest reads complete' --write-path /home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20261006T031641983435-jtmm-catalogue-per-coil.json --write-path /home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20261006T031641983435-jtmm-catalogue-per-coil.at-ecf209b22be6d352b0fc7a36f2d28073149da2a0.json --time-budget 60m --session a663ef24-6dba-4bb9-9ea5-3f1597c64253 --allow-unreconciled-runs --local",
+        "node": "jtmm-catalogue-per-coil",
+        "phase": "complete",
+        "plan": "jt60sa-machine-map",
+        "process_alive": false,
+        "process_descendant_alive": null,
+        "project": "imas-ambix",
+        "recovery": "review",
+        "recovery_classification": "scoring",
+        "resets_at": null,
+        "review_error": null,
+        "review_present": false,
+        "review_status": null,
+        "run_id": "r-20261006T031641983435-jtmm-catalogue-per-coil",
+        "session": "a663ef24-6dba-4bb9-9ea5-3f1597c64253",
+        "stored_phase": "complete",
+        "terminal_age_seconds": 1190,
+        "terminal_at": "2026-10-06T04:16:58Z",
+        "wait_age_seconds": null,
+        "wait_condition_state": null,
+        "wait_key_defect": null,
+        "wait_observed": null,
+        "wait_overdue": null,
+        "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/a663ef24-6dba-4bb9-9ea5-3f1597c64253/jtmm-catalogue-per-coil"
+      }
+    ]
+  },
+  "wall_seconds": 1873,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-10-06T05:08:12Z",
+    "last_record_type": "result",
+    "launched_at": "2026-10-06T04:36:59Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20261006T043642669706-jtmm-current-signal-maps",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 22069,
+    "worker_pid": 230407
+  },
+  "worker_seconds": 1850,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
