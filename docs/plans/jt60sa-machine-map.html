@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.87">
-<meta name="plan-version" content="221">
+<meta name="plan-version" content="222">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -715,7 +715,12 @@
       read path gated by <code>evaluator_context</code>. The loader does not read SELENE itself:
       it adapts the <code>EfitLabels</code> returned by §6's SELENE loader, the only SELENE reader,
       reducing its psi, boundary and axis to the <code>EquilibriumGeometry</code> that seam
-      already returns. So no second, ungated read of a reference equilibrium is added, and no
+      already returns. That reduction has an owner. It goes through
+      <code>imas_ambix/worldmodel/equilibrium_labels.py</code> <code>build_geometry_from_arrays</code>,
+      the builder behind <code>load_equilibrium_geometry</code>, the seam's default loader, and is
+      not re-derived. The loader passes the record's grid, psi, axis and boundary arrays to that
+      builder, so the X-point handling, the boundary resampling at fixed poloidal angles and the
+      frame projection are the ones every other reference shares. So no second, ungated read of a reference equilibrium is added, and no
       second reader of SELENE either. <code>GeometryVerdict</code> scores axis, X-point and boundary RMS only. The
       whitened magnetics residual already has its owner in the spine benchmark
       (<code>imas_ambix/spine_bench/runner.py</code> <code>_magnetics_residual</code>, written into
