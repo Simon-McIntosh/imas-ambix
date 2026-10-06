@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.78">
-<meta name="plan-version" content="180">
+<meta name="plan-version" content="181">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -1312,6 +1312,9 @@
 </div>
 <div class="r-comment" data-section="s6" data-id="c-20261006T1700-s6-convention-entry-landed" data-who="reckon-build" data-when="2026-10-06T17:00:00Z">
     <div class="r-comment-body"><p>gate tests/challenge/test_convention.py passed (4 tests, exit 0) plus the loader's label test; jtmm-convention-entry merged as cd8e9a7a, review 112/120, no added failure. measure_convention(records, eligibility, *, shots) scores any loader's EfitLabels records; measure_diiid_convention delegates with DIIID_ELIGIBILITY, and EfitLabels gains lcfs_r_m and lcfs_z_m. The DIII-D records come through loader.load_labels rather than the load_shot this section names: both build the same EfitLabels through _build_labels, and load_shot's full ChallengeShot costs about 4 s a shot, which pushed the twenty-shot test past pytest's limit. Folded into the SELENE and FAME loader node: the dead getattr(labels, 'shot', ...) leaves every receipt row labelled record-N, so the loaders must carry each record's shot into the receipt.</p></div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-run-r-20261006T155941650378-jtmm-convention-entry" data-who="reckon-build" data-when="2026-10-06T16:42:36.783Z">
+    <div class="r-comment-body"><p>§6 convention entry generalised to measure_convention(records, eligibility, *, shots) over canonical EfitLabels records; measure_diiid_convention delegates with DIIID_ELIGIBILITY; EfitLabels gains lcfs_r_m/lcfs_z_m and frame-resampled magnetics scalars; pytest tests/challenge/test_convention.py 4 passed in 44 s and the loader label-only test passed.</p></div>
 </div>
 </section>
 </main>
