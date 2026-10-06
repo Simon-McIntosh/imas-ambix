@@ -916,8 +916,15 @@ def build_magnetics(factory, geo: GeoIn):
         out.position.r = float(probe.r)
         out.position.z = float(probe.z)
         if probe.angle is not None:
-            # geo.in carries degrees; the DD leaf is in radians.
-            out.poloidal_angle = float(np.deg2rad(probe.angle))
+            # geo.in states omega, the outward wall-normal angle in degrees,
+            # measured counter-clockwise from +R.  These are tangential probes:
+            # the DD leaf is the sensing-axis angle measured clockwise from +R,
+            # so the axis is the wall tangent at the probe, theta =
+            # (90 deg - omega) mod 360 deg, converted to radians.  The axis
+            # points along increasing clockwise poloidal angle (90 deg, down,
+            # at the outboard midplane); the direction along the axis is a
+            # declared convention, not a measurement.
+            out.poloidal_angle = float(np.deg2rad((90.0 - probe.angle) % 360.0))
     ids.flux_loop.resize(len(geo.flux_loops))
     for i, loop in enumerate(geo.flux_loops):
         out = ids.flux_loop[i]
