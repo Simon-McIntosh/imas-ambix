@@ -24,7 +24,7 @@
   <title>JT-60SA Geometry and Signal Figures | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="44">
+<meta name="plan-version" content="45">
 <meta name="plan-modified" content="2026-10-06">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s1b&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s2b&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;deferred&quot;}">
 <meta name="plan-commits" content="369a705d,b36a5d93,bd84e83d,438c4d16,c35e1783,6f251699">
@@ -77,11 +77,12 @@
       channel to draw, and at what factor, comes from the packaged JT-60SA signal maps where they bind
       it: <code>load_packaged_signal_map("jt-60sa", "pf_active")</code> serves the MMSYS coil-current
       chain chosen for each PF coil and <code>load_packaged_signal_map("jt-60sa", "magnetics")</code>
-      the PSRC plasma current, so the figure draws the served chain and applies its
-      <code>channel_factor</code> rather than choosing again. The engine path those maps feed
-      (<code>ZarrTransformEngine</code>, <code>VirtualZarrView</code>) returns values with no time base,
-      though its <code>VirtualArray.attrs</code> carry the bound channel's target unit, which the figure
-      takes from there; and the maps bind no flux loop. So <code>read_channel</code> supplies every
+      the PSRC plasma current, so the figure draws the served chain rather than choosing again, and takes
+      each bound channel's values from <code>VirtualZarrView</code>, whose <code>VirtualArray</code> applies
+      the map's whole source-to-target conversion (<code>channel_factor</code> and
+      <code>SignalRule.static_scale</code>), never scaling raw values itself. That engine path returns values
+      with no time base, though its <code>VirtualArray.attrs</code> carry the bound channel's target unit,
+      which the figure takes from there; and the maps bind no flux loop. So <code>read_channel</code> supplies every
       channel's time base, and the unbound flux-loop channels whole with their EDDB unit; the section corrects
       <code>eddb.py</code>'s module docstring, which says the cache needs no cache-specific reader, to name
       <code>read_channel</code> as the raw read beside the engine path.
