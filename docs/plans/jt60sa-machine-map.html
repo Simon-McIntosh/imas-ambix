@@ -26,8 +26,8 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
-<meta name="plan-impl" content="0.76">
-<meta name="plan-version" content="179">
+<meta name="plan-impl" content="0.78">
+<meta name="plan-version" content="180">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -1278,7 +1278,7 @@
     <div class="r-comment-body"><p>review of jtmm-signal-rule-test-constructors: stored a 6-dimension record (goal_fidelity 18, evidence 17, scope_discipline 19, durability 15, fit 18, reuse 20; total 107) for commit 170b6dba on base 26c3bb46; head gate 70 passed EXIT=0, base gate 5 failed EXIT=1 (all five the missing-field SignalRule TypeError), added_failure_count 0.</p></div>
 </div>
 <div class="r-comment" data-section="s5" data-id="c-run-r-20261006T162100616418-review-of-jtmm-signal-rule-validation-state" data-who="reckon-build" data-when="2026-10-06T16:46:51.436Z">
-    <div class="r-comment-body"><p>Reviewed r-20261006T155811489286-jtmm-signal-rule-validation-state (signal-rule validation state at head 26c3bb46 vs base 520cddc6): total 112/120 (goal_fidelity 20, evidence 15, scope_discipline 19, durability 18, fit 20, reuse 20); the goal is met and the refusal guards fire, no blocking findings, four follow-ons — the required field reddens five out-of-scope tests the run itself discloses, the done-when&#x27;s named ruff check is unrecorded, and the manifest carries no baseline_suite/after_suite arms.</p></div>
+    <div class="r-comment-body"><p>Reviewed r-20261006T155811489286-jtmm-signal-rule-validation-state (signal-rule validation state at head 26c3bb46 vs base 520cddc6): total 112/120 (goal_fidelity 20, evidence 15, scope_discipline 19, durability 18, fit 20, reuse 20); the goal is met and the refusal guards fire, no blocking findings, four follow-ons — the required field reddens five out-of-scope tests the run itself discloses, the done-when's named ruff check is unrecorded, and the manifest carries no baseline_suite/after_suite arms.</p></div>
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20261006T155904453024-jtmm-eqdb-entry-probe" data-who="reckon-build" data-when="2026-10-06T16:15:48.720Z">
     <div class="r-comment-body"><p>docs/evidence/fragments/jt60sa-machine-map/jtmm-eqdb-entry-probe.html — EQDB reader entry is the shipped eqread_pac Python package loading the prebuilt /analysis/lib/libFLEDDPIC.so via ctypes (GetTimeList/GetEqData/GetEqItem), no Fortran build; E101154 returns 105 FAME time slices (500-11500 ms) through it and 0 SELENE eqdbms slices; record schema (NSR/NSZ/NV, RG, ZG, PSI, PDS, FDS, RSU/ZSU, RAXIS/ZAXIS, TTCU, EQTIM, ...) quoted from the reader's NameList.</p></div>
@@ -1309,6 +1309,9 @@
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20261006T162734585007-review-of-jtmm-probe-axis-source" data-who="reckon-build" data-when="2026-10-06T16:39:59.868Z">
     <div class="r-comment-body"><p>none — no repo commit written (review node); the landing record is the parsed review at the declared review paths</p></div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-20261006T1700-s6-convention-entry-landed" data-who="reckon-build" data-when="2026-10-06T17:00:00Z">
+    <div class="r-comment-body"><p>gate tests/challenge/test_convention.py passed (4 tests, exit 0) plus the loader's label test; jtmm-convention-entry merged as cd8e9a7a, review 112/120, no added failure. measure_convention(records, eligibility, *, shots) scores any loader's EfitLabels records; measure_diiid_convention delegates with DIIID_ELIGIBILITY, and EfitLabels gains lcfs_r_m and lcfs_z_m. The DIII-D records come through loader.load_labels rather than the load_shot this section names: both build the same EfitLabels through _build_labels, and load_shot's full ChallengeShot costs about 4 s a shot, which pushed the twenty-shot test past pytest's limit. Folded into the SELENE and FAME loader node: the dead getattr(labels, 'shot', ...) leaves every receipt row labelled record-N, so the loaders must carry each record's shot into the receipt.</p></div>
 </div>
 </section>
 </main>
