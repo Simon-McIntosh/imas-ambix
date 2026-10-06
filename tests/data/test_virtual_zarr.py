@@ -25,6 +25,7 @@ def _map() -> SignalMap:
         channel_factor=1.0,
         standard_name=None,
         evidence="measured COCOS receipt",
+        validation_state="corpus-validated",
     )
     return SignalMap.create(
         schema_version=MAP_SCHEMA_VERSION,

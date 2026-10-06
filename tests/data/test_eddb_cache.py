@@ -199,6 +199,7 @@ def _signal_map(category: str, dname: str) -> SignalMap:
         channel_factor=1.0,
         standard_name=None,
         evidence="synthetic EDDB record for the cache gate",
+        validation_state="source-only",
     )
     return SignalMap.create(
         schema_version=MAP_SCHEMA_VERSION,
