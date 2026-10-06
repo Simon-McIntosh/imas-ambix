@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5">
 <meta name="plan-impl" content="0.625">
-<meta name="plan-version" content="115">
+<meta name="plan-version" content="116">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -1190,6 +1190,9 @@
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20261006T045440619240-jtmm-catalogue-probe-angles" data-who="reckon-build" data-when="2026-10-06T05:19:04.581Z">
     <div class="r-comment-body"><p>Blocked: binding magnetics/b_field_pol_probe/poloidal_angle for both maps needs engine support outside this node's scope (a pol_angle_like COCOS factor class, an unknown-unvalidated executable-binding emit rule, and an adapter that reads the emitted angle); the store carries finite angles for all 17 probes in both phases but no data-only binding can make them reach read_geometry_table.</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-run-r-20261006T052213831944-jtmm-catalogue-tf-rank" data-who="reckon-build" data-when="2026-10-06T05:29:39.379Z">
+    <div class="r-comment-body"><p>declare the JT-60SA TF coil name bindings at leaf rank — source_rank 1 -&gt; 0 on jt60sa-op1-tf-coil-coordinate-element and jt60sa-op2-tf-coil-coordinate-element in imas_ambix/data/machine_maps/jt-60sa.json (2 added, 2 deleted), because struct_array_entry TF1 consumes the only structural level on tf/coil/name; in-place gate 36 passed exit 0 where the base revision recorded 6 failed/30 passed with BindingTransformError &quot;source rank 1 cannot be reconstructed from leaf rank 0 and 0 structural arrays&quot;, and whole-tree ruff check imas_ambix tests exits 0.</p></div>
 </div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20261005T131209269722-review-of-jtmm-shotset-machine" data-who="reckon-build" data-when="2026-10-05T13:20:34.081Z">
     <div class="r-comment-body"><p>Independent review stored for run r-20261005T125917372067-jtmm-shotset-machine (base adb67e5f, head cbef27a7, plan §7): parsed record scoring all six dimensions in 0..20 -- goal_fidelity 19, evidence 18, scope_discipline 19, durability 19, fit 19, reuse 20, total 114 -- with added_failure_count 0 and added_failure_ids [].</p></div>
