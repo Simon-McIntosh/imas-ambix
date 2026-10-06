@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.89">
-<meta name="plan-version" content="232">
+<meta name="plan-version" content="233">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -433,6 +433,23 @@
       about 3 kA, so vessel eddy currents are a live candidate. It refits each channel with the
       operator's passive columns enabled, then moves each sensor along its declared position, and
       names the cause the fits support. The adjudication repair then applies both results.
+      The residual node (merge pending, fragment <code>jtmm-vacuum-residual-rca.html</code>) found the
+      passive-column refit null. Moving each sensor by up to 50 mm and flipping each probe axis do not
+      recover identity, yet a free per-coil fit reaches r 0.98 to 1.00 on all 44 channels. So the
+      defect is in the operator's per-coil response, not in the sensors. The drive topology says
+      where: its 268 connections each carry <code>turns_with_sign</code> 1.0, one per deck filament.
+      The declared 40 and 16 ampere-turns per ampere are therefore filament counts, not turn counts.
+      After applying them, the CS-dominated loop 7 is still over-predicted about 2.5 times while
+      EF-dominated channels come closer, a per-coil error rather than one global factor. The next
+      node, <code>jtmm-coil-turns-source</code>, is read-only. It reads each PF coil's turn count and
+      per-filament current weight from the SELENE deck
+      (<code>machine_description/source/EQSLE.DATA</code>) as <code>imas_ambix/data/selene_deck.py</code>
+      parses it. It compares them with the 1.0 per filament the converter writes and with the
+      effective ampere-turns a free per-coil fit of the measured vacuum response assigns each coil.
+      It names the correct per-filament turns with their source lines and writes one fragment and no
+      source. If the converter dropped the deck's turns, the repair goes to
+      <code>build_pf_active</code> and regenerates both stores, telling the pulse-ids plan's session
+      first, since its mint copies the description.
     </p>
     <p>
       The COCOS of the source is then identified rather than assumed. For the raw side,
@@ -1453,7 +1470,7 @@
     <div class="r-comment-body"><p>jtmm-vacuum-mismatch-rca found that the vacuum forward prediction omits the drive topology's ampere-turns per ampere: build_operator builds G_pf with turns=1 while the JT-60SA topology declares 40 A-turn/A (CS) and 16 (EF), so every channel is under-predicted by its driven coil's turn count; applying AT/A moves tracking channels from |slope| 6-19 to |slope| 0.4-1.0 (FL7 -14.281/-0.967 -&gt; -0.395/-0.989; MP5 18.820/0.959 -&gt; -1.032/-0.962 on E100595), recorded in docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-mismatch-rca.html.</p></div>
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20261006T195538875099-review-of-jtmm-vacuum-mismatch-rca" data-who="reckon-build" data-when="2026-10-06T20:03:14.180Z">
-    <div class="r-comment-body"><p>review of r-20261006T193616197643-jtmm-vacuum-mismatch-rca at head cbbd853e: parsed record total 98/120 (goal_fidelity 17, evidence 16, scope_discipline 20, durability 12, fit 18, reuse 15); the fragment&#x27;s numbers reconcile with rca_checks.log and the cause (missing ampere-turns-per-ampere) is verified against operator.py and jt-60sa.json, docked because the corrected slope/r table reports only four probes against the measure&#x27;s &quot;at least five loops and five probes&quot;</p></div>
+    <div class="r-comment-body"><p>review of r-20261006T193616197643-jtmm-vacuum-mismatch-rca at head cbbd853e: parsed record total 98/120 (goal_fidelity 17, evidence 16, scope_discipline 20, durability 12, fit 18, reuse 15); the fragment's numbers reconcile with rca_checks.log and the cause (missing ampere-turns-per-ampere) is verified against operator.py and jt-60sa.json, docked because the corrected slope/r table reports only four probes against the measure's "at least five loops and five probes"</p></div>
 </div>
 </section>
 </main>
