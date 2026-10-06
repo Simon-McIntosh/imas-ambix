@@ -5,7 +5,7 @@
       Node <code>jtfm-alambic-move</code> &middot;
       date 2026-10-07 &middot;
       plan <code>jt60sa-facility-mint</code> &sect;2 &middot;
-      commit <code>3ae87c26</code>
+      commit <code>d97a9302</code>
     </p>
   </header>
 
@@ -18,8 +18,13 @@
     pyyaml and nova-cocos. The engine's packaged roots and its lookup against
     ambix's <code>paths</code> module are replaced by bundle discovery over the
     <code>imas_alambic.bundles</code> entry-point group and
-    <code>IMAS_ALAMBIC_MAP_PATH</code>; ambix registers its
-    <code>imas_ambix/data</code> directory as its bundle. The mint retires from
-    <code>imas-ambix data</code> and becomes <code>imas-alambic mint</code>.
+    <code>IMAS_ALAMBIC_MAP_PATH</code>; ambix's entry-point target returns a
+    <code>MapBundle</code> whose named store roots come from
+    <code>imas_ambix.data.paths</code>, so a store-root path has one owner and
+    the directory layout has one description. The COCOS layer depends on the
+    standalone <code>nova_cocos</code> distribution, which installs on Python
+    3.12, so every engine module imports in a clean environment. The mint
+    retires from <code>imas-ambix data</code> and becomes
+    <code>imas-alambic mint</code>.
   </p>
 </section>
