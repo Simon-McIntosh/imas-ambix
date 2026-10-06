@@ -1,0 +1,92 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "derived from the reviewed run's own arms and two same-selection scratch arms. The reviewed run recorded no baseline_suite (its manifest states 'not run; ... the focused gate covers them') and its after_suite gate-head.log reads 39 passed with zero FAILED/ERROR ids. To supply the base arm the reviewed run omits, I ran the same two test files in scratch git-archive trees of both revisions: base 68dc917f 35 passed EXIT=0 (gate-base.log), head df24e884 39 passed EXIT=0 (gate-head.log). Head failing ids ([]) minus base failing ids ([]) is 0, so added_failure_count is 0 and added_failure_ids is []. The four additive tests in the delta contribute no failures.",
+  "after_suite": {
+    "command": "PYTHONPATH=<scratch> /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider tests/gs/test_operator.py tests/data/test_jt60sa_machine_map.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/tmp/reckon-crew-scratch/r-20261006T212522491973-review-of-jtmm-drive-topology-turns/gate-head.log",
+    "revision": "df24e8841f5c0bae64e762e7beb97429e16c782f"
+  },
+  "baseline_suite": {
+    "command": "PYTHONPATH=<scratch> /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider tests/gs/test_operator.py tests/data/test_jt60sa_machine_map.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/tmp/reckon-crew-scratch/r-20261006T212522491973-review-of-jtmm-drive-topology-turns/gate-base.log",
+    "revision": "68dc917fcd3465f57385d496fea910cc53e7e044"
+  },
+  "call_site_count": 2,
+  "call_sites": [
+    "imas_ambix/latent/data.py:335",
+    "imas_ambix/statespace/enkf_baseline.py:351"
+  ],
+  "completed_at": "2026-10-06T21:36:00.696Z",
+  "dispatched_at": "2026-10-06T21:25:32Z",
+  "findings": [
+    {
+      "category": "evidence-note",
+      "file": "imas_ambix/gs/operator.py",
+      "line": "702",
+      "severity": "follow-on",
+      "text": "follow-on: to_summary()'s si_denorm still reports amc_raw_units 'kA*turn' and amc_to_si_factor 1000 unconditionally, but a declared-drive column now scales by its own ampere-turns divided by the filament weight (JT-60SA CS 13.725, EF 8.875-22.0625, FPPC 3.833), so a units-audit reader who reads si_denorm alone is told a factor the operator no longer applies. The applied factor is reported separately as pf_current_scales in shapes()/to_summary, so the fact is recoverable; the global descriptor should either be qualified as the fallback-only conversion or accompanied by the per-column field. The node's own manifest records this follow-on."
+    },
+    {
+      "category": "integration-seam",
+      "file": "tests/gs/test_operator.py",
+      "line": "761",
+      "severity": "follow-on",
+      "text": "follow-on (coverage): the vacuum integration test reconstructs the per-circuit drive map in-test (`_jt60sa_drive_map`) and installs it with `replace(table, circuit_drives=...)`, overriding whatever `read_geometry_table` produced, so the production seam geometry_adapter._materialise_circuit_drives is never exercised by the gate. That seam computes the same ampere-turns totals (geometry_adapter.py:658-665, verified read-only), so the two agree today, but a divergence there would not be caught. Driving the test through the production geometry table would close it."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "diff": "read commit df24e884 against base 68dc917f commit by commit: jt-60sa.json 1072 lines (all `turns`), imas_ambix/gs/operator.py +68/-?, tests/gs/test_operator.py +143, tests/data/test_jt60sa_machine_map.py +76, the evidence fragment +26.",
+    "done_when": "the measure names the two test files and the fleet-compute-node run; the reviewed manifest records gate-head.log 39 passed EXIT=0, and I reproduced head 39 passed EXIT=0 and base 35 passed EXIT=0 in scratch git-archive arms of df24e884 and 68dc917f.",
+    "goal": "the node goal is that JT-60SA's predicted PF ampere-turns equal the SELENE deck's coil turn totals, and the drive topologies now declare 549/142/154/247/353/152/180/23 (reproduced read-only) which build_operator divides by each column's own summed filament weight.",
+    "manifest": "read; it names gate-head.log (39 passed EXIT=0), the two added catalogue/operator tests, the negative control (turns 1.0 -> red) and the fold-discriminator caveat, and every clause I checked reconciles with the artefacts.",
+    "write_paths": "the declared paths are the five files above; the commit touches exactly those and nothing else."
+  },
+  "justifications": {
+    "durability": "The change is guarded and the guards fire. Restoring turns 1.0 on the 536 connections reddens test_drive_topologies_declare_the_deck_ampere_turns_per_ampere (reproduced: cs1 40.0 vs 549.0, 1 failed EXIT=1). Replacing `ampere_turns / column_weight` with the pre-fix `ampere_turns` reddens the vacuum check (reproduced: slope -0.0278 vs -1.0+-0.2, 1 failed EXIT=1), so the scale guard is not vacuous. The synthetic division test test_assemble_pf_currents_divides_the_declared_weight_over_the_filaments and the cached-shot MAST-unchanged test are always-on.",
+    "evidence": "The gate named in the done-when ran and its result is recorded: the reviewed run's gate-head.log reads 39 passed EXIT=0, and I reproduced the same head arm in a scratch git-archive tree of df24e884 (39 passed EXIT=0). The declared totals re-derived read-only, and the vacuum check re-run and shown non-vacuous (mutation below). Two soft spots: the reviewed run recorded no baseline_suite arm (its manifest states 'not run'), and the strongest end-to-end scale guard is skipif on the E100595 cache being mounted, so its non-execution in a cache-less environment would be silent.",
+    "fit": "The dataclass field, the rewritten pf_current_scales docstring and the inline comment follow the module idiom and state the mechanism, and shapes() now reports pf_current_scales beside pf_amc_channels. One descriptor is left stale: to_summary()'s si_denorm (operator.py:702-703) still advertises amc_raw_units 'kA*turn' and amc_to_si_factor 1000 globally, which no longer describes a declared-drive column.",
+    "goal_fidelity": "The node goal is that JT-60SA's predicted PF ampere-turns equal the SELENE deck's coil turn totals. Reproduced read-only: sum(turns*current_weight*direction) over each drive topology's connections at df24e884 gives 549 for CS1-CS4, 142/154/247/353/152/180 for EF1-EF6 and 23 for each FPPC coil in BOTH phase stores, and build_operator sets each CS column's pf_current_scales to 549/40 = 13.725 (operator.py:948, `ampere_turns / column_weight`), so one ampere of MMSYS channel drives the winding total rather than the filament count.",
+    "reuse": "The change extends the existing owner rather than adding a second source of truth: the declared ampere-turns come from CircuitDrive.ampere_turns_per_ampere, which geometry_adapter._materialise_circuit_drives already computes from the topology connections (geometry_adapter.py:658-665), and the column weight from xmult_by_circuit; shapes()/to_summary are extended in place. A grep of imas_ambix/ across the delta finds no parallel scale table introduced.",
+    "scope_discipline": "git diff 68dc917f df24e884 touches exactly the five declared write paths (imas_ambix/data/machine_maps/jt-60sa.json, imas_ambix/gs/operator.py, tests/gs/test_operator.py, tests/data/test_jt60sa_machine_map.py, docs/evidence/fragments/jt60sa-machine-map/jtmm-drive-topology-turns.html). The catalogue diff is 1072 changed lines, all `turns` values (536 removed 1.0, 536 added), no other content: grep of the removed/added lines for anything but `turns` returns none."
+  },
+  "model": "deepseek-v4.1-flash",
+  "negative_control": {
+    "exit_status": 1,
+    "failing_ids": [
+      "tests/data/test_jt60sa_machine_map.py::test_drive_topologies_declare_the_deck_ampere_turns_per_ampere"
+    ],
+    "log_path": "/tmp/reckon-crew-scratch/r-20261006T212522491973-review-of-jtmm-drive-topology-turns/negctrl-catalogue.log",
+    "mutation": "restoring turns 1.0 on the 536 drive-topology connections (the reviewed node's own declared negative-control string)",
+    "note": "Reproduced independently: turns 1.0 on 536 connections reddens the deck-total assertion (cs1 40.0 against 549.0), 1 failed EXIT=1, matching the reviewed node's own negative-control.log. A second independent mutation (replace `ampere_turns / column_weight` with `ampere_turns`) reddens the vacuum check at slope -0.0278 vs -1.0+-0.2 (negctrl-operator.log, EXIT=1), showing the end-to-end scale guard is not vacuous."
+  },
+  "project": "imas-ambix",
+  "raw_text": "Independent review of node jtmm-drive-topology-turns (plan imas-ambix:jt60sa-machine-map section 6),\nread at head df24e8841f5c0bae64e762e7beb97429e16c782f on base 68dc917fcd3465f57385d496fea910cc53e7e044.\nRead: the diff of df24e884 against 68dc917f, the module around the change, both test files, the reviewed\nrun's own gate and negative-control logs. The reviewed commit is not an ancestor of main and sits on no\nref at review time (the merge is the coordinator's); a scratch git-archive tree of each revision was run\nto reproduce the arms, since the reviewed worktree is not writable by this node and its head is unmerged.\n\nVERDICT goal: the node goal is that JT-60SA's predicted PF ampere-turns equal the SELENE deck's coil turn totals, and the drive topologies now declare 549/142/154/247/353/152/180/23 (reproduced read-only) which build_operator divides by each column's own summed filament weight.\nVERDICT done_when: the measure names the two test files and the fleet-compute-node run; the reviewed manifest records gate-head.log 39 passed EXIT=0, and I reproduced head 39 passed EXIT=0 and base 35 passed EXIT=0 in scratch git-archive arms of df24e884 and 68dc917f.\nVERDICT write_paths: the declared paths are the five files above; the commit touches exactly those and nothing else.\nVERDICT manifest: read; it names gate-head.log (39 passed EXIT=0), the two added catalogue/operator tests, the negative control (turns 1.0 -> red) and the fold-discriminator caveat, and every clause I checked reconciles with the artefacts.\nVERDICT diff: read commit df24e884 against base 68dc917f commit by commit: jt-60sa.json 1072 lines (all `turns`), imas_ambix/gs/operator.py +68/-?, tests/gs/test_operator.py +143, tests/data/test_jt60sa_machine_map.py +76, the evidence fragment +26.\nCALL_SITES: imas_ambix/latent/data.py:335, imas_ambix/statespace/enkf_baseline.py:351\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: The node goal is that JT-60SA's predicted PF ampere-turns equal the SELENE deck's coil turn totals. Reproduced read-only: sum(turns*current_weight*direction) over each drive topology's connections at df24e884 gives 549 for CS1-CS4, 142/154/247/353/152/180 for EF1-EF6 and 23 for each FPPC coil in BOTH phase stores, and build_operator sets each CS column's pf_current_scales to 549/40 = 13.725 (operator.py:948, `ampere_turns / column_weight`), so one ampere of MMSYS channel drives the winding total rather than the filament count.\nSCORE evidence: 18\nJUSTIFICATION evidence: The gate named in the done-when ran and its result is recorded: the reviewed run's gate-head.log reads 39 passed EXIT=0, and I reproduced the same head arm in a scratch git-archive tree of df24e884 (39 passed EXIT=0). The declared totals re-derived read-only, and the vacuum check re-run and shown non-vacuous (mutation below). Two soft spots: the reviewed run recorded no baseline_suite arm (its manifest states 'not run'), and the strongest end-to-end scale guard is skipif on the E100595 cache being mounted, so its non-execution in a cache-less environment would be silent.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff 68dc917f df24e884 touches exactly the five declared write paths (imas_ambix/data/machine_maps/jt-60sa.json, imas_ambix/gs/operator.py, tests/gs/test_operator.py, tests/data/test_jt60sa_machine_map.py, docs/evidence/fragments/jt60sa-machine-map/jtmm-drive-topology-turns.html). The catalogue diff is 1072 changed lines, all `turns` values (536 removed 1.0, 536 added), no other content: grep of the removed/added lines for anything but `turns` returns none.\nSCORE durability: 18\nJUSTIFICATION durability: The change is guarded and the guards fire. Restoring turns 1.0 on the 536 connections reddens test_drive_topologies_declare_the_deck_ampere_turns_per_ampere (reproduced: cs1 40.0 vs 549.0, 1 failed EXIT=1). Replacing `ampere_turns / column_weight` with the pre-fix `ampere_turns` reddens the vacuum check (reproduced: slope -0.0278 vs -1.0+-0.2, 1 failed EXIT=1), so the scale guard is not vacuous. The synthetic division test test_assemble_pf_currents_divides_the_declared_weight_over_the_filaments and the cached-shot MAST-unchanged test are always-on.\nSCORE fit: 17\nJUSTIFICATION fit: The dataclass field, the rewritten pf_current_scales docstring and the inline comment follow the module idiom and state the mechanism, and shapes() now reports pf_current_scales beside pf_amc_channels. One descriptor is left stale: to_summary()'s si_denorm (operator.py:702-703) still advertises amc_raw_units 'kA*turn' and amc_to_si_factor 1000 globally, which no longer describes a declared-drive column.\nSCORE reuse: 19\nJUSTIFICATION reuse: The change extends the existing owner rather than adding a second source of truth: the declared ampere-turns come from CircuitDrive.ampere_turns_per_ampere, which geometry_adapter._materialise_circuit_drives already computes from the topology connections (geometry_adapter.py:658-665), and the column weight from xmult_by_circuit; shapes()/to_summary are extended in place. A grep of imas_ambix/ across the delta finds no parallel scale table introduced.\nFINDING imas_ambix/gs/operator.py:702 follow-on: follow-on: to_summary()'s si_denorm still reports amc_raw_units 'kA*turn' and amc_to_si_factor 1000 unconditionally, but a declared-drive column now scales by its own ampere-turns divided by the filament weight (JT-60SA CS 13.725, EF 8.875-22.0625, FPPC 3.833), so a units-audit reader who reads si_denorm alone is told a factor the operator no longer applies. The applied factor is reported separately as pf_current_scales in shapes()/to_summary, so the fact is recoverable; the global descriptor should either be qualified as the fallback-only conversion or accompanied by the per-column field. The node's own manifest records this follow-on.\nFINDING tests/gs/test_operator.py:761 follow-on: follow-on (coverage): the vacuum integration test reconstructs the per-circuit drive map in-test (`_jt60sa_drive_map`) and installs it with `replace(table, circuit_drives=...)`, overriding whatever `read_geometry_table` produced, so the production seam geometry_adapter._materialise_circuit_drives is never exercised by the gate. That seam computes the same ampere-turns totals (geometry_adapter.py:658-665, verified read-only), so the two agree today, but a divergence there would not be caught. Driving the test through the production geometry table would close it.",
+  "review_run_id": "r-20261006T212522491973-review-of-jtmm-drive-topology-turns",
+  "reviewed_base_sha": "68dc917fcd3465f57385d496fea910cc53e7e044",
+  "reviewed_head_sha": "df24e8841f5c0bae64e762e7beb97429e16c782f",
+  "reviewed_run_id": "r-20261006T210216083123-jtmm-drive-topology-turns",
+  "reviewer": "review-of-jtmm-drive-topology-turns",
+  "scores": {
+    "durability": 18,
+    "evidence": 18,
+    "fit": 17,
+    "goal_fidelity": 19,
+    "reuse": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "timestamp": "2026-10-06T21:35:12.906007+00:00",
+  "total": 111
+}
