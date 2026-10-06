@@ -1,0 +1,126 @@
+<section id="jtfig-palette-candidates" data-node="jtfig-palette-candidates">
+  <h2 id="jtfig-palette-candidates-heading">Candidate colour-role palettes on the OP1/OP2 cross-section</h2>
+
+  <p>
+    Three candidate palettes for the JT-60SA geometry and signal figures, each
+    drawn on the real OP1 and OP2 cross-section read from the converted
+    description store (<code>load_packaged_machine_map("jt-60sa")</code> joined
+    with <code>description_store_root_path()</code>, IDS read with
+    <code>imas.DBEntry</code>). The reader and the one cross-section function
+    live in <code>scripts/figures_jt60sa_geometry.py</code>; the module
+    <code>imas_ambix/plot_style.py</code> holds the named colour roles. The two
+    vessel roles are lightness steps of one hue (the OP1 and OP2 vessels are the
+    same structure at the two phase geometries); the remaining four roles take
+    distinct, non-red hues — red stays reserved for a limit being broken. The
+    lead chooses one palette before later figure sections draw with it.
+  </p>
+
+  <p>
+    Every candidate was checked with
+    <code>node /home/ITER/mcintos/.cache/dataviz/validate_palette.js &lt;hex-list&gt; --mode light --pairs all</code>.
+    All three report <strong>ALL CHECKS PASS</strong>, including the contrast
+    line: every one of the six roles holds at least 3:1 against the white
+    surface. Each family carries a direct label in its own colour, so identity
+    never rests on colour alone.
+  </p>
+
+  <p>
+    The script runs the checker itself. For each candidate it builds the hex
+    list from the same <code>CANDIDATES</code> role colours the figure draws
+    with, runs the validator through a subprocess, records the output to
+    <code>docs/figures/jt60sa-palette/validate_&lt;candidate&gt;.txt</code>, and
+    exits non-zero if a candidate's output lacks <strong>ALL CHECKS PASS</strong>
+    or contains <strong>[FAIL]</strong>. The verdict blocks below are the
+    recorded file contents, so they cannot drift from the drawn colours.
+  </p>
+
+  <h3 id="jtfig-palette-candidates-a">Candidate A — blue vessel pair, green wall, teal probes</h3>
+  <figure id="jtfig-palette-candidates-fig-a">
+    <img src="/imas-ambix/figures/jt60sa-palette/cross_section_A-blue-vessel.png"
+         alt="JT-60SA OP1 and OP2 cross-section, candidate A palette">
+    <figcaption>
+      OP1 (left) and OP2 (right). PF coil packs in magenta rectangles, the
+      phase's vessel in blue (OP1 light, OP2 dark), the wall outline in green,
+      flux loops as open circles and pickup probes as filled squares. Each
+      family label sits in the empty margin beside its family, joined by a thin
+      leader in the series colour.
+    </figcaption>
+  </figure>
+  <table id="jtfig-palette-candidates-table-a">
+    <caption>Candidate A role-to-colour</caption>
+    <tr><th>role</th><th>hex</th></tr>
+    <tr><td>pf_coils</td><td>#872b6d</td></tr>
+    <tr><td>vessel_op1</td><td>#588cfe</td></tr>
+    <tr><td>vessel_op2</td><td>#345dba</td></tr>
+    <tr><td>wall</td><td>#016900</td></tr>
+    <tr><td>flux_loops</td><td>#a08d00</td></tr>
+    <tr><td>pickup_probes</td><td>#1e9ea7</td></tr>
+  </table>
+  <pre id="jtfig-palette-candidates-verdict-a">[PASS] Lightness band         all 6 inside L 0.43-0.77
+[PASS] Chroma floor           all 6 >= 0.1
+[PASS] CVD separation         worst all-pairs #016900&lt;-&gt;#872b6d dE 12.2 (deutan) . tritan 3.6
+[PASS] Normal-vision floor    worst all-pairs #1e9ea7&lt;-&gt;#588cfe dE 15.9 (normal)
+[PASS] Contrast vs surface    all 6 >= 3:1
+-> ALL CHECKS PASS</pre>
+
+  <h3 id="jtfig-palette-candidates-b">Candidate B — green vessel pair, violet wall, teal probes</h3>
+  <figure id="jtfig-palette-candidates-fig-b">
+    <img src="/imas-ambix/figures/jt60sa-palette/cross_section_B-green-vessel.png"
+         alt="JT-60SA OP1 and OP2 cross-section, candidate B palette">
+    <figcaption>
+      Same family layout; the vessel pair takes a green hue, the PF coils a
+      blue, the wall a violet and the flux loops a plum — a different hue family
+      per role set, not a nudge of candidate A.
+    </figcaption>
+  </figure>
+  <table id="jtfig-palette-candidates-table-b">
+    <caption>Candidate B role-to-colour</caption>
+    <tr><th>role</th><th>hex</th></tr>
+    <tr><td>pf_coils</td><td>#1657af</td></tr>
+    <tr><td>vessel_op1</td><td>#52a338</td></tr>
+    <tr><td>vessel_op2</td><td>#006d00</td></tr>
+    <tr><td>wall</td><td>#9c6fe6</td></tr>
+    <tr><td>flux_loops</td><td>#802777</td></tr>
+    <tr><td>pickup_probes</td><td>#009fb0</td></tr>
+  </table>
+  <pre id="jtfig-palette-candidates-verdict-b">[PASS] Lightness band         all 6 inside L 0.43-0.77
+[PASS] Chroma floor           all 6 >= 0.1
+[PASS] CVD separation         worst all-pairs #009fb0&lt;-&gt;#9c6fe6 dE 9.4 (deutan) . tritan 4.1
+[PASS] Normal-vision floor    worst all-pairs #009fb0&lt;-&gt;#52a338 dE 16.2 (normal)
+[PASS] Contrast vs surface    all 6 >= 3:1
+-> ALL CHECKS PASS</pre>
+
+  <h3 id="jtfig-palette-candidates-c">Candidate C — gold vessel pair, green wall, violet probes</h3>
+  <figure id="jtfig-palette-candidates-fig-c">
+    <img src="/imas-ambix/figures/jt60sa-palette/cross_section_C-gold-vessel.png"
+         alt="JT-60SA OP1 and OP2 cross-section, candidate C palette">
+    <figcaption>
+      The vessel pair takes a gold hue, the PF coils a blue, the wall a green
+      and the probes a violet, with pink flux loops — the warmest of the three.
+    </figcaption>
+  </figure>
+  <table id="jtfig-palette-candidates-table-c">
+    <caption>Candidate C role-to-colour</caption>
+    <tr><th>role</th><th>hex</th></tr>
+    <tr><td>pf_coils</td><td>#418af4</td></tr>
+    <tr><td>vessel_op1</td><td>#a89207</td></tr>
+    <tr><td>vessel_op2</td><td>#7e5200</td></tr>
+    <tr><td>wall</td><td>#2d854b</td></tr>
+    <tr><td>flux_loops</td><td>#b16698</td></tr>
+    <tr><td>pickup_probes</td><td>#7033a4</td></tr>
+    <tr><td>reference / limit / model</td><td>#52514e / #8a8a8a / #0b0b0b</td></tr>
+  </table>
+  <pre id="jtfig-palette-candidates-verdict-c">[PASS] Lightness band         all 6 inside L 0.43-0.77
+[PASS] Chroma floor           all 6 >= 0.1
+[PASS] CVD separation         worst all-pairs #2d854b&lt;-&gt;#7e5200 dE 8.2 (deutan) . tritan 7.7
+[PASS] Normal-vision floor    worst all-pairs #2d854b&lt;-&gt;#7e5200 dE 15.9 (normal)
+[PASS] Contrast vs surface    all 6 >= 3:1
+-> ALL CHECKS PASS</pre>
+
+  <p id="jtfig-palette-candidates-note">
+    Marker cues: flux loops are open circles and pickup probes filled squares, so
+    the two marker families are separated by shape as well as hue. The worst
+    colour-blind pair in each candidate is at or above the dE floor of 8, so no
+    candidate needs an additional dash cue.
+  </p>
+</section>
