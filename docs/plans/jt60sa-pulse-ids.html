@@ -26,7 +26,7 @@
   <title>JT-60SA Pulse IDSs and Equilibrium Animation | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="13">
+<meta name="plan-version" content="14">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -200,6 +200,9 @@
 </div>
 <div class="r-comment" data-section="s1" data-id="c-20261006-jtpi-s1-landed" data-who="reckon-build" data-when="2026-10-06T17:05:00Z">
     <div class="r-comment-body"><p>gate pulse-mint passed; section s1 closed. Three notes for whoever extends the mint. <code>mint_pulse</code> takes <code>machine</code> but reads the cache from <code>JT60SA_ROOT</code>; jt60sa-facility-mint §2 or §6 moves the function into <code>imas_alambic</code> and must resolve the cache root there, since the facility's cache lives elsewhere. A multi-channel source array would keep only its first row; every rule today serves one channel. The static-identity test also accepts a diff at an ancestor of a written leaf, so a change in a struct array's length would pass it; the mint never resizes one except <code>magnetics/ip</code>, which the description leaves empty.</p></div>
+</div>
+<div class="r-comment" data-section="s1" data-id="c-run-r-20261006T164055420259-jtpi-mint-e101154" data-who="reckon-build" data-when="2026-10-06T16:52:42.834Z">
+    <div class="r-comment-body"><p>E101154 minted into /work/projects/imas_gpu/jt60sa/ids/101154 by `imas-ambix data mint --machine jt-60sa --shot 101154` (exit 0); the five IDSs read back at DD 4.1.1 with non-empty leaf counts pf_active 1927, pf_passive 848, wall 11, magnetics 155, tf 28; the 10 served coils carry current, magnetics/ip peaks at 0.9986 MA, and the minted probe angles equal OP1 (MP1 1.5659 rad = 89.72 deg), the superseded store mismatching at 0.28 deg.</p></div>
 </div>
 <div class="r-comment" data-section="s3" data-id="c-20261006-imas-ink-vessel-shipped" data-who="reckon-build" data-when="2026-10-06T12:30:00Z">
     <div class="r-comment-body"><p>The vessel need is met: <code>imas-ink:geometry-figure-vessel-units</code> shipped (imas-ink main, commits <code>94bd8f3</code>, <code>aca351d</code>, <code>db2ee9f</code>, <code>16fd030</code>, verified on <code>origin/main</code>). <code>imas_ink.extract.extract_vessel_shells</code> reads the annular <code>outline_inner</code> and <code>outline_outer</code>, and <code>MachineGeometry.vessel_shells</code> is drawn by both wall renderers. What remains of this section is the <code>animation-sensors</code> decision and, if it is to omit them, the sensor pass-through in <code>animate_pulse</code>.</p></div>
