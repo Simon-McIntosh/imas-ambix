@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="jt60sa-geometry-and-signal-figures">
   <meta name="plan-title" content="JT-60SA Geometry and Signal Figures">
   <meta name="plan-summary" content="Draw the JT-60SA machine geometry the SELENE decks gave us, OP1 against OP2, and the EDDB signals already cached, so the map&#x27;s evidence can be read at a glance">
-  <meta name="plan-status" content="draft">
+  <meta name="plan-status" content="shipped">
   <meta name="plan-roi" content="mid">
   <meta name="plan-effort-hours" content="6.0">
   <meta name="plan-capability-version" content="1.0">
@@ -24,9 +24,9 @@
   <title>JT-60SA Geometry and Signal Figures | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="48">
+<meta name="plan-version" content="49">
 <meta name="plan-modified" content="2026-10-06">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s1b&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s2b&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;deferred&quot;}">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s1b&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s2b&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="369a705d,b36a5d93,bd84e83d,438c4d16,c35e1783,6f251699">
 </head>
 <body>
@@ -59,54 +59,12 @@
   <p class="landed-summary">OP1 and OP2 drawn through imas-ink with no labels (merge <code>6f25169</code>):<br><img src="/imas-ambix/figures/jt60sa-geometry/op1-op2-side-by-side.svg" alt="JT-60SA OP1 and OP2 cross-sections" style="max-width:100%"><br><img src="/imas-ambix/figures/jt60sa-geometry/op1-op2-overlay.svg" alt="OP1 dashed over OP2" style="max-width:60%"> <a href="s2">full record</a></p>
 </section>
 
+    <section class="section-landed">
+  <header><span class="badge badge-shipped">&#10003; landed 2026-10-06</span>
     <h2 id="s3">§3 — Signals: the cached pulses</h2>
-<section data-reckon="section" data-id="s3" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
-    <p>
-      Three figures, rendered by imas-ink's <code>time_trace_figure_mpl</code> from
-      <code>imas_ink.components.TimeSeries</code> panels, in imas-ink's default style with nothing
-      added to what it draws, from a short script, <code>scripts/figures_jt60sa_signals.py</code>, that
-      draws nothing itself and holds no style constant. Each panel's y-axis names its channel and unit
-      through the <code>TimeSeries</code> <code>ylabel</code> and <code>units</code>, and no series carries a
-      <code>label</code>, so no legend or in-panel label is drawn; long traces are drawn at display resolution
-      and the shared time axis is labelled once, by imas-ink's <code>trace-figure-display-resolution</code>
-      plan, which keeps each SVG small. Each channel is
-      read through a <code>read_channel</code> this section adds to <code>imas_ambix/data/eddb.py</code>
-      beside <code>write_channel</code>, returning the same <code>ChannelRecord</code> (data, time base and
-      the <code>UNIT_ATTR</code> unit) from <code>channel_path</code> and <code>channel_time_path</code>, so
-      the cache keeps one owner for its read as for its write; the unit is named on the axis. Which
-      channel to draw, and at what factor, comes from the packaged JT-60SA signal maps where they bind
-      it: <code>load_packaged_signal_map("jt-60sa", "pf_active")</code> serves the MMSYS coil-current
-      chain chosen for each PF coil and <code>load_packaged_signal_map("jt-60sa", "magnetics")</code>
-      the PSRC plasma current, so the figure draws the served chain rather than choosing again, and takes
-      each bound channel's values from <code>VirtualZarrView</code>, whose <code>VirtualArray</code> applies
-      the map's whole source-to-target conversion (<code>channel_factor</code> and
-      <code>SignalRule.static_scale</code>), never scaling raw values itself. That engine path returns values
-      with no time base, though its <code>VirtualArray.attrs</code> carry the bound channel's target unit,
-      which the figure takes from there; and the maps bind no flux loop. So <code>read_channel</code> supplies every
-      channel's time base, and the unbound flux-loop channels whole with their EDDB unit; the section corrects
-      <code>eddb.py</code>'s module docstring, which says the cache needs no cache-specific reader, to name
-      <code>read_channel</code> as the raw read beside the engine path.
-      <code>read_channel</code> is the one public name the section adds to <code>eddb</code>, the read
-      counterpart nothing there provides, and it retires nothing; a round-trip test in
-      <code>tests/data/test_eddb_cache.py</code> writes a channel and reads it back. For E101154, the PF coil
-      currents from MMSYS against time, and the plasma current from PSRC. Also for E101154, the
-      flux loops, one panel per index holding the processed PSRC <code>magFluxLp</code> channel and the
-      raw MDAC <code>magFlxLp</code> channel of the same index, the raw one in imas-ink's reference line
-      style, through the multi-series panel imas-ink's <code>geometry-figure-vessel-units</code> plan
-      adds (its §3), which is the raw-to-processed
-      correspondence the map's census must settle, drawn rather than assumed. For C060033, the coil
-      currents of the no-plasma commissioning record, the input the map's convention work uses.
-      Where a channel's time base or unit differs from its neighbours, the figure says so rather than
-      rescaling silently. The signals script is a second caller beside the geometry script because
-      it reads the EDDB cache, not the description store; it adds one script with no command-line
-      option and no public name, and retires nothing.
-    </p>
-    <p>
-      Done-when: the three figures are written as one SVG each, with no PNG twin, under
-      <code>docs/figures/jt60sa-signals/</code> and embedded in the node's evidence fragment, which the
-      landing carries into this plan, with a project-absolute <code>src</code> and a caption naming the shot, the channels and their units; the script reads
-      only the cache and prints, per figure, the channel names and units it drew.
-    </p>
+<section data-reckon="section" data-id="s3" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="done" data-links=""></section></header>
+  <p class="landed-summary">The cached pulses, drawn through imas-ink (merge <code>3ded16b1</code>). Each panel's y-axis names its EDDB channel and unit, there are no legends, and the time axis is labelled once. Bound values come through the signal maps' <code>VirtualZarrView</code>; time bases and flux loops come from the new <code>read_channel</code>, which refuses a half-written channel. Review scored 110/120.<br><img src="/imas-ambix/figures/jt60sa-signals/jt60sa-E101154-pf-coil-currents.svg" alt="E101154 PF coil currents and plasma current" style="max-width:100%"><br>E101154: the ten PF coil currents on the MMSYS chains the pf_active map serves (curCS1LKAT … curEF5LKAT, and curEF6HiTe for EF6) in A, and the PSRC plasma current Ip in A, from the magnetics map.<br><img src="/imas-ambix/figures/jt60sa-signals/jt60sa-E101154-flux-loops.svg" alt="E101154 flux loops, processed and raw" style="max-width:100%"><br>E101154: one panel per flux loop, with the processed PSRC magFluxLp channel solid and the raw MDAC magFlxLp channel of the same index dashed, both in Wb. The raw channel runs to about 70 s, where the processed one ends near 12 s.<br><img src="/imas-ambix/figures/jt60sa-signals/jt60sa-C060033-pf-coil-currents.svg" alt="C060033 PF coil currents" style="max-width:100%"><br>C060033: the PF coil currents of the no-plasma commissioning record, on the same chains, in A. <a href="s3">full record</a></p>
+</section>
 
     
 
@@ -117,33 +75,12 @@
   <p class="landed-summary">Retired <code>plot_style.py</code>, the hand-drawn geometry script and the palette figures (merge <code>438c4d16</code>); review 20/18/20/17/20/19, no findings. <a href="s1b">full record</a></p>
 </section>
 
+    <section class="section-landed">
+  <header><span class="badge badge-shipped">&#10003; landed 2026-10-06</span>
     <h2 id="s4">§4 — imas-ink draws the wall&#x27;s vessel units</h2>
-<section data-reckon="section" data-id="s4" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="deferred" data-links=""></section>
-<p>
-      This work moved to imas-ink's own plan, <code>imas-ink:geometry-figure-vessel-units</code>, because a
-      project's work is written in its own repository; §2 waits on that plan, and this section is kept
-      only as the record of why. imas-ink's <code>extract_geometry</code> gathers only
-      <code>wall.description_2d.limiter</code> units
-      (<code>imas_ink/extract.py</code>, <code>_select_mobile_unit</code>), so a vacuum vessel written to
-      <code>description_2d.vessel</code> never reaches <code>geometry_figure_mpl</code>. The machine map
-      now writes JT-60SA's vessel there, as an annular unit built from the inner and outer VV skins of
-      <code>coil_vv_OP{1,2}.dat</code>. The lead ruled on 2026-10-06 that any drawing the figures lack
-      is added to imas-ink, not ambix, so this section extends imas-ink in its own repository through
-      the vessel owner it already has: <code>extract_vessel_shells</code>
-      (<code>imas_ink/three_d/walls.py:151</code>) and its <code>VesselShell</code> type. That owner
-      reads an annular unit's <code>centreline</code> (with <code>thickness</code>) or a plain
-      <code>outline</code>, but not <code>outline_inner</code> and <code>outline_outer</code>, which is
-      what the JT-60SA store writes (two closed 51-point skins, the same in both phases); the section
-      adds that reading, one <code>VesselShell</code> per skin, ahead of the centreline path.
-      <code>extract_geometry</code> then carries those shells on <code>MachineGeometry</code> in a field
-      typed with the existing <code>VesselShell</code>, and <code>geometry_figure_mpl</code> draws them in
-      imas-ink's ink style beside the limiter, adding a style constant only if the vessel needs a
-      weight distinct from the wall. The 2D geometry has no vessel representation today, so the field
-      retires nothing; it is the one public addition, reusing the type the 3D path already exports.
-    </p>
-    <p>
-      The done-when and its test live in that plan.
-    </p>
+<section data-reckon="section" data-id="s4" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="done" data-links=""></section></header>
+  <p class="landed-summary">Moved to imas-ink: the vessel units are drawn by imas-ink's <code>extract_vessel_shells</code> and <code>MachineGeometry.vessel_shells</code>, which shipped in imas-ink's plan geometry-figure-vessel-units and which §2's geometry figures draw. <a href="s4">full record</a></p>
+</section>
 
     <section class="section-landed">
   <header><span class="badge badge-shipped">&#10003; landed 2026-10-06</span>
@@ -166,10 +103,11 @@
     <pre class="r-fu-prompt">/reckon-build jt60sa-geometry-and-signal-figures §3</pre>
     <p class="r-fu-outcome">superseded by f-jtfig-003: §1b, §2 and §2b landed; §4 moved to imas-ink, whose geometry-figure-vessel-units plan shipped; only §3 remains</p>
     </article>
-<article class="r-fu" data-id="f-jtfig-003" data-status="open" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-written-by="reckon-build" data-written-at="2026-10-06" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-jtfig-003" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-written-by="reckon-build" data-written-at="2026-10-06" data-recommends-skill="" data-resolved-at="2026-10-06T14:04:31+00:00" data-resolved-by="reckon-build">
     <h4 class="r-fu-title">Re-render the JT-60SA signal figures once imas-ink draws traces at display resolution</h4>
     <div class="r-fu-body"><p>§3 resumes after the imas-ink plan trace-figure-display-resolution ships. It then drops the legends, names each channel and unit on the y-axis, makes <code>read_channel</code> refuse a half-written channel, and writes one SVG per figure.</p></div>
     <pre class="r-fu-prompt">/reckon-build jt60sa-geometry-and-signal-figures §3</pre>
+    <p class="r-fu-outcome">done — no followup: §3 landed (merge 3ded16b1) with the three signal figures embedded; every section is landed, retired or moved to imas-ink</p>
     </article>
 </section>
 
