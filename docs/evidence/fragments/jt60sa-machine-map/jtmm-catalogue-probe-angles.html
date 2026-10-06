@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+  <meta name="reckon-type" content="doc">
+  <title>Probe-angle catalogue binding — blocked</title>
+</head>
+<body>
+<main class="plan-doc">
+  <h2 id="jtmm-catalogue-probe-angles">Probe-angle catalogue binding — blocked by missing engine support</h2>
+  <p>
+    <strong>Outcome: blocked.</strong> Binding
+    <code>magnetics/b_field_pol_probe/poloidal_angle</code> in
+    <code>imas_ambix/data/machine_maps/jt-60sa.json</code> cannot make
+    <code>read_geometry_table</code>/<code>geometry_table_from_description</code>
+    return a finite angle through data alone. Two independent refusals in the
+    netCDF description path and one hard-coded NaN in the adapter all require
+    code changes under <code>imas_ambix</code>, which this node's done-when
+    forbids and its exclusive write scope does not grant. No catalogue or test
+    change was committed, because any executable binding to this leaf raises and
+    would break every JT-60SA description transform.
+  </p>
+
+  <h3 id="jtmm-catalogue-probe-angles-gaps">The three gaps, each reproduced</h3>
+  <ol>
+    <li>
+      <strong>Unsupported COCOS transformation.</strong> The DD marks
+      <code>magnetics/b_field_pol_probe/poloidal_angle</code> with
+      <code>cocos_label_transformation = "pol_angle_like"</code>.
+      <code>transform_engine._apply_cocos_convention</code> resolves that label
+      and calls <code>cocos.canonical_factor("pol_angle_like", source_cocos=…)</code>,
+      which delegates to <code>nova.io.cocos.transform_factor</code>. nova's
+      <code>TRANSFORMATIONS</code> is <code>{psi_like, b0_like, dodpsi_like,
+      q_like, ip_like, one_like}</code> — no angle class — so the call raises and
+      the engine reports
+      <code>BindingTransformError: targets unsupported COCOS transformation
+      'pol_angle_like'</code> for every source COCOS, including the target 17.
+    </li>
+    <li>
+      <strong>Unvalidated sign refused.</strong>
+      <code>transform_engine._apply_sign_convention</code> accepts only
+      <code>identity</code>, <code>negate</code> and <code>not-applicable</code>;
+      the plan-mandated <code>sign_convention: unknown-unvalidated</code> raises
+      <code>BindingTransformError: has unresolved sign convention
+      'unknown-unvalidated'</code> (recorded defect from run
+      <code>3a1ebf28</code>, whose value the schema and DIII-D still declare).
+    </li>
+    <li>
+      <strong>The adapter never reads the angle.</strong>
+      <code>geometry_adapter._b_probes</code> builds each <code>BProbe</code> with
+      <code>angle_deg=float("nan")</code> and flags
+      <code>"poloidal angle is absent from the emitted description"</code>,
+      regardless of any <code>poloidal_angle</code> array in the description. So
+      even a successfully emitted angle would not reach
+      <code>geometry_table_from_description</code>. The only angle fill today is
+      <code>description_reader._supply_declared_probe_angles</code>, applied only
+      when <code>probe_angle_source == "acquisition-address"</code> (MAST), and
+      <code>probe_angle_source == "description"</code> (JT-60SA) applies nothing.
+    </li>
+  </ol>
+
+  <h3 id="jtmm-catalogue-probe-angles-repro">Reproduction</h3>
+  <p>
+    A scratch catalogue (in <code>$TMPDIR</code>, never the repository) added the
+    probe-angle binding to both phases and set <code>sign_convention</code> to
+    each candidate value. <code>transform_machine_description(catalog, 101173,
+    "netcdf", JT60SA_DESCRIPTION_DIR)</code> returned:
+  </p>
+  <pre>unknown-unvalidated EXC BindingTransformError binding
+'jt60sa-op1-magnetics-b-field-pol-probe-angle' has unresolved sign convention
+'unknown-unvalidated'
+identity EXC BindingTransformError binding
+'jt60sa-op1-magnetics-b-field-pol-probe-angle' targets COCOS-dependent DD path
+'magnetics/b_field_pol_probe/poloidal_angle' …</pre>
+  <p>
+    The store's <code>poloidal_angle</code> values were read and are finite for all
+    17 probes (MP1..MP17) in both phases; the blocker is the emit path, not the
+    data.
+  </p>
+
+  <h3 id="jtmm-catalogue-probe-angles-adjacent">Adjacent pre-existing regression</h3>
+  <p>
+    The gate is red at this base for an unrelated reason: commit
+    <code>6172d751</code> made a selecting binding's <code>source_rank</code>
+    count only struct levels <em>below</em> the consumed selector level, but the
+    catalogue's two <code>tf-coil-coordinate-element</code> bindings still declare
+    <code>source_rank: 1</code> while <code>tf/coil/name</code> has no struct level
+    below the selected <code>coil</code> entry. Every description transform raises
+    <code>binding 'jt60sa-op{1,2}-tf-coil-coordinate-element' source rank 1 cannot
+    be reconstructed from leaf rank 0 and 0 structural arrays</code>. This is
+    outside the probe-angle goal and is reported as a follow-on.
+  </p>
+
+  <h3 id="jtmm-catalogue-probe-angles-next">What unblocks it</h3>
+  <p>
+    A node with write access to <code>imas_ambix/cocos.py</code>,
+    <code>imas_ambix/data/transform_engine.py</code> and
+    <code>imas_ambix/data/geometry_adapter.py</code> must (a) give the factor
+    table a <code>pol_angle_like</code> class, (b) let an
+    <code>unknown-unvalidated</code> binding emit its value unchanged while
+    recording the unresolved sense, and (c) have <code>_b_probes</code> read the
+    emitted <code>poloidal_angle</code> when present. The catalogue binding then
+    becomes a one-line insertion per phase; the store data is already correct.
+  </p>
+</main>
+</body>
+</html>
