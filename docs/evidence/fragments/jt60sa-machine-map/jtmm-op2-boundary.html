@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <section id="jtmm-op2-boundary-landing">
+      <p>The first JT-60SA OP2 pulse, read from EDDB's own shot records, is
+      <strong>E100356</strong> (start 2023-08-07T17:33:25.221Z); the last OP1 pulse is
+      <strong>E100353</strong> (start 2021-03-09T21:22:28.631Z). The E-series' only
+      internal campaign gap is between them, so the OP1 / OP2 shot ranges are
+      <code>E100001&ndash;E100353</code> and <code>E100356&ndash;E101173</code>. EDDB
+      exposes <em>no</em> campaign or run field; the boundary is read from the per-shot
+      <code>starttime</code>/<code>endtime</code> the shot catalogue returns.</p>
+    </section>
+
+    <section id="jtmm-op2-boundary-field">
+      <h3>The field the boundary was read from</h3>
+      <p>Read-only, on the Naka analysis server as
+      <code>ssh -F /home/ITER/mcintos/.ssh/config jt-60sa</code>, every remote command
+      under <code>nice -n 19</code>, through
+      <code>/analysis/src/eddb/eddb_pwrapper.py</code> only. No signal data was read and
+      nothing was written on the server.</p>
+      <table>
+        <thead><tr><th>question</th><th>answer</th></tr></thead>
+        <tbody>
+          <tr><td>campaign / run field?</td><td><strong>none</strong>. <code>eddbreadCatTable()</code>
+          returns 73 categories, all subsystems (<code>MAG</code>, <code>MMSYS</code>, <code>PSRC</code>,
+          <code>TF</code>, &hellip;); none names a campaign or run. The wrapper exposes no
+          campaign accessor.</td></tr>
+          <tr><td>date field used</td><td><code>eddbreadShot(start, end)</code> returns, per shot,
+          <code>starttime</code> and <code>endtime</code> as <code>YYYYMMDDhhmmss.sss</code> strings,
+          plus a one-character <code>kindlist</code> (all <code>A</code>) and a
+          <code>disruplist</code>. The boundary is read from <code>starttime</code>.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="jtmm-op2-boundary-calls">
+      <h3>Remote calls made (commands only)</h3>
+      <ol>
+        <li><code>nice -n 19 head -90 /analysis/src/eddb/eddb_pwrapper.py; nice -n 19 grep -nE '^[[:space:]]*(def|class) ' /analysis/src/eddb/eddb_pwrapper.py</code></li>
+        <li><code>nice -n 19 sed -n '686,760p;956,1120p;1312,1420p' /analysis/src/eddb/eddb_pwrapper.py</code></li>
+        <li><code>nice -n 19 sed -n '298,378p;849,956p' /analysis/src/eddb/eddb_pwrapper.py</code></li>
+        <li><code>module unload python/3.5.6; module load python/3.12; nice -n 19 python -</code> (stdin script: <code>eddbreadShot("E100000","E200000")</code>, printing <code>data</code>, <code>starttime</code>, <code>endtime</code>, <code>kindlist</code>, <code>disruplist</code>)</li>
+        <li>same runner: <code>eddbreadShot("A000000","Z999999")</code> (refused, <code>irc=1152</code>)</li>
+        <li>same runner: <code>eddbreadShotNow()</code>, <code>eddbreadShot("E101170","E199999")</code></li>
+        <li>same runner: <code>eddbreadShot("C000000","C200000")</code></li>
+        <li>same runner: <code>eddbreadShot("C080000","C099999")</code>, <code>eddbreadShot("C100000","C199999")</code> (both <code>irc=1144</code>), <code>eddbreadShot("E101000","E101173")</code>, <code>eddbreadCatTable()</code></li>
+      </ol>
+      <p>All calls are shot-catalogue or shot-header metadata. No call read a signal.</p>
+    </section>
+
+    <section id="jtmm-op2-boundary-structure">
+      <h3>The E-series date structure</h3>
+      <p><code>eddbreadShot("E100000","E200000")</code> returns <code>count=1167</code>,
+      <code>irc=0</code>. Every shot is dated in <strong>2021</strong> (352 shots) or
+      <strong>2023</strong> (815 shots); no E-shot is dated 2022 or later than 2023.
+      The two date blocks are separated by one large gap; every other inter-shot gap in
+      the series is under 26 days.</p>
+      <table>
+        <thead><tr><th>E-series block</th><th>shot range</th><th>first &rarr; last date</th><th>shots</th></tr></thead>
+        <tbody>
+          <tr><td>OP1</td><td><code>E100001&ndash;E100353</code></td><td>2021-01-13 &rarr; 2021-03-09</td><td>352</td></tr>
+          <tr><td>OP2</td><td><code>E100356&ndash;E101173</code></td><td>2023-08-07 &rarr; 2023-12-15</td><td>815</td></tr>
+        </tbody>
+      </table>
+      <p>Numbers <code>E100354</code> and <code>E100355</code> are absent from the
+      catalogue, so the gap spans them as well as the date gap.</p>
+      <table>
+        <thead><tr><th>pulse</th><th>start (<code>starttime</code>)</th><th>end (<code>endtime</code>)</th></tr></thead>
+        <tbody>
+          <tr><td>last OP1 &mdash; <code>E100353</code></td><td>2021-03-09T21:22:28.631</td><td>2021-03-09T21:22:32.693</td></tr>
+          <tr><td>first OP2 &mdash; <code>E100356</code></td><td>2023-08-07T17:33:25.221</td><td>2023-08-07T17:33:35.724</td></tr>
+        </tbody>
+      </table>
+      <p>Gap between them: <strong>880 days 20:10:57</strong>. The anchors hold:
+      <code>E100001</code> (2021-01-13) is an OP1 pulse and <code>E101154</code>
+      (2023-12-13) and <code>E101173</code> (2023-12-15) are OP2 pulses.</p>
+    </section>
+
+    <section id="jtmm-op2-boundary-integer-map">
+      <h3>Integer pulses mapped to the OP1 / OP2 shot ranges</h3>
+      <p>The catalogue splits the E-series token <code>E&lt;digits&gt;</code> into the series
+      letter and the integer of the digits; the map ranges are therefore</p>
+      <table>
+        <thead><tr><th>map</th><th>shot tokens</th><th>integers</th><th>dates</th></tr></thead>
+        <tbody>
+          <tr><td>OP1</td><td><code>E100001&ndash;E100353</code></td><td><code>100001&ndash;100353</code></td><td>2021-01-13 &rarr; 2021-03-09</td></tr>
+          <tr><td>OP2</td><td><code>E100356&ndash;E101173</code></td><td><code>100356&ndash;101173</code></td><td>2023-08-07 &rarr; 2023-12-15</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="jtmm-op2-boundary-2026">
+      <h3>What EDDB exposes for 2026, and the goal's date label</h3>
+      <p>No E-series shot is dated later than <code>E101173</code> (2023-12-15). The only
+      2026 records in the catalogue are six <strong>C-series</strong> shots,
+      <code>C060028&ndash;C060033</code>, all on 2026-06-24 and 2026-06-25, and
+      <code>eddbreadShotNow()</code> reports the current shot as <code>C082002</code>.
+      The C-series is not the E-series, so these six shots are not E-series pulses either
+      side of any gap.</p>
+      <p><strong>Flagged, not adjudicated.</strong> The goal text dates the gap
+      &ldquo;between the 2023 OP1 campaign and the 2026 OP2 campaign&rdquo;, but EDDB places
+      the OP1/OP2 boundary <em>within</em> the E-series, at 2021&rarr;2023, and exposes no
+      2026 E-shot. If instead the intended campaigns are the facility's OP-1 (2023 first
+      plasma) and OP-2 (2026), the boundary would be <code>E101173</code> (last, 2023-12-15)
+      &rarr; <code>C060028</code> (first, 2026-06-24), which would make the given anchors
+      <code>E101154</code>/<code>E101173</code> OP1 shots rather than OP2. EDDB's records
+      cannot settle which naming is intended; they can only report the dates above.</p>
+    </section>
+
+  </main>
+</body>
+</html>
