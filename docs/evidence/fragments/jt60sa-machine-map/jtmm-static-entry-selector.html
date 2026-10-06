@@ -1,0 +1,30 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtmm-static-entry-selector">
+  <header>
+    <h3>A static netCDF binding selects one named struct-array entry</h3>
+    <p class="meta">
+      Node <code>jtmm-static-entry-selector</code> &middot;
+      date 2026-10-06 &middot;
+      plan <code>jt60sa-machine-map</code> &sect;4
+    </p>
+  </header>
+
+  <p>
+    <code>ChannelBinding</code> gains an optional <code>struct_array_entry</code>
+    slot naming one entry of the first struct array on the binding's
+    <code>dd_path</code> by that entry's <code>name</code> leaf, declared in
+    <code>schema.yaml</code> and loaded by <code>machine_map.py</code>. The
+    netCDF engine reads that one entry's arrays; a binding without the slot
+    reads exactly as before; a ragged struct array read without a selection
+    names its <code>dd_path</code> and the unequal element counts; a selection
+    matching no entry is refused; and the zarr engine refuses the slot rather
+    than ignoring it.
+  </p>
+
+  <p>
+    Measure: this node's four new tests pass and read the twelve real OP1 coils
+    as element lengths [40, 40, 40, 40, 16, 16, 16, 16, 16, 16, 6, 6].
+    <code>ruff check imas_ambix tests</code> exits 0. Negative control:
+    ignoring the selection slot reddens
+    <code>test_netcdf_binding_reads_one_named_entry_of_a_ragged_struct_array</code>.
+  </p>
+</section>

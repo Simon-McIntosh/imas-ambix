@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
-from types import MappingProxyType
+from types import MappingProxyType, SimpleNamespace
 
 import imas
 import numpy as np
@@ -21,6 +21,7 @@ from imas_ambix.data.cocos_convention import (
 )
 from imas_ambix.data.machine_map import (
     ChannelBinding,
+    MachineMapError,
     load_packaged_machine_map,
     map_for_shot,
 )
@@ -34,6 +35,61 @@ from imas_ambix.data.transform_engine import (
 
 LEVEL2_ROOT = Path("/work/projects/imas_gpu/mast/level2/shots")
 TRANSITION_SHOTS = (11_766, 12_417, 12_533)
+JT60SA_OP1_DESCRIPTION_ROOT = Path(
+    "/work/projects/imas_gpu/jt60sa/machine_description"
+)
+JT60SA_OP1_PF_ACTIVE = JT60SA_OP1_DESCRIPTION_ROOT / "OP1" / "pf_active.nc"
+_COIL_ELEMENT_DD_PATH = "pf_active/coil/element/geometry/rectangle/r"
+
+
+def _coil_element_binding(struct_array_entry=None):
+    return ChannelBinding(
+        name="jt60sa-coil-element-r",
+        source_group="pf_active",
+        source_array="rectangle_r",
+        source_rank=1,
+        source_role="value",
+        source_location="file:///machine_description/OP1/pf_active.nc",
+        dd_path=_COIL_ELEMENT_DD_PATH,
+        source_unit="m",
+        target_unit="m",
+        sign_convention="identity",
+        evidence="synthetic coil-element rectangle radius",
+        source_cocos_override=None,
+        struct_array_entry=struct_array_entry,
+    )
+
+
+def _binding_payload(**overrides):
+    payload = {
+        "name": "synthetic-binding",
+        "source_group": "pf_active",
+        "source_array": "rectangle_r",
+        "source_rank": 1,
+        "source_role": "value",
+        "source_location": "file:///synthetic/pf_active.nc",
+        "dd_path": _COIL_ELEMENT_DD_PATH,
+        "source_unit": "m",
+        "target_unit": "m",
+        "sign_convention": "identity",
+        "evidence": "synthetic",
+    }
+    payload.update(overrides)
+    return payload
+
+
+def _write_ragged_coil_store(destination, dd_version, coils):
+    factory = imas.IDSFactory(dd_version)
+    ids = factory.new("pf_active")
+    ids.ids_properties.homogeneous_time = 1
+    ids.coil.resize(len(coils))
+    for index, (name, values) in enumerate(coils):
+        ids.coil[index].name = name
+        ids.coil[index].element.resize(len(values))
+        for element_index, value in enumerate(values):
+            ids.coil[index].element[element_index].geometry.rectangle.r = value
+    with imas.DBEntry(destination, "w", dd_version=dd_version) as entry:
+        entry.put(ids)
 
 
 def _catalog_with_only_plasma_current():
@@ -423,6 +479,99 @@ def test_zarr_catalog_declaring_static_over_map_is_refused_not_read_per_shot(
     )
     with pytest.raises(TransformEngineError, match="static-over-map"):
         transform_machine_description(catalog, 150, "zarr", tmp_path)
+
+
+def test_channel_binding_struct_array_entry_slot_round_trips_and_rejects_bad_values():
+    selected = ChannelBinding.from_dict(
+        _binding_payload(struct_array_entry="CS1"), "binding"
+    )
+    assert selected.struct_array_entry == "CS1"
+    omitted = ChannelBinding.from_dict(_binding_payload(), "binding")
+    assert omitted.struct_array_entry is None
+
+    for bad_value in ("", 5, None):
+        with pytest.raises(MachineMapError):
+            ChannelBinding.from_dict(
+                _binding_payload(struct_array_entry=bad_value), "binding"
+            )
+    print("STRUCT_ENTRY_SLOT accepted=CS1 omitted=None rejected=empty,nonstring")
+
+
+def test_netcdf_binding_reads_one_named_entry_of_a_ragged_struct_array(tmp_path):
+    dd_version = "4.1.1"
+    store_directory = tmp_path / "OP1"
+    store_directory.mkdir()
+    expected = {"A": [0.0, 1.0, 2.0], "B": [10.0, 11.0], "C": [20.0]}
+    _write_ragged_coil_store(
+        store_directory / "pf_active.nc",
+        dd_version,
+        tuple(expected.items()),
+    )
+
+    engine = get_transform_engine("netcdf")
+    machine_map = SimpleNamespace(name="OP1")
+    with engine.open(
+        str(tmp_path), 100_001, dd_version, machine_map, "static-over-map"
+    ) as source:
+        for name, values in expected.items():
+            array = source.read(_coil_element_binding(name))
+            assert array.tolist() == values
+
+        with pytest.raises(TransformEngineError) as missing:
+            source.read(_coil_element_binding("ZZ"))
+        assert "ZZ" in str(missing.value)
+        assert "jt60sa-coil-element-r" in str(missing.value)
+
+        with pytest.raises(TransformEngineError) as ragged:
+            source.read(_coil_element_binding())
+        message = str(ragged.value)
+        assert _COIL_ELEMENT_DD_PATH in message
+        assert "[3, 2, 1]" in message
+
+    lengths = [len(values) for values in expected.values()]
+    print(f"STRUCT_ENTRY lengths={lengths} ragged_counts=[3, 2, 1]")
+
+
+def test_zarr_engine_refuses_a_binding_selecting_a_struct_array_entry(tmp_path):
+    dd_version = "4.1.1"
+    group = zarr.open_group(tmp_path / "5.zarr", mode="w")
+    group.create_group("pf_active").create_array("rectangle_r", data=np.zeros(3))
+
+    engine = get_transform_engine("zarr")
+    with (
+        engine.open(str(tmp_path), 5, dd_version) as source,
+        pytest.raises(TransformEngineError, match="struct-array entry"),
+    ):
+        source.read(_coil_element_binding("A"))
+    print("STRUCT_ENTRY_ZARR refused=declared slot")
+
+
+@pytest.mark.skipif(
+    not JT60SA_OP1_PF_ACTIVE.is_file(),
+    reason="JT-60SA OP1 machine description is not mounted",
+)
+def test_static_netcdf_store_selects_each_real_coil_by_name():
+    with imas.DBEntry(JT60SA_OP1_PF_ACTIVE, "r") as entry:
+        dd_version = entry.dd_version
+        ids = entry.get("pf_active", autoconvert=False)
+        names = [str(coil.name) for coil in ids.coil]
+    assert len(names) == 12
+
+    engine = get_transform_engine("netcdf")
+    machine_map = SimpleNamespace(name="OP1")
+    lengths: list[int] = []
+    with engine.open(
+        str(JT60SA_OP1_DESCRIPTION_ROOT),
+        100_001,
+        dd_version,
+        machine_map,
+        "static-over-map",
+    ) as source:
+        for name in names:
+            lengths.append(len(source.read(_coil_element_binding(name))))
+
+    assert lengths == [40, 40, 40, 40, 16, 16, 16, 16, 16, 16, 6, 6]
+    print(f"REAL_STORE coils={len(names)} lengths={lengths}")
 
 
 def test_engine_registry_is_format_scoped_and_has_no_machine_conditionals():

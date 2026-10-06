@@ -147,6 +147,7 @@ class ChannelBinding:
     sign_convention: str
     evidence: str
     source_cocos_override: int | None
+    struct_array_entry: str | None = None
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any], label: str) -> ChannelBinding:
@@ -163,7 +164,9 @@ class ChannelBinding:
             "sign_convention",
             "evidence",
         }
-        _exact_keys(payload, required, {"source_cocos_override"}, label)
+        _exact_keys(
+            payload, required, {"source_cocos_override", "struct_array_entry"}, label
+        )
         values = {
             key: _text(payload[key], f"{label}.{key}")
             for key in required.difference({"source_rank"})
@@ -188,6 +191,11 @@ class ChannelBinding:
                     f"{label}.source_cocos_override",
                 )
                 if "source_cocos_override" in payload
+                else None
+            ),
+            struct_array_entry=(
+                _text(payload["struct_array_entry"], f"{label}.struct_array_entry")
+                if "struct_array_entry" in payload
                 else None
             ),
             **values,

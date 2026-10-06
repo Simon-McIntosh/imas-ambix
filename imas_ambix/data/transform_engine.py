@@ -142,6 +142,12 @@ class _ZarrArrays(AbstractContextManager["_ZarrArrays"]):
     def read(self, binding: ChannelBinding) -> np.ndarray:
         if self._group is None:
             raise TransformEngineError("zarr pulse store is not open")
+        if binding.struct_array_entry is not None:
+            raise TransformEngineError(
+                f"the zarr engine cannot select a struct-array entry; binding "
+                f"{binding.name!r} declares struct_array_entry "
+                f"{binding.struct_array_entry!r}"
+            )
         return np.asarray(
             self._group[f"{binding.source_group}/{binding.source_array}"][...]
         )
@@ -190,26 +196,76 @@ def _struct_array_positions(
     return tuple(positions)
 
 
+def _select_struct_array_entry(
+    child: IDSStructArray,
+    binding: ChannelBinding,
+    components: tuple[str, ...],
+    index: int,
+) -> object:
+    for item in child:
+        if getattr(item, "name", None) == binding.struct_array_entry:
+            return item
+    raise BindingTransformError(
+        f"binding {binding.name!r} selects struct-array entry "
+        f"{binding.struct_array_entry!r} on {binding.dd_path!r}, but "
+        f"{'/'.join(components[: index + 1])} carries no entry with that name"
+    )
+
+
+def _stack_struct_array_rows(
+    rows: tuple[np.ndarray, ...],
+    binding: ChannelBinding,
+    components: tuple[str, ...],
+    index: int,
+) -> np.ndarray:
+    try:
+        return np.stack(rows)
+    except ValueError as error:
+        counts = [int(np.shape(row)[0]) if np.ndim(row) else 0 for row in rows]
+        raise BindingTransformError(
+            f"binding {binding.name!r} reads {binding.dd_path!r} from the ragged "
+            f"struct array {'/'.join(components[: index + 1])!r} whose entries hold "
+            f"unequal element counts {counts}; declare struct_array_entry to read "
+            "one entry's arrays instead of stacking every entry"
+        ) from error
+
+
 def _read_ids_path(
     node: object,
     components: tuple[str, ...],
     preserved_positions: frozenset[int],
+    binding: ChannelBinding,
     index: int = 0,
+    select_entry: str | None = None,
 ) -> np.ndarray:
     child = getattr(node, components[index])
     if index == len(components) - 1:
         return np.asarray(child.value)
     if isinstance(child, IDSStructArray):
+        if select_entry is not None:
+            selected = _select_struct_array_entry(child, binding, components, index)
+            return _read_ids_path(
+                selected,
+                components,
+                preserved_positions,
+                binding,
+                index + 1,
+                None,
+            )
         rows = tuple(
-            _read_ids_path(item, components, preserved_positions, index + 1)
+            _read_ids_path(
+                item, components, preserved_positions, binding, index + 1, select_entry
+            )
             for item in child
         )
         if not rows:
             raise KeyError("/".join(components))
         if index in preserved_positions or len(rows) > 1:
-            return np.stack(rows)
+            return _stack_struct_array_rows(rows, binding, components, index)
         return rows[0]
-    return _read_ids_path(child, components, preserved_positions, index + 1)
+    return _read_ids_path(
+        child, components, preserved_positions, binding, index + 1, select_entry
+    )
 
 
 class _NetCDFStoreArrays(AbstractContextManager["_NetCDFStoreArrays"]):
@@ -239,6 +295,12 @@ class _NetCDFStoreArrays(AbstractContextManager["_NetCDFStoreArrays"]):
                 ids = entry.get(ids_name, autoconvert=False)
                 components = tuple(relative_path.split("/"))
                 positions = _struct_array_positions(ids, components)
+                if binding.struct_array_entry is not None and not positions:
+                    raise BindingTransformError(
+                        f"binding {binding.name!r} declares struct_array_entry "
+                        f"{binding.struct_array_entry!r} but {binding.dd_path!r} "
+                        "holds no struct array to select an entry from"
+                    )
                 leaf_rank = ids.metadata[relative_path].ndim
                 structural_rank = binding.source_rank - leaf_rank
                 if structural_rank < 0 or structural_rank > len(positions):
@@ -252,7 +314,13 @@ class _NetCDFStoreArrays(AbstractContextManager["_NetCDFStoreArrays"]):
                     if structural_rank
                     else frozenset()
                 )
-                return _read_ids_path(ids, components, preserved)
+                return _read_ids_path(
+                    ids,
+                    components,
+                    preserved,
+                    binding,
+                    select_entry=binding.struct_array_entry,
+                )
         except OSError as error:
             raise SourceUnavailableError(
                 f"netCDF binding store cannot be opened: {source}: {error}"
