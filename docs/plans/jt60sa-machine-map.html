@@ -24,10 +24,10 @@
   <title>JT-60SA Machine Map for Equilibrium Reconstruction | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
-<meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d">
-<meta name="plan-impl" content="0.5">
-<meta name="plan-version" content="74">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
+<meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5">
+<meta name="plan-impl" content="0.625">
+<meta name="plan-version" content="75">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -195,125 +195,11 @@
       tokamap's.
     </p>
 
-    <h2 id="s3">§3 — Access path: EDDB over ssh, an on-demand cache, a lazy view</h2>
-    <p>
-      The authorised data path is the EDDB C library through its Python wrapper on the Naka
-      analysis server (<code>/analysis/src/eddb/eddb_pwrapper.py</code>,
-      <code>/analysis/lib/libeddb.so</code>), reached as <code>ssh jt-60sa</code>
-      (nakasvr26). Measured 2026-10-05 from this workstation: the catalogue answers with 73
-      categories; the current shot is a coil-commissioning pulse (C-series); category
-      <code>MMSYS</code> carries every CS, EF and TF coil current in amperes from two
-      independent measurement chains (HiTec and LKAT), <code>PSRC</code> carries the
-      plasma-shape-reconstruction inputs and outputs including <code>Ip</code> in kA,
-      <code>FAME</code> carries one hundred real-time equilibrium scalars, and
-      <code>MAG</code> on the commissioning shot carries only MHD fluctuation channels. The
-      ssh link to IFERC dropped mid-session and stayed down, so the raw flux-loop and
-      pickup-coil census on an OP2 E-shot is an open item (§5) rather than a finding.
-    </p>
-    <p>
-      Transforming on the fly from nakasvr26 therefore means two tiers, not one. The
-      <strong>remote extractor</strong> is a stdlib-plus-wrapper script executed over ssh,
-      niced, that takes a batch of (shot, category, dname) requests on stdin and streams
-      compact binary arrays back. That is the shape codex's remote layer already uses for
-      enumeration (<code>imas_codex/remote/scripts/enumerate_edas.py</code> run through
-      <code>executor.py</code> and <code>ssh_worker.py</code>, with the msgpack array format in
-      <code>serialization.py</code>). Ambix owns its own extractor rather than importing that
-      layer or extracting a shared remote core from it. The remote modules themselves import only
-      the standard library, but importing them makes the imas-codex distribution a dependency of
-      ambix, and installing it brings its declared requirements (the <code>neo4j</code> driver,
-      <code>fastmcp</code>, <code>rapidfuzz</code>, <code>lxml</code>, <code>pypdf</code> and the rest)
-      into every ambix environment, which the map-persistence decision rules out by keeping
-      codex off ambix's runtime path. And the extractor needs a small part
-      of that layer: one ssh process per batch, one remote script read from stdin and numpy
-      arrays back, with no session pool, host registry or tool installer, because the ssh
-      control master in the user config already amortises session setup and the cache means
-      a shot is fetched once. Codex stays the reference for the EDDB call shapes
-      (<code>enumerate_edas.py</code> and <code>imas-codex:jt60sa-eddb-census</code>), not a code
-      dependency. A second facility needing remote execution in ambix is the point at which a
-      shared core becomes the cheaper path, and that is decided then, in its own plan. The
-      extractor's public surface is one batch-fetch function and one cache writer; it retires
-      nothing, because ambix has no remote reader today.
-      The <strong>on-demand cache</strong> lands only the channels the map binds, for the
-      shots a run asks for, as <code>{shot}.zarr/{category}/{dname}</code> with the EDDB unit
-      string, channel count and sequence number as attributes, in raw units and raw sign,
-      written on first fetch and never rewritten. It is not a copy of the EDDB: about 230
-      first-pass channels cost roughly 1.4 GB per shot at full rate or 150 MB windowed to the
-      plasma phase (one coil-current record is 740,900 points, 5.9 MB), so a frozen 20-shot
-      benchmark set is 3 to 28 GB under a size cap, pre-warmed only for that set. The
-      <strong>lazy view</strong> is the existing <code>VirtualZarrView</code>: listing and
-      metadata read no chunks, and a slice applies the compiled affine transform to only the
-      returned chunk. The zarr engine then serves JT-60SA with no new engine, which is the
-      test that the architecture scales the way its own plan claimed.
-    </p>
-    <p>
-      <strong>First cold fetch</strong> (node <code>jtmm-eddb-cold-fetch</code>, 2026-10-05). On
-      E101173, the newest E-shot, and C060033, the newest C-shot, EDDB served 26 of the 85
-      first-pass channels: the 22 MMSYS coil and TF currents and the 4 MDAC vessel Rogowski
-      coils, all in amperes. It refused all 59 PSRC channels (<code>Ip</code>,
-      <code>calIp</code>, <code>magFluxLp1..34</code>, <code>magPbTC1..23</code>) through both
-      <code>eddbreadTime</code> and <code>eddbreadOne</code>, with return code 1015 on E101173 and
-      1013 on C060033, although the E101173 table lists every one of those names. The cold wall
-      time was 101.3 s and 82.8 MB on disk for E101173 and 7.7 s and 1.2 MB for C060033, and a
-      warm re-read made no network call. The run also exposed two extractor defects. A batch with
-      any refused channel raises in <code>fetch_batch</code> and writes none of its served
-      channels, so the driver had to call the transport directly. And EDDB returns the unit as a
-      list, so the cache recorded <code>['A']</code> rather than <code>A</code>.
-    </p>
-    <p>
-      Two nodes follow. <strong>The PSRC read path</strong> (<code>jtmm-psrc-read-path</code>) is a
-      read-only investigation on the analysis server. It takes the meaning of return codes 1013
-      and 1015 from <code>/analysis/src/eddb</code>, reads how the lead's
-      <code>~/work/efit_jt60sa/extract_jt60sa.py</code> and <code>~/naka_explore.py</code> fetched
-      <code>E101154_signals.npz</code>, and lists which PSRC names that file holds. It then reads
-      one PSRC flux loop on E101154 and on E101173 by the call that worked there. It is done when
-      its evidence fragment names the call that returns PSRC data, or states that PSRC is not
-      populated for E101173 together with the shot it is populated for. <strong>The extractor
-      repair</strong> (<code>jtmm-eddb-partial-batch</code>) makes one session return its served
-      records together with each refused channel's return code, so the cache writes what was
-      served and reports the rest. It records the unit as the EDDB string. It adopts the PSRC call
-      the investigation names.
-    </p>
-    <p>
-      <strong>PSRC read path</strong> (<code>jtmm-psrc-read-path</code>, 2026-10-05). The
-      extractor's call was right: <code>eddbreadTime(shot, 'PSRC', 'magFluxLp1')</code> returns data
-      on E101154 (return code 0, 2,001 samples) and 1015 on E101173. No header under
-      <code>/analysis/src/eddb</code> defines the codes; controlled reads show that 1015 means the
-      shot's store exists but the datum was never written, and 1013 that the shot is absent from
-      the data set. PSRC is the plasma-shape reconstruction's processed copy, written only for
-      shots it ran on, while MDAC carries the raw hardware flux-loop channels
-      (<code>magFlxLp1</code> and its siblings) on both shots. The SELENE PID route
-      (<code>'1626 S007'</code>) returns a full record on E101154 and a one-point stub on E101173.
-      The extractor repair therefore needs no new call: it returns served records with each
-      refused channel's code and records the unit string. A second cold fetch on E101154 then
-      takes the first-pass PSRC channels together with the raw MDAC flux-loop channels on
-      E101154 and E101173, and the §5 census decides which source each magnetics binding reads:
-      raw MDAC on every shot, or PSRC where the reconstruction ran.
-    </p>
-    <p>
-      Done-when: a cold fetch of one OP2 shot's first-pass signals completes through the
-      extractor in a single ssh session; a warm read of the same signals through the view
-      touches no network; and the extractor's wall time per signal and bytes per signal are
-      recorded in the evidence so the cache for a shot set is sized rather than guessed. The
-      cache root is declared once, as <code>JT60SA_ROOT</code> in
-      <code>imas_ambix/data/paths.py</code> beside the MAST <code>MIRROR_ROOT</code>, because that
-      module is the single owner of mirror paths and every reader and writer imports from it.
-      Its value is <code>/work/projects/imas_gpu/jt60sa</code>, on GPFS beside the MAST store,
-      so every ITER session and worker reads the same bytes (decision below). The cache is a
-      second transport beside the FAIR-MAST mirror, not an extension of it, and it keys a
-      pulse the way the rest of ambix does. EDDB names a pulse by a series letter and six
-      digits (<code>E101173</code> for an experiment, a C-series token for a commissioning
-      pulse), while the catalogue's shot ranges and both engines' <code>{shot}</code> paths are
-      integers. The cache therefore stores a pulse under the integer of its six digits and
-      records the full EDDB token on the pulse group; a write whose token differs from the one
-      already recorded there is refused, so two series sharing a number fail loudly instead of
-      sharing a store. The census records whether the C and E series overlap at all.
-      <code>imas_ambix/data/manifest.py</code> and the <code>ambix data manifest</code> and
-      <code>download</code> commands in <code>imas_ambix/data/cli.py</code> plan and run bulk
-      whole-shot copies from S3 through <code>s5cmd</code>, selected from a parquet shot index,
-      while this cache fetches named channels over ssh only when a run asks for them. It
-      therefore shares the path owner and the zarr layout the engine reads, takes none of the
-      manifest or download machinery, and adds no <code>ambix data</code> command.
-    </p>
+    <section class="section-landed">
+  <header><span class="badge badge-shipped">&#10003; landed 2026-10-06</span>
+    <h2 id="s3">§3 — Access path: EDDB over ssh, an on-demand cache, a lazy view</h2></header>
+  <p class="landed-summary">Landed 2026-10-05/06. The remote EDDB extractor (<code>imas_ambix/data/eddb_remote.py</code>, one ssh process per batch, remote side under <code>nice -n 19</code>) and its zarr cache writer (<code>imas_ambix/data/eddb.py</code>, under <code>JT60SA_ROOT</code>) are merged, and one session returns the channels it served with each refused channel's EDDB return code read from <code>data['irc']</code> (bdcce624). PSRC holds the plasma-shape reconstruction's processed channels only for shots it ran on (E101154 yes, E101173 irc 1015), and MDAC holds the raw <code>magFlxLp*</code> flux loops on both. The first cold fetch (E101173, C060033) served the 22 MMSYS coil and TF currents and 4 MDAC Rogowski coils; the second (63df11f5) served all 119 first-pass channels on E101154, including PSRC <code>magFluxLp1..34</code> and <code>magPbTC1..23</code>, and the 34 raw MDAC <code>magFlxLp*</code> on E101154 and E101173, with no refusal; cold wall time about 105 to 111 s per shot, warm reads make no transport call. Which raw loop is which processed loop is a §5 census question. <a href="s3">full record</a></p>
+</section>
 
     <h2 id="s4">§4 — Machine description: the SELENE deck is the source</h2>
     <p>
@@ -996,7 +882,7 @@
     <div class="r-comment-body"><p>independent review of run r-20261005T112402736155-jtmm-eddb-second-cold-fetch (plan imas-ambix:jt60sa-machine-map §3), reviewed_base_sha 3779b82cee1155c5eaa27060fbc926cee92631a3 / reviewed_head_sha 8da45002b997aaa51864a13f51dd914cda686dab, stored as a parsed record scoring all six dimensions in 0..20 (goal_fidelity 19, evidence 18, scope_discipline 19, durability 15, fit 18, reuse 20; total 109/120).</p></div>
 </div>
 <div class="r-comment" data-section="s3" data-id="c-run-r-20261005T112402736155-jtmm-eddb-second-cold-fetch" data-who="reckon-build" data-when="2026-10-06T00:57:24.715Z">
-    <div class="r-comment-body"><p>The E101154 first-pass channels and the EDDB-catalogue MDAC magFlxLp* flux loops were fetched cold through fetch_channels in one ssh session per shot (E101154 119/119 served, E101173 34/34 served, no refusals; cold wall 111.253 s and 104.348 s), the warm path re-read every fetched channel with no transport call, and the per-channel measures plus both shots&#x27; MDAC mag-name catalogues are recorded in the evidence fragment.</p></div>
+    <div class="r-comment-body"><p>The E101154 first-pass channels and the EDDB-catalogue MDAC magFlxLp* flux loops were fetched cold through fetch_channels in one ssh session per shot (E101154 119/119 served, E101173 34/34 served, no refusals; cold wall 111.253 s and 104.348 s), the warm path re-read every fetched channel with no transport call, and the per-channel measures plus both shots' MDAC mag-name catalogues are recorded in the evidence fragment.</p></div>
 </div>
 <div class="r-comment" data-section="s2" data-id="c-run-r-20261005T065204728047-review-of-jtmm-tokamap-export" data-who="reckon-build" data-when="2026-10-05T07:08:54.445Z">
     <div class="r-comment-body"><p>jtmm-tokamap-export reviewed: the exporter, its validator run and its round-trip gate reproduce at the reviewed head, but every IDS group directory is written with the same cross-group mappings.json (all four groups' keys in every group), so the export is not group-scoped; added_failure_count 0.</p></div>

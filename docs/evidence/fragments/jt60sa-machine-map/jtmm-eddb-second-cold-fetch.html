@@ -21,9 +21,11 @@
       already cached, so <code>fetch_channels</code> skipped it). The
       <code>magFlxLp*</code> names were enumerated from EDDB's catalogue
       (<code>eddbreadTable(shot, 'MDAC')</code>) rather than assumed. Every channel
-      fetched this run was re-read warm through <code>VirtualZarrView</code> with a
-      transport that raises if called: 0 transport calls,
-      0 channels left unfetched. E101154 served all
+      fetched this run was re-read warm through <code>VirtualZarrView</code>, which reads
+      only the cache, and a second <code>fetch_channels</code> pass with a transport that
+      raises if called made 0 transport calls and left 0 channels unfetched. The cold
+      fetch ran twice: the worker cleared this run's 69 cache entries and refetched to time
+      a clean cold pass, so the server saw two rounds where one was enough. E101154 served all
       119 requested channels and E101173 all
       34. No EDDB value is committed to the
       repository.</p>
