@@ -104,43 +104,63 @@
     <section id="jtmm-vacuum-shot-census-cache">
       <h3>Cached shots</h3>
       <p>Fetched through <code>fetch_channels</code> (no new repository module), one
-      ssh session per shot; each shot's channel is requested once and cached under
-      <code>/work/projects/imas_gpu/jt60sa/&lt;shot&gt;.zarr</code>.
-      <code>E100595</code> was taken with the wider channel set (the raw loops and
-      probes plus <code>MDAC/curAVVRC1..4</code>, the ten MMSYS PF coil chains,
-      <code>cur1TFLKAT</code> and <code>PSRC/Ip</code>: 73 channels); the resumed
-      fetches take the required raw <code>MDAC</code> loops <code>magFlxLp1..34</code>
-      and probes <code>magPbTC1..23</code> (57 channels) only.</p>
+      ssh session per shot; each channel is requested once and cached under
+      <code>/work/projects/imas_gpu/jt60sa/&lt;shot&gt;.zarr</code>. A cold shot needs
+      two requests: one for the raw <code>MDAC</code> loops <code>magFlxLp1..34</code>
+      and probes <code>magPbTC1..23</code> and the coil currents the vacuum
+      adjudication predicts the loops from — the ten MMSYS PF chains
+      (<code>curCS1..4LKAT</code>, <code>curEF1..5LKAT</code>, <code>curEF6HiTe</code>),
+      the two TF chains <code>cur1TFLKAT</code> and <code>cur2TFLKAT</code>, and
+      <code>MDAC/curAVVRC1..4</code>. <code>fetch_channels</code> transports only the
+      channels a shot does not already hold, so the first request took the 57 loops and
+      probes and the second the 16 coil/TF channels. <code>E100595</code> was taken in a
+      single 73-channel request carrying the coils and <code>cur1TFLKAT</code> but not
+      <code>cur2TFLKAT</code>; it was left untouched, so it holds no
+      <code>cur2TFLKAT</code>.</p>
       <table>
-        <thead><tr><th>shot</th><th>role</th><th>requested</th><th>served</th>
-          <th>refused</th><th>cold wall time [s]</th><th>bytes on disk</th></tr></thead>
+        <thead><tr><th>shot</th><th>role</th><th>request</th><th>channels</th>
+          <th>requested</th><th>served</th><th>refused</th><th>wall [s]</th>
+          <th>store bytes</th></tr></thead>
         <tbody>
-        <tr><td>E100595</td><td>vacuum</td><td>73</td><td>72</td><td>1 (<code>PSRC/Ip</code>)</td><td>171.5</td><td>108,001,536</td></tr>
-        <tr><td>E100579</td><td>vacuum</td><td>57</td><td>57</td><td>0</td><td>308.0</td><td>165,311,455</td></tr>
-        <tr><td>E100642</td><td>vacuum</td><td>57</td><td>57</td><td>0</td><td>230.6</td><td>214,769,356</td></tr>
-        <tr><td>E100658</td><td>plasma</td><td>57</td><td>57</td><td>0</td><td>116.8</td><td>85,675,241</td></tr>
-        <tr><td>E101154</td><td>plasma</td><td>&mdash;</td><td>warm</td><td>0</td><td>pre-existing</td><td>236,491,919</td></tr>
-        <tr><td>E101173</td><td>plasma</td><td>&mdash;</td><td>warm</td><td>0</td><td>pre-existing</td><td>213,807,361</td></tr>
+        <tr><td>E100595</td><td>vacuum</td><td>1</td><td>loops+probes, curAVVRC1..4, 11 PF/TF chains, PSRC/Ip</td><td>73</td><td>72</td><td>1 (<code>PSRC/Ip</code>)</td><td>171.5</td><td>108,001,536</td></tr>
+        <tr><td>E100579</td><td>vacuum</td><td>1</td><td>loops+probes</td><td>57</td><td>57</td><td>0</td><td>308.0</td><td>165,311,455</td></tr>
+        <tr><td>E100579</td><td>vacuum</td><td>2</td><td>coil/TF</td><td>16</td><td>16</td><td>0</td><td>55.2</td><td>199,246,248</td></tr>
+        <tr><td>E100642</td><td>vacuum</td><td>1</td><td>loops+probes</td><td>57</td><td>57</td><td>0</td><td>230.6</td><td>214,769,356</td></tr>
+        <tr><td>E100642</td><td>vacuum</td><td>2</td><td>coil/TF</td><td>16</td><td>16</td><td>0</td><td>69.9</td><td>271,005,711</td></tr>
+        <tr><td>E100658</td><td>plasma</td><td>1</td><td>loops+probes</td><td>57</td><td>57</td><td>0</td><td>116.8</td><td>85,675,241</td></tr>
+        <tr><td>E100658</td><td>plasma</td><td>2</td><td>coil/TF</td><td>16</td><td>16</td><td>0</td><td>52.8</td><td>123,777,686</td></tr>
+        <tr><td>E101154</td><td>plasma</td><td>&mdash;</td><td>pre-existing (warm)</td><td>&mdash;</td><td>warm</td><td>0</td><td>pre-existing</td><td>236,491,919</td></tr>
+        <tr><td>E101173</td><td>plasma</td><td>&mdash;</td><td>pre-existing (warm)</td><td>&mdash;</td><td>warm</td><td>0</td><td>pre-existing</td><td>213,807,361</td></tr>
         </tbody>
       </table>
       <p>Three vacuum (<code>E100595</code>, <code>E100579</code>,
       <code>E100642</code>) and three plasma (<code>E100658</code>,
       <code>E101154</code>, <code>E101173</code>) shots are cached, each channel
-      fetched once. <code>E101154</code> and <code>E101173</code> were already cached
-      by earlier cold-fetch nodes and are served warm here
-      (<code>fetch_channels</code> makes no transport call for a cached channel);
-      <code>E101154</code> is the shot whose <code>PSRC/Ip</code> draws the ~1 MA flat
-      top. <code>E100595</code> serves 72 of 73 requested channels (the refusal is
-      <code>PSRC/Ip</code>, absent on a vacuum shot).</p>
+      fetched once. <code>E100579</code>, <code>E100642</code> and <code>E100658</code>
+      each hold the same 73 channels &mdash; the 57 raw loops and probes plus the 16
+      coil/TF channels (the ten PF chains, <code>cur1TFLKAT</code>,
+      <code>cur2TFLKAT</code>, <code>curAVVRC1..4</code>) &mdash; so the vacuum
+      adjudication can predict every loop from the measured coil currents.
+      <code>E100595</code> holds the coils with <code>cur1TFLKAT</code> but not
+      <code>cur2TFLKAT</code> (it was fetched before <code>cur2TFLKAT</code> entered
+      the screen and was left untouched); it serves 72 of 73 requested channels, the
+      refusal being <code>PSRC/Ip</code>, absent on a vacuum shot.
+      <code>E101154</code> and <code>E101173</code> were already cached by earlier
+      cold-fetch nodes and are served warm here (<code>fetch_channels</code> makes no
+      transport call for a cached channel); <code>E101154</code> is the shot whose
+      <code>PSRC/Ip</code> draws the ~1 MA flat top.</p>
       <p>The first cold wave failed at the ssh layer: the <code>jt-60sa</code>
       ProxyJump chain (laptop reverse tunnel) carried a short command but dropped
       during every long EDDB batch (exit 255, broken pipe, &ldquo;Connection closed
       by UNKNOWN&rdquo;). The resumed wave gave each fetch its own connection and
       widened the keepalive tolerance
       (<code>ServerAliveInterval=30</code>, <code>ServerAliveCountMax=10</code>), and
-      then the batches ran to completion. <code>E100730</code> (plasma) failed twice on
-      the resumed wave (&ldquo;server not responding&rdquo;, then refused) and is
-      uncached; the three-plus-three target is met without it.</p>
+      then the batches ran to completion. The coil/TF channels were then fetched the
+      same way, one <code>fetch_channels</code> call and one connection per shot,
+      <code>fetch_channels</code> transporting only the 16 channels each shot still
+      lacked. <code>E100730</code> (plasma) failed twice on the resumed wave
+      (&ldquo;server not responding&rdquo;, then refused) and is uncached; the
+      three-plus-three target is met without it.</p>
     </section>
 
     <section id="jtmm-vacuum-shot-census-negative-control">
