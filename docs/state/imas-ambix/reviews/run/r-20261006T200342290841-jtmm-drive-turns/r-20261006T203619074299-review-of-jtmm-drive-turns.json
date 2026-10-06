@@ -1,0 +1,57 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "derived from the reviewed run's gate logs: the after_suite head log (test-gate.log) reports 23 passed with zero FAILED/ERROR ids and the baseline_suite field states the pre-edit suite passed, so no failing test was added. Production auto-annotation reports unmeasured because the manifest's suite fields name no path-shaped log.",
+  "call_site_count": 2,
+  "call_sites": [
+    "imas_ambix/latent/data.py:335",
+    "imas_ambix/statespace/enkf_baseline.py:351"
+  ],
+  "completed_at": "2026-10-06T20:46:26.204Z",
+  "dispatched_at": "2026-10-06T20:36:28Z",
+  "findings": [
+    {
+      "file": "imas_ambix/gs/operator.py",
+      "line": "690",
+      "severity": "follow-on",
+      "text": "follow-on: shapes() still reports amc_raw_units \"kA*turn\" and amc_to_si_factor 1000 unconditionally, and the summary writer repeats it at imas_ambix/gs/operator.py:1081, but this change makes the assembly factor per-column, so for a declared-drive normalised source a units-audit reader is told a factor the code no longer applies."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 2 production call site(s)",
+    "diff": "read commit e68a87fa against base 28a6ec3d commit by commit; imas_ambix/gs/operator.py +65/-8, tests/gs/test_operator.py +52, the evidence fragment +24, all inside the declared scope.",
+    "done_when": "the measure names tests/gs/test_operator.py with a MAST-unchanged and a JT-60SA-40 assertion; the reviewed manifest records the run (test-gate.log \"23 passed\", EXIT=0), and I reproduced ruff on the two changed files exiting 0.",
+    "goal": "the node goal is that ForwardOperator.assemble_pf_currents honour each drive's declared ampere-turns per ampere instead of MAST's hard-coded kA-turn factor, and imas_ambix/gs/operator.py:606-612 now scales each G_pf column by its pf_current_scales entry, so a JT-60SA CS channel of 1 A at 40 A-turn/A contributes 40 A-turn.",
+    "manifest": "read; it names test-gate.log (23 passed, EXIT=0), the two added assertions, the negative control and the folded-versus-normalised caveat, and no clause contradicts the artefacts.",
+    "write_paths": "the declared paths are imas_ambix/gs/operator.py, tests/gs/test_operator.py, docs/evidence/fragments/jt60sa-machine-map/jtmm-drive-turns.html and docs/figures/jt60sa-machine-map/jtmm-drive-turns; the three changed files all lie inside them."
+  },
+  "justifications": {
+    "durability": "tests/gs/test_operator.py:335 fails if the flat x1000 conversion is restored (the recorded negative control obtains 1000.0 against the expected 40.0) and tests/gs/test_operator.py:536 independently pins every real-cache MAST scale to _KA_TURN_TO_A, though that test's expected vector is built from the same constant it guards.",
+    "evidence": "the gate named in the done_when ran and its result is recorded in the reviewed run's test-gate.log (23 passed, EXIT=0), but the run's own units descriptor at imas_ambix/gs/operator.py:690 is not exercised by that gate.",
+    "fit": "the field at imas_ambix/gs/operator.py:560 and the inline scale derivation follow the module's dataclass idiom and explain the mechanism, but the units descriptor at :690 no longer matches the per-column behaviour.",
+    "goal_fidelity": "imas_ambix/gs/operator.py:912-934 derives each column's scale from drive.ampere_turns_per_ampere, so a normalised JT-60SA CS channel contributes its declared 40 A-turn while a folded MAST channel keeps the flat kA-turn conversion.",
+    "reuse": "the change extends the existing owner named by CircuitDrive.ampere_turns_per_ampere at imas_ambix/gs/geometry.py:290 and CircuitClass.sum_xmult rather than adding a second source of truth, and a search of imas_ambix/gs found no prior per-channel current-scale mechanism.",
+    "scope_discipline": "git diff 28a6ec3d..e68a87fa touches only imas_ambix/gs/operator.py, tests/gs/test_operator.py and docs/evidence/fragments/jt60sa-machine-map/jtmm-drive-turns.html, each inside the declared write paths."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of node jtmm-drive-turns (plan imas-ambix:jt60sa-machine-map section 6),\nread at head e68a87fab9c3cd3b90cba68fb74806291d3d8d0a on base 28a6ec3d647414a07c7de1702abc9960a4094316.\nRead: the diff of e68a87fa against 28a6ec3d, both added tests, the module around the change, and the\nreviewed run's own gate and negative-control logs. Nothing was re-implemented; the suite was not re-run.\n\nVERDICT goal: the node goal is that ForwardOperator.assemble_pf_currents honour each drive's declared ampere-turns per ampere instead of MAST's hard-coded kA-turn factor, and imas_ambix/gs/operator.py:606-612 now scales each G_pf column by its pf_current_scales entry, so a JT-60SA CS channel of 1 A at 40 A-turn/A contributes 40 A-turn.\nVERDICT done_when: the measure names tests/gs/test_operator.py with a MAST-unchanged and a JT-60SA-40 assertion; the reviewed manifest records the run (test-gate.log \"23 passed\", EXIT=0), and I reproduced ruff on the two changed files exiting 0.\nVERDICT write_paths: the declared paths are imas_ambix/gs/operator.py, tests/gs/test_operator.py, docs/evidence/fragments/jt60sa-machine-map/jtmm-drive-turns.html and docs/figures/jt60sa-machine-map/jtmm-drive-turns; the three changed files all lie inside them.\nVERDICT manifest: read; it names test-gate.log (23 passed, EXIT=0), the two added assertions, the negative control and the folded-versus-normalised caveat, and no clause contradicts the artefacts.\nVERDICT diff: read commit e68a87fa against base 28a6ec3d commit by commit; imas_ambix/gs/operator.py +65/-8, tests/gs/test_operator.py +52, the evidence fragment +24, all inside the declared scope.\nCALL_SITES: imas_ambix/latent/data.py:335, imas_ambix/statespace/enkf_baseline.py:351\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: imas_ambix/gs/operator.py:912-934 derives each column's scale from drive.ampere_turns_per_ampere, so a normalised JT-60SA CS channel contributes its declared 40 A-turn while a folded MAST channel keeps the flat kA-turn conversion.\nSCORE evidence: 18\nJUSTIFICATION evidence: the gate named in the done_when ran and its result is recorded in the reviewed run's test-gate.log (23 passed, EXIT=0), but the run's own units descriptor at imas_ambix/gs/operator.py:690 is not exercised by that gate.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff 28a6ec3d..e68a87fa touches only imas_ambix/gs/operator.py, tests/gs/test_operator.py and docs/evidence/fragments/jt60sa-machine-map/jtmm-drive-turns.html, each inside the declared write paths.\nSCORE durability: 18\nJUSTIFICATION durability: tests/gs/test_operator.py:335 fails if the flat x1000 conversion is restored (the recorded negative control obtains 1000.0 against the expected 40.0) and tests/gs/test_operator.py:536 independently pins every real-cache MAST scale to _KA_TURN_TO_A, though that test's expected vector is built from the same constant it guards.\nSCORE fit: 18\nJUSTIFICATION fit: the field at imas_ambix/gs/operator.py:560 and the inline scale derivation follow the module's dataclass idiom and explain the mechanism, but the units descriptor at :690 no longer matches the per-column behaviour.\nSCORE reuse: 19\nJUSTIFICATION reuse: the change extends the existing owner named by CircuitDrive.ampere_turns_per_ampere at imas_ambix/gs/geometry.py:290 and CircuitClass.sum_xmult rather than adding a second source of truth, and a search of imas_ambix/gs found no prior per-channel current-scale mechanism.\nFINDING imas_ambix/gs/operator.py:690 follow-on: shapes() still reports amc_raw_units \"kA*turn\" and amc_to_si_factor 1000 unconditionally, and the summary writer repeats it at imas_ambix/gs/operator.py:1081, but this change makes the assembly factor per-column, so for a declared-drive normalised source a units-audit reader is told a factor the code no longer applies.\n",
+  "review_run_id": "r-20261006T203619074299-review-of-jtmm-drive-turns",
+  "reviewed_base_sha": "28a6ec3d647414a07c7de1702abc9960a4094316",
+  "reviewed_head_sha": "e68a87fab9c3cd3b90cba68fb74806291d3d8d0a",
+  "reviewed_run_id": "r-20261006T200342290841-jtmm-drive-turns",
+  "scores": {
+    "durability": 18,
+    "evidence": 18,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "reuse": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "timestamp": "2026-10-06T20:44:52.242823+00:00",
+  "total": 112
+}
