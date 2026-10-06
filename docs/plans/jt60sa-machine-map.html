@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.93">
-<meta name="plan-version" content="260">
+<meta name="plan-version" content="262">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -501,7 +501,7 @@
       old threshold dropped. One checks that a sample above the dI/dt threshold is excluded. It
       re-runs the three shots, rewrites the verdict tables, and says how many loops stay undecided,
       with their reasons; those loops are the next investigation.
-      Under the rule (merge pending), 16 of the 17 probes are <code>identity</code>, with median slopes
+      Under the rule (merged 2026-10-07), 16 of the 17 probes are <code>identity</code>, with median slopes
       0.97 to 1.06 and median |r| 0.96 to 1.00. Probe 17 misses at median r 0.948. Loop 7 is
       <code>negate</code> at −0.99, and the other 26 loops stay undecided: loops 1 to 12 barely
       respond, and loops 13 to 27 change sign between E100595 (about −0.8) and E100642 (about +1).
@@ -509,10 +509,23 @@
       <code>jtmm-vacuum-verdicts-author</code> writes the measured verdicts into the maps. Each probe
       rule and loop 7's rule in <code>magnetics.json</code> gets the <code>channel_factor</code> its
       verdict sets (+1 for <code>identity</code>, −1 for <code>negate</code>) and becomes
-      <code>validation_state: corpus-validated</code>. Each verdict is recorded in
-      <code>jt-60sa.json</code> as a <code>FluxLoopPositionDeclaration</code> over the OP1 range, as
-      MAST's are, with the undecided channels declared <code>undecided</code> and their reasons. It
-      writes no rule it did not measure.
+      <code>validation_state: corpus-validated</code>, with its <code>evidence</code> citing the
+      median slope, median |r| and the three shots. Every rule is <code>one_like</code> with no
+      source COCOS, so the channel factor alone carries the sign, and the fragment states which
+      convention the vacuum prediction is in. The signal rule is the sign carrier (decision
+      <code>signal-rule-validation-state</code>), so each of the 27 undecided channels stays
+      <code>source-only</code> with <code>channel_factor</code> 1 and its <code>evidence</code> names
+      the adjudication's reason. <code>jt-60sa.json</code> gains no
+      <code>FluxLoopPositionDeclaration</code>: that type carries position verdicts
+      (<code>nominal-table</code>, <code>reconstruction</code>, <code>undecided</code>), and this
+      adjudication measured sign at the declared positions. It writes no rule it did not measure.
+      <code>jtmm-signal-map-test-guards</code> follows it in the same test file,
+      <code>tests/data/test_jt60sa_signal_maps.py</code>, and tightens two guards. The unit-table
+      test must account for every bound rule, each either checked or named in an explicit list of
+      channels known to be absent from the E101154 cache, so a newly absent channel fails rather than
+      being skipped under <code>checked &gt; 0</code>. The blocked-reason guard must catch any reason
+      that rests a choice on E101154 while citing a corroborating shot, not only one containing the
+      words "E101154 alone".
       <code>jtmm-loop-reference-rca</code> is read-only. It tests whether the raw MDAC flux loops are
       differences against a reference loop rather than absolute flux. Loop 7 tracks absolutely, and
       every flux-loop PID channel best-matched loop 7 in the E101154 join. So it compares each loop's
