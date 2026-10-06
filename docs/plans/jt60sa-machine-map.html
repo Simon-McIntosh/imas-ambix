@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.87">
-<meta name="plan-version" content="211">
+<meta name="plan-version" content="212">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -1345,6 +1345,9 @@
 </div>
 <div class="r-comment" data-section="s6" data-id="c-20261006T1900-s6-signal-map-reader-landed" data-who="reckon-build" data-when="2026-10-06T19:00:00Z">
     <div class="r-comment-body"><p>gate tests/data/test_cocos_convention.py passed (14 tests, exit 0); jtmm-observation-signal-maps merged as 5efcd915, review 116/120, no added failure. read_signal_map_observation reads the plasma current and every flux loop raw through eddb.read_channel, takes the toroidal field from the EfitLabels record and reports the TF current's sign; read_catalogue_observation retires. The review found the flux loops aligned to the plasma current by sample index with each loop's own time sibling discarded; jtmm-observation-time-alignment repairs it.</p></div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-run-r-20261006T183330017252-jtmm-observation-signal-maps" data-who="reckon-build" data-when="2026-10-06T18:44:35.339Z">
+    <div class="r-comment-body"><p>Retired read_catalogue_observation and added read_signal_map_observation(shot, machine, equilibrium, *, root), reading plasma current and every flux loop raw from the machine&#x27;s packaged magnetics signal map through eddb.read_channel with no sign/unit/COCOS factor, taking the vacuum toroidal field from the EfitLabels record and reporting the tf map&#x27;s coil-current sign beside the observation; gate tests/data/test_cocos_convention.py 14 passed EXIT=0.</p></div>
 </div>
 </section>
 </main>
