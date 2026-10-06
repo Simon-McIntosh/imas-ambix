@@ -1,0 +1,71 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run was dispatched unarmed: its manifest.md names no baseline_suite and no after_suite (classification.json records manifest.data.baseline_suite null and manifest.data.after_suite null), so its own arms cannot supply the delta. This review therefore measured the reviewed node's declared two-file gate in two scratch trees built from the reviewed commit's own object store (both extracted with git archive into $TMPDIR/rev-arms, no worktree created): base arm gate-base.log (revision d0dd5a78ad5fc9312e28e44c0405a95083aa182e: 24 passed, EXIT=0) and head arm gate-head.log (revision d8be50bdbdbbfa54950fc92b90188cc533bf839c: 28 passed, EXIT=0). The head collects four more tests than the base (the added store test and the three refusal tests), all green. Both arms are green, so head failing ids ([]) minus base failing ids ([]) is 0.",
+  "after_suite": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider tests/data/test_jt60sa_machine_map.py tests/data/test_description_reader.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T194837570486-review-of-jtmm-probe-angle-binding/gate-head.log",
+    "revision": "d8be50bdbdbbfa54950fc92b90188cc533bf839c"
+  },
+  "baseline_suite": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider tests/data/test_jt60sa_machine_map.py tests/data/test_description_reader.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T194837570486-review-of-jtmm-probe-angle-binding/gate-base.log",
+    "revision": "d0dd5a78ad5fc9312e28e44c0405a95083aa182e"
+  },
+  "call_sites": "imas_ambix/data/description_reader.py:256, imas_ambix/gs/grounding.py:473, imas_ambix/spine_bench/transform_geometry_source.py:325, imas_ambix/tokenizer/signal_hf_encode.py:549, imas_ambix/spine_bench/runner.py:273",
+  "completed_at": "2026-10-06T19:57:53.472Z",
+  "dispatched_at": "2026-10-06T19:48:47Z",
+  "findings": [
+    {
+      "file": "tests/data/test_jt60sa_machine_map.py",
+      "line": "242",
+      "severity": "follow-on",
+      "text": "The done-when names two measures but the manifest records one: 'ruff check on the changed paths exits 0' has no log or result anywhere in the reviewed run directory (test_logs names only gate.log, tests: names only the pytest gate), so the manifest cannot record what is not there. The omission is small - the change touches no production Python, only jt-60sa.json data and test files, so a ruff pass is nearly assured - but a reader comparing the record against the done-when cannot confirm the clause."
+    },
+    {
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-probe-angle-binding.html",
+      "line": "1",
+      "severity": "follow-on",
+      "text": "The node wrote an evidence fragment although its done-when names no artifact and its dispatch brief (docs/evidence fragment route) tells a small node to write only the one landing line and no evidence prose. The fragment is a 15-line shell carrying no prose beyond its title, so it neither claims nor misleads; it is content the goal does not imply and adds a file to the merge with no reader value."
+    }
+  ],
+  "follow_ons": [],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "imas_ambix/data/description_reader.py:256 read_geometry_table calls the _supply_emitted_probe_angles supplier the binding feeds; production consumers reached by the change are imas_ambix/gs/grounding.py:473, imas_ambix/spine_bench/transform_geometry_source.py:325, imas_ambix/tokenizer/signal_hf_encode.py:549 and imas_ambix/spine_bench/runner.py:273.",
+    "diff": "Read commit by commit against d0dd5a78: four files changed, all inside the declared scope - two identical-message bindings in jt-60sa.json, one store-backed angle test plus three refusal tests in the two test files, and one empty fragment.",
+    "done_when": "The done_when names uv run --no-sync pytest -p no:cacheprovider tests/data/test_jt60sa_machine_map.py tests/data/test_description_reader.py (the gate.log records 28 passed EXIT=0) and ruff check on the changed paths exits 0; the pytest half is recorded, the ruff half is recorded nowhere in the manifest (its tests: field names only the pytest command).",
+    "goal": "The node goal is to bind the JT-60SA probe poloidal_angle description leaf for both phases with sign_convention identity. The diff (git show d8be50bd) adds jt60sa-op1-magnetics-b-field-pol-probe-poloidal-angle at imas_ambix/data/machine_maps/jt-60sa.json:1047 and the OP2 twin at :2228, each with source_array probe_angle, dd_path magnetics/b_field_pol_probe/poloidal_angle, source_unit rad, target_unit rad, sign_convention identity; read_geometry_table(100595, machine='jt-60sa') returns 17 probe angles matching the stored poloidal_angle in degrees.",
+    "manifest": "Read; it records node jtmm-probe-angle-binding, status complete, commit d8be50bd, the two-file gate 28 passed EXIT=0, and the negative control EXIT=1 (7 failed); it records no ruff run.",
+    "write_paths": "Read the node's five declared write paths; every path in the diff (imas_ambix/data/machine_maps/jt-60sa.json, tests/data/test_jt60sa_machine_map.py, tests/data/test_description_reader.py, docs/evidence/fragments/jt60sa-machine-map/jtmm-probe-angle-binding.html) is inside them."
+  },
+  "justifications": "independent review of run r-20261006T193702300259-jtmm-probe-angle-binding, reviewed_run_id r-20261006T193702300259-jtmm-probe-angle-binding, base d0dd5a78, head d8be50bd, stored as a parsed record scoring all six dimensions in 0..20 -- goal_fidelity 20, evidence 16, scope_discipline 18, durability 18, fit 20, reuse 20 -- total 112, added_failure_count 0 with added_failure_ids [] derived from this review's own two arms of the reviewed run's declared two-file gate (the reviewed run was unarmed, so its own manifest supplies no arms).",
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "review_run_id": "r-20261006T194837570486-review-of-jtmm-probe-angle-binding",
+  "reviewed_base_sha": "d0dd5a78ad5fc9312e28e44c0405a95083aa182e",
+  "reviewed_head_sha": "d8be50bdbdbbfa54950fc92b90188cc533bf839c",
+  "reviewed_run_id": "r-20261006T193702300259-jtmm-probe-angle-binding",
+  "reviewer": "review-of-jtmm-probe-angle-binding",
+  "scores": {
+    "durability": 18,
+    "evidence": 16,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "reuse": 20,
+    "scope_discipline": 18
+  },
+  "status": "parsed",
+  "timestamp": "2026-10-06T19:56:20.165929+00:00",
+  "total": 112
+}
