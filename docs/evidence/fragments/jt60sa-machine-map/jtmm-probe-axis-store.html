@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+  <meta name="plan-evidence-for" content="jt60sa-machine-map">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <section id="jtmm-probe-axis-store-landing">
+      <p>The SELENE converter now stores each tangential probe's true sensing
+      axis, both JT-60SA phase stores are regenerated with the fix, and both
+      geometry figures are re-rendered so every probe tick lies along the vessel
+      wall. The 17 stored axes moved from the deck's outward wall-normal angle
+      &omega; to the wall tangent &theta; = (90&deg;&nbsp;&minus;&nbsp;&omega;)
+      mod 360&deg;; the outboard-midplane probe MP1 now reads 89.72&deg;, within
+      1&deg; of the 90&deg; (down) the tangential convention requires.</p>
+    </section>
+
+    <section id="jtmm-probe-axis-store-detection">
+      <h3>The reproduced defect</h3>
+      <p>Before the repair, <code>build_magnetics</code> in
+      <code>imas_ambix/data/selene_deck.py</code> wrote
+      <code>poloidal_angle = deg2rad(probe.angle)</code>, the deck's &omega;
+      converted to radians, so every tick crossed the wall. Read from the
+      superseded OP1 store, the 17 angles (deg) were
+      <code>0.28, 21.20, 34.89, 50.39, 85.14, 124.41, 179.06, 180.01, 180.21,
+      180.17, 180.27, 234.21, 274.28, 311.04, 324.55, 338.37, 350.24</code> &mdash;
+      the wall-normal &omega;. Applying the declared mutation
+      (restoring <code>deg2rad(omega)</code>) turns both the tangent test and
+      the synthetic read-back assertion red
+      (<code>negative_control_probe_axis.log</code>, <code>EXIT=1</code>:
+      <code>test_stored_probe_axes_lie_along_the_vessel_inner_skin</code>,
+      <code>test_writer_reads_back_at_dd_4_1_1</code>).</p>
+    </section>
+
+    <section id="jtmm-probe-axis-store-fix">
+      <h3>The repair</h3>
+      <p>&omega; is the outward wall-normal angle measured counter-clockwise
+      from +R; the DD leaf is the sensing-axis angle measured clockwise from +R,
+      and these probes are tangential. The converter therefore writes
+      &theta; = (90&deg;&nbsp;&minus;&nbsp;&omega;) mod 360&deg; in radians &mdash;
+      the wall tangent in the direction of increasing clockwise poloidal angle,
+      which is 90&deg; (down) at the outboard midplane. The direction along the
+      axis is a declared convention, stated in the converter, not a measurement.
+      A test in <code>tests/data/test_selene_deck.py</code> requires every stored
+      axis of both phases within 5&deg; (mod 180) of the vessel inner-skin
+      tangent at the nearest skin point, and MP1 to read 90&deg; within 1&deg;.
+      Measured on the real decks, the largest departure is 3.33&deg; (OP1 and
+      OP2 both, nearest skin point within 0.021&nbsp;m of each probe).</p>
+    </section>
+
+    <section id="jtmm-probe-axis-store-store">
+      <h3>Phase stores regenerated, superseded stores moved aside</h3>
+      <p>Both stores were written through <code>write_phase_description</code>
+      with the four source decks first verified byte-for-byte against the
+      receipts' sha256. The converter commit now recorded in each receipt is
+      <code>4ad783e6e5a1ec02ea8c7852dfee34f16d4a2e9c</code>. The two superseded
+      directories were <strong>moved, not deleted</strong>:</p>
+      <table>
+        <thead><tr><th>superseded (old)</th><th>moved to</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>/work/projects/imas_gpu/jt60sa/machine_description/OP1</code></td>
+            <td><code>/work/projects/imas_gpu/jt60sa/machine_description/superseded/OP1</code></td>
+          </tr>
+          <tr>
+            <td><code>/work/projects/imas_gpu/jt60sa/machine_description/OP2</code></td>
+            <td><code>/work/projects/imas_gpu/jt60sa/machine_description/superseded/OP2</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <table>
+        <thead><tr><th>measure</th><th>OP1</th><th>OP2</th></tr></thead>
+        <tbody>
+          <tr><td>probes with an axis</td><td>17</td><td>17</td></tr>
+          <tr><td>MP1 axis (deg)</td><td>89.72</td><td>89.72</td></tr>
+          <tr><td>vessel deck (sha256 prefix)</td><td><code>55d97f698936</code> (coil_vv_OP1)</td><td><code>0077a0241fed</code></td></tr>
+          <tr><td>receipt</td><td><code>machine_description/OP1/receipt.json</code></td><td><code>machine_description/OP2/receipt.json</code></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="jtmm-probe-axis-store-figures">
+      <h3>Figures re-rendered</h3>
+      <p>Both SVGs in <code>docs/figures/jt60sa-geometry/</code> were re-rendered
+      by the unchanged <code>scripts/figures_jt60sa_geometry.py</code>. Each probe
+      tick now lies along the vessel inner skin instead of crossing it; the
+      overlay makes the change visible on both phases.</p>
+      <figure>
+        <img
+          src="/imas-ambix/figures/jt60sa-geometry/op1-op2-overlay.svg"
+          alt="OP1 and OP2 poloidal cross-sections overlaid, each probe tick lying along the vessel inner skin"/>
+      </figure>
+      <figure>
+        <img
+          src="/imas-ambix/figures/jt60sa-geometry/op1-op2-side-by-side.svg"
+          alt="OP1 and OP2 poloidal cross-sections side by side, probe ticks along the vessel inner skin"/>
+      </figure>
+    </section>
+
+    <section id="jtmm-probe-axis-store-measure">
+      <h3>Measure</h3>
+      <p><code>uv run --no-sync pytest tests/data/test_selene_deck.py</code> &mdash;
+      31 passed, <code>EXIT=0</code> (<code>gate_test_selene_deck.log</code>).
+      Store regeneration <code>EXIT=0</code>
+      (<code>regenerate_jt60sa_store.log</code>), figure render
+      <code>EXIT=0</code> (<code>render_figures.log</code>). No TF coil or turn
+      count is stated by any source deck, so both receipts still record the
+      <code>tf</code> fields as validation gaps rather than a guessed zero. This
+      node only changed the converter and regenerated the store; verifying the
+      merged result belongs to a separately dispatched test node.</p>
+    </section>
+
+  </main>
+</body>
+</html>

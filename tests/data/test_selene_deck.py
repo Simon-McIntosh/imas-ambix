@@ -287,8 +287,10 @@ def test_writer_reads_back_at_dd_4_1_1(decks, tmp_path: Path):
 
     mag = read("magnetics")
     assert float(mag.b_field_pol_probe[0].position.r) == pytest.approx(4.7355)
+    # The deck's 0.28 deg is the outward wall-normal omega; the stored axis is
+    # the tangential sensing axis, (90 - omega) mod 360.
     assert float(mag.b_field_pol_probe[0].poloidal_angle) == pytest.approx(
-        math.radians(0.28)
+        math.radians(89.72)
     )
     assert float(mag.flux_loop[0].position[0].r) == pytest.approx(1.8798)
 
@@ -327,6 +329,77 @@ def test_writer_reads_back_at_dd_4_1_1(decks, tmp_path: Path):
 
     assert receipt["outputs"]["pf_active"] == str(phase_dir / "pf_active.nc")
     assert (phase_dir / "receipt.json").exists()
+
+
+def _axis_difference_deg(first_deg: float, second_deg: float) -> float:
+    """Smallest angle between two axis directions, folded onto 0..90 degrees."""
+    return abs((first_deg - second_deg + 90.0) % 180.0 - 90.0)
+
+
+def _skin_polyline(segments) -> tuple[np.ndarray, np.ndarray]:
+    """The sampled (r, z) vertices of a vessel-skin segment run."""
+    skin_r, skin_z = sd._wall_outline(segments)
+    return np.asarray(skin_r), np.asarray(skin_z)
+
+
+def _nearest_skin_tangent_deg(
+    skin_r: np.ndarray, skin_z: np.ndarray, r: float, z: float
+) -> float:
+    """Sensing-axis angle of the skin chord nearest (r, z), clockwise from +R."""
+    best: tuple[float, float] | None = None
+    for i in range(skin_r.size - 1):
+        r1, z1 = float(skin_r[i]), float(skin_z[i])
+        dr, dz = float(skin_r[i + 1]) - r1, float(skin_z[i + 1]) - z1
+        length_sq = dr * dr + dz * dz
+        if length_sq == 0.0:
+            continue
+        t = min(1.0, max(0.0, ((r - r1) * dr + (z - z1) * dz) / length_sq))
+        cr, cz = r1 + t * dr, z1 + t * dz
+        dist_sq = (r - cr) ** 2 + (z - cz) ** 2
+        if best is None or dist_sq < best[0]:
+            # The DD leaf is a clockwise-from-+R angle: the negation of the
+            # counter-clockwise atan2 of the chord direction.
+            best = (dist_sq, (-math.degrees(math.atan2(dz, dr))) % 360.0)
+    assert best is not None
+    return best[1]
+
+
+def test_stored_probe_axes_lie_along_the_vessel_inner_skin():
+    """Every stored probe axis is the vessel inner-skin tangent.
+
+    The facility probe positions sit on the description's vessel inner skin, so
+    the converter must store each probe's sensing axis along that skin's tangent
+    rather than the deck's outward wall-normal angle.  Both phases are checked,
+    each against the deck its store draws the vessel skin from.
+    """
+    if not (
+        REAL_GEO.exists()
+        and REAL_COIL_VV.exists()
+        and REAL_COIL_VV_OP1.exists()
+    ):
+        pytest.skip("real facility deck copies absent")
+    geo = sd.parse_geo_in(REAL_GEO)
+    factory = imas.IDSFactory(sd.DD_VERSION)
+    magnetics = sd.build_magnetics(factory, geo)
+    stored_deg = [
+        math.degrees(float(probe.poloidal_angle))
+        for probe in magnetics.b_field_pol_probe
+    ]
+    # Each phase's store draws its vessel skin from its own coil_vv deck.
+    skins = {
+        "OP1": sd.parse_coil_vv_deck(REAL_COIL_VV_OP1).vessel_skin_inner,
+        "OP2": sd.parse_coil_vv_deck(REAL_COIL_VV).vessel_skin_inner,
+    }
+    for phase, skin in skins.items():
+        skin_r, skin_z = _skin_polyline(skin)
+        assert skin_r.size >= 2, phase
+        for index, probe in enumerate(geo.probes):
+            tangent = _nearest_skin_tangent_deg(skin_r, skin_z, probe.r, probe.z)
+            difference = _axis_difference_deg(stored_deg[index], tangent)
+            assert difference <= 5.0, (phase, index + 1, stored_deg[index], tangent)
+
+    # MP1 sits at the outboard midplane, where the tangential axis points down.
+    assert _axis_difference_deg(stored_deg[0], 90.0) <= 1.0
 
 
 def test_receipt_names_sources_and_converter_commit(decks, tmp_path: Path):
