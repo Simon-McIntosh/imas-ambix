@@ -26,8 +26,8 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
-<meta name="plan-impl" content="0.86">
-<meta name="plan-version" content="209">
+<meta name="plan-impl" content="0.87">
+<meta name="plan-version" content="211">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -343,6 +343,38 @@
       re-renders the two SVGs in <code>docs/figures/jt60sa-geometry/</code> with the unchanged
       <code>scripts/figures_jt60sa_geometry.py</code>, so the overlay shows each tick along the
       wall. It retires nothing and adds no public definition.
+    </p>
+    <p>
+      The first vacuum adjudication (<code>jtmm-vacuum-adjudication</code>, head 892715c4, review
+      95/120, held unpromoted) found no channel that tracks its prediction. All 44 loops and
+      probes are undecided on E100595, E100579 and E100642. Correlations are mostly weak and the
+      slopes are far from ±1 and vary from shot to shot. Loop 7 alone tracks at r −0.9999, but with
+      a slope near −14 on every shot, and it is also the loop every flux-loop PID channel
+      best-matched in the E101154 join. The review also found the script reading probe angles
+      straight from <code>magnetics.nc</code>, a second supplier beside
+      <code>read_geometry_table</code>. That happened because the JT-60SA catalogue emits no
+      probe-angle binding yet. And MAST's default run was argued, not reproduced. Four nodes follow,
+      before any verdict is authored.
+      <code>jtmm-vacuum-mismatch-rca</code> finds why the predictions miss. It is read-only over
+      the cache, the description and the operator, and runs the cheap discriminating checks first:
+      the MMSYS and MDAC time bases (units, origin, sample rate) on one vacuum shot; the raw loop's
+      pre-pulse baseline and integrator drift; the drive topology's ampere-turns per ampere against
+      the coil currents' units; and why loop 7 alone tracks, at what factor. It writes one evidence
+      fragment naming the cause and no source.
+      <code>jtmm-probe-angle-binding</code> adds the <code>magnetics/b_field_pol_probe/poloidal_angle</code>
+      description binding to <code>jt-60sa.json</code> for both phases with
+      <code>sign_convention</code> <code>identity</code>. Its grounds are the stored axis and SELENE's
+      own tangential-field expression (<code>mgfild.f:38</code>, quoted in
+      <code>jtmm-probe-axis-source</code>), so <code>read_geometry_table</code> supplies the angles. It
+      also adds one test each for the three refusal branches the guards review found unguarded.
+      <code>jtmm-vacuum-adjudication-repair</code>, based on 892715c4, reads probe angles through
+      <code>read_geometry_table</code> and applies the root-cause node's correction. It runs MAST's
+      default path into a scratch directory, compares its verdicts with the committed MAST receipt,
+      and replaces the swap control with one whose verdict can change. It merges together with
+      892715c4.
+      <code>jtmm-observation-time-alignment</code> makes <code>read_signal_map_observation</code> read
+      each flux loop with its own time sibling and interpolate every series onto the plasma-current
+      time base, refusing a loop whose time span does not cover it.
     </p>
     <p>
       The COCOS of the source is then identified rather than assumed. For the raw side,
@@ -1309,7 +1341,10 @@
     <div class="r-comment-body"><p>Retired tor_angle_like and pol_angle_like from MAST_TO_COCOS_17_FACTORS so the table holds only the six classes nova's TRANSFORMATIONS owns, and rewrote the agreement test to cross-check every committed entry against nova's derived factor with no exclusion; gate tests/data/test_cocos_convention.py + tests/data/test_transform_engine.py 34 passed EXIT=0, ruff exit 0.</p></div>
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20261006T182446590751-review-of-jtmm-angle-factor-retire" data-who="reckon-build" data-when="2026-10-06T18:32:20.294Z">
-    <div class="r-comment-body"><p>Independent review of r-20261006T181623285260-jtmm-angle-factor-retire stored at reviewed_base_sha d2bb8d081559ca088c2d44e74f06416584f956dc and reviewed_head_sha 309ab4e40c69342058d5ba6c4115d33ef4eb3bba, scoring all six dimensions (goal_fidelity 20, scope_discipline 20, reuse 20, evidence 19, fit 19, durability 19; total 117) with added_failure_count 0 and added_failure_ids []; the node&#x27;s retirement of the two unowned angle classes and its every-entry agreement loop both verified, the head gate reproduced at 34 passed EXIT=0 and the declared negative control at 1 failed 14 passed EXIT=1.</p></div>
+    <div class="r-comment-body"><p>Independent review of r-20261006T181623285260-jtmm-angle-factor-retire stored at reviewed_base_sha d2bb8d081559ca088c2d44e74f06416584f956dc and reviewed_head_sha 309ab4e40c69342058d5ba6c4115d33ef4eb3bba, scoring all six dimensions (goal_fidelity 20, scope_discipline 20, reuse 20, evidence 19, fit 19, durability 19; total 117) with added_failure_count 0 and added_failure_ids []; the node's retirement of the two unowned angle classes and its every-entry agreement loop both verified, the head gate reproduced at 34 passed EXIT=0 and the declared negative control at 1 failed 14 passed EXIT=1.</p></div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-20261006T1900-s6-signal-map-reader-landed" data-who="reckon-build" data-when="2026-10-06T19:00:00Z">
+    <div class="r-comment-body"><p>gate tests/data/test_cocos_convention.py passed (14 tests, exit 0); jtmm-observation-signal-maps merged as 5efcd915, review 116/120, no added failure. read_signal_map_observation reads the plasma current and every flux loop raw through eddb.read_channel, takes the toroidal field from the EfitLabels record and reports the TF current's sign; read_catalogue_observation retires. The review found the flux loops aligned to the plasma current by sample index with each loop's own time sibling discarded; jtmm-observation-time-alignment repairs it.</p></div>
 </div>
 </section>
 </main>
