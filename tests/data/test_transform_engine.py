@@ -538,9 +538,11 @@ def test_zarr_engine_refuses_a_binding_selecting_a_struct_array_entry(tmp_path):
     group.create_group("pf_active").create_array("rectangle_r", data=np.zeros(3))
 
     engine = get_transform_engine("zarr")
-    with engine.open(str(tmp_path), 5, dd_version) as source:
-        with pytest.raises(TransformEngineError, match="struct-array entry"):
-            source.read(_coil_element_binding("A"))
+    with (
+        engine.open(str(tmp_path), 5, dd_version) as source,
+        pytest.raises(TransformEngineError, match="struct-array entry"),
+    ):
+        source.read(_coil_element_binding("A"))
     print("STRUCT_ENTRY_ZARR refused=declared slot")
 
 
