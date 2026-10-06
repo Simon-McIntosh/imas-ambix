@@ -1,0 +1,66 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": null,
+  "added_failure_ids": [],
+  "added_failures_note": "unmeasured: the reviewed manifest names no base gate log, so the added-failure count was not taken",
+  "base_log_revision": null,
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-06T21:02:40.847Z",
+  "dispatched_at": "2026-10-06T20:55:16Z",
+  "findings": [
+    {
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-coil-turns-source.html",
+      "line": "62",
+      "severity": "follow-on",
+      "text": "follow-on: section 2 says the pf_active turns were \"read back from the committed store machine_description/OP1/pf_active.nc\" with per-coil turns_with_sign values, but coil_turns_source.py never opens that store -- its only converter evidence is selene_deck.py:793 in code -- so the sentence asserts an observation the node's own artefacts do not record; the conclusion holds (I verified deck and writer independently) but the evidence is claimed, not shown."
+    },
+    {
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-coil-turns-source.html",
+      "line": "48",
+      "severity": "follow-on",
+      "text": "follow-on: the FPPC_UP/FPPC_DOWN rows give turns/filament 3.83 and total turns 22.98, but the deck's six FPPC filaments alternate 3.83/3.84 (EQSLE.DATA lines 280-291) and sum to 23.00, so the single-value column and the 22.98 total understate the block; the note reconciles to 23 in prose so no reader is misled, but the table itself is imprecise."
+    }
+  ],
+  "head_log_revision": null,
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "no production call sites found",
+    "diff": "read the single commit 00f986100282 against a1980fe0a761; it adds one evidence fragment of 148 lines and nothing else, and I re-read the deck, the catalogue and the adapter it cites.",
+    "done_when": "this read-only node's measure is its fragment plus the recorded run of coil_turns_source.py; the manifest's tests field names that script at exit 0 and coil_turns.log records the deck values, the 268-connection topology and the three per-coil fits, so the measure is recorded rather than claimed.",
+    "goal": "the goal is to name each PF coil's per-filament turn count from the SELENE deck with its source lines, compare it with the 1.0-per-filament the drive topology writes and with a free per-coil fit of the vacuum response, and write one fragment and no source; docs/evidence/fragments/jt60sa-machine-map/jtmm-coil-turns-source.html lands exactly that.",
+    "manifest": "read; status complete, commits [00f9861002825a823a045f1ff27669838f11921b], changed_paths the one fragment, and it states the deck turns, the topology 1.0 and the not-identifiable fit; but its section-2 claim of a pf_active.nc read-back has no matching line in coil_turns.log.",
+    "write_paths": "the manifest declares the fragment and a figures directory, and git show 00f986100282 touches only docs/evidence/fragments/jt60sa-machine-map/jtmm-coil-turns-source.html (148 insertions) inside the declared set, with no source changed."
+  },
+  "justifications": {
+    "durability": "an evidence node lands no code, so its durability is reproducibility; I re-derived the deck lines, imas_ambix/data/machine_maps/jt-60sa.json drive_topologies and geometry_adapter._materialise_circuit_drives, but the fragment's pf_active read-back is not reproducible from the run's own artefacts.",
+    "evidence": "coil_turns.log reproduces the deck table, the 268-connection turns=1.0/current_weight=1.0 topology and the ampere_turns_per_ampere 40/16/6, but docs/evidence/fragments/jt60sa-machine-map/jtmm-coil-turns-source.html:62 asserts a pf_active.nc read-back the script never made.",
+    "fit": "docs/evidence/fragments/jt60sa-machine-map/jtmm-coil-turns-source.html follows the evidence-fragment idiom (doctype, docs-project/reckon-type/plan-slug meta, a single data-reckon=\"evidence\" section) used by its sibling jtmm-vacuum-mismatch-rca.html.",
+    "goal_fidelity": "docs/evidence/fragments/jt60sa-machine-map/jtmm-coil-turns-source.html names 13.725 turns/filament for CS1-CS4 (lines 24-183) and 8.875-22.0625 for EF1-EF6 (lines 184-279), which I confirmed against EQSLE.DATA lines 22-291 directly.",
+    "reuse": "the fragment adds no code; it reuses build_operator, read_geometry_table, read_channel and the packaged catalogue rather than forking a capability, so nothing is duplicated.",
+    "scope_discipline": "git show 00f986100282 --stat changes only docs/evidence/fragments/jt60sa-machine-map/jtmm-coil-turns-source.html inside the manifest's declared write paths and no source file."
+  },
+  "project": "imas-ambix",
+  "raw_text": "reviewed_base_sha: a1980fe0a761bc2d838ee1d4a0b003ee6131423f\nreviewed_head_sha: 00f9861002825a823a045f1ff27669838f11921b\nVERDICT goal: the goal is to name each PF coil's per-filament turn count from the SELENE deck with its source lines, compare it with the 1.0-per-filament the drive topology writes and with a free per-coil fit of the vacuum response, and write one fragment and no source; docs/evidence/fragments/jt60sa-machine-map/jtmm-coil-turns-source.html lands exactly that.\nVERDICT done_when: this read-only node's measure is its fragment plus the recorded run of coil_turns_source.py; the manifest's tests field names that script at exit 0 and coil_turns.log records the deck values, the 268-connection topology and the three per-coil fits, so the measure is recorded rather than claimed.\nVERDICT write_paths: the manifest declares the fragment and a figures directory, and git show 00f986100282 touches only docs/evidence/fragments/jt60sa-machine-map/jtmm-coil-turns-source.html (148 insertions) inside the declared set, with no source changed.\nVERDICT manifest: read; status complete, commits [00f9861002825a823a045f1ff27669838f11921b], changed_paths the one fragment, and it states the deck turns, the topology 1.0 and the not-identifiable fit; but its section-2 claim of a pf_active.nc read-back has no matching line in coil_turns.log.\nVERDICT diff: read the single commit 00f986100282 against a1980fe0a761; it adds one evidence fragment of 148 lines and nothing else, and I re-read the deck, the catalogue and the adapter it cites.\nCALL_SITES: none\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: docs/evidence/fragments/jt60sa-machine-map/jtmm-coil-turns-source.html names 13.725 turns/filament for CS1-CS4 (lines 24-183) and 8.875-22.0625 for EF1-EF6 (lines 184-279), which I confirmed against EQSLE.DATA lines 22-291 directly.\nSCORE evidence: 16\nJUSTIFICATION evidence: coil_turns.log reproduces the deck table, the 268-connection turns=1.0/current_weight=1.0 topology and the ampere_turns_per_ampere 40/16/6, but docs/evidence/fragments/jt60sa-machine-map/jtmm-coil-turns-source.html:62 asserts a pf_active.nc read-back the script never made.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git show 00f986100282 --stat changes only docs/evidence/fragments/jt60sa-machine-map/jtmm-coil-turns-source.html inside the manifest's declared write paths and no source file.\nSCORE durability: 15\nJUSTIFICATION durability: an evidence node lands no code, so its durability is reproducibility; I re-derived the deck lines, imas_ambix/data/machine_maps/jt-60sa.json drive_topologies and geometry_adapter._materialise_circuit_drives, but the fragment's pf_active read-back is not reproducible from the run's own artefacts.\nSCORE fit: 18\nJUSTIFICATION fit: docs/evidence/fragments/jt60sa-machine-map/jtmm-coil-turns-source.html follows the evidence-fragment idiom (doctype, docs-project/reckon-type/plan-slug meta, a single data-reckon=\"evidence\" section) used by its sibling jtmm-vacuum-mismatch-rca.html.\nSCORE reuse: 20\nJUSTIFICATION reuse: the fragment adds no code; it reuses build_operator, read_geometry_table, read_channel and the packaged catalogue rather than forking a capability, so nothing is duplicated.\nFINDING docs/evidence/fragments/jt60sa-machine-map/jtmm-coil-turns-source.html:62 follow-on: section 2 says the pf_active turns were \"read back from the committed store machine_description/OP1/pf_active.nc\" with per-coil turns_with_sign values, but coil_turns_source.py never opens that store -- its only converter evidence is selene_deck.py:793 in code -- so the sentence asserts an observation the node's own artefacts do not record; the conclusion holds (I verified deck and writer independently) but the evidence is claimed, not shown.\nFINDING docs/evidence/fragments/jt60sa-machine-map/jtmm-coil-turns-source.html:48 follow-on: the FPPC_UP/FPPC_DOWN rows give turns/filament 3.83 and total turns 22.98, but the deck's six FPPC filaments alternate 3.83/3.84 (EQSLE.DATA lines 280-291) and sum to 23.00, so the single-value column and the 22.98 total understate the block; the note reconciles to 23 in prose so no reader is misled, but the table itself is imprecise.\n",
+  "review_run_id": "r-20261006T205506566495-review-of-jtmm-coil-turns-source",
+  "reviewed_base_sha": "a1980fe0a761bc2d838ee1d4a0b003ee6131423f",
+  "reviewed_head_sha": "00f9861002825a823a045f1ff27669838f11921b",
+  "reviewed_run_id": "r-20261006T203523951249-jtmm-coil-turns-source",
+  "reviewer": {
+    "backend": "clive",
+    "model": "deepseek-v4.1-flash"
+  },
+  "rubric": "code",
+  "scores": {
+    "durability": 15,
+    "evidence": 16,
+    "fit": 18,
+    "goal_fidelity": 20,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "timestamp": "2026-10-06T21:01:53+00:00",
+  "total": 109
+}
