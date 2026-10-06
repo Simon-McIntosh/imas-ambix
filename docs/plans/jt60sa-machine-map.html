@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5">
 <meta name="plan-impl" content="0.625">
-<meta name="plan-version" content="92">
+<meta name="plan-version" content="93">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -519,7 +519,17 @@
       <code>surviving_conventions</code> take any cohort of <code>ShotSignObservation</code>, with
       the MAST table only as the default, and <code>format_sign_report</code> writes the sign
       report this section's done-when names, so JT-60SA supplies an observation cohort to it
-      rather than a second scorer. For the
+      rather than a second scorer. The cohort's reader has an owner too:
+      <code>read_level2_observation</code> is the only producer of
+      <code>ShotSignObservation</code>, and it hard-codes MAST's level-2 layout and channel names
+      (<code>magnetics/ip</code>, <code>magnetics/flux_loop_flux</code>,
+      <code>equilibrium/psi</code> under <code>{root}/{shot}.zarr</code>). §6 generalises it as it
+      generalises <code>measure_diiid_convention</code>: the reader takes the shot's catalogue
+      and reads those quantities through the catalogue's bindings and store engine. The EDDB
+      cache is a <code>{shot}.zarr/{category}/{dname}</code> store that the zarr engine already
+      reads as <code>{source_group}/{source_array}</code>, so the §5 JT-60SA bindings serve it,
+      and MAST's catalogue reproduces today's reads. No parallel EDDB observation reader is
+      added. For the
       equilibrium side, the SELENE and FAME outputs are scored on the convention scorer's
       tests (edge-minus-axis flux sense, flux-per-radian versus total flux by integrating
       the Grad–Shafranov current, q sign). The shipped entry point,
@@ -544,7 +554,14 @@
       entry point also hard-codes DIII-D eligibility, <code>MINIMUM_PLASMA_CURRENT_KA</code>,
       <code>STANDARD_FIELD_BCOIL_MAXIMUM</code> and the <code>MINIMUM_AUDIT_SHOTS</code> guard, so
       those move into each loader's declaration as its corpus's eligibility, and the kernel keeps
-      only the Grad–Shafranov integral and the sign tests. The result sets <code>source_cocos</code> in the catalogue and
+      only the Grad–Shafranov integral and the sign tests. The exported surface is kept, not
+      renamed. <code>measure_diiid_convention</code> stays the DIII-D loader's entry and calls
+      the generalised kernel, so its callers are unchanged. <code>MINIMUM_AUDIT_SHOTS</code>, the
+      one of the three thresholds in <code>__all__</code>, stays exported as the DIII-D
+      declaration's value. <code>MINIMUM_PLASMA_CURRENT_KA</code> and
+      <code>STANDARD_FIELD_BCOIL_MAXIMUM</code>, which are not exported, move into that
+      declaration. The section retires nothing public, because every existing name keeps its
+      caller. The result sets <code>source_cocos</code> in the catalogue and
       the per-binding overrides where SELENE and the raw acquisition differ. Target
       convention is fixed: DD 4 in COCOS 17, and the engine applies the Sauter transform
       to each of the DD's COCOS-dependent leaves — seventeen in magnetics, three in
@@ -573,10 +590,14 @@
       (<code>eqdbget</code>), and the Code TWiki documents the equilibrium codes. That rung
       needs a reader for the EQDB record (psi on its grid, boundary, p′ and FF′ or their
       profiles) wrapped in the same remote-extractor contract, and a COCOS verdict from §6
-      before any map is written into <code>profiles_2d/psi</code>. The EQDB reader adds one
-      remote script and one fetch entry beside the §3 extractor's and reuses its ssh
-      transport (<code>SshTransport</code> in <code>imas_ambix/data/eddb_remote.py</code>)
-      rather than a second path. Its records land in the same store, owned by
+      before any map is written into <code>profiles_2d/psi</code>. The EQDB read extends the §3
+      extractor rather than sitting beside it. <code>RemoteEddbExtractor</code> gains the EQDB
+      request kind and keeps everything it already owns: the batch framing
+      (<code>encode_batch</code>, <code>decode_batch</code>), the per-request refusal contract, and
+      the niced, module-loaded remote command over <code>SshTransport</code>. Only the remote read
+      call differs (<code>eqdbget</code> through the EQDB client rather than
+      <code>eddb_pwrapper</code>), and the decoded record type for a grid is settled with the
+      open question <code>eqdb-reader</code>. Its records land in the same store, owned by
       <code>imas_ambix/data/eddb.py</code>: <code>write_channel</code> writes only a
       <code>(channel, time)</code> array with a sibling time vector, and an EQDB record is psi on a
       two-dimensional grid with its boundary and profiles, so <code>eddb.py</code> gains a grid
