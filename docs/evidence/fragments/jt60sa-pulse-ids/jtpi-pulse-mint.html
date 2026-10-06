@@ -1,0 +1,49 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtpi-pulse-mint">
+  <header>
+    <h3>pulse mint: one writer from data load to IDS write</h3>
+    <p class="meta">
+      Node <code>jtpi-pulse-mint</code> &middot;
+      date 2026-10-06 &middot;
+      plan <code>jt60sa-pulse-ids</code> &sect;1 &middot;
+      commit <code>12425c34</code>
+    </p>
+  </header>
+
+  <ul>
+    <li>
+      <code>imas_ambix/data/pulse_mint.py</code> <code>mint_pulse</code> reads
+      the OP1 phase description whole and writes pf_active, pf_passive, wall,
+      magnetics and tf for E101154 under <code>{out}/101154/</code>, one put
+      per IDS after <code>ids.validate()</code>.
+    </li>
+    <li>
+      Gate <code>tests/data/test_pulse_mint.py</code> plus
+      <code>test_jt60sa_signal_maps.py</code> and
+      <code>test_transform_engine.py</code>: 38 passed, EXIT=0
+      (<code>gate-head.log</code>).
+    </li>
+    <li>
+      Served pf_active coils CS1&ndash;CS4, EF1&ndash;EF6 equal the compiled map
+      applied to their cached channels on the <code>read_channel</code> time
+      base (310077 samples); FPPC_UP and FPPC_DOWN carry no current; the TF
+      current equals the served chain; magnetics/ip peaks at 9.0e5&ndash;1.0e6&nbsp;A.
+    </li>
+    <li>
+      <code>idsdiffgen</code> against the OP1 description yields no path outside
+      <code>ids_properties</code> other than the receipt's leaves
+      (<code>coil/current/data</code>, <code>time</code> for pf_active and tf;
+      <code>ip</code>, <code>time</code> for magnetics). wall and pf_passive
+      diff to nothing.
+    </li>
+    <li>
+      Negative control: serving the blocked <code>curCS1HiTe</code> chain in
+      place of the served <code>curCS1LKAT</code> fails only
+      <code>test_served_coil_currents_match_the_compiled_map</code>, EXIT=1
+      (<code>negative-control.log</code>).
+    </li>
+    <li>
+      A shot with no cache refuses with
+      <code>shot 999999 has no EDDB cache; &hellip;/999999.zarr is absent</code>.
+    </li>
+  </ul>
+</section>
