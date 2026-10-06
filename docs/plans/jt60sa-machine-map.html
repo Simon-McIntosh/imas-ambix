@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.93">
-<meta name="plan-version" content="262">
+<meta name="plan-version" content="263">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -687,11 +687,15 @@
       gain the EQDB record's framing beside the channel framing, and the remote side calls the EQDB
       entry the probe below names rather than <code>eddb_pwrapper</code>. A refused EQDB request
       cannot be a <code>ChannelRefusal</code>, which is keyed <code>(shot, category, dname)</code>. So
-      it is a third record type keyed <code>(shot, record)</code>, carried in the same
-      <code>BatchResult</code> beside the channel refusals. A transport failure stays an
-      <code>EddbRemoteError</code>, so no refusal family is added. The three new public types, request,
-      record and refusal, add to §6's interface and retire nothing, because no equilibrium-database
-      request type exists. Its records land in the same store, owned by <code>imas_ambix/data/eddb.py</code>:
+      it is a third record type keyed <code>(shot, record)</code>. <code>BatchResult</code> today is
+      exactly <code>records</code> and <code>refusals</code>, which partition the channel requests, so
+      it gains two fields, <code>eqdb_records</code> and <code>eqdb_refusals</code>, and the four
+      together partition the requests the remote answered. <code>encode_batch</code> and
+      <code>decode_batch</code> gain one envelope section for each of the two. A transport failure
+      stays an <code>EddbRemoteError</code>, so no refusal family is added. §6's added interface is
+      therefore the three public types (request, record and refusal) and the two
+      <code>BatchResult</code> fields. They retire nothing, because no equilibrium-database request
+      type exists, and the channel fields keep their meaning. Its records land in the same store, owned by <code>imas_ambix/data/eddb.py</code>:
       <code>write_channel</code> writes only a <code>(channel, time)</code> array with a sibling
       time vector, and an EQDB record is psi on a two-dimensional grid with its boundary and
       profiles, so <code>eddb.py</code> gains a grid record writer beside <code>write_channel</code>
@@ -709,7 +713,11 @@
       refuses an existing record. <code>write_channel</code> then calls them, with its tests
       unchanged, and the grid writer calls the same helpers with <code>_channel_present</code>, so
       the token and overwrite contract has one implementation and cannot drift between the two
-      writers. It retires nothing, because no equilibrium-database reader exists in ambix.
+      writers. The read side is symmetric. <code>eddb.py</code> gains a grid record reader beside
+      <code>read_channel</code>, which resolves its path through <code>channel_path</code> in the
+      same way, and the SELENE loader reads the cached record only through that reader. So no
+      caller opens a zarr path in the store itself, and the store has one owner for both writing and
+      reading. It retires nothing, because no equilibrium-database reader exists in ambix.
     </p>
     <p>
       The transport's array layout waits on the open question <code>eqdb-reader</code>, which
