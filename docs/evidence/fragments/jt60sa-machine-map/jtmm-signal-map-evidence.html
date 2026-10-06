@@ -18,25 +18,28 @@
   </p>
 
   <p>
-    Every served rule and every blocked row in
-    <code>imas_ambix/data/maps/jt-60sa/pf_active.json</code> now states that the
-    chain choice rests on E101154 alone, because on E101173 and E060033 the coil
-    currents sit at the noise floor (tens to a hundred A) and the chains do not
-    corroborate it. EF2 is named as the exception: its brief ~1.5 kA excursion on
-    E101173 corroborates the E101154 choice at correlation 0.9996, still far below
-    the E101154 reading of 2.66 kA. No rule, factor or source changed; only the
-    text, and the EF2 exception is the one place where the flat statement would
-    have been false.
+    In <code>imas_ambix/data/maps/jt-60sa/pf_active.json</code> every served rule
+    states that the chain choice rests on E101154 alone, because on E101173 and
+    E060033 the coil currents sit at the noise floor (tens to a hundred A) and
+    the chains do not corroborate it. Each blocked row now describes its channel
+    structurally &mdash; the other measurement chain of the same coil current,
+    not served &mdash; in place of the former duplicate claim, which asserted an
+    agreement the data does not show. EF2 is the one exception and is stated
+    with its numbers: on E101173 its brief excursion reaches LKAT 1496.1 A and
+    HiTe 1449.1 A, about 56 percent of the E101154 2659.7 A reading, and
+    corroborates the choice at correlation 0.9996.
   </p>
 
   <p>
     Measure: <code>pytest -n 4 tests/data/test_jt60sa_signal_maps.py
-    tests/data/test_signal_map.py</code> passes (23 passed, EXIT=0);
-    <code>ruff check imas_ambix tests</code> exits 0. The two readings are
+    tests/data/test_signal_map.py</code> passes (24 passed, EXIT=0);
+    <code>ruff check imas_ambix tests</code> exits 0. The two TF readings are
     re-derived read-only from <code>101154.zarr</code> and <code>60033.zarr</code>
-    by <code>test_tf_blocked_row_states_the_two_measured_readings</code>, which also
-    requires the row's reason to carry them, so the text cannot drift from the
-    data. Negative control: restoring the word <em>duplicate</em> as the whole
-    reason reddens that test (<code>negative-control.log</code>, EXIT=1).
+    by <code>test_tf_blocked_row_states_the_two_measured_readings</code>, and
+    <code>test_no_blocked_reason_calls_the_other_chain_a_duplicate</code> requires
+    that no pf_active or tf blocked reason contains the word duplicate, so the
+    text cannot drift from the data. Negative control: restoring the word
+    <em>duplicate</em> as the whole cur2TFLKAT reason reddens both tests
+    (<code>negative-control.log</code>, EXIT=1).
   </p>
 </section>

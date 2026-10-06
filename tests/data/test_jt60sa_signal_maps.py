@@ -108,7 +108,10 @@ def test_pf_active_binds_one_chain_per_coil_at_the_store_index():
             row for row in source_map.blocked if row.source_array == f"cur{coil}{other}"
         ]
         assert len(blocked) == 1, f"coil {coil} blocks {len(blocked)} chains"
-        assert signal.semantic_id in blocked[0].reason
+        # The blocked row names the unserved chain structurally rather than by
+        # the served semantic id, so it does not imply the two chains agree.
+        assert "the other measurement chain of the same coil current" in blocked[0].reason
+        assert blocked[0].reason.startswith("the other measurement chain")
 
 
 @needs_cache
@@ -210,6 +213,20 @@ def test_pf_chain_choice_names_the_shot_it_rests_on():
         assert "E101154" in signal.evidence
     for row in source_map.blocked:
         assert "E101154" in row.reason
+
+
+def test_no_blocked_reason_calls_the_other_chain_a_duplicate():
+    """A blocked chain is a chain, not a second measurement of the same one.
+
+    The two measurement chains of a coil (and of the TF) decorrelate at the
+    noise floor on the shots where the current is too small to compare, so
+    calling the unserved chain a duplicate would assert agreement the data
+    does not show.
+    """
+    for system in ("pf_active", "tf"):
+        source_map = load_packaged_signal_map("jt-60sa", system)
+        for row in source_map.blocked:
+            assert "duplicate" not in row.reason.lower(), (system, row.source_array)
 
 
 def test_magnetics_binds_psrc_ip_in_amperes():
