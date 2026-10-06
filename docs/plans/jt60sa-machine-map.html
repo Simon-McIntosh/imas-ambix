@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85">
 <meta name="plan-impl" content="0.7">
-<meta name="plan-version" content="150">
+<meta name="plan-version" content="152">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -410,13 +410,21 @@
       <code>MAST_LEVEL2_SIGN_TABLE</code> read by <code>read_level2_sign_table</code>, is a
       hand-authored receipt table), and it hard-codes MAST's level-2 layout and channel names
       (<code>magnetics/ip</code>, <code>magnetics/flux_loop_flux</code>,
-      <code>equilibrium/psi</code> under <code>{root}/{shot}.zarr</code>). §6 generalises it as it
-      generalises <code>measure_diiid_convention</code>: the reader takes the shot's catalogue
-      and reads those quantities through the catalogue's bindings and store engine. The EDDB
-      cache is a <code>{shot}.zarr/{category}/{dname}</code> store that the zarr engine already
-      reads as <code>{source_group}/{source_array}</code>, so the §5 JT-60SA bindings serve it,
-      and MAST's catalogue reproduces today's reads. No parallel EDDB observation reader is
-      added. For the
+      <code>equilibrium/psi</code> under <code>{root}/{shot}.zarr</code>). MAST's catalogue cannot
+      replace those reads: its signal map binds one level-1 signal and no level-2 or equilibrium
+      leaf. So §6 separates the computation from the read. A private kernel in
+      <code>imas_ambix/data/cocos_convention.py</code> takes the plasma-current, flux-loop and
+      toroidal-field time series and an <code>EfitLabels</code> equilibrium record, the typed
+      record §6's convention entry already reads, and returns the
+      <code>ShotSignObservation</code>. <code>read_level2_observation</code> keeps its signature
+      and its MAST reads and calls the kernel, so MAST's tests are unchanged. A second reader,
+      <code>read_catalogue_observation(shot, catalogue, equilibrium)</code>, is the one new public
+      definition: it reads the raw half through the catalogue's bindings and store engine, and
+      takes the equilibrium half from the loader that owns it. The EDDB cache is a
+      <code>{shot}.zarr/{category}/{dname}</code> store that the zarr engine already reads as
+      <code>{source_group}/{source_array}</code>, so the §5 JT-60SA bindings serve the raw half,
+      and the SELENE loader below serves the equilibrium half. No parallel EDDB observation reader
+      is added, and it retires nothing, because no catalogue-driven observation reader exists. For the
       equilibrium side, the SELENE and FAME outputs are scored on the convention scorer's
       tests (edge-minus-axis flux sense, flux-per-radian versus total flux by integrating
       the Grad–Shafranov current, q sign). The shipped entry point,
@@ -443,8 +451,8 @@
       than the parquet read <code>convention.py</code> does today, and the SELENE and FAME
       loaders each return an <code>EfitLabels</code>. The kernel is reused rather than rewritten,
       and one equilibrium has one shape. That SELENE loader is the only reader of a SELENE
-      equilibrium in the plan, and its source is the EQDB record: §7's EQDB reader is the
-      transport that fetches and caches the record, and this loader turns the cached record into
+      equilibrium in the plan, and its source is the EQDB record: the EQDB transport this section
+      builds, described below, fetches and caches the record, and this loader turns the cached record into
       an <code>EfitLabels</code>. §7's reference loader adapts that <code>EfitLabels</code>
       into an <code>EquilibriumGeometry</code> rather than reading SELENE a second time, so the
       chain is one fetch, one reader and two adapters, and the sign scorer and the geometry
@@ -482,16 +490,57 @@
       against them, because the OP2 vessel is provisional.
     </p>
     <p>
-      The equilibrium half needs SELENE's output, which is read through the EQDB transport §7
-      describes: one request type and one record type in <code>eddb_remote.py</code>, the grid
-      writer and its two extracted helpers in <code>eddb.py</code>, and the open question
-      <code>eqdb-reader</code>. §6 builds that transport, because its SELENE loader is the
-      transport's first consumer and the gate holds every §7 node on §6's sign report. §7 keeps
-      the equilibrium bindings and the reconstruction gate. The transport's first node,
-      <code>jtmm-eqdb-reader-probe</code>, settles <code>eqdb-reader</code> read-only on nakasvr26:
-      the callable entry to <code>eqdbms</code> or <code>eqdbget</code> that needs no Fortran build,
-      and the grid, boundary and profile fields of one record for E101154. It writes one evidence
-      fragment and no source.
+      The equilibrium half reads two facility outputs, and §6 owns both reads, because its sign
+      report is their first consumer and the gate holds every §7 node on that report. The first is
+      FAME's real-time scalars: plasma current, poloidal and toroidal beta, normalised beta,
+      internal inductance, axis position, X-point height, strike-point angles, boundary gaps and
+      <code>Bt·R</code>. §6 binds them to <code>equilibrium/time_slice/global_quantities</code> and
+      <code>boundary</code> leaves and to <code>vacuum_toroidal_field</code> in an equilibrium signal
+      map under <code>imas_ambix/data/maps/jt-60sa/</code>, with
+      <code>sign_convention: unknown-unvalidated</code> on every signed quantity, as §5 does for
+      magnetics. They are time series in EDDB, so they ride the §3 path unchanged, and the FAME
+      loader reads them through that map. None is a <code>profiles_2d</code> binding, so the gate's
+      measure is untouched. The second is SELENE's offline equilibria. The server holds the SELENE
+      sources, the equilibrium database client (<code>client_eqdbms</code>) and the FAME reader
+      (<code>eqdbget</code>), and the Code TWiki documents the equilibrium codes. The SELENE loader
+      needs a reader for the EQDB record (psi on its grid, boundary, p′ and FF′ or their
+      profiles) wrapped in the same remote-extractor contract, and §6 builds and owns that
+      transport. The EQDB read extends the §3 extractor rather than sitting beside it, but its
+      request and record are not channels. <code>ChannelRequest</code> names
+      <code>(shot, category, dname)</code> and the batch carries <code>(channel, time)</code> arrays,
+      while an EQDB request names a shot and an equilibrium record, and its answer is psi on a
+      two-dimensional grid with its boundary and profiles. So
+      <code>imas_ambix/data/eddb_remote.py</code> gains one request type and one record type for
+      EQDB beside <code>ChannelRequest</code> and <code>ChannelRecord</code>, rather than widening the
+      channel types. <code>RemoteEddbExtractor</code> dispatches on the request type and keeps what
+      is not channel-shaped: the per-request refusal contract, and the niced, module-loaded remote
+      command over <code>SshTransport</code>. <code>encode_batch</code> and <code>decode_batch</code>
+      gain the EQDB record's framing beside the channel framing, and the remote side calls the EQDB
+      entry the probe below names rather than <code>eddb_pwrapper</code>. The two new public types
+      add to §6's interface and retire nothing, because no equilibrium-database request type
+      exists. Its records land in the same store, owned by <code>imas_ambix/data/eddb.py</code>:
+      <code>write_channel</code> writes only a <code>(channel, time)</code> array with a sibling
+      time vector, and an EQDB record is psi on a two-dimensional grid with its boundary and
+      profiles, so <code>eddb.py</code> gains a grid record writer beside <code>write_channel</code>
+      under the same <code>{shot}.zarr/{category}/{name}</code> layout and the same
+      refuse-to-overwrite rule, rather than a second store over <code>JT60SA_ROOT</code>. The two
+      writers must share the store's invariants, and today two of them are inline statements in
+      <code>write_channel</code>'s body, not code a second writer could call: the pulse group's
+      <code>EDDB_TOKEN_ATTR</code> token match and the overwrite refusal. So the node that adds the
+      grid writer first extracts them from <code>write_channel</code> into private helpers in
+      <code>eddb.py</code>: one that opens a pulse group and enforces its EDDB token, and one that
+      refuses an existing record. <code>write_channel</code> then calls them, with its tests
+      unchanged, and the grid writer calls the same helpers with <code>_channel_present</code>, so
+      the token and overwrite contract has one implementation and cannot drift between the two
+      writers. It retires nothing, because no equilibrium-database reader exists in ambix.
+    </p>
+    <p>
+      The transport's array layout waits on the open question <code>eqdb-reader</code>, which
+      settles the record shape. Its first node, <code>jtmm-eqdb-entry-probe</code>, answers that
+      question read-only on nakasvr26: the callable entry to <code>eqdbms</code> or
+      <code>eqdbget</code> that needs no Fortran build, and the grid, boundary and profile fields of
+      one record for E101154. It writes one evidence fragment and no source. The transport node
+      follows it, then the SELENE and FAME loaders, then the JT-60SA cohort and the sign report.
     </p>
     <p>
       Done-when: a sign report over at least three vacuum shots and three plasma shots,
@@ -502,53 +551,15 @@
       against one hand-computed value per unit pair.
     </p>
 
-    <h2 id="s7">§7 — Equilibrium: FAME scalars first, SELENE maps second, then the reconstruction gate</h2>
+    <h2 id="s7">§7 — Equilibrium: SELENE maps, then the reconstruction gate</h2>
     <p>
-      The equilibrium IDS is mapped in two rungs. The first binds the FAME real-time
-      scalars — plasma current, poloidal and toroidal beta, normalised beta, internal
-      inductance, axis position, X-point height, strike-point angles, boundary gaps,
-      <code>Bt·R</code> — to <code>equilibrium/time_slice/global_quantities</code> and
-      <code>boundary</code> leaves and to <code>vacuum_toroidal_field</code>. These are
-      time series in EDDB, so they ride the §3 path unchanged. The second rung reaches the
-      offline SELENE equilibria: the server holds the SELENE sources, the equilibrium
-      database client (<code>client_eqdbms</code>) and the FAME reader
-      (<code>eqdbget</code>), and the Code TWiki documents the equilibrium codes. That rung
-      needs a reader for the EQDB record (psi on its grid, boundary, p′ and FF′ or their
-      profiles) wrapped in the same remote-extractor contract, and a COCOS verdict from §6
-      before any map is written into <code>profiles_2d/psi</code>. The EQDB read extends the §3
-      extractor rather than sitting beside it, but its request and record are not channels.
-      <code>ChannelRequest</code> names <code>(shot, category, dname)</code> and the batch carries
-      <code>(channel, time)</code> arrays, while an EQDB request names a shot and an equilibrium
-      record, and its answer is psi on a two-dimensional grid with its boundary and profiles. So
-      <code>imas_ambix/data/eddb_remote.py</code> gains one request type and one record type for
-      EQDB beside <code>ChannelRequest</code> and <code>ChannelRecord</code>, rather than widening
-      the channel types. <code>RemoteEddbExtractor</code> dispatches on the request type and keeps
-      what is not channel-shaped: the per-request refusal contract, and the niced,
-      module-loaded remote command over <code>SshTransport</code>. <code>encode_batch</code> and
-      <code>decode_batch</code> gain the EQDB record's framing beside the channel framing, and the
-      remote side calls <code>eqdbget</code> through the EQDB client rather than
-      <code>eddb_pwrapper</code>. The two new public types add to the section's interface
-      and retire nothing, because no equilibrium-database request type exists. The section's
-      other interface change is the pin table below, which retires three public constants and
-      their re-export. The
-      fields of the EQDB record are settled with the open question <code>eqdb-reader</code>. Its records land in the same store, owned by
-      <code>imas_ambix/data/eddb.py</code>: <code>write_channel</code> writes only a
-      <code>(channel, time)</code> array with a sibling time vector, and an EQDB record is psi on a
-      two-dimensional grid with its boundary and profiles, so <code>eddb.py</code> gains a grid
-      record writer beside <code>write_channel</code> under the same
-      <code>{shot}.zarr/{category}/{name}</code> layout and the same refuse-to-overwrite rule,
-      rather than a second store over <code>JT60SA_ROOT</code>. The two writers must share the
-      store's invariants, and today two of them are inline statements in
-      <code>write_channel</code>'s body, not code a second writer could call: the pulse group's
-      <code>EDDB_TOKEN_ATTR</code> token match and the overwrite refusal. So the node that adds
-      the grid writer first extracts them from <code>write_channel</code> into private helpers
-      in <code>eddb.py</code>: one that opens a pulse group and enforces its EDDB token, and one
-      that refuses an existing record. <code>write_channel</code> then calls them, with its
-      tests unchanged, and the grid writer calls the same helpers with
-      <code>_channel_present</code>, so the token and overwrite contract has one implementation
-      and cannot drift between the two writers. That writer's array layout waits
-      on the open question <code>eqdb-reader</code>, which settles the record shape. It retires
-      nothing, because no equilibrium-database reader exists in ambix.
+      §6 lays both equilibrium sources and owns their reads: the FAME scalars bound with their
+      sign unvalidated, and SELENE's offline equilibria read through the EQDB transport into the
+      EDDB cache. §7 writes the SELENE map bindings into
+      <code>equilibrium/time_slice/profiles_2d</code>, beginning with <code>psi</code>, once §6's
+      sign report names the source COCOS, and adds no second reader of either source. The
+      section's interface change is the pin table below, which retires three public constants and
+      their re-export.
     </p>
     <p>
       The reconstruction gate is what makes the map honest. The spine reads JT-60SA geometry
@@ -684,7 +695,7 @@
         geometry table; pass the identity assertions.</li>
       <li>Vacuum-shot adjudication and COCOS identification (§6); replace every
         <code>unknown-unvalidated</code> that the data settles.</li>
-      <li>FAME scalar bindings, then the EQDB reader and SELENE map bindings (§7).</li>
+      <li>FAME scalar bindings and the EQDB transport (§6), then the SELENE map bindings (§7).</li>
       <li>Stamp the reconstruction baseline on the spine with SELENE as comparator (§7);
         export tokamap and validate it (§2).</li>
     </ol>
