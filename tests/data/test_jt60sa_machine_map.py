@@ -240,6 +240,53 @@ def test_both_phases_share_the_pf_and_magnetics_geometry():
 
 
 @requires_store
+def test_description_route_supplies_the_stored_poloidal_angle_for_every_probe():
+    """The catalogue binds the DD probe angle and the reader reports it in degrees.
+
+    Both phase stores hold every tangential probe's sensing-axis angle
+    ``theta = (90 deg - omega) mod 360 deg`` in radians.  The description
+    binding carries ``identity``, so ``read_geometry_table`` supplies each
+    probe's ``angle_deg`` from the stored ``poloidal_angle``, converted to
+    degrees.
+    """
+    import imas
+
+    shot = 100595
+    catalogue = load_packaged_machine_map("jt-60sa")
+    description = transform_machine_description(
+        catalogue, shot, "netcdf", JT60SA_DESCRIPTION_DIR
+    )
+    assert description.status == "emitted", description.detail
+    angle_arrays = [
+        array
+        for array in description.arrays
+        if array.dd_path == "magnetics/b_field_pol_probe/poloidal_angle"
+    ]
+    assert len(angle_arrays) == 1
+    assert angle_arrays[0].target_unit == "rad"
+
+    stored_deg: dict[str, float] = {}
+    with imas.DBEntry(
+        JT60SA_DESCRIPTION_DIR / "OP1" / "magnetics.nc",
+        "r",
+        dd_version=catalogue.dd_version,
+    ) as entry:
+        magnetics = entry.get("magnetics", autoconvert=False)
+        for probe in magnetics.b_field_pol_probe:
+            stored_deg[str(probe.name)] = float(np.rad2deg(probe.poloidal_angle))
+    assert len(stored_deg) == 17
+
+    table = read_geometry_table(shot, machine="jt-60sa")
+    probes = [item for item in table.sensor_map if item.kind == "b_probe"]
+    assert [item.amb_channel for item in probes] == list(stored_deg)
+    for probe in probes:
+        assert probe.angle_deg == pytest.approx(
+            stored_deg[probe.amb_channel], abs=1e-9
+        )
+        assert probe.flag == ""
+
+
+@requires_store
 def test_each_phase_carries_the_twelve_pf_coils_with_their_element_counts():
     for shot in PHASE_SHOTS.values():
         _, description = _emit(shot)

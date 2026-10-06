@@ -396,6 +396,55 @@ def test_description_source_refuses_an_unknown_angle_unit():
         _supply_emitted_probe_angles(description, _probe_angle_table())
 
 
+def test_description_source_refuses_when_the_name_array_is_not_exactly_one():
+    from imas_ambix.data.description_reader import _supply_emitted_probe_angles
+
+    # No name array at all: nothing names the probes the angles belong to.
+    without_names = _probe_angle_description([0.0, np.pi / 2.0], names=None)
+    with pytest.raises(
+        DescriptionReadError, match="must carry exactly one .* found 0"
+    ):
+        _supply_emitted_probe_angles(without_names, _probe_angle_table())
+
+    # Two name arrays: which one names the angles is ambiguous.
+    doubled = _probe_angle_description([0.0, np.pi / 2.0])
+    doubled.arrays = doubled.arrays + (
+        SimpleNamespace(
+            dd_path="magnetics/b_field_pol_probe/name",
+            target_unit="1",
+            values=np.asarray(("p1", "p2"), dtype=object),
+        ),
+    )
+    with pytest.raises(
+        DescriptionReadError, match="must carry exactly one .* found 2"
+    ):
+        _supply_emitted_probe_angles(doubled, _probe_angle_table())
+
+
+def test_description_source_refuses_a_duplicate_probe_name():
+    from imas_ambix.data.description_reader import _supply_emitted_probe_angles
+
+    description = _probe_angle_description(
+        [0.0, np.pi / 2.0], names=("p1", "p1")
+    )
+
+    with pytest.raises(
+        DescriptionReadError, match="names probe 'p1' more than once"
+    ):
+        _supply_emitted_probe_angles(description, _probe_angle_table())
+
+
+def test_description_source_refuses_a_name_count_that_disagrees_with_the_angles():
+    from imas_ambix.data.description_reader import _supply_emitted_probe_angles
+
+    description = _probe_angle_description([0.0, np.pi / 2.0], names=("p1",))
+
+    with pytest.raises(
+        DescriptionReadError, match="holds 1 names for 2 .* angles"
+    ):
+        _supply_emitted_probe_angles(description, _probe_angle_table())
+
+
 def test_description_source_joins_a_permuted_angle_array_by_probe_identity():
     from imas_ambix.data.description_reader import _supply_emitted_probe_angles
 
