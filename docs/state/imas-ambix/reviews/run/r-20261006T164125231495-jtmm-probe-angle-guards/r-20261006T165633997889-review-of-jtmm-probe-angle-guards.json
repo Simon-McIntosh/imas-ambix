@@ -1,0 +1,66 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "the reviewed manifest declares no baseline_suite key (an implementation node whose only gate arm is gate.log), so no base arm exists to difference against; the after arm (gate.log) ran to its summary line at 44 passed with zero failures, so this change adds no failing test and added_failure_ids is empty",
+  "base_log_revision": null,
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-06T17:06:38.691Z",
+  "dispatched_at": "2026-10-06T16:56:42Z",
+  "findings": [
+    {
+      "file": "imas_ambix/data/description_reader.py",
+      "line": "139",
+      "severity": "follow-on",
+      "text": "follow-on: three refusal branches the repair added are unguarded by any test -- the exactly-one b_field_pol_probe/name array requirement (:139-143), the duplicate-name refusal (:155-159) and the names-vs-angles count check (:148-151); a later edit could weaken each without reddening the suite, so each wants a one-line test beside the two directional refusals that were tested."
+    },
+    {
+      "file": "imas_ambix/data/description_reader.py",
+      "line": "88",
+      "severity": "follow-on",
+      "text": "context: the description probe_angle_source supplier still has no live consumer -- no JT-60SA catalogue declares probe_angle_source description with a poloidal_angle binding -- so these guards are exercised only by unit tests until that binding lands; carried forward from the engine review, not introduced here."
+    }
+  ],
+  "head_log_revision": "10c477bdd874b968079acf5b59dc16db4d38f1e0",
+  "item_aggregate": 5,
+  "item_verdicts": {
+    "diff": "read commit by commit; 10c477bd adds _PROBE_NAME_DD_PATH and _ANGLE_UNIT_CONVERTERS, rewrites _supply_emitted_probe_angles to refuse an unknown unit, require exactly one name array, refuse duplicate names and join by identity with both directional refusals; tests add the refused-unit, permuted-identity and both mismatch cases, and test_selene_deck repoints its four real-deck constants to JT60SA_DESCRIPTION_DIR/source.",
+    "done_when": "the dispatched measure is this record; it is stored parsed at the fenced path with all six dimensions scored in 0..20, the reviewed base and head shas, and added_failure_count / added_failure_ids derived from the reviewed run's own gate arm.",
+    "goal": "the node's goal is to repair the engine review's two follow-ons -- join emitted probe angles by identity, and refuse a non-rad/degraded unit -- and both are met at head 10c477bd (description_reader.py:125-179).",
+    "manifest": "read; status complete, single commit 10c477bd, the two-file gate at 44 passed, test_logs naming gate.log and negative_control.log, and a negative_control_note declaring a positional-join mutation.",
+    "write_paths": "the reviewed commit touches exactly its four declared paths; this reviewer wrote only the fenced record paths."
+  },
+  "justifications": {
+    "durability": "every behaviour the repair introduces carries a test that reddens under an independent mutation (M1 positional join, M2 unit, M3 unmapped probe, M4 missing angle; head 44 passed EXIT=0); three refusal branches (exactly-one name array, duplicate name, names-vs-angles count) are untested and the description route has no live consumer yet.",
+    "evidence": "the node's gate reproduces in a scratch extraction of 10c477bd (44 passed, EXIT=0) and its declared negative control reproduces (positional join -> 1 failed EXIT=1, p1=80.0 vs 10.0); the byte-identity claim for the four repointed decks is confirmed by sha256; docked one for the reviewed gate.log header naming the base revision rather than the committed head.",
+    "fit": "the change implements the follow-ons within section 6's one-selector rule, reuses DescriptionReadError and dataclasses.replace, ruff check imas_ambix tests exits 0, the naming scans over the added lines are clean, the commit has a conventional subject and a body, and no plan, ticket or attribution string appears.",
+    "goal_fidelity": "position never places an angle and a non-rad, non-deg unit is refused; both directions asserted and the permuted-identity case reproduced at 10c477bd.",
+    "reuse": "no capability is forked; the change adds a module-level converter table reusing np.rad2deg, extends the single test helper rather than adding a second, and reuses the JT60SA_DESCRIPTION_DIR constant and DescriptionReadError.",
+    "scope_discipline": "git diff --name-status 7b434afd..10c477bd lists only the declared source, its two test files and the evidence fragment; no concurrent node's path and no figure directory."
+  },
+  "project": "imas-ambix",
+  "raw_text": "Second review of run r-20261006T164125231495-jtmm-probe-angle-guards (plan imas-ambix:jt60sa-machine-map section 6), read at its single head 10c477bdd874b968079acf5b59dc16db4d38f1e0 on base 7b434afd85a0f6b273a3e61f6e84353c5c25c02d. The node repairs the two follow-ons the review of jtmm-probe-angle-engine recorded against _supply_emitted_probe_angles: it bound emitted poloidal_angle values to mapped probes by array position, and it read every target_unit other than the literal rad as degrees. This reviewer extracted the committed tree to a node-local scratch (git archive 10c477bd), ran the node's own gate there in the shared project environment, and falsified each new guard by mutation. Nothing ran on a GPU node.\n\nVERDICT goal: both follow-ons are repaired by measurement. The reader now reads the emitted magnetics/b_field_pol_probe/name array and joins each angle to its mapped probe by that name, which is the mapped probe's amb_channel (description_reader.py:134-179), and it refuses an angle whose probe is unmapped (:176-179) and a mapped probe with no emitted angle (:167-172); the unit is chosen from a two-entry converter table, rad converted and deg carried, with every other spelling refused rather than read as degrees (:125-131). The identity key is well founded: both the emitted name and the mapped amb_channel derive from the same DD magnetics/b_field_pol_probe/name leaf (selene_deck.build_magnetics:914-915 writes out.name, geometry_adapter._names:152-163 reads it, and _b_probes:194 sets amb_channel from names[item]), so the join is not an assumption about two independently authored fields.\nVERDICT done_when: the dispatched measure is this record; it is stored parsed at the fenced path with six dimensions scored in 0..20, the reviewed base and head shas, and added_failure_count / added_failure_ids.\nVERDICT write_paths: the reviewed commit touches exactly its four declared paths -- imas_ambix/data/description_reader.py, tests/data/test_description_reader.py, tests/data/test_* (tests/data/test_selene_deck.py) and the evidence fragment docs/evidence/fragments/jt60sa-machine-map/jtmm-probe-angle-guards.html -- and nothing else (git diff --name-status 7b434afd..10c477bd lists those four). This reviewer wrote only the fenced record paths.\nVERDICT manifest: read; status complete, single commit 10c477bd, the tests line naming the two-file gate at 44 passed, test_logs naming gate.log and negative_control.log, and a negative_control_note declaring a positional-join mutation. Its byte-identity claim for the four repointed deck files reproduces here (sha256 equal for EQSLE.DATA, geo.in, coil_vv_OP1.dat, coil_vv_OP2.dat against the reckon copies the test read before).\nVERDICT diff: read commit by commit; the single commit 10c477bd (+154/-44 over four files) adds _PROBE_NAME_DD_PATH and _ANGLE_UNIT_CONVERTERS, rewrites _supply_emitted_probe_angles to refuse an unknown unit, to require exactly one name array, to refuse duplicate names, and to join by identity with both directional refusals; the tests add a refused-unit case, a permuted-array identity case and both mismatch directions, and test_selene_deck's four real-deck constants are repointed to JT60SA_DESCRIPTION_DIR/source.\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: position never places an angle (the join is by name, description_reader.py:165-173) and a non-rad, non-deg unit is refused (description_reader.py:125-131); both directions of the repair are asserted and this reviewer reproduced the node's own permuted-array case at 10c477bd (test_description_source_joins_a_permuted_angle_array_by_probe_identity PASSED).\nSCORE evidence: 19\nJUSTIFICATION evidence: the node's gate reproduces independently in a scratch extraction of 10c477bd under the shared environment -- 44 passed, EXIT=0 (gate-head.log) -- and its declared negative control reproduces: replacing the identity lookup with positional assignment gives 1 failed, EXIT=1, p1=80.0 against expected 10.0, matching negative_control.log. Docked one for the reviewed run's gate.log header naming the base revision 7b434afd rather than the committed head, so a reader correlating header to commit sees a mismatch.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff --name-status 7b434afd..10c477bd lists only the declared source, its two test files and the evidence fragment; no concurrent node's path and no figure directory. The change also retires nothing and adds no public definition, matching the node's declared scope.\nSCORE durability: 18\nJUSTIFICATION durability: every behaviour the repair introduces carries a test with teeth -- the unit refusal (M2 reddens test_description_source_refuses_an_unknown_angle_unit, 1 failed), the unmapped-probe refusal (M3 reddens test_description_source_refuses_an_angle_for_an_unmapped_probe), the missing-angle refusal (M4 reddens test_description_source_refuses_a_probe_the_angles_do_not_cover), and the identity join (M1 reddens the permuted case) -- against a head of 44 passed. Three refusal branches added by the change are untested: the exactly-one name array requirement (description_reader.py:139-143), the duplicate-name refusal (:155-159) and the names-vs-angles count check (:148-151); the description route also has no live consumer until a JT-60SA poloidal_angle binding exists.\nSCORE fit: 20\nJUSTIFICATION fit: the change implements the two follow-ons within section 6's one-selector rule (it extends the existing probe_angle_source description supplier rather than adding a branch elsewhere), reuses the module's DescriptionReadError and dataclasses.replace idiom, and ruff check imas_ambix tests exits 0; the naming scans are clean over the added lines, the commit carries a conventional subject and a body, and neither the commit, symbols nor comments carry a plan, sprint, ticket or attribution string.\nSCORE reuse: 20\nJUSTIFICATION reuse: no capability is forked -- the reader adds a module-level converter table reusing np.rad2deg, keeps the single _probe_angle_description test helper extended with a names parameter rather than a second helper, and reuses the store constant JT60SA_DESCRIPTION_DIR instead of a hard-coded path; no new public surface is introduced.\nFINDING imas_ambix/data/description_reader.py:139 follow-on: three refusal branches the repair added are unguarded by any test -- the exactly-one b_field_pol_probe/name array requirement (:139-143), the duplicate-name refusal (:155-159) and the names-vs-angles count check (:148-151); a later edit could weaken each without reddening the suite, so each wants a one-line test beside the two directional refusals that were tested.\nFINDING imas_ambix/data/description_reader.py:88 context: the description probe_angle_source supplier still has no live consumer -- no JT-60SA catalogue declares probe_angle_source description with a poloidal_angle binding -- so these guards are exercised only by unit tests until that binding lands; carried forward from the engine review, not introduced here.\n",
+  "review_run_id": "r-20261006T165633997889-review-of-jtmm-probe-angle-guards",
+  "reviewed_base_sha": "7b434afd85a0f6b273a3e61f6e84353c5c25c02d",
+  "reviewed_head_sha": "10c477bdd874b968079acf5b59dc16db4d38f1e0",
+  "reviewed_run_id": "r-20261006T164125231495-jtmm-probe-angle-guards",
+  "reviewer": {
+    "backend": "clive",
+    "effort": "high",
+    "model": "deepseek-v4.1-flash"
+  },
+  "rubric": "code",
+  "scores": {
+    "durability": 18,
+    "evidence": 19,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "timestamp": "2026-10-06T17:03:48.677982+00:00",
+  "total": 117
+}

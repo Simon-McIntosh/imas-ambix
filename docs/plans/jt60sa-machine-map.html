@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.79">
-<meta name="plan-version" content="184">
+<meta name="plan-version" content="185">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -1324,6 +1324,9 @@
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20261006T164125231495-jtmm-probe-angle-guards" data-who="reckon-build" data-when="2026-10-06T16:56:05.740Z">
     <div class="r-comment-body"><p>jtmm-probe-angle-guards — _supply_emitted_probe_angles now joins emitted poloidal_angle values to mapped probes by the emitted magnetics/b_field_pol_probe/name (probe amb_channel) instead of array position, refuses an angle whose probe is unmapped and a probe with no angle, accepts only rad (converted) and deg and refuses any other target unit; tests cover a refused unit, a permuted emitted array assigned by identity, and both mismatch directions; test_selene_deck skin-tangent test reads decks from JT60SA_DESCRIPTION_DIR/source; gate 44 passed.</p></div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-run-r-20261006T165633997889-review-of-jtmm-probe-angle-guards" data-who="reckon-build" data-when="2026-10-06T17:06:38.691Z">
+    <div class="r-comment-body"><p>review-of-jtmm-probe-angle-guards — independent review of run r-20261006T164125231495 at head 10c477bd (base 7b434afd): the two follow-ons the engine review recorded against _supply_emitted_probe_angles are both repaired — angles join to mapped probes by identity (the emitted magnetics/b_field_pol_probe/name, which equals amb_channel because both derive from the same DD name leaf) and a non-rad/non-deg unit is refused; gate reproduced at 44 passed EXIT=0 in a scratch extraction, the declared positional-join negative control reproduces (p1=80.0 vs 10.0, EXIT=1), and three added refusal branches (exactly-one name array, duplicate name, names-vs-angles count) are untested; scored 117/120 (goal_fidelity 20, evidence 19, scope_discipline 20, durability 18, fit 20, reuse 20), added_failure_count 0.</p></div>
 </div>
 </section>
 </main>
