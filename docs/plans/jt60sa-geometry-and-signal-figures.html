@@ -23,7 +23,7 @@
   <title>JT-60SA Geometry and Signal Figures | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="18">
+<meta name="plan-version" content="19">
 <meta name="plan-modified" content="2026-10-06">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s1b&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;}">
 <meta name="plan-commits" content="369a705d,b36a5d93">
@@ -173,7 +173,10 @@
       correspondence the map's census must settle, drawn rather than assumed. For C060033, the coil
       currents of the no-plasma commissioning record, the input the map's convention work uses.
       Where a channel's time base or unit differs from its neighbours, the figure says so rather than
-      rescaling silently.
+      rescaling silently. The signals script is a second entry point beside the geometry script
+      rather than an option on it, because it reads the EDDB cache, not the description store, and
+      shares no reader with it; it adds one script with no command-line option and no public name,
+      and retires or merges nothing, since no script in <code>scripts/</code> draws a JT-60SA signal.
     </p>
     <p>
       Done-when: the three figures are written as PNG and SVG under
