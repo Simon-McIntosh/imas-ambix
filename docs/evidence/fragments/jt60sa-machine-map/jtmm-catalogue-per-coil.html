@@ -1,0 +1,80 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtmm-catalogue-per-coil">
+  <header>
+    <h3>The JT-60SA catalogue reads both phases through one machine-name-free path</h3>
+    <p class="meta">
+      Node <code>jtmm-catalogue-per-coil</code> &middot;
+      date 2026-10-06 &middot;
+      plan <code>jt60sa-machine-map</code> &sect;4
+    </p>
+  </header>
+
+  <p>
+    <code>imas_ambix/data/machine_maps/jt-60sa.json</code> declares the converted
+    SELENE-deck description under <code>JT60SA_DESCRIPTION_DIR</code> as a
+    <code>netcdf</code> / <code>static-over-map</code> store with
+    <code>probe_angle_source description</code>, and two range-scoped maps:
+    OP1 (100001&ndash;101173) and OP2 (101174&ndash;999999). A shot selects the
+    map, the map selects the phase directory, and no module compares the machine
+    name to choose a description.
+  </p>
+
+  <section id="jtmm-catalogue-per-coil-declaration">
+    <h4>Declaration</h4>
+    <p>
+      Every ragged struct array in the five IDS is declared one binding family
+      and one structure assembly per entry, addressed by the entry name the
+      re-converted store carries. The twelve <code>pf_active</code> coils
+      (CS1&ndash;CS4, EF1&ndash;EF6, FPPC_UP, FPPC_DOWN) each have a
+      <code>-coordinate-element</code>, <code>-r</code>, <code>-z</code>,
+      <code>-width</code> and <code>-height</code> binding with
+      <code>struct_array_entry</code> set to the coil name and
+      <code>source_rank 1</code> (the leaf plus the <code>element</code> struct
+      level below the selected coil). The OP1 vessel is declared per loop
+      (<code>VV1</code> 63, <code>VV2</code> 57) and the OP2 vessel as its single
+      loop <code>VV1</code> (98); the phase-specific vessel bindings sit in the
+      phase's own binding set, so each map reads only the loops its store holds.
+    </p>
+    <table>
+      <thead><tr><th>IDS</th><th>ruled struct array</th><th>entries</th></tr></thead>
+      <tbody>
+        <tr><td>pf_active</td><td><code>coil</code></td><td>12 coils &times; 40/16/6 elements = 268</td></tr>
+        <tr><td>pf_passive</td><td><code>loop</code></td><td>OP1 VV1+VV2 (120), OP2 VV1 (98)</td></tr>
+        <tr><td>magnetics</td><td><code>b_field_pol_probe</code>, <code>flux_loop</code></td><td>17 probes, 27 loops</td></tr>
+        <tr><td>wall</td><td><code>description_2d</code></td><td>one limiter outline</td></tr>
+        <tr><td>tf</td><td><code>coil</code></td><td>TF1</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="jtmm-catalogue-per-coil-gate">
+    <h4>Gate</h4>
+    <p>
+      <code>tests/data/test_jt60sa_machine_map.py</code> asserts the two maps and
+      their ranges, <code>map_for_shot</code> refusing 60033 and 1000000, the
+      per-coil family and assembly declaration, and, against the real store,
+      that <code>read_geometry_table</code> and
+      <code>geometry_table_from_description</code> build an identical
+      <code>GeometryTable</code> for each phase (12 active PF circuits, 17
+      probes, 27 flux loops, 120 / 98 vessel filaments, 638 / 51 limiter
+      points), that the emitted <code>pf_active</code> arrays carry the 12 coils
+      with counts 40&times;4, 16&times;6, 6&times;2, and that the phase boundary
+      changes only <code>pf_passive</code> and <code>wall</code> while
+      <code>pf_active</code>, <code>magnetics</code> and <code>tf</code> are
+      byte-equal across it.
+    </p>
+    <p>
+      In-place gate (fleet allocation): 41 passed, exit 0. Whole-tree
+      <code>ruff check imas_ambix tests</code> exits 0. Negative control: with
+      <code>struct_array_entry</code> dropped from every <code>pf_active</code>
+      coil-element binding (120 bindings), the coil-count and per-phase emit
+      tests go red (exit 1) with the ragged-counts
+      <code>BindingTransformError</code> naming
+      <code>[40, 40, 40, 40, 16, 16, 16, 16, 16, 16, 6, 6]</code>, so the
+      per-coil selector is what carries the read.
+    </p>
+    <p>
+      Logs: runs/r-20261006T031641983435-jtmm-catalogue-per-coil/jt60sa-catalogue-gate.log
+      and jt60sa-negative-control.log.
+    </p>
+  </section>
+</section>
