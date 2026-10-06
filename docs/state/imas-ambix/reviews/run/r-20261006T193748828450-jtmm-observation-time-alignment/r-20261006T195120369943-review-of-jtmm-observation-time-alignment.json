@@ -1,0 +1,55 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "the reviewed run's manifest and classification declare baseline_suite null and after_suite null, so there is no base arm to difference against; its head arm gate log (head_arm.log) records 23 passed EXIT=0 at revision df71829c with no failing id, and this reviewer reproduced 23 passed EXIT=0 at the reviewed head 712a7bfe, so the reviewed run added no failing test (added_failure_count 0, added_failure_ids empty).",
+  "base_log_revision": null,
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-06T19:59:28.072Z",
+  "dispatched_at": "2026-10-06T19:51:31Z",
+  "findings": [
+    "follow-on: _aligned_loop's two refusal branches (fewer than two finite timed samples; plasma-current time base with no finite sample) are untested, so a loosening edit to either would not be caught by the suite."
+  ],
+  "head_log_revision": "df71829c25c0107ef4afb375e5687d8d618ce3ae",
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "diff": "read commit by commit; df71829c adds VirtualZarrView.raw_series (values + the {array}_time sibling, refusing absent and half-written), rewires read_signal_map_observation onto two VirtualZarrView instances and adds _aligned_loop (sort, coverage refusal, np.interp), and adds four tests; 712a7bfe adds the evidence fragment only.",
+    "done_when": "the dispatched measure is this record; it is stored parsed at both fenced paths with all six dimensions scored in 0..20 and reviewed_base_sha/reviewed_head_sha named.",
+    "goal": "the plan's jtmm-observation-time-alignment step is met: the reader reads each series through the view's untransformed accessor, interpolates every flux loop onto the plasma-current time base, and refuses a loop whose span does not cover it.",
+    "manifest": "read; it declares the raw_series accessor, the interpolation and the coverage refusal, a 23-passed gate and a 2-failed negative control, all reproduced here by an independent route.",
+    "write_paths": "df71829c touches imas_ambix/data/{virtual_zarr,cocos_convention}.py and tests/data/test_{virtual_zarr,cocos_convention}.py; 712a7bfe touches the evidence fragment; both inside the node's declared paths."
+  },
+  "justifications": {
+    "durability": "index-aligning the loop reddens the two new guard tests, and returning the transformed values from raw_series reddens three reader tests, so both the interpolation/refusal guards and the raw-read property have teeth; docked one point because _aligned_loop's two remaining refusal branches are untested.",
+    "evidence": "the gate (23 passed EXIT=0) and the node's negative control (2 failed EXIT=1) are both reproduced in this reviewer's own process against the reviewed tree, plus two independent mutations; every claim is a run in review-gate.log, review-negative-control.log or review-mutation-transform.log.",
+    "fit": "ruff --no-cache exits 0 over the four changed paths; the accessor follows the view's existing refusal idiom and its docstring sits beside __getitem__; the reader docstring is updated to match; no plan label, ticket or author attribution in any name or comment.",
+    "goal_fidelity": "the accessor returns exactly the raw values and the channel's own time base with no compiled transform, the reader reads every series through it, each flux loop is np.interp-ed onto the plasma-current time base, and a non-covering loop raises -- each of the plan's three clauses is implemented and tested.",
+    "reuse": "the time-base sibling name is taken from eddb.time_array_name, the shared kernel _observation_from_series is untouched, and the reader reuses VirtualZarrView rather than a second resolution path; no new public surface beyond the one accessor.",
+    "scope_discipline": "df71829c stays within the two source modules and their tests, 712a7bfe adds only the evidence fragment, and this reviewer wrote only the two fenced record paths."
+  },
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20261006T193748828450-jtmm-observation-time-alignment (plan imas-ambix:jt60sa-machine-map section 6), read at its head 712a7bfe on base d0dd5a78.\n\nThe node adds VirtualZarrView.raw_series (imas_ambix/data/virtual_zarr.py), one untransformed accessor returning a rule's raw source values and that channel's own time base.  It then moves read_signal_map_observation (imas_ambix/data/cocos_convention.py) off its own resolution of source_group/source_array through read_channel onto that accessor, and interpolates each flux loop onto the plasma-current time base through a new _aligned_loop, refusing a loop whose span does not cover the current's rather than index-aligning or extrapolating.  The shared kernel _observation_from_series is untouched, so its flux_loops argument is still one (n_loops, n_plasma_current_time) array -- which is exactly what the interpolation now guarantees by construction, where before it held only when the raw arrays happened to share a length.\n\nMEASURES.  The dispatched gate scores this review only if it is stored parsed with all six dimensions in 0..20 and the two revisions named; it is.  The reviewed run's own gate log head_arm.log records 23 passed, EXIT=0 at revision df71829c; this reviewer reproduced 23 passed (21 passed at collection plus the two guard tests), EXIT=0, over the two test files in this reviewer's own process against the reviewed tree at head 712a7bfe (review-gate.log).  The reviewed run declares neither baseline_suite nor after_suite (both null in its manifest and classification), so there is no base arm to difference against; the head arm carries no failing id, so added_failure_count is 0 and added_failure_ids empty.\n\nThe node's negative control is a same-length shifted-time loop aligned by index: 2 failed, 21 passed, EXIT=1 (negative_control.log).  This reviewer independently falsified both new guards by monkeypatching _aligned_loop to index-align instead of interpolate-and-refuse, which reddens exactly the two new tests (2 failed, review-negative-control.log); and, in the other direction, replaced raw_series with a transformed read (self[semantic_id][...]) to confirm the reader genuinely takes the untransformed path -- which reddens three reader tests (test_signal_map_reader_measures_the_raw_cached_channels, test_signal_map_reader_ignores_a_rules_channel_factor, test_signal_map_reader_stacks_every_flux_loop_rule_in_target_order), so the raw-read property is covered end to end and not only at the accessor unit (review-mutation-transform.log).  ruff --no-cache exits 0 over the four changed paths.  Both commits stay inside the node's declared paths: df71829c touches the two source modules and their two tests, 712a7bfe adds the evidence fragment.  Nothing was written outside the two fenced review-record paths.\n\nResidual, docked once under durability: _aligned_loop has two refusal branches that no test reaches -- fewer than two finite timed samples, and a plasma-current time base with no finite sample -- so a future edit that loosened either would slip through the suite.",
+  "review_run_id": "r-20261006T195120369943-review-of-jtmm-observation-time-alignment",
+  "reviewed_base_sha": "d0dd5a78ad5fc9312e28e44c0405a95083aa182e",
+  "reviewed_head_sha": "712a7bfe5fa811147659aea2116152532dce9d5c",
+  "reviewed_run_id": "r-20261006T193748828450-jtmm-observation-time-alignment",
+  "reviewer": {
+    "backend": "clive",
+    "effort": "high",
+    "model": "deepseek-v4.1-flash"
+  },
+  "rubric": "code",
+  "scores": {
+    "durability": 19,
+    "evidence": 19,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "timestamp": "2026-10-06T19:58:11.085726+00:00",
+  "total": 118
+}
