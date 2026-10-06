@@ -416,6 +416,86 @@ def _stub_signal_maps(monkeypatch, maps):
     )
 
 
+def _single_loop_maps():
+    return {
+        "magnetics": _signal_map(
+            "magnetics",
+            (
+                _signal_rule("synthetic-ip", "PSRC", "Ip", "magnetics/ip/data"),
+                _signal_rule(
+                    "synthetic-flux-a",
+                    "MDAC",
+                    "magFlxLp1",
+                    "magnetics/flux_loop/flux/data",
+                    target_index=0,
+                ),
+            ),
+        ),
+        "tf": _synthetic_tf_map(),
+    }
+
+
+def _write_loop_store(root, loop_time, loop_values):
+    root.mkdir(parents=True, exist_ok=True)
+    group = zarr.open_group(root / f"{_SYNTHETIC_SHOT}.zarr", mode="w")
+    plasma_current = group.require_group("PSRC")
+    plasma_current.create_array("Ip", data=_SYNTHETIC_CURRENT)
+    plasma_current.create_array("Ip_time", data=_SYNTHETIC_TIME)
+    flux_loops = group.require_group("MDAC")
+    flux_loops.create_array("magFlxLp1", data=np.asarray(loop_values, dtype="<f8"))
+    flux_loops.create_array("magFlxLp1_time", data=np.asarray(loop_time, dtype="<f8"))
+    tf = group.require_group("MMSYS")
+    tf.create_array("cur1TFLKAT", data=np.full(loop_time.size, 3.0))
+    tf.create_array("cur1TFLKAT_time", data=np.linspace(0.0, 7.0, loop_time.size))
+
+
+def test_flux_loop_on_a_shifted_time_base_is_resampled_onto_the_current(
+    tmp_path, monkeypatch
+):
+    """A loop and the current are separate channels on their own time vectors.
+
+    The loop here is sampled on a grid shifted from the current's but covering
+    it; the reader must interpolate it, so its observation equals the one from
+    a store whose loop is already sampled at the current's own times.
+    """
+
+    _stub_signal_maps(monkeypatch, _single_loop_maps())
+    loop_time = np.linspace(-0.5, 7.0, _SYNTHETIC_TIME.size)
+    loop_values = np.array([1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0, 128.0])
+    shifted_root = tmp_path / "shifted"
+    aligned_root = tmp_path / "aligned"
+    _write_loop_store(shifted_root, loop_time, loop_values)
+    _write_loop_store(
+        aligned_root,
+        _SYNTHETIC_TIME,
+        np.interp(_SYNTHETIC_TIME, loop_time, loop_values),
+    )
+
+    shifted = read_signal_map_observation(
+        _SYNTHETIC_SHOT, "jt-60sa", _synthetic_equilibrium(), root=shifted_root
+    )
+    aligned = read_signal_map_observation(
+        _SYNTHETIC_SHOT, "jt-60sa", _synthetic_equilibrium(), root=aligned_root
+    )
+
+    assert shifted.raw_flux_loop_response_wb_per_a == pytest.approx(
+        aligned.raw_flux_loop_response_wb_per_a
+    )
+
+
+def test_flux_loop_not_covering_the_current_time_base_is_refused(
+    tmp_path, monkeypatch
+):
+    _stub_signal_maps(monkeypatch, _single_loop_maps())
+    loop_time = np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 6.5])
+    _write_loop_store(tmp_path, loop_time, np.ones(loop_time.size))
+
+    with pytest.raises(ValueError, match="does not cover"):
+        read_signal_map_observation(
+            _SYNTHETIC_SHOT, "jt-60sa", _synthetic_equilibrium(), root=tmp_path
+        )
+
+
 def test_signal_map_reader_measures_the_raw_cached_channels(tmp_path, monkeypatch):
     _write_synthetic_store(tmp_path)
     _stub_signal_maps(monkeypatch, _synthetic_maps())

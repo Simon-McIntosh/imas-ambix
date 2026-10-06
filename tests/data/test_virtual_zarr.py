@@ -7,7 +7,7 @@ import pytest
 import zarr
 
 from imas_ambix.data.signal_map import MAP_SCHEMA_VERSION, SignalMap, SignalRule
-from imas_ambix.data.virtual_zarr import VirtualZarrView
+from imas_ambix.data.virtual_zarr import VirtualZarrError, VirtualZarrView
 
 
 def _map() -> SignalMap:
@@ -88,6 +88,79 @@ def test_implicit_materialisation_and_writes_fail_loudly():
     with pytest.raises(TypeError, match="read-only"):
         view["new"] = array
     assert physical.selections == []
+
+
+def _negative_map() -> SignalMap:
+    """A map whose rule carries channel_factor -1, so its transform negates."""
+
+    signal = SignalRule(
+        semantic_id="poloidal_flux",
+        source_group="efm",
+        source_array="psi",
+        source_unit="Wb/rad",
+        target_path="equilibrium/time_slice/profiles_2d/psi",
+        target_unit="Wb",
+        target_index=None,
+        transformation="psi_like",
+        source_cocos=3,
+        unit_factor=1.0,
+        channel_factor=-1.0,
+        standard_name=None,
+        evidence="measured COCOS receipt",
+        validation_state="corpus-validated",
+    )
+    return SignalMap.create(
+        schema_version=MAP_SCHEMA_VERSION,
+        set_version="0.1.0",
+        machine="mast",
+        system="equilibrium",
+        source_dataset="fair-mast-level1",
+        target_dd_version="4.1.1",
+        target_cocos=17,
+        discovery_producer="imas-codex",
+        discovery_receipt="sha256:discovery",
+        signals=(signal,),
+    )
+
+
+def test_raw_series_returns_source_values_and_time_base_without_the_transform():
+    physical = _CountingArray()
+    time_base = np.linspace(0.0, 9.9, physical.values.size)
+    view = VirtualZarrView(
+        {"efm": {"psi": physical, "psi_time": time_base}},
+        _negative_map().compile(30420),
+    )
+
+    values, time = view.raw_series("poloidal_flux")
+
+    # A channel_factor -1 rule negates on the transformed path, so the raw
+    # accessor must return the source untouched rather than the mapped value.
+    assert values == pytest.approx(physical.values)
+    assert values != pytest.approx(-2.0 * np.pi * physical.values)
+    assert time == pytest.approx(time_base)
+    assert time.shape == values.shape
+
+
+def test_raw_series_refuses_a_channel_whose_time_base_is_the_wrong_length():
+    physical = _CountingArray()
+    time_base = np.arange(physical.values.size - 1, dtype=np.float64)
+    view = VirtualZarrView(
+        {"efm": {"psi": physical, "psi_time": time_base}},
+        _negative_map().compile(30420),
+    )
+
+    with pytest.raises(VirtualZarrError, match="half-written"):
+        view.raw_series("poloidal_flux")
+
+
+def test_raw_series_refuses_an_absent_source_channel():
+    physical = _CountingArray()
+    view = VirtualZarrView(
+        {"efm": {"psi": physical}}, _negative_map().compile(30420)
+    )
+
+    with pytest.raises(VirtualZarrError, match="absent"):
+        view.raw_series("poloidal_flux")
 
 
 def test_physical_zarr_bytes_remain_unchanged(tmp_path):

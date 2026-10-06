@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from imas_ambix.cocos import CANONICAL_COCOS
+from imas_ambix.data.eddb import time_array_name
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -141,6 +142,39 @@ class VirtualZarrView:
         array = VirtualArray(source_array, signal)
         self._arrays[semantic_id] = array
         return array
+
+    def raw_series(self, semantic_id: str) -> tuple[np.ndarray, np.ndarray]:
+        """Return one rule's raw source values and that channel's own time base.
+
+        Unlike ``self[semantic_id]``, no compiled transform is applied: the
+        values are the physical source array exactly as stored, so a caller
+        measuring a source sign reads the raw evidence instead of the map's
+        assumed conversion.  The channel's time base is the sibling array the
+        cache lays beside the data, returned whole so a caller can align the
+        series onto another time base.  A channel that is absent or
+        half-written — its time base missing or a different length — is
+        refused rather than returned partly.
+        """
+
+        rule = self.compiled_map[semantic_id].rule
+        try:
+            group = self._source[rule.source_group]
+            values = np.asarray(group[rule.source_array][...], dtype=np.float64)
+            time = np.asarray(
+                group[time_array_name(rule.source_array)][...], dtype=np.float64
+            ).reshape(-1)
+        except (KeyError, TypeError) as error:
+            raise VirtualZarrError(
+                f"source channel {rule.source_group}/{rule.source_array} for "
+                f"{semantic_id!r} is absent"
+            ) from error
+        if time.shape[-1] != values.shape[-1]:
+            raise VirtualZarrError(
+                f"source channel {rule.source_group}/{rule.source_array} for "
+                f"{semantic_id!r} is half-written: time base length "
+                f"{time.shape[-1]} does not match data width {values.shape[-1]}"
+            )
+        return values, time
 
     def __setitem__(self, semantic_id: str, value: Any) -> None:
         del semantic_id, value

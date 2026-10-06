@@ -25,14 +25,14 @@ from typing import TYPE_CHECKING, Literal
 import numpy as np
 from nova.io.cocos import CONVENTION_DIGITS
 
-from imas_ambix.data.eddb import read_channel
+from imas_ambix.data.eddb import normalised_shot
 from imas_ambix.data.signal_map import SignalRule, load_packaged_signal_map
+from imas_ambix.data.virtual_zarr import VirtualZarrView
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
     from imas_ambix.challenge.loader import EfitLabels
-    from imas_ambix.data.eddb import ChannelRecord
 
 MAST_LEVEL2_ROOT = Path("/work/projects/imas_gpu/mast/level2/shots")
 
@@ -742,18 +742,63 @@ def _one_rule(
     return selected[0]
 
 
-def _raw_series(record: ChannelRecord, rule: SignalRule) -> np.ndarray:
-    """Collapse a raw channel record to its one time series."""
+def _raw_series(values: object, rule: SignalRule) -> np.ndarray:
+    """Collapse a rule's raw source values to its one time series."""
 
-    values = np.asarray(record.data, dtype=np.float64)
-    if values.ndim == 1:
-        return values
-    if values.shape[0] == 1:
-        return values[0]
+    series = np.asarray(values, dtype=np.float64)
+    if series.ndim == 1:
+        return series
+    if series.shape[0] == 1:
+        return series[0]
     raise ValueError(
-        f"rule {rule.semantic_id!r} reads {values.shape[0]} channels where one "
+        f"rule {rule.semantic_id!r} reads {series.shape[0]} channels where one "
         "time series is expected"
     )
+
+
+def _aligned_loop(
+    rule: SignalRule,
+    series: np.ndarray,
+    loop_time: np.ndarray,
+    current_time: np.ndarray,
+) -> np.ndarray:
+    """Resample one flux-loop series onto the plasma-current time base.
+
+    The loop and the current are separate EDDB channels with their own time
+    vectors, so aligning them by sample index pairs measurements taken at
+    different instants.  The loop is interpolated onto the current's time base
+    instead, and a loop whose own time span does not cover the current's is
+    refused rather than extrapolated: a flux-loop channel whose record starts
+    after the plasma current has no measured value to contribute where the
+    current is defined.
+    """
+
+    finite = np.isfinite(loop_time) & np.isfinite(series)
+    if np.count_nonzero(finite) < 2:
+        raise ValueError(
+            f"flux-loop rule {rule.semantic_id!r} has fewer than two timed "
+            "samples to interpolate"
+        )
+    span_time = loop_time[finite]
+    span_values = series[finite]
+    order = np.argsort(span_time)
+    span_time = span_time[order]
+    span_values = span_values[order]
+
+    current_finite = np.isfinite(current_time)
+    if not np.any(current_finite):
+        raise ValueError("plasma-current time base has no finite samples")
+    low = float(np.min(span_time))
+    high = float(np.max(span_time))
+    current_low = float(np.min(current_time[current_finite]))
+    current_high = float(np.max(current_time[current_finite]))
+    if low > current_low or high < current_high:
+        raise ValueError(
+            f"flux-loop rule {rule.semantic_id!r} spans [{low}, {high}] s, "
+            f"which does not cover the plasma-current time base "
+            f"[{current_low}, {current_high}] s"
+        )
+    return np.interp(current_time, span_time, span_values)
 
 
 def read_signal_map_observation(
@@ -767,14 +812,16 @@ def read_signal_map_observation(
 ) -> ShotSignObservation:
     """Read one observation through a machine's packaged signal maps.
 
-    The raw half — plasma current and every flux-loop channel — comes from the
-    ``magnetics`` signal map's rules, but not through
-    :class:`~imas_ambix.data.virtual_zarr.VirtualZarrView`: that view applies
-    each rule's compiled transform on every read, and for a ``source-only``
-    rule the transform carries the assumed sign this reader exists to measure.
-    Each rule's ``source_group`` and ``source_array`` is read straight from the
-    EDDB cache through :func:`~imas_ambix.data.eddb.read_channel`, the cache's
-    own reader, with no sign, unit or COCOS factor applied.  The equilibrium
+    The raw half — plasma current and every flux-loop channel — is read through
+    the view's untransformed accessor,
+    :meth:`~imas_ambix.data.virtual_zarr.VirtualZarrView.raw_series`, which
+    resolves each rule to its source array and that channel's own time base
+    without applying the compiled transform.  The transform is not used because
+    for a ``source-only`` rule it carries the assumed sign this reader exists
+    to measure, so the reader takes the raw values and the raw time base and
+    owns the alignment itself.  Each flux loop is interpolated onto the
+    plasma-current time base, and a loop whose time span does not cover that
+    base is refused rather than extrapolated or index-aligned.  The equilibrium
     half supplies the vacuum toroidal field, the same way MAST's reader takes
     ``bvac_rmag`` from the level-2 equilibrium group, so the reader owns no
     field-per-ampere relation.  The ``tf`` map's coil current is read raw the
@@ -797,27 +844,29 @@ def read_signal_map_observation(
         tf_map.signals, _RAW_TF_COIL_TARGETS, "the TF coil current"
     )
 
-    plasma_current_record = read_channel(
-        root,
-        shot_id,
-        plasma_current_rule.source_group,
-        plasma_current_rule.source_array,
+    pulse = Path(root) / f"{normalised_shot(shot_id)}.zarr"
+    magnetics_view = VirtualZarrView.open(str(pulse), magnetics_map, shot=shot_id)
+    tf_view = VirtualZarrView.open(str(pulse), tf_map, shot=shot_id)
+
+    plasma_current_values, plasma_current_time = magnetics_view.raw_series(
+        plasma_current_rule.semantic_id
     )
-    plasma_current = _raw_series(plasma_current_record, plasma_current_rule)
-    plasma_current_time = np.asarray(plasma_current_record.time, dtype=np.float64)
-    flux_loops = np.vstack(
-        [
-            _raw_series(
-                read_channel(root, shot_id, rule.source_group, rule.source_array),
+    plasma_current = _raw_series(plasma_current_values, plasma_current_rule)
+    plasma_current_time = np.asarray(plasma_current_time, dtype=np.float64)
+    aligned_loops: list[np.ndarray] = []
+    for rule in flux_loop_rules:
+        loop_values, loop_time = magnetics_view.raw_series(rule.semantic_id)
+        aligned_loops.append(
+            _aligned_loop(
                 rule,
+                _raw_series(loop_values, rule),
+                np.asarray(loop_time, dtype=np.float64),
+                plasma_current_time,
             )[np.newaxis, :]
-            for rule in flux_loop_rules
-        ]
-    )
-    tf_record = read_channel(
-        root, shot_id, tf_coil_rule.source_group, tf_coil_rule.source_array
-    )
-    tf_coil_current = np.asarray(tf_record.data, dtype=np.float64).reshape(-1)
+        )
+    flux_loops = np.vstack(aligned_loops)
+    tf_coil_values, _ = tf_view.raw_series(tf_coil_rule.semantic_id)
+    tf_coil_current = np.asarray(tf_coil_values, dtype=np.float64).reshape(-1)
     tf_coil_current_sign = _finite_sign(
         float(np.nanmedian(tf_coil_current)), "TF coil current"
     )
