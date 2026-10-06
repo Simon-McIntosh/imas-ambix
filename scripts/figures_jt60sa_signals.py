@@ -16,8 +16,10 @@ Which channel each panel draws, and at what factor, comes from the packaged
 values through the engine path they feed, taking the bound channel's unit from
 its ``VirtualArray`` attributes; every time base, and every channel the maps
 leave unbound, is read whole through :func:`read_channel`.  Each panel's first
-series names its channel and unit on the y-axis, so no series carries a legend
-label; the stacked panels share one time axis and share its label too.  The
+series names the EDDB channel it draws and its unit on the y-axis, so no series
+carries a legend label; the stacked panels share one time axis and share its
+label too.  The served signal a bound channel feeds is named in the printed
+report and in the fragment's captions, not on the axis.  The
 script draws nothing itself and holds no colour, label or style constant: the
 figures are imas-ink's default style, and the only style named here is the
 replace that dashes the raw flux loop.  Figures are written through
@@ -61,7 +63,10 @@ def _bound_panel(
 
     The values come through the virtual view, which applies the signal's
     factors; the unit is taken from the virtual array's attributes; the time
-    base comes from the cache through :func:`read_channel`.
+    base comes from the cache through :func:`read_channel`.  The y-axis names
+    the EDDB channel drawn (``rule.source_array``), which stays short enough to
+    fit a panel; the served signal the channel feeds (``rule.semantic_id``) is
+    what the printed report and the fragment captions name.
     """
 
     array = view[rule.semantic_id]
@@ -72,7 +77,7 @@ def _bound_panel(
     series = TimeSeries(
         time,
         values,
-        ylabel=rule.semantic_id,
+        ylabel=rule.source_array,
         units=str(array.attrs[_UNITS_ATTR]),
     )
     return [(series, rule.semantic_id, time)]

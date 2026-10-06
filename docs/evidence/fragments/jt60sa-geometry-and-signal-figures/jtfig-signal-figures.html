@@ -32,11 +32,15 @@
     <code>imas_ink.io.render_to_bytes</code>, so the drawn paths take the
     resolution bound the style sets; the only style the script names is the
     <code>replace</code> that dashes the raw flux loop. No series carries a
-    legend label: each panel's first series names its channel and its unit on
-    the y-axis, and the stacked panels share one time axis, labelled once at the
-    bottom of the figure. Per figure the script prints the channel names and
-    units it drew and says when a channel's time base differs from its
-    neighbour's.
+    legend label: each panel's first series names the EDDB channel it draws
+    (<code>rule.source_array</code>, for example <code>curCS1LKAT</code> or
+    <code>Ip</code>) and its unit on the y-axis, and the stacked panels share
+    one time axis, labelled once at the bottom of the figure. The served signal
+    each bound channel feeds (<code>rule.semantic_id</code>) is named in the
+    printed report and in the captions below, not on the axis, so the labels
+    stay short enough to fit a panel. Per figure the script prints the served
+    signal names and units it drew and says when a channel's time base differs
+    from its neighbour's.
   </p>
 
   <figure id="jtfig-signal-figures-pf-currents">
@@ -48,10 +52,12 @@
       <code>pf_active_coil_EF1_current</code> through
       <code>pf_active_coil_EF6_current</code>, all in A — one panel each, and the
       served plasma current <code>magnetics_plasma_current</code> (PSRC Ip, A) on
-      its own panel. Each panel's y-axis names its channel and unit; no legend is
+      its own panel. Each panel's y-axis names the EDDB channel it draws and its
+      unit — <code>curCS1LKAT [A]</code> through <code>curEF6HiTe [A]</code>, and
+      <code>Ip [A]</code> for the plasma current; no legend is
       drawn, and the shared time axis is labelled once at the bottom. The plasma
       current draws on a time base of 46078 samples against the coil currents'
-      310077; the script reports the difference rather than rescaling. 426788
+      310077; the script reports the difference rather than rescaling. 409655
       bytes.
     </figcaption>
   </figure>
@@ -64,7 +70,8 @@
       PSRC <code>magFluxLp&lt;index&gt;</code> channel and, dashed, the raw MDAC
       <code>magFlxLp&lt;index&gt;</code> channel of the same index — the
       raw-to-processed correspondence drawn rather than assumed. Both are in Wb.
-      Each panel's y-axis names its processed channel and unit; no legend is
+      Each panel's y-axis names its processed EDDB channel (<code>magFluxLp1</code>)
+      and unit; no legend is
       drawn, and the shared time axis is labelled once at the bottom. The
       processed channels carry 46078 samples and the raw ones 286077, on
       different time bases; the script reports that per pair. 601998 bytes.
@@ -79,8 +86,10 @@
       currents — <code>pf_active_coil_CS1_current</code> … <code>CS4</code> and
       <code>pf_active_coil_EF1_current</code> … <code>EF6</code>, all in A — one
       panel each, on a common time base, the input the convention work uses. Each
-      panel's y-axis names its channel and unit; no legend is drawn, and the
-      shared time axis is labelled once at the bottom. 430350 bytes.
+      panel's y-axis names the EDDB channel it draws and its unit
+      (<code>curCS1LKAT [A]</code> … <code>curEF6HiTe [A]</code>); no legend is
+      drawn, and the shared time axis is labelled once at the bottom. 415512
+      bytes.
     </figcaption>
   </figure>
 
@@ -91,8 +100,8 @@
     and the refusal
     <code>test_read_channel_refuses_a_time_base_mismatched_with_the_data</code>;
     <code>uv run --no-sync ruff check imas_ambix tests
-    scripts/figures_jt60sa_signals.py</code> exits 0. The three SVGs are 426788,
-    601998 and 430350 bytes — each well under a quarter of its full-sample-count
+    scripts/figures_jt60sa_signals.py</code> exits 0. The three SVGs are 409655,
+    601998 and 415512 bytes — each well under a quarter of its full-sample-count
     size, one SVG per figure with no PNG twin.
   </p>
 
