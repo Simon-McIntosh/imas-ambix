@@ -1,0 +1,71 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": null,
+  "added_failure_ids": [],
+  "added_failures_note": "unmeasured: the reviewed manifest names no base gate log, so the added-failure count was not taken",
+  "base_log_revision": null,
+  "call_site_count": 1,
+  "call_sites": [
+    "imas_ambix/data/cli.py:mint_cmd"
+  ],
+  "completed_at": "2026-10-06T16:40:40.735Z",
+  "dispatched_at": "2026-10-06T16:29:46Z",
+  "findings": [
+    {
+      "file": "imas_ambix/data/cli.py",
+      "line": "1202",
+      "severity": "follow-on",
+      "text": "follow-on: the mint commit also joins an unrelated three-line console.print in training_grade_cmd, a formatting change the goal does not imply."
+    },
+    {
+      "file": "docs/evidence/fragments/jt60sa-pulse-ids/jtpi-pulse-mint.html",
+      "line": "1",
+      "severity": "follow-on",
+      "text": "follow-on: the evidence fragment states the minted currents as numbers only and carries no figure, though the mint produces plot-ready coil-current and ip time series that would make the sample-for-sample claim legible."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T160357737696-jtpi-pulse-mint/gate-head.log",
+      "line": "1",
+      "severity": "follow-on",
+      "text": "follow-on: the log's first line names base revision 271479e2 while the same log collected tests/data/test_pulse_mint.py, which exists only after 12425c34, so the header cannot tie the measured run to the landed commit."
+    }
+  ],
+  "head_log_revision": null,
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 1 production call site(s)",
+    "diff": "read commit by commit against base 271479e2; 12425c34 adds the module, the CLI command and the test, 60b71be7 adds the evidence fragment, all inside the declared scope.",
+    "done_when": "section 1's done-when is a DD 4.1.1 read-back over the five IDSs with sample-for-sample coil currents; tests/data/test_pulse_mint.py:94 tests every named property and the manifest records the 38-passed run.",
+    "goal": "the node goal is to mint one quick shot's description IDSs through the description-and-signal-map join; imas_ambix/data/pulse_mint.py:285 mint_pulse does exactly that and returns a receipt naming each IDS, leaf and excluded signal.",
+    "manifest": "read; it names the gate command, its 38-passed EXIT=0 result, both logs, the two commits and a clean tree.",
+    "write_paths": "the manifest declares pulse_mint.py, cli.py, test_pulse_mint.py, the evidence fragment and its figures dir; the diff touches the first four and nothing outside."
+  },
+  "justifications": {
+    "durability": "tests/data/test_pulse_mint.py:110 fails when the blocked curCS1HiTe chain is served in place of curCS1LKAT, as negative-control.log records with EXIT=1.",
+    "evidence": "tests/data/test_pulse_mint.py:110 asserts the served coil currents sample-for-sample and the manifest records 38 passed EXIT=0, but the gate log's first line names the base revision rather than the landed commit.",
+    "fit": "imas_ambix/data/pulse_mint.py:95 follows the data package's frozen-dataclass receipt idiom and introduces no plan, sprint or version label.",
+    "goal_fidelity": "imas_ambix/data/pulse_mint.py:285 mint_pulse reads the phase description whole, writes the served leaves and one netCDF per IDS, matching section 1's goal.",
+    "reuse": "imas_ambix/data/pulse_mint.py:34-36 extends read_channel, signal_map and virtual_zarr rather than re-owning their capability, and no existing module joins the description and the signal maps.",
+    "scope_discipline": "the reformat at imas_ambix/data/cli.py:1202 is an unrelated console.print collapse carried in the mint commit, the one change the goal does not imply."
+  },
+  "node": "review-of-jtpi-pulse-mint",
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node goal is to mint one quick shot's description IDSs through the description-and-signal-map join; imas_ambix/data/pulse_mint.py:285 mint_pulse does exactly that and returns a receipt naming each IDS, leaf and excluded signal.\nVERDICT done_when: section 1's done-when is a DD 4.1.1 read-back over the five IDSs with sample-for-sample coil currents; tests/data/test_pulse_mint.py:94 tests every named property and the manifest records the 38-passed run.\nVERDICT write_paths: the manifest declares pulse_mint.py, cli.py, test_pulse_mint.py, the evidence fragment and its figures dir; the diff touches the first four and nothing outside.\nVERDICT manifest: read; it names the gate command, its 38-passed EXIT=0 result, both logs, the two commits and a clean tree.\nVERDICT diff: read commit by commit against base 271479e2; 12425c34 adds the module, the CLI command and the test, 60b71be7 adds the evidence fragment, all inside the declared scope.\nCALL_SITES: imas_ambix/data/cli.py:mint_cmd\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: imas_ambix/data/pulse_mint.py:285 mint_pulse reads the phase description whole, writes the served leaves and one netCDF per IDS, matching section 1's goal.\nSCORE evidence: 17\nJUSTIFICATION evidence: tests/data/test_pulse_mint.py:110 asserts the served coil currents sample-for-sample and the manifest records 38 passed EXIT=0, but the gate log's first line names the base revision rather than the landed commit.\nSCORE scope_discipline: 16\nJUSTIFICATION scope_discipline: the reformat at imas_ambix/data/cli.py:1202 is an unrelated console.print collapse carried in the mint commit, the one change the goal does not imply.\nSCORE durability: 19\nJUSTIFICATION durability: tests/data/test_pulse_mint.py:110 fails when the blocked curCS1HiTe chain is served in place of curCS1LKAT, as negative-control.log records with EXIT=1.\nSCORE fit: 18\nJUSTIFICATION fit: imas_ambix/data/pulse_mint.py:95 follows the data package's frozen-dataclass receipt idiom and introduces no plan, sprint or version label.\nSCORE reuse: 19\nJUSTIFICATION reuse: imas_ambix/data/pulse_mint.py:34-36 extends read_channel, signal_map and virtual_zarr rather than re-owning their capability, and no existing module joins the description and the signal maps.\nFINDING imas_ambix/data/cli.py:1202 follow-on: the mint commit also joins an unrelated three-line console.print in training_grade_cmd, a formatting change the goal does not imply.\nFINDING docs/evidence/fragments/jt60sa-pulse-ids/jtpi-pulse-mint.html:1 follow-on: the evidence fragment states the minted currents as numbers only and carries no figure, though the mint produces plot-ready coil-current and ip time series that would make the sample-for-sample claim legible.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T160357737696-jtpi-pulse-mint/gate-head.log:1 follow-on: the log's first line names base revision 271479e2 while the same log collected tests/data/test_pulse_mint.py, which exists only after 12425c34, so the header cannot tie the measured run to the landed commit.\nreviewed_base_sha: 271479e22c7ac59575fb826bc5ff28754fe0a006\nreviewed_head_sha: 60b71be74735c74344211a989d92dc393e09c7a7\n",
+  "review_run_id": "r-20261006T162938901484-review-of-jtpi-pulse-mint",
+  "reviewed_base_sha": "271479e22c7ac59575fb826bc5ff28754fe0a006",
+  "reviewed_head_sha": "60b71be74735c74344211a989d92dc393e09c7a7",
+  "reviewed_run_id": "r-20261006T160357737696-jtpi-pulse-mint",
+  "reviewer": "independent-review",
+  "scores": {
+    "durability": 19,
+    "evidence": 17,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "reuse": 19,
+    "scope_discipline": 16
+  },
+  "status": "parsed",
+  "timestamp": "2026-10-06T16:41:51.080299+00:00",
+  "total": 108
+}
