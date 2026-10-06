@@ -24,10 +24,10 @@
   <title>JT-60SA Geometry and Signal Figures | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="40">
+<meta name="plan-version" content="41">
 <meta name="plan-modified" content="2026-10-06">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s1b&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;deferred&quot;}">
-<meta name="plan-commits" content="369a705d,b36a5d93,bd84e83d,438c4d16">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s1b&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s2b&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;deferred&quot;}">
+<meta name="plan-commits" content="369a705d,b36a5d93,bd84e83d,438c4d16,c35e1783,6f251699">
 </head>
 <body>
   <main class="plan-doc">
@@ -52,44 +52,12 @@
   <p class="landed-summary">Landed <code>plot_style.py</code>, a hand-drawn geometry script and three palette candidates (merge <code>b36a5d93</code>); withdrawn when the lead ruled that the figures render through imas-ink with no labels. §1b retires them. <a href="s1">full record</a></p>
 </section>
 
+    <section class="section-landed">
+  <header><span class="badge badge-shipped">&#10003; landed 2026-10-06</span>
     <h2 id="s2">§2 — Geometry: each phase, and what changes between them</h2>
-<section data-reckon="section" data-id="s2" data-effort-hours="2.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
-    <p>
-      Two figures, rendered by imas-ink in its own style (lead ruling, 2026-10-06). A short script,
-      <code>scripts/figures_jt60sa_geometry.py</code>, opens each phase of the store through the
-      jt-60sa catalogue, which owns its addressing: <code>load_packaged_machine_map("jt-60sa")</code>
-      gives the store root (<code>description_store_root_path()</code>), the layout and the phase maps,
-      and <code>NetCDFTransformEngine.open</code> on that root and map returns the store whose
-      <code>path</code> is the phase directory. It reads <code>wall</code>, <code>pf_active</code> and
-      <code>magnetics</code> with <code>imas.DBEntry</code>, passes them to
-      <code>imas_ink.extract.extract_geometry</code> and renders each phase with
-      <code>imas_ink.figures.geometry_figure_mpl</code> into axes the script lays out, using the
-      <code>ax</code> argument and the reference-outline line style that imas-ink's
-      <code>geometry-figure-vessel-units</code> plan adds, since the figure today makes its own axes and
-      has no second-outline style: axes off, equal aspect, imas-ink's default
-      weights and greys, and no labels, legend or added colour. The first figure is OP1 and OP2 side by
-      side on one shared viewport. The second overlays the two phases' first wall and vessel contours
-      on one panel, the components that change at the OP1 to OP2 boundary, telling the phases apart by
-      line style alone. The caption carries everything a reader needs to identify what is drawn: which
-      panel is which phase, which contours are the first wall and which the vessel skins, that each coil
-      rectangle is the outline of one of the 12 PF coils, the envelope imas-ink draws around the coil's
-      current filaments (268 in all), that the cryostat-scale
-      passive loop and the sensors EDDB acquires without a facility position are not drawn, and the
-      counts. The script draws no element itself and holds no colour, label or style constant.
-    </p>
-    <p>
-      It waits on two landings: the machine map's wall rewrite, which writes each phase's first wall
-      as a limiter unit and its vacuum vessel as an annular vessel unit from the inner and outer VV
-      skins of <code>coil_vv_OP{1,2}.dat</code> (lead ruling, 2026-10-06; machine-map node
-      <code>jtmm-passive-cryostat-and-wall</code>), and imas-ink's <code>geometry-figure-vessel-units</code>, which teaches it to draw vessel units and
-      to compose two phases into one figure.
-      Done-when: both figures are written as one SVG each, with no PNG twin, under
-      <code>docs/figures/jt60sa-geometry/</code> and embedded with a project-absolute <code>src</code> and
-      a caption in the node's evidence fragment; the script prints, per phase, the counts it passed to
-      imas-ink and those it drew (PF coils drawn and the filaments they enclose, first-wall and vessel
-      contour points, flux loops, probes) and they match
-      the store.
-    </p>
+<section data-reckon="section" data-id="s2" data-effort-hours="2.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="done" data-links=""></section></header>
+  <p class="landed-summary">OP1 and OP2 drawn through imas-ink with no labels (merge <code>6f25169</code>):<br><img src="/imas-ambix/figures/jt60sa-geometry/op1-op2-side-by-side.svg" alt="JT-60SA OP1 and OP2 cross-sections" style="max-width:100%"><br><img src="/imas-ambix/figures/jt60sa-geometry/op1-op2-overlay.svg" alt="OP1 dashed over OP2" style="max-width:60%"> <a href="s2">full record</a></p>
+</section>
 
     <h2 id="s3">§3 — Signals: the cached pulses</h2>
 <section data-reckon="section" data-id="s3" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
@@ -174,6 +142,22 @@
     </p>
     <p>
       The done-when and its test live in that plan.
+    </p>
+
+    <h2 id="s2b">§2b — A test for the geometry count guard</h2>
+<section data-reckon="section" data-id="s2b" data-effort-hours="0.25" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+<p>
+      The geometry script's <code>_report</code> (<code>scripts/figures_jt60sa_geometry.py</code>) compares the
+      counts passed to imas-ink with the store's and stops on a mismatch, but it runs only against the real
+      JT-60SA description store, so nothing in the test suite would notice if the comparison were weakened.
+      This section adds <code>tests/scripts/test_figures_jt60sa_geometry.py</code>, which imports the
+      script's <code>_report</code> and asserts it passes equal counts and raises <code>SystemExit</code> naming
+      the field when one drawn count differs. It changes no script behaviour and adds no public name.
+    </p>
+    <p>
+      Done-when: the test passes under <code>uv run --no-sync pytest -p no:cacheprovider
+      tests/scripts/test_figures_jt60sa_geometry.py</code> and fails when <code>_report</code> stops comparing
+      the probe count; <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0.
     </p>
 
     <section data-reckon="followups" id="followups" class="r-followups">
