@@ -1,0 +1,74 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "base_log_revision": null,
+  "call_site_count": 2,
+  "call_sites": [
+    "packages/imas-alambic/src/imas_alambic/cli.py:mint_cmd",
+    "imas_ambix/data/bundle.py:load_bundle"
+  ],
+  "completed_at": "2026-10-06T23:33:46.018Z",
+  "dispatched_at": "2026-10-06T23:28:23Z",
+  "findings": [
+    {
+      "file": "tests/data/test_machine_map.py",
+      "line": "31",
+      "severity": "follow-on",
+      "text": "follow-on: the done-when requires the seven named ambix test modules to add no failures, but this module (with tests/data/test_transform_engine.py:30 and tests/test_cocos.py:20) errors at collection at the head because out-of-scope importers imas_ambix/gs/geometry.py:21 and imas_ambix/data/cocos_convention.py:28 still import the moved modules, so three of the seven named modules are left unmeasured."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T225454290218-jtfm-alambic-move/manifest.md",
+      "line": "63",
+      "severity": "follow-on",
+      "text": "follow-on: the after_suite command is recorded with literal `<wt>` placeholder text in its PYTHONPATH instead of absolute paths, so the recorded gate command cannot be re-run as written to reconcile the count."
+    },
+    {
+      "file": "packages/imas-alambic/src/imas_alambic/eddb.py",
+      "line": "4",
+      "severity": "follow-on",
+      "text": "follow-on: the module docstring points at `imas_alambic.paths.JT60SA_ROOT`, but the engine ships no `paths` module -- store roots are owned by imas_ambix.data.paths and reached through the bundle -- so the cross-reference resolves nowhere."
+    }
+  ],
+  "head_log_revision": "d97a9302d",
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 2 production call site(s)",
+    "diff": "read commit by commit against f1f0a5b0; the substantive change is the new MapBundle/load_bundle_descriptor/discover_bundles/bundle_for_machine/resolve_description_store_root block in machine_map.py, the entry-point target imas_ambix/data/bundle.py, the nova_cocos import swap in cocos.py, and the imas_alambic.* import rewrites in the moved modules.",
+    "done_when": "the fence names a wheel-version-parity build, a clean py3.12 venv import, engine tests, the seven ambix map test modules adding no failures, and ruff; logs/build-engine.log and logs/build-root.log both give 0.1.dev5555+gd97a9302d, logs/clean-venv.log shows import/version/mint-help at EXIT=0 and 16 engine tests passed, logs/ruff.log reads All checks passed, but the seven-module clause is only asserted for four modules -- head-seven.log shows three in-scope modules error at collection.",
+    "goal": "the node goal is to move the mint engine into the imas-alambic workspace member with by-name bundle discovery; the diff creates packages/imas-alambic/pyproject.toml, git-mv's the eight engine modules plus machine_maps/schema.yaml, generalises the by-name resolvers onto bundles at packages/imas-alambic/src/imas_alambic/machine_map.py:182, and retires the mint command at imas_ambix/data/cli.py:56.",
+    "manifest": "read; it records commits 3ae87c26, 4706e533, d97a9302, f78cad45 and every gate log, and states no blockers, but its after_suite command entry carries literal `<wt>` placeholder text rather than absolute paths.",
+    "write_paths": "the fence lists packages/imas-alambic, pyproject.toml, seven imas_ambix/data modules plus paths/cli/bundle, imas_ambix/cocos.py, schema.yaml, six tests/data modules, tests/test_cocos.py and the evidence fragment; `git diff --stat f1f0a5b0 f78cad45` touches only those paths, so the diff is inside the declared scope."
+  },
+  "justifications": {
+    "durability": "packages/imas-alambic/tests/test_bundle_discovery.py:63 fails when bundle_for_machine silently returns the first of two bundles, which logs/negative-control.log confirms with DID NOT RAISE, and tests/test_engine_imports.py:26 imports every engine module in the clean venv.",
+    "evidence": "logs/clean-venv.log and logs/negative-control.log record the wheel/import and refusal gates with EXIT lines, but head-seven.log shows three of the seven named modules error at collection so that clause of the done-when is unmeasured, and manifest.md:63 records its after_suite command with `<wt>` placeholders.",
+    "fit": "the new code follows the surrounding frozen-dataclass and MappingProxyType idiom of machine_map.py, but packages/imas-alambic/src/imas_alambic/eddb.py:4 cross-references `imas_alambic.paths.JT60SA_ROOT`, a module the engine does not ship.",
+    "goal_fidelity": "packages/imas-alambic/pyproject.toml makes the engine a workspace member with requires-python >=3.12 and a hatch-vcs version rooted at ../.., and machine_map.py:182 discovers bundles by name, exactly the goal's deliverable.",
+    "reuse": "machine_map.py:118 generalises the existing resolve_description_store_root/load_packaged_* resolvers in place onto one bundle owner rather than adding a resolver beside them, and a capability search over imas_ambix found no prior bundle-discovery owner to fork.",
+    "scope_discipline": "every path in `git diff --stat f1f0a5b0 f78cad45` is inside the fence of prompt.txt, and the two new ambix files (imas_ambix/data/bundle.py, bundle.json) are named in that fence."
+  },
+  "project": "imas-ambix",
+  "raw_text": "\nVERDICT goal: the node goal is to move the mint engine into the imas-alambic workspace member with by-name bundle discovery; the diff creates packages/imas-alambic/pyproject.toml, git-mv's the eight engine modules plus machine_maps/schema.yaml, generalises the by-name resolvers onto bundles at packages/imas-alambic/src/imas_alambic/machine_map.py:182, and retires the mint command at imas_ambix/data/cli.py:56.\nVERDICT done_when: the fence names a wheel-version-parity build, a clean py3.12 venv import, engine tests, the seven ambix map test modules adding no failures, and ruff; logs/build-engine.log and logs/build-root.log both give 0.1.dev5555+gd97a9302d, logs/clean-venv.log shows import/version/mint-help at EXIT=0 and 16 engine tests passed, logs/ruff.log reads All checks passed, but the seven-module clause is only asserted for four modules -- head-seven.log shows three in-scope modules error at collection.\nVERDICT write_paths: the fence lists packages/imas-alambic, pyproject.toml, seven imas_ambix/data modules plus paths/cli/bundle, imas_ambix/cocos.py, schema.yaml, six tests/data modules, tests/test_cocos.py and the evidence fragment; `git diff --stat f1f0a5b0 f78cad45` touches only those paths, so the diff is inside the declared scope.\nVERDICT manifest: read; it records commits 3ae87c26, 4706e533, d97a9302, f78cad45 and every gate log, and states no blockers, but its after_suite command entry carries literal `<wt>` placeholder text rather than absolute paths.\nVERDICT diff: read commit by commit against f1f0a5b0; the substantive change is the new MapBundle/load_bundle_descriptor/discover_bundles/bundle_for_machine/resolve_description_store_root block in machine_map.py, the entry-point target imas_ambix/data/bundle.py, the nova_cocos import swap in cocos.py, and the imas_alambic.* import rewrites in the moved modules.\nCALL_SITES: packages/imas-alambic/src/imas_alambic/cli.py:mint_cmd, imas_ambix/data/bundle.py:load_bundle\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: packages/imas-alambic/pyproject.toml makes the engine a workspace member with requires-python >=3.12 and a hatch-vcs version rooted at ../.., and machine_map.py:182 discovers bundles by name, exactly the goal's deliverable.\nSCORE evidence: 16\nJUSTIFICATION evidence: logs/clean-venv.log and logs/negative-control.log record the wheel/import and refusal gates with EXIT lines, but head-seven.log shows three of the seven named modules error at collection so that clause of the done-when is unmeasured, and manifest.md:63 records its after_suite command with `<wt>` placeholders.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: every path in `git diff --stat f1f0a5b0 f78cad45` is inside the fence of prompt.txt, and the two new ambix files (imas_ambix/data/bundle.py, bundle.json) are named in that fence.\nSCORE durability: 18\nJUSTIFICATION durability: packages/imas-alambic/tests/test_bundle_discovery.py:63 fails when bundle_for_machine silently returns the first of two bundles, which logs/negative-control.log confirms with DID NOT RAISE, and tests/test_engine_imports.py:26 imports every engine module in the clean venv.\nSCORE fit: 16\nJUSTIFICATION fit: the new code follows the surrounding frozen-dataclass and MappingProxyType idiom of machine_map.py, but packages/imas-alambic/src/imas_alambic/eddb.py:4 cross-references `imas_alambic.paths.JT60SA_ROOT`, a module the engine does not ship.\nSCORE reuse: 19\nJUSTIFICATION reuse: machine_map.py:118 generalises the existing resolve_description_store_root/load_packaged_* resolvers in place onto one bundle owner rather than adding a resolver beside them, and a capability search over imas_ambix found no prior bundle-discovery owner to fork.\nFINDING tests/data/test_machine_map.py:31 follow-on: the done-when requires the seven named ambix test modules to add no failures, but this module (with tests/data/test_transform_engine.py:30 and tests/test_cocos.py:20) errors at collection at the head because out-of-scope importers imas_ambix/gs/geometry.py:21 and imas_ambix/data/cocos_convention.py:28 still import the moved modules, so three of the seven named modules are left unmeasured.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T225454290218-jtfm-alambic-move/manifest.md:63 follow-on: the after_suite command is recorded with literal `<wt>` placeholder text in its PYTHONPATH instead of absolute paths, so the recorded gate command cannot be re-run as written to reconcile the count.\nFINDING packages/imas-alambic/src/imas_alambic/eddb.py:4 follow-on: the module docstring points at `imas_alambic.paths.JT60SA_ROOT`, but the engine ships no `paths` module -- store roots are owned by imas_ambix.data.paths and reached through the bundle -- so the cross-reference resolves nowhere.\n",
+  "review_run_id": "r-20261006T232814269153-review-of-jtfm-alambic-move",
+  "reviewed_base_sha": "f1f0a5b04dca29155dbf3ee359c927ae60bee10e",
+  "reviewed_head_sha": "f78cad45dc37eff71bd98fba59361afd89b82560",
+  "reviewed_run_id": "r-20261006T225454290218-jtfm-alambic-move",
+  "reviewer": {
+    "backend": "clive",
+    "model": "deepseek-v4.1-flash"
+  },
+  "reviewer_run_id": "r-20261006T232814269153-review-of-jtfm-alambic-move",
+  "scores": {
+    "durability": 18,
+    "evidence": 16,
+    "fit": 16,
+    "goal_fidelity": 19,
+    "reuse": 19,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "timestamp": "2026-10-06T23:34:31.220915+00:00",
+  "total": 107
+}
