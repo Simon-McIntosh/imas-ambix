@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="jtmm-vacuum-shot-census-landing">
+      <p>Census of the JT-60SA EDDB for the vacuum and plasma shots the convention
+      section needs, read over <code>ssh -F ~/.ssh/config jt-60sa</code> (host
+      <code>intr26-2</code>, <code>nakasvr26</code>) through
+      <code>/analysis/src/eddb/eddb_pwrapper.py</code> under the <code>python/3.12</code>
+      module, <code>nice -n 19</code>. Every pulse EDDB lists was enumerated with
+      <code>eddbreadShot</code> (2052 E, 99 A, 6 C &mdash; 2157 total), then each pulse was
+      read on <code>PSRC/Ip</code>, <code>MMSYS</code> TF and PF coil currents, and its
+      <code>MDAC</code> catalogue. At least three vacuum shots and three plasma shots
+      carrying the raw <code>MDAC</code> flux loops <code>magFlxLp1..34</code> and probes
+      <code>magPbTC1..23</code> were then fetched through
+      <code>imas_ambix.data.eddb.fetch_channels</code>, one ssh session per shot, each
+      channel requested once. <code>101154.zarr</code> was not written by this node.</p>
+    </section>
+
+    <section id="jtmm-vacuum-shot-census-method">
+      <h3>What the census found</h3>
+      <p>The E-series covers 2020-03 to 2026-06; the C-series is six 2026-06
+      commissioning shots (<code>C060028..C060033</code>); the A-series is 99 shots.
+      Two facts decide where a raw-loop shot can live:</p>
+      <p>The raw <code>MDAC</code> flux loops <code>magFlxLp1..34</code> and the probes
+      <code>magPbTC1..23</code> are acquired only on the OP1-era pulses numbered from
+      <code>E100383</code> onward: all 34 loops and all 23 probes are present
+      (<code>mdac_total</code> 264 names) on every one of these, and the catalogue's
+      OP1 range 100001&ndash;101173 covers them. The pre-<code>E100000</code> series
+      (<code>E0631xx</code>, <code>E064xxx</code>, <code>PSRC</code>
+      <code>Ip</code>-carrying scenario shots) carry only 23 probes and no loops
+      (<code>E080298</code>) or no <code>MDAC</code> block at all
+      (<code>E063641</code>), so none is usable on the raw-loop criterion. The six
+      C-series shots drive the TF only (25.7 kA) with the PF chain at the noise floor
+      (tens of amperes) and are not covered by any catalogue range, so they cannot
+      serve as vacuum shots either.</p>
+      <p>Peak <code>PSRC/Ip</code> separates the two populations on the OP1 range:
+      the shots the facility drove without plasma report the channel refused
+      (<code>irc 1015</code>) or zero, while the plasma shots carry a real current
+      waveform. A handful of pre-plasma scenario shots report a smooth 2.5 MA
+      programme waveform (a setpoint, not a measurement) &mdash; read as a
+      measured-current screen it would misclassify them, so the vacuum verdict below
+      rests on the coil-current drive and the refused/zero plasma channel together,
+      never on the <code>Ip</code> value alone.</p>
+    </section>
+
+    <section id="jtmm-vacuum-shot-census-table">
+      <h3>Candidate pulses examined</h3>
+      <p>Candidates carrying the raw <code>MDAC</code> loops and probes, read in
+      detail. The columns are defined beneath the table.</p>
+      <table>
+        <thead><tr>
+          <th>pulse</th><th>series</th><th>date</th><th>peak Ip [A]</th>
+          <th>peak PF coil currents [A]</th><th>TF current (max/min) [A]</th>
+          <th>loops</th><th>probes</th><th>catalogue range</th>
+        </tr></thead>
+        <tbody>
+<tr><td>E101154</td><td>E</td><td>2023-12-13</td><td>998576</td><td>CS1LKAT=5123, CS2LKAT=5072, CS3LKAT=5074, CS4LKAT=5049, EF1LKAT=622, EF2LKAT=860, EF3LKAT=4281, EF4LKAT=3814, EF5LKAT=192, EF6HiTe=897</td><td>23303/23057 A (sign +)</td><td>34/34</td><td>23/23</td><td>OP1</td></tr>
+<tr><td>E100658</td><td>E</td><td>2023-10-27</td><td>137923</td><td>CS1LKAT=3116, CS2LKAT=3097, CS3LKAT=3122, CS4LKAT=3024, EF1LKAT=281, EF2LKAT=96, EF3LKAT=2213, EF4LKAT=1675, EF5LKAT=225, EF6HiTe=365</td><td>25795/25445 A (sign +)</td><td>34/34</td><td>23/23</td><td>OP1</td></tr>
+<tr><td>E100666</td><td>E</td><td>2023-10-30</td><td>150485</td><td>CS1LKAT=3103, CS2LKAT=3080, CS3LKAT=3115, CS4LKAT=3017, EF1LKAT=298, EF2LKAT=47, EF3LKAT=2215, EF4LKAT=1712, EF5LKAT=232, EF6HiTe=370</td><td>23358/23088 A (sign +)</td><td>34/34</td><td>23/23</td><td>OP1</td></tr>
+<tr><td>E100730</td><td>E</td><td>2023-11-06</td><td>501153</td><td>CS1LKAT=3098, CS2LKAT=3061, CS3LKAT=3091, CS4LKAT=3020, EF1LKAT=451, EF2LKAT=26, EF3LKAT=2524, EF4LKAT=2164, EF5LKAT=218, EF6HiTe=689</td><td>23335/23081 A (sign +)</td><td>34/34</td><td>23/23</td><td>OP1</td></tr>
+<tr><td>E101035</td><td>E</td><td>2023-11-30</td><td>699787</td><td>CS1LKAT=5163, CS2LKAT=5061, CS3LKAT=5146, CS4LKAT=5022, EF1LKAT=533, EF2LKAT=154, EF3LKAT=4115, EF4LKAT=3763, EF5LKAT=188, EF6HiTe=1662</td><td>19459/19175 A (sign +)</td><td>34/34</td><td>23/23</td><td>OP1</td></tr>
+<tr><td>E100571</td><td>E</td><td>2023-10-17</td><td>absent (irc 1015)</td><td>CS1LKAT=3335, CS2LKAT=3202, CS3LKAT=3323, CS4LKAT=3089, EF1LKAT=85, EF2LKAT=18, EF3LKAT=2768, EF4LKAT=2403, EF5LKAT=86, EF6HiTe=156</td><td>31/-31 A (sign -)</td><td>34/34</td><td>23/23</td><td>OP1</td></tr>
+<tr><td>E100579</td><td>E</td><td>2023-10-18</td><td>absent (irc 1015)</td><td>CS1LKAT=3335, CS2LKAT=3190, CS3LKAT=3307, CS4LKAT=3075, EF1LKAT=528, EF2LKAT=294, EF3LKAT=2789, EF4LKAT=2390, EF5LKAT=204, EF6HiTe=436</td><td>3137/2769 A (sign +)</td><td>34/34</td><td>23/23</td><td>OP1</td></tr>
+<tr><td>E100595</td><td>E</td><td>2023-10-19</td><td>absent (irc 1015)</td><td>CS1LKAT=3186, CS2LKAT=3057, CS3LKAT=3085, CS4LKAT=3020, EF1LKAT=414, EF2LKAT=65, EF3LKAT=2584, EF4LKAT=2204, EF5LKAT=213, EF6HiTe=347</td><td>25793/25511 A (sign +)</td><td>34/34</td><td>23/23</td><td>OP1</td></tr>
+<tr><td>E100642</td><td>E</td><td>2023-10-26</td><td>absent (irc 1015)</td><td>CS1LKAT=3312, CS2LKAT=3171, CS3LKAT=3262, CS4LKAT=3061, EF1LKAT=336, EF2LKAT=115, EF3LKAT=239, EF4LKAT=151, EF5LKAT=278, EF6HiTe=82</td><td>35/-28 A (sign +)</td><td>34/34</td><td>23/23</td><td>OP1</td></tr>
+<tr><td>E100634</td><td>E</td><td>2023-10-25</td><td>absent (irc 1015)</td><td>CS1LKAT=1300, CS2LKAT=1167, CS3LKAT=1308, CS4LKAT=1272, EF1LKAT=1336, EF2LKAT=1157, EF3LKAT=1237, EF4LKAT=1191, EF5LKAT=1284, EF6HiTe=1045</td><td>33/-28 A (sign +)</td><td>34/34</td><td>23/23</td><td>OP1</td></tr>
+<tr><td>E100647</td><td>E</td><td>2023-10-27</td><td>absent (irc 1015)</td><td>CS1LKAT=1306, CS2LKAT=1159, CS3LKAT=1292, CS4LKAT=1292, EF1LKAT=1331, EF2LKAT=1162, EF3LKAT=1254, EF4LKAT=1192, EF5LKAT=1297, EF6HiTe=1044</td><td>34/-18 A (sign +)</td><td>34/34</td><td>23/23</td><td>OP1</td></tr>
+<tr><td>E100531</td><td>E</td><td>2023-10-11</td><td>absent (irc 1015)</td><td>CS1LKAT=1301, CS2LKAT=25, CS3LKAT=24, CS4LKAT=17, EF1LKAT=82, EF2LKAT=17, EF3LKAT=26, EF4LKAT=18, EF5LKAT=102, EF6HiTe=8</td><td>31/-38 A (sign -)</td><td>34/34</td><td>23/23</td><td>OP1</td></tr>
+<tr><td>E100800</td><td>E</td><td>2023-11-10</td><td>9924</td><td>CS1LKAT=3043, CS2LKAT=3048, CS3LKAT=3125, CS4LKAT=3036, EF1LKAT=274, EF2LKAT=28, EF3LKAT=2248, EF4LKAT=1685, EF5LKAT=221, EF6HiTe=366</td><td>21832/21517 A (sign +)</td><td>34/34</td><td>23/23</td><td>OP1</td></tr>
+<tr><td>E100383</td><td>E</td><td>2023-08-18</td><td>absent (irc 1015)</td><td>CS1LKAT=-14, CS2LKAT=0, CS3LKAT=-10, CS4LKAT=4, EF1LKAT=-5, EF2LKAT=-8, EF3LKAT=2, EF4LKAT=-21, EF5LKAT=-2, EF6HiTe=-1</td><td>15748/687 A (sign +)</td><td>34/34</td><td>23/23</td><td>OP1</td></tr>
+<tr><td>E100408</td><td>E</td><td>2023-08-25</td><td>absent (irc 1015)</td><td>CS1LKAT=-5, CS2LKAT=-2, CS3LKAT=-4, CS4LKAT=-9, EF1LKAT=-7, EF2LKAT=-6, EF3LKAT=-7, EF4LKAT=-4, EF5LKAT=-8, EF6HiTe=-2</td><td>25676/25487 A (sign +)</td><td>34/34</td><td>23/23</td><td>OP1</td></tr>
+<tr><td>E101173</td><td>E</td><td>2023-12-15</td><td>absent (irc 1015)</td><td>CS1LKAT=21, CS2LKAT=82, CS3LKAT=18, CS4LKAT=22, EF1LKAT=13, EF2LKAT=1496, EF3LKAT=13, EF4LKAT=20, EF5LKAT=126, EF6HiTe=7</td><td>35/-24 A (sign +)</td><td>34/34</td><td>23/23</td><td>OP1</td></tr>
+        </tbody>
+      </table>
+      <p>Peak <code>Ip</code> is the maximum of <code>PSRC/Ip</code> over each shot;
+      a refused channel (<code>irc 1015</code>) means the shot has no
+      <code>PSRC/Ip</code> store. &ldquo;Peak PF coil currents&rdquo; are the per-coil
+      maxima of the ten MMSYS PF chains (CS1-4 LKAT, EF1-5 LKAT, EF6 HiTe); &ldquo;TF
+      current&rdquo; is <code>MMSYS/cur1TFLKAT</code> max/min, its sign giving the
+      polarity. &ldquo;loops&rdquo; and &ldquo;probes&rdquo; count members of
+      <code>magFlxLp1..34</code> and <code>magPbTC1..23</code> present in the
+      shot's <code>MDAC</code> catalogue. &ldquo;catalogue range&rdquo; is the OP1
+      (100001&ndash;101173) or OP2 (101174+) range the pulse integer falls in; pulses
+      below 100001 are covered by neither.</p>
+      <p>Vacuum candidates (PF coils driven, no plasma-current store):
+      <code>E100531</code>, <code>E100571</code>, <code>E100579</code>,
+      <code>E100595</code>, <code>E100634</code>, <code>E100642</code>,
+      <code>E100647</code>. Plasma candidates (real <code>Ip</code> waveform, coils
+      driven): <code>E100658</code>, <code>E100666</code>, <code>E100730</code>,
+      <code>E101035</code>, <code>E101154</code>. TF-only shots with no PF drive
+      (<code>E100383</code>, <code>E100408</code>) and the marginal
+      <code>E100800</code> (peak <code>Ip</code> 9,924 A, just below the 10 kA
+      threshold) are tabled but not used.</p>
+    </section>
+
+    <section id="jtmm-vacuum-shot-census-cache">
+      <h3>Cached shots</h3>
+      <p>Fetched through <code>fetch_channels</code> (no new repository module), one
+      ssh session per shot; each shot's channels are requested once and cached under
+      <code>/work/projects/imas_gpu/jt60sa/&lt;shot&gt;.zarr</code>. The set requested
+      per shot is the raw <code>MDAC</code> loops <code>magFlxLp1..34</code> and probes
+      <code>magPbTC1..23</code>, <code>MDAC/curAVVRC1..4</code>, the ten MMSYS PF coil
+      chains and <code>cur1TFLKAT</code>, and <code>PSRC/Ip</code> (73 channels).</p>
+      <table>
+        <thead><tr><th>shot</th><th>role</th><th>requested</th><th>served</th>
+          <th>refused</th><th>cold wall time [s]</th><th>bytes on disk</th></tr></thead>
+        <tbody>
+<tr><td>E100595</td><td>vacuum</td><td>73</td><td>72</td><td>1 (<code>PSRC/Ip</code>)</td><td>171.5</td><td>108,001,536</td></tr>
+        <tr><td>E101154</td><td>plasma</td><td>&mdash;</td><td>warm</td><td>0</td><td>pre-existing</td><td>236,491,919</td></tr>
+        <tr><td>E101173</td><td>plasma</td><td>&mdash;</td><td>warm</td><td>0</td><td>pre-existing</td><td>213,807,361</td></tr>
+        </tbody>
+      </table>
+      <p>Only <code>E100595</code> of this node's cold-fetch set completed: the
+      <code>jt-60sa</code> ProxyJump chain (the laptop reverse tunnel) served a short
+      command but dropped during every long EDDB batch, so the other four cold
+      fetches (<code>E100579</code>, <code>E100642</code> vacuum;
+      <code>E100658</code>, <code>E100730</code> plasma) failed at the ssh layer
+      before writing a store. The vacuum and plasma targets are therefore
+      <em>not</em> met by this node: only <code>E100595</code> (vacuum) is newly
+      cached, against the three-plus-three required. <code>E101154</code> and
+      <code>E101173</code> were already cached by earlier cold-fetch nodes and are
+      served warm here (<code>fetch_channels</code> makes no transport call for a
+      cached channel); <code>E101154</code> is the shot whose <code>PSRC/Ip</code>
+      draws the ~1 MA flat top. <code>E100595</code> serves 72 of 73 requested
+      channels (the refusal is <code>PSRC/Ip</code>, absent on a vacuum shot) and
+      writes 108 MB.</p>
+    </section>
+
+    <section id="jtmm-vacuum-shot-census-negative-control">
+      <h3>Negative control</h3>
+      <p>The vacuum classifier is &ldquo;peak <code>|PSRC/Ip|</code> &lt; 10 kA&rdquo;.
+      Applied to the cached <code>E101154</code>, whose <code>PSRC/Ip</code> peaks at
+      998,576.25 A, it returns <em>plasma</em>, never <em>vacuum</em> &mdash; the
+      refusal is applied to a shot known to carry plasma current and the classifier
+      is shown to say so. Applied to a shot with no cached <code>PSRC/Ip</code>
+      (e.g. <code>E100595</code>) the reader raises and the classifier returns no
+      verdict rather than defaulting to vacuum; the vacuum verdict for those shots
+      therefore rests on the coil-current drive and the refused/zero plasma channel,
+      not on an absent read of <code>Ip</code>.</p>
+    </section>
+  </main>
+</body>
+</html>
