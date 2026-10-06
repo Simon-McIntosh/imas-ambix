@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5">
 <meta name="plan-impl" content="0.625">
-<meta name="plan-version" content="90">
+<meta name="plan-version" content="91">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -1037,6 +1037,9 @@
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20261006T015724107959-jtmm-catalogue" data-who="reckon-build" data-when="2026-10-06T02:10:50.840Z">
     <div class="r-comment-body"><p>docs/evidence/fragments/jt60sa-machine-map/jtmm-catalogue.html — blocked: the netcdf static-over-map engine cannot read pf_active/coil/element arrays because the converted store carries ragged per-coil element counts [40,40,40,40,16,16,16,16,16,16,6,6]; geometry_table_from_description requires them. Only JT60SA_DESCRIPTION_DIR (imas_ambix/data/paths.py) landed.</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-run-r-20261006T022627509647-jtmm-static-entry-selector" data-who="reckon-build" data-when="2026-10-06T02:59:15.051Z">
+    <div class="r-comment-body"><p>Added the optional ChannelBinding slot struct_array_entry (schema.yaml + machine_map.py) and first-struct-array entry selection in the netCDF transform engine; four new tests pass, the zarr engine refuses the slot, and the twelve real OP1 coils read element lengths [40, 40, 40, 40, 16, 16, 16, 16, 16, 16, 6, 6].</p></div>
 </div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20261005T131209269722-review-of-jtmm-shotset-machine" data-who="reckon-build" data-when="2026-10-05T13:20:34.081Z">
     <div class="r-comment-body"><p>Independent review stored for run r-20261005T125917372067-jtmm-shotset-machine (base adb67e5f, head cbef27a7, plan §7): parsed record scoring all six dimensions in 0..20 -- goal_fidelity 19, evidence 18, scope_discipline 19, durability 19, fit 19, reuse 20, total 114 -- with added_failure_count 0 and added_failure_ids [].</p></div>
