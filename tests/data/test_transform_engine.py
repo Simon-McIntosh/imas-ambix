@@ -13,24 +13,24 @@ import zarr
 from imas.ids_data_type import IDSDataType
 from imas.ids_struct_array import IDSStructArray
 
-from imas_ambix.bench.store_arms import read_imas_netcdf, write_imas_netcdf
-from imas_ambix.data.cocos_convention import (
-    MAST_LEVEL2_SIGN_TABLE,
-    MAST_SOURCE_COCOS,
-    MAST_TO_COCOS_17_FACTORS,
-)
-from imas_ambix.data.machine_map import (
+from imas_alambic.machine_map import (
     ChannelBinding,
     MachineMapError,
     load_packaged_machine_map,
     map_for_shot,
 )
-from imas_ambix.data.transform_engine import (
+from imas_alambic.transform_engine import (
     TRANSFORM_ENGINE_FORMATS,
     BindingTransformError,
     TransformEngineError,
     get_transform_engine,
     transform_machine_description,
+)
+from imas_ambix.bench.store_arms import read_imas_netcdf, write_imas_netcdf
+from imas_ambix.data.cocos_convention import (
+    MAST_LEVEL2_SIGN_TABLE,
+    MAST_SOURCE_COCOS,
+    MAST_TO_COCOS_17_FACTORS,
 )
 
 LEVEL2_ROOT = Path("/work/projects/imas_gpu/mast/level2/shots")
@@ -640,7 +640,7 @@ def test_static_netcdf_store_selects_each_real_coil_by_name():
 
 
 def test_engine_registry_is_format_scoped_and_has_no_machine_conditionals():
-    import imas_ambix.data.transform_engine as engine_module
+    import imas_alambic.transform_engine as engine_module
 
     source = Path(engine_module.__file__).read_text().lower()
     assert TRANSFORM_ENGINE_FORMATS == ("netcdf", "zarr")
@@ -650,7 +650,7 @@ def test_engine_registry_is_format_scoped_and_has_no_machine_conditionals():
 
 
 def test_every_bound_cocos_target_receives_its_target_path_factor():
-    import imas_ambix.data.transform_engine as engine_module
+    import imas_alambic.transform_engine as engine_module
 
     class ConstantArrays:
         def read(self, binding: ChannelBinding) -> np.ndarray:
@@ -738,7 +738,7 @@ def test_both_polarities_round_trip_exactly_through_engine_cocos_transform(tmp_p
 
 
 def test_poloidal_angle_applies_no_cocos_factor_and_takes_sense_from_binding():
-    import imas_ambix.data.transform_engine as engine_module
+    import imas_alambic.transform_engine as engine_module
 
     values = np.asarray([0.0, 1.5707963267948966, -0.5], dtype=np.float64)
 
@@ -754,7 +754,7 @@ def test_poloidal_angle_applies_no_cocos_factor_and_takes_sense_from_binding():
 
 
 def test_poloidal_angle_refuses_an_unvalidated_sign_convention():
-    import imas_ambix.data.transform_engine as engine_module
+    import imas_alambic.transform_engine as engine_module
 
     binding = _probe_angle_binding("unknown-unvalidated")
 
@@ -765,7 +765,7 @@ def test_poloidal_angle_refuses_an_unvalidated_sign_convention():
 
 
 def test_poloidal_angle_emit_path_negates_exactly_once():
-    import imas_ambix.data.transform_engine as engine_module
+    import imas_alambic.transform_engine as engine_module
 
     class ConstantArrays:
         def read(self, binding: ChannelBinding) -> np.ndarray:

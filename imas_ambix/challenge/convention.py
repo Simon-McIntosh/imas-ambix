@@ -15,7 +15,7 @@ beside its loader.  :func:`measure_diiid_convention` is the DIII-D entry.
 The records the kernel reads are in the canonical convention (COCOS 17), which
 the loader applies before the audit sees them.  All challenge readers use
 :data:`DIIID_CONVENTION`; the factors themselves are derived by the shared
-COCOS algebra in :mod:`imas_ambix.cocos`.
+COCOS algebra in :mod:`imas_alambic.cocos`.
 """
 
 from __future__ import annotations
@@ -25,11 +25,11 @@ from math import tau
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from nova.io.cocos import convention
+from nova_cocos import convention
 from scipy.constants import mu_0
 from scipy.interpolate import RegularGridInterpolator
 
-from imas_ambix.cocos import CANONICAL_COCOS, canonical_factor
+from imas_alambic.cocos import CANONICAL_COCOS, canonical_factor
 
 if TYPE_CHECKING:
     from collections.abc import Iterable

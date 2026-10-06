@@ -10,19 +10,21 @@ No conditional expression or executable hook is accepted.
 from __future__ import annotations
 
 import json
+import os
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from importlib.metadata import entry_points
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any
 
 import yaml
 
-from imas_ambix.data import paths as _paths
+LINKML_SCHEMA_PATH = Path(__file__).with_name("machine_maps") / "schema.yaml"
 
-PACKAGED_MACHINE_MAP_ROOT = Path(__file__).with_name("machine_maps")
-LINKML_SCHEMA_PATH = PACKAGED_MACHINE_MAP_ROOT / "schema.yaml"
+_BUNDLE_ENTRY_POINT_GROUP = "imas_alambic.bundles"
+_BUNDLE_ENV_VAR = "IMAS_ALAMBIC_MAP_PATH"
 
 _SIGN_CONVENTIONS = {
     "identity",
@@ -115,20 +117,153 @@ def _number_tuple(value: Any, label: str) -> tuple[float, ...]:
     return tuple(_number(item, f"{label}[{index}]") for index, item in enumerate(value))
 
 
-def resolve_description_store_root(name: str) -> Path:
-    """Resolve a declared store-root name to the path defined in :mod:`paths`.
+@dataclass(frozen=True)
+class MapBundle:
+    """One map bundle: a directory of machine and signal maps with its roots.
 
-    The catalog names its store root symbolically so the on-disk layout stays
-    owned by :mod:`imas_ambix.data.paths`.  A name that does not resolve to a
-    path constant there is refused rather than guessed.
+    ``bundle.json`` beside the layout names the bundle, its version, the
+    machines it carries and its named store roots.  A store root is resolved
+    relative to the bundle directory unless it is already absolute, which is how
+    a bundle names an on-disk layout that lives outside its own tree.
     """
-    root = getattr(_paths, name, None)
-    if not isinstance(root, Path):
+
+    name: str
+    version: str | None
+    machines: tuple[str, ...]
+    root: Path
+    store_roots: Mapping[str, Path]
+
+    def machine_map_path(self, machine: str) -> Path:
+        """Return this bundle's machine-map document for ``machine``."""
+        return self.root / "machine_maps" / f"{machine}.json"
+
+    def signal_map_path(self, machine: str, system: str) -> Path:
+        """Return this bundle's signal-map document for ``machine``.``system``."""
+        return self.root / "maps" / machine / f"{system}.json"
+
+
+def load_bundle_descriptor(root: Path | str) -> MapBundle:
+    """Read ``bundle.json`` from ``root`` into a :class:`MapBundle`."""
+
+    root = Path(root)
+    descriptor = root / "bundle.json"
+    try:
+        payload = json.loads(descriptor.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
         raise MachineMapError(
-            f"description store root {name!r} is not a path defined in "
-            f"{_paths.__name__}"
+            f"cannot read bundle descriptor {descriptor!s}: {error}"
+        ) from error
+    if not isinstance(payload, Mapping):
+        raise MachineMapError(f"bundle descriptor {descriptor!s} must be an object")
+    name = _text(payload.get("name"), "bundle name")
+    version = payload.get("version")
+    if version is not None and not isinstance(version, str):
+        raise MachineMapError("bundle version must be text or null")
+    machines = _text_tuple(
+        payload.get("machines", []), "bundle machines", allow_empty=True
+    )
+    roots_raw = payload.get("store_roots", {})
+    if not isinstance(roots_raw, Mapping):
+        raise MachineMapError("bundle store_roots must be an object")
+    store_roots: dict[str, Path] = {}
+    for key, value in roots_raw.items():
+        relative = _text(value, f"store root {key!r}")
+        path = Path(relative)
+        store_roots[key] = path if path.is_absolute() else root / path
+    return MapBundle(
+        name=name,
+        version=version,
+        machines=machines,
+        root=root,
+        store_roots=MappingProxyType(store_roots),
+    )
+
+
+def discover_bundles() -> tuple[MapBundle, ...]:
+    """Return every reachable bundle, once each, in resolution order.
+
+    Installed packages register a bundle under the ``imas_alambic.bundles``
+    entry-point group; the target may be a directory, or a :class:`MapBundle`
+    the package builds itself so its store roots come from one owner rather than
+    a second copy in ``bundle.json``.  Directories that are not Python packages
+    are named in ``IMAS_ALAMBIC_MAP_PATH``.  The same directory reached by both
+    routes is one bundle, because bundles are de-duplicated by their resolved
+    directory.
+    """
+
+    declared: list[MapBundle] = []
+    roots: list[Path] = []
+    for entry_point in entry_points(group=_BUNDLE_ENTRY_POINT_GROUP):
+        target = entry_point.load()
+        if callable(target):
+            target = target()
+        if isinstance(target, MapBundle):
+            declared.append(target)
+        else:
+            roots.append(Path(target))
+    for entry in os.environ.get(_BUNDLE_ENV_VAR, "").split(os.pathsep):
+        if entry:
+            roots.append(Path(entry))
+
+    bundles: list[MapBundle] = []
+    seen: set[Path] = set()
+    for bundle in declared:
+        marker = bundle.root.expanduser().resolve()
+        if marker in seen:
+            continue
+        seen.add(marker)
+        bundles.append(bundle)
+    for root in roots:
+        marker = root.expanduser().resolve()
+        if marker in seen:
+            continue
+        seen.add(marker)
+        bundles.append(load_bundle_descriptor(root))
+    return tuple(bundles)
+
+
+def bundle_for_machine(machine: str) -> MapBundle:
+    """Return the single bundle declaring ``machine``, or refuse.
+
+    A machine the bundles do not carry is refused; a machine two distinct
+    bundles carry is refused naming both, rather than one silently shadowing the
+    other.
+    """
+
+    matches = [bundle for bundle in discover_bundles() if machine in bundle.machines]
+    if not matches:
+        raise MachineMapError(f"no bundle carries machine {machine!r}")
+    if len(matches) > 1:
+        named = ", ".join(f"{b.name!r} ({b.root})" for b in matches)
+        raise MachineMapError(
+            f"machine {machine!r} is carried by more than one bundle: {named}"
         )
-    return root
+    return matches[0]
+
+
+def resolve_description_store_root(name: str) -> Path:
+    """Resolve a declared store-root name through the reachable bundles.
+
+    A bundle names its store roots symbolically so the on-disk layout stays
+    owned by the package that ships the bundle, not by the engine.  A name no
+    bundle declares, or a name two bundles declare to different paths, is
+    refused rather than guessed.
+    """
+
+    matches = [
+        bundle.store_roots[name]
+        for bundle in discover_bundles()
+        if name in bundle.store_roots
+    ]
+    if not matches:
+        raise MachineMapError(f"no bundle declares store root {name!r}")
+    distinct = {path.resolve() for path in matches}
+    if len(distinct) > 1:
+        raise MachineMapError(
+            f"store root {name!r} is declared by more than one bundle at different "
+            f"paths: {sorted(str(p) for p in distinct)}"
+        )
+    return matches[0]
 
 
 @dataclass(frozen=True)
@@ -1621,11 +1756,11 @@ def load_machine_map(path: Path | str) -> MachineMapCatalog:
 
 
 def load_packaged_machine_map(machine: str) -> MachineMapCatalog:
-    """Load the reviewed catalog for ``machine`` from the package."""
+    """Load the reviewed catalog for ``machine`` from the reachable bundles."""
     component = _text(machine, "machine")
     if not component.replace("-", "").isalnum():
         raise MachineMapError("machine must contain only letters, digits, or hyphens")
-    return load_machine_map(PACKAGED_MACHINE_MAP_ROOT / f"{component}.json")
+    return load_machine_map(bundle_for_machine(component).machine_map_path(component))
 
 
 def map_for_shot(catalog: MachineMapCatalog, shot: int) -> MachineMap:

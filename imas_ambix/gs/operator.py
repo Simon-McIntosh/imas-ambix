@@ -64,7 +64,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from scipy.special import ellipe, ellipk  # type: ignore[import-untyped]
 
-from imas_ambix.cocos import project_poloidal_field
+from imas_alambic.cocos import project_poloidal_field
 from imas_ambix.data.paths import local_shot_path
 from imas_ambix.gs.machine_geometry import (
     OperatorGeometry,

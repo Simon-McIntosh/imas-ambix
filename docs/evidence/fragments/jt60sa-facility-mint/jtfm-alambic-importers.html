@@ -1,0 +1,27 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtfm-alambic-importers-landing">
+  <header>
+    <h3>every remaining import of the moved engine points at imas_alambic and nova_cocos</h3>
+    <p class="meta">
+      Node <code>jtfm-alambic-importers</code> &middot;
+      date 2026-10-07 &middot;
+      plan <code>jt60sa-facility-mint</code> &sect;2 &middot;
+      commit <code>bd366e30</code>
+    </p>
+  </header>
+  <p>
+    Repointed 33 ambix, test and script modules whose imports still named the
+    pre-move engine. <code>imas_ambix.data.{machine_map,signal_map,transform_engine,virtual_zarr,eddb,eddb_remote,pulse_mint}</code>
+    and <code>imas_ambix.cocos</code> now import from <code>imas_alambic</code>;
+    the two direct readers of <code>PACKAGED_MACHINE_MAP_ROOT</code>
+    (<code>spine_bench/transform_geometry_source.py</code> and
+    <code>tests/data/test_jt60sa_signal_maps.py</code>) take it from
+    <code>imas_ambix.data.paths</code>; every <code>nova.io.cocos</code> import
+    moves to <code>nova_cocos</code>. Measure: a grep over
+    <code>imas_ambix</code>, <code>tests</code> and <code>scripts</code> for the
+    moved module paths leaves only the recorded result file under
+    <code>imas_ambix/spine_bench/results</code>, and the fifteen touched test
+    modules collect (202 tests, exit 0) where three of them errored at
+    collection at base <code>f78cad45</code>. <code>ruff check imas_ambix tests
+    packages</code> exits 0.
+  </p>
+</section>

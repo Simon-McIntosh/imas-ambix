@@ -6,8 +6,8 @@ import numpy as np
 import pytest
 import zarr
 
-from imas_ambix.data.signal_map import MAP_SCHEMA_VERSION, SignalMap, SignalRule
-from imas_ambix.data.virtual_zarr import VirtualZarrError, VirtualZarrView
+from imas_alambic.signal_map import MAP_SCHEMA_VERSION, SignalMap, SignalRule
+from imas_alambic.virtual_zarr import VirtualZarrError, VirtualZarrView
 
 
 def _map() -> SignalMap:

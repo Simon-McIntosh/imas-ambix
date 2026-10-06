@@ -29,7 +29,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 import scripts.closure_gate_eval as cg
-from imas_ambix.cocos import project_poloidal_field
+from imas_alambic.cocos import project_poloidal_field
 from imas_ambix.gs import operator as op
 from imas_ambix.gs.cylinder import hybrid_greens
 from imas_ambix.latent.boundary_disc import (

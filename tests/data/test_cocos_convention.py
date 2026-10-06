@@ -8,8 +8,13 @@ from math import tau
 import numpy as np
 import pytest
 import zarr
-from nova.io.cocos import transform_factor
+from nova_cocos import transform_factor
 
+from imas_alambic.signal_map import (
+    MAP_SCHEMA_VERSION,
+    SignalMap,
+    SignalRule,
+)
 from imas_ambix.challenge.loader import EfitLabels
 from imas_ambix.data.cocos_convention import (
     COCOS_3_4_MEASUREMENT_DISTINGUISHABLE,
@@ -28,11 +33,6 @@ from imas_ambix.data.cocos_convention import (
     read_signal_map_observation,
     score_conventions,
     surviving_conventions,
-)
-from imas_ambix.data.signal_map import (
-    MAP_SCHEMA_VERSION,
-    SignalMap,
-    SignalRule,
 )
 
 

@@ -20,13 +20,13 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from imas_ambix.cocos import CANONICAL_COCOS
-from imas_ambix.data.eddb import time_array_name
+from imas_alambic.cocos import CANONICAL_COCOS
+from imas_alambic.eddb import time_array_name
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from imas_ambix.data.signal_map import CompiledSignal, CompiledSignalMap, SignalMap
+    from imas_alambic.signal_map import CompiledSignal, CompiledSignalMap, SignalMap
 
 
 class VirtualZarrError(ValueError):

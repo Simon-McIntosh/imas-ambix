@@ -23,10 +23,10 @@ import numpy as np
 import pytest
 from imas.util import idsdiffgen
 
-from imas_ambix.data.eddb import read_channel
+from imas_alambic.eddb import read_channel
+from imas_alambic.pulse_mint import IDS_NAMES, PulseMintError, mint_pulse
+from imas_alambic.signal_map import load_packaged_signal_map
 from imas_ambix.data.paths import JT60SA_ROOT
-from imas_ambix.data.pulse_mint import IDS_NAMES, PulseMintError, mint_pulse
-from imas_ambix.data.signal_map import load_packaged_signal_map
 
 SHOT_TOKEN = "E101154"
 SHOT_INT = 101154
@@ -175,10 +175,10 @@ def test_shot_without_cache_refuses_and_names_the_cache(tmp_path):
 def test_mint_command_writes_the_pulse(tmp_path):
     from click.testing import CliRunner
 
-    from imas_ambix.data.cli import data
+    from imas_alambic.cli import main
 
     result = CliRunner().invoke(
-        data,
+        main,
         ["mint", "--machine", MACHINE, "--shot", SHOT_TOKEN, "--out", str(tmp_path)],
     )
     assert result.exit_code == 0, result.output

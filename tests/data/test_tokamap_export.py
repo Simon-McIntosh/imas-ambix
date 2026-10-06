@@ -12,9 +12,9 @@ from pathlib import Path
 import imas
 import pytest
 
-from imas_ambix.cocos import canonical_factor
-from imas_ambix.data.machine_map import load_packaged_machine_map
-from imas_ambix.data.signal_map import load_packaged_signal_map
+from imas_alambic.cocos import canonical_factor
+from imas_alambic.machine_map import load_packaged_machine_map
+from imas_alambic.signal_map import load_packaged_signal_map
 from imas_ambix.data.tokamap_export import (
     PARTITION_ATTRIBUTE,
     PARTITION_SELECTOR,

@@ -24,7 +24,7 @@ import numpy as np
 import pytest
 import zarr
 
-from imas_ambix.data.eddb import (
+from imas_alambic.eddb import (
     EddbCacheError,
     channel_path,
     channel_time_path,
@@ -37,7 +37,7 @@ from imas_ambix.data.eddb import (
     time_array_name,
     write_channel,
 )
-from imas_ambix.data.eddb_remote import (
+from imas_alambic.eddb_remote import (
     DEFAULT_SSH_COMMAND,
     NICE_LEVEL,
     PYTHON_MODULE_LOAD,
@@ -54,11 +54,11 @@ from imas_ambix.data.eddb_remote import (
     encode_batch,
     normalise_unit,
 )
-from imas_ambix.data.machine_map import ChannelBinding
+from imas_alambic.machine_map import ChannelBinding
+from imas_alambic.signal_map import MAP_SCHEMA_VERSION, SignalMap, SignalRule
+from imas_alambic.transform_engine import ZarrTransformEngine
+from imas_alambic.virtual_zarr import VirtualZarrView
 from imas_ambix.data.paths import JT60SA_ROOT
-from imas_ambix.data.signal_map import MAP_SCHEMA_VERSION, SignalMap, SignalRule
-from imas_ambix.data.transform_engine import ZarrTransformEngine
-from imas_ambix.data.virtual_zarr import VirtualZarrView
 
 # A stand-in for the analysis server's eddb_pwrapper.  It returns a known
 # time series for any name except NOTIME, which returns data with no time base,

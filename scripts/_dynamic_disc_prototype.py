@@ -30,7 +30,7 @@ import matplotlib.pyplot as plt
 from boundary_harmonic_gate_eval import sensor_arrays
 
 import scripts.closure_gate_eval as cg
-from imas_ambix.cocos import project_poloidal_field
+from imas_alambic.cocos import project_poloidal_field
 from imas_ambix.gs.cylinder import hybrid_greens
 from imas_ambix.latent.boundary_moment import MomentFitConfig, fit_moment_currents
 from imas_ambix.latent.data import read_split_shot_lists

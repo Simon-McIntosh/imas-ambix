@@ -38,7 +38,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from imas_ambix.cocos import project_poloidal_field
+from imas_alambic.cocos import project_poloidal_field
 from imas_ambix.gs.cylinder import hybrid_greens
 from imas_ambix.latent.boundary_moment import (
     MomentFitConfig,

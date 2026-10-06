@@ -36,17 +36,17 @@ from typing import TYPE_CHECKING, Any
 
 import imas
 
-from imas_ambix.cocos import canonical_factor
+from imas_alambic.cocos import canonical_factor
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
 
-    from imas_ambix.data.machine_map import (
+    from imas_alambic.machine_map import (
         ChannelBinding,
         MachineMap,
         MachineMapCatalog,
     )
-    from imas_ambix.data.signal_map import SignalMap, SignalRule
+    from imas_alambic.signal_map import SignalMap, SignalRule
 
 TOKAMAP_FORMAT_VERSION = "1.0.0"
 """TokaMap directory format version written into ``mappings.cfg.json``."""

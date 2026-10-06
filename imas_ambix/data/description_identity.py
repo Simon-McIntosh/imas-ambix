@@ -22,7 +22,7 @@ import numpy as np
 from imas_ambix.data.geometry_transitions import geometry_fields_changed
 
 if TYPE_CHECKING:
-    from imas_ambix.data.transform_engine import EmittedArray, MachineDescription
+    from imas_alambic.transform_engine import EmittedArray, MachineDescription
 
 
 def _is_description_array(array: EmittedArray) -> bool:

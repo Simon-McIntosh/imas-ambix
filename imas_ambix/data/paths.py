@@ -12,6 +12,18 @@ from typing import Literal
 
 Tier = Literal["level1", "level2"]
 
+# --- Ambix's map bundle ------------------------------------------------
+#
+# The engine (imas-alambic) carries code and schema, never map data.  Ambix's
+# authored maps live here as a *bundle*: this directory holds ``bundle.json``
+# beside ``machine_maps/`` and ``maps/``, and ambix registers it under the
+# ``imas_alambic.bundles`` entry-point group.  These constants are ambix's own
+# address for that bundle, so ambix code that reaches the map files directly
+# (spine_bench, the JT-60SA map tests) does not go through the engine.
+BUNDLE_ROOT = Path(__file__).resolve().parent
+PACKAGED_MACHINE_MAP_ROOT = BUNDLE_ROOT / "machine_maps"
+PACKAGED_MAP_ROOT = BUNDLE_ROOT / "maps"
+
 # --- Endpoint ----------------------------------------------------------
 
 S3_ENDPOINT = "https://s3.echo.stfc.ac.uk"

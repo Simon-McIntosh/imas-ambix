@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pyarrow.parquet as pq
 
-from imas_ambix.cocos import CANONICAL_COCOS
+from imas_alambic.cocos import CANONICAL_COCOS
 
 from .convention import DIIID_CONVENTION
 

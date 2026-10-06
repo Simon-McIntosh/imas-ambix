@@ -8,10 +8,10 @@ import numpy as np
 import pyarrow.parquet as pq
 import pytest
 
+from imas_alambic.cocos import CANONICAL_COCOS
 from imas_ambix.challenge.convention import DIIID_CONVENTION
 from imas_ambix.challenge.facts import build_report
 from imas_ambix.challenge.loader import load_shot, validate_shot_schema
-from imas_ambix.cocos import CANONICAL_COCOS
 
 
 def _real_slice() -> list[Path]:

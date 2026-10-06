@@ -31,8 +31,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import zarr
 
-from imas_ambix.data.eddb import read_channel
-from imas_ambix.data.machine_map import load_packaged_machine_map
+from imas_alambic.eddb import read_channel
+from imas_alambic.machine_map import load_packaged_machine_map
 from imas_ambix.data.paths import JT60SA_ROOT, LEVEL1_DIR, LEVEL2_DIR
 from imas_ambix.gs.machine_geometry import MachineGeometryService
 from imas_ambix.gs.operator import COIL_MODEL_VERSION, build_operator
