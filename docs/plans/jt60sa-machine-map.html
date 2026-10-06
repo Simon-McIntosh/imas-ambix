@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.89">
-<meta name="plan-version" content="230">
+<meta name="plan-version" content="231">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -201,6 +201,20 @@
       tokamap's format cannot carry. None of the seven retires anything, because ambix has no
       exporter. The exporter is kept out of the loaders because they read the ambix schema and must
       not learn tokamap's.
+    </p>
+    <p>
+      The JT-60SA export that closes this section also removes a second owner the landed exporter
+      carries. <code>tokamap_export.py</code> resolves each DD path's COCOS label with its own
+      <code>_cocos_transformation</code>, beside the transform engine's
+      <code>_target_cocos_transformation</code>, the lookup the engine uses to compile the same
+      unit, sign and COCOS factor the exporter collapses into <code>scale</code>. Its round-trip test
+      recomputes the expected scale from <code>canonical_factor</code> and never asks the engine, so
+      the two resolvers can drift with every test still green. The node <code>jtmm-tokamap-jt60sa</code>
+      makes the exporter take each binding's factor from the engine's own resolution, retiring
+      <code>_cocos_transformation</code>. The round-trip test then asserts every exported
+      <code>scale</code> against the engine's compiled factor for the same binding. Then the node
+      exports the JT-60SA catalogue and signal maps for the five first-pass groups once §7's
+      equilibrium bindings exist.
     </p>
 
     <section class="section-landed">
@@ -1436,7 +1450,7 @@
     <div class="r-comment-body"><p>review-of-jtmm-observation-time-alignment — independent review of r-20261006T193748828450-jtmm-observation-time-alignment at head 712a7bfe (base d0dd5a78); all six dimensions scored in 0..20 (goal_fidelity 20, evidence 19, scope_discipline 20, durability 19, fit 20, reuse 20; total 118); parsed record stored at both fenced paths; added_failure_count 0 and added_failure_ids [] derived from the reviewed run's head arm (its baseline_suite and after_suite are both null); gate 23 passed EXIT=0 reproduced and both new guards plus the raw-read property falsified red by two reviewer mutations.</p></div>
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20261006T193616197643-jtmm-vacuum-mismatch-rca" data-who="reckon-build" data-when="2026-10-06T19:55:04.588Z">
-    <div class="r-comment-body"><p>jtmm-vacuum-mismatch-rca found that the vacuum forward prediction omits the drive topology&#x27;s ampere-turns per ampere: build_operator builds G_pf with turns=1 while the JT-60SA topology declares 40 A-turn/A (CS) and 16 (EF), so every channel is under-predicted by its driven coil&#x27;s turn count; applying AT/A moves tracking channels from |slope| 6-19 to |slope| 0.4-1.0 (FL7 -14.281/-0.967 -&gt; -0.395/-0.989; MP5 18.820/0.959 -&gt; -1.032/-0.962 on E100595), recorded in docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-mismatch-rca.html.</p></div>
+    <div class="r-comment-body"><p>jtmm-vacuum-mismatch-rca found that the vacuum forward prediction omits the drive topology's ampere-turns per ampere: build_operator builds G_pf with turns=1 while the JT-60SA topology declares 40 A-turn/A (CS) and 16 (EF), so every channel is under-predicted by its driven coil's turn count; applying AT/A moves tracking channels from |slope| 6-19 to |slope| 0.4-1.0 (FL7 -14.281/-0.967 -&gt; -0.395/-0.989; MP5 18.820/0.959 -&gt; -1.032/-0.962 on E100595), recorded in docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-mismatch-rca.html.</p></div>
 </div>
 </section>
 </main>
