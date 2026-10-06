@@ -26,8 +26,8 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
-<meta name="plan-impl" content="0.83">
-<meta name="plan-version" content="196">
+<meta name="plan-impl" content="0.84">
+<meta name="plan-version" content="198">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -370,7 +370,20 @@
       <code>{shot}.zarr/{category}/{dname}</code> store that the zarr engine already reads as
       <code>{source_group}/{source_array}</code>, so the §5 JT-60SA bindings serve the raw half,
       and the SELENE loader below serves the equilibrium half. No parallel EDDB observation reader
-      is added, and it retires nothing, because no catalogue-driven observation reader exists. For the
+      is added, and it retires nothing, because no catalogue-driven observation reader exists. As
+      built (merges 07add818 and 149763e2), <code>read_catalogue_observation</code> reads a machine-map
+      catalogue's per-shot bindings, the way MAST's catalogue declares its pulse data. JT-60SA's
+      pulse channels are not catalogue bindings, though. They are the §5 signal-map rules under
+      <code>imas_ambix/data/maps/jt-60sa/</code>, read by <code>load_packaged_signal_map</code> and
+      <code>VirtualZarrView</code> over the EDDB cache. And <code>jt-60sa.json</code> declares a
+      static-over-map description store, which the reader refuses. The catalogue form has no
+      consumer, so the node <code>jtmm-observation-signal-maps</code> replaces it rather than add a
+      second path. <code>read_signal_map_observation(shot, machine, equilibrium, *, root)</code>
+      reads the plasma current and every flux loop from the machine's packaged magnetics map. It
+      derives the toroidal field from the TF map's coil current through the tf description's field
+      per ampere, reads every value raw with no sign or unit factor applied, and passes the
+      <code>EfitLabels</code> it is given to the same kernel. <code>read_catalogue_observation</code>
+      retires with its tests, so the interface account is one definition retired and one added. For the
       equilibrium side, the SELENE and FAME outputs are scored on the convention scorer's
       tests (edge-minus-axis flux sense, flux-per-radian versus total flux by integrating
       the Grad–Shafranov current, q sign). The shipped entry point,
@@ -1252,6 +1265,9 @@
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20261006T172653713143-review-of-jtmm-unit-audit" data-who="reckon-build" data-when="2026-10-06T17:41:17.013Z">
     <div class="r-comment-body"><p>Independent review of r-20261006T171719539327-jtmm-unit-audit stored parsed at the two fenced record paths: six dimensions scored, total 112/120 (goal_fidelity 20, evidence 18, scope_discipline 20, durability 15, fit 19, reuse 20), reviewed_base_sha 70794f75d9669ec8261bd02a4b7c2e2fdc855870 and reviewed_head_sha c3233b8adad1bc8dbe2df553d8e30cd95e14b196, added_failure_count 0 with added_failure_ids empty; two follow-on findings and no blocking finding.</p></div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-20261006T1750-s6-observation-multichannel-landed" data-who="reckon-build" data-when="2026-10-06T17:50:00Z">
+    <div class="r-comment-body"><p>gate tests/data/test_cocos_convention.py passed (15 tests, exit 0); jtmm-observation-multichannel merged as 149763e2, review 116/120, no added failure. read_catalogue_observation now gathers every flux-loop binding in target order and refuses a layout whose time base it cannot read. The review showed that it reads a machine-map catalogue's bindings, while JT-60SA's pulse channels are the §5 signal-map rules over the EDDB cache and jt-60sa.json declares a static-over-map description store; the reader is re-pointed at the signal maps by jtmm-observation-signal-maps, recorded in the section text.</p></div>
 </div>
 </section>
 </main>
