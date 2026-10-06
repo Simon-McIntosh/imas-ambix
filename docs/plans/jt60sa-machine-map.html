@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.89">
-<meta name="plan-version" content="235">
+<meta name="plan-version" content="236">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -1474,6 +1474,9 @@
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20261006T195538875099-review-of-jtmm-vacuum-mismatch-rca" data-who="reckon-build" data-when="2026-10-06T20:03:14.180Z">
     <div class="r-comment-body"><p>review of r-20261006T193616197643-jtmm-vacuum-mismatch-rca at head cbbd853e: parsed record total 98/120 (goal_fidelity 17, evidence 16, scope_discipline 20, durability 12, fit 18, reuse 15); the fragment's numbers reconcile with rca_checks.log and the cause (missing ampere-turns-per-ampere) is verified against operator.py and jt-60sa.json, docked because the corrected slope/r table reports only four probes against the measure's "at least five loops and five probes"</p></div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-run-r-20261006T200430771816-jtmm-vacuum-residual-rca" data-who="reckon-build" data-when="2026-10-06T20:21:55.706Z">
+    <div class="r-comment-body"><p>Ran the three refits on E100595/E100579/E100642 with each coil current scaled by its declared ampere-turns per ampere; the passive-column refit is null, the &lt;=50 mm sensor move and probe-axis flip do not recover identity, and a free per-coil fit reaches r 0.98-1.00 for all 44 channels, so the residual scale and the untracked loops 1-14 lie in the forward operator&#x27;s per-coil pattern; wrote docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-residual-rca.html.</p></div>
 </div>
 </section>
 </main>
