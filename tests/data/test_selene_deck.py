@@ -544,3 +544,28 @@ def test_expected_names_are_assigned_in_deck_order(decks, phase_ids):
     # names come from the deck's own labels.
     assert [str(c.name) for c in phase_ids["pf_active"].coil] == ["CS1", "CS2"]
     assert [str(c.name) for c in phase_ids["pf_active"].circuit] == ["CS1", "CS2"]
+
+
+def test_every_pf_active_coil_element_is_named_by_coil_and_position(phase_ids):
+    """Every conductor element names its coil and 2-deck-order position.
+
+    The write scope is the coil element, one struct-array level below the
+    struct array the every-entry-is-named sweep reaches, so a coil whose
+    elements are unnamed (or whose names repeat within the coil) is caught here.
+    """
+    pf = phase_ids["pf_active"]
+    for coil in pf.coil:
+        coil_name = str(coil.name)
+        names = [str(element.name) for element in coil.element]
+        assert all(names), f"{coil_name} carries an unnamed element: {names}"
+        expected = [f"{coil_name}_{k}" for k in range(1, len(names) + 1)]
+        assert names == expected
+        assert len(set(names)) == len(names), (
+            f"{coil_name} repeats an element name: {names}"
+        )
+    # Names are unique within a coil and the coil prefix keeps them unique
+    # across the phase.
+    all_names = [
+        str(element.name) for coil in pf.coil for element in coil.element
+    ]
+    assert len(set(all_names)) == len(all_names)

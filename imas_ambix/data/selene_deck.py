@@ -38,6 +38,10 @@ import numpy as np
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+# The converter's public surface is its single entry point; every parser and
+# builder is an internal detail tests reach through the module attribute.
+__all__ = ["write_phase_description"]
+
 DD_VERSION = "4.1.1"
 CONVERTER_MODULE = "imas_ambix/data/selene_deck.py"
 MU0 = 4.0e-7 * np.pi
@@ -537,6 +541,7 @@ def build_pf_active(factory, deck: EqSleDeck):
         ids.coil[i].element.resize(len(coil.elements))
         for j, el in enumerate(coil.elements):
             out = ids.coil[i].element[j]
+            out.name = f"{coil.name}_{j + 1}"
             out.turns_with_sign = abs(float(el.turns))
             out.geometry.geometry_type = GEOMETRY_TYPE_RECTANGLE
             out.geometry.rectangle.r = float(el.r)
@@ -576,6 +581,7 @@ def build_pf_passive(factory, vessel: Sequence[VesselFilament]):
         loop.element.resize(len(block))
         for j, fil in enumerate(block):
             out = loop.element[j]
+            out.name = f"{loop.name}_{j + 1}"
             out.turns_with_sign = abs(float(fil.turns))
             out.geometry.geometry_type = GEOMETRY_TYPE_RECTANGLE
             out.geometry.rectangle.r = float(fil.r)
