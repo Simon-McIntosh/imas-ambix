@@ -26,7 +26,7 @@
   <title>JT-60SA Pulse IDSs and Equilibrium Animation | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="15">
+<meta name="plan-version" content="16">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -209,6 +209,9 @@
 </div>
 <div class="r-comment" data-section="s3" data-id="c-20261006-imas-ink-vessel-shipped" data-who="reckon-build" data-when="2026-10-06T12:30:00Z">
     <div class="r-comment-body"><p>The vessel need is met: <code>imas-ink:geometry-figure-vessel-units</code> shipped (imas-ink main, commits <code>94bd8f3</code>, <code>aca351d</code>, <code>db2ee9f</code>, <code>16fd030</code>, verified on <code>origin/main</code>). <code>imas_ink.extract.extract_vessel_shells</code> reads the annular <code>outline_inner</code> and <code>outline_outer</code>, and <code>MachineGeometry.vessel_shells</code> is drawn by both wall renderers. What remains of this section is the <code>animation-sensors</code> decision and, if it is to omit them, the sensor pass-through in <code>animate_pulse</code>.</p></div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-20261006-jtpi-s2-turns-stale" data-who="reckon-build" data-when="2026-10-06T21:05:00Z">
+    <div class="r-comment-body"><p>The on-disk E101154 mint from §1 (2026-10-06 18:44) copies <code>pf_active</code> coil turns from the OP1 description store. The jt60sa-machine-map vacuum adjudication now finds those turns likely wrong: every one of the 268 drive connections carries <code>turns_with_sign</code> 1.0, so each deck filament counts as one turn. Its node <code>jtmm-coil-turns-source</code> may regenerate <code>pf_active.nc</code> for OP1 and OP2. If it does, the minted <code>pf_active</code> turns go stale; the probe angles are unaffected. §2 re-mints E101154 through <code>mint_pulse</code>, which rewrites all five description IDSs from the store current at that moment. §2 also runs only after that plan's §7, which follows its §6 turns repair. So §2's node must re-mint all five IDSs rather than append <code>equilibrium</code> alone, and must check that the minted coil turns equal the store's.</p></div>
 </div>
 </section>
 </main>
