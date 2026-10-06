@@ -26,9 +26,9 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
-<meta name="plan-impl" content="0.91">
-<meta name="plan-version" content="249">
-<meta name="plan-modified" content="2026-10-06">
+<meta name="plan-impl" content="0.92">
+<meta name="plan-version" content="251">
+<meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
   <main class="plan-doc">
@@ -484,6 +484,23 @@
       turn-corrected vacuum fit of loop 7 on E100595 must come within 20 percent of slope −1. The
       ten coil currents of these commissioning shots are collinear, so no per-coil turn count can
       be confirmed from them; the check is on the totals, not each coil.
+      With that repair landed (merge 07080d8b), the re-adjudication (merge 8bc8e99c) puts every
+      probe at slope near 1.0. But only three probes and loop 7 pass the every-shot threshold, and
+      the other loops disagree from shot to shot. The lead's rule (decision
+      <code>vacuum-verdict-rule</code>) replaces that threshold. A channel is <code>identity</code> or
+      <code>negate</code> when its median slope over the shots is within 0.1 of ±1, its median r
+      exceeds 0.95, and every shot has the same sign. The fit uses only quasi-static samples, where
+      every driven coil's |dI/dt| is below a threshold the node states and justifies, because the
+      vacuum model carries no passive currents and near-wall probes see the vessel's induced
+      currents during fast ramps. Each per-shot outlier is recorded beside its verdict.
+      <code>jtmm-vacuum-verdict-rule</code> applies the rule and the filter in
+      <code>scripts/vacuum_loop_adjudication.py</code>. It takes the coil currents through
+      <code>assemble_pf_currents</code> rather than repeating its scaling inline, and adds tests. One
+      test checks that <code>read_geometry_table</code> supplies all 17 JT-60SA probe angles. One runs
+      the median rule on synthetic channels, including a noisy shot that the median keeps and the
+      old threshold dropped. One checks that a sample above the dI/dt threshold is excluded. It
+      re-runs the three shots, rewrites the verdict tables, and says how many loops stay undecided,
+      with their reasons; those loops are the next investigation.
     </p>
     <p>
       The COCOS of the source is then identified rather than assumed. For the raw side,
@@ -1077,6 +1094,16 @@
       </p>
     <p class="r-dec-rat">Lead&#x27;s choice 2026-10-06. One required field with the vocabulary the machine map already owns (source-only, corpus-validated) records which rules carry a measured sign and scale, while channel_factor keeps carrying the value, so MAST&#x27;s maps and the tokamap exporter keep their arithmetic. JT-60SA rules are source-only until §6 flips them, and a reader needing a proven convention can refuse them. Rejected: a sign_convention enum on SignalRule, which splits the sign out of channel_factor in every existing map and the exporter; and blocking signed rules, which would stop §6&#x27;s vacuum adjudication from reading the raw channels through the catalogue.</p>
     </div>
+<div class="r-dec" data-key="vacuum-verdict-rule" data-choice="median-rule-with-didt-filter" data-by="Simon McIntosh" data-when="2026-10-07T00:10:00+00:00" data-sections="s6">
+    <p class="r-dec-q">What counts as a measured sign for a JT-60SA loop or probe in the vacuum adjudication?</p>
+    <p class="r-dec-ctx">Measured 2026-10-07 by jtmm-vacuum-adjudication-repair (merge 8bc8e99c): with the deck&#x27;s coil turns applied, all 17 tangential probes track their vacuum prediction at slope near 1.0 with r 0.95-0.999 on E100595, E100579 and E100642, but only probes 8, 9 and 13 and loop 7 pass |slope - 1| &lt;= 0.1 at r &gt; 0.98 on every shot; probes 6 and 12 read 1.2 on E100579 and 1.0 on the others.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="median-rule-with-didt-filter">identity or negate when the median slope over the shots is within 0.1 of +/-1, the median r exceeds 0.95 and every shot has the same sign, fitted only on quasi-static samples</button>
+      <button class="r-opt" data-value="strict-every-shot">|slope - 1| &lt;= 0.1 at r &gt; 0.98 on every shot</button>
+      <button class="r-opt" data-value="best-two-of-three">the strict thresholds on the best two of three shots</button>
+      </p>
+    <p class="r-dec-rat">Lead&#x27;s choice 2026-10-07: the median rule, with a dI/dt filter, because the probes sit close to the wall and their signals are noisy. During fast coil transients the vessel&#x27;s induced currents perturb near-wall probes, and the vacuum model carries no passive currents, so the fit uses only samples where every driven coil&#x27;s |dI/dt| is below a stated threshold. Per-shot outliers are recorded beside each verdict rather than hidden. Rejected: the strict every-shot rule, which leaves well-tracking probes unmeasured on one noisy shot, and best-two-of-three, which is less transparent about the shot set aside.</p>
+    </div>
 </section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
@@ -1548,6 +1575,9 @@
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20261006T212522491973-review-of-jtmm-drive-topology-turns" data-who="reckon-build" data-when="2026-10-06T21:36:00.696Z">
     <div class="r-comment-body"><p>review of r-20261006T210216083123-jtmm-drive-topology-turns (base 68dc917f, head df24e884): parsed record stored, six dimensions scored 111/120 (goal_fidelity 19, evidence 18, scope_discipline 20, durability 18, fit 17, reuse 19), added_failure_count 0</p></div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-20261007T0010-s6-adjudication-repair-landed" data-who="reckon-build" data-when="2026-10-07T00:10:00Z">
+    <div class="r-comment-body"><p>gate ruff over scripts/vacuum_loop_adjudication.py passed and the JT-60SA and MAST runs exited 0; jtmm-vacuum-adjudication-repair merged as 8bc8e99c, review 108/120, no added failure. With the deck's coil turns and probe angles read through read_geometry_table, the adjudication gives 3 identity (probes 8, 9, 13), 1 negate (loop 7, slope -0.99/-1.09/-0.99) and 40 undecided. Every probe tracks at slope near 1.0, r 0.95-0.999; loops 15-27 read about -0.88 on E100595 but near 0 on E100579 and about +1 on E100642, and loops 1-14 barely respond. MAST's default run reproduces the receipt except the borderline loop fl_p5l_1 (margin about 1e-3), which predates this node. The lead's verdict rule follows as jtmm-vacuum-verdict-rule.</p></div>
 </div>
 </section>
 </main>
