@@ -20,11 +20,11 @@
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-tags" content="jt-60sa,figures">
   <meta name="plan-informs" content="jt60sa-machine-map">
-  <meta name="plan-section-depends-on" content="{&quot;s2&quot;: [&quot;imas-ink:geometry-figure-vessel-units&quot;], &quot;s3&quot;: [&quot;imas-ink:geometry-figure-vessel-units&quot;]}">
+  <meta name="plan-section-depends-on" content="{&quot;s2&quot;: [&quot;imas-ink:geometry-figure-vessel-units&quot;], &quot;s3&quot;: [&quot;imas-ink:geometry-figure-vessel-units&quot;, &quot;imas-ink:trace-figure-display-resolution&quot;]}">
   <title>JT-60SA Geometry and Signal Figures | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="39">
+<meta name="plan-version" content="40">
 <meta name="plan-modified" content="2026-10-06">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s1b&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;deferred&quot;}">
 <meta name="plan-commits" content="369a705d,b36a5d93,bd84e83d,438c4d16">
@@ -97,7 +97,11 @@
       Three figures, rendered by imas-ink's <code>time_trace_figure_mpl</code> from
       <code>imas_ink.components.TimeSeries</code> panels, in imas-ink's default style with nothing
       added to what it draws, from a short script, <code>scripts/figures_jt60sa_signals.py</code>, that
-      draws nothing itself and holds no style constant. Each channel is
+      draws nothing itself and holds no style constant. Each panel's y-axis names its channel and unit
+      through the <code>TimeSeries</code> <code>ylabel</code> and <code>units</code>, and no series carries a
+      <code>label</code>, so no legend or in-panel label is drawn; long traces are drawn at display resolution
+      and the shared time axis is labelled once, by imas-ink's <code>trace-figure-display-resolution</code>
+      plan, which keeps each SVG small. Each channel is
       read through a <code>read_channel</code> this section adds to <code>imas_ambix/data/eddb.py</code>
       beside <code>write_channel</code>, returning the same <code>ChannelRecord</code> (data, time base and
       the <code>UNIT_ATTR</code> unit) from <code>channel_path</code> and <code>channel_time_path</code>, so
