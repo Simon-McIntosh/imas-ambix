@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5">
 <meta name="plan-impl" content="0.625">
-<meta name="plan-version" content="82">
+<meta name="plan-version" content="83">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -520,12 +520,15 @@
       before any map is written into <code>profiles_2d/psi</code>. The EQDB reader adds one
       remote script and one fetch entry beside the §3 extractor's and reuses its ssh
       transport (<code>SshTransport</code> in <code>imas_ambix/data/eddb_remote.py</code>)
-      rather than a second path. It does not reuse the §3 cache: <code>imas_ambix/data/eddb.py</code>
-      <code>write_channel</code> stores a <code>(channel, time)</code> array with a sibling time
-      vector, and an EQDB record is psi on a two-dimensional grid with its boundary and
-      profiles, so the record store is declared beside the cache once the open question
-      <code>eqdb-reader</code> settles the record shape. It retires nothing, because no
-      equilibrium-database reader exists in ambix.
+      rather than a second path. Its records land in the same store, owned by
+      <code>imas_ambix/data/eddb.py</code>: <code>write_channel</code> writes only a
+      <code>(channel, time)</code> array with a sibling time vector, and an EQDB record is psi on a
+      two-dimensional grid with its boundary and profiles, so <code>eddb.py</code> gains a grid
+      record writer beside <code>write_channel</code> under the same
+      <code>{shot}.zarr/{category}/{name}</code> layout and the same refuse-to-overwrite rule,
+      rather than a second store over <code>JT60SA_ROOT</code>. That writer's array layout waits
+      on the open question <code>eqdb-reader</code>, which settles the record shape. It retires
+      nothing, because no equilibrium-database reader exists in ambix.
     </p>
     <p>
       The reconstruction gate is what makes the map honest. The spine reads JT-60SA geometry
