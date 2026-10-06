@@ -7,10 +7,10 @@
   <meta name="reckon-type" content="plan">
   <meta name="plan-slug" content="jt60sa-facility-mint">
   <meta name="plan-title" content="JT-60SA Facility Mint: Public Engine, Private Maps">
-  <meta name="plan-summary" content="Let a slim public engine load a private JT-60SA map bundle on the facility's analysis server and mint IDSs from EDDB there, without ambix's training stack">
-  <meta name="plan-status" content="draft">
+  <meta name="plan-summary" content="imas-alambic, a slim public engine, loads a private JT-60SA map bundle from GHCR on the facility&#x27;s analysis server and mints IDSs from EDDB there">
+  <meta name="plan-status" content="pending">
   <meta name="plan-roi" content="mid">
-  <meta name="plan-effort-hours" content="8.0">
+  <meta name="plan-effort-hours" content="11.0">
   <meta name="plan-capability-version" content="1.0">
   <meta name="plan-capability-class" content="orchestrator">
   <meta name="plan-capability-reasoning" content="deep">
@@ -22,10 +22,12 @@
   <meta name="plan-tags" content="jt-60sa,machine-map">
   <meta name="plan-informs" content="jt60sa-machine-map">
   <meta name="plan-after" content="jt60sa-pulse-ids">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;deferred&quot;,&quot;s2&quot;:&quot;deferred&quot;,&quot;s3&quot;:&quot;deferred&quot;,&quot;s4&quot;:&quot;deferred&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;}">
   <title>JT-60SA Facility Mint: Public Engine, Private Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-version" content="4">
+<meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
   <main class="plan-doc">
@@ -35,17 +37,18 @@
       <p class="lead">
         The machine map (<a href="jt60sa-machine-map">jt60sa-machine-map</a>) turns JT-60SA data into
         IDS paths, and <a href="jt60sa-pulse-ids">jt60sa-pulse-ids</a> §1 adds the writer that mints a
-        pulse. Both run here, reading EDDB over ssh into a cache. The lead asked whether a public
-        wheel could load a private map file so that, run at JT-60SA, it mints IDSs by itself. This
-        plan answers yes, conditionally, and lays out the route: a slim public engine, a private
-        map bundle it finds by machine name, and an in-process EDDB read on the facility's
-        analysis server. Nothing here starts until the lead has decided where the JT-60SA maps
-        may live and whether to install at the facility.
+        pulse. Both run here, reading EDDB over ssh into a cache. This plan moves the mint to the
+        facility. A slim public engine, <strong>imas-alambic</strong>, loads a private JT-60SA map
+        bundle that it finds by machine name, and reads EDDB in process on the analysis server. The
+        lead settled the route on 2026-10-06. The engine is a uv workspace member of this
+        repository. The maps are authored in a private GitHub repository and stored as private
+        GHCR artifacts, which this machine relays to the server. The install starts as an editable
+        checkout on the analysis server, to test, and moves to a wheel.
       </p>
     </header>
 
-    <h2 id="s1">§1 — Where the maps and the data-load code live today</h2>
-<section data-reckon="section" data-id="s1" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="elevated" data-status="deferred" data-links=""></section>
+    <h2 id="s1">§1 — Move the JT-60SA maps into a private bundle</h2>
+<section data-reckon="section" data-id="s1" data-effort-hours="2.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="elevated" data-status="implementable" data-links="jt60sa-facility-mint#s3"></section>
     <p>
       The data-load code is in <code>imas_ambix/data/</code>. <code>eddb_remote.py</code> sends a batch
       of EDDB channel requests down one ssh session to the analysis server, whose remote half runs
@@ -64,87 +67,237 @@
       <code>/work/projects/imas_gpu/jt60sa/</code>, never in git.
     </p>
     <p>
-      This section settles the decision <code>map-privacy</code>. If the maps are to be private,
-      it moves them and their evidence fragments into a private bundle repository, leaves the
-      engine's tests running on synthetic maps, and records what remains in the public history,
-      which a move does not erase. Rewriting that history needs the lead's explicit approval and is
-      not assumed. Done-when: the decision is locked, and the repository matches it.
+      The lead chose a private bundle (<code>map-privacy</code>, <code>map-source</code>,
+      <code>public-history</code>). Three things move to a new private repository,
+      <code>Simon-McIntosh/imas-alambic-jt60sa</code>, laid out as the bundle that §3 defines: the
+      JT-60SA catalogue, its signal maps, and the description store (827 kB under
+      <code>/work/projects/imas_gpu/jt60sa/machine_description/</code>). That repository is
+      registered as a reckon project, so later map edits dispatch there. Each bundle version is
+      pushed with <code>oras</code> as an OCI artifact to the private package
+      <code>ghcr.io/simon-mcintosh/imas-alambic-jt60sa</code>, tagged with the bundle version and
+      tagged again with the source commit. Afterwards the public tree carries no JT-60SA map. The
+      engine's own tests use synthetic maps. Ambix tests that need the real JT-60SA maps resolve
+      the bundle through §3's search path; when it is absent they skip with a stated reason, which
+      is what public CI sees. The 12 earlier commits on <code>origin</code> that carry the maps
+      stay as they are, because the lead chose not to rewrite history; <code>upstream</code> never
+      had them. The evidence fragments and figures under <code>docs/</code> are outside this move,
+      and the open decision <code>evidence-privacy</code> covers them.
+    </p>
+    <p>
+      The move needs §3's discovery, so that ambix still finds the maps. It also changes where the
+      <a href="jt60sa-machine-map">jt60sa-machine-map</a> plan edits them. So it lands only when
+      that plan has no run in flight on the map files, and that plan's later sections edit the
+      private repository instead. Done-when: <code>git ls-files imas_ambix | grep -i jt-60sa</code>
+      returns nothing on <code>main</code>.
+      <code>oras manifest fetch ghcr.io/simon-mcintosh/imas-alambic-jt60sa:&lt;version&gt;</code>
+      succeeds with the gh token and is refused without one. With the pulled bundle on the search
+      path, the ambix tests that cover the JT-60SA maps add no failures against the stated base;
+      without it, they skip with the stated reason.
     </p>
 
-    <h2 id="s2">§2 — A slim public engine</h2>
-<section data-reckon="section" data-id="s2" data-effort-hours="3.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-status="deferred" data-links=""></section>
+    <h2 id="s2">§2 — imas-alambic: the slim engine as a workspace member</h2>
+<section data-reckon="section" data-id="s2" data-effort-hours="3.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links="nova:cocos-standalone-distribution#s1"></section>
     <p>
       ambix declares 33 runtime dependencies, including torch, lightning, transformers, jax and
       torax, and none of them is needed to mint. The mint needs imas-python, numpy, the netCDF and
       Zarr readers, and the COCOS factors, which ambix takes from nova
       (<code>imas_ambix/cocos.py</code> <code>canonical_factor</code> delegates to
-      <code>nova.io.cocos</code>). This section makes the engine installable on its own: the map
-      schemas, the transform engine, the signal-map compiler, the mint writer and its command, as a
-      distribution whose dependencies are those few. The COCOS factors come from nova as today, so
-      either nova's COCOS module installs without the rest of nova, or the dependency is
-      named and justified; a second factor table in the engine is not an option. Done-when: the
-      slim distribution installs into a clean Python 3.12 environment with numpy and imas-python
-      alone, and the jt60sa-pulse-ids §1 mint test passes against it.
+      <code>nova.io.cocos</code>). This section makes the engine its own distribution. It is
+      <strong>imas-alambic</strong>, a uv workspace member at <code>packages/imas-alambic/</code>,
+      with import package <code>imas_alambic</code> and a console script <code>imas-alambic</code>.
+      It declares <code>requires-python = "&gt;=3.12"</code>, because the analysis server runs
+      Python 3.12.9 while ambix requires 3.14.
+    </p>
+    <p>
+      The engine takes the map schema (<code>machine_maps/schema.yaml</code>),
+      <code>machine_map.py</code>, <code>signal_map.py</code>, <code>transform_engine.py</code>,
+      <code>virtual_zarr.py</code>, <code>eddb.py</code>, <code>eddb_remote.py</code> and the COCOS
+      layer in <code>imas_ambix/cocos.py</code>. Each is moved rather than copied: ambix imports it
+      from <code>imas_alambic</code>, and imas-ambix depends on imas-alambic through a workspace
+      source. The map files, and the packaged map roots in <code>paths.py</code>, stay with ambix.
+      The engine carries code and schema, never map data. Its runtime dependencies are numpy,
+      imas-python, zarr, pyyaml and <code>nova-cocos</code>. The COCOS factors come from nova-cocos
+      (<a href="/nova/cocos-standalone-distribution">nova:cocos-standalone-distribution</a> §1)
+      because nova itself requires Python 3.14 and cannot install on the server, and the plan
+      allows no second factor table. Every ambix import of <code>nova.io.cocos</code> switches to
+      <code>nova_cocos</code> in the same change, which frees nova to drop the re-export. The
+      console script has <code>--version</code> and <code>validate PATH</code>.
+      <code>validate PATH</code> loads a catalogue or a signal map through
+      <code>load_machine_map</code> or <code>load_signal_map</code>, then prints its machine, its
+      IDSs and its path count. The mint writer from <a href="jt60sa-pulse-ids">jt60sa-pulse-ids</a>
+      §1 belongs in <code>imas_alambic</code>. If it lands in <code>imas_ambix/data/</code> first,
+      the mint section moves it.
+    </p>
+    <p>
+      Done-when: <code>uv build --package imas-alambic</code> writes a pure-Python wheel. In a clean
+      <code>uv venv --python 3.12</code> environment, that wheel installs with its declared
+      dependencies (nova-cocos from its own built wheel), <code>imas-alambic --version</code> runs,
+      and the engine's own tests, on synthetic maps, pass. Ambix's tests that cover the moved
+      modules add no failures against the stated base. <code>uv run --no-sync ruff check
+      imas_ambix tests packages</code> exits 0.
     </p>
 
     <h2 id="s3">§3 — Private maps by name, and an in-process EDDB read</h2>
-<section data-reckon="section" data-id="s3" data-effort-hours="2.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-status="deferred" data-links=""></section>
+<section data-reckon="section" data-id="s3" data-effort-hours="2.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links="jt60sa-facility-mint#s2"></section>
     <p>
       <code>load_machine_map(path)</code> and <code>load_signal_map(path)</code> already accept any
-      file, so a private bundle needs no new format, only a way to be found. The mint resolves a
-      machine's catalogue, signal maps and description store from a declared search path or an
-      entry-point group that a private bundle package registers, with the packaged maps as the
-      fallback. A machine found in two places is refused rather than one silently shadowing the other.
-      On the analysis server the EDDB read runs in process through <code>eddb_pwrapper</code>
-      instead of over ssh. That is a second transport beside the ssh one, and the code the remote
-      script already runs, not a second reader. Done-when: with a bundle on the search path and
-      the in-process transport given a recorded EDDB response, the mint writes the same IDSs as the
-      ssh route for E101154, byte for byte.
+      file, so a private bundle needs no new format, only a way to be found. A bundle is a
+      directory holding a <code>bundle.json</code> (name, version, machines) beside the layout ambix
+      already packages: <code>machine_maps/&lt;machine&gt;.json</code>,
+      <code>maps/&lt;machine&gt;/&lt;ids&gt;.json</code> and
+      <code>machine_description/&lt;machine&gt;/</code>. The engine resolves a machine's catalogue,
+      signal maps and description store by name. It searches the directories in
+      <code>IMAS_ALAMBIC_MAP_PATH</code> and the bundles registered under the entry-point group
+      <code>imas_alambic.bundles</code>. Ambix registers its packaged MAST and DIII-D maps in the
+      same group, so the engine ships no maps of its own. A machine found in two places is refused,
+      naming both, rather than one silently shadowing the other. On the analysis server the EDDB
+      read runs in process through <code>eddb_pwrapper</code> instead of over ssh. That is a second
+      transport beside the ssh one, running the same code the remote script already runs, not a
+      second reader.
+    </p>
+    <p>
+      Done-when: with a bundle on the search path, <code>imas-alambic validate jt-60sa</code>
+      resolves the machine by name, and a machine present in two bundles is refused with both named.
+      Given a recorded EDDB response for E101154's <code>pf_active</code> channels through a
+      stand-in <code>eddb_pwrapper</code>, the in-process transport returns
+      <code>ChannelRecord</code>s whose arrays equal, bit for bit, the ssh route's decode of the
+      same response. Mint equivalence waits for the writer and is §6's measure.
     </p>
 
-    <h2 id="s4">§4 — Install at the facility, or export tokamap maps instead</h2>
-<section data-reckon="section" data-id="s4" data-effort-hours="2.0" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="elevated" data-status="deferred" data-links=""></section>
+    <h2 id="s4">§4 — Editable install on the JT-60SA analysis server</h2>
+<section data-reckon="section" data-id="s4" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="elevated" data-status="implementable" data-links="jt60sa-facility-mint#s2"></section>
     <p>
-      Two routes reach the facility. The first installs the slim engine and the private bundle in
-      the analysis server's Python 3.12 environment, and mints there. The second installs nothing:
-      <code>imas_ambix/data/tokamap_export.py</code> already writes a catalogue as a tokamap
-      mapping directory, exact in value but lossy in provenance, which libtokamap and UDA
-      consumers read. That route serves the facility only if JT-60SA exposes its data through UDA.
-      The decision <code>facility-install</code> chooses between them. Installing on a facility
-      server is an outward-facing action, taken only with the lead's explicit go-ahead and under
-      the standing rule of light load on that server. Done-when: the chosen route mints or serves
-      E101154 at the facility, and its IDSs match the ones minted here.
+      The lead chose to install (<code>facility-install</code>), preferably by wheel, starting with
+      an editable checkout to test. The tokamap export in
+      <code>imas_ambix/data/tokamap_export.py</code> stays available but is not this route.
+      Facility facts, probed from here as <code>ssh jt-60sa</code> on 2026-10-06:
     </p>
+    <ul>
+      <li>The host is <code>intr26-2</code>, account <code>d240044</code>.</li>
+      <li><code>module load python/3.12</code> gives Python 3.12.9 with numpy 2.4.2 and scipy, but
+        not imas-python, zarr or pyyaml. <code>python -m venv</code> works.</li>
+      <li>Outbound port 443 reaches github.com, ghcr.io and PyPI, and pip downloads from PyPI.</li>
+      <li>git and curl over https fail with <code>error setting certificate file:
+        /etc/ssl/certs/ca-certificates.crt</code>, from an inherited CA path. So every git command
+        names the RHEL bundle (<code>GIT_SSL_CAINFO=/etc/pki/tls/certs/ca-bundle.crt</code>)
+        rather than changing the account's configuration.</li>
+      <li>Port 22 to GitHub is closed, and the account has no GitHub key.</li>
+    </ul>
+    <p>
+      Set up a blob-less sparse clone (<code>--filter=blob:none --sparse</code>) of the public
+      imas-ambix, restricted to <code>packages/imas-alambic</code>, and one of nova, restricted to
+      <code>packages/nova-cocos</code>, both under <code>~/imas-alambic/src/</code>. Create a venv at
+      <code>~/imas-alambic/.venv</code> from the 3.12 module. Install nova-cocos and then
+      imas-alambic with <code>pip install -e</code>, taking dependencies from PyPI. The JT-60SA maps
+      reach the server from this machine, never from GitHub: as files copied from this checkout
+      until §1 lands, and as the GHCR bundle afterwards. Every command runs under
+      <code>nice -n 19</code>, keeping to the standing rule of light load on that server, and
+      nothing is written outside <code>~/imas-alambic/</code> except pip's own cache.
+    </p>
+    <p>
+      Done-when: on <code>intr26-2</code>, <code>~/imas-alambic/.venv/bin/imas-alambic
+      --version</code> prints the version of the checked-out commit, and that commit is the
+      <code>origin/main</code> commit that carries §2. <code>imas-alambic validate</code> on the
+      relayed JT-60SA catalogue and on each of its signal maps reports the same machine, IDS and
+      path counts as the same command here. The engine's own tests pass under the server's Python
+      3.12.9.
+    </p>
+
+    <h2 id="s5">§5 — Wheel install with the GHCR bundle</h2>
+<section data-reckon="section" data-id="s5" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="elevated" data-status="implementable" data-links="jt60sa-facility-mint#s1,jt60sa-facility-mint#s3,jt60sa-facility-mint#s4"></section>
+<p>Once §1, §3 and §4 have landed, wheels replace the editable checkout. Build them here with <code>uv build --package imas-alambic</code>, and with <code>uv build --package nova-cocos</code> in nova. Copy both to the server and install them into a fresh <code>~/imas-alambic/.venv</code>, taking the other dependencies from PyPI. The bundle travels from GHCR through this machine: <code>oras pull ghcr.io/simon-mcintosh/imas-alambic-jt60sa:&lt;version&gt;</code> here, then <code>rsync</code> to <code>~/imas-alambic/bundles/jt-60sa/&lt;version&gt;/</code>, with <code>IMAS_ALAMBIC_MAP_PATH</code> set in <code>~/imas-alambic/env.sh</code>. No GitHub credential is placed on the server, and the light-load rule of §4 holds.</p><p>Done-when: the server's <code>imas-alambic --version</code> reports the wheel's version, and <code>pip list --editable</code> in that venv is empty. <code>imas-alambic validate jt-60sa</code> resolves the machine by name from the relayed bundle. One <code>pf_active</code> channel of E101154, read through the in-process transport, equals this machine's cached copy of that channel bit for bit.</p>
+
+    <h2 id="s6">§6 — Mint E101154 at the facility</h2>
+<section data-reckon="section" data-id="s6" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="elevated" data-status="implementable" data-links="jt60sa-pulse-ids#s1,jt60sa-facility-mint#s5"></section>
+<p>When the mint writer from <a href="jt60sa-pulse-ids">jt60sa-pulse-ids</a> §1 is in <code>imas_alambic</code> and installed by §5, mint E101154 on the server through the in-process transport. Compare the result with the IDSs minted here through the ssh route. Done-when: every IDS the writer emits for E101154 is equal field by field between the server and here, by imas-python's comparison. The run's wall time and peak memory on <code>intr26-2</code> are recorded.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-      <div class="r-dec" data-key="map-privacy" data-choice="" data-by="" data-when="" data-sections="s1,s3">
-        <p class="r-dec-q">Do the JT-60SA maps and their evidence stay in the public imas-ambix repository?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="public">Stay public</button>
-          <button class="r-opt" data-value="private-bundle">Move to a private map bundle</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-      <div class="r-dec" data-key="facility-install" data-choice="" data-by="" data-when="" data-sections="s4">
-        <p class="r-dec-q">How does the map reach the facility?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="install">Install the slim mint on the analysis server</button>
-          <button class="r-opt" data-value="tokamap-only">Export tokamap maps only</button>
-          <button class="r-opt" data-value="not-now">Not now</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-    </section>
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="map-privacy" data-choice="private-bundle" data-by="Simon McIntosh" data-when="2026-10-06T15:41:32+00:00" data-sections="s1,s3">
+    <p class="r-dec-q">Do the JT-60SA maps and their evidence stay in the public imas-ambix repository?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="public">Stay public</button>
+      <button class="r-opt chosen" data-value="private-bundle">Move to a private map bundle</button>
+      </p>
+    <p class="r-dec-rat">Lead, 2026-10-06: the JT-60SA maps are stored in a private GHCR and leave the public repository.</p>
+    </div>
+<div class="r-dec" data-key="facility-install" data-choice="install" data-by="Simon McIntosh" data-when="2026-10-06T15:41:32+00:00" data-sections="s4">
+    <p class="r-dec-q">How does the map reach the facility?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="install">Install the slim mint on the analysis server</button>
+      <button class="r-opt" data-value="tokamap-only">Export tokamap maps only</button>
+      <button class="r-opt" data-value="not-now">Not now</button>
+      </p>
+    <p class="r-dec-rat">Lead, 2026-10-06: install the light mapper on JT-60SA, preferably by wheel, starting with an editable checkout there to test.</p>
+    </div>
+<div class="r-dec" data-key="engine-name" data-choice="imas-alambic" data-by="Simon McIntosh" data-when="2026-10-06" data-sections="s2">
+    <p class="r-dec-q">What is the slim engine called?</p>
+    <p class="r-dec-ctx">imas- prefix with an ambix-lineage name; ambix (ἄμβιξ) became al-anbīq, then alambic / alembic.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="imas-alambic">imas-alambic</button>
+      <button class="r-opt" data-value="imas-alembic">imas-alembic</button>
+      <button class="r-opt" data-value="imas-distillate">imas-distillate</button>
+      <button class="r-opt" data-value="imas-dram">imas-dram</button>
+      </p>
+    <p class="r-dec-rat">Lead, 2026-10-06: imas-alambic, the French form of the still that ambix became; import name imas_alambic avoids SQLAlchemy&#x27;s alembic. Free on PyPI and GitHub.</p>
+    </div>
+<div class="r-dec" data-key="engine-home" data-choice="workspace-member" data-by="Simon McIntosh" data-when="2026-10-06" data-sections="s2">
+    <p class="r-dec-q">Where does the engine&#x27;s code live?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="workspace-member">uv workspace member in imas-ambix</button>
+      <button class="r-opt" data-value="own-repo">Its own public repository</button>
+      </p>
+    <p class="r-dec-rat">Lead, 2026-10-06: packages/imas-alambic/ in this repository; one plan system, atomic data-layer changes; splittable later with history.</p>
+    </div>
+<div class="r-dec" data-key="map-source" data-choice="private-repo-ghcr" data-by="Simon McIntosh" data-when="2026-10-06" data-sections="s1,s5">
+    <p class="r-dec-q">Where are the JT-60SA maps authored, with GHCR as their store?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="private-repo-ghcr">Private GitHub repository, versions pushed to private GHCR</button>
+      <button class="r-opt" data-value="ghcr-only">Source on /work, pushed straight to GHCR</button>
+      </p>
+    <p class="r-dec-rat">Lead, 2026-10-06: map edits keep git diffs and reviews; GHCR holds the versioned artifacts the install consumes.</p>
+    </div>
+<div class="r-dec" data-key="public-history" data-choice="leave" data-by="Simon McIntosh" data-when="2026-10-06" data-sections="s1">
+    <p class="r-dec-q">What happens to the 12 origin commits that carry the maps?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="leave">leave</button>
+      <button class="r-opt" data-value="rewrite">rewrite</button>
+      </p>
+    <p class="r-dec-rat">Lead, 2026-10-06: remove the maps from main going forward; no force-push. upstream never carried them.</p>
+    </div>
+<div class="r-dec" data-key="map-relay" data-choice="relay-from-here" data-by="Simon McIntosh" data-when="2026-10-06" data-sections="s4,s5">
+    <p class="r-dec-q">How do the private maps reach the analysis server?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="relay-from-here">oras pull here, copy over ssh jt-60sa</button>
+      <button class="r-opt" data-value="pull-on-server">oras and a read-only GHCR token on the server</button>
+      </p>
+    <p class="r-dec-rat">Lead, 2026-10-06: no GitHub credential is placed on a facility machine.</p>
+    </div>
+<div class="r-dec" data-key="evidence-privacy" data-choice="" data-by="" data-when="" data-sections="s1">
+    <p class="r-dec-q">Do the JT-60SA evidence fragments and signal figures under docs/ stay public?</p>
+    <p class="r-dec-ctx">They are records of the jt60sa-machine-map and jt60sa-geometry-and-signal-figures plans and are served on the public Pages dashboard; moving them breaks those plans&#x27; evidence anchors.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="keep-public">keep-public</button>
+      <button class="r-opt" data-value="move-private">move-private</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups</h2>
-      <article class="r-fu" data-id="f-jtfm-001" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-create" data-written-at="2026-10-06" data-recommends-skill="/reckon-build jt60sa-facility-mint §1" data-resolved-at="" data-resolved-by="">
-        <h4 class="r-fu-title">Lock map-privacy and facility-install, then settle where the JT-60SA maps live</h4>
-        <div class="r-fu-body"><p>Both decisions are the lead's. §2 and §3 also wait on jt60sa-pulse-ids §1, the mint writer they package.</p></div>
-        <pre class="r-fu-prompt">/reckon-build jt60sa-facility-mint §1</pre>
-      </article>
-    </section>
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-jtfm-001" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-create" data-written-at="2026-10-06" data-recommends-skill="/reckon-build jt60sa-facility-mint §1" data-resolved-at="2026-10-06T15:42:32+00:00" data-resolved-by="Simon McIntosh">
+    <h4 class="r-fu-title">Lock map-privacy and facility-install, then settle where the JT-60SA maps live</h4>
+    <div class="r-fu-body"><p>Both decisions are the lead's. §2 and §3 also wait on jt60sa-pulse-ids §1, the mint writer they package.</p></div>
+    <pre class="r-fu-prompt">/reckon-build jt60sa-facility-mint §1</pre>
+    <p class="r-fu-outcome"><p>Locked 2026-10-06: map-privacy private-bundle (private repo + private GHCR), facility-install install (editable first, then wheel), engine-name imas-alambic, engine-home workspace member, public-history leave, map-relay relay-from-here.</p></p>
+    </article>
+<article class="r-fu" data-id="f-jtfm-002" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-build" data-written-at="2026-10-06" data-recommends-skill="/reckon-build jt60sa-facility-mint §2" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Build imas-alambic as a workspace member once nova-cocos lands</h4>
+    <div class="r-fu-body"><p>§2 waits on nova:cocos-standalone-distribution §1; §3 and §4 follow §2.</p></div>
+    <pre class="r-fu-prompt">/reckon-build jt60sa-facility-mint §2</pre>
+    </article>
+</section>
   </main>
 </body>
 </html>
