@@ -1,0 +1,23 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtmm-catalogue-tf-rank">
+  <header>
+    <h3>JT-60SA TF coil name bindings declare leaf rank</h3>
+    <p class="meta">
+      Node <code>jtmm-catalogue-tf-rank</code> &middot;
+      date 2026-10-06 &middot;
+      plan <code>jt60sa-machine-map</code> &sect;4
+    </p>
+  </header>
+  <p id="jtmm-catalogue-tf-rank-landing">
+    <code>source_rank</code> changed from 1 to 0 on
+    <code>jt60sa-op1-tf-coil-coordinate-element</code> and
+    <code>jt60sa-op2-tf-coil-coordinate-element</code> in
+    <code>imas_ambix/data/machine_maps/jt-60sa.json</code> (2 added, 2 deleted):
+    the <code>struct_array_entry</code> <code>TF1</code> consumes the only
+    structural level on <code>tf/coil/name</code>, leaving leaf rank 0. In-place
+    gate <code>36 passed</code>, exit 0; at the base revision the same command
+    recorded <code>6 failed, 30 passed</code> with
+    <code>BindingTransformError: source rank 1 cannot be reconstructed from leaf
+    rank 0 and 0 structural arrays</code> on both bindings; whole-tree
+    <code>ruff check imas_ambix tests</code> exits 0.
+  </p>
+</section>
