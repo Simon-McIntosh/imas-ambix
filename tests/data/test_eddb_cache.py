@@ -32,6 +32,7 @@ from imas_ambix.data.eddb import (
     fetch_channels,
     is_cached,
     normalised_shot,
+    read_channel,
     read_eddb_token,
     write_channel,
 )
@@ -317,6 +318,19 @@ def test_each_channel_lands_raw_with_eddb_attributes_and_its_time_base(tmp_path)
     stored_time = zarr.open_array(time_path, mode="r")
     assert np.array_equal(stored_time[...], expected.time)
     assert stored_time.attrs["units"] == "s"
+
+
+def test_read_channel_round_trips_data_time_base_and_unit(tmp_path):
+    record = _record("51234", "MMSYS", "CS1", nch=2, ntime=5, unit="V", seq=9)
+    write_channel(tmp_path, record)
+
+    back = read_channel(tmp_path, "51234", "MMSYS", "CS1")
+
+    assert np.array_equal(back.data, record.data)
+    assert np.array_equal(back.time, record.time)
+    assert back.unit == "V"
+    assert back.nch == 2
+    assert back.seq == 9
 
 
 def test_a_cached_channel_causes_no_transport_call(tmp_path):

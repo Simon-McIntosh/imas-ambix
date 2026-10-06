@@ -22,7 +22,9 @@ writes would leave it — is completed by the next fetch rather than refused.  T
 store is a plain Zarr group laid out so the existing
 :class:`~imas_ambix.data.transform_engine.ZarrTransformEngine` and
 :class:`~imas_ambix.data.virtual_zarr.VirtualZarrView` read it with no new
-engine and no cache-specific reader.
+engine; :func:`read_channel` is the raw read beside that engine path, returning
+one cached channel's data, time base and unit whole from the arrays
+:func:`write_channel` laid down.
 
 This is a second transport beside the FAIR-MAST mirror, not an extension of
 it: it shares the path owner and the Zarr layout the engine reads, and takes
@@ -38,12 +40,12 @@ from typing import TYPE_CHECKING
 import numpy as np
 import zarr
 
-from imas_ambix.data.eddb_remote import BatchResult
+from imas_ambix.data.eddb_remote import BatchResult, ChannelRecord
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-    from imas_ambix.data.eddb_remote import ChannelRecord, RemoteEddbExtractor
+    from imas_ambix.data.eddb_remote import RemoteEddbExtractor
 
 #: Attribute names carried on the cached arrays.  ``units`` is the EDDB unit
 #: string verbatim, ``channel_count`` the number of channels in the record and
@@ -275,6 +277,51 @@ def write_channel(cache_root: Path | str, record: ChannelRecord) -> Path:
     return data_path
 
 
+def read_channel(
+    cache_root: Path | str, shot: object, category: str, dname: str
+) -> ChannelRecord:
+    """Read one cached channel back as the record :func:`write_channel` stored.
+
+    Returns the data array (two-dimensional ``(nch, time)``), its sibling time
+    base and the :data:`UNIT_ATTR` unit carried on the data array, so a caller
+    holds one channel whole without re-deriving the layout.  This is the raw
+    read beside the engine path — :class:`ZarrTransformEngine` and
+    :class:`VirtualZarrView` return canonical values with no time base, so the
+    caller that needs the time base reads it here.  A channel that is absent or
+    half-written is refused rather than reported as an empty record.
+    """
+
+    root = Path(cache_root)
+    data_path = channel_path(root, shot, category, dname)
+    time_path = channel_time_path(root, shot, category, dname)
+    try:
+        data_array = zarr.open_array(data_path, mode="r")
+        time_array = zarr.open_array(time_path, mode="r")
+    except (KeyError, ValueError, OSError) as error:
+        raise EddbCacheError(
+            f"channel {eddb_token(shot)}/{category}/{dname} is not cached at "
+            f"{data_path}"
+        ) from error
+
+    data = np.asarray(data_array[...], dtype="<f8")
+    if data.ndim == 1:
+        data = data.reshape(1, -1)
+    time = np.asarray(time_array[...], dtype="<f8").reshape(-1)
+    unit = str(data_array.attrs.get(UNIT_ATTR, ""))
+    nch = int(data_array.attrs.get(CHANNEL_COUNT_ATTR, data.shape[0]))
+    token = read_eddb_token(root, shot)
+    return ChannelRecord(
+        shot=token if token is not None else str(shot),
+        category=category,
+        dname=dname,
+        data=data,
+        time=time,
+        unit=unit,
+        nch=nch,
+        seq=int(data_array.attrs.get(SEQUENCE_NUMBER_ATTR, 0)),
+    )
+
+
 def fetch_channels(
     extractor: RemoteEddbExtractor,
     cache_root: Path | str,
@@ -319,6 +366,7 @@ __all__ = [
     "fetch_channels",
     "is_cached",
     "normalised_shot",
+    "read_channel",
     "read_eddb_token",
     "time_array_name",
     "write_channel",

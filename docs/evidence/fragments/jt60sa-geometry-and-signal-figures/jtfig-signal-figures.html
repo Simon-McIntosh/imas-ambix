@@ -1,0 +1,90 @@
+<section id="jtfig-signal-figures" data-node="jtfig-signal-figures">
+  <h2 id="jtfig-signal-figures-heading">The cached JT-60SA signals, drawn through imas-ink</h2>
+
+  <p>
+    <code>imas_ambix/data/eddb.py</code> gains <code>read_channel(cache_root,
+    shot, category, dname)</code> beside <code>write_channel</code>, the raw
+    read the cache did not have. It returns the same <code>ChannelRecord</code>
+    the writer stored — the two-dimensional data array, the channel's own time
+    base and the <code>UNIT_ATTR</code> unit — read from
+    <code>channel_path</code> and <code>channel_time_path</code>; an absent or
+    half-written channel is refused rather than reported as an empty record. The
+    module docstring now names <code>read_channel</code> as the raw read beside
+    the engine path instead of saying the cache needs no cache-specific reader.
+    The section adds this one public name and retires nothing.
+  </p>
+
+  <p>
+    <code>scripts/figures_jt60sa_signals.py</code> draws three figures and holds
+    no colour, label or style constant of its own. It reads only the cache under
+    <code>JT60SA_ROOT</code>. The channels it draws, and the factor it applies,
+    come from the packaged maps: <code>load_packaged_signal_map("jt-60sa",
+    "pf_active")</code> serves the MMSYS coil-current chain chosen for each PF
+    coil and <code>load_packaged_signal_map("jt-60sa", "magnetics")</code> the
+    PSRC plasma current. Each bound channel's values come through the engine path
+    those maps feed (<code>VirtualZarrView</code>, whose <code>VirtualArray</code>
+    applies the signal's factors), and its unit is taken from
+    <code>VirtualArray.attrs</code>; every channel's time base — and every
+    flux-loop channel, which the maps leave unbound — is read whole through
+    <code>read_channel</code>. The figures render through
+    <code>imas_ink.figures.time_trace_figure_mpl</code> in
+    <code>DEFAULT_STYLE</code>; the only style the script names is the
+    <code>replace</code> that dashes the raw flux loop. Per figure the script
+    prints the channel names and units it drew and says when a channel's time
+    base differs from its neighbour's.
+  </p>
+
+  <figure id="jtfig-signal-figures-pf-currents">
+    <img src="/imas-ambix/figures/jt60sa-signals/jt60sa-E101154-pf-coil-currents.svg"
+         alt="E101154 PF coil currents and plasma current, one panel per channel">
+    <figcaption>
+      E101154. The ten served PF coil currents — <code>pf_active_coil_CS1_current</code>
+      through <code>pf_active_coil_CS4_current</code> and
+      <code>pf_active_coil_EF1_current</code> through
+      <code>pf_active_coil_EF6_current</code>, all in A — one panel each, and the
+      served plasma current <code>magnetics_plasma_current</code> (PSRC Ip, A) on
+      its own panel. The plasma current draws on a time base of 46078 samples
+      against the coil currents' 310077; the script reports the difference rather
+      than rescaling.
+    </figcaption>
+  </figure>
+
+  <figure id="jtfig-signal-figures-flux-loops">
+    <img src="/imas-ambix/figures/jt60sa-signals/jt60sa-E101154-flux-loops.svg"
+         alt="E101154 flux loops, processed PSRC against raw MDAC, one panel per index">
+    <figcaption>
+      E101154. One panel per flux-loop index 1–34. Each panel holds the processed
+      PSRC <code>magFluxLp&lt;index&gt;</code> channel and, dashed, the raw MDAC
+      <code>magFlxLp&lt;index&gt;</code> channel of the same index — the
+      raw-to-processed correspondence drawn rather than assumed. Both are in Wb.
+      The processed channels carry 46078 samples and the raw ones 286077, on
+      different time bases; the script reports that per pair.
+    </figcaption>
+  </figure>
+
+  <figure id="jtfig-signal-figures-c060033-pf-currents">
+    <img src="/imas-ambix/figures/jt60sa-signals/jt60sa-C060033-pf-coil-currents.svg"
+         alt="C060033 PF coil currents, one panel per coil">
+    <figcaption>
+      C060033, the no-plasma commissioning record. The same ten served PF coil
+      currents — <code>pf_active_coil_CS1_current</code> … <code>CS4</code> and
+      <code>pf_active_coil_EF1_current</code> … <code>EF6</code>, all in A — one
+      panel each, on a common time base, the input the convention work uses.
+    </figcaption>
+  </figure>
+
+  <p id="jtfig-signal-figures-measure">
+    Measure: <code>uv run --no-sync pytest -p no:cacheprovider
+    tests/data/test_eddb_cache.py</code> passes 31 tests, including the new
+    round-trip <code>test_read_channel_round_trips_data_time_base_and_unit</code>;
+    <code>uv run --no-sync ruff check imas_ambix tests
+    scripts/figures_jt60sa_signals.py</code> exits 0.
+  </p>
+
+  <p id="jtfig-signal-figures-negative-control">
+    Negative control, applied as a scratch edit to <code>read_channel</code> and
+    restored: returning the channel's data without its time base fails
+    <code>test_read_channel_round_trips_data_time_base_and_unit</code> on the
+    time-base assertion.
+  </p>
+</section>
