@@ -307,6 +307,12 @@ def read_channel(
     if data.ndim == 1:
         data = data.reshape(1, -1)
     time = np.asarray(time_array[...], dtype="<f8").reshape(-1)
+    if time.shape[-1] != data.shape[-1]:
+        raise EddbCacheError(
+            f"channel {eddb_token(shot)}/{category}/{dname} is half-written: "
+            f"time base length {time.shape[-1]} does not match data width "
+            f"{data.shape[-1]}"
+        )
     unit = str(data_array.attrs.get(UNIT_ATTR, ""))
     nch = int(data_array.attrs.get(CHANNEL_COUNT_ATTR, data.shape[0]))
     token = read_eddb_token(root, shot)

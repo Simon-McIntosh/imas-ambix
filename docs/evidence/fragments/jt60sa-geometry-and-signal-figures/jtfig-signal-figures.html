@@ -28,10 +28,15 @@
     flux-loop channel, which the maps leave unbound — is read whole through
     <code>read_channel</code>. The figures render through
     <code>imas_ink.figures.time_trace_figure_mpl</code> in
-    <code>DEFAULT_STYLE</code>; the only style the script names is the
-    <code>replace</code> that dashes the raw flux loop. Per figure the script
-    prints the channel names and units it drew and says when a channel's time
-    base differs from its neighbour's.
+    <code>DEFAULT_STYLE</code> and are written through
+    <code>imas_ink.io.render_to_bytes</code>, so the drawn paths take the
+    resolution bound the style sets; the only style the script names is the
+    <code>replace</code> that dashes the raw flux loop. No series carries a
+    legend label: each panel's first series names its channel and its unit on
+    the y-axis, and the stacked panels share one time axis, labelled once at the
+    bottom of the figure. Per figure the script prints the channel names and
+    units it drew and says when a channel's time base differs from its
+    neighbour's.
   </p>
 
   <figure id="jtfig-signal-figures-pf-currents">
@@ -43,9 +48,11 @@
       <code>pf_active_coil_EF1_current</code> through
       <code>pf_active_coil_EF6_current</code>, all in A — one panel each, and the
       served plasma current <code>magnetics_plasma_current</code> (PSRC Ip, A) on
-      its own panel. The plasma current draws on a time base of 46078 samples
-      against the coil currents' 310077; the script reports the difference rather
-      than rescaling.
+      its own panel. Each panel's y-axis names its channel and unit; no legend is
+      drawn, and the shared time axis is labelled once at the bottom. The plasma
+      current draws on a time base of 46078 samples against the coil currents'
+      310077; the script reports the difference rather than rescaling. 426788
+      bytes.
     </figcaption>
   </figure>
 
@@ -57,8 +64,10 @@
       PSRC <code>magFluxLp&lt;index&gt;</code> channel and, dashed, the raw MDAC
       <code>magFlxLp&lt;index&gt;</code> channel of the same index — the
       raw-to-processed correspondence drawn rather than assumed. Both are in Wb.
-      The processed channels carry 46078 samples and the raw ones 286077, on
-      different time bases; the script reports that per pair.
+      Each panel's y-axis names its processed channel and unit; no legend is
+      drawn, and the shared time axis is labelled once at the bottom. The
+      processed channels carry 46078 samples and the raw ones 286077, on
+      different time bases; the script reports that per pair. 601998 bytes.
     </figcaption>
   </figure>
 
@@ -69,16 +78,22 @@
       C060033, the no-plasma commissioning record. The same ten served PF coil
       currents — <code>pf_active_coil_CS1_current</code> … <code>CS4</code> and
       <code>pf_active_coil_EF1_current</code> … <code>EF6</code>, all in A — one
-      panel each, on a common time base, the input the convention work uses.
+      panel each, on a common time base, the input the convention work uses. Each
+      panel's y-axis names its channel and unit; no legend is drawn, and the
+      shared time axis is labelled once at the bottom. 430350 bytes.
     </figcaption>
   </figure>
 
   <p id="jtfig-signal-figures-measure">
     Measure: <code>uv run --no-sync pytest -p no:cacheprovider
-    tests/data/test_eddb_cache.py</code> passes 31 tests, including the new
-    round-trip <code>test_read_channel_round_trips_data_time_base_and_unit</code>;
+    tests/data/test_eddb_cache.py</code> passes 32 tests, including the new
+    round-trip <code>test_read_channel_round_trips_data_time_base_and_unit</code>
+    and the refusal
+    <code>test_read_channel_refuses_a_time_base_mismatched_with_the_data</code>;
     <code>uv run --no-sync ruff check imas_ambix tests
-    scripts/figures_jt60sa_signals.py</code> exits 0.
+    scripts/figures_jt60sa_signals.py</code> exits 0. The three SVGs are 426788,
+    601998 and 430350 bytes — each well under a quarter of its full-sample-count
+    size, one SVG per figure with no PNG twin.
   </p>
 
   <p id="jtfig-signal-figures-negative-control">

@@ -15,10 +15,14 @@ Three figures, one SVG each under ``docs/figures/jt60sa-signals/``:
 Which channel each panel draws, and at what factor, comes from the packaged
 values through the engine path they feed, taking the bound channel's unit from
 its ``VirtualArray`` attributes; every time base, and every channel the maps
-leave unbound, is read whole through :func:`read_channel`.  The script draws
-nothing itself and holds no colour, label or style constant: the figures are
-imas-ink's default style, and the only style named here is the replace that
-dashes the raw flux loop.
+leave unbound, is read whole through :func:`read_channel`.  Each panel's first
+series names its channel and unit on the y-axis, so no series carries a legend
+label; the stacked panels share one time axis and share its label too.  The
+script draws nothing itself and holds no colour, label or style constant: the
+figures are imas-ink's default style, and the only style named here is the
+replace that dashes the raw flux loop.  Figures are written through
+``imas_ink.io.render_to_bytes`` so the drawn paths take the resolution bound
+the style sets.
 
 Run: ``uv run python scripts/figures_jt60sa_signals.py``.
 """
@@ -32,6 +36,7 @@ import numpy as np
 import zarr
 from imas_ink.components import TimeSeries
 from imas_ink.figures import DEFAULT_STYLE, time_trace_figure_mpl
+from imas_ink.io import render_to_bytes
 
 from imas_ambix.data.eddb import normalised_shot, read_channel
 from imas_ambix.data.paths import JT60SA_ROOT
@@ -67,7 +72,7 @@ def _bound_panel(
     series = TimeSeries(
         time,
         values,
-        label=rule.semantic_id,
+        ylabel=rule.semantic_id,
         units=str(array.attrs[_UNITS_ATTR]),
     )
     return [(series, rule.semantic_id, time)]
@@ -84,13 +89,13 @@ def _flux_panel(
         TimeSeries(
             processed.time,
             processed.data[0],
-            label=processed.dname,
+            ylabel=processed.dname,
             units=processed.unit,
         ),
         TimeSeries(
             raw.time,
             raw.data[0],
-            label=raw.dname,
+            ylabel=raw.dname,
             units=raw.unit,
             style=raw_style,
         ),
@@ -149,7 +154,7 @@ def _render(
         [[series for series, _name, _time in panel] for panel in panels],
         style=DEFAULT_STYLE,
     )
-    figure.savefig(FIGURES / filename)
+    (FIGURES / filename).write_bytes(render_to_bytes(figure, format="svg"))
     _report(filename, panels)
 
 

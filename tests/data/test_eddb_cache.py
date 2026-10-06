@@ -34,6 +34,7 @@ from imas_ambix.data.eddb import (
     normalised_shot,
     read_channel,
     read_eddb_token,
+    time_array_name,
     write_channel,
 )
 from imas_ambix.data.eddb_remote import (
@@ -331,6 +332,17 @@ def test_read_channel_round_trips_data_time_base_and_unit(tmp_path):
     assert back.unit == "V"
     assert back.nch == 2
     assert back.seq == 9
+
+
+def test_read_channel_refuses_a_time_base_mismatched_with_the_data(tmp_path):
+    write_channel(tmp_path, _record("51234", "MMSYS", "CS1", nch=2, ntime=5))
+    group = zarr.open_group(tmp_path / "51234.zarr", mode="a")
+    group["MMSYS"].create_array(
+        time_array_name("CS1"), data=np.arange(3, dtype="<f8"), overwrite=True
+    )
+
+    with pytest.raises(EddbCacheError, match="half-written"):
+        read_channel(tmp_path, "51234", "MMSYS", "CS1")
 
 
 def test_a_cached_channel_causes_no_transport_call(tmp_path):
