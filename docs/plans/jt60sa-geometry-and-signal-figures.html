@@ -23,7 +23,7 @@
   <title>JT-60SA Geometry and Signal Figures | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="20">
+<meta name="plan-version" content="21">
 <meta name="plan-modified" content="2026-10-06">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s1b&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;}">
 <meta name="plan-commits" content="369a705d,b36a5d93">
@@ -170,6 +170,11 @@
       beside <code>write_channel</code>, returning the same <code>ChannelRecord</code> (data, time base and
       the <code>UNIT_ATTR</code> unit) from <code>channel_path</code> and <code>channel_time_path</code>, so
       the cache keeps one owner for its read as for its write; the unit is named on the axis.
+      <code>ZarrTransformEngine</code> is not that reader: its <code>read</code> takes a
+      <code>ChannelBinding</code> from a packaged signal map, none of which exists for JT-60SA yet, and
+      returns a bare array with neither the time base nor the unit the figure must name, so the
+      section also corrects <code>eddb.py</code>'s module docstring, which says the cache needs no
+      cache-specific reader, to name <code>read_channel</code> as the raw read beside the engine path.
       <code>read_channel</code> is the one public name the section adds to <code>eddb</code>, the read
       counterpart nothing there provides, and it retires nothing; a round-trip test in
       <code>tests/data/test_eddb_cache.py</code> writes a channel and reads it back. For E101154, the PF coil
@@ -222,7 +227,11 @@
       reader asserts exactly one wall unit per phase and fails rather than silently dropping a contour
       if a later store carries more. The section widens the candidate table behind
       the script's one existing option, <code>--palette-candidates</code>, and adds no option, module
-      or public name.
+      or public name. It also carries the run review's durability finding on §1's landing: the
+      palette validator, which the dataviz skill owns and the repository cannot import, is located
+      through a <code>PALETTE_VALIDATOR</code> environment variable whose default is the workstation's
+      copy, and a missing <code>node</code> or validator file stops the run with a message naming which
+      is missing rather than an uncaught error or a misleading failed check.
     </p>
     <p>
       Done-when: <code>--palette-candidates</code> writes the eight candidates as PNG and SVG under
