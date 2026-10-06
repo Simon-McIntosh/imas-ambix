@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.9">
-<meta name="plan-version" content="243">
+<meta name="plan-version" content="244">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -1530,6 +1530,9 @@
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20261006T203619074299-review-of-jtmm-drive-turns" data-who="reckon-build" data-when="2026-10-06T20:46:26.204Z">
     <div class="r-comment-body"><p>review-of-jtmm-drive-turns verdict on run r-20261006T200342290841-jtmm-drive-turns (commit e68a87fa on base 28a6ec3d): scores goal_fidelity 19, evidence 18, scope_discipline 20, durability 18, fit 18, reuse 19 (total 112); one follow-on FINDING at imas_ambix/gs/operator.py:690 that shapes()/the summary writer still advertise amc_raw_units "kA*turn" and amc_to_si_factor 1000 although the assembly factor is now per-column.</p></div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-run-r-20261006T203523951249-jtmm-coil-turns-source" data-who="reckon-build" data-when="2026-10-06T20:53:22.206Z">
+    <div class="r-comment-body"><p>SELENE EQSLE.DATA states a per-filament turn count (CS1-CS4 13.725 x 40 = 549 turns, EF1-EF6 8.875/9.625/15.4375/22.0625/9.5/11.25 x 16 = 142/154/247/353/152/180, lines 24-279); build_pf_active preserves it in pf_active (turns_with_sign 13.725 etc., not 1.0), but the drive-topology emission writes turns=1.0/current_weight=1.0 on all 268 connections, so the declared ampere-turns per ampere resolve to the FILAMENT COUNT (40/16/6) instead of the turn total. A free per-coil fit of the measured vacuum response on E100595/E100579/E100642 (44 channels x 10 driven coils) is not identifiable because the ten coil currents are collinear, so no per-coil turn count is reported as confirmed; wrote docs/evidence/fragments/jt60sa-machine-map/jtmm-coil-turns-source.html.</p></div>
 </div>
 </section>
 </main>
