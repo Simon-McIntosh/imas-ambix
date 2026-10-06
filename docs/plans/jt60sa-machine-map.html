@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.89">
-<meta name="plan-version" content="233">
+<meta name="plan-version" content="235">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -377,13 +377,14 @@
       <code>read_geometry_table</code>. That happened because the JT-60SA catalogue emits no
       probe-angle binding yet. And MAST's default run was argued, not reproduced. Four nodes follow,
       before any verdict is authored.
-      <code>jtmm-vacuum-mismatch-rca</code> finds why the predictions miss. It is read-only over
+      <code>jtmm-vacuum-mismatch-rca</code> (landed, merge 8a873b69) found why the predictions miss; its
+      result is the next paragraph. It was read-only over
       the cache, the description and the operator, and runs the cheap discriminating checks first:
       the MMSYS and MDAC time bases (units, origin, sample rate) on one vacuum shot; the raw loop's
       pre-pulse baseline and integrator drift; the drive topology's ampere-turns per ampere against
       the coil currents' units; and why loop 7 alone tracks, at what factor. It writes one evidence
       fragment naming the cause and no source.
-      <code>jtmm-probe-angle-binding</code> adds the <code>magnetics/b_field_pol_probe/poloidal_angle</code>
+      <code>jtmm-probe-angle-binding</code> (landed, merge 752a459c) added the <code>magnetics/b_field_pol_probe/poloidal_angle</code>
       description binding to <code>jt-60sa.json</code> for both phases with
       <code>sign_convention</code> <code>identity</code>. Its grounds are the stored axis and SELENE's
       own tangential-field expression (<code>mgfild.f:38</code>, quoted in
@@ -394,8 +395,9 @@
       default path into a scratch directory, compares its verdicts with the committed MAST receipt,
       and replaces the swap control with one whose verdict can change. It merges together with
       892715c4.
-      <code>jtmm-observation-time-alignment</code> moves <code>read_signal_map_observation</code>'s raw
-      read onto the view that already owns a rule's resolution to its source array.
+      Landed: <code>jtmm-observation-time-alignment</code> (merge 22bb8c39) moved
+      <code>read_signal_map_observation</code>'s raw read onto the view that already owns a rule's
+      resolution to its source array. The rest of this paragraph records what it did.
       <code>imas_ambix/data/virtual_zarr.py</code> <code>VirtualZarrView</code> gains one untransformed
       accessor, which returns a rule's source values and that channel's own time base with no
       compiled transform applied. The reader then reads each series through it, rather than
@@ -415,7 +417,7 @@
       rule's time base.
     </p>
     <p>
-      The root-cause node found the first miss (merge pending, fragment
+      The root-cause node found the first miss (merge 8a873b69, fragment
       <code>jtmm-vacuum-mismatch-rca.html</code>). The time bases agree to a 0.2 ms origin, the
       raw channels are clean (a free per-coil fit reaches r 0.99 on all 44), and the prediction is
       the field of a one-turn coil. JT-60SA's catalogue declares 40 ampere-turns per ampere for
@@ -484,8 +486,9 @@
       is added, and it retires nothing, because no catalogue-driven observation reader exists. The
       catalogue form landed first (merges 07add818 and 149763e2) and is already gone:
       <code>jtmm-observation-signal-maps</code> (merge 5efcd915) replaced it with
-      <code>read_signal_map_observation</code>, and only <code>jtmm-observation-time-alignment</code>
-      remains open here. The catalogue form read a machine-map catalogue's per-shot bindings, the
+      <code>read_signal_map_observation</code>, and <code>jtmm-observation-time-alignment</code>
+      (merge 22bb8c39) then moved its raw read onto the view, so nothing in this paragraph remains
+      open. The catalogue form read a machine-map catalogue's per-shot bindings, the
       way MAST's catalogue declares its pulse data. JT-60SA's pulse channels are not catalogue
       bindings, though. They are the §5 signal-map rules under
       <code>imas_ambix/data/maps/jt-60sa/</code>, read by <code>load_packaged_signal_map</code> and
@@ -497,10 +500,10 @@
       it does not read them through <code>VirtualZarrView</code>. That view applies each rule's
       compiled transform on every read, and for a <code>source-only</code> rule the transform
       carries the assumed +1 sign §6 exists to measure. So the reader reads each rule's
-      source values with their time base through the view's untransformed accessor, which
-      <code>jtmm-observation-time-alignment</code> adds, with no sign, unit or COCOS factor applied.
-      As first landed (merge 5efcd915), it resolves each rule itself through
-      <code>imas_ambix/data/eddb.py</code> <code>read_channel</code>, which that node replaces. The toroidal field comes from the
+      source values with their time base through the view's untransformed accessor,
+      <code>VirtualZarrView.raw_series</code>, with no sign, unit or COCOS factor applied. That
+      accessor and the move onto it landed in merge 22bb8c39, replacing the first form (merge
+      5efcd915), which resolved each rule itself through <code>read_channel</code>. The toroidal field comes from the
       equilibrium half, as MAST's reader takes <code>bvac_rmag</code> from the level-2 equilibrium
       group: the <code>EfitLabels</code> record's vacuum field. That leaves no field-per-ampere
       relation to own. The description store has no TF turn count, and the relation's one
