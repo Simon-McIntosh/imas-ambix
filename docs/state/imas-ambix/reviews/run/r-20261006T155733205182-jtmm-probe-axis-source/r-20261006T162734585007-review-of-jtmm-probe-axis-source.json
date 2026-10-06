@@ -1,0 +1,64 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "the reviewed run is an evidence node that writes no test path and runs no test suite; its manifest carries no baseline_suite/after_suite arms, so nothing is derived against a base arm and the added-failure count is 0 with empty ids. The change is one docs-only evidence fragment under docs/evidence/fragments/, which no test collects (grep over tests/ and imas_ambix/ finds no reader of docs/evidence), so it cannot add a test failure.",
+  "base_log_revision": null,
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-06T16:39:59.868Z",
+  "dimension_dispositions": {
+    "durability": {
+      "kind": "exempted",
+      "reason": "a read-only facility source probe writes no source or test to guard; the converter's skin-tangent test carries the durable check of the axis it confirms",
+      "recorded_at": "2026-10-06T16:39:55.654337+00:00"
+    }
+  },
+  "dispatched_at": "2026-10-06T16:27:43Z",
+  "findings": [
+    {
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-probe-axis-source.html",
+      "line": "150",
+      "severity": "follow-on",
+      "text": "follow-on: the derivation paragraph at :148-152 justifies folding the field components with 'the done-when names B_R and B_Z, the equilibrium field'. That cites the node's dispatch contract, which a reader of the plan or of the fragment alone cannot resolve; the clause should state the mechanism directly (the equilibrium field components B_R,B_Z are the basis, and MGBRZ computes them as (1/R)dpsi/dZ and -(1/R)dpsi/dR), per the source-only naming rule. The physics conclusion is unaffected and independently verified."
+    }
+  ],
+  "head_log_revision": null,
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "no production call sites found",
+    "diff": "read commit a5c233e7 against base 520cddc6: 164 added lines in one new fragment, no source and no test; element ids all prefixed jtmm-probe-axis-source.",
+    "done_when": "the done-when names every line where DMPT0 enters the predicted tangential signal with file paths and line numbers under SAselene_v2.0_forPSRC or getseldata_v4.2, the sensing unit vector as a function of omega, and whether it equals the DD axis (90-w) or its reverse; the fragment quotes mgprc.f:16 and mgfild.f:34-38 with the seeding (mgset0.f:150,156-157) and dump (mgprc.f:40-43), gives s(w)=(sin w,-cos w), and states 'equals the DD axis (90-w); it is not its reverse'. Every cited line was reproduced independently against the live source (see evidence).",
+    "goal": "the goal is to quote SELENE's tangential-probe field expression read-only on nakasvr26 and state which wall-tangent direction it treats as positive; the fragment at docs/evidence/fragments/jt60sa-machine-map/jtmm-probe-axis-source.html:26 gives BOMGT(w) = B_R sin w - B_Z cos w with sensing unit vector (sin w, -cos w), and :33-38 states that direction EQUALS the DD axis (90-w) and is not its reverse, so the goal is met.",
+    "manifest": "read the reviewed manifest at HEAD a5c233e7; it records status complete, commit a5c233e7, changed_paths the single fragment, no test gate, and no baseline_suite/after_suite arms.",
+    "write_paths": "the diff is one file, docs/evidence/fragments/jt60sa-machine-map/jtmm-probe-axis-source.html, inside the declared fragment path; the declared figure directory docs/figures/jt60sa-machine-map/jtmm-probe-axis-source was not written, which the done-when permits since it names no figure."
+  },
+  "justifications": {
+    "durability": "an evidence node reading a source that is absent from the repository: the fragment's numbers cannot be guarded in-repo, and the plan assigns no test to this node (the guard is the downstream binding node jtmm-probe-axis-store). The fragment mitigates by quoting exact lines with line numbers a later reader can re-run, but a drift in the SELENE source or a transcription error would pass every check.",
+    "evidence": "every citation was reproduced independently against the live source over ssh -F ~/.ssh/config jt-60sa: mgfild.f:22-25 BRT=-BX, BZT=-BY and :34-38 BOMGT=-BRT*DSTK+BZT*DCTK; mgprc.f:12 DPI=PI/180 and :16 DMPT=DMPT0*DPI, and format 8000 at :53-55 labelled BOMEGA; mgbrz.f:30-37 BR=(1/R)dpsi/dZ, BZ=-(1/R)dpsi/dR; mgadj.f:9-10; mgset0.f:150/156-157; geo.in:484-501 the 17 Magnetic Probe rows (first 4.7355 -0.0283 0.28, inboard ~179-180, bottom 274.28); fort.96:157 the DMPT0 array matching omeg; getseldata_v4.2 eddbaccess.h:25/53/87, inpgeo.c:113, outeddb.c:254-256 (BTMES) and :274-276 (DMPT0= label plus omeg[i]). The fold BOMGT=B_R sin w - B_Z cos w and its equality with the DD projection B_R cos(90-w) - B_Z sin(90-w) both check out algebraically. One compression: outeddb.c:274-276 is rendered as a single fprintf call where the source is a label statement plus a value loop; the label line, value line and values are all exact.",
+    "fit": "docs/evidence/fragments/jt60sa-machine-map/jtmm-probe-axis-source.html follows the sibling evidence-fragment idiom with element ids prefixed jtmm-probe-axis-source, and carries no plan, sprint or ticket identifier; the derivation prose at :150 refers to the dispatch contract ('the done-when names B_R and B_Z'), which a plan reader cannot resolve.",
+    "goal_fidelity": "docs/evidence/fragments/jt60sa-machine-map/jtmm-probe-axis-source.html:26 the verdict expression, :28-34 the sensing unit vector and the equality with the DD axis (90-w), :75-126 every line where DMPT0 enters the signal, :128-154 the derivation against the DD operator convention -- every element the goal names is present, and the direction is stated explicitly (equals, not reverse).",
+    "reuse": "the diff adds no definition and no loader; it reads and quotes an external source and forks no capability the repository owns.",
+    "scope_discipline": "the only changed path across a5c233e7 is the declared fragment; no source, no test, no figure directory. A stream scan for remote write verbs (scp/rsync/mv/rm/redirect) over the reviewed run returned only fragment text and prose false positives, consistent with the manifest's 'nothing written outside /tmp'."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the goal is to quote SELENE's tangential-probe field expression read-only on nakasvr26 and state which wall-tangent direction it treats as positive; the fragment at docs/evidence/fragments/jt60sa-machine-map/jtmm-probe-axis-source.html:26 gives BOMGT(w) = B_R sin w - B_Z cos w with sensing unit vector (sin w, -cos w), and :33-38 states that direction EQUALS the DD axis (90-w) and is not its reverse, so the goal is met.\nVERDICT done_when: the done-when names every line where DMPT0 enters the predicted tangential signal with file paths and line numbers under SAselene_v2.0_forPSRC or getseldata_v4.2, the sensing unit vector as a function of omega, and whether it equals the DD axis (90-w) or its reverse; the fragment quotes mgprc.f:16 and mgfild.f:34-38 with the seeding (mgset0.f:150,156-157) and dump (mgprc.f:40-43), gives s(w)=(sin w,-cos w), and states 'equals the DD axis (90-w); it is not its reverse'. Every cited line was reproduced independently against the live source (see evidence).\nVERDICT write_paths: the diff is one file, docs/evidence/fragments/jt60sa-machine-map/jtmm-probe-axis-source.html, inside the declared fragment path; the declared figure directory docs/figures/jt60sa-machine-map/jtmm-probe-axis-source was not written, which the done-when permits since it names no figure.\nVERDICT manifest: read the reviewed manifest at HEAD a5c233e7; it records status complete, commit a5c233e7, changed_paths the single fragment, no test gate, and no baseline_suite/after_suite arms.\nVERDICT diff: read commit a5c233e7 against base 520cddc6: 164 added lines in one new fragment, no source and no test; element ids all prefixed jtmm-probe-axis-source.\nCALL_SITES: none\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: docs/evidence/fragments/jt60sa-machine-map/jtmm-probe-axis-source.html:26 the verdict expression, :28-34 the sensing unit vector and the equality with the DD axis (90-w), :75-126 every line where DMPT0 enters the signal, :128-154 the derivation against the DD operator convention -- every element the goal names is present, and the direction is stated explicitly (equals, not reverse).\nSCORE evidence: 19\nJUSTIFICATION evidence: every citation was reproduced independently against the live source over ssh -F ~/.ssh/config jt-60sa: mgfild.f:22-25 BRT=-BX, BZT=-BY and :34-38 BOMGT=-BRT*DSTK+BZT*DCTK; mgprc.f:12 DPI=PI/180 and :16 DMPT=DMPT0*DPI, and format 8000 at :53-55 labelled BOMEGA; mgbrz.f:30-37 BR=(1/R)dpsi/dZ, BZ=-(1/R)dpsi/dR; mgadj.f:9-10; mgset0.f:150/156-157; geo.in:484-501 the 17 Magnetic Probe rows (first 4.7355 -0.0283 0.28, inboard ~179-180, bottom 274.28); fort.96:157 the DMPT0 array matching omeg; getseldata_v4.2 eddbaccess.h:25/53/87, inpgeo.c:113, outeddb.c:254-256 (BTMES) and :274-276 (DMPT0= label plus omeg[i]). The fold BOMGT=B_R sin w - B_Z cos w and its equality with the DD projection B_R cos(90-w) - B_Z sin(90-w) both check out algebraically. One compression: outeddb.c:274-276 is rendered as a single fprintf call where the source is a label statement plus a value loop; the label line, value line and values are all exact.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: the only changed path across a5c233e7 is the declared fragment; no source, no test, no figure directory. A stream scan for remote write verbs (scp/rsync/mv/rm/redirect) over the reviewed run returned only fragment text and prose false positives, consistent with the manifest's 'nothing written outside /tmp'.\nSCORE durability: 9\nJUSTIFICATION durability: an evidence node reading a source that is absent from the repository: the fragment's numbers cannot be guarded in-repo, and the plan assigns no test to this node (the guard is the downstream binding node jtmm-probe-axis-store). The fragment mitigates by quoting exact lines with line numbers a later reader can re-run, but a drift in the SELENE source or a transcription error would pass every check.\nSCORE fit: 19\nJUSTIFICATION fit: docs/evidence/fragments/jt60sa-machine-map/jtmm-probe-axis-source.html follows the sibling evidence-fragment idiom with element ids prefixed jtmm-probe-axis-source, and carries no plan, sprint or ticket identifier; the derivation prose at :150 refers to the dispatch contract ('the done-when names B_R and B_Z'), which a plan reader cannot resolve.\nSCORE reuse: 20\nJUSTIFICATION reuse: the diff adds no definition and no loader; it reads and quotes an external source and forks no capability the repository owns.\nFINDING docs/evidence/fragments/jt60sa-machine-map/jtmm-probe-axis-source.html:150 follow-on: the derivation paragraph at :148-152 justifies folding the field components with 'the done-when names B_R and B_Z, the equilibrium field'. That cites the node's dispatch contract, which a reader of the plan or of the fragment alone cannot resolve; the clause should state the mechanism directly (the equilibrium field components B_R,B_Z are the basis, and MGBRZ computes them as (1/R)dpsi/dZ and -(1/R)dpsi/dR), per the source-only naming rule. The physics conclusion is unaffected and independently verified.",
+  "resolved_findings": [],
+  "review_run_id": "r-20261006T162734585007-review-of-jtmm-probe-axis-source",
+  "reviewed_base_sha": "520cddc69db9bac6f160d1d2c8a3a58b8a03851a",
+  "reviewed_head_sha": "a5c233e7ffac5603a16c1f086e96abd4c127e6c7",
+  "reviewed_run_id": "r-20261006T155733205182-jtmm-probe-axis-source",
+  "reviewer_run_id": "r-20261006T162734585007-review-of-jtmm-probe-axis-source",
+  "scores": {
+    "durability": 9,
+    "evidence": 19,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "timestamp": "2026-10-06T16:38:58.371885+00:00",
+  "total": 106
+}
