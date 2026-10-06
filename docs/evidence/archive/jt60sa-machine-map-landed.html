@@ -25,6 +25,11 @@
     <p>Nodes: jtmm-eddb-extractor, jtmm-eddb-cold-fetch, jtmm-psrc-read-path, jtmm-eddb-partial-batch (bdcce624, review 91), jtmm-eddb-second-cold-fetch (63df11f5, review 109). The second cold fetch ran its fetch twice (the worker cleared and refetched to time a clean cold pass); later EDDB nodes fetch each channel once. Fragments under <code>docs/evidence/fragments/jt60sa-machine-map/</code>.</p>
   </section>
 
+  <section id="s4">
+    <h2>§4 — JT-60SA machine description from the SELENE decks, landed</h2>
+    <p>Landed 2026-10-05/06 over eleven nodes, the last <code>jtmm-contour-parse-hardening</code> (merge <code>a411ef85</code>, review 115/120, gate re-run green on clean main). <code>imas_ambix/data/selene_deck.py</code> converts sha256-verified copies of <code>EQSLE.DATA</code>, <code>geo.in</code> and <code>coil_vv_OP{1,2}.dat</code> into one DD 4.1.1 netCDF description per phase under <code>/work/projects/imas_gpu/jt60sa/machine_description/{OP1,OP2}</code>: 12 PF coils as 268 named filaments; passive loops VV (OP1 63, OP2 98) and CRYOSTAT (57, both phases); each phase's coil_vv first wall as the limiter and its Inner/Outer VV skins as an annular vessel unit, every skin vertex within 0.54&nbsp;mm of <code>EQSLE.DATA</code>'s arcs; 17 probes, 27 flux loops and the TF coil. <code>imas_ambix/data/machine_maps/jt-60sa.json</code> serves OP1 (100001–101173) and OP2 (101174 onward) through <code>StoreEngine</code>, with the <code>struct_array_entry</code> selector reading ragged struct arrays by name. Probe angles are a declared source qualification, bound in §6. Fragments under <code>docs/evidence/fragments/jt60sa-machine-map/</code>.</p>
+  </section>
+
 </main>
 </body>
 </html>
