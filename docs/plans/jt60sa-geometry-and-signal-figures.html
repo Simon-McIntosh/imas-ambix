@@ -10,7 +10,7 @@
   <meta name="plan-summary" content="Draw the JT-60SA machine geometry the SELENE decks gave us, OP1 against OP2, and the EDDB signals already cached, so the map&#x27;s evidence can be read at a glance">
   <meta name="plan-status" content="draft">
   <meta name="plan-roi" content="mid">
-  <meta name="plan-effort-hours" content="6.0">
+  <meta name="plan-effort-hours" content="7.5">
   <meta name="plan-capability-version" content="1.0">
   <meta name="plan-capability-class" content="general">
   <meta name="plan-capability-reasoning" content="standard">
@@ -23,9 +23,9 @@
   <title>JT-60SA Geometry and Signal Figures | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="22">
+<meta name="plan-version" content="27">
 <meta name="plan-modified" content="2026-10-06">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s1b&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;}">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s1b&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;}">
 <meta name="plan-commits" content="369a705d,b36a5d93">
 </head>
 <body>
@@ -44,128 +44,51 @@
       </p>
     </header>
 
+    <section class="section-landed">
+  <header><span class="badge badge-shipped">&#10003; landed 2026-10-06</span>
     <h2 id="s1">§1 — Inputs, the style module and the palette</h2>
-<section data-reckon="section" data-id="s1" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
-    <p>
-      Every input is already on GPFS, so no node in this plan contacts the JT-60SA analysis server
-      (no <code>ssh jt-60sa</code>, no EDDB call) and none writes under
-      <code>/work/projects/imas_gpu/jt60sa</code>. The geometry is the converted description store under
-      <code>JT60SA_DESCRIPTION_DIR</code> (<code>imas_ambix/data/paths.py</code>), one directory per phase
-      map the JT-60SA catalogue declares (OP1 and OP2), one IMAS netCDF file per IDS (<code>pf_active</code>, <code>pf_passive</code>,
-      <code>magnetics</code>, <code>wall</code>, <code>tf</code>) at DD 4.1.1, read through
-      <code>imas.DBEntry</code>. Measured 2026-10-06: both phases carry twelve PF coils
-      (CS1–CS4, EF1–EF6 and the two FPPC coils) discretised into 268 current filaments, each
-      <code>pf_active</code> coil element being one of the SELENE deck's rectangular filaments carrying
-      part of its coil's turns: 40 per CS module, 16 per EF coil and 6 per FPPC coil; OP1's <code>pf_passive</code> is two deck blocks, loop VV1 (63 vessel filaments) and loop VV2
-      (57 slabs reaching R 6.7&nbsp;m and |Z| 7.5&nbsp;m, a cryostat-scale second deck block that the
-      converter names as vessel and the machine map is correcting), and OP2's is one loop VV1 (98 vessel
-      filaments); <code>magnetics</code> holds 17 pickup probes (MP1–MP17, with their
-      poloidal angle) and 27 flux loops (FL1–FL27). The signals are the EDDB cache under
-      <code>JT60SA_ROOT</code>, whose pulse layout, time-base sibling and unit attribute
-      <code>imas_ambix/data/eddb.py</code> owns: <code>101154.zarr</code> (MDAC 38, MMSYS 22 and PSRC 59 channels),
-      <code>101173.zarr</code> (MDAC 38, MMSYS 22) and <code>60033.zarr</code>, the 2026 commissioning
-      record C060033 (MMSYS 22, MDAC 4).
-    </p>
-    <p>
-      Reuse, from a search of <code>imas_ambix/data/</code>, <code>imas_ambix/gs/</code> and
-      <code>scripts/</code> on 2026-10-06.
-      Every root resolves through <code>imas_ambix.data.paths</code> (<code>JT60SA_ROOT</code>,
-      <code>JT60SA_DESCRIPTION_DIR</code>), never a literal path in a script. A cached channel is read
-      through the cache's own addressing in <code>imas_ambix.data.eddb</code>
-      (<code>channel_path</code>, <code>channel_time_path</code>, <code>UNIT_ATTR</code>) rather than by
-      re-deriving its layout; <code>VirtualZarrView</code> is not used because it reads through a
-      compiled signal map and none is packaged for JT-60SA yet. The geometry is read from the store
-      with <code>imas.DBEntry</code>, not through <code>description_reader.read_geometry_table</code>,
-      the sole acquisition route, because these figures are evidence of what the converter wrote and
-      that route hands back the geometry adapter's table, transformed before the figure would see it.
-      The store is still addressed through the catalogue that owns it,
-      <code>imas_ambix/data/machine_maps/jt-60sa.json</code> (landed 2026-10-06): the reader loads it
-      with <code>load_packaged_machine_map("jt-60sa")</code>, and resolves each phase
-      directory by opening it through <code>NetCDFTransformEngine.open</code> with the catalogue's
-      <code>description_store_root_path()</code>, layout and map from <code>catalog.maps</code>, taking
-      the opened store's <code>path</code>, so the static-over-map rule stays with the engine that owns
-      it and no script joins a root and a phase name itself. The projection facade in <code>imas_ambix/gs/</code>
-      (<code>MachineGeometryService.operator()</code> returning <code>OperatorGeometry</code>,
-      <code>build_geometry_fields_from_table</code> in <code>geometry_export.py</code>) and the MAST
-      cross-section drawn by <code>scripts/validate_mast_geometry.py</code> from it sit downstream of the
-      same route, through <code>machine_selection</code> into <code>description_reader</code>, and
-      draw the adapted table, so a JT-60SA figure through that facade is a companion to these rather
-      than a substitute for them. The figure scripts consume the
-      store and nothing reads geometry back from them, so they open no second acquisition route.
-      Element geometry itself is not re-derived: the struct-level readers in
-      <code>imas_ambix/gs/artifact_geometry.py</code> (<code>read_artifact_pf_active</code>,
-      <code>read_artifact_pf_passive</code>, <code>read_artifact_magnetics</code>,
-      <code>read_artifact_limiter</code>) are pure functions of the raw IDS structs with no adapter
-      transform, returning each element's true vertices as a <code>PolygonSection</code>, the probes
-      and flux loops, and the limiter contour, so the figure script calls them on the IDS objects its
-      <code>DBEntry</code> read returns and draws what they return. Their composer,
-      <code>MachineArtifactGeometryReader</code> (<code>artifact_geometry.py:726</code>), is not used: it
-      resolves a content-addressed nova machine artifact by manifest and digest, which the per-phase
-      JT-60SA store is not, and assembles a <code>GeometryTable</code> of circuits, drives and sensor
-      maps for the forward operator where the figure needs only shapes, so the script's reader is the
-      few lines that open a phase's IDS and call the four struct-level readers.
-    </p>
-    <p>
-      Figures follow the workstation plot style: the installed <code>data-ink</code> sheet, a
-      14&nbsp;in canvas at 100&nbsp;dpi varying only in height, no gridlines or decorative shading,
-      despined axes, direct labels in the series colour, and the explanation in the caption rather
-      than a title. The repository has no style module yet, so this section adds one,
-      <code>imas_ambix/plot_style.py</code>, that applies the sheet and holds the colour roles by name.
-      It is the first and retires nothing: <code>imas_ambix/</code> holds no plotting style code, and the
-      scripts that style inline, about a dozen with their own colour maps, among them the hand-rolled
-      palettes in
-      <code>scripts/figures/wm_demonstration_figs.py</code> and
-      <code>scripts/figures/playable_plasma_figs.py</code>, stay as they are, since restyling them is
-      outside this plan. The geometry script's one command-line option,
-      <code>--palette-candidates</code>, renders the candidate gallery; no existing script draws
-      JT-60SA, so it too retires and merges nothing. Its public surface is the named roles, the function that applies the sheet and
-      the direct-label helper §2 and §3 share: one role per component the figures draw (PF coils, OP1 vessel, OP2 vessel, wall, flux loops,
-      pickup probes) and the neutrals for references. Because this is the repository's first colour
-      assignment, the lead chooses it: the section renders two to four candidate palettes on the real
-      OP1 and OP2 cross-section, each pair of colours that meet in a figure checked to a colour-blind
-      &Delta;E of at least 8, and records the choice as a decision before §2 and §3 draw with it. The
-      candidates are drawn by <code>scripts/figures_jt60sa_geometry.py</code>, whose one reader opens a
-      phase's store and passes its IDS to those struct-level readers for the drawable families (coil
-      filaments, vessel filaments, wall outline, flux loops, probes), and whose one cross-section
-      function draws them; §2 extends that script and calls the same
-      reader rather than reading the store a second time.
-    </p>
-    <p>
-      Done-when: <code>imas_ambix/plot_style.py</code> exists and applies <code>data-ink</code>; two to
-      four candidate cross-sections are written under
-      <code>docs/figures/jt60sa-palette/</code>, each captioned with its role-to-colour table and its
-      &Delta;E check; the node's evidence fragment shows them; and the landing records an open decision
-      <code>palette</code> in this plan naming the candidates for the lead to choose.
-    </p>
+<section data-reckon="section" data-id="s1" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="done" data-links=""></section></header>
+  <p class="landed-summary">Landed <code>plot_style.py</code>, a hand-drawn geometry script and three palette candidates (merge <code>b36a5d93</code>); withdrawn when the lead ruled that the figures render through imas-ink with no labels. §1b retires them. <a href="s1">full record</a></p>
+</section>
 
     <h2 id="s2">§2 — Geometry: each phase, and what changes between them</h2>
 <section data-reckon="section" data-id="s2" data-effort-hours="2.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
     <p>
-      Two figures, drawn by <code>scripts/figures_jt60sa_geometry.py</code> from the description
-      store, read with <code>imas.DBEntry</code> as the reuse note in §1 explains, with the chosen palette. The first is the poloidal cross-section of OP1 and OP2 side by
-      side on one shared R and Z scale: every current filament as its rectangle, labelled as filaments of its coil, every vessel filament,
-      the wall and limiter outline, the flux loops as points and the pickup probes as short ticks
-      along their measured poloidal angle, each coil and sensor family labelled directly. The second
-      overlays the two phases' vessel and wall on one axis, the only components that change at the
-      OP1 to OP2 boundary, so the change reads without comparing panels. Sensors EDDB acquires but no
-      facility file positions (7 flux loops and 6 probes) are listed in the caption, not drawn. The
-      window holds every element the store carries. OP1's second deck block (loop VV2, 57
-      cryostat-scale slabs) is drawn in a reference neutral and labelled "second deck block
-      (cryostat-scale)" rather than vessel until the machine map corrects its naming, and the overlay
-      compares OP1's 63 vessel filaments with OP2's 98. Direct labels sit in empty space and no leader
-      line crosses a drawn element.
+      Two figures, rendered by imas-ink in its own style (lead ruling, 2026-10-06). A short script,
+      <code>scripts/figures_jt60sa_geometry.py</code>, opens each phase of the store through the
+      jt-60sa catalogue (<code>load_packaged_machine_map("jt-60sa")</code>, each phase directory taken
+      from <code>NetCDFTransformEngine.open</code>), reads <code>wall</code>, <code>pf_active</code> and
+      <code>magnetics</code> with <code>imas.DBEntry</code>, passes them to
+      <code>imas_ink.extract.extract_geometry</code> and renders with
+      <code>imas_ink.figures.geometry_figure_mpl</code>: axes off, equal aspect, imas-ink's default
+      weights and greys, and no labels, legend or added colour. The first figure is OP1 and OP2 side by
+      side on one shared viewport. The second overlays the two phases' first wall and vessel contours
+      on one panel, the components that change at the OP1 to OP2 boundary, telling the phases apart by
+      line style alone. The caption carries everything a reader needs to identify what is drawn: which
+      panel is which phase, which contours are the first wall and which the vessel skins, that the coil
+      rectangles are the 268 current filaments discretising the 12 PF coils, that the cryostat-scale
+      passive loop and the sensors EDDB acquires without a facility position are not drawn, and the
+      counts. The script draws no element itself and holds no colour, label or style constant.
     </p>
     <p>
-      Done-when: both figures are written as one SVG each, with no PNG twin, under <code>docs/figures/jt60sa-geometry/</code>
-      and embedded with a project-absolute <code>src</code> and a caption in the node's evidence
-      fragment, which the landing carries into this plan; a check in the script asserts the counts drawn equal the counts read from the store (12 PF coils discretised into 268 current filaments; OP1's 63 vessel
-      filaments and 57-slab second deck block; OP2's 98 vessel filaments; 27 flux loops; 17 probes) and prints them.
+      It waits on two landings: the machine map's wall rewrite, which writes each phase's first wall
+      as a limiter unit and its vacuum vessel as an annular vessel unit from the inner and outer VV
+      skins of <code>coil_vv_OP{1,2}.dat</code> (lead ruling, 2026-10-06; machine-map node
+      <code>jtmm-passive-cryostat-and-wall</code>), and §4, which teaches imas-ink to draw vessel units.
+      Done-when: both figures are written as one SVG each, with no PNG twin, under
+      <code>docs/figures/jt60sa-geometry/</code> and embedded with a project-absolute <code>src</code> and
+      a caption in the node's evidence fragment; the script prints, per phase, the counts it passed to
+      imas-ink (coil filaments, first-wall and vessel contour points, flux loops, probes) and they match
+      the store.
     </p>
 
     <h2 id="s3">§3 — Signals: the cached pulses</h2>
 <section data-reckon="section" data-id="s3" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
     <p>
-      Three figures, drawn by <code>scripts/figures_jt60sa_signals.py</code> from the cache, each channel
+      Three figures, rendered by imas-ink's <code>time_trace_figure_mpl</code>, one
+      <code>imas_ink.components.TimeSeries</code> per panel, in imas-ink's default style with nothing
+      added to what it draws, from a short script, <code>scripts/figures_jt60sa_signals.py</code>, that
+      draws nothing itself and holds no style constant. Each channel is
       read through a <code>read_channel</code> this section adds to <code>imas_ambix/data/eddb.py</code>
       beside <code>write_channel</code>, returning the same <code>ChannelRecord</code> (data, time base and
       the <code>UNIT_ATTR</code> unit) from <code>channel_path</code> and <code>channel_time_path</code>, so
@@ -184,10 +107,9 @@
       correspondence the map's census must settle, drawn rather than assumed. For C060033, the coil
       currents of the no-plasma commissioning record, the input the map's convention work uses.
       Where a channel's time base or unit differs from its neighbours, the figure says so rather than
-      rescaling silently. The signals script is a second entry point beside the geometry script
-      rather than an option on it, because it reads the EDDB cache, not the description store, and
-      shares no reader with it; it adds one script with no command-line option and no public name,
-      and retires or merges nothing, since no script in <code>scripts/</code> draws a JT-60SA signal.
+      rescaling silently. The signals script is a second caller beside the geometry script because
+      it reads the EDDB cache, not the description store; it adds one script with no command-line
+      option and no public name, and retires nothing.
     </p>
     <p>
       Done-when: the three figures are written as one SVG each, with no PNG twin, under
@@ -198,55 +120,58 @@
 
     
 
-    <h2 id="s1b">§1b — A wider range of palettes on the geometry</h2>
+    <h2 id="s1b">§1b — Retire the ambix style module and palette figures</h2>
 <section data-reckon="section" data-id="s1b" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
 <p>
-      The lead provisionally chose candidate A from §1's three and asked to see a wider range of
-      palettes drawn on the machine geometry, stored in this project's figures directory, before the
-      <code>palette</code> decision is locked. This section extends <code>CANDIDATES</code> in
-      <code>scripts/figures_jt60sa_geometry.py</code> to eight candidates, keeping A, B and C and adding
-      five, each a distinct hue assignment under §1's rules: no red, every role at 3:1 or better
-      against white, OKLCH chroma about 0.09–0.15, colour-blind &Delta;E of at least 8 over all pairs
-      as the script's own validator run records, and the OP1 and OP2 vessel as lightness steps of one
-      hue. At least one of the five spends colour on a single subject, the vessel, and draws the other
-      families in neutrals. Every candidate is drawn on one R, Z window shared by the OP1 and OP2
-      panels that holds every stored element, OP1's second deck block included (R to 6.7&nbsp;m,
-      |Z| to 7.5&nbsp;m); that block is drawn in a reference neutral and labelled "second deck block
-      (cryostat-scale)", and the coil rectangles are labelled as current filaments of their coil. Direct labels sit in empty space and no leader line crosses a drawn
-      element.
+      The lead ruled on 2026-10-06 that the JT-60SA figures render through imas-ink, called from
+      ambix, in imas-ink's own style with no labels, and that the repository palette is dropped. §1's
+      landing is therefore retired: this section deletes <code>imas_ambix/plot_style.py</code>, the
+      hand-drawn <code>scripts/figures_jt60sa_geometry.py</code> (§2 writes its replacement) and
+      <code>docs/figures/jt60sa-palette/</code>, and replaces the image links in
+      <code>docs/evidence/fragments/jt60sa-geometry-and-signal-figures/jtfig-palette-candidates.html</code>
+      with one sentence saying the candidates were withdrawn under that ruling, so the record of what
+      landed stays readable. It adds nothing.
     </p>
     <p>
-      The §1 reader landed with its own element-shape dispatch; this section moves it onto the
-      <code>artifact_geometry</code> struct-level readers named in §1 and retires that dispatch, whose
-      axis-window extent counted element centres only, and resolves each phase directory through
-      <code>NetCDFTransformEngine.open</code> as §1 states, retiring the reader's own root-and-name join.
-      <code>read_artifact_pf_passive</code> is called with <code>first_circuit=0</code>, since circuit
-      numbering never reaches the drawing, and its returned vertices are the drawn shape for every
-      element type this store carries (all rectangles). <code>read_artifact_limiter</code> returns the
-      first limiter unit, which in both phases is the store's only wall unit (no vessel units), so the
-      reader asserts exactly one wall unit per phase and fails rather than silently dropping a contour
-      if a later store carries more. The section widens the candidate table behind
-      the script's one existing option, <code>--palette-candidates</code>, and adds no option, module
-      or public name. It also carries the run review's durability finding on §1's landing: the
-      palette validator, which the dataviz skill owns and the repository cannot import, is located
-      through a <code>PALETTE_VALIDATOR</code> environment variable whose default is the workstation's
-      copy, and a missing <code>node</code> or validator file stops the run with a message naming which
-      is missing rather than an uncaught error or a misleading failed check.
+      Done-when: the three paths are gone from the tree; <code>grep -rn plot_style imas_ambix scripts
+      tests</code> finds nothing; the fragment links no deleted file; and <code>uv run --no-sync ruff
+      check imas_ambix tests</code> exits 0.
+    </p>
+
+    <h2 id="s4">§4 — imas-ink draws the wall&#x27;s vessel units</h2>
+<section data-reckon="section" data-id="s4" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+<p>
+      imas-ink's <code>extract_geometry</code> gathers only <code>wall.description_2d.limiter</code> units
+      (<code>imas_ink/extract.py</code>, <code>_select_mobile_unit</code>), so a vacuum vessel written to
+      <code>description_2d.vessel</code> never reaches <code>geometry_figure_mpl</code>. The machine map
+      now writes JT-60SA's vessel there, as an annular unit built from the inner and outer VV skins of
+      <code>coil_vv_OP{1,2}.dat</code>. The lead ruled on 2026-10-06 that any drawing the figures lack
+      is added to imas-ink, not ambix, so this section extends imas-ink in its own repository:
+      <code>extract_geometry</code> also returns each vessel unit's contours, an annular unit's
+      <code>outline_inner</code> and <code>outline_outer</code> when they are filled and otherwise its
+      <code>centreline</code>, and <code>geometry_figure_mpl</code> draws them in imas-ink's existing
+      ink style beside the limiter, adding a style constant only if the vessel needs a weight distinct
+      from the wall. It adds one field on <code>MachineGeometry</code> for the vessel contours and no
+      other public name.
     </p>
     <p>
-      Done-when: <code>--palette-candidates</code> writes the eight candidates as one SVG each, with no PNG twin, under
-      <code>docs/figures/jt60sa-palette/</code>, every <code>validate_&lt;candidate&gt;.txt</code> reads
-      ALL CHECKS PASS, and the run exits 0; the node's evidence fragment embeds all eight with a
-      project-absolute <code>src</code> and their role-to-colour tables; the landing extends the
-      <code>palette</code> decision's options to the eight for the lead to choose.
+      Done-when: a new imas-ink test builds a wall IDS with one limiter unit and one annular vessel
+      unit and asserts both reach the drawn axes, failing when vessel units are ignored; imas-ink's
+      suite passes; and its ruff check exits 0.
     </p>
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-jtfig-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-10-06" data-recommends-skill="/reckon-build jt60sa-geometry-and-signal-figures §1" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-jtfig-001" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-10-06" data-recommends-skill="/reckon-build jt60sa-geometry-and-signal-figures §1" data-resolved-at="2026-10-06T08:02:31+00:00" data-resolved-by="reckon-build">
     <h4 class="r-fu-title">Render the palette candidates, then the geometry and signal figures</h4>
     <div class="r-fu-body"><p>§1 runs first and stops on the lead's palette choice; §2 and §3 then run in parallel, each in its own figure directory.</p></div>
     <pre class="r-fu-prompt">/reckon-build jt60sa-geometry-and-signal-figures §1</pre>
+    <p class="r-fu-outcome">§1 landed and was withdrawn; the lead routed the figures through imas-ink (decisions figure-owner and vessel-source), superseding the palette flow.</p>
+    </article>
+<article class="r-fu" data-id="f-jtfig-002" data-status="open" data-written-by="reckon-build" data-written-at="2026-10-06" data-recommends-skill="/reckon-build jt60sa-geometry-and-signal-figures §4" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Teach imas-ink vessel units, retire ambix&#x27;s figure code, then render through imas-ink</h4>
+    <div class="r-fu-body"><p>§4, §1b and §3 can run now; §2 waits on the machine map's wall rewrite and §4.</p></div>
+    <pre class="r-fu-prompt">/reckon-build jt60sa-geometry-and-signal-figures §4</pre>
     </article>
 </section>
 
@@ -272,15 +197,36 @@
 </section>
 <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
-<div class="r-dec" data-key="palette" data-choice="" data-by="" data-when="" data-sections="s1,s2,s3" data-recommended="A-blue-vessel" data-recommended-by="Simon McIntosh (provisional; wider range requested)">
+<div class="r-dec" data-key="palette" data-choice="withdrawn" data-by="Simon McIntosh" data-when="2026-10-06T08:01:54+00:00" data-sections="s1,s2,s3" data-recommended="A-blue-vessel" data-recommended-by="Simon McIntosh (provisional; wider range requested)">
     <p class="r-dec-q">Repository colour-role palette</p>
     <p class="r-dec-ctx">The repository&#x27;s first colour assignment: one role per component the JT-60SA figures draw (PF coils, OP1 vessel, OP2 vessel as lightness steps of one hue, wall, flux loops, pickup probes). Every candidate holds 3:1 against white, uses no red, and keeps colour-blind dE at or above 8 over all pairs. On 2026-10-06 the lead provisionally chose A from the first three and asked to see a wider range drawn on the geometry before locking.</p>
     <p class="r-dec-opts">
       <button class="r-opt" data-value="A-blue-vessel">A: plum coils, blue vessel, dark-green wall, olive flux loops, teal probes (worst CVD dE 12.2)</button>
       <button class="r-opt" data-value="B-green-vessel">B: deep-blue coils, green vessel, lavender wall, plum flux loops, teal probes (worst CVD dE 9.4)</button>
       <button class="r-opt" data-value="C-gold-vessel">C: sky-blue coils, gold-brown vessel, green wall, rose flux loops, violet probes (worst CVD dE 8.2)</button>
+      <button class="r-opt chosen" data-value="withdrawn">withdrawn</button>
       </p>
-    <p class="r-dec-rat"></p>
+    <p class="r-dec-rat">The lead ruled on 2026-10-06 that JT-60SA figures render through imas-ink in its own style with no labels, so the repository keeps no palette of its own.</p>
+    </div>
+<div class="r-dec" data-key="figure-owner" data-choice="imas-ink-from-ambix" data-by="Simon McIntosh" data-when="2026-10-06" data-sections="s1b,s2,s3,s4">
+    <p class="r-dec-q">Who draws the JT-60SA figures</p>
+    <p class="r-dec-ctx">ambix had grown its own style module and hand-drawn painters; imas-ink already renders IMAS machine geometry and time traces, and nova&#x27;s binding plot rules route every figure through the imas-ink style.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="imas-ink-from-ambix">imas-ink, called from a thin ambix script</button>
+      <button class="r-opt" data-value="imas-ink-cli">an imas-ink render command, no ambix script</button>
+      <button class="r-opt" data-value="nova-media">nova.media painters, figures in nova</button>
+      </p>
+    <p class="r-dec-rat">Rendering belongs to imas-ink; ambix keeps the data and a thin call. Any missing drawing is added to imas-ink.</p>
+    </div>
+<div class="r-dec" data-key="vessel-source" data-choice="coil-vv-now" data-by="Simon McIntosh" data-when="2026-10-06" data-sections="s2,s4">
+    <p class="r-dec-q">Source of the JT-60SA wall and vessel contours</p>
+    <p class="r-dec-ctx">The SELENE deck gives the vessel only as filament rectangles; coil_vv_OP{1,2}.dat carries the first wall and the inner and outer VV skins as smooth contours, and the imas-codex graph lists further candidates on the JT-60SA host.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="coil-vv-now">coil_vv contour tables now, written by the machine map as limiter and annular vessel units</button>
+      <button class="r-opt" data-value="survey-first">survey the graph-listed sources first</button>
+      <button class="r-opt" data-value="both">coil_vv now, survey in parallel</button>
+      </p>
+    <p class="r-dec-rat">coil_vv already holds both phases&#x27; first wall and VV skins; the machine map writes them so imas-ink draws them with no figure code. Graph-listed sources were passed to the machine-map session for cross-checking.</p>
     </div>
 </section>
 </main>
