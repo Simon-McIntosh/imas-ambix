@@ -23,7 +23,7 @@
   <title>JT-60SA Geometry and Signal Figures | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="1">
+<meta name="plan-version" content="2">
 <meta name="plan-modified" content="2026-10-06">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;}">
 </head>
@@ -48,27 +48,44 @@
     <p>
       Every input is already on GPFS, so no node in this plan contacts the JT-60SA analysis server
       (no <code>ssh jt-60sa</code>, no EDDB call) and none writes under
-      <code>/work/projects/imas_gpu/jt60sa</code>. The geometry is the converted description store,
-      <code>/work/projects/imas_gpu/jt60sa/machine_description/OP1/</code> and <code>OP2/</code>, one
-      IMAS netCDF file per IDS (<code>pf_active</code>, <code>pf_passive</code>,
+      <code>/work/projects/imas_gpu/jt60sa</code>. The geometry is the converted description store under
+      <code>JT60SA_DESCRIPTION_DIR</code> (<code>imas_ambix/data/paths.py</code>), <code>OP1/</code> and
+      <code>OP2/</code>, one IMAS netCDF file per IDS (<code>pf_active</code>, <code>pf_passive</code>,
       <code>magnetics</code>, <code>wall</code>, <code>tf</code>) at DD 4.1.1, read through
       <code>imas.DBEntry</code>. Measured 2026-10-06: both phases carry twelve PF coils
       (CS1–CS4, EF1–EF6 and the two FPPC coils) with 40, 40, 40, 40, 16, 16, 16, 16, 16, 16, 6 and 6
       elements; OP1's vessel is two resistivity blocks, loops VV1 (63 filaments) and VV2 (57), and
       OP2's is one loop VV1 (98); <code>magnetics</code> holds 17 pickup probes (MP1–MP17, with their
       poloidal angle) and 27 flux loops (FL1–FL27). The signals are the EDDB cache under
-      <code>/work/projects/imas_gpu/jt60sa/</code>, one <code>{shot}.zarr</code> per pulse laid out
-      <code>{category}/{dname}</code> with a sibling <code>{dname}_time</code> array and the EDDB unit
-      string as an attribute: <code>101154.zarr</code> (MDAC 38, MMSYS 22 and PSRC 59 channels),
+      <code>JT60SA_ROOT</code>, whose pulse layout, time-base sibling and unit attribute
+      <code>imas_ambix/data/eddb.py</code> owns: <code>101154.zarr</code> (MDAC 38, MMSYS 22 and PSRC 59 channels),
       <code>101173.zarr</code> (MDAC 38, MMSYS 22) and <code>60033.zarr</code>, the 2026 commissioning
       record C060033 (MMSYS 22, MDAC 4).
+    </p>
+    <p>
+      Reuse, from a search of <code>imas_ambix/data/</code> and <code>scripts/</code> on 2026-10-06.
+      Every root resolves through <code>imas_ambix.data.paths</code> (<code>JT60SA_ROOT</code>,
+      <code>JT60SA_DESCRIPTION_DIR</code>), never a literal path in a script. A cached channel is read
+      through the cache's own addressing in <code>imas_ambix.data.eddb</code>
+      (<code>channel_path</code>, <code>channel_time_path</code>, <code>UNIT_ATTR</code>) rather than by
+      re-deriving its layout; <code>VirtualZarrView</code> is not used because it reads through a
+      compiled signal map and none is packaged for JT-60SA yet. The geometry is read from the store
+      with <code>imas.DBEntry</code>, not through <code>description_reader.read_geometry_table</code>,
+      the sole acquisition route, for two reasons. That route resolves a packaged machine map, and
+      <code>load_packaged_machine_map</code> serves only <code>mast</code> until the machine map packages
+      JT-60SA. And these figures are evidence of what the converter wrote, which the geometry adapter
+      would transform before the figure saw it. The figure scripts consume the store and nothing reads
+      geometry back from them, so they open no second acquisition route.
     </p>
     <p>
       Figures follow the workstation plot style: the installed <code>data-ink</code> sheet, a
       14&nbsp;in canvas at 100&nbsp;dpi varying only in height, no gridlines or decorative shading,
       despined axes, direct labels in the series colour, and the explanation in the caption rather
       than a title. The repository has no style module yet, so this section adds one,
-      <code>imas_ambix/plot_style.py</code>, that applies the sheet and holds the colour roles by name:
+      <code>imas_ambix/plot_style.py</code>, that applies the sheet and holds the colour roles by name.
+      It is the first and retires nothing: <code>imas_ambix/</code> holds no plotting style code, and the
+      scripts that set <code>rcParams</code> inline stay as they are, since restyling them is outside this
+      plan. Its public surface is the named roles and the function that applies the sheet:
       one role per component the figures draw (PF coils, OP1 vessel, OP2 vessel, wall, flux loops,
       pickup probes) and the neutrals for references. Because this is the repository's first colour
       assignment, the lead chooses it: the section renders two to four candidate palettes on the real
@@ -79,15 +96,15 @@
       Done-when: <code>imas_ambix/plot_style.py</code> exists and applies <code>data-ink</code>; two to
       four candidate cross-sections are written under
       <code>docs/figures/jt60sa-palette/</code>, each captioned with its role-to-colour table and its
-      &Delta;E check; and an open decision <code>palette</code> in this plan names the candidates for the
-      lead to choose.
+      &Delta;E check; the node's evidence fragment shows them; and the landing records an open decision
+      <code>palette</code> in this plan naming the candidates for the lead to choose.
     </p>
 
     <h2 id="s2">§2 — Geometry: each phase, and what changes between them</h2>
 <section data-reckon="section" data-id="s2" data-effort-hours="2.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
     <p>
       Two figures, drawn by <code>scripts/figures_jt60sa_geometry.py</code> from the description
-      store with the chosen palette. The first is the poloidal cross-section of OP1 and OP2 side by
+      store, read with <code>imas.DBEntry</code> as the reuse note in §1 explains, with the chosen palette. The first is the poloidal cross-section of OP1 and OP2 side by
       side on one shared R and Z scale: every PF coil element as its rectangle, every vessel filament,
       the wall and limiter outline, the flux loops as points and the pickup probes as short ticks
       along their measured poloidal angle, each coil and sensor family labelled directly. The second
@@ -97,16 +114,17 @@
     </p>
     <p>
       Done-when: both figures are written as PNG and SVG under <code>docs/figures/jt60sa-geometry/</code>
-      and embedded in this plan with a project-absolute <code>src</code> and a caption; a check in the
-      script asserts the counts drawn equal the counts read from the store (268 coil elements, 120 and
+      and embedded with a project-absolute <code>src</code> and a caption in the node's evidence
+      fragment, which the landing carries into this plan; a check in the script asserts the counts drawn equal the counts read from the store (268 coil elements, 120 and
       98 vessel filaments, 27 flux loops, 17 probes) and prints them.
     </p>
 
     <h2 id="s3">§3 — Signals: the cached pulses</h2>
 <section data-reckon="section" data-id="s3" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
     <p>
-      Three figures, drawn by <code>scripts/figures_jt60sa_signals.py</code> from the cache, with units
-      taken from each channel's EDDB unit attribute and named on the axis. For E101154, the PF coil
+      Three figures, drawn by <code>scripts/figures_jt60sa_signals.py</code> from the cache, each channel
+      read through <code>eddb.channel_path</code> and <code>eddb.channel_time_path</code>, with units taken
+      from its <code>eddb.UNIT_ATTR</code> attribute and named on the axis. For E101154, the PF coil
       currents from MMSYS against time, and the plasma current from PSRC. Also for E101154, the
       flux loops as small multiples: each processed PSRC <code>magFluxLp</code> channel beside the
       raw MDAC <code>magFlxLp</code> channel of the same index, which is the raw-to-processed
@@ -117,8 +135,8 @@
     </p>
     <p>
       Done-when: the three figures are written as PNG and SVG under
-      <code>docs/figures/jt60sa-signals/</code> and embedded in this plan with a project-absolute
-      <code>src</code> and a caption naming the shot, the channels and their units; the script reads
+      <code>docs/figures/jt60sa-signals/</code> and embedded in the node's evidence fragment, which the
+      landing carries into this plan, with a project-absolute <code>src</code> and a caption naming the shot, the channels and their units; the script reads
       only the cache and prints, per figure, the channel names and units it drew.
     </p>
 
