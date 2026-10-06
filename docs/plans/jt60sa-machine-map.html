@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5">
 <meta name="plan-impl" content="0.625">
-<meta name="plan-version" content="108">
+<meta name="plan-version" content="109">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -592,7 +592,10 @@
       <code>load_shot</code>, which already returns it inside <code>ChallengeShot</code>, rather
       than the parquet read <code>convention.py</code> does today, and the SELENE and FAME
       loaders each return an <code>EfitLabels</code>. The kernel is reused rather than rewritten,
-      and one equilibrium has one shape. The
+      and one equilibrium has one shape. That SELENE loader is the only reader of a SELENE
+      equilibrium in the plan: §7's reference loader adapts the <code>EfitLabels</code> it returns
+      into an <code>EquilibriumGeometry</code> rather than reading SELENE a second time, so the
+      sign scorer and the geometry referee cannot drift in COCOS or axis handling. The
       entry point also hard-codes DIII-D eligibility, <code>MINIMUM_PLASMA_CURRENT_KA</code>,
       <code>STANDARD_FIELD_BCOIL_MAXIMUM</code> and the <code>MINIMUM_AUDIT_SHOTS</code> guard, so
       those move into each loader's declaration as its corpus's eligibility, and the kernel keeps
@@ -633,13 +636,20 @@
       needs a reader for the EQDB record (psi on its grid, boundary, p′ and FF′ or their
       profiles) wrapped in the same remote-extractor contract, and a COCOS verdict from §6
       before any map is written into <code>profiles_2d/psi</code>. The EQDB read extends the §3
-      extractor rather than sitting beside it. <code>RemoteEddbExtractor</code> gains the EQDB
-      request kind and keeps everything it already owns: the batch framing
-      (<code>encode_batch</code>, <code>decode_batch</code>), the per-request refusal contract, and
-      the niced, module-loaded remote command over <code>SshTransport</code>. Only the remote read
-      call differs (<code>eqdbget</code> through the EQDB client rather than
-      <code>eddb_pwrapper</code>), and the decoded record type for a grid is settled with the
-      open question <code>eqdb-reader</code>. Its records land in the same store, owned by
+      extractor rather than sitting beside it, but its request and record are not channels.
+      <code>ChannelRequest</code> names <code>(shot, category, dname)</code> and the batch carries
+      <code>(channel, time)</code> arrays, while an EQDB request names a shot and an equilibrium
+      record, and its answer is psi on a two-dimensional grid with its boundary and profiles. So
+      <code>imas_ambix/data/eddb_remote.py</code> gains one request type and one record type for
+      EQDB beside <code>ChannelRequest</code> and <code>ChannelRecord</code>, rather than widening
+      the channel types. <code>RemoteEddbExtractor</code> dispatches on the request type and keeps
+      what is not channel-shaped: the per-request refusal contract, and the niced,
+      module-loaded remote command over <code>SshTransport</code>. <code>encode_batch</code> and
+      <code>decode_batch</code> gain the EQDB record's framing beside the channel framing, and the
+      remote side calls <code>eqdbget</code> through the EQDB client rather than
+      <code>eddb_pwrapper</code>. The two new public types are the section's interface
+      addition; they retire nothing, because no equilibrium-database request type exists. The
+      fields of the EQDB record are settled with the open question <code>eqdb-reader</code>. Its records land in the same store, owned by
       <code>imas_ambix/data/eddb.py</code>: <code>write_channel</code> writes only a
       <code>(channel, time)</code> array with a sibling time vector, and an EQDB record is psi on a
       two-dimensional grid with its boundary and profiles, so <code>eddb.py</code> gains a grid
@@ -736,9 +746,11 @@
       a SELENE reference loader and its firewall tier to it instead of a parallel
       comparator. The loader enters through the existing seam,
       <code>read_efit_geometry(shot_id, frame_times, loader=...)</code>, which is the one
-      read path gated by <code>evaluator_context</code>; SELENE's psi, boundary and axis
-      reduce to the <code>EquilibriumGeometry</code> that seam already returns, so no second,
-      ungated read of a reference equilibrium is added. <code>GeometryVerdict</code> scores axis, X-point and boundary RMS only. The
+      read path gated by <code>evaluator_context</code>. The loader does not read SELENE itself:
+      it adapts the <code>EfitLabels</code> returned by §6's SELENE loader, the only SELENE reader,
+      reducing its psi, boundary and axis to the <code>EquilibriumGeometry</code> that seam
+      already returns. So no second, ungated read of a reference equilibrium is added, and no
+      second reader of SELENE either. <code>GeometryVerdict</code> scores axis, X-point and boundary RMS only. The
       whitened magnetics residual already has its owner in the spine benchmark
       (<code>imas_ambix/spine_bench/runner.py</code> <code>_magnetics_residual</code>, written into
       the stamped record), so it is read from the stamp; q95 and Ip have no owner that
