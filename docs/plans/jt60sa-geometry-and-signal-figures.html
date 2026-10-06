@@ -24,7 +24,7 @@
   <title>JT-60SA Geometry and Signal Figures | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="30">
+<meta name="plan-version" content="31">
 <meta name="plan-modified" content="2026-10-06">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s1b&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;deferred&quot;}">
 <meta name="plan-commits" content="369a705d,b36a5d93">
@@ -57,11 +57,16 @@
     <p>
       Two figures, rendered by imas-ink in its own style (lead ruling, 2026-10-06). A short script,
       <code>scripts/figures_jt60sa_geometry.py</code>, opens each phase of the store through the
-      jt-60sa catalogue (<code>load_packaged_machine_map("jt-60sa")</code>, each phase directory taken
-      from <code>NetCDFTransformEngine.open</code>), reads <code>wall</code>, <code>pf_active</code> and
+      jt-60sa catalogue, which owns its addressing: <code>load_packaged_machine_map("jt-60sa")</code>
+      gives the store root (<code>description_store_root_path()</code>), the layout and the phase maps,
+      and <code>NetCDFTransformEngine.open</code> on that root and map returns the store whose
+      <code>path</code> is the phase directory. It reads <code>wall</code>, <code>pf_active</code> and
       <code>magnetics</code> with <code>imas.DBEntry</code>, passes them to
-      <code>imas_ink.extract.extract_geometry</code> and renders with
-      <code>imas_ink.figures.geometry_figure_mpl</code>: axes off, equal aspect, imas-ink's default
+      <code>imas_ink.extract.extract_geometry</code> and renders each phase with
+      <code>imas_ink.figures.geometry_figure_mpl</code> into axes the script lays out, using the
+      <code>ax</code> argument and the reference-outline line style that imas-ink's
+      <code>geometry-figure-vessel-units</code> plan adds, since the figure today makes its own axes and
+      has no second-outline style: axes off, equal aspect, imas-ink's default
       weights and greys, and no labels, legend or added colour. The first figure is OP1 and OP2 side by
       side on one shared viewport. The second overlays the two phases' first wall and vessel contours
       on one panel, the components that change at the OP1 to OP2 boundary, telling the phases apart by
@@ -75,7 +80,8 @@
       It waits on two landings: the machine map's wall rewrite, which writes each phase's first wall
       as a limiter unit and its vacuum vessel as an annular vessel unit from the inner and outer VV
       skins of <code>coil_vv_OP{1,2}.dat</code> (lead ruling, 2026-10-06; machine-map node
-      <code>jtmm-passive-cryostat-and-wall</code>), and imas-ink's <code>geometry-figure-vessel-units</code>, which teaches it to draw vessel units.
+      <code>jtmm-passive-cryostat-and-wall</code>), and imas-ink's <code>geometry-figure-vessel-units</code>, which teaches it to draw vessel units and
+      to compose two phases into one figure.
       Done-when: both figures are written as one SVG each, with no PNG twin, under
       <code>docs/figures/jt60sa-geometry/</code> and embedded with a project-absolute <code>src</code> and
       a caption in the node's evidence fragment; the script prints, per phase, the counts it passed to
