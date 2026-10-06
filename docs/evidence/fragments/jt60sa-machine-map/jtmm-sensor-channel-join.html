@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+  <meta name="plan-evidence-for" content="jt60sa-machine-map">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="jtmm-sensor-channel-join-landing" data-reckon="evidence">
+      <h3>Sensor-channel join on E101154: which named channel each SELENE PID channel is</h3>
+      <p>Read-only correlation on the cached EDDB store <code>/work/projects/imas_gpu/jt60sa/101154.zarr</code>
+      (shot E101154), where the PID route returns a full record. Each PID channel is read live through
+      <code>ssh -F ~/.ssh/config jt-60sa</code> as <code>eddbreadTime(shot='E101154', cat='', dname='1626 S007'|'1626 S006', dim=[i,1,1])</code>
+      (one channel per call), correlated against the cached processed PSRC channels (<code>magFluxLp1..34</code>,
+      <code>magPbTC1..23</code>) and raw MDAC channels (<code>magFlxLp1..34</code>, <code>magPbTC1..23</code>).
+      Every candidate is interpolated onto the PID channel's own time base (PID spans 0.0000 to 11.5195 s)
+      and fitted <code>PID = a*candidate + b</code> by least squares; <code>r</code> is Pearson and the
+      runner-up ratio is the second-best RMS residual divided by the best. The 23 raw MDAC probe channels
+      <code>magPbTC1..23</code> were added to <code>101154.zarr</code> through <code>fetch_channels</code>
+      (all 23 served, unit <code>T</code>); no other shot was written.</p>
+    </section>
+
+    <section id="jtmm-sensor-channel-join-positive-control" data-reckon="evidence">
+      <h3>Positive control: the instrument recovers the known loop identity</h3>
+      <p>Run through the same fit, processed PSRC <code>magFluxLp{i}</code> recovers raw MDAC
+      <code>magFlxLp{i}</code> as the best match for <strong>27 of 27</strong> channels
+      (i = 1..27), slope 0.9853 to 1.0303, Pearson r 0.9995 to 1.0000,
+      runner-up ratio 2.14 to 659.67. The instrument therefore
+      sees the identity permutation the plan's flux-loop node measured, so a failure to recover a
+      correspondence below is a property of the data, not of the fit.</p>
+    </section>
+    <section id="jtmm-sensor-channel-join-s006-probes" data-reckon="evidence">
+      <h3>PID 1626 S006 channels 1..17 are the tangential probes 1..17</h3>
+      <p>PID <code>1626 S006</code> channel <em>j</em> is best matched by PSRC <code>magPbTC{j}</code>
+      and, independently, by raw MDAC <code>magPbTC{j}</code>, for all 17 channels. Best PSRC match
+      equals j for 17/17 and best MDAC match equals j for
+      17/17.</p>
+      <table>
+        <thead><tr><th>PID ch</th><th>best PSRC</th><th>a</th><th>b</th><th>r</th><th>ratio</th>
+        <th>best MDAC</th><th>a</th><th>b</th><th>r</th><th>ratio</th></tr></thead>
+        <tbody>
+<tr><td>1</td><td>magPbTC1</td><td>1.00011</td><td>-1e-05</td><td>0.99999</td><td>18.914</td><td>magPbTC1</td><td>0.99892</td><td>0.00033</td><td>0.99998</td><td>14.809</td></tr>
+<tr><td>2</td><td>magPbTC2</td><td>1.00016</td><td>-2e-05</td><td>1.0</td><td>32.887</td><td>magPbTC2</td><td>1.00155</td><td>0.00077</td><td>0.99999</td><td>19.03</td></tr>
+<tr><td>3</td><td>magPbTC3</td><td>0.99989</td><td>1e-05</td><td>0.99996</td><td>13.382</td><td>magPbTC3</td><td>0.99991</td><td>0.00026</td><td>0.99991</td><td>8.336</td></tr>
+<tr><td>4</td><td>magPbTC4</td><td>0.99942</td><td>3e-05</td><td>0.99983</td><td>10.219</td><td>magPbTC4</td><td>0.99475</td><td>0.0008</td><td>0.99961</td><td>11.357</td></tr>
+<tr><td>5</td><td>magPbTC5</td><td>0.99961</td><td>-2e-05</td><td>0.99983</td><td>29.71</td><td>magPbTC5</td><td>0.99988</td><td>0.00209</td><td>0.99978</td><td>31.07</td></tr>
+<tr><td>6</td><td>magPbTC6</td><td>0.99994</td><td>-0.0</td><td>0.99997</td><td>38.024</td><td>magPbTC6</td><td>1.00323</td><td>0.00218</td><td>0.99986</td><td>16.442</td></tr>
+<tr><td>7</td><td>magPbTC7</td><td>0.99994</td><td>0.0</td><td>0.99992</td><td>26.005</td><td>magPbTC7</td><td>0.99896</td><td>-0.00184</td><td>0.99972</td><td>14.063</td></tr>
+<tr><td>8</td><td>magPbTC8</td><td>0.99997</td><td>0.0</td><td>0.99999</td><td>26.554</td><td>magPbTC8</td><td>0.99975</td><td>-0.0006</td><td>0.99998</td><td>19.318</td></tr>
+<tr><td>9</td><td>magPbTC9</td><td>0.99996</td><td>1e-05</td><td>1.0</td><td>35.476</td><td>magPbTC9</td><td>0.99951</td><td>-0.0011</td><td>0.99999</td><td>25.844</td></tr>
+<tr><td>10</td><td>magPbTC10</td><td>1.00004</td><td>-0.0</td><td>0.99999</td><td>39.859</td><td>magPbTC10</td><td>1.00259</td><td>0.00167</td><td>0.99998</td><td>19.574</td></tr>
+<tr><td>11</td><td>magPbTC11</td><td>1.00011</td><td>1e-05</td><td>0.99999</td><td>35.106</td><td>magPbTC11</td><td>1.00799</td><td>-0.00066</td><td>0.99996</td><td>28.081</td></tr>
+<tr><td>12</td><td>magPbTC12</td><td>1.00019</td><td>2e-05</td><td>0.99999</td><td>48.308</td><td>magPbTC12</td><td>1.0079</td><td>0.00186</td><td>0.99999</td><td>41.0</td></tr>
+<tr><td>13</td><td>magPbTC13</td><td>1.00007</td><td>-0.0</td><td>0.99994</td><td>21.505</td><td>magPbTC13</td><td>1.00296</td><td>0.00022</td><td>0.99994</td><td>20.583</td></tr>
+<tr><td>14</td><td>magPbTC14</td><td>1.00023</td><td>-3e-05</td><td>0.99999</td><td>27.469</td><td>magPbTC14</td><td>1.00144</td><td>-0.00011</td><td>0.99998</td><td>21.738</td></tr>
+<tr><td>15</td><td>magPbTC15</td><td>1.00001</td><td>-0.0</td><td>1.0</td><td>48.369</td><td>magPbTC15</td><td>1.00145</td><td>0.00122</td><td>0.99989</td><td>7.395</td></tr>
+<tr><td>16</td><td>magPbTC16</td><td>1.00001</td><td>-0.0</td><td>1.0</td><td>33.336</td><td>magPbTC16</td><td>1.0019</td><td>0.00149</td><td>0.99995</td><td>10.506</td></tr>
+<tr><td>17</td><td>magPbTC17</td><td>1.00004</td><td>-0.0</td><td>0.99999</td><td>23.951</td><td>magPbTC17</td><td>1.00239</td><td>0.00059</td><td>0.99996</td><td>13.139</td></tr>
+</tbody></table></section>
+    <section id="jtmm-sensor-channel-join-s007-loops" data-reckon="evidence">
+      <h3>PID 1626 S007 channels 1..27 do not resolve to distinct flux loops</h3>
+      <p>Every one of the 27 PID <code>1626 S007</code> channels is best matched by the same processed
+      loop <code>magFluxLp7</code> (PSRC) and the same raw loop <code>magFlxLp7</code>
+      (MDAC), with runner-up ratios near 1 (no unique partner). The 27 channels carry one common signal
+      (pairwise r near 0.998); removing that common mode leaves a distinct residual of only 0.02 to 0.06
+      against a full range near 0.35, still with runner-up ratios near 1. A linear correlation therefore
+      does not place PID S007 channel <em>i</em> on flux loop <em>i</em>. The best PSRC and MDAC match per
+      channel, with slope, offset, Pearson r and runner-up ratio, follow.</p>
+      <table>
+        <thead><tr><th>PID ch</th><th>best PSRC</th><th>a</th><th>b</th><th>r</th><th>ratio</th>
+        <th>best MDAC</th><th>a</th><th>b</th><th>r</th><th>ratio</th></tr></thead>
+        <tbody>
+<tr><td>1</td><td>magFluxLp7</td><td>0.14553</td><td>-0.05083</td><td>0.99675</td><td>2.936</td><td>magFlxLp7</td><td>0.14589</td><td>-0.05559</td><td>0.99666</td><td>2.933</td></tr>
+<tr><td>2</td><td>magFluxLp7</td><td>0.14933</td><td>-0.00649</td><td>0.99955</td><td>7.857</td><td>magFlxLp7</td><td>0.14971</td><td>-0.01138</td><td>0.99953</td><td>7.762</td></tr>
+<tr><td>3</td><td>magFluxLp7</td><td>0.15583</td><td>0.01206</td><td>0.99958</td><td>8.287</td><td>magFlxLp7</td><td>0.15623</td><td>0.00695</td><td>0.99959</td><td>8.499</td></tr>
+<tr><td>4</td><td>magFluxLp7</td><td>0.15757</td><td>0.01575</td><td>0.99935</td><td>6.757</td><td>magFlxLp7</td><td>0.15798</td><td>0.01059</td><td>0.99938</td><td>6.975</td></tr>
+<tr><td>5</td><td>magFluxLp7</td><td>0.1578</td><td>0.01216</td><td>0.99943</td><td>7.22</td><td>magFlxLp7</td><td>0.15821</td><td>0.00699</td><td>0.99946</td><td>7.481</td></tr>
+<tr><td>6</td><td>magFluxLp7</td><td>0.15792</td><td>0.00268</td><td>0.99984</td><td>13.688</td><td>magFlxLp7</td><td>0.15832</td><td>-0.0025</td><td>0.99986</td><td>14.47</td></tr>
+<tr><td>7</td><td>magFluxLp7</td><td>0.15916</td><td>-6e-05</td><td>0.99995</td><td>25.328</td><td>magFlxLp7</td><td>0.15957</td><td>-0.00528</td><td>0.99995</td><td>25.271</td></tr>
+<tr><td>8</td><td>magFluxLp7</td><td>0.16124</td><td>0.0055</td><td>0.99994</td><td>22.097</td><td>magFlxLp7</td><td>0.16165</td><td>0.00022</td><td>0.99993</td><td>21.253</td></tr>
+<tr><td>9</td><td>magFluxLp7</td><td>0.16241</td><td>0.01523</td><td>0.99994</td><td>22.172</td><td>magFlxLp7</td><td>0.16283</td><td>0.00991</td><td>0.99994</td><td>22.762</td></tr>
+<tr><td>10</td><td>magFluxLp7</td><td>0.15921</td><td>0.01337</td><td>0.99976</td><td>11.418</td><td>magFlxLp7</td><td>0.15962</td><td>0.00815</td><td>0.99978</td><td>11.941</td></tr>
+<tr><td>11</td><td>magFluxLp7</td><td>0.1554</td><td>0.00699</td><td>0.99941</td><td>7.278</td><td>magFlxLp7</td><td>0.1558</td><td>0.00189</td><td>0.99944</td><td>7.514</td></tr>
+<tr><td>12</td><td>magFluxLp7</td><td>0.1447</td><td>-0.01721</td><td>0.99677</td><td>3.059</td><td>magFlxLp7</td><td>0.14508</td><td>-0.02196</td><td>0.99685</td><td>3.13</td></tr>
+<tr><td>13</td><td>magFluxLp7</td><td>0.15695</td><td>-0.01636</td><td>0.99363</td><td>2.161</td><td>magFlxLp7</td><td>0.15737</td><td>-0.02152</td><td>0.99375</td><td>2.205</td></tr>
+<tr><td>14</td><td>magFluxLp7</td><td>0.16879</td><td>0.01974</td><td>0.99164</td><td>1.876</td><td>magFlxLp7</td><td>0.16925</td><td>0.0142</td><td>0.99178</td><td>1.922</td></tr>
+<tr><td>15</td><td>magFluxLp7</td><td>0.15294</td><td>-0.06826</td><td>0.99543</td><td>2.462</td><td>magFlxLp7</td><td>0.15332</td><td>-0.07326</td><td>0.99533</td><td>2.467</td></tr>
+<tr><td>16</td><td>magFluxLp7</td><td>0.15303</td><td>-0.02846</td><td>0.99882</td><td>4.641</td><td>magFlxLp7</td><td>0.15341</td><td>-0.03347</td><td>0.9988</td><td>4.637</td></tr>
+<tr><td>17</td><td>magFluxLp7</td><td>0.15539</td><td>0.07237</td><td>0.992</td><td>1.743</td><td>magFlxLp7</td><td>0.1558</td><td>0.06726</td><td>0.99214</td><td>1.772</td></tr>
+<tr><td>18</td><td>magFluxLp7</td><td>0.16004</td><td>0.12285</td><td>0.98521</td><td>1.327</td><td>magFlxLp7</td><td>0.16048</td><td>0.11758</td><td>0.98541</td><td>1.34</td></tr>
+<tr><td>19</td><td>magFluxLp7</td><td>0.16424</td><td>0.14295</td><td>0.98607</td><td>1.347</td><td>magFlxLp7</td><td>0.16469</td><td>0.13755</td><td>0.98626</td><td>1.361</td></tr>
+<tr><td>20</td><td>magFluxLp7</td><td>0.17405</td><td>0.15904</td><td>0.99441</td><td>2.0</td><td>magFlxLp7</td><td>0.17451</td><td>0.15333</td><td>0.99453</td><td>2.041</td></tr>
+<tr><td>21</td><td>magFluxLp7</td><td>0.18497</td><td>0.1593</td><td>0.99926</td><td>5.541</td><td>magFlxLp7</td><td>0.18544</td><td>0.15324</td><td>0.99928</td><td>5.653</td></tr>
+<tr><td>22</td><td>magFluxLp7</td><td>0.18302</td><td>0.13801</td><td>0.99943</td><td>6.295</td><td>magFlxLp7</td><td>0.18349</td><td>0.13202</td><td>0.99943</td><td>6.341</td></tr>
+<tr><td>23</td><td>magFluxLp7</td><td>0.17562</td><td>0.16429</td><td>0.98866</td><td>1.566</td><td>magFlxLp7</td><td>0.1761</td><td>0.15852</td><td>0.98883</td><td>1.586</td></tr>
+<tr><td>24</td><td>magFluxLp7</td><td>0.18172</td><td>0.23744</td><td>0.98247</td><td>1.313</td><td>magFlxLp7</td><td>0.18223</td><td>0.23146</td><td>0.98268</td><td>1.323</td></tr>
+<tr><td>25</td><td>magFluxLp7</td><td>0.18494</td><td>0.27409</td><td>0.98172</td><td>1.3</td><td>magFlxLp7</td><td>0.18545</td><td>0.26801</td><td>0.98194</td><td>1.31</td></tr>
+<tr><td>26</td><td>magFluxLp7</td><td>0.18681</td><td>0.28818</td><td>0.98293</td><td>1.338</td><td>magFlxLp7</td><td>0.18732</td><td>0.28203</td><td>0.98314</td><td>1.357</td></tr>
+<tr><td>27</td><td>magFluxLp7</td><td>0.17942</td><td>0.13976</td><td>0.98847</td><td>1.597</td><td>magFlxLp7</td><td>0.17991</td><td>0.13386</td><td>0.98864</td><td>1.636</td></tr>
+</tbody></table></section>
+    <section id="jtmm-sensor-channel-join-psrc-tc-raw" data-reckon="evidence">
+      <h3>Processed PSRC magPbTC<i>i</i> to raw MDAC partner</h3>
+      <p>Processed PSRC <code>magPbTC{i}</code> recovers raw MDAC <code>magPbTC{i}</code> as its unique
+      best match for <strong>18 of 23</strong> (i = 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18).
+      Channels 19, 20, 21, 22, 23 have no unique raw partner: their best raw match is
+      not the same index and the runner-up ratio is near 1, so the raw channels at and around those
+      indices are near-duplicates. The raw MDAC catalogue names searched are the 23 aliases
+      <code>1651 E017</code> .. <code>1651 E039</code> (<code>/MDAC/magPbTC1..23</code>) and
+      the 34 <code>/MDAC/magFlxLp1..34</code>; the processed PSRC probe channels carry aliases
+      <code>1626 O014</code> .. <code>1626 O036</code>.</p>
+      <table>
+        <thead><tr><th>PSRC</th><th>raw MDAC partner</th><th>a</th><th>b</th><th>r</th><th>ratio</th>
+        <th>unique</th></tr></thead>
+        <tbody>
+<tr><td>magPbTC1</td><td>magPbTC1</td><td>0.99882</td><td>0.00034</td><td>0.99999</td><td>23.287</td><td>yes</td></tr>
+<tr><td>magPbTC2</td><td>magPbTC2</td><td>1.00139</td><td>0.00078</td><td>1.0</td><td>28.744</td><td>yes</td></tr>
+<tr><td>magPbTC3</td><td>magPbTC3</td><td>1.00003</td><td>0.00025</td><td>0.99995</td><td>11.669</td><td>yes</td></tr>
+<tr><td>magPbTC4</td><td>magPbTC4</td><td>0.99541</td><td>0.00076</td><td>0.99985</td><td>18.348</td><td>yes</td></tr>
+<tr><td>magPbTC5</td><td>magPbTC5</td><td>1.00029</td><td>0.00211</td><td>0.99998</td><td>107.33</td><td>yes</td></tr>
+<tr><td>magPbTC6</td><td>magPbTC6</td><td>1.00331</td><td>0.00219</td><td>0.9999</td><td>19.756</td><td>yes</td></tr>
+<tr><td>magPbTC7</td><td>magPbTC7</td><td>0.99904</td><td>-0.00185</td><td>0.99982</td><td>17.742</td><td>yes</td></tr>
+<tr><td>magPbTC8</td><td>magPbTC8</td><td>0.99978</td><td>-0.0006</td><td>0.99999</td><td>27.936</td><td>yes</td></tr>
+<tr><td>magPbTC9</td><td>magPbTC9</td><td>0.99954</td><td>-0.00111</td><td>1.0</td><td>38.345</td><td>yes</td></tr>
+<tr><td>magPbTC10</td><td>magPbTC10</td><td>1.00256</td><td>0.00167</td><td>0.99999</td><td>27.017</td><td>yes</td></tr>
+<tr><td>magPbTC11</td><td>magPbTC11</td><td>1.00788</td><td>-0.00067</td><td>0.99997</td><td>32.43</td><td>yes</td></tr>
+<tr><td>magPbTC12</td><td>magPbTC12</td><td>1.00771</td><td>0.00184</td><td>1.0</td><td>68.471</td><td>yes</td></tr>
+<tr><td>magPbTC13</td><td>magPbTC13</td><td>1.00289</td><td>0.00022</td><td>0.99999</td><td>63.354</td><td>yes</td></tr>
+<tr><td>magPbTC14</td><td>magPbTC14</td><td>1.00121</td><td>-8e-05</td><td>0.99999</td><td>42.853</td><td>yes</td></tr>
+<tr><td>magPbTC15</td><td>magPbTC15</td><td>1.00145</td><td>0.00122</td><td>0.9999</td><td>7.845</td><td>yes</td></tr>
+<tr><td>magPbTC16</td><td>magPbTC16</td><td>1.0019</td><td>0.00149</td><td>0.99996</td><td>12.12</td><td>yes</td></tr>
+<tr><td>magPbTC17</td><td>magPbTC17</td><td>1.00236</td><td>0.00059</td><td>0.99998</td><td>18.778</td><td>yes</td></tr>
+<tr><td>magPbTC18</td><td>magPbTC18</td><td>-4.19704</td><td>0.07611</td><td>-0.97719</td><td>1.151</td><td>yes</td></tr>
+<tr><td>magPbTC19</td><td>magPbTC11</td><td>0.12065</td><td>0.00113</td><td>0.98985</td><td>1.633</td><td>no</td></tr>
+<tr><td>magPbTC20</td><td>magPbTC12</td><td>0.13758</td><td>0.00726</td><td>0.97987</td><td>1.104</td><td>no</td></tr>
+<tr><td>magPbTC21</td><td>magPbTC12</td><td>0.10167</td><td>0.00649</td><td>0.9777</td><td>1.081</td><td>no</td></tr>
+<tr><td>magPbTC22</td><td>magPbTC12</td><td>0.04031</td><td>0.00077</td><td>0.98085</td><td>1.163</td><td>no</td></tr>
+<tr><td>magPbTC23</td><td>magPbTC4</td><td>-0.03078</td><td>0.00039</td><td>-0.98292</td><td>2.283</td><td>no</td></tr>
+</tbody></table></section>
+    <section id="jtmm-sensor-channel-join-mdac-catalogue" data-reckon="evidence">
+      <h3>MDAC catalogue names searched</h3>
+      <p>The E101154 MDAC catalogue (<code>eddbreadTable(shot='E101154', cat='MDAC')</code>, 264 entries)
+      exposes the raw flux loops <code>/MDAC/magFlxLp1..34</code> and the raw tangential probes
+      <code>/MDAC/magPbTC1..23</code> as named channels, each with a controller alias of the form
+      <code>/MDAC/magPbTC23</code> &rarr; <code>1651 E017</code> (probe 1) to <code>1651 E039</code>
+      (probe 23). The probe descriptors read "Magnetic Probe TC-(i) for Plasma Control". No raw normal
+      (non-tangential) probe channel is listed, matching the receipt's finding that SELENE's normal probes
+      carry no EDDB channel.</p>
+    </section>
+    <section id="jtmm-sensor-channel-join-geo-join" data-reckon="evidence">
+      <h3>Codex geo.in positions against the section 4 description</h3>
+      <p>Each <code>geo.in</code> position in the codex receipt
+      (<code>imas-codex docs/evidence/receipts/jt60sa-selene-sensor-order.json</code> at
+      <code>c9a7caec5</code>) is compared with the loop and probe (R, Z) in the section 4 description
+      (<code>/work/projects/imas_gpu/jt60sa/machine_description/OP1/magnetics.nc</code>, DD 4.1.1). The
+      nearest description loop for each of the 27 receipt flux-loop positions is the same index, at
+      0.0 mm; the nearest
+      description probe for each of the 17 receipt tangential-probe positions is the same index, at
+      0.0 mm. The nearest probe to a loop position and the nearest loop to a probe position are at least
+      66.1 mm away, so the two families do not alias.</p>
+      <table>
+        <thead><tr><th>family</th><th>sensor</th><th>receipt (R, Z)</th><th>nearest descr</th><th>distance [mm]</th></tr></thead>
+        <tbody>
+<tr><td>flux loop</td><td>1</td><td>(1.8798, 2.9331)</td><td>loop 1</td><td>0.0</td></tr>
+<tr><td>flux loop</td><td>2</td><td>(1.6414, 2.5202)</td><td>loop 2</td><td>0.0</td></tr>
+<tr><td>flux loop</td><td>3</td><td>(1.6262, 1.9769)</td><td>loop 3</td><td>0.0</td></tr>
+<tr><td>flux loop</td><td>4</td><td>(1.6246, 1.427)</td><td>loop 4</td><td>0.0</td></tr>
+<tr><td>flux loop</td><td>5</td><td>(1.6241, 0.9769)</td><td>loop 5</td><td>0.0</td></tr>
+<tr><td>flux loop</td><td>6</td><td>(1.6237, 0.377)</td><td>loop 6</td><td>0.0</td></tr>
+<tr><td>flux loop</td><td>7</td><td>(1.6229, -0.073)</td><td>loop 7</td><td>0.0</td></tr>
+<tr><td>flux loop</td><td>8</td><td>(1.6238, -0.373)</td><td>loop 8</td><td>0.0</td></tr>
+<tr><td>flux loop</td><td>9</td><td>(1.6238, -0.973)</td><td>loop 9</td><td>0.0</td></tr>
+<tr><td>flux loop</td><td>10</td><td>(1.6243, -1.423)</td><td>loop 10</td><td>0.0</td></tr>
+<tr><td>flux loop</td><td>11</td><td>(1.6248, -1.7454)</td><td>loop 11</td><td>0.0</td></tr>
+<tr><td>flux loop</td><td>12</td><td>(1.6918, -2.6883)</td><td>loop 12</td><td>0.0</td></tr>
+<tr><td>flux loop</td><td>13</td><td>(2.0212, -3.0384)</td><td>loop 13</td><td>0.0</td></tr>
+<tr><td>flux loop</td><td>14</td><td>(2.3023, -3.1209)</td><td>loop 14</td><td>0.0</td></tr>
+<tr><td>flux loop</td><td>15</td><td>(2.3922, 3.1175)</td><td>loop 15</td><td>0.0</td></tr>
+<tr><td>flux loop</td><td>16</td><td>(2.7756, 3.0584)</td><td>loop 16</td><td>0.0</td></tr>
+<tr><td>flux loop</td><td>17</td><td>(3.4167, 2.6996)</td><td>loop 17</td><td>0.0</td></tr>
+<tr><td>flux loop</td><td>18</td><td>(3.7581, 2.3976)</td><td>loop 18</td><td>0.0</td></tr>
+<tr><td>flux loop</td><td>19</td><td>(3.966, 2.1663)</td><td>loop 19</td><td>0.0</td></tr>
+<tr><td>flux loop</td><td>20</td><td>(4.2965, 1.6801)</td><td>loop 20</td><td>0.0</td></tr>
+<tr><td>flux loop</td><td>21</td><td>(4.6193, 0.8827)</td><td>loop 21</td><td>0.0</td></tr>
+<tr><td>flux loop</td><td>22</td><td>(4.6934, 0.5322)</td><td>loop 22</td><td>0.0</td></tr>
+<tr><td>flux loop</td><td>23</td><td>(4.2974, -1.676)</td><td>loop 23</td><td>0.0</td></tr>
+<tr><td>flux loop</td><td>24</td><td>(3.9693, -2.1618)</td><td>loop 24</td><td>0.0</td></tr>
+<tr><td>flux loop</td><td>25</td><td>(3.7604, -2.3992)</td><td>loop 25</td><td>0.0</td></tr>
+<tr><td>flux loop</td><td>26</td><td>(3.4971, -2.6243)</td><td>loop 26</td><td>0.0</td></tr>
+<tr><td>flux loop</td><td>27</td><td>(2.753, -3.0599)</td><td>loop 27</td><td>0.0</td></tr>
+<tr><td>tangential probe</td><td>1</td><td>(4.7355, -0.0283)</td><td>probe 1</td><td>0.0</td></tr>
+<tr><td>tangential probe</td><td>2</td><td>(4.4873, 1.2805)</td><td>probe 2</td><td>0.0</td></tr>
+<tr><td>tangential probe</td><td>3</td><td>(4.1114, 1.9694)</td><td>probe 3</td><td>0.0</td></tr>
+<tr><td>tangential probe</td><td>4</td><td>(3.4645, 2.6539)</td><td>probe 4</td><td>0.0</td></tr>
+<tr><td>tangential probe</td><td>5</td><td>(2.4712, 3.1004)</td><td>probe 5</td><td>0.0</td></tr>
+<tr><td>tangential probe</td><td>6</td><td>(1.9455, 2.9651)</td><td>probe 6</td><td>0.0</td></tr>
+<tr><td>tangential probe</td><td>7</td><td>(1.6414, 2.3449)</td><td>probe 7</td><td>0.0</td></tr>
+<tr><td>tangential probe</td><td>8</td><td>(1.6342, 1.1231)</td><td>probe 8</td><td>0.0</td></tr>
+<tr><td>tangential probe</td><td>9</td><td>(1.6356, -0.0002)</td><td>probe 9</td><td>0.0</td></tr>
+<tr><td>tangential probe</td><td>10</td><td>(1.635, -1.1277)</td><td>probe 10</td><td>0.0</td></tr>
+<tr><td>tangential probe</td><td>11</td><td>(1.6403, -2.3481)</td><td>probe 11</td><td>0.0</td></tr>
+<tr><td>tangential probe</td><td>12</td><td>(1.9318, -2.9645)</td><td>probe 12</td><td>0.0</td></tr>
+<tr><td>tangential probe</td><td>13</td><td>(2.4709, -3.0977)</td><td>probe 13</td><td>0.0</td></tr>
+<tr><td>tangential probe</td><td>14</td><td>(3.5499, -2.573)</td><td>probe 14</td><td>0.0</td></tr>
+<tr><td>tangential probe</td><td>15</td><td>(4.1043, -1.973)</td><td>probe 15</td><td>0.0</td></tr>
+<tr><td>tangential probe</td><td>16</td><td>(4.4856, -1.2834)</td><td>probe 16</td><td>0.0</td></tr>
+<tr><td>tangential probe</td><td>17</td><td>(4.6747, -0.6201)</td><td>probe 17</td><td>0.0</td></tr>
+</tbody></table></section>
+    <section id="jtmm-sensor-channel-join-conclusion" data-reckon="evidence">
+      <h3>What the binding node inherits</h3>
+      <p>The raw MDAC probe channels exist and are named: PSRC <code>magPbTC1..18</code> is raw MDAC
+      <code>magPbTC1..18</code> (identity), while <code>magPbTC19..23</code> have no unique raw partner.
+      PID <code>1626 S006</code> channel <em>j</em> is processed PSRC and raw MDAC <code>magPbTC{j}</code>
+      for j = 1..17. PID <code>1626 S007</code> channels do not resolve to distinct flux loops by
+      correlation and must not be bound to <code>magFluxLp{i}</code> on the strength of a linear fit;
+      the index identity the plan expects is not confirmed by this measurement on E101154. The
+      <code>geo.in</code> position join to the section 4 description is exact for both families.</p>
+    </section>
+  </main>
+</body>
+</html>
