@@ -26,8 +26,8 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
-<meta name="plan-impl" content="0.9">
-<meta name="plan-version" content="246">
+<meta name="plan-impl" content="0.91">
+<meta name="plan-version" content="247">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -1539,6 +1539,9 @@
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20261006T181547359129-jtmm-vacuum-adjudication" data-who="reckon-build" data-when="2026-10-06T18:44:47.653Z">
     <div class="r-comment-body"><p>docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-adjudication.html</p></div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-20261006T2140-s6-drive-topology-turns-landed" data-who="reckon-build" data-when="2026-10-06T21:40:00Z">
+    <div class="r-comment-body"><p>gate tests/gs/test_operator.py and test_jt60sa_machine_map.py passed (39 tests, exit 0, fleet node); jtmm-drive-topology-turns merged as 07080d8b, review 111/120, no added failure. Both drive topologies take each connection's turns from turns_with_sign, so the declared ampere-turns per ampere read 549 per CS coil, 142, 154, 247, 353, 152 and 180 for EF1-EF6 and 23 per FPPC coil; each operator column is scaled by declared ampere-turns over its summed filament weight (13.725 per CS column). Loop 7 now tracks its vacuum prediction at slope -1.09, r -0.995 on E100595, against -14 under the one-turn operator. The first adjudication (merge 57a2cbd2, all 44 channels undecided under the one-turn operator) is superseded by jtmm-vacuum-adjudication-repair, which re-runs with these turns and exercises the read_geometry_table drive seam the review found untested.</p></div>
 </div>
 </section>
 </main>
