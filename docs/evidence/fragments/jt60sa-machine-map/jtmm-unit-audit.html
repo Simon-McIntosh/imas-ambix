@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="jtmm-unit-audit-landing" data-reckon="evidence">
+      <h3>JT-60SA unit audit</h3>
+      <p>Every declared <code>source_unit</code> and <code>target_unit</code> in the
+      three packaged signal maps (<code>imas_ambix/data/maps/jt-60sa/*.json</code>,
+      56 rules) and the machine-map catalogue
+      (<code>imas_ambix/data/machine_maps/jt-60sa.json</code>, 168 bindings) resolves
+      through the Data Dictionary unit vocabulary read from imas-python's bundled
+      dictionaries at the catalogue's own DD version (4.1.1), and each
+      <code>target_unit</code> equals the unit the DD declares on its bound leaf
+      (a name or index leaf carries no DD unit, written as the dimensionless
+      <code>1</code>). The factor from each distinct (source, target) unit pair is
+      derived from an SI base and prefix table and checked against one hand-computed
+      value per pair.</p>
+      <table>
+        <caption>Unit pairs across both catalogues. Every pair is an identity pair,
+        so the derived factor is one unit of the source per unit of the target.</caption>
+        <thead>
+          <tr><th>source unit</th><th>target unit</th><th>bindings</th>
+          <th>derived factor</th><th>hand value</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>A</td><td>A</td><td>12</td><td>1.0</td><td>1.0</td></tr>
+          <tr><td>T</td><td>T</td><td>17</td><td>1.0</td><td>1.0</td></tr>
+          <tr><td>Wb</td><td>Wb</td><td>27</td><td>1.0</td><td>1.0</td></tr>
+          <tr><td>1</td><td>1</td><td>34</td><td>1.0</td><td>1.0</td></tr>
+          <tr><td>m</td><td>m</td><td>134</td><td>1.0</td><td>1.0</td></tr>
+        </tbody>
+      </table>
+      <p>The audit fails on a unit the vocabulary does not carry: changing one
+      magnetics rule's <code>target_unit</code> from <code>Wb</code> to
+      <code>mWb</code> reddens both the vocabulary check and the DD-leaf check,
+      because <code>mWb</code> is not a DD unit spelling and does not equal the
+      leaf's <code>Wb</code>.</p>
+    </section>
+  </main>
+</body>
+</html>
