@@ -1,0 +1,53 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtmm-convention-entry">
+  <header>
+    <p class="meta">
+      Node <code>jtmm-convention-entry</code> &middot;
+      date 2026-10-06 &middot;
+      plan <code>jt60sa-machine-map</code> &sect;6
+    </p>
+  </header>
+
+  <section id="jtmm-convention-entry-declaration">
+    <h4>Declaration</h4>
+    <p>
+      <code>imas_ambix/challenge/convention.py</code> publishes
+      <code>measure_convention(records, eligibility, *, shots)</code>, which
+      reads canonical
+      <code>imas_ambix/challenge/loader.py</code> <code>EfitLabels</code>
+      records and a <code>ConventionEligibility</code> declaration and returns
+      the existing <code>ConventionReceipt</code>.
+      <code>measure_diiid_convention</code> keeps its signature and delegates
+      to the kernel with <code>DIIID_ELIGIBILITY</code>, whose
+      <code>minimum_plasma_current_ka</code>, <code>standard_field_bcoil_maximum</code>
+      and <code>minimum_audit_shots</code> carry the former DIII-D constants.
+      <code>EfitLabels</code> gains <code>lcfs_r_m</code> and
+      <code>lcfs_z_m</code>, and the loader resamples the plasma-current and
+      bcoil channels onto the EFIT time base into <code>scalars</code>.
+      <code>loader.load_labels</code> reads only the label columns so the audit
+      does not materialise the whole <code>ChallengeShot</code> per shot.
+    </p>
+    <p>
+      The audit's sign products are measured in the record's own canonical
+      convention: <code>psi_ip_sign</code> and <code>q_ip_bcoil_sign</code> are
+      the negatives of the source-convention figure, while the per-radian /
+      total-flux discrimination and both ratio medians are unchanged. The
+      twenty-shot DIII-D test asserts the canonical sign and the same medians
+      (<code>1.08030</code>, <code>0.171935</code>).
+    </p>
+  </section>
+
+  <section id="jtmm-convention-entry-gate">
+    <h4>Gate</h4>
+    <p>
+      <code>pytest tests/challenge/test_convention.py</code> passes 4/4 in
+      44 s, including
+      <code>test_measure_convention_reads_synthetic_efit_labels</code>, which
+      runs the kernel on synthetic <code>EfitLabels</code> records. The
+      label-only loader test
+      <code>test_loader.py::test_loader_serves_diii_d_labels_in_the_canonical_convention</code>
+      passes. <code>ruff check</code> on the changed paths exits 0. The
+      declared negative control flips the synthetic records' psirz sign and the
+      synthetic test fails (<code>psi_ip_positive 0 != 3</code>).
+    </p>
+  </section>
+</section>
