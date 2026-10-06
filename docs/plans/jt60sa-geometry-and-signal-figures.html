@@ -24,7 +24,7 @@
   <title>JT-60SA Geometry and Signal Figures | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="36">
+<meta name="plan-version" content="37">
 <meta name="plan-modified" content="2026-10-06">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s1b&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;deferred&quot;}">
 <meta name="plan-commits" content="369a705d,b36a5d93,bd84e83d,438c4d16">
@@ -205,6 +205,9 @@
 </div>
 <div class="r-comment" data-section="s1" data-id="c-run-r-20261006T055534611978-review-of-jtfig-palette-candidates" data-who="reckon-build" data-when="2026-10-06T06:06:29.523Z">
     <div class="r-comment-body"><p>Independent review of run r-20261006T050045657647-jtfig-palette-candidates over the delta it gained since its prior review (base 01eb5bd3 -&gt; head 369a705d, the in-script palette-validation commit): scores goal_fidelity 19, evidence 18, scope_discipline 19, durability 8, fit 16, reuse 18 (total 98) with one follow-on finding and no blocking finding; the committed validate_*.txt reproduce byte-identically from the landed CANDIDATES through validate_palette.js and the in-script guard was shown to fire (passed=False, exit 1) on a failing palette; the sole finding is the machine-local absolute VALIDATOR path, so the check is portable only on this workstation.</p></div>
+</div>
+<div class="r-comment" data-section="§1b" data-id="c-run-r-20261006T111211581948-jtfig-retire-style" data-who="reckon-build" data-when="2026-10-06T11:17:56.828Z">
+    <div class="r-comment-body"><p>§1b retired the ambix style module and its palette figures — deleted imas_ambix/plot_style.py, scripts/figures_jt60sa_geometry.py and docs/figures/jt60sa-palette/ (11 files, 23,494 deleted lines) and replaced the three withdrawn image links in the jtfig-palette-candidates fragment with one sentence recording the withdrawal; measure at commit bd84e83d — grep -rn plot_style imas_ambix scripts tests printed nothing (exit 1), the fragment carries no src/href link, and uv run --no-sync ruff check imas_ambix tests exited 0.</p></div>
 </div>
 </section>
 <section data-reckon="decisions" id="decisions" class="r-decisions">
