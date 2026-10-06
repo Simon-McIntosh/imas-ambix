@@ -14,6 +14,15 @@ Every parsed element carries a :class:`Provenance` naming the source path, the
 file's sha256 and the 1-based inclusive line range it was also read from, so the
 converted IDS can be re-derived from the deck it was built from.
 
+The passive block holds two structures: the vacuum vessel's filaments and,
+after them, the cryostat's slabs, as two contiguous resistivity runs.  They
+are written as the named ``pf_passive`` loops ``VV`` and ``CRYOSTAT``, and a
+group may be called a cryostat only when every one of its filaments lies
+outside the vessel group's R and Z envelope.  The trailing contour table holds
+the vessel outer skin, the vessel inner skin and the first wall; the labels
+split it so the first wall is the limiter unit and the two skins are the inner
+and outer outlines of one annular vessel unit.
+
 Extent convention (EQSLE.DATA grammar).  The two extent columns of a PF coil row
 (``dR dZ``) and of a vessel row (``Va Vb``) are **full extents**: an element
 spans ``R - dR/2 .. R + dR/2`` and ``Z - dZ/2 .. Z + dZ/2``.  Adjacent elements
@@ -55,8 +64,9 @@ ARC_ELEMENT_TYPE = 2
 # Angular step at which a deck arc is discretised into wall-outline points.
 ARC_ANGULAR_STEP_DEG = 1.0
 # wall/description_2d/type/index: the descriptor the written wall satisfies.
-# The writer fills limiter units only, so no vessel structure is described.
+# 1 records a limiter alone; 2 records a limiter with the vessel filled.
 WALL_TYPE_MULTIPLE_UNITS_NO_VESSEL = 1
+WALL_TYPE_MULTIPLE_UNITS_VESSEL = 2
 
 
 # --------------------------------------------------------------------------
@@ -177,15 +187,27 @@ class Sensor:
 
 @dataclass
 class EqSleDeck:
-    """The master EQSLE.DATA deck, parsed."""
+    """The master EQSLE.DATA deck, parsed.
+
+    The deck's passive block holds two structures: the vacuum vessel's
+    filaments first, then the cryostat's slabs, as two contiguous resistivity
+    runs.  They are parsed into ``vessel`` and ``cryostat`` separately so each
+    is written as its own named ``pf_passive`` loop.  The trailing contour
+    table interleaves the vessel outer and inner skins with the first wall, so
+    its labels split it into ``vessel_skin_outer``, ``vessel_skin_inner`` and
+    ``first_wall`` (the plasma-facing limiter contour).
+    """
 
     path: str
     sha256: str
     pf_coils: list[PfCoil]
     vessel: list[VesselFilament]
+    cryostat: list[VesselFilament]
     tfc_inside: list[Segment]
     tfc_outside: list[Segment]
-    limiter_and_first_wall: list[Segment]
+    first_wall: list[Segment]
+    vessel_skin_inner: list[Segment]
+    vessel_skin_outer: list[Segment]
     # The deck states the TF conductor geometry only; when it also carried an
     # explicit turn or coil count it would be recorded here.
     tf_turns: int | None = None
@@ -322,40 +344,83 @@ def _find_vessel_header(lines: list[str], start: int) -> int:
     raise ValueError("no NV vessel block header found")
 
 
+def split_passive_groups(
+    filaments: Sequence[VesselFilament],
+) -> tuple[list[VesselFilament], list[VesselFilament]]:
+    """Split a passive block into its vessel and cryostat runs.
+
+    The vessel comes first and the cryostat after it, as two contiguous
+    resistivity runs; a block carrying a third run is refused rather than
+    silently folded into one of the two.
+    """
+    blocks = _resistivity_blocks(filaments)
+    if len(blocks) > 2:
+        raise ValueError(
+            f"passive block carries {len(blocks)} resistivity groups; expected "
+            "the vacuum vessel and at most one cryostat group"
+        )
+    vessel = blocks[0] if blocks else []
+    cryostat = blocks[1] if len(blocks) == 2 else []
+    return vessel, cryostat
+
+
 def _parse_segments(
     lines: list[str], start: int, source: str, sha: str
-) -> tuple[list[Segment], list[Segment], list[Segment]]:
-    """Parse the trailing contour table into wall, TFC inside and outside."""
-    wall: list[Segment] = []
+) -> tuple[list[Segment], list[Segment], list[Segment], list[Segment], list[Segment]]:
+    """Parse the trailing contour table into its labelled runs.
+
+    Returns ``(first_wall, vessel_skin_inner, vessel_skin_outer, tfc_inside,
+    tfc_outside)``.  A section label sits on the first row of its run; the rows
+    after it carry no comment and continue that run.  The first wall (the
+    limiter contour) is the default target, so a run that carries no label of
+    its own still lands there.
+    """
+    first_wall: list[Segment] = []
+    skin_inner: list[Segment] = []
+    skin_outer: list[Segment] = []
     tfc_inside: list[Segment] = []
-    by_section = {"wall": wall, "inside": tfc_inside, "outside": []}
-    section = "wall"
+    tfc_outside: list[Segment] = []
+    target = first_wall
     for idx in range(start, len(lines)):
         line_no = idx + 1
         nums, comment = _numeric_prefix(lines[idx].split())
         if len(nums) < 5:
             continue
-        kind_code = int(round(nums[-1]))
+        # A line row is four params then its kind (1); an arc row is five
+        # params (the last an end angle) then its kind (2).  A trailing date
+        # on a labelled row is numeric too, so the kind is read by column
+        # rather than as the last number on the line.
+        kind_code = None
+        if len(nums) >= 6 and int(round(nums[5])) in (1, 2):
+            kind_code = int(round(nums[5]))
+        elif int(round(nums[4])) in (1, 2):
+            kind_code = int(round(nums[4]))
         if kind_code == 1:
             kind, params = "line", tuple(float(v) for v in nums[:4])
         elif kind_code == 2 and len(nums) >= 6:
             kind, params = "arc", tuple(float(v) for v in nums[:5])
         else:
             continue
-        # A section label sits on the first row of its run; the rows after it
-        # carry no comment and continue the section.
-        if "TFC INSIDE" in comment:
-            section = "inside"
-        elif "TFC OUTSIDE" in comment:
-            section = "outside"
-        seg = Segment(
-            kind=kind,
-            params=params,
-            comment=comment,
-            provenance=Provenance(source, sha, line_no, line_no),
+        label = comment.upper()
+        if "TFC INSIDE" in label:
+            target = tfc_inside
+        elif "TFC OUTSIDE" in label:
+            target = tfc_outside
+        elif "VV OUTER SKIN" in label:
+            target = skin_outer
+        elif "VV INNER SKIN" in label:
+            target = skin_inner
+        elif "FIRST WALL" in label:
+            target = first_wall
+        target.append(
+            Segment(
+                kind=kind,
+                params=params,
+                comment=comment,
+                provenance=Provenance(source, sha, line_no, line_no),
+            )
         )
-        by_section[section].append(seg)
-    return wall, tfc_inside, by_section["outside"]
+    return first_wall, skin_inner, skin_outer, tfc_inside, tfc_outside
 
 
 def parse_eqsle_deck(path: Path | str) -> EqSleDeck:
@@ -373,16 +438,22 @@ def parse_eqsle_deck(path: Path | str) -> EqSleDeck:
         raise ValueError("no 'PF COIL' block in deck")
     coils, after_coils = _parse_pf_coils(lines, pf_header, source, sha)
     nv_header = _find_vessel_header(lines, after_coils)
-    vessel, after_vessel = _parse_vessel(lines, nv_header, source, sha)
-    wall, tfc_in, tfc_out = _parse_segments(lines, after_vessel, source, sha)
+    passive, after_vessel = _parse_vessel(lines, nv_header, source, sha)
+    vessel, cryostat = split_passive_groups(passive)
+    first_wall, skin_inner, skin_outer, tfc_in, tfc_out = _parse_segments(
+        lines, after_vessel, source, sha
+    )
     return EqSleDeck(
         path=source,
         sha256=sha,
         pf_coils=coils,
         vessel=vessel,
+        cryostat=cryostat,
         tfc_inside=tfc_in,
         tfc_outside=tfc_out,
-        limiter_and_first_wall=wall,
+        first_wall=first_wall,
+        vessel_skin_inner=skin_inner,
+        vessel_skin_outer=skin_outer,
     )
 
 
@@ -569,19 +640,65 @@ def _resistivity_blocks(
     return blocks
 
 
-def build_pf_passive(factory, vessel: Sequence[VesselFilament]):
-    """One loop per contiguous resistivity block, each carrying its own value."""
+class CryostatEnvelopeError(ValueError):
+    """A passive group that is not spatially outside the vacuum vessel."""
+
+
+def _r_z_envelope(
+    filaments: Sequence[VesselFilament],
+) -> tuple[float, float, float, float]:
+    return (
+        min(f.r for f in filaments),
+        max(f.r for f in filaments),
+        min(f.z for f in filaments),
+        max(f.z for f in filaments),
+    )
+
+
+def _require_outside_envelope(
+    vessel: Sequence[VesselFilament], cryostat: Sequence[VesselFilament]
+) -> None:
+    """Refuse a cryostat group any filament of which lies inside the vessel.
+
+    A group whose filaments fall inside the vessel's R and Z envelope is a
+    second vessel material, not the cryostat, so labelling it CRYOSTAT would
+    misname vessel structure.
+    """
+    r_min, r_max, z_min, z_max = _r_z_envelope(vessel)
+    for fil in cryostat:
+        if r_min <= fil.r <= r_max and z_min <= fil.z <= z_max:
+            raise CryostatEnvelopeError(
+                f"a filament at R={fil.r} Z={fil.z} lies inside the vessel "
+                f"envelope R=[{r_min}, {r_max}] Z=[{z_min}, {z_max}], so the "
+                "group is not a cryostat"
+            )
+
+
+def build_pf_passive(
+    factory,
+    vessel: Sequence[VesselFilament],
+    cryostat: Sequence[VesselFilament] = (),
+):
+    """Write the vacuum vessel and, when present, the cryostat as named loops.
+
+    The vessel is loop ``VV``; the cryostat, read from the same deck in both
+    phases, is loop ``CRYOSTAT``.  A cryostat group must lie outside the
+    vessel's R and Z envelope or the write is refused.
+    """
     ids = factory.new("pf_passive")
     _static_header(ids)
-    blocks = _resistivity_blocks(vessel)
-    ids.loop.resize(len(blocks))
-    for i, block in enumerate(blocks):
+    groups: list[tuple[str, Sequence[VesselFilament]]] = [("VV", list(vessel))]
+    if cryostat:
+        _require_outside_envelope(vessel, cryostat)
+        groups.append(("CRYOSTAT", list(cryostat)))
+    ids.loop.resize(len(groups))
+    for i, (name, group) in enumerate(groups):
         loop = ids.loop[i]
-        loop.name = f"VV{i + 1}"
-        loop.element.resize(len(block))
-        for j, fil in enumerate(block):
+        loop.name = name
+        loop.element.resize(len(group))
+        for j, fil in enumerate(group):
             out = loop.element[j]
-            out.name = f"{loop.name}_{j + 1}"
+            out.name = f"{name}_{j + 1}"
             out.turns_with_sign = abs(float(fil.turns))
             out.geometry.geometry_type = GEOMETRY_TYPE_RECTANGLE
             out.geometry.rectangle.r = float(fil.r)
@@ -589,7 +706,7 @@ def build_pf_passive(factory, vessel: Sequence[VesselFilament]):
             # Va/Vb, like dR/dZ, are full extents; no factor of two.
             out.geometry.rectangle.width = float(fil.dr)
             out.geometry.rectangle.height = float(fil.dz)
-        loop.resistivity = float(block[0].resistivity)
+        loop.resistivity = float(group[0].resistivity)
     return ids
 
 
@@ -661,17 +778,46 @@ def _wall_outline(wall: Sequence[Segment]) -> tuple[list[float], list[float]]:
 
 def build_wall(
     factory,
-    wall: Sequence[Segment],
-    description_type: int = WALL_TYPE_MULTIPLE_UNITS_NO_VESSEL,
+    limiter: Sequence[Segment],
+    *,
+    vessel_inner: Sequence[Segment] | None = None,
+    vessel_outer: Sequence[Segment] | None = None,
 ):
+    """Write the limiter unit and, when both skins are present, the vessel.
+
+    The first-wall segments are the plasma-facing contour of the single
+    limiter unit.  The vessel's inner and outer skins become the annular
+    inner and outer outlines of one vessel unit, so the limiter draws as one
+    closed contour rather than as nested contours joined by strokes.  A source
+    that carries no skins yields a limiter-only wall.
+    """
+    if (vessel_inner is None) != (vessel_outer is None):
+        raise ValueError(
+            "a vessel unit needs both an inner and an outer skin; got one"
+        )
     ids = factory.new("wall")
     _static_header(ids)
-    r_pts, z_pts = _wall_outline(wall)
+    r_pts, z_pts = _wall_outline(limiter)
     ids.description_2d.resize(1)
-    ids.description_2d[0].type.index = description_type
-    ids.description_2d[0].limiter.unit.resize(1)
-    ids.description_2d[0].limiter.unit[0].outline.r = np.array(r_pts, dtype=float)
-    ids.description_2d[0].limiter.unit[0].outline.z = np.array(z_pts, dtype=float)
+    description = ids.description_2d[0]
+    has_vessel = vessel_inner is not None and vessel_outer is not None
+    description.type.index = (
+        WALL_TYPE_MULTIPLE_UNITS_VESSEL
+        if has_vessel
+        else WALL_TYPE_MULTIPLE_UNITS_NO_VESSEL
+    )
+    description.limiter.unit.resize(1)
+    description.limiter.unit[0].outline.r = np.array(r_pts, dtype=float)
+    description.limiter.unit[0].outline.z = np.array(z_pts, dtype=float)
+    if has_vessel:
+        inner_r, inner_z = _wall_outline(vessel_inner)
+        outer_r, outer_z = _wall_outline(vessel_outer)
+        description.vessel.unit.resize(1)
+        annular = description.vessel.unit[0].annular
+        annular.outline_inner.r = np.array(inner_r, dtype=float)
+        annular.outline_inner.z = np.array(inner_z, dtype=float)
+        annular.outline_outer.r = np.array(outer_r, dtype=float)
+        annular.outline_outer.z = np.array(outer_z, dtype=float)
     return ids
 
 
@@ -765,9 +911,12 @@ def _line_ranges(provenances: Sequence[Provenance]) -> list[list[int]]:
 def _deck_provenances(deck: EqSleDeck) -> list[Provenance]:
     provs = [e.provenance for coil in deck.pf_coils for e in coil.elements]
     provs += [f.provenance for f in deck.vessel]
+    provs += [f.provenance for f in deck.cryostat]
     provs += [s.provenance for s in deck.tfc_inside]
     provs += [s.provenance for s in deck.tfc_outside]
-    provs += [s.provenance for s in deck.limiter_and_first_wall]
+    provs += [s.provenance for s in deck.first_wall]
+    provs += [s.provenance for s in deck.vessel_skin_inner]
+    provs += [s.provenance for s in deck.vessel_skin_outer]
     return provs
 
 
@@ -792,13 +941,18 @@ def build_receipt(
                 "PF COIL": _line_ranges(
                     [e.provenance for c in eqsle.pf_coils for e in c.elements]
                 ),
-                "NV": _line_ranges([f.provenance for f in eqsle.vessel]),
+                "NV vessel": _line_ranges([f.provenance for f in eqsle.vessel]),
+                "NV cryostat": _line_ranges([f.provenance for f in eqsle.cryostat]),
                 "TFC": _line_ranges(
                     [s.provenance for s in eqsle.tfc_inside]
                     + [s.provenance for s in eqsle.tfc_outside]
                 ),
-                "wall": _line_ranges(
-                    [s.provenance for s in eqsle.limiter_and_first_wall]
+                "first wall": _line_ranges(
+                    [s.provenance for s in eqsle.first_wall]
+                ),
+                "vessel skins": _line_ranges(
+                    [s.provenance for s in eqsle.vessel_skin_inner]
+                    + [s.provenance for s in eqsle.vessel_skin_outer]
                 ),
             },
         },
@@ -867,14 +1021,21 @@ def write_phase_description(
     factory = imas.IDSFactory(DD_VERSION)
     commit = converter_commit or converter_git_commit()
 
-    vessel = coil_vv.vessel if coil_vv is not None else eqsle.vessel
-    # A coil_vv deck carries the phase's own limiter contour; EQSLE.DATA carries
-    # the one the deck was written from.
-    wall = (
-        coil_vv.limiter_and_first_wall
-        if coil_vv is not None
-        else eqsle.limiter_and_first_wall
-    )
+    # Each phase's own vessel comes from its deck: coil_vv_OP2.dat for OP2, the
+    # EQSLE.DATA passive block for OP1.  The cryostat did not change between
+    # the phases, so both read it from EQSLE.DATA.
+    if coil_vv is not None:
+        vessel = coil_vv.vessel
+        limiter: Sequence[Segment] = coil_vv.limiter_and_first_wall
+        # A coil_vv deck carries no vessel skins, so its wall has no vessel unit.
+        skin_inner: Sequence[Segment] | None = None
+        skin_outer: Sequence[Segment] | None = None
+    else:
+        vessel = eqsle.vessel
+        limiter = eqsle.first_wall
+        skin_inner = eqsle.vessel_skin_inner
+        skin_outer = eqsle.vessel_skin_outer
+    cryostat = eqsle.cryostat
     # The deck states only the TF conductor geometry. Where it carries no turn
     # or coil count, the field is left unset and recorded as a validation gap
     # rather than written as a guessed zero.
@@ -898,9 +1059,11 @@ def write_phase_description(
 
     ids_map = {
         "pf_active": build_pf_active(factory, eqsle),
-        "pf_passive": build_pf_passive(factory, vessel),
+        "pf_passive": build_pf_passive(factory, vessel, cryostat),
         "magnetics": build_magnetics(factory, geo),
-        "wall": build_wall(factory, wall),
+        "wall": build_wall(
+            factory, limiter, vessel_inner=skin_inner, vessel_outer=skin_outer
+        ),
         "tf": build_tf(
             factory, eqsle, r0=r0, coils_n=resolved_coils_n, turns=tf_turns
         ),
