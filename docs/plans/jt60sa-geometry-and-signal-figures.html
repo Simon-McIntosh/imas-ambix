@@ -10,7 +10,7 @@
   <meta name="plan-summary" content="Draw the JT-60SA machine geometry the SELENE decks gave us, OP1 against OP2, and the EDDB signals already cached, so the map&#x27;s evidence can be read at a glance">
   <meta name="plan-status" content="draft">
   <meta name="plan-roi" content="mid">
-  <meta name="plan-effort-hours" content="7.5">
+  <meta name="plan-effort-hours" content="6.0">
   <meta name="plan-capability-version" content="1.0">
   <meta name="plan-capability-class" content="general">
   <meta name="plan-capability-reasoning" content="standard">
@@ -20,12 +20,13 @@
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-tags" content="jt-60sa,figures">
   <meta name="plan-informs" content="jt60sa-machine-map">
+  <meta name="plan-section-depends-on" content="{&quot;s2&quot;: [&quot;imas-ink:geometry-figure-vessel-units&quot;]}">
   <title>JT-60SA Geometry and Signal Figures | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="28">
+<meta name="plan-version" content="30">
 <meta name="plan-modified" content="2026-10-06">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s1b&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;}">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s1b&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;deferred&quot;}">
 <meta name="plan-commits" content="369a705d,b36a5d93">
 </head>
 <body>
@@ -74,7 +75,7 @@
       It waits on two landings: the machine map's wall rewrite, which writes each phase's first wall
       as a limiter unit and its vacuum vessel as an annular vessel unit from the inner and outer VV
       skins of <code>coil_vv_OP{1,2}.dat</code> (lead ruling, 2026-10-06; machine-map node
-      <code>jtmm-passive-cryostat-and-wall</code>), and §4, which teaches imas-ink to draw vessel units.
+      <code>jtmm-passive-cryostat-and-wall</code>), and imas-ink's <code>geometry-figure-vessel-units</code>, which teaches it to draw vessel units.
       Done-when: both figures are written as one SVG each, with no PNG twin, under
       <code>docs/figures/jt60sa-geometry/</code> and embedded with a project-absolute <code>src</code> and
       a caption in the node's evidence fragment; the script prints, per phase, the counts it passed to
@@ -139,9 +140,12 @@
     </p>
 
     <h2 id="s4">§4 — imas-ink draws the wall&#x27;s vessel units</h2>
-<section data-reckon="section" data-id="s4" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+<section data-reckon="section" data-id="s4" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="deferred" data-links=""></section>
 <p>
-      imas-ink's <code>extract_geometry</code> gathers only <code>wall.description_2d.limiter</code> units
+      This work moved to imas-ink's own plan, <code>imas-ink:geometry-figure-vessel-units</code>, because a
+      project's work is written in its own repository; §2 waits on that plan, and this section is kept
+      only as the record of why. imas-ink's <code>extract_geometry</code> gathers only
+      <code>wall.description_2d.limiter</code> units
       (<code>imas_ink/extract.py</code>, <code>_select_mobile_unit</code>), so a vacuum vessel written to
       <code>description_2d.vessel</code> never reaches <code>geometry_figure_mpl</code>. The machine map
       now writes JT-60SA's vessel there, as an annular unit built from the inner and outer VV skins of
@@ -160,9 +164,7 @@
       retires nothing; it is the one public addition, reusing the type the 3D path already exports.
     </p>
     <p>
-      Done-when: a new imas-ink test builds a wall IDS with one limiter unit and one annular vessel
-      unit and asserts both reach the drawn axes, failing when vessel units are ignored; imas-ink's
-      suite passes; and its ruff check exits 0.
+      The done-when and its test live in that plan.
     </p>
 
     <section data-reckon="followups" id="followups" class="r-followups">
@@ -176,7 +178,7 @@
 <article class="r-fu" data-id="f-jtfig-002" data-status="open" data-written-by="reckon-build" data-written-at="2026-10-06" data-recommends-skill="/reckon-build jt60sa-geometry-and-signal-figures §4" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Teach imas-ink vessel units, retire ambix&#x27;s figure code, then render through imas-ink</h4>
     <div class="r-fu-body"><p>§4, §1b and §3 can run now; §2 waits on the machine map's wall rewrite and §4.</p></div>
-    <pre class="r-fu-prompt">/reckon-build jt60sa-geometry-and-signal-figures §4</pre>
+    <pre class="r-fu-prompt">/reckon-build jt60sa-geometry-and-signal-figures §3</pre>
     </article>
 </section>
 
