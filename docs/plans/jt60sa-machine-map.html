@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.87">
-<meta name="plan-version" content="219">
+<meta name="plan-version" content="220">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -189,10 +189,18 @@
       <code>tokamap</code> exporter writes a directory that passes
       <code>tokamap-validator</code> for the five first-pass groups, with the collapse of
       unit, sign and COCOS factors into <code>scale</code> asserted by a round-trip test on
-      every binding. The exporter is one public function that writes the directory from a
-      catalogue and its signal maps. It retires nothing, because ambix has no exporter, and it
-      is kept out of the loaders because they read the ambix schema and must not learn
-      tokamap's.
+      every binding. The exporter writes the directory from a catalogue and its signal maps
+      through one public function. As landed (merge 4bf5bf2f), <code>imas_ambix/data/tokamap_export.py</code>
+      exports seven names:
+      <code>export_tokamap_directory</code>; two value types, <code>TokamapEntry</code> and
+      <code>TokamapExport</code>; three format constants, <code>TOKAMAP_FORMAT_VERSION</code>,
+      <code>PARTITION_ATTRIBUTE</code> and <code>PARTITION_SELECTOR</code>; and one refusal family,
+      <code>TokamapExportError</code>, raised when a binding cannot be expressed in tokamap. The
+      family cannot reuse <code>MachineMapError</code> or <code>SignalMapError</code>, because those
+      refuse a map that is invalid in ambix's own schema, while this one refuses a valid map that
+      tokamap's format cannot carry. None of the seven retires anything, because ambix has no
+      exporter. The exporter is kept out of the loaders because they read the ambix schema and must
+      not learn tokamap's.
     </p>
 
     <section class="section-landed">
@@ -536,9 +544,13 @@
       is not channel-shaped: the per-request refusal contract, and the niced, module-loaded remote
       command over <code>SshTransport</code>. <code>encode_batch</code> and <code>decode_batch</code>
       gain the EQDB record's framing beside the channel framing, and the remote side calls the EQDB
-      entry the probe below names rather than <code>eddb_pwrapper</code>. The two new public types
-      add to §6's interface and retire nothing, because no equilibrium-database request type
-      exists. Its records land in the same store, owned by <code>imas_ambix/data/eddb.py</code>:
+      entry the probe below names rather than <code>eddb_pwrapper</code>. A refused EQDB request
+      cannot be a <code>ChannelRefusal</code>, which is keyed <code>(shot, category, dname)</code>. So
+      it is a third record type keyed <code>(shot, record)</code>, carried in the same
+      <code>BatchResult</code> beside the channel refusals. A transport failure stays an
+      <code>EddbRemoteError</code>, so no refusal family is added. The three new public types, request,
+      record and refusal, add to §6's interface and retire nothing, because no equilibrium-database
+      request type exists. Its records land in the same store, owned by <code>imas_ambix/data/eddb.py</code>:
       <code>write_channel</code> writes only a <code>(channel, time)</code> array with a sibling
       time vector, and an EQDB record is psi on a two-dimensional grid with its boundary and
       profiles, so <code>eddb.py</code> gains a grid record writer beside <code>write_channel</code>
