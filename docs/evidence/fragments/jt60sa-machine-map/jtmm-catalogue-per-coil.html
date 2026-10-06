@@ -1,0 +1,67 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtmm-catalogue-per-coil">
+  <header>
+    <h3>Blocked: the OP1 <code>pf_passive</code> loops carry no name for the struct-array selector to match</h3>
+    <p class="meta">
+      Node <code>jtmm-catalogue-per-coil</code> &middot;
+      date 2026-10-06 &middot;
+      plan <code>jt60sa-machine-map</code> &sect;4
+    </p>
+  </header>
+
+  <p>
+    The per-entry selector landed by <code>jtmm-static-entry-selector</code> reads one
+    named entry of the first struct array on a binding's <code>dd_path</code> and
+    consumed that level (<code>transform_engine._select_struct_array_entry</code>). The
+    <code>pf_active</code> coil-element arrays can be addressed this way, because the
+    converter names each <code>pf_active/coil</code>. The OP1 <code>pf_passive</code>
+    vessel cannot: the converter writes one loop per contiguous resistivity block (63
+    filaments at 7.76e-7 and 57 at 7.20e-7 ohm m) with no <code>loop.name</code>, and
+    the two loops are ragged, so neither the selector nor an unselected read can
+    materialise the 120 vessel filaments the section's identity test requires.
+  </p>
+
+  <section id="jtmm-catalogue-per-coil-repro">
+    <h4>Reproduction (positive control and failure)</h4>
+    <p>
+      Read against the real store
+      <code>/work/projects/imas_gpu/jt60sa/machine_description</code> through the
+      <code>netcdf</code> / <code>static-over-map</code> engine. One binding,
+      <code>dd_path = pf_passive/loop/element/geometry/rectangle/r</code>,
+      <code>source_rank = 1</code>: OP2 reads, OP1 does not, and no selector value can be
+      supplied because no loop carries a name.
+    </p>
+    <table>
+      <thead><tr><th>phase</th><th>binding</th><th>result</th></tr></thead>
+      <tbody>
+        <tr><td>OP2</td><td>no selector</td><td>ok &mdash; shape (98,), the single OP2 loop</td></tr>
+        <tr><td>OP1</td><td>no selector</td><td><code>BindingTransformError</code> &mdash; ragged loop array 63/57</td></tr>
+        <tr><td>OP1</td><td><code>struct_array_entry = "&hellip;"</code></td><td><code>BindingTransformError</code> &mdash; &ldquo;carries no entry with that name&rdquo;</td></tr>
+      </tbody>
+    </table>
+    <p>
+      The absence is confirmed at the store, not only through imas: OP1
+      <code>pf_passive.nc</code> carries no string variable under
+      <code>pf_passive/loop</code> except <code>ids_properties.version_put.*</code>, and
+      the only <code>loop</code> leaf written is the numeric
+      <code>pf_passive/loop.resistivity</code>. The loops are genuinely unnamed, and
+      <code>struct_array_entry</code> refuses the empty string.
+    </p>
+    <p>
+      Log: runs/r-20261006T031641983435-jtmm-catalogue-per-coil/jt60sa-passive-repro.log.
+    </p>
+  </section>
+
+  <section id="jtmm-catalogue-per-coil-fix-scope">
+    <h4>What unblocks it</h4>
+    <p>
+      Reading the OP1 vessel needs one of two changes, both outside this node's write
+      paths: the converter (<code>imas_ambix/data/selene_deck.py</code>
+      <code>build_pf_passive</code>) names each loop so the existing selector can address
+      it (<code>loop.name = "V1"</code> / <code>"V2"</code>, then a re-conversion of the
+      store); or the engine's selector
+      (<code>imas_ambix/data/transform_engine.py</code>
+      <code>_select_struct_array_entry</code>) accepts an index for an unnamed entry. The
+      catalogue cannot close the gap on its own, so it is not committed.
+    </p>
+  </section>
+</section>
