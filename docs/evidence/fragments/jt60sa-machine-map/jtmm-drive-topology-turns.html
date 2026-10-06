@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+  <meta name="reckon-type" content="doc">
+  <title>Drive-topology turns equal the deck's coil totals — landed</title>
+</head>
+<body>
+<main class="plan-doc">
+  <h2 id="jtmm-drive-topology-turns">Drive-topology turns carry the deck's coil totals</h2>
+  <ul>
+    <li id="jtmm-drive-topology-turns-declared">Both drive topologies in <code>imas_ambix/data/machine_maps/jt-60sa.json</code> now take each connection's <code>turns</code> from <code>pf_active/coil/element/turns_with_sign</code> through their declared <code>turns_path</code>. The ampere-turns per ampere summed over a circuit's connections read <strong>549</strong> for each CS coil, <strong>142, 154, 247, 353, 152, 180</strong> for EF1&ndash;EF6 and <strong>23</strong> for each FPPC coil &mdash; the SELENE deck's own coil totals (<code>EQSLE.DATA</code>), not the circuit's filament count. 536 connection lines changed, all <code>turns</code> values, no other content.</li>
+    <li id="jtmm-drive-topology-turns-scale">The operator column a coil current multiplies ALREADY sums the circuit's filaments, so <code>build_operator</code> now sets each column's scale to the drive's declared ampere-turns per ampere <em>divided by the column's own summed filament weight</em>: CS columns scale 549/40&nbsp;=&nbsp;13.725, EF columns 8.875&ndash;22.0625, FPPC 23/6&nbsp;=&nbsp;3.833. One division distributes the winding's ampere-turns across the filaments taken and counts none twice, so the predicted ampere-turns equal the deck total rather than the filament count squared.</li>
+    <li id="jtmm-drive-topology-turns-fold">The folded kA&middot;turn convention is retained as the discriminator: a drive whose declared total equals the column's own summed weight has that weight already folded into the element <code>xmult</code> and its channel is left in <code>kA&middot;turn</code> (MAST amc, turns&nbsp;=&nbsp;1), so only the flat <code>&times;&nbsp;1000</code> conversion remains. Dividing there would drop a factor of 1000 rather than remove a double count. This is the branch the prior <code>jtmm-drive-turns</code> record flagged for revisit once the converter repair confirmed the turns were not dropped by the converter &mdash; the fix lands here, in the else branch, not by deleting the discriminator.</li>
+    <li id="jtmm-drive-topology-turns-report">A drive stating a real turn total is reported by <code>ForwardOperator.shapes()</code> as the applied <code>pf_current_scales</code> beside the <code>pf_amc_channels</code> they scale, so the factor a column actually received is readable, not just its input.</li>
+    <li id="jtmm-drive-topology-turns-mast">MAST unchanged: real-cache MAST tables carry no <code>circuit_drives</code> for their amc channels, so <code>drive is None</code> and every column keeps <code>_KA_TURN_TO_A</code>; the frozen MAST near-vacuum SI round trip stays inside its [0.5,&nbsp;1.5] band.</li>
+    <li id="jtmm-drive-topology-turns-vacuum">Turn-corrected vacuum fit: on E100595 loop 7 (the CS-dominated loop) predicted against measured tracks slope <strong>&minus;1.0855</strong> at r&nbsp;&minus;0.9947, within 20&nbsp;percent of &minus;1. The prior double-counted scale put it about 70&times; over.</li>
+    <li id="jtmm-drive-topology-turns-gate">Gate <code>tests/gs/test_operator.py</code> + <code>tests/data/test_jt60sa_machine_map.py</code>: 39 passed, EXIT=0, on the fleet compute node; <code>ruff check</code> on the changed paths exits 0.</li>
+    <li id="jtmm-drive-topology-turns-negative-control">Negative control: restoring <code>turns&nbsp;1.0</code> on the 536 drive-topology connections makes the deck-total assertion red &mdash; the declared totals collapse to the filament counts (<code>cs1</code> 40.0 against 549.0), 1 failed, EXIT=1 (log <code>negative-control.log</code>).</li>
+    <li id="jtmm-drive-topology-turns-caveat">The fold discriminator keys on the column weight, the only in-scope signal of which convention a declared drive uses; a source that left its elements normalised while declaring a weight of 1 would be indistinguishable from a folded kA&middot;turn channel. No such source is present in the two catalogues.</li>
+  </ul>
+</main>
+</body>
+</html>
