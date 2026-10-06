@@ -26,7 +26,7 @@
   <title>JT-60SA Pulse IDSs and Equilibrium Animation | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="7">
+<meta name="plan-version" content="9">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -72,9 +72,13 @@
       left out with its reason. The description comes whole from the phase directory the catalogue
       selects: <code>map_for_shot</code> and the catalogue's <code>static-over-map</code> layout,
       the same <code>{root}/{map name}/{ids}.nc</code> that <code>NetCDFTransformEngine</code> opens.
-      So the static content is the converter's own output, never re-derived. The samples come from
-      the compiled signal map through <code>VirtualZarrView.for_target</code>, so a unit, sign or
-      COCOS factor is applied in exactly the place it is applied today. A signal the maps block
+      So the static content is the converter's own output, never re-derived. Each signal's values
+      come from the compiled signal map through <code>VirtualZarrView.for_target</code>, so a unit,
+      sign or COCOS factor is applied in exactly the place it is applied today. Its time base comes
+      from <code>imas_ambix/data/eddb.py</code> <code>read_channel</code>, the owner of the cache's
+      time base, because the view returns values with none. <code>scripts/figures_jt60sa_signals.py</code>
+      already reads E101154 this way, values through the view and time through
+      <code>read_channel</code>, and the mint follows it rather than resolving cache paths itself. A signal the maps block
       (the second TF chain, the PF chains the cached shots do not corroborate) is not written.
       Neither FPPC coil has a served channel, so <code>FPPC_UP</code> and <code>FPPC_DOWN</code>
       carry geometry and no current. <code>ids_properties.homogeneous_time</code> is 1 only when
@@ -178,10 +182,13 @@
     <h2 id="s4">§4 — The E101154 animation, from IDSs alone</h2>
 <section data-reckon="section" data-id="s4" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
     <p>
-      The animation is a second output of <code>scripts/figures_jt60sa_geometry.py</code>, the one
-      JT-60SA imas-ink driver, rather than a parallel script. That script already opens a directory
-      of <code>{ids}.nc</code> files at the catalogue's DD version and builds the geometry with
-      <code>extract_geometry</code>, and a minted pulse directory has the same layout. It gains one
+      The animation is a second output of <code>scripts/figures_jt60sa_geometry.py</code> rather than a
+      parallel script. ambix has two JT-60SA imas-ink drivers:
+      <code>scripts/figures_jt60sa_signals.py</code> draws time traces from the EDDB cache, and
+      <code>scripts/figures_jt60sa_geometry.py</code> opens a directory of <code>{ids}.nc</code> files at
+      the catalogue's DD version and builds the geometry with <code>extract_geometry</code>. The
+      animation reads only minted IDSs, whose directory has that same layout, so it belongs to the
+      geometry driver. It gains one
       option naming the pulse, and retires nothing: the script takes no options today, and a pulse
       is a new input to it. With it, the script opens only the minted IDSs in
       <code>/work/projects/imas_gpu/jt60sa/ids/101154/</code>, builds the geometry from
@@ -221,7 +228,8 @@
     <p class="r-dec-q">Where do the X-points and strike points in the minted equilibrium come from?</p>
     <p class="r-dec-opts">
       <button class="r-opt" data-value="eqdb-record">Bound from the EQDB record</button>
-      <button class="r-opt" data-value="nova-topology">Computed by nova from the mapped psi</button>
+      <button class="r-opt" data-value="ambix-topology">Computed by ambix&#x27;s latent/topology.read_topology, with strike points from the separatrix-wall intersection, from the mapped psi</button>
+      <button class="r-opt" data-value="nova-topology">Computed by nova&#x27;s equilibrium topology from the mapped psi</button>
       </p>
     <p class="r-dec-rat"></p>
     </div>
