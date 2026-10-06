@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.89">
-<meta name="plan-version" content="237">
+<meta name="plan-version" content="238">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -210,9 +210,17 @@
       unit, sign and COCOS factor the exporter collapses into <code>scale</code>. Its round-trip test
       recomputes the expected scale from <code>canonical_factor</code> and never asks the engine, so
       the two resolvers can drift with every test still green. The node <code>jtmm-tokamap-jt60sa</code>
-      makes the exporter take each binding's factor from the engine's own resolution, retiring
-      <code>_cocos_transformation</code>. The round-trip test then asserts every exported
-      <code>scale</code> against the engine's compiled factor for the same binding. Then the node
+      splits <code>scale</code> along its two owners. The COCOS half comes from the engine.
+      <code>imas_ambix/data/transform_engine.py</code> gains one public resolver, promoting its private
+      <code>_target_cocos_transformation</code>, which returns a DD path's COCOS transformation
+      class. The exporter calls it, and <code>_cocos_transformation</code> retires, because an
+      importer must not reach into a private symbol and must not fork it either. The unit half stays
+      the exporter's: the engine applies no unit factor (<code>EmittedArray</code> carries
+      <code>source_unit</code> and <code>target_unit</code> as metadata only), so
+      <code>_unit_factor</code> remains the one unit conversion on the export path. The round-trip
+      test asserts each exported <code>scale</code> as the product of the engine resolver's COCOS
+      factor, the binding's sign and the exporter's unit factor, so neither half can drift unseen.
+      That adds one public definition, the resolver, and retires the exporter's private copy. Then the node
       exports the JT-60SA catalogue and signal maps for the five first-pass groups once §7's
       equilibrium bindings exist.
     </p>
@@ -1479,7 +1487,7 @@
     <div class="r-comment-body"><p>Ran the three refits on E100595/E100579/E100642 with each coil current scaled by its declared ampere-turns per ampere; the passive-column refit is null, the &lt;=50 mm sensor move and probe-axis flip do not recover identity, and a free per-coil fit reaches r 0.98-1.00 for all 44 channels, so the residual scale and the untracked loops 1-14 lie in the forward operator's per-coil pattern; wrote docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-residual-rca.html.</p></div>
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20261006T202345840597-review-of-jtmm-vacuum-residual-rca" data-who="reckon-build" data-when="2026-10-06T20:31:51.242Z">
-    <div class="r-comment-body"><p>reviewed run r-20261006T200430771816-jtmm-vacuum-residual-rca (base 28a6ec3d647414a07c7de1702abc9960a4094316, head 1f1fae117948add19bb9426b3553ef51eaf07fcd: a single read-only commit adding docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-residual-rca.html, which attributes the JT-60SA residual to the operator&#x27;s per-coil pattern G_pf) and stored a parsed six-dimension record at both granted review-store paths scoring goal_fidelity 17, evidence 15, scope_discipline 20, durability 12, fit 18, reuse 20 (total 102) with two follow-on findings.</p></div>
+    <div class="r-comment-body"><p>reviewed run r-20261006T200430771816-jtmm-vacuum-residual-rca (base 28a6ec3d647414a07c7de1702abc9960a4094316, head 1f1fae117948add19bb9426b3553ef51eaf07fcd: a single read-only commit adding docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-residual-rca.html, which attributes the JT-60SA residual to the operator's per-coil pattern G_pf) and stored a parsed six-dimension record at both granted review-store paths scoring goal_fidelity 17, evidence 15, scope_discipline 20, durability 12, fit 18, reuse 20 (total 102) with two follow-on findings.</p></div>
 </div>
 </section>
 </main>
