@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5">
 <meta name="plan-impl" content="0.625">
-<meta name="plan-version" content="133">
+<meta name="plan-version" content="134">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -394,7 +394,14 @@
       description bindings to the five IDS netCDF of each phase; <code>transform_machine_description</code>
       emits a JT-60SA description for the OP1 pulse <code>E101173</code> and one shot in the OP2 range through one code path,
       <code>read_geometry_table</code> and <code>geometry_table_from_description</code> build a
-      <code>GeometryTable</code> from it with zero machine-name branches, and the three identity assertions (determinism,
+      <code>GeometryTable</code> from it with zero machine-name branches (the one machine-name site on
+      the route is a default, not a branch: <code>read_geometry_table</code> and
+      <code>read_acquisition_channels</code> in <code>imas_ambix/data/description_reader.py</code>
+      default <code>machine</code> to <code>"mast"</code>. Measured 2026-10-06, a JT-60SA shot reaching
+      that default raises <code>LookupError</code>, because MAST's maps cover only 11766–30471, so
+      it fails loudly rather than reading MAST. The JT-60SA route passes the machine explicitly,
+      as the tests do with <code>machine="jt-60sa"</code> and as the §7 selector does from the
+      declared catalogue), and the three identity assertions (determinism,
       partition consistency, visible change at the OP1/OP2 boundary) pass. Those are the
       assertions <code>imas_ambix/data/description_identity.py</code> already proves for MAST's
       two geometry transitions (<code>machine_description_bytes</code>,
