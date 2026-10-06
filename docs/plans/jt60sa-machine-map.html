@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.84">
-<meta name="plan-version" content="198">
+<meta name="plan-version" content="199">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -1268,6 +1268,9 @@
 </div>
 <div class="r-comment" data-section="s6" data-id="c-20261006T1750-s6-observation-multichannel-landed" data-who="reckon-build" data-when="2026-10-06T17:50:00Z">
     <div class="r-comment-body"><p>gate tests/data/test_cocos_convention.py passed (15 tests, exit 0); jtmm-observation-multichannel merged as 149763e2, review 116/120, no added failure. read_catalogue_observation now gathers every flux-loop binding in target order and refuses a layout whose time base it cannot read. The review showed that it reads a machine-map catalogue's bindings, while JT-60SA's pulse channels are the §5 signal-map rules over the EDDB cache and jt-60sa.json declares a static-over-map description store; the reader is re-pointed at the signal maps by jtmm-observation-signal-maps, recorded in the section text.</p></div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-run-r-20261006T172603865260-jtmm-observation-multichannel" data-who="reckon-build" data-when="2026-10-06T17:36:42.099Z">
+    <div class="r-comment-body"><p>read_catalogue_observation now gathers every binding targeting the flux-loop flux leaf (one channel per binding, ordered by target index) and refuses a catalogue whose store layout is not per-shot; the three-loop synthetic catalogue reports raw_flux_loop_channels 3 and a static-over-map catalogue is refused; gate 15 passed, EXIT=0.</p></div>
 </div>
 </section>
 </main>
