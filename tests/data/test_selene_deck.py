@@ -18,26 +18,15 @@ import pytest
 from imas.ids_metadata import IDSDataType
 
 from imas_ambix.data import selene_deck as sd
+from imas_ambix.data.paths import JT60SA_DESCRIPTION_DIR
 
-REAL_EQSLE = Path(
-    "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/"
-    "jtmm-geometry-source/copies/jt-60sa/work/efit_jt60sa/EQSLE.DATA"
-)
-REAL_GEO = Path(
-    "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/"
-    "jtmm-analysis-sensor-search/copies/jt-60sa/analysis/src/getseldata_v4.2/"
-    "UTL/getseldata/geo.in"
-)
-REAL_COIL_VV = Path(
-    "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/"
-    "jtmm-geometry-source/copies/jt-60sa/.local/share/machine_description/"
-    "coil_geometry/coil_vv_OP2.dat"
-)
-REAL_COIL_VV_OP1 = Path(
-    "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/"
-    "jtmm-geometry-source/copies/jt-60sa/.local/share/machine_description/"
-    "coil_geometry/coil_vv_OP1.dat"
-)
+# The facility decks the converter reads live in the project description store,
+# not in any reckon reports directory.
+REAL_DECK_SOURCE = JT60SA_DESCRIPTION_DIR / "source"
+REAL_EQSLE = REAL_DECK_SOURCE / "EQSLE.DATA"
+REAL_GEO = REAL_DECK_SOURCE / "geo.in"
+REAL_COIL_VV = REAL_DECK_SOURCE / "coil_vv_OP2.dat"
+REAL_COIL_VV_OP1 = REAL_DECK_SOURCE / "coil_vv_OP1.dat"
 
 EQSLE_TEXT = """\
  &DSK DEVICE='JT-60SA',IWRITE=65, /$
@@ -373,11 +362,12 @@ def test_stored_probe_axes_lie_along_the_vessel_inner_skin():
     each against the deck its store draws the vessel skin from.
     """
     if not (
-        REAL_GEO.exists()
+        REAL_DECK_SOURCE.is_dir()
+        and REAL_GEO.exists()
         and REAL_COIL_VV.exists()
         and REAL_COIL_VV_OP1.exists()
     ):
-        pytest.skip("real facility deck copies absent")
+        pytest.skip(f"project deck store absent: {REAL_DECK_SOURCE}")
     geo = sd.parse_geo_in(REAL_GEO)
     factory = imas.IDSFactory(sd.DD_VERSION)
     magnetics = sd.build_magnetics(factory, geo)
