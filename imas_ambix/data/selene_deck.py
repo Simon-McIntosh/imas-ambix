@@ -18,7 +18,7 @@ The passive block holds two structures: the vacuum vessel's filaments and,
 after them, the cryostat's slabs, as two contiguous resistivity runs.  They
 are written as the named ``pf_passive`` loops ``VV`` and ``CRYOSTAT``, and a
 group may be called a cryostat only when every one of its filaments lies
-outside the vessel group's R and Z envelope.  The trailing contour table holds
+outside the vessel's outer-skin polyline.  The trailing contour table holds
 the vessel outer skin, the vessel inner skin and the first wall; the labels
 split it so the first wall is the limiter unit and the two skins are the inner
 and outer outlines of one annular vessel unit.
@@ -226,12 +226,20 @@ class GeoIn:
 
 @dataclass
 class CoilVesselDeck:
-    """A coil_vv deck: its vessel filament block and its limiter contour."""
+    """A coil_vv deck: its vessel filament block, limiter and vessel skins.
+
+    ``vessel`` holds only the deck's first passive resistivity run, the vacuum
+    vessel; the cryostat run that follows it in OP1 is read from the shared
+    EQSLE deck, so it is not carried here.  ``vessel_skin_inner`` and
+    ``vessel_skin_outer`` are the two skins of the deck's contour block.
+    """
 
     path: str
     sha256: str
     vessel: list[VesselFilament]
     limiter_and_first_wall: list[Segment]
+    vessel_skin_inner: list[Segment]
+    vessel_skin_outer: list[Segment]
 
 
 # --------------------------------------------------------------------------
@@ -535,14 +543,15 @@ def _find_limiter_header(lines: list[str], start: int) -> int:
 
 def _parse_limiter_polygon(
     lines: list[str], header: int, source: str, sha: str
-) -> list[Segment]:
+) -> tuple[list[Segment], int]:
     """Parse a coil_vv limiter block into the segments of its closed contour.
 
     The header declares the vertex count; each following row is one ``R Z``
     vertex and the last vertex repeats the first, so consecutive vertex pairs
     trace the limiter and first wall as line segments.  The typed contour table
     that follows the vertices carries more than two numbers per row and is not
-    part of this block.
+    part of this block.  Returns the segments and the index of the first line
+    after the block.
     """
     count = int(lines[header].split()[0])
     vertices: list[tuple[float, float, int]] = []
@@ -557,7 +566,7 @@ def _parse_limiter_polygon(
         raise ValueError(
             f"limiter block declares {count} vertices, found {len(vertices)}"
         )
-    return [
+    segments = [
         Segment(
             kind="line",
             params=(r1, z1, r2, z2),
@@ -568,20 +577,105 @@ def _parse_limiter_polygon(
             vertices, vertices[1:], strict=False
         )
     ]
+    return segments, header + 1 + count
+
+
+def _find_contour_header(lines: list[str], start: int) -> tuple[int, int]:
+    """Locate the coil_vv contour block: a bare count line followed by rows.
+
+    A contour row carries four chord endpoints, a segment index and a type
+    column, so the header is the first line that is a bare positive integer and
+    whose next numeric row holds at least five numbers.  Returns the header
+    index and the declared row count.
+    """
+    for i in range(start, len(lines)):
+        tokens = lines[i].split()
+        if len(tokens) != 1 or not tokens[0].isdigit():
+            continue
+        count = int(tokens[0])
+        if count <= 0:
+            continue
+        for j in range(i + 1, len(lines)):
+            nums, _ = _numeric_prefix(lines[j].split())
+            if not nums:
+                continue
+            if len(nums) >= 5:
+                return i, count
+            break
+    raise ValueError("no coil_vv contour block header found")
+
+
+def _parse_contour_block(
+    lines: list[str], header: int, source: str, sha: str
+) -> tuple[list[Segment], list[Segment]]:
+    """Parse the contour block into the vessel inner and outer skins.
+
+    Each row is one chord ``R1 Z1 R2 Z2`` of a polyline; the section labels sit
+    on the first row of their run.  The ``Inner VV`` and ``Outer VV`` runs are
+    the two vacuum-vessel skins and become the annular vessel unit's outlines.
+    The ``D-probe`` runs are diagnostic probes, not vessel structure, and are
+    excluded.  Returns ``(inner, outer)``.
+    """
+    count = int(lines[header].split()[0])
+    inner: list[Segment] = []
+    outer: list[Segment] = []
+    target: list[Segment] | None = None
+    rows = 0
+    for idx in range(header + 1, len(lines)):
+        if rows == count:
+            break
+        nums, comment = _numeric_prefix(lines[idx].split())
+        if len(nums) < 5:
+            continue
+        label = comment.upper()
+        if "INNER VV" in label:
+            target = inner
+        elif "OUTER VV" in label:
+            target = outer
+        elif "D-PROBE" in label:
+            target = None
+        if target is not None:
+            r1, z1, r2, z2 = nums[:4]
+            target.append(
+                Segment(
+                    kind="line",
+                    params=(float(r1), float(z1), float(r2), float(z2)),
+                    comment=comment,
+                    provenance=Provenance(source, sha, idx + 1, idx + 1),
+                )
+            )
+        rows += 1
+    if rows != count:
+        raise ValueError(f"contour block declares {count} rows, found {rows}")
+    return inner, outer
 
 
 def parse_coil_vv_deck(path: Path | str) -> CoilVesselDeck:
-    """Parse the vessel and limiter blocks of a coil_vv-grammar deck."""
+    """Parse the vessel, limiter and vessel-skin blocks of a coil_vv deck."""
     path = Path(path)
     lines = _read_lines(path)
     sha = sha256_of(path)
     source = str(path)
     nv_header = _find_vessel_header(lines, 0)
-    vessel, after_vessel = _parse_vessel(lines, nv_header, source, sha)
+    vessel_rows, after_vessel = _parse_vessel(lines, nv_header, source, sha)
+    # The deck's passive block may carry a vessel run and, in OP1, a cryostat
+    # run after it; the vessel is the first run, as in the EQSLE deck.
+    vessel, _cryostat = split_passive_groups(vessel_rows)
     limiter_header = _find_limiter_header(lines, after_vessel)
-    wall = _parse_limiter_polygon(lines, limiter_header, source, sha)
+    wall, after_limiter = _parse_limiter_polygon(
+        lines, limiter_header, source, sha
+    )
+    contour_header, _ = _find_contour_header(lines, after_limiter)
+    skin_inner, skin_outer = _parse_contour_block(
+        lines, contour_header, source, sha
+    )
     return CoilVesselDeck(
-        path=source, sha256=sha, vessel=vessel, limiter_and_first_wall=wall
+        path=source,
+        sha256=sha,
+        vessel=vessel,
+        limiter_and_first_wall=wall,
+        vessel_skin_inner=skin_inner,
+        vessel_skin_outer=skin_outer,
     )
 
 
@@ -644,33 +738,50 @@ class CryostatEnvelopeError(ValueError):
     """A passive group that is not spatially outside the vacuum vessel."""
 
 
-def _r_z_envelope(
-    filaments: Sequence[VesselFilament],
-) -> tuple[float, float, float, float]:
-    return (
-        min(f.r for f in filaments),
-        max(f.r for f in filaments),
-        min(f.z for f in filaments),
-        max(f.z for f in filaments),
-    )
+def _point_in_polygon(
+    r: float, z: float, poly_r: Sequence[float], poly_z: Sequence[float]
+) -> bool:
+    """Ray-casting test of a point against a closed poloidal polygon."""
+    inside = False
+    n = len(poly_r)
+    if n < 3:
+        return False
+    j = n - 1
+    for i in range(n):
+        ri, zi = poly_r[i], poly_z[i]
+        rj, zj = poly_r[j], poly_z[j]
+        if (zi > z) != (zj > z) and r < (rj - ri) * (z - zi) / (zj - zi) + ri:
+            inside = not inside
+        j = i
+    return inside
 
 
-def _require_outside_envelope(
-    vessel: Sequence[VesselFilament], cryostat: Sequence[VesselFilament]
+def _require_outside_skin(
+    cryostat: Sequence[VesselFilament], outer_skin: Sequence[Segment]
 ) -> None:
     """Refuse a cryostat group any filament of which lies inside the vessel.
 
-    A group whose filaments fall inside the vessel's R and Z envelope is a
-    second vessel material, not the cryostat, so labelling it CRYOSTAT would
-    misname vessel structure.
+    The vessel's outer-skin polyline bounds the vessel in the poloidal plane,
+    so a filament whose centre falls inside it is a second vessel material, not
+    the cryostat, and labelling its group CRYOSTAT would misname vessel
+    structure.  A polygon test replaces the vessel's rectangular envelope,
+    which accepted filaments in the inboard and top/bottom gaps the envelope
+    covers but the vessel does not.
     """
-    r_min, r_max, z_min, z_max = _r_z_envelope(vessel)
+    poly_r, poly_z = _wall_outline(outer_skin)
+    if not poly_r:
+        raise CryostatEnvelopeError(
+            "the vessel carries no outer-skin polyline to test containment "
+            "against, so a cryostat group cannot be accepted"
+        )
+    if (poly_r[0], poly_z[0]) != (poly_r[-1], poly_z[-1]):
+        poly_r.append(poly_r[0])
+        poly_z.append(poly_z[0])
     for fil in cryostat:
-        if r_min <= fil.r <= r_max and z_min <= fil.z <= z_max:
+        if _point_in_polygon(fil.r, fil.z, poly_r, poly_z):
             raise CryostatEnvelopeError(
-                f"a filament at R={fil.r} Z={fil.z} lies inside the vessel "
-                f"envelope R=[{r_min}, {r_max}] Z=[{z_min}, {z_max}], so the "
-                "group is not a cryostat"
+                f"a filament at R={fil.r} Z={fil.z} lies inside the vessel's "
+                "outer-skin polyline, so the group is not a cryostat"
             )
 
 
@@ -678,18 +789,20 @@ def build_pf_passive(
     factory,
     vessel: Sequence[VesselFilament],
     cryostat: Sequence[VesselFilament] = (),
+    *,
+    vessel_outer_skin: Sequence[Segment] = (),
 ):
     """Write the vacuum vessel and, when present, the cryostat as named loops.
 
-    The vessel is loop ``VV``; the cryostat, read from the same deck in both
+    The vessel is loop ``VV``; the cryostat, read from the EQSLE deck in both
     phases, is loop ``CRYOSTAT``.  A cryostat group must lie outside the
-    vessel's R and Z envelope or the write is refused.
+    vessel's outer-skin polyline or the write is refused.
     """
     ids = factory.new("pf_passive")
     _static_header(ids)
     groups: list[tuple[str, Sequence[VesselFilament]]] = [("VV", list(vessel))]
     if cryostat:
-        _require_outside_envelope(vessel, cryostat)
+        _require_outside_skin(cryostat, vessel_outer_skin)
         groups.append(("CRYOSTAT", list(cryostat)))
     ids.loop.resize(len(groups))
     for i, (name, group) in enumerate(groups):
@@ -978,11 +1091,17 @@ def build_receipt(
                 "line_ranges": _line_ranges(
                     [f.provenance for f in coil_vv.vessel]
                     + [s.provenance for s in coil_vv.limiter_and_first_wall]
+                    + [s.provenance for s in coil_vv.vessel_skin_inner]
+                    + [s.provenance for s in coil_vv.vessel_skin_outer]
                 ),
                 "blocks": {
                     "NV": _line_ranges([f.provenance for f in coil_vv.vessel]),
                     "wall": _line_ranges(
                         [s.provenance for s in coil_vv.limiter_and_first_wall]
+                    ),
+                    "vessel skins": _line_ranges(
+                        [s.provenance for s in coil_vv.vessel_skin_inner]
+                        + [s.provenance for s in coil_vv.vessel_skin_outer]
                     ),
                 },
             }
@@ -1021,15 +1140,15 @@ def write_phase_description(
     factory = imas.IDSFactory(DD_VERSION)
     commit = converter_commit or converter_git_commit()
 
-    # Each phase's own vessel comes from its deck: coil_vv_OP2.dat for OP2, the
-    # EQSLE.DATA passive block for OP1.  The cryostat did not change between
-    # the phases, so both read it from EQSLE.DATA.
+    # Each phase's own vessel and wall come from its own coil_vv deck: the
+    # deck's first passive run is the vacuum vessel, its nlim polygon the
+    # limiter unit, and its contour block the vessel's two skins.  The cryostat
+    # did not change between the phases, so both read it from EQSLE.DATA.
     if coil_vv is not None:
         vessel = coil_vv.vessel
         limiter: Sequence[Segment] = coil_vv.limiter_and_first_wall
-        # A coil_vv deck carries no vessel skins, so its wall has no vessel unit.
-        skin_inner: Sequence[Segment] | None = None
-        skin_outer: Sequence[Segment] | None = None
+        skin_inner: Sequence[Segment] | None = coil_vv.vessel_skin_inner
+        skin_outer: Sequence[Segment] | None = coil_vv.vessel_skin_outer
     else:
         vessel = eqsle.vessel
         limiter = eqsle.first_wall
@@ -1059,7 +1178,9 @@ def write_phase_description(
 
     ids_map = {
         "pf_active": build_pf_active(factory, eqsle),
-        "pf_passive": build_pf_passive(factory, vessel, cryostat),
+        "pf_passive": build_pf_passive(
+            factory, vessel, cryostat, vessel_outer_skin=skin_outer or ()
+        ),
         "magnetics": build_magnetics(factory, geo),
         "wall": build_wall(
             factory, limiter, vessel_inner=skin_inner, vessel_outer=skin_outer
