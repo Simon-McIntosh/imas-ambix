@@ -1,0 +1,75 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "the reviewed manifest declares an empty baseline_suite and an after_suite arm with failure_count 0 and failure_ids [] at revision 79a78bec, so no base arm exists to difference against; the head arm after_suite.log ran to its summary line at 15 passed EXIT=0 with zero failures, so this change adds no failing test and added_failure_count is 0 with added_failure_ids empty.",
+  "base_log_revision": null,
+  "call_site_count": 1,
+  "call_sites": [
+    "imas_ambix/data/cocos_convention.py:719"
+  ],
+  "completed_at": "2026-10-06T17:47:06.878Z",
+  "dispatched_at": "2026-10-06T17:37:10Z",
+  "findings": [
+    {
+      "file": "tests/data/test_cocos_convention.py",
+      "line": "429",
+      "severity": "follow-on",
+      "text": "follow-on: test_catalogue_reader_stacks_every_bound_flux_loop_channel asserts only raw_flux_loop_channels == 3, not that the three gathered channels are the three distinct bindings in declared order; a regression that duplicated the first channel three times (or that dropped the ordering by target index the docstring promises) would still satisfy the count, so the concatenation's content and ordering are unverified."
+    },
+    {
+      "file": "imas_ambix/data/cocos_convention.py",
+      "line": "766",
+      "severity": "follow-on",
+      "text": "follow-on: the per-shot guard refuses any catalogue whose description_store_layout is not literally \"per-shot\", and the repository's own JT-60SA catalogue (imas_ambix/data/machine_maps/jt-60sa.json) declares description_store_layout \"static-over-map\" with a netcdf description store; confirm the section 6 sign-report call site passes the per-shot EDDB-cache catalogue the plan describes ({\"shot\"}.zarr/{category}/{dname}, zarr) rather than jt-60sa.json, which the guard would now refuse."
+    },
+    {
+      "file": "imas_ambix/data/cocos_convention.py",
+      "line": "781",
+      "severity": "follow-on",
+      "text": "follow-on: only the flux-loop quantity was moved to the every-binding gather. Plasma current and toroidal field still call _binding_targeting (first match), so a catalogue binding several toroidal-field channels as separate rules is silently reduced to the first with no guard; harmless only because _single_channel then enforces one series, but the asymmetry is undocumented."
+    }
+  ],
+  "head_log_revision": "79a78bec299f6dcf4eff697f6202ac2a377a03fb",
+  "item_aggregate": 116,
+  "item_verdicts": {
+    "call_sites": "read_catalogue_observation has no production caller yet (it is the section 6 public definition; its only callers are the tests at tests/data/test_cocos_convention.py:374,397).",
+    "diff": "read commit by commit; the single commit 79a78bec (+123/-9 over three files) rewrites the flux-loop gather to _bindings_targeting, concatenates every bound channel, adds the per-shot layout guard, and adds the two tests plus the evidence fragment.",
+    "done_when": "the done_when is the single-file gate plus the declared negative control; the gate reproduces at 15 passed EXIT=0 and the declared first-match control at 1 failed EXIT=1 (assert 1 == 3), both in a scratch extraction of 79a78bec.",
+    "goal": "the node goal is to repair the two follow-ons the prior review left on this reader -- a multi-binding flux loop silently read as one channel, and a non-per-shot layout whose sibling time-base read would equal the values; the landed code gathers every flux-loop binding and refuses a non-per-shot layout.",
+    "manifest": "read; status complete, one commit 79a78bec, tests naming the gate at 15 passed, test_logs naming after_suite.log and negative_control.log, and negative_control_log naming the restored first-match lookup.",
+    "write_paths": "git diff --name-status 8e22435e..79a78bec lists exactly the three declared paths and nothing else; the declared figure directory docs/figures/jt60sa-machine-map/jtmm-observation-multichannel is untouched and no plan file is edited."
+  },
+  "justifications": {
+    "durability": "both repairs have teeth and both are falsified here: restoring the first-match lookup reddens test_catalogue_reader_stacks_every_bound_flux_loop_channel (1 failed, EXIT=1, assert 1 == 3, reproduced) and removing the layout guard reddens test_catalogue_reader_refuses_a_store_layout_that_is_not_per_shot (1 failed, EXIT=1, reproduced). Docked because the multichannel test asserts only the channel count, so the concatenated content and the declared target-index ordering are unverified, and the toroidal-field and plasma-current gathers keep the first-match helper the fix replaced for the loops.",
+    "evidence": "the node's gate reproduces independently -- 15 passed EXIT=0 in a scratch extraction of 79a78bec (gate-head-review.log, header names rev, tree and the module file under the scratch root) -- and the declared first-match control reproduces (1 failed, EXIT=1, negative-control-review.log, assert 1 == 3 at tests/data/test_cocos_convention.py:440); a second mutation removing the layout guard also reddens its test (negative-control-guard-review.log). Docked one because the manifest declares no baseline_suite arm, so added_failure reads from the single head arm only.",
+    "fit": "the change follows the module's idiom -- _bindings_targeting is a private sibling of the existing _binding_targeting helper, returning ChannelBinding tuples, and reuses _channel_series and the engine's open/read seam; ruff check on both changed paths exits 0; the commit carries a conventional subject and a body and no plan, ticket or attribution string.",
+    "goal_fidelity": "plan section 6 leaves two holes this node closes: read_catalogue_observation now gathers every binding targeting the flux-loop flux leaf (ordered by target index, then declaration order) and concatenates their channels into the (channels, samples) array the kernel consumes (imas_ambix/data/cocos_convention.py:757-771, 800-809), and it refuses a catalogue whose description_store_layout is not per-shot before the sibling time-base read can address the value array as its own time base (:766).",
+    "reuse": "no capability is forked: _channel_series, _binding_targeting, _observation_from_series, get_transform_engine and the catalogue's own bindings_for are reused; _bindings_targeting is a near-duplicate of _binding_targeting (first-match could be expressed as the gather's [0]), which is a small, deliberate duplication rather than a fork.",
+    "scope_discipline": "git diff --name-status 8e22435e..79a78bec lists exactly the three declared paths (imas_ambix/data/cocos_convention.py, tests/data/test_cocos_convention.py, docs/evidence/fragments/jt60sa-machine-map/jtmm-observation-multichannel.html); the declared figure directory is untouched and no plan file is edited."
+  },
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20261006T172603865260-jtmm-observation-multichannel (plan imas-ambix:jt60sa-machine-map section 6), read at its single head 79a78bec299f6dcf4eff697f6202ac2a377a03fb on base 8e22435efbaf44f2b84134cd08f5fa95299354e0. The node repairs the two follow-ons the prior review (r-20261006T171651213456) left on read_catalogue_observation: a catalogue binding each flux loop as its own rule was silently reduced to one channel, and under a non-per-shot store layout the sibling time-base read resolves the same source as the values. It also refuses a non-per-shot layout. This reviewer extracted the committed tree to a node-local scratch (git archive 79a78bec), ran the node's own gate there in the shared project environment, and falsified both guards by mutation. Nothing ran on a GPU node; the gate is a 3-second unit test.\n\nVERDICT goal: section 6 leaves two holes this node closes -- read_catalogue_observation now gathers every binding targeting the flux-loop flux leaf via _bindings_targeting, ordered by target index then declaration order, and concatenates their channels into the (channels, samples) array the kernel consumes; and it refuses a catalogue whose description_store_layout is not per-shot before the time-base sibling read can address the value array as its own time base.\nVERDICT done_when: 15 passed EXIT=0 reproduces in the scratch extraction of 79a78bec and the declared first-match control reproduces at 1 failed EXIT=1 (assert 1 == 3).\nVERDICT write_paths: git diff --name-status 8e22435e..79a78bec lists exactly the three declared paths and nothing else.\nVERDICT manifest: read; status complete, one commit, tests naming the gate at 15 passed.\nVERDICT diff: read commit by commit; 79a78bec (+123/-9 over three files).\nCALL_SITES: read_catalogue_observation -- test-only (no production caller yet); tests/data/test_cocos_convention.py:374,397\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: read_catalogue_observation now gathers every binding targeting the flux-loop flux leaf (ordered by target index, then declaration order) and concatenates their channels into the (channels, samples) array the kernel consumes (imas_ambix/data/cocos_convention.py:757-771, 800-809), and it refuses a catalogue whose description_store_layout is not per-shot before the sibling time-base read can address the value array as its own time base (:766).\nSCORE evidence: 19\nJUSTIFICATION evidence: the node's gate reproduces independently -- 15 passed EXIT=0 in a scratch extraction of 79a78bec (gate-head-review.log) -- and the declared first-match control reproduces (1 failed, EXIT=1, negative-control-review.log, assert 1 == 3 at tests/data/test_cocos_convention.py:440); a second mutation removing the layout guard also reddens its test (negative-control-guard-review.log); docked one because the manifest declares no baseline_suite arm.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff --name-status 8e22435e..79a78bec lists only the three declared paths; the declared figure directory is untouched and no plan file is edited.\nSCORE durability: 18\nJUSTIFICATION durability: both repairs have teeth and both are falsified here -- restoring the first-match lookup reddens test_catalogue_reader_stacks_every_bound_flux_loop_channel (1 failed, EXIT=1, assert 1 == 3, reproduced) and removing the layout guard reddens its test (1 failed, EXIT=1, reproduced); docked because the multichannel test asserts only the channel count, so the concatenated content and the declared target-index ordering are unverified, and the toroidal-field and plasma-current gathers keep the first-match helper the fix replaced for the loops.\nSCORE fit: 20\nJUSTIFICATION fit: _bindings_targeting is a private sibling of the existing _binding_targeting helper, the change reuses _channel_series and the engine's open/read seam, ruff check on both changed paths exits 0, and the commit carries a conventional subject and a body with no plan, ticket or attribution string.\nSCORE reuse: 19\nJUSTIFICATION reuse: no capability is forked -- _channel_series, _binding_targeting, _observation_from_series, get_transform_engine and the catalogue's own bindings_for are reused; _bindings_targeting is a near-duplicate of _binding_targeting, a small deliberate duplication rather than a fork.\nFINDING tests/data/test_cocos_convention.py:429 follow-on: the multichannel test asserts only raw_flux_loop_channels == 3, not that the three gathered channels are the three distinct bindings in declared order, so a regression that duplicated one channel three times, or dropped the target-index ordering the docstring promises, would still pass.\nFINDING imas_ambix/data/cocos_convention.py:766 follow-on: the per-shot guard refuses any layout that is not literally \"per-shot\", and the repository's own JT-60SA catalogue (imas_ambix/data/machine_maps/jt-60sa.json) declares \"static-over-map\" with a netcdf description store; confirm the section 6 sign-report call site passes the per-shot EDDB-cache catalogue, not jt-60sa.json.\nFINDING imas_ambix/data/cocos_convention.py:781 follow-on: only the flux-loop quantity was moved to the every-binding gather; plasma current and toroidal field still call _binding_targeting (first match), so a catalogue binding several toroidal-field channels is silently reduced to the first.\n",
+  "review_run_id": "r-20261006T173702610788-review-of-jtmm-observation-multichannel",
+  "reviewed_base_sha": "8e22435efbaf44f2b84134cd08f5fa95299354e0",
+  "reviewed_head_sha": "79a78bec299f6dcf4eff697f6202ac2a377a03fb",
+  "reviewed_run_id": "r-20261006T172603865260-jtmm-observation-multichannel",
+  "reviewer": {
+    "backend": "clive",
+    "effort": "high",
+    "model": "deepseek-v4.1-flash"
+  },
+  "rubric": "code",
+  "scores": {
+    "durability": 18,
+    "evidence": 19,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "reuse": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "timestamp": "2026-10-06T17:52:00+00:00",
+  "total": 116
+}
