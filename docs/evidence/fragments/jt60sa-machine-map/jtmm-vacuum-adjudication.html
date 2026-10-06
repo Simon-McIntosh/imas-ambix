@@ -12,188 +12,100 @@
   <main class="plan-doc">
     <section id="jtmm-vacuum-adjudication-landing" data-reckon="evidence">
       <h3>Vacuum loop and probe adjudication</h3>
-      <p>Every bound flux loop and tangential probe is predicted from the measured MMSYS coil currents through the OP1 description operator built by build_operator, and compared per shot against the raw EDDB channel. Verdicts: <strong>3 identity</strong>, <strong>1 negate</strong>, <strong>40 undecided</strong>.</p>
+      <p>Every bound flux loop and tangential probe is predicted from the measured MMSYS coil currents through the OP1 description operator built by build_operator, and compared per shot against the raw EDDB channel on quasi-static samples only. A sample is quasi-static when every driven coil's |dI/dt| is at most 0.10 of that coil's own peak |dI/dt| in the shot (retained/total: 100579: 145508/230240, 100595: 46425/166154, 100642: 26094/396001). A channel is identity or negate when its median slope over the shots is within 0.1 of +-1, its median |r| exceeds 0.95, and every shot has the same sign. Verdicts: <strong>16 identity</strong>, <strong>1 negate</strong>, <strong>27 undecided</strong>.</p>
       <table>
-        <thead><tr><th>Channel</th><th>Shot</th><th>Slope</th><th>Offset</th><th>Pearson r</th><th>Samples</th></tr></thead>
+        <thead><tr><th>Channel</th><th>Median slope</th><th>Median |r|</th><th>Same sign</th><th>Per-shot slope</th><th>Verdict</th></tr></thead>
         <tbody>
-          <tr><td>magFlxLp1</td><td>100579</td><td>-0.021170</td><td>+0.005911</td><td>-0.938964</td><td>230240</td></tr>
-          <tr><td>magFlxLp1</td><td>100595</td><td>-0.045029</td><td>+0.031186</td><td>-0.252776</td><td>166154</td></tr>
-          <tr><td>magFlxLp1</td><td>100642</td><td>-0.454920</td><td>+0.014633</td><td>-0.363413</td><td>396001</td></tr>
-          <tr><td>magFlxLp2</td><td>100579</td><td>+0.024246</td><td>+0.009956</td><td>+0.886426</td><td>230240</td></tr>
-          <tr><td>magFlxLp2</td><td>100595</td><td>+0.042634</td><td>+0.015171</td><td>+0.425284</td><td>166154</td></tr>
-          <tr><td>magFlxLp2</td><td>100642</td><td>-0.561084</td><td>+0.013209</td><td>-0.514291</td><td>396001</td></tr>
-          <tr><td>magFlxLp3</td><td>100579</td><td>+0.010555</td><td>+0.008049</td><td>+0.726280</td><td>230240</td></tr>
-          <tr><td>magFlxLp3</td><td>100595</td><td>+0.025735</td><td>+0.010228</td><td>+0.392366</td><td>166154</td></tr>
-          <tr><td>magFlxLp3</td><td>100642</td><td>-0.437768</td><td>+0.011861</td><td>-0.469981</td><td>396001</td></tr>
-          <tr><td>magFlxLp4</td><td>100579</td><td>+0.001748</td><td>+0.006572</td><td>+0.261820</td><td>230240</td></tr>
-          <tr><td>magFlxLp4</td><td>100595</td><td>+0.011837</td><td>+0.004479</td><td>+0.400667</td><td>166154</td></tr>
-          <tr><td>magFlxLp4</td><td>100642</td><td>-0.257380</td><td>+0.008482</td><td>-0.365160</td><td>396001</td></tr>
-          <tr><td>magFlxLp5</td><td>100579</td><td>-0.004126</td><td>+0.004758</td><td>-0.719719</td><td>230240</td></tr>
-          <tr><td>magFlxLp5</td><td>100595</td><td>+0.001424</td><td>+0.000784</td><td>+0.254224</td><td>166154</td></tr>
-          <tr><td>magFlxLp5</td><td>100642</td><td>-0.187861</td><td>+0.007943</td><td>-0.347647</td><td>396001</td></tr>
-          <tr><td>magFlxLp6</td><td>100579</td><td>-0.004451</td><td>+0.002684</td><td>-0.941701</td><td>230240</td></tr>
-          <tr><td>magFlxLp6</td><td>100595</td><td>-0.002993</td><td>-0.000851</td><td>-0.465085</td><td>166154</td></tr>
-          <tr><td>magFlxLp6</td><td>100642</td><td>-0.069769</td><td>+0.004409</td><td>-0.237234</td><td>396001</td></tr>
-          <tr><td>magFlxLp7</td><td>100579</td><td>-0.985882</td><td>-0.001343</td><td>-0.999906</td><td>230240</td></tr>
-          <tr><td>magFlxLp7</td><td>100595</td><td>-1.085800</td><td>-0.002577</td><td>-0.994671</td><td>166154</td></tr>
-          <tr><td>magFlxLp7</td><td>100642</td><td>-0.987586</td><td>-0.005884</td><td>-0.999157</td><td>396001</td></tr>
-          <tr><td>magFlxLp8</td><td>100579</td><td>-0.002187</td><td>-0.000895</td><td>-0.888897</td><td>230240</td></tr>
-          <tr><td>magFlxLp8</td><td>100595</td><td>-0.003074</td><td>+0.001296</td><td>-0.533035</td><td>166154</td></tr>
-          <tr><td>magFlxLp8</td><td>100642</td><td>-0.028682</td><td>-0.003481</td><td>-0.148643</td><td>396001</td></tr>
-          <tr><td>magFlxLp9</td><td>100579</td><td>+0.000468</td><td>-0.004545</td><td>+0.109164</td><td>230240</td></tr>
-          <tr><td>magFlxLp9</td><td>100595</td><td>-0.001583</td><td>+0.003918</td><td>-0.073887</td><td>166154</td></tr>
-          <tr><td>magFlxLp9</td><td>100642</td><td>-0.077160</td><td>-0.011930</td><td>-0.175090</td><td>396001</td></tr>
-          <tr><td>magFlxLp10</td><td>100579</td><td>+0.007209</td><td>-0.008818</td><td>+0.680218</td><td>230240</td></tr>
-          <tr><td>magFlxLp10</td><td>100595</td><td>+0.004843</td><td>+0.006326</td><td>+0.137475</td><td>166154</td></tr>
-          <tr><td>magFlxLp10</td><td>100642</td><td>+0.000358</td><td>-0.026054</td><td>+0.000589</td><td>396001</td></tr>
-          <tr><td>magFlxLp11</td><td>100579</td><td>+0.012106</td><td>-0.011817</td><td>+0.728687</td><td>230240</td></tr>
-          <tr><td>magFlxLp11</td><td>100595</td><td>+0.011026</td><td>+0.006576</td><td>+0.286705</td><td>166154</td></tr>
-          <tr><td>magFlxLp11</td><td>100642</td><td>+0.090392</td><td>-0.039324</td><td>+0.111060</td><td>396001</td></tr>
-          <tr><td>magFlxLp12</td><td>100579</td><td>+0.021050</td><td>-0.032189</td><td>+0.489330</td><td>230240</td></tr>
-          <tr><td>magFlxLp12</td><td>100595</td><td>+0.019394</td><td>-0.014488</td><td>+0.196180</td><td>166154</td></tr>
-          <tr><td>magFlxLp12</td><td>100642</td><td>+0.189354</td><td>-0.050797</td><td>+0.114160</td><td>396001</td></tr>
-          <tr><td>magFlxLp13</td><td>100579</td><td>-0.063805</td><td>-0.057949</td><td>-0.689375</td><td>230240</td></tr>
-          <tr><td>magFlxLp13</td><td>100595</td><td>-0.103370</td><td>-0.019691</td><td>-0.623083</td><td>166154</td></tr>
-          <tr><td>magFlxLp13</td><td>100642</td><td>+0.596817</td><td>-0.049105</td><td>+0.293479</td><td>396001</td></tr>
-          <tr><td>magFlxLp14</td><td>100579</td><td>-0.098796</td><td>-0.072930</td><td>-0.767308</td><td>230240</td></tr>
-          <tr><td>magFlxLp14</td><td>100595</td><td>-0.166149</td><td>+0.007873</td><td>-0.886583</td><td>166154</td></tr>
-          <tr><td>magFlxLp14</td><td>100642</td><td>+0.842297</td><td>-0.047590</td><td>+0.402175</td><td>396001</td></tr>
-          <tr><td>magFlxLp15</td><td>100579</td><td>-0.101832</td><td>-0.007369</td><td>-0.997549</td><td>230240</td></tr>
-          <tr><td>magFlxLp15</td><td>100595</td><td>-0.264760</td><td>+0.061819</td><td>-0.658390</td><td>166154</td></tr>
-          <tr><td>magFlxLp15</td><td>100642</td><td>-0.193637</td><td>+0.011741</td><td>-0.139735</td><td>396001</td></tr>
-          <tr><td>magFlxLp16</td><td>100579</td><td>-0.077006</td><td>-0.023354</td><td>-0.954198</td><td>230240</td></tr>
-          <tr><td>magFlxLp16</td><td>100595</td><td>-0.432132</td><td>+0.082687</td><td>-0.733318</td><td>166154</td></tr>
-          <tr><td>magFlxLp16</td><td>100642</td><td>+0.003958</td><td>-0.347394</td><td>+0.003135</td><td>396001</td></tr>
-          <tr><td>magFlxLp17</td><td>100579</td><td>-0.016828</td><td>-0.058855</td><td>-0.232777</td><td>230240</td></tr>
-          <tr><td>magFlxLp17</td><td>100595</td><td>-0.722641</td><td>+0.083802</td><td>-0.875805</td><td>166154</td></tr>
-          <tr><td>magFlxLp17</td><td>100642</td><td>+0.209478</td><td>+0.006670</td><td>+0.161267</td><td>396001</td></tr>
-          <tr><td>magFlxLp18</td><td>100579</td><td>+0.000690</td><td>-0.079566</td><td>+0.007017</td><td>230240</td></tr>
-          <tr><td>magFlxLp18</td><td>100595</td><td>-0.814339</td><td>+0.075237</td><td>-0.919661</td><td>166154</td></tr>
-          <tr><td>magFlxLp18</td><td>100642</td><td>+0.332482</td><td>+0.004780</td><td>+0.269109</td><td>396001</td></tr>
-          <tr><td>magFlxLp19</td><td>100579</td><td>+0.005550</td><td>-0.089886</td><td>+0.049042</td><td>230240</td></tr>
-          <tr><td>magFlxLp19</td><td>100595</td><td>-0.847365</td><td>+0.071262</td><td>-0.935685</td><td>166154</td></tr>
-          <tr><td>magFlxLp19</td><td>100642</td><td>+0.406997</td><td>+0.004283</td><td>+0.340755</td><td>396001</td></tr>
-          <tr><td>magFlxLp20</td><td>100579</td><td>+0.004268</td><td>-0.105706</td><td>+0.032457</td><td>230240</td></tr>
-          <tr><td>magFlxLp20</td><td>100595</td><td>-0.880858</td><td>+0.063912</td><td>-0.952107</td><td>166154</td></tr>
-          <tr><td>magFlxLp20</td><td>100642</td><td>+0.529060</td><td>+0.002158</td><td>+0.470121</td><td>396001</td></tr>
-          <tr><td>magFlxLp21</td><td>100579</td><td>-0.004383</td><td>-0.122158</td><td>-0.029533</td><td>230240</td></tr>
-          <tr><td>magFlxLp21</td><td>100595</td><td>-0.902006</td><td>+0.057864</td><td>-0.962547</td><td>166154</td></tr>
-          <tr><td>magFlxLp21</td><td>100642</td><td>+0.672452</td><td>-0.003062</td><td>+0.636360</td><td>396001</td></tr>
-          <tr><td>magFlxLp22</td><td>100579</td><td>-0.000887</td><td>-0.125987</td><td>-0.005819</td><td>230240</td></tr>
-          <tr><td>magFlxLp22</td><td>100595</td><td>-0.901762</td><td>+0.061505</td><td>-0.962892</td><td>166154</td></tr>
-          <tr><td>magFlxLp22</td><td>100642</td><td>+0.726662</td><td>-0.005429</td><td>+0.695064</td><td>396001</td></tr>
-          <tr><td>magFlxLp23</td><td>100579</td><td>+0.030373</td><td>-0.147735</td><td>+0.165599</td><td>230240</td></tr>
-          <tr><td>magFlxLp23</td><td>100595</td><td>-0.877722</td><td>+0.066422</td><td>-0.955573</td><td>166154</td></tr>
-          <tr><td>magFlxLp23</td><td>100642</td><td>+1.015265</td><td>-0.027794</td><td>+0.815342</td><td>396001</td></tr>
-          <tr><td>magFlxLp24</td><td>100579</td><td>+0.043539</td><td>-0.148542</td><td>+0.222773</td><td>230240</td></tr>
-          <tr><td>magFlxLp24</td><td>100595</td><td>-0.869724</td><td>+0.067236</td><td>-0.951940</td><td>166154</td></tr>
-          <tr><td>magFlxLp24</td><td>100642</td><td>+1.063966</td><td>-0.033852</td><td>+0.768670</td><td>396001</td></tr>
-          <tr><td>magFlxLp25</td><td>100579</td><td>+0.054374</td><td>-0.145637</td><td>+0.271226</td><td>230240</td></tr>
-          <tr><td>magFlxLp25</td><td>100595</td><td>-0.858025</td><td>+0.069760</td><td>-0.946495</td><td>166154</td></tr>
-          <tr><td>magFlxLp25</td><td>100642</td><td>+1.083997</td><td>-0.036832</td><td>+0.733161</td><td>396001</td></tr>
-          <tr><td>magFlxLp26</td><td>100579</td><td>+0.055022</td><td>-0.139208</td><td>+0.283928</td><td>230240</td></tr>
-          <tr><td>magFlxLp26</td><td>100595</td><td>-0.826996</td><td>+0.072849</td><td>-0.933456</td><td>166154</td></tr>
-          <tr><td>magFlxLp26</td><td>100642</td><td>+1.091609</td><td>-0.038982</td><td>+0.686217</td><td>396001</td></tr>
-          <tr><td>magFlxLp27</td><td>100579</td><td>-0.050454</td><td>-0.098402</td><td>-0.394883</td><td>230240</td></tr>
-          <tr><td>magFlxLp27</td><td>100595</td><td>-0.459340</td><td>+0.075496</td><td>-0.775879</td><td>166154</td></tr>
-          <tr><td>magFlxLp27</td><td>100642</td><td>+1.038691</td><td>-0.044663</td><td>+0.529126</td><td>396001</td></tr>
-          <tr><td>magPbTC1</td><td>100579</td><td>+1.023467</td><td>-0.000740</td><td>+0.965051</td><td>230240</td></tr>
-          <tr><td>magPbTC1</td><td>100595</td><td>+1.010757</td><td>-0.000597</td><td>+0.977178</td><td>166154</td></tr>
-          <tr><td>magPbTC1</td><td>100642</td><td>+0.835185</td><td>-0.000101</td><td>+0.899441</td><td>396001</td></tr>
-          <tr><td>magPbTC2</td><td>100579</td><td>+0.992774</td><td>+0.000343</td><td>+0.957139</td><td>230240</td></tr>
-          <tr><td>magPbTC2</td><td>100595</td><td>+1.033364</td><td>-0.000501</td><td>+0.985380</td><td>166154</td></tr>
-          <tr><td>magPbTC2</td><td>100642</td><td>+0.760150</td><td>-0.000107</td><td>+0.851314</td><td>396001</td></tr>
-          <tr><td>magPbTC3</td><td>100579</td><td>+1.047996</td><td>-0.000610</td><td>+0.985383</td><td>230240</td></tr>
-          <tr><td>magPbTC3</td><td>100595</td><td>+1.026071</td><td>-0.000577</td><td>+0.987676</td><td>166154</td></tr>
-          <tr><td>magPbTC3</td><td>100642</td><td>+0.916644</td><td>+0.000693</td><td>+0.948542</td><td>396001</td></tr>
-          <tr><td>magPbTC4</td><td>100579</td><td>+1.017840</td><td>-0.000302</td><td>+0.977865</td><td>230240</td></tr>
-          <tr><td>magPbTC4</td><td>100595</td><td>+1.017689</td><td>+0.000418</td><td>+0.988293</td><td>166154</td></tr>
-          <tr><td>magPbTC4</td><td>100642</td><td>+1.001234</td><td>-0.001640</td><td>+0.979955</td><td>396001</td></tr>
-          <tr><td>magPbTC5</td><td>100579</td><td>+1.048133</td><td>+0.001722</td><td>+0.999406</td><td>230240</td></tr>
-          <tr><td>magPbTC5</td><td>100595</td><td>+1.131885</td><td>+0.000719</td><td>+0.978945</td><td>166154</td></tr>
-          <tr><td>magPbTC5</td><td>100642</td><td>+1.002934</td><td>+0.000975</td><td>+0.996752</td><td>396001</td></tr>
-          <tr><td>magPbTC6</td><td>100579</td><td>+1.199756</td><td>+0.000183</td><td>+0.963084</td><td>230240</td></tr>
-          <tr><td>magPbTC6</td><td>100595</td><td>+1.001375</td><td>+0.000276</td><td>+0.984882</td><td>166154</td></tr>
-          <tr><td>magPbTC6</td><td>100642</td><td>+0.996315</td><td>+0.000880</td><td>+0.997039</td><td>396001</td></tr>
-          <tr><td>magPbTC7</td><td>100579</td><td>+1.060477</td><td>-0.000672</td><td>+0.993996</td><td>230240</td></tr>
-          <tr><td>magPbTC7</td><td>100595</td><td>+1.031896</td><td>-0.000029</td><td>+0.975366</td><td>166154</td></tr>
-          <tr><td>magPbTC7</td><td>100642</td><td>+0.998826</td><td>+0.001008</td><td>+0.998724</td><td>396001</td></tr>
-          <tr><td>magPbTC8</td><td>100579</td><td>+1.004200</td><td>-0.000046</td><td>+0.981421</td><td>230240</td></tr>
-          <tr><td>magPbTC8</td><td>100595</td><td>+1.006141</td><td>+0.000114</td><td>+0.983947</td><td>166154</td></tr>
-          <tr><td>magPbTC8</td><td>100642</td><td>+1.016183</td><td>-0.000249</td><td>+0.998928</td><td>396001</td></tr>
-          <tr><td>magPbTC9</td><td>100579</td><td>+0.979965</td><td>+0.001378</td><td>+0.980697</td><td>230240</td></tr>
-          <tr><td>magPbTC9</td><td>100595</td><td>+0.991172</td><td>-0.000069</td><td>+0.980661</td><td>166154</td></tr>
-          <tr><td>magPbTC9</td><td>100642</td><td>+0.985495</td><td>+0.000374</td><td>+0.997736</td><td>396001</td></tr>
-          <tr><td>magPbTC10</td><td>100579</td><td>+1.046654</td><td>-0.000860</td><td>+0.985489</td><td>230240</td></tr>
-          <tr><td>magPbTC10</td><td>100595</td><td>+1.010358</td><td>+0.001717</td><td>+0.978400</td><td>166154</td></tr>
-          <tr><td>magPbTC10</td><td>100642</td><td>+1.024028</td><td>-0.000767</td><td>+0.998266</td><td>396001</td></tr>
-          <tr><td>magPbTC11</td><td>100579</td><td>+0.971097</td><td>+0.000398</td><td>+0.992591</td><td>230240</td></tr>
-          <tr><td>magPbTC11</td><td>100595</td><td>+1.014796</td><td>+0.001270</td><td>+0.951198</td><td>166154</td></tr>
-          <tr><td>magPbTC11</td><td>100642</td><td>+1.001952</td><td>-0.000535</td><td>+0.993506</td><td>396001</td></tr>
-          <tr><td>magPbTC12</td><td>100579</td><td>+1.247119</td><td>-0.000439</td><td>+0.979069</td><td>230240</td></tr>
-          <tr><td>magPbTC12</td><td>100595</td><td>+1.007010</td><td>-0.000658</td><td>+0.995255</td><td>166154</td></tr>
-          <tr><td>magPbTC12</td><td>100642</td><td>+0.999579</td><td>+0.000405</td><td>+0.996635</td><td>396001</td></tr>
-          <tr><td>magPbTC13</td><td>100579</td><td>+1.026923</td><td>-0.000270</td><td>+0.998786</td><td>230240</td></tr>
-          <tr><td>magPbTC13</td><td>100595</td><td>+1.079756</td><td>+0.001032</td><td>+0.985695</td><td>166154</td></tr>
-          <tr><td>magPbTC13</td><td>100642</td><td>+0.990999</td><td>-0.000722</td><td>+0.983427</td><td>396001</td></tr>
-          <tr><td>magPbTC14</td><td>100579</td><td>+1.074355</td><td>+0.001733</td><td>+0.994152</td><td>230240</td></tr>
-          <tr><td>magPbTC14</td><td>100595</td><td>+1.015092</td><td>-0.000938</td><td>+0.990670</td><td>166154</td></tr>
-          <tr><td>magPbTC14</td><td>100642</td><td>+0.908181</td><td>+0.000608</td><td>+0.935548</td><td>396001</td></tr>
-          <tr><td>magPbTC15</td><td>100579</td><td>+0.952924</td><td>+0.001834</td><td>+0.957522</td><td>230240</td></tr>
-          <tr><td>magPbTC15</td><td>100595</td><td>+1.009859</td><td>-0.000245</td><td>+0.987836</td><td>166154</td></tr>
-          <tr><td>magPbTC15</td><td>100642</td><td>+0.968714</td><td>+0.000472</td><td>+0.968575</td><td>396001</td></tr>
-          <tr><td>magPbTC16</td><td>100579</td><td>+0.997789</td><td>+0.000221</td><td>+0.953206</td><td>230240</td></tr>
-          <tr><td>magPbTC16</td><td>100595</td><td>+1.006254</td><td>-0.000079</td><td>+0.975364</td><td>166154</td></tr>
-          <tr><td>magPbTC16</td><td>100642</td><td>+0.982034</td><td>+0.000786</td><td>+0.967587</td><td>396001</td></tr>
-          <tr><td>magPbTC17</td><td>100579</td><td>+1.077489</td><td>+0.001769</td><td>+0.986067</td><td>230240</td></tr>
-          <tr><td>magPbTC17</td><td>100595</td><td>+0.985472</td><td>+0.001142</td><td>+0.967521</td><td>166154</td></tr>
-          <tr><td>magPbTC17</td><td>100642</td><td>+0.999536</td><td>-0.001863</td><td>+0.814523</td><td>396001</td></tr>
+          <tr><td>magFlxLp1</td><td>-0.013956</td><td>0.390963</td><td>True</td><td>100579 -0.014, 100595 -0.014, 100642 -0.496</td><td><strong>undecided</strong></td></tr>
+          <tr><td>magFlxLp2</td><td>+0.035710</td><td>0.588976</td><td>False</td><td>100579 +0.036, 100595 +0.054, 100642 -0.596</td><td><strong>undecided</strong></td></tr>
+          <tr><td>magFlxLp3</td><td>+0.019266</td><td>0.554263</td><td>False</td><td>100579 +0.019, 100595 +0.032, 100642 -0.477</td><td><strong>undecided</strong></td></tr>
+          <tr><td>magFlxLp4</td><td>+0.007009</td><td>0.474062</td><td>False</td><td>100579 +0.007, 100595 +0.014, 100642 -0.262</td><td><strong>undecided</strong></td></tr>
+          <tr><td>magFlxLp5</td><td>-0.001259</td><td>0.251687</td><td>False</td><td>100579 -0.001, 100595 +0.002, 100642 -0.151</td><td><strong>undecided</strong></td></tr>
+          <tr><td>magFlxLp6</td><td>-0.003656</td><td>0.635750</td><td>True</td><td>100579 -0.004, 100595 -0.004, 100642 -0.023</td><td><strong>undecided</strong></td></tr>
+          <tr><td>magFlxLp7</td><td>-0.992498</td><td>0.999051</td><td>True</td><td>100579 -0.992, 100595 -1.075, 100642 -0.992</td><td><strong>negate</strong></td></tr>
+          <tr><td>magFlxLp8</td><td>-0.002711</td><td>0.547398</td><td>True</td><td>100579 -0.003, 100595 -0.002, 100642 -0.058</td><td><strong>undecided</strong></td></tr>
+          <tr><td>magFlxLp9</td><td>-0.001531</td><td>0.165173</td><td>False</td><td>100579 -0.002, 100595 +0.001, 100642 -0.117</td><td><strong>undecided</strong></td></tr>
+          <tr><td>magFlxLp10</td><td>+0.003365</td><td>0.198805</td><td>False</td><td>100579 +0.003, 100595 +0.009, 100642 -0.034</td><td><strong>undecided</strong></td></tr>
+          <tr><td>magFlxLp11</td><td>+0.015681</td><td>0.239887</td><td>True</td><td>100579 +0.006, 100595 +0.016, 100642 +0.064</td><td><strong>undecided</strong></td></tr>
+          <tr><td>magFlxLp12</td><td>+0.011540</td><td>0.122913</td><td>False</td><td>100579 -0.009, 100595 +0.012, 100642 +0.192</td><td><strong>undecided</strong></td></tr>
+          <tr><td>magFlxLp13</td><td>-0.107329</td><td>0.724184</td><td>False</td><td>100579 -0.126, 100595 -0.107, 100642 +0.593</td><td><strong>undecided</strong></td></tr>
+          <tr><td>magFlxLp14</td><td>-0.153144</td><td>0.782901</td><td>False</td><td>100579 -0.178, 100595 -0.153, 100642 +0.830</td><td><strong>undecided</strong></td></tr>
+          <tr><td>magFlxLp15</td><td>-0.184836</td><td>0.564577</td><td>True</td><td>100579 -0.107, 100595 -0.185, 100642 -0.247</td><td><strong>undecided</strong></td></tr>
+          <tr><td>magFlxLp16</td><td>-0.097892</td><td>0.607077</td><td>True</td><td>100579 -0.098, 100595 -0.309, 100642 -0.041</td><td><strong>undecided</strong></td></tr>
+          <tr><td>magFlxLp17</td><td>-0.083104</td><td>0.549965</td><td>False</td><td>100579 -0.083, 100595 -0.616, 100642 +0.166</td><td><strong>undecided</strong></td></tr>
+          <tr><td>magFlxLp18</td><td>-0.094801</td><td>0.489946</td><td>False</td><td>100579 -0.095, 100595 -0.738, 100642 +0.299</td><td><strong>undecided</strong></td></tr>
+          <tr><td>magFlxLp19</td><td>-0.105276</td><td>0.485989</td><td>False</td><td>100579 -0.105, 100595 -0.784, 100642 +0.380</td><td><strong>undecided</strong></td></tr>
+          <tr><td>magFlxLp20</td><td>-0.125698</td><td>0.506484</td><td>False</td><td>100579 -0.126, 100595 -0.829, 100642 +0.510</td><td><strong>undecided</strong></td></tr>
+          <tr><td>magFlxLp21</td><td>-0.151715</td><td>0.609682</td><td>False</td><td>100579 -0.152, 100595 -0.858, 100642 +0.653</td><td><strong>undecided</strong></td></tr>
+          <tr><td>magFlxLp22</td><td>-0.152238</td><td>0.670771</td><td>False</td><td>100579 -0.152, 100595 -0.858, 100642 +0.706</td><td><strong>undecided</strong></td></tr>
+          <tr><td>magFlxLp23</td><td>-0.149787</td><td>0.814105</td><td>False</td><td>100579 -0.150, 100595 -0.831, 100642 +0.976</td><td><strong>undecided</strong></td></tr>
+          <tr><td>magFlxLp24</td><td>-0.146704</td><td>0.771921</td><td>False</td><td>100579 -0.147, 100595 -0.821, 100642 +1.021</td><td><strong>undecided</strong></td></tr>
+          <tr><td>magFlxLp25</td><td>-0.138644</td><td>0.738753</td><td>False</td><td>100579 -0.139, 100595 -0.804, 100642 +1.041</td><td><strong>undecided</strong></td></tr>
+          <tr><td>magFlxLp26</td><td>-0.131131</td><td>0.694240</td><td>False</td><td>100579 -0.131, 100595 -0.760, 100642 +1.050</td><td><strong>undecided</strong></td></tr>
+          <tr><td>magFlxLp27</td><td>-0.166382</td><td>0.659595</td><td>False</td><td>100579 -0.166, 100595 -0.337, 100642 +1.012</td><td><strong>undecided</strong></td></tr>
+          <tr><td>magPbTC1</td><td>+0.971158</td><td>0.957194</td><td>True</td><td>100579 +1.037, 100595 +0.971, 100642 +0.717</td><td><strong>identity</strong></td></tr>
+          <tr><td>magPbTC2</td><td>+1.003514</td><td>0.966894</td><td>True</td><td>100579 +1.053, 100595 +1.004, 100642 +0.595</td><td><strong>identity</strong></td></tr>
+          <tr><td>magPbTC3</td><td>+0.994835</td><td>0.976506</td><td>True</td><td>100579 +1.087, 100595 +0.995, 100642 +0.861</td><td><strong>identity</strong></td></tr>
+          <tr><td>magPbTC4</td><td>+0.995731</td><td>0.978860</td><td>True</td><td>100579 +1.147, 100595 +0.982, 100642 +0.996</td><td><strong>identity</strong></td></tr>
+          <tr><td>magPbTC5</td><td>+1.061007</td><td>0.997402</td><td>True</td><td>100579 +1.061, 100595 +1.102, 100642 +1.003</td><td><strong>identity</strong></td></tr>
+          <tr><td>magPbTC6</td><td>+0.996996</td><td>0.990608</td><td>True</td><td>100579 +1.079, 100595 +0.970, 100642 +0.997</td><td><strong>identity</strong></td></tr>
+          <tr><td>magPbTC7</td><td>+0.999453</td><td>0.997560</td><td>True</td><td>100579 +1.071, 100595 +0.988, 100642 +0.999</td><td><strong>identity</strong></td></tr>
+          <tr><td>magPbTC8</td><td>+1.017331</td><td>0.993885</td><td>True</td><td>100579 +1.036, 100595 +0.974, 100642 +1.017</td><td><strong>identity</strong></td></tr>
+          <tr><td>magPbTC9</td><td>+0.989844</td><td>0.994042</td><td>True</td><td>100579 +1.005, 100595 +0.953, 100642 +0.990</td><td><strong>identity</strong></td></tr>
+          <tr><td>magPbTC10</td><td>+1.028316</td><td>0.997142</td><td>True</td><td>100579 +1.052, 100595 +0.967, 100642 +1.028</td><td><strong>identity</strong></td></tr>
+          <tr><td>magPbTC11</td><td>+0.996038</td><td>0.993123</td><td>True</td><td>100579 +0.996, 100595 +0.926, 100642 +1.003</td><td><strong>identity</strong></td></tr>
+          <tr><td>magPbTC12</td><td>+1.006517</td><td>0.992962</td><td>True</td><td>100579 +1.138, 100595 +0.991, 100642 +1.007</td><td><strong>identity</strong></td></tr>
+          <tr><td>magPbTC13</td><td>+1.041912</td><td>0.987568</td><td>True</td><td>100579 +1.042, 100595 +1.084, 100642 +1.002</td><td><strong>identity</strong></td></tr>
+          <tr><td>magPbTC14</td><td>+0.989956</td><td>0.985020</td><td>True</td><td>100579 +1.021, 100595 +0.990, 100642 +0.931</td><td><strong>identity</strong></td></tr>
+          <tr><td>magPbTC15</td><td>+0.974170</td><td>0.982309</td><td>True</td><td>100579 +0.898, 100595 +0.985, 100642 +0.974</td><td><strong>identity</strong></td></tr>
+          <tr><td>magPbTC16</td><td>+0.971713</td><td>0.964065</td><td>True</td><td>100579 +0.920, 100595 +0.972, 100642 +0.972</td><td><strong>identity</strong></td></tr>
+          <tr><td>magPbTC17</td><td>+0.937589</td><td>0.948104</td><td>True</td><td>100579 +1.097, 100595 +0.938, 100642 +0.915</td><td><strong>undecided</strong></td></tr>
         </tbody>
       </table>
-      <p id="jtmm-vacuum-adjudication-magFlxLp1">magFlxLp1: <strong>undecided</strong> &mdash; neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: 100579 slope -0.021 r -0.9390; 100595 slope -0.045 r -0.2528; 100642 slope -0.455 r -0.3634</p>
-      <p id="jtmm-vacuum-adjudication-magFlxLp2">magFlxLp2: <strong>undecided</strong> &mdash; neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: 100579 slope +0.024 r +0.8864; 100595 slope +0.043 r +0.4253; 100642 slope -0.561 r -0.5143</p>
-      <p id="jtmm-vacuum-adjudication-magFlxLp3">magFlxLp3: <strong>undecided</strong> &mdash; neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: 100579 slope +0.011 r +0.7263; 100595 slope +0.026 r +0.3924; 100642 slope -0.438 r -0.4700</p>
-      <p id="jtmm-vacuum-adjudication-magFlxLp4">magFlxLp4: <strong>undecided</strong> &mdash; neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: 100579 slope +0.002 r +0.2618; 100595 slope +0.012 r +0.4007; 100642 slope -0.257 r -0.3652</p>
-      <p id="jtmm-vacuum-adjudication-magFlxLp5">magFlxLp5: <strong>undecided</strong> &mdash; neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: 100579 slope -0.004 r -0.7197; 100595 slope +0.001 r +0.2542; 100642 slope -0.188 r -0.3476</p>
-      <p id="jtmm-vacuum-adjudication-magFlxLp6">magFlxLp6: <strong>undecided</strong> &mdash; neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: 100579 slope -0.004 r -0.9417; 100595 slope -0.003 r -0.4651; 100642 slope -0.070 r -0.2372</p>
-      <p id="jtmm-vacuum-adjudication-magFlxLp7">magFlxLp7: <strong>negate</strong> &mdash; |slope+1|<=0.1 and |r|>0.98 on every shot</p>
-      <p id="jtmm-vacuum-adjudication-magFlxLp8">magFlxLp8: <strong>undecided</strong> &mdash; neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: 100579 slope -0.002 r -0.8889; 100595 slope -0.003 r -0.5330; 100642 slope -0.029 r -0.1486</p>
-      <p id="jtmm-vacuum-adjudication-magFlxLp9">magFlxLp9: <strong>undecided</strong> &mdash; neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: 100579 slope +0.000 r +0.1092; 100595 slope -0.002 r -0.0739; 100642 slope -0.077 r -0.1751</p>
-      <p id="jtmm-vacuum-adjudication-magFlxLp10">magFlxLp10: <strong>undecided</strong> &mdash; neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: 100579 slope +0.007 r +0.6802; 100595 slope +0.005 r +0.1375; 100642 slope +0.000 r +0.0006</p>
-      <p id="jtmm-vacuum-adjudication-magFlxLp11">magFlxLp11: <strong>undecided</strong> &mdash; neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: 100579 slope +0.012 r +0.7287; 100595 slope +0.011 r +0.2867; 100642 slope +0.090 r +0.1111</p>
-      <p id="jtmm-vacuum-adjudication-magFlxLp12">magFlxLp12: <strong>undecided</strong> &mdash; neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: 100579 slope +0.021 r +0.4893; 100595 slope +0.019 r +0.1962; 100642 slope +0.189 r +0.1142</p>
-      <p id="jtmm-vacuum-adjudication-magFlxLp13">magFlxLp13: <strong>undecided</strong> &mdash; neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: 100579 slope -0.064 r -0.6894; 100595 slope -0.103 r -0.6231; 100642 slope +0.597 r +0.2935</p>
-      <p id="jtmm-vacuum-adjudication-magFlxLp14">magFlxLp14: <strong>undecided</strong> &mdash; neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: 100579 slope -0.099 r -0.7673; 100595 slope -0.166 r -0.8866; 100642 slope +0.842 r +0.4022</p>
-      <p id="jtmm-vacuum-adjudication-magFlxLp15">magFlxLp15: <strong>undecided</strong> &mdash; neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: 100579 slope -0.102 r -0.9975; 100595 slope -0.265 r -0.6584; 100642 slope -0.194 r -0.1397</p>
-      <p id="jtmm-vacuum-adjudication-magFlxLp16">magFlxLp16: <strong>undecided</strong> &mdash; neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: 100579 slope -0.077 r -0.9542; 100595 slope -0.432 r -0.7333; 100642 slope +0.004 r +0.0031</p>
-      <p id="jtmm-vacuum-adjudication-magFlxLp17">magFlxLp17: <strong>undecided</strong> &mdash; neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: 100579 slope -0.017 r -0.2328; 100595 slope -0.723 r -0.8758; 100642 slope +0.209 r +0.1613</p>
-      <p id="jtmm-vacuum-adjudication-magFlxLp18">magFlxLp18: <strong>undecided</strong> &mdash; neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: 100579 slope +0.001 r +0.0070; 100595 slope -0.814 r -0.9197; 100642 slope +0.332 r +0.2691</p>
-      <p id="jtmm-vacuum-adjudication-magFlxLp19">magFlxLp19: <strong>undecided</strong> &mdash; neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: 100579 slope +0.006 r +0.0490; 100595 slope -0.847 r -0.9357; 100642 slope +0.407 r +0.3408</p>
-      <p id="jtmm-vacuum-adjudication-magFlxLp20">magFlxLp20: <strong>undecided</strong> &mdash; neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: 100579 slope +0.004 r +0.0325; 100595 slope -0.881 r -0.9521; 100642 slope +0.529 r +0.4701</p>
-      <p id="jtmm-vacuum-adjudication-magFlxLp21">magFlxLp21: <strong>undecided</strong> &mdash; neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: 100579 slope -0.004 r -0.0295; 100595 slope -0.902 r -0.9625; 100642 slope +0.672 r +0.6364</p>
-      <p id="jtmm-vacuum-adjudication-magFlxLp22">magFlxLp22: <strong>undecided</strong> &mdash; neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: 100579 slope -0.001 r -0.0058; 100595 slope -0.902 r -0.9629; 100642 slope +0.727 r +0.6951</p>
-      <p id="jtmm-vacuum-adjudication-magFlxLp23">magFlxLp23: <strong>undecided</strong> &mdash; neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: 100579 slope +0.030 r +0.1656; 100595 slope -0.878 r -0.9556; 100642 slope +1.015 r +0.8153</p>
-      <p id="jtmm-vacuum-adjudication-magFlxLp24">magFlxLp24: <strong>undecided</strong> &mdash; neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: 100579 slope +0.044 r +0.2228; 100595 slope -0.870 r -0.9519; 100642 slope +1.064 r +0.7687</p>
-      <p id="jtmm-vacuum-adjudication-magFlxLp25">magFlxLp25: <strong>undecided</strong> &mdash; neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: 100579 slope +0.054 r +0.2712; 100595 slope -0.858 r -0.9465; 100642 slope +1.084 r +0.7332</p>
-      <p id="jtmm-vacuum-adjudication-magFlxLp26">magFlxLp26: <strong>undecided</strong> &mdash; neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: 100579 slope +0.055 r +0.2839; 100595 slope -0.827 r -0.9335; 100642 slope +1.092 r +0.6862</p>
-      <p id="jtmm-vacuum-adjudication-magFlxLp27">magFlxLp27: <strong>undecided</strong> &mdash; neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: 100579 slope -0.050 r -0.3949; 100595 slope -0.459 r -0.7759; 100642 slope +1.039 r +0.5291</p>
-      <p id="jtmm-vacuum-adjudication-magPbTC1">magPbTC1: <strong>undecided</strong> &mdash; neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: 100579 slope +1.023 r +0.9651; 100595 slope +1.011 r +0.9772; 100642 slope +0.835 r +0.8994</p>
-      <p id="jtmm-vacuum-adjudication-magPbTC2">magPbTC2: <strong>undecided</strong> &mdash; neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: 100579 slope +0.993 r +0.9571; 100595 slope +1.033 r +0.9854; 100642 slope +0.760 r +0.8513</p>
-      <p id="jtmm-vacuum-adjudication-magPbTC3">magPbTC3: <strong>undecided</strong> &mdash; neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: 100579 slope +1.048 r +0.9854; 100595 slope +1.026 r +0.9877; 100642 slope +0.917 r +0.9485</p>
-      <p id="jtmm-vacuum-adjudication-magPbTC4">magPbTC4: <strong>undecided</strong> &mdash; neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: 100579 slope +1.018 r +0.9779; 100595 slope +1.018 r +0.9883; 100642 slope +1.001 r +0.9800</p>
-      <p id="jtmm-vacuum-adjudication-magPbTC5">magPbTC5: <strong>undecided</strong> &mdash; neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: 100579 slope +1.048 r +0.9994; 100595 slope +1.132 r +0.9789; 100642 slope +1.003 r +0.9968</p>
-      <p id="jtmm-vacuum-adjudication-magPbTC6">magPbTC6: <strong>undecided</strong> &mdash; neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: 100579 slope +1.200 r +0.9631; 100595 slope +1.001 r +0.9849; 100642 slope +0.996 r +0.9970</p>
-      <p id="jtmm-vacuum-adjudication-magPbTC7">magPbTC7: <strong>undecided</strong> &mdash; neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: 100579 slope +1.060 r +0.9940; 100595 slope +1.032 r +0.9754; 100642 slope +0.999 r +0.9987</p>
-      <p id="jtmm-vacuum-adjudication-magPbTC8">magPbTC8: <strong>identity</strong> &mdash; |slope-1|<=0.1 and |r|>0.98 on every shot</p>
-      <p id="jtmm-vacuum-adjudication-magPbTC9">magPbTC9: <strong>identity</strong> &mdash; |slope-1|<=0.1 and |r|>0.98 on every shot</p>
-      <p id="jtmm-vacuum-adjudication-magPbTC10">magPbTC10: <strong>undecided</strong> &mdash; neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: 100579 slope +1.047 r +0.9855; 100595 slope +1.010 r +0.9784; 100642 slope +1.024 r +0.9983</p>
-      <p id="jtmm-vacuum-adjudication-magPbTC11">magPbTC11: <strong>undecided</strong> &mdash; neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: 100579 slope +0.971 r +0.9926; 100595 slope +1.015 r +0.9512; 100642 slope +1.002 r +0.9935</p>
-      <p id="jtmm-vacuum-adjudication-magPbTC12">magPbTC12: <strong>undecided</strong> &mdash; neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: 100579 slope +1.247 r +0.9791; 100595 slope +1.007 r +0.9953; 100642 slope +1.000 r +0.9966</p>
-      <p id="jtmm-vacuum-adjudication-magPbTC13">magPbTC13: <strong>identity</strong> &mdash; |slope-1|<=0.1 and |r|>0.98 on every shot</p>
-      <p id="jtmm-vacuum-adjudication-magPbTC14">magPbTC14: <strong>undecided</strong> &mdash; neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: 100579 slope +1.074 r +0.9942; 100595 slope +1.015 r +0.9907; 100642 slope +0.908 r +0.9355</p>
-      <p id="jtmm-vacuum-adjudication-magPbTC15">magPbTC15: <strong>undecided</strong> &mdash; neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: 100579 slope +0.953 r +0.9575; 100595 slope +1.010 r +0.9878; 100642 slope +0.969 r +0.9686</p>
-      <p id="jtmm-vacuum-adjudication-magPbTC16">magPbTC16: <strong>undecided</strong> &mdash; neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: 100579 slope +0.998 r +0.9532; 100595 slope +1.006 r +0.9754; 100642 slope +0.982 r +0.9676</p>
-      <p id="jtmm-vacuum-adjudication-magPbTC17">magPbTC17: <strong>undecided</strong> &mdash; neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: 100579 slope +1.077 r +0.9861; 100595 slope +0.985 r +0.9675; 100642 slope +1.000 r +0.8145</p>
+      <p id="jtmm-vacuum-adjudication-magFlxLp1">magFlxLp1: <strong>undecided</strong> &mdash; median |r| 0.391 does not exceed 0.95: 100579 slope -0.014 r -0.6766; 100595 slope -0.014 r -0.0985; 100642 slope -0.496 r -0.3910 Outliers: [100579, 100595, 100642].</p>
+      <p id="jtmm-vacuum-adjudication-magFlxLp2">magFlxLp2: <strong>undecided</strong> &mdash; shots disagree in slope sign: 100579 slope +0.036 r +0.8188; 100595 slope +0.054 r +0.5890; 100642 slope -0.596 r -0.5360 Outliers: [100579, 100595, 100642].</p>
+      <p id="jtmm-vacuum-adjudication-magFlxLp3">magFlxLp3: <strong>undecided</strong> &mdash; shots disagree in slope sign: 100579 slope +0.019 r +0.6952; 100595 slope +0.032 r +0.5543; 100642 slope -0.477 r -0.4866 Outliers: [100579, 100595, 100642].</p>
+      <p id="jtmm-vacuum-adjudication-magFlxLp4">magFlxLp4: <strong>undecided</strong> &mdash; shots disagree in slope sign: 100579 slope +0.007 r +0.4741; 100595 slope +0.014 r +0.5510; 100642 slope -0.262 r -0.3358 Outliers: [100579, 100595, 100642].</p>
+      <p id="jtmm-vacuum-adjudication-magFlxLp5">magFlxLp5: <strong>undecided</strong> &mdash; shots disagree in slope sign: 100579 slope -0.001 r -0.1514; 100595 slope +0.002 r +0.3364; 100642 slope -0.151 r -0.2517 Outliers: [100579, 100595, 100642].</p>
+      <p id="jtmm-vacuum-adjudication-magFlxLp6">magFlxLp6: <strong>undecided</strong> &mdash; median |r| 0.636 does not exceed 0.95: 100579 slope -0.004 r -0.7253; 100595 slope -0.004 r -0.6358; 100642 slope -0.023 r -0.0750 Outliers: [100579, 100595, 100642].</p>
+      <p id="jtmm-vacuum-adjudication-magFlxLp7">magFlxLp7: <strong>negate</strong> &mdash; median slope -0.992, median |r| 0.999, all shots same sign; outliers: none</p>
+      <p id="jtmm-vacuum-adjudication-magFlxLp8">magFlxLp8: <strong>undecided</strong> &mdash; median |r| 0.547 does not exceed 0.95: 100579 slope -0.003 r -0.7452; 100595 slope -0.002 r -0.5474; 100642 slope -0.058 r -0.3127 Outliers: [100579, 100595, 100642].</p>
+      <p id="jtmm-vacuum-adjudication-magFlxLp9">magFlxLp9: <strong>undecided</strong> &mdash; shots disagree in slope sign: 100579 slope -0.002 r -0.1652; 100595 slope +0.001 r +0.0638; 100642 slope -0.117 r -0.2972 Outliers: [100579, 100595, 100642].</p>
+      <p id="jtmm-vacuum-adjudication-magFlxLp10">magFlxLp10: <strong>undecided</strong> &mdash; shots disagree in slope sign: 100579 slope +0.003 r +0.1988; 100595 slope +0.009 r +0.3194; 100642 slope -0.034 r -0.0651 Outliers: [100579, 100595, 100642].</p>
+      <p id="jtmm-vacuum-adjudication-magFlxLp11">magFlxLp11: <strong>undecided</strong> &mdash; median |r| 0.240 does not exceed 0.95: 100579 slope +0.006 r +0.2399; 100595 slope +0.016 r +0.4701; 100642 slope +0.064 r +0.0895 Outliers: [100579, 100595, 100642].</p>
+      <p id="jtmm-vacuum-adjudication-magFlxLp12">magFlxLp12: <strong>undecided</strong> &mdash; shots disagree in slope sign: 100579 slope -0.009 r -0.1229; 100595 slope +0.012 r +0.1558; 100642 slope +0.192 r +0.1223 Outliers: [100579, 100595, 100642].</p>
+      <p id="jtmm-vacuum-adjudication-magFlxLp13">magFlxLp13: <strong>undecided</strong> &mdash; shots disagree in slope sign: 100579 slope -0.126 r -0.7242; 100595 slope -0.107 r -0.7304; 100642 slope +0.593 r +0.3059 Outliers: [100579, 100595, 100642].</p>
+      <p id="jtmm-vacuum-adjudication-magFlxLp14">magFlxLp14: <strong>undecided</strong> &mdash; shots disagree in slope sign: 100579 slope -0.178 r -0.7829; 100595 slope -0.153 r -0.8990; 100642 slope +0.830 r +0.4158 Outliers: [100579, 100595, 100642].</p>
+      <p id="jtmm-vacuum-adjudication-magFlxLp15">magFlxLp15: <strong>undecided</strong> &mdash; median |r| 0.565 does not exceed 0.95: 100579 slope -0.107 r -0.9911; 100595 slope -0.185 r -0.5646; 100642 slope -0.247 r -0.1749 Outliers: [100579, 100595, 100642].</p>
+      <p id="jtmm-vacuum-adjudication-magFlxLp16">magFlxLp16: <strong>undecided</strong> &mdash; median |r| 0.607 does not exceed 0.95: 100579 slope -0.098 r -0.9021; 100595 slope -0.309 r -0.6071; 100642 slope -0.041 r -0.0316 Outliers: [100579, 100595, 100642].</p>
+      <p id="jtmm-vacuum-adjudication-magFlxLp17">magFlxLp17: <strong>undecided</strong> &mdash; shots disagree in slope sign: 100579 slope -0.083 r -0.5500; 100595 slope -0.616 r -0.7831; 100642 slope +0.166 r +0.1237 Outliers: [100579, 100595, 100642].</p>
+      <p id="jtmm-vacuum-adjudication-magFlxLp18">magFlxLp18: <strong>undecided</strong> &mdash; shots disagree in slope sign: 100579 slope -0.095 r -0.4899; 100595 slope -0.738 r -0.8525; 100642 slope +0.299 r +0.2338 Outliers: [100579, 100595, 100642].</p>
+      <p id="jtmm-vacuum-adjudication-magFlxLp19">magFlxLp19: <strong>undecided</strong> &mdash; shots disagree in slope sign: 100579 slope -0.105 r -0.4860; 100595 slope -0.784 r -0.8790; 100642 slope +0.380 r +0.3074 Outliers: [100579, 100595, 100642].</p>
+      <p id="jtmm-vacuum-adjudication-magFlxLp20">magFlxLp20: <strong>undecided</strong> &mdash; shots disagree in slope sign: 100579 slope -0.126 r -0.5065; 100595 slope -0.829 r -0.9064; 100642 slope +0.510 r +0.4401 Outliers: [100579, 100595, 100642].</p>
+      <p id="jtmm-vacuum-adjudication-magFlxLp21">magFlxLp21: <strong>undecided</strong> &mdash; shots disagree in slope sign: 100579 slope -0.152 r -0.5427; 100595 slope -0.858 r -0.9240; 100642 slope +0.653 r +0.6097 Outliers: [100579, 100595, 100642].</p>
+      <p id="jtmm-vacuum-adjudication-magFlxLp22">magFlxLp22: <strong>undecided</strong> &mdash; shots disagree in slope sign: 100579 slope -0.152 r -0.5361; 100595 slope -0.858 r -0.9250; 100642 slope +0.706 r +0.6708 Outliers: [100579, 100595, 100642].</p>
+      <p id="jtmm-vacuum-adjudication-magFlxLp23">magFlxLp23: <strong>undecided</strong> &mdash; shots disagree in slope sign: 100579 slope -0.150 r -0.4856; 100595 slope -0.831 r -0.9164; 100642 slope +0.976 r +0.8141 Outliers: [100579, 100595, 100642].</p>
+      <p id="jtmm-vacuum-adjudication-magFlxLp24">magFlxLp24: <strong>undecided</strong> &mdash; shots disagree in slope sign: 100579 slope -0.147 r -0.4656; 100595 slope -0.821 r -0.9100; 100642 slope +1.021 r +0.7719 Outliers: [100579, 100595, 100642].</p>
+      <p id="jtmm-vacuum-adjudication-magFlxLp25">magFlxLp25: <strong>undecided</strong> &mdash; shots disagree in slope sign: 100579 slope -0.139 r -0.4420; 100595 slope -0.804 r -0.9001; 100642 slope +1.041 r +0.7388 Outliers: [100579, 100595, 100642].</p>
+      <p id="jtmm-vacuum-adjudication-magFlxLp26">magFlxLp26: <strong>undecided</strong> &mdash; shots disagree in slope sign: 100579 slope -0.131 r -0.4320; 100595 slope -0.760 r -0.8770; 100642 slope +1.050 r +0.6942 Outliers: [100579, 100595, 100642].</p>
+      <p id="jtmm-vacuum-adjudication-magFlxLp27">magFlxLp27: <strong>undecided</strong> &mdash; shots disagree in slope sign: 100579 slope -0.166 r -0.6596; 100595 slope -0.337 r -0.6648; 100642 slope +1.012 r +0.5420 Outliers: [100579, 100595, 100642].</p>
+      <p id="jtmm-vacuum-adjudication-magPbTC1">magPbTC1: <strong>identity</strong> &mdash; median slope +0.971, median |r| 0.957, all shots same sign; outliers: [100642] Outliers: [100642].</p>
+      <p id="jtmm-vacuum-adjudication-magPbTC2">magPbTC2: <strong>identity</strong> &mdash; median slope +1.004, median |r| 0.967, all shots same sign; outliers: [100642] Outliers: [100642].</p>
+      <p id="jtmm-vacuum-adjudication-magPbTC3">magPbTC3: <strong>identity</strong> &mdash; median slope +0.995, median |r| 0.977, all shots same sign; outliers: [100642] Outliers: [100642].</p>
+      <p id="jtmm-vacuum-adjudication-magPbTC4">magPbTC4: <strong>identity</strong> &mdash; median slope +0.996, median |r| 0.979, all shots same sign; outliers: [100579] Outliers: [100579].</p>
+      <p id="jtmm-vacuum-adjudication-magPbTC5">magPbTC5: <strong>identity</strong> &mdash; median slope +1.061, median |r| 0.997, all shots same sign; outliers: [100595] Outliers: [100595].</p>
+      <p id="jtmm-vacuum-adjudication-magPbTC6">magPbTC6: <strong>identity</strong> &mdash; median slope +0.997, median |r| 0.991, all shots same sign; outliers: none</p>
+      <p id="jtmm-vacuum-adjudication-magPbTC7">magPbTC7: <strong>identity</strong> &mdash; median slope +0.999, median |r| 0.998, all shots same sign; outliers: none</p>
+      <p id="jtmm-vacuum-adjudication-magPbTC8">magPbTC8: <strong>identity</strong> &mdash; median slope +1.017, median |r| 0.994, all shots same sign; outliers: none</p>
+      <p id="jtmm-vacuum-adjudication-magPbTC9">magPbTC9: <strong>identity</strong> &mdash; median slope +0.990, median |r| 0.994, all shots same sign; outliers: none</p>
+      <p id="jtmm-vacuum-adjudication-magPbTC10">magPbTC10: <strong>identity</strong> &mdash; median slope +1.028, median |r| 0.997, all shots same sign; outliers: none</p>
+      <p id="jtmm-vacuum-adjudication-magPbTC11">magPbTC11: <strong>identity</strong> &mdash; median slope +0.996, median |r| 0.993, all shots same sign; outliers: [100595] Outliers: [100595].</p>
+      <p id="jtmm-vacuum-adjudication-magPbTC12">magPbTC12: <strong>identity</strong> &mdash; median slope +1.007, median |r| 0.993, all shots same sign; outliers: [100579] Outliers: [100579].</p>
+      <p id="jtmm-vacuum-adjudication-magPbTC13">magPbTC13: <strong>identity</strong> &mdash; median slope +1.042, median |r| 0.988, all shots same sign; outliers: none</p>
+      <p id="jtmm-vacuum-adjudication-magPbTC14">magPbTC14: <strong>identity</strong> &mdash; median slope +0.990, median |r| 0.985, all shots same sign; outliers: [100642] Outliers: [100642].</p>
+      <p id="jtmm-vacuum-adjudication-magPbTC15">magPbTC15: <strong>identity</strong> &mdash; median slope +0.974, median |r| 0.982, all shots same sign; outliers: [100579] Outliers: [100579].</p>
+      <p id="jtmm-vacuum-adjudication-magPbTC16">magPbTC16: <strong>identity</strong> &mdash; median slope +0.972, median |r| 0.964, all shots same sign; outliers: none</p>
+      <p id="jtmm-vacuum-adjudication-magPbTC17">magPbTC17: <strong>undecided</strong> &mdash; median |r| 0.948 does not exceed 0.95: 100579 slope +1.097 r +0.9946; 100595 slope +0.938 r +0.9481; 100642 slope +0.915 r +0.7748 Outliers: [100595, 100642].</p>
       <p id="jtmm-vacuum-adjudication-negative-control">Negative control: swapping the measured channels of magFlxLp7 and magPbTC8 changes both their verdicts (negate &rarr; undecided and identity &rarr; undecided), so 2 channel verdicts in total respond to the measured channel.</p>
     </section>
   </main>
