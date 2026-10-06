@@ -1,0 +1,71 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": null,
+  "added_failure_ids": [],
+  "added_failures_note": "unmeasured: the reviewed manifest records baseline_suite and after_suite as null (jtmm-vacuum-mismatch-rca is an evidence node that changes only an HTML fragment and runs no test suite), so the added-failure count was not taken",
+  "backend": "clive",
+  "base_log_revision": null,
+  "call_site_count": 0,
+  "call_sites": [
+    "none (the reviewed change is a single HTML evidence fragment at docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-mismatch-rca.html; no module imports it)"
+  ],
+  "completed_at": "2026-10-06T20:03:14.180Z",
+  "dispatched_at": "2026-10-06T19:55:48Z",
+  "findings": [
+    {
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-mismatch-rca.html",
+      "line": "145",
+      "severity": "blocking",
+      "text": "the corrected slope/r table reports six loops (FL7, FL15, FL20, FL23, FL26, FL27) but only four probes (MP1, MP5, MP13, MP17), short of the done-when's \"the corrected prediction-versus-measurement slope and Pearson r for at least five loops and five probes after applying them\"; the across-shots table adds only MP1 and MP5, already counted, so no fifth probe carries a corrected slope anywhere in the fragment although rca_checks.log carries all 17 probes corrected."
+    },
+    {
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-mismatch-rca.html",
+      "line": "60",
+      "severity": "follow-on",
+      "text": "Check 2 reports the pre-pulse baseline and drift of seven loops (FL1, FL6, FL7, FL15, FL20, FL26, FL27) and four probes (MP1, MP5, MP13, MP17), not \"each raw loop's pre-pulse baseline and drift\" of the 27 loops the done-when names; the ruling-out argument generalises from the seven-loop sample."
+    },
+    {
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-mismatch-rca.html",
+      "line": "118",
+      "severity": "follow-on",
+      "text": "Check 4 quotes FL7's raw slope on E100579 (-13.86) and E100642 (-13.55); rca_checks.log tables the raw per-channel slope only for E100595 (FL7 -14.281) and the per-shot table for all three shots is corrected-only, so the two extra-shot raw slopes are asserted without a line in the cited log (the corrected FL7 values there, -0.36/-0.40/-0.34, do reconcile)."
+    }
+  ],
+  "head_log_revision": null,
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 0 production call site(s); the reviewed change is an HTML evidence fragment and no module imports it",
+    "diff": "read commit cbbd853e against its parent d0dd5a78; the diff is 230 added lines and 0 deleted to docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-mismatch-rca.html, and to no source and no test path",
+    "done_when": "the fragment carries all four named checks (Check 1 MMSYS/MDAC time bases with units, origin, rate and overlap; Check 2 baseline and drift; Check 3 the drive topology A\u00b7turn/A against the MMSYS units; Check 4 why FL7 tracks at \u2248\u221214), names the supported cause and states the inconclusive residual, but the corrected table gives six loops against only four probes, short of \"at least five loops and five probes\", and Check 2 shows seven of 27 loops rather than each raw loop",
+    "goal": "the goal is to find why the JT-60SA vacuum predictions miss; the fragment names the omitted drive-topology ampere-turns-per-ampere as the cause the checks support and records the residual |slope| 0.4\u20131.0 position/axis question as inconclusive",
+    "manifest": "read; it records status complete, commit cbbd853e, changed_paths the one fragment, test_logs rca_checks.log, baseline_suite and after_suite null, and a negative_control_note stating no test path is in scope",
+    "write_paths": "the diff touches only docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-mismatch-rca.html, inside the two declared paths (the fragment and the docs/figures/jt60sa-machine-map/jtmm-vacuum-mismatch-rca/ directory, from which no figure was written)"
+  },
+  "justifications": {
+    "durability": "no test is added and the node's write paths reach no test path, so nothing fails if the operator's omission of ampere_turns_per_ampere regresses; the fragment is a durable record but the defect it names has no guard, and the source fix is handed to a follow-on repair node.",
+    "evidence": "the fragment's numbers reconcile exactly with rca_checks.log where the log covers them (Check 1 166154 vs 244840 samples, t0 0.0000 vs 0.0002 s, units A/Wb/T; Check 2 FL7 base \u22122.343 span 2.831 end \u22120.001; corrected FL7 \u22120.395/\u22120.989, MP1 0.559/0.966, MP5 \u22121.032/\u22120.962) and the reproduction at 892715c4 is stated, but the measure's \"at least five loops and five probes\" is met for loops only (6 vs 4 probes) and Check 2 covers seven of 27 loops.",
+    "fit": "the fragment follows the evidence-fragment conventions (docs-project/reckon-type/plan-slug metas, <h3> sections, tables), every element id is prefixed jtmm-vacuum-mismatch-rca-, and no plan label or ticket reference appears in an id or prose.",
+    "goal_fidelity": "the four cheap discriminating checks the plan \u00a76 names for this node are each present and answered with a measured result, and the cause is named with an explicit inconclusive clause; docked because the corrected slope/r table reports four probes against the measure's five.",
+    "reuse": "the branch reuses the adjudication code at 892715c4 (scripts/vacuum_loop_adjudication.py: build_operator, ForwardOperator.vacuum_prediction, read_channel, CircuitDrive) and the catalogue's drive topology rather than re-deriving them, and names the second probe-angle supplier as a follow-on rather than duplicating it.",
+    "scope_discipline": "git diff --numstat d0dd5a78..cbbd853e lists one file, the html fragment, inside the declared write paths; no source, test, plan or figure was written, and the node is read-only over cache, description and operator as the plan requires."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20261006T193616197643-jtmm-vacuum-mismatch-rca (node\njtmm-vacuum-mismatch-rca, plan imas-ambix:jt60sa-machine-map \u00a76), read at head\ncbbd853e2ca8cea83aaed08beda416d5c978a390 on base d0dd5a78ad5fc9312e28e44c0405a95083aa182e.\nThe node finds why JT-60SA's vacuum predictions miss every loop and probe on the three OP1\nvacuum shots. This review reads the commit, the node manifest, the run log rca_checks.log and\nthe committed fragment; the reads outside the diff are the source checks on the operator and\nthe drive topology that the fragment's cause rests on.\n\nVERDICT goal: the goal is to find why the JT-60SA vacuum predictions miss; the fragment names the omitted drive-topology ampere-turns-per-ampere as the cause the checks support and records the residual |slope| 0.4\u20131.0 position/axis question as inconclusive.\nVERDICT done_when: the fragment carries all four named checks (Check 1 MMSYS/MDAC time bases with units, origin, rate and overlap; Check 2 baseline and drift; Check 3 the drive topology A\u00b7turn/A against the MMSYS units; Check 4 why FL7 tracks at \u2248\u221214), names the supported cause and states the inconclusive residual, but the corrected table gives six loops against only four probes, short of \"at least five loops and five probes\", and Check 2 shows seven of 27 loops rather than each raw loop.\nVERDICT write_paths: the diff touches only docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-mismatch-rca.html, inside the two declared paths (the fragment and the docs/figures/jt60sa-machine-map/jtmm-vacuum-mismatch-rca/ directory, from which no figure was written).\nVERDICT manifest: read; it records status complete, commit cbbd853e, changed_paths the one fragment, test_logs rca_checks.log, baseline_suite and after_suite null, and a negative_control_note stating no test path is in scope.\nVERDICT diff: read commit cbbd853e against its parent d0dd5a78; the diff is 230 added lines and 0 deleted to docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-mismatch-rca.html, and to no source and no test path.\nCALL_SITES: none (the reviewed change is a single HTML evidence fragment at docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-mismatch-rca.html; no module imports it)\n\nSCORE goal_fidelity: 17\nJUSTIFICATION goal_fidelity: the four cheap discriminating checks the plan \u00a76 names for this node are each present and answered with a measured result, and the cause is named with an explicit inconclusive clause; docked because the corrected slope/r table reports four probes against the measure's five.\nSCORE evidence: 16\nJUSTIFICATION evidence: the fragment's numbers reconcile exactly with rca_checks.log where the log covers them (Check 1 166154 vs 244840 samples, t0 0.0000 vs 0.0002 s, units A/Wb/T; Check 2 FL7 base \u22122.343 span 2.831 end \u22120.001; corrected FL7 \u22120.395/\u22120.989, MP1 0.559/0.966, MP5 \u22121.032/\u22120.962) and the reproduction at 892715c4 is stated, but the measure's \"at least five loops and five probes\" is met for loops only (6 vs 4 probes) and Check 2 covers seven of 27 loops.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff --numstat d0dd5a78..cbbd853e lists one file, the html fragment, inside the declared write paths; no source, test, plan or figure was written, and the node is read-only over cache, description and operator as the plan requires.\nSCORE durability: 12\nJUSTIFICATION durability: no test is added and the node's write paths reach no test path, so nothing fails if the operator's omission of ampere_turns_per_ampere regresses; the fragment is a durable record but the defect it names has no guard, and the source fix is handed to a follow-on repair node.\nSCORE fit: 18\nJUSTIFICATION fit: the fragment follows the evidence-fragment conventions (docs-project/reckon-type/plan-slug metas, <h3> sections, tables), every element id is prefixed jtmm-vacuum-mismatch-rca-, and no plan label or ticket reference appears in an id or prose.\nSCORE reuse: 15\nJUSTIFICATION reuse: the branch reuses the adjudication code at 892715c4 (scripts/vacuum_loop_adjudication.py: build_operator, ForwardOperator.vacuum_prediction, read_channel, CircuitDrive) and the catalogue's drive topology rather than re-deriving them, and names the second probe-angle supplier as a follow-on rather than duplicating it.\n\nFINDING docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-mismatch-rca.html:145 blocking: the corrected slope/r table reports six loops (FL7, FL15, FL20, FL23, FL26, FL27) but only four probes (MP1, MP5, MP13, MP17), short of the done-when's \"the corrected prediction-versus-measurement slope and Pearson r for at least five loops and five probes after applying them\"; the across-shots table adds only MP1 and MP5, already counted, so no fifth probe carries a corrected slope anywhere in the fragment although rca_checks.log carries all 17 probes corrected.\nFINDING docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-mismatch-rca.html:60 follow-on: Check 2 reports the pre-pulse baseline and drift of seven loops (FL1, FL6, FL7, FL15, FL20, FL26, FL27) and four probes (MP1, MP5, MP13, MP17), not \"each raw loop's pre-pulse baseline and drift\" of the 27 loops the done-when names; the ruling-out argument generalises from the seven-loop sample.\nFINDING docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-mismatch-rca.html:118 follow-on: Check 4 quotes FL7's raw slope on E100579 (-13.86) and E100642 (-13.55); rca_checks.log tables the raw per-channel slope only for E100595 (FL7 -14.281) and the per-shot table for all three shots is corrected-only, so the two extra-shot raw slopes are asserted without a line in the cited log (the corrected FL7 values there, -0.36/-0.40/-0.34, do reconcile).\n",
+  "review_run_id": "r-20261006T195538875099-review-of-jtmm-vacuum-mismatch-rca",
+  "reviewed_base_sha": "d0dd5a78ad5fc9312e28e44c0405a95083aa182e",
+  "reviewed_head_sha": "cbbd853e2ca8cea83aaed08beda416d5c978a390",
+  "reviewed_run_id": "r-20261006T193616197643-jtmm-vacuum-mismatch-rca",
+  "scores": {
+    "durability": 12,
+    "evidence": 16,
+    "fit": 18,
+    "goal_fidelity": 17,
+    "reuse": 15,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "timestamp": "2026-10-06T20:00:50.128025+00:00",
+  "total": 98
+}
