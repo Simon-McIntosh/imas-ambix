@@ -26,7 +26,7 @@
   <title>JT-60SA Facility Mint: Public Engine, Private Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="4">
+<meta name="plan-version" content="6">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -39,7 +39,7 @@
         IDS paths, and <a href="jt60sa-pulse-ids">jt60sa-pulse-ids</a> §1 adds the writer that mints a
         pulse. Both run here, reading EDDB over ssh into a cache. This plan moves the mint to the
         facility. A slim public engine, <strong>imas-alambic</strong>, loads a private JT-60SA map
-        bundle that it finds by machine name, and reads EDDB in process on the analysis server. The
+        bundle that it finds by machine name, and reads EDDB locally on the analysis server. The
         lead settled the route on 2026-10-06. The engine is a uv workspace member of this
         repository. The maps are authored in a private GitHub repository and stored as private
         GHCR artifacts, which this machine relays to the server. The install starts as an editable
@@ -104,9 +104,10 @@
       (<code>imas_ambix/cocos.py</code> <code>canonical_factor</code> delegates to
       <code>nova.io.cocos</code>). This section makes the engine its own distribution. It is
       <strong>imas-alambic</strong>, a uv workspace member at <code>packages/imas-alambic/</code>,
-      with import package <code>imas_alambic</code> and a console script <code>imas-alambic</code>.
-      It declares <code>requires-python = "&gt;=3.12"</code>, because the analysis server runs
-      Python 3.12.9 while ambix requires 3.14.
+      with import package <code>imas_alambic</code>. It declares <code>requires-python = "&gt;=3.12"</code>, because the analysis server runs
+      Python 3.12.9 while ambix requires 3.14. Its version has the root's owner:
+      <code>dynamic = ["version"]</code> with hatch-vcs reading this repository's git tags
+      (<code>raw-options</code> pointing at the repository root), never a static number.
     </p>
     <p>
       The engine takes the map schema (<code>machine_maps/schema.yaml</code>),
@@ -114,54 +115,95 @@
       <code>virtual_zarr.py</code>, <code>eddb.py</code>, <code>eddb_remote.py</code> and the COCOS
       layer in <code>imas_ambix/cocos.py</code>. Each is moved rather than copied: ambix imports it
       from <code>imas_alambic</code>, and imas-ambix depends on imas-alambic through a workspace
-      source. The map files, and the packaged map roots in <code>paths.py</code>, stay with ambix.
-      The engine carries code and schema, never map data. Its runtime dependencies are numpy,
+      source. The map files stay with ambix, and so do the roots that point at them.
+      <code>PACKAGED_MACHINE_MAP_ROOT</code> (<code>machine_map.py:24</code>) and
+      <code>PACKAGED_MAP_ROOT</code> (<code>signal_map.py:43</code>) are module constants inside
+      the files that move, so they are moved out to ambix's <code>paths.py</code> first. The
+      engine's by-name loaders then take their root from the caller, never from their own install
+      directory, until §3 replaces that argument with the bundle registry. The engine carries
+      code and schema, never map data. Its runtime dependencies are numpy,
       imas-python, zarr, pyyaml and <code>nova-cocos</code>. The COCOS factors come from nova-cocos
       (<a href="/nova/cocos-standalone-distribution">nova:cocos-standalone-distribution</a> §1)
       because nova itself requires Python 3.14 and cannot install on the server, and the plan
       allows no second factor table. Every ambix import of <code>nova.io.cocos</code> switches to
-      <code>nova_cocos</code> in the same change, which frees nova to drop the re-export. The
-      console script has <code>--version</code> and <code>validate PATH</code>.
-      <code>validate PATH</code> loads a catalogue or a signal map through
-      <code>load_machine_map</code> or <code>load_signal_map</code>, then prints its machine, its
-      IDSs and its path count. The mint writer from <a href="jt60sa-pulse-ids">jt60sa-pulse-ids</a>
-      §1 belongs in <code>imas_alambic</code>. If it lands in <code>imas_ambix/data/</code> first,
-      the mint section moves it.
+      <code>nova_cocos</code> in the same change, which frees nova to drop the re-export.
     </p>
     <p>
-      Done-when: <code>uv build --package imas-alambic</code> writes a pure-Python wheel. In a clean
+      The interface account: §2 adds no command, no environment variable and no refusal. Its only
+      new public surface is the distribution itself, which exists because imas-ambix cannot install
+      on the facility's Python. The engine gains one console script, <code>imas-alambic</code>, and
+      it gains it only with the mint. <a href="jt60sa-pulse-ids">jt60sa-pulse-ids</a> §1 adds
+      <code>mint_pulse</code> in <code>imas_ambix/data/pulse_mint.py</code> and a
+      <code>mint</code> command in <code>imas_ambix/data/cli.py</code> as the facility's entry
+      point. That entry point works at the facility only once it lives in the engine. So the first
+      section to find both <code>pulse_mint.py</code> and imas-alambic on <code>main</code> moves
+      the function to <code>imas_alambic.pulse_mint</code> and the command to <code>imas-alambic
+      mint</code>, and retires <code>imas-ambix data mint</code>. That section is §2 if the writer
+      has landed when §2 is cut, otherwise §6. The engine's CLI is that one command plus
+      <code>--version</code>, written with click as ambix's data CLI is.
+    </p>
+    <p>
+      Done-when: <code>uv build --package imas-alambic</code> writes a pure-Python wheel whose
+      <code>Version</code> equals a root build's at the same commit. In a clean
       <code>uv venv --python 3.12</code> environment, that wheel installs with its declared
-      dependencies (nova-cocos from its own built wheel), <code>imas-alambic --version</code> runs,
-      and the engine's own tests, on synthetic maps, pass. Ambix's tests that cover the moved
+      dependencies (nova-cocos from its own built wheel), <code>python -c "import imas_alambic,
+      nova_cocos"</code> succeeds, and the engine's own tests, on synthetic maps, pass. When §2
+      moved the mint, <code>imas-alambic mint --help</code> also runs there. Ambix's tests that cover the moved
       modules add no failures against the stated base. <code>uv run --no-sync ruff check
       imas_ambix tests packages</code> exits 0.
     </p>
 
-    <h2 id="s3">§3 — Private maps by name, and an in-process EDDB read</h2>
+    <h2 id="s3">§3 — Private maps by name, and a local EDDB read</h2>
 <section data-reckon="section" data-id="s3" data-effort-hours="2.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links="jt60sa-facility-mint#s2"></section>
     <p>
       <code>load_machine_map(path)</code> and <code>load_signal_map(path)</code> already accept any
-      file, so a private bundle needs no new format, only a way to be found. A bundle is a
-      directory holding a <code>bundle.json</code> (name, version, machines) beside the layout ambix
-      already packages: <code>machine_maps/&lt;machine&gt;.json</code>,
-      <code>maps/&lt;machine&gt;/&lt;ids&gt;.json</code> and
-      <code>machine_description/&lt;machine&gt;/</code>. The engine resolves a machine's catalogue,
-      signal maps and description store by name. It searches the directories in
-      <code>IMAS_ALAMBIC_MAP_PATH</code> and the bundles registered under the entry-point group
-      <code>imas_alambic.bundles</code>. Ambix registers its packaged MAST and DIII-D maps in the
-      same group, so the engine ships no maps of its own. A machine found in two places is refused,
-      naming both, rather than one silently shadowing the other. On the analysis server the EDDB
-      read runs in process through <code>eddb_pwrapper</code> instead of over ssh. That is a second
-      transport beside the ssh one, running the same code the remote script already runs, not a
-      second reader.
+      file, so a private bundle needs no new format, only a way to be found. The by-name resolvers
+      already exist, and each refuses an unknown name: <code>load_packaged_machine_map(machine)</code>
+      (<code>machine_map.py:1623</code>), <code>load_packaged_signal_map(machine, system)</code>
+      (<code>signal_map.py:631</code>) and <code>resolve_description_store_root(name)</code>
+      (<code>machine_map.py:118</code>). This section generalises those three in place to search an
+      ordered set of bundles, rather than adding a resolver beside them. Each keeps one owner, and
+      every caller moves with it if its name changes to say what it now does.
     </p>
     <p>
-      Done-when: with a bundle on the search path, <code>imas-alambic validate jt-60sa</code>
-      resolves the machine by name, and a machine present in two bundles is refused with both named.
-      Given a recorded EDDB response for E101154's <code>pf_active</code> channels through a
-      stand-in <code>eddb_pwrapper</code>, the in-process transport returns
-      <code>ChannelRecord</code>s whose arrays equal, bit for bit, the ssh route's decode of the
-      same response. Mint equivalence waits for the writer and is §6's measure.
+      A bundle is a directory holding a <code>bundle.json</code> beside the layout ambix already
+      packages: <code>machine_maps/&lt;machine&gt;.json</code>,
+      <code>maps/&lt;machine&gt;/&lt;ids&gt;.json</code> and
+      <code>machine_description/&lt;machine&gt;/</code>. <code>bundle.json</code> gives the name, the
+      version, the machines, and the bundle's named store roots, relative to the bundle. Bundles
+      are found in two ways, because there are two kinds:
+    </p>
+    <ul>
+      <li>An installed package registers its bundle under the entry-point group
+        <code>imas_alambic.bundles</code>. This is how ambix exposes its packaged MAST and DIII-D
+        maps, and the store-root names that <code>paths.py</code> owns. So the engine ships no maps
+        of its own, and <code>paths.py</code> stays the owner of ambix's on-disk layout.</li>
+      <li>A directory that is not a Python package, such as the bundle relayed from GHCR, is named
+        in <code>IMAS_ALAMBIC_MAP_PATH</code>.</li>
+    </ul>
+    <p>
+      Those two retire the module-level packaged roots and the <code>getattr</code> lookup against
+      ambix's <code>paths</code> module, which the engine cannot import. A machine found in two
+      bundles raises the existing <code>MachineMapError</code> naming both, rather than one
+      silently shadowing the other, so no new refusal family is added.
+    </p>
+    <p>
+      On the analysis server the EDDB read runs locally instead of over ssh, and the reader stays
+      the one <code>REMOTE_SCRIPT</code> (<code>eddb_remote.py:373</code>). A second
+      implementation of the existing <code>Transport</code> protocol (<code>eddb_remote.py:153</code>),
+      passed through <code>RemoteEddbExtractor(..., transport=...)</code>, runs that script under
+      the server's own Python with no ssh hop. The envelope and <code>decode_batch</code> are
+      therefore shared, and no reader is extracted or duplicated.
+    </p>
+    <p>
+      Done-when: with a bundle directory on <code>IMAS_ALAMBIC_MAP_PATH</code>, the generalised
+      loaders resolve <code>jt-60sa</code> by name from it, and resolve MAST and DIII-D through
+      ambix's entry point. A machine present in two bundles raises <code>MachineMapError</code>
+      naming both. A stand-in <code>eddb_pwrapper</code> on the script's path returns recorded
+      arrays for E101154's <code>pf_active</code> channels. Through it, the local transport returns
+      <code>ChannelRecord</code>s whose arrays equal the stand-in's bit for bit, decoded by the same
+      <code>decode_batch</code> the ssh route uses. Mint equivalence waits for the writer and is
+      §6's measure.
     </p>
 
     <h2 id="s4">§4 — Editable install on the JT-60SA analysis server</h2>
@@ -195,21 +237,21 @@
       nothing is written outside <code>~/imas-alambic/</code> except pip's own cache.
     </p>
     <p>
-      Done-when: on <code>intr26-2</code>, <code>~/imas-alambic/.venv/bin/imas-alambic
-      --version</code> prints the version of the checked-out commit, and that commit is the
-      <code>origin/main</code> commit that carries §2. <code>imas-alambic validate</code> on the
-      relayed JT-60SA catalogue and on each of its signal maps reports the same machine, IDS and
-      path counts as the same command here. The engine's own tests pass under the server's Python
+      Done-when: on <code>intr26-2</code>, <code>importlib.metadata.version("imas-alambic")</code>
+      in <code>~/imas-alambic/.venv</code> names the checked-out commit, and that commit is the
+      <code>origin/main</code> commit that carries §2. <code>load_machine_map</code> and
+      <code>load_signal_map</code>, run on the relayed JT-60SA catalogue and on each of its signal
+      maps, report the same machine, IDS and path counts as the same calls here. The engine's own tests pass under the server's Python
       3.12.9.
     </p>
 
     <h2 id="s5">§5 — Wheel install with the GHCR bundle</h2>
 <section data-reckon="section" data-id="s5" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="elevated" data-status="implementable" data-links="jt60sa-facility-mint#s1,jt60sa-facility-mint#s3,jt60sa-facility-mint#s4"></section>
-<p>Once §1, §3 and §4 have landed, wheels replace the editable checkout. Build them here with <code>uv build --package imas-alambic</code>, and with <code>uv build --package nova-cocos</code> in nova. Copy both to the server and install them into a fresh <code>~/imas-alambic/.venv</code>, taking the other dependencies from PyPI. The bundle travels from GHCR through this machine: <code>oras pull ghcr.io/simon-mcintosh/imas-alambic-jt60sa:&lt;version&gt;</code> here, then <code>rsync</code> to <code>~/imas-alambic/bundles/jt-60sa/&lt;version&gt;/</code>, with <code>IMAS_ALAMBIC_MAP_PATH</code> set in <code>~/imas-alambic/env.sh</code>. No GitHub credential is placed on the server, and the light-load rule of §4 holds.</p><p>Done-when: the server's <code>imas-alambic --version</code> reports the wheel's version, and <code>pip list --editable</code> in that venv is empty. <code>imas-alambic validate jt-60sa</code> resolves the machine by name from the relayed bundle. One <code>pf_active</code> channel of E101154, read through the in-process transport, equals this machine's cached copy of that channel bit for bit.</p>
+<p>Once §1, §3 and §4 have landed, wheels replace the editable checkout. Build them here with <code>uv build --package imas-alambic</code>, and with <code>uv build --package nova-cocos</code> in nova. Copy both to the server and install them into a fresh <code>~/imas-alambic/.venv</code>, taking the other dependencies from PyPI. The bundle travels from GHCR through this machine: <code>oras pull ghcr.io/simon-mcintosh/imas-alambic-jt60sa:&lt;version&gt;</code> here, then <code>rsync</code> to <code>~/imas-alambic/bundles/jt-60sa/&lt;version&gt;/</code>, with <code>IMAS_ALAMBIC_MAP_PATH</code> set in <code>~/imas-alambic/env.sh</code>. No GitHub credential is placed on the server, and the light-load rule of §4 holds.</p><p>Done-when: <code>importlib.metadata.version("imas-alambic")</code> on the server reports the wheel's version, and <code>pip list --editable</code> in that venv is empty. The generalised by-name loaders resolve <code>jt-60sa</code> from the relayed bundle. One <code>pf_active</code> channel of E101154, read through the local transport, equals this machine's cached copy of that channel bit for bit.</p>
 
     <h2 id="s6">§6 — Mint E101154 at the facility</h2>
 <section data-reckon="section" data-id="s6" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="elevated" data-status="implementable" data-links="jt60sa-pulse-ids#s1,jt60sa-facility-mint#s5"></section>
-<p>When the mint writer from <a href="jt60sa-pulse-ids">jt60sa-pulse-ids</a> §1 is in <code>imas_alambic</code> and installed by §5, mint E101154 on the server through the in-process transport. Compare the result with the IDSs minted here through the ssh route. Done-when: every IDS the writer emits for E101154 is equal field by field between the server and here, by imas-python's comparison. The run's wall time and peak memory on <code>intr26-2</code> are recorded.</p>
+<p>When the mint writer from <a href="jt60sa-pulse-ids">jt60sa-pulse-ids</a> §1 has landed, mint E101154 on the server with <code>imas-alambic mint</code> through the local transport, from the §5 install. If the writer and its command are still in imas-ambix, this section first moves them into the engine and retires <code>imas-ambix data mint</code>, as §2's interface account states. Compare the result with the IDSs minted here through the ssh route. Done-when: every IDS the writer emits for E101154 is equal field by field between the server and here, by imas-python's comparison. The run's wall time and peak memory on <code>intr26-2</code> are recorded.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
