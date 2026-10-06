@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="jtmm-vacuum-adjudication-repair-landing">
+      <h3>JT-60SA vacuum re-adjudication with corrected turns and selector angles</h3>
+      <p id="jtmm-vacuum-adjudication-repair-fixes">The JT-60SA path in
+      <code>scripts/vacuum_loop_adjudication.py</code> now derives its geometry
+      from <code>read_geometry_table(shot, machine="jt-60sa")</code> and takes
+      each tangential probe's sensitive-axis angle from that table's
+      <code>probe_angle_source</code> branch, so no reader opens
+      <code>magnetics.nc</code> directly. The measured MMSYS coil currents are
+      multiplied by the operator's own per-column
+      <code>pf_current_scales</code> before prediction, so the deck's turn
+      totals reach the G_pf columns. The verdict rule was corrected to test the
+      magnitude of the Pearson correlation: slope and correlation share a sign,
+      so a channel that tracks with slope &minus;1 has r &approx; &minus;1 and
+      the previous <code>r &gt; 0.98</code> test made <em>negate</em>
+      unreachable.</p>
+      <p id="jtmm-vacuum-adjudication-repair-verdicts">Over E100595, E100579 and
+      E100642 the re-adjudication returns <strong>3 identity</strong>,
+      <strong>1 negate</strong> and <strong>40 undecided</strong> of the 27
+      loops and 17 probes. The CS-dominated loop <code>magFlxLp7</code> is the
+      negate, at slope &minus;0.986 / &minus;1.086 / &minus;0.988 with
+      r &minus;1.000 / &minus;0.995 / &minus;0.999, within the plan's 20&nbsp;%
+      of &minus;1 on every shot. The identity channels are the probes
+      <code>magPbTC8</code>, <code>magPbTC9</code> and <code>magPbTC13</code>.
+      Every remaining channel is reported undecided with its per-shot slope and
+      correlation.</p>
+      <p id="jtmm-vacuum-adjudication-repair-control">The swap control is now the
+      pair <code>magFlxLp7</code> (negate) and <code>magPbTC8</code> (identity),
+      chosen so their verdicts differ. Swapping their measured channels changes
+      both (<code>magFlxLp7</code> negate &rarr; undecided,
+      <code>magPbTC8</code> identity &rarr; undecided), two changed verdicts in
+      all, so the control fails if the fit stops responding to the measured
+      channel. The run raises if either control channel's verdict is unchanged.</p>
+      <p id="jtmm-vacuum-adjudication-repair-mast">MAST's default path was run
+      into a scratch directory (<code>--output-root</code>) and its verdicts
+      compared with the committed MAST receipt. The commit is
+      <strong>2 nominal-table / 12 reconstruction / 5 null</strong> against the
+      receipt's <strong>2 nominal-table / 14 reconstruction / 3 null</strong>:
+      every other row matches. Both differences are the single channel
+      <code>fl_p5l_1</code>, in the early and late ranges, whose verdict moves
+      reconstruction &rarr; null. Its margin is borderline in both receipts
+      (early +0.000475 [+0.000193, +0.000785] committed versus &minus;0.000313
+      [&minus;0.000655, +0.000059] here), so the bootstrap interval crosses zero
+      on a residual shift of order 1e&minus;3. The JT-60SA repair does not touch
+      the MAST prediction path; the only change that reaches it is building the
+      candidate table from the range representative, and the machine maps
+      declare one description per range (the representation key is equal for the
+      resolvable shots compared, and several cohort shots, e.g. 11814 and 11909,
+      have no level-2 store at all), so that build is neutral and the two
+      differences predate this node.</p>
+      <p id="jtmm-vacuum-adjudication-repair-reproduce">Reproduce with
+      <code>python scripts/vacuum_loop_adjudication.py --machine jt60sa</code>
+      for the evidence JSON and HTML, and
+      <code>python scripts/vacuum_loop_adjudication.py --output-root &lt;scratch&gt;</code>
+      for the MAST receipt comparison. Run logs and the corrected-turn check are
+      in the run directory.</p>
+    </section>
+  </main>
+</body>
+</html>

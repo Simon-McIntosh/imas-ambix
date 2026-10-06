@@ -573,7 +573,12 @@ def _candidate_operator(
     records: list[PositionRecord],
     cache: dict[tuple[object, ...], Any],
 ) -> Any:
-    table = _build_candidate_table_without_amm(shot)
+    # The map declares the machine description per shot range, so the geometry is
+    # the range's, not the shot's; building it from the range representative
+    # keeps a cohort shot the catalogue does not map (pre-11766 MAST pulses) from
+    # requesting a description the selector cannot resolve.
+    geometry_shot = records[0].representative_shot
+    table = _build_candidate_table_without_amm(geometry_shot)
     key = (
         records[0].range_name,
         table.identity.representation_key,
@@ -1069,7 +1074,7 @@ def _write_note(
 JT60SA_SHOTS: tuple[int, ...] = (100579, 100595, 100642)
 JT60SA_SLOPE_TOLERANCE = 0.1
 JT60SA_CORRELATION_FLOOR = 0.98
-JT60SA_SWAP_CONTROL: tuple[str, str] = ("magPbTC1", "magPbTC2")
+JT60SA_SWAP_CONTROL: tuple[str, str] = ("magFlxLp7", "magPbTC8")
 JT60SA_EVIDENCE_JSON = Path(
     "docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-adjudication.json"
 )
@@ -1102,34 +1107,16 @@ def _jt60sa_coil_channels() -> list[str]:
     return [str(row["source_array"]) for row in rows]
 
 
-def _jt60sa_probe_angles(catalog: Any, shot: int) -> dict[str, float]:
-    """Tangential-probe sensitive-axis angles from the emitted description."""
-
-    entry = _jt60sa_map_entry(catalog, shot)
-    supplement = next(
-        item
-        for item in catalog.description_supplements
-        if item.name == entry.description_supplement
-    )
-    root = Path(str(supplement.source_location).removeprefix("file://"))
-    import netCDF4  # noqa: PLC0415
-
-    with netCDF4.Dataset(root / "magnetics.nc") as store:
-        group = store.groups["magnetics"].groups["0"]
-        names = [
-            str(value) for value in group.variables["b_field_pol_probe.name"][...]
-        ]
-        angles = np.degrees(
-            np.asarray(
-                group.variables["b_field_pol_probe.poloidal_angle"][...],
-                dtype=np.float64,
-            )
-        )
-    return {name: float(angle) for name, angle in zip(names, angles, strict=True)}
-
-
 def _jt60sa_operator(shot: int, catalog: Any, channels: list[str]) -> Any:
-    """Build the OP description operator with catalogue drives and probe axes."""
+    """Build the OP description operator with catalogue drives and probe axes.
+
+    Both the geometry and the probe sensitive axes come through the description
+    selector: ``read_geometry_table`` emits the description and fills each
+    probe's ``angle_deg`` from its ``probe_angle_source`` branch, so no reader
+    here opens ``magnetics.nc`` directly.  The measured coil-current channels
+    the catalogue's drive topology names are bound to the geometry table so the
+    operator's own per-column scale carries the deck's turn totals.
+    """
 
     from imas_ambix.data.description_reader import read_geometry_table  # noqa: PLC0415
     from imas_ambix.gs.geometry import CircuitDrive  # noqa: PLC0415
@@ -1161,18 +1148,10 @@ def _jt60sa_operator(shot: int, catalog: Any, channels: list[str]) -> Any:
         for index, identity in enumerate(order)
         if index < len(channels)
     ]
-    angles = _jt60sa_probe_angles(catalog, shot)
-    sensor_map = tuple(
-        replace(mapping, angle_deg=angles[mapping.amb_channel], flag="")
-        if mapping.kind == "b_probe" and mapping.angle_deg is None
-        else mapping
-        for mapping in table.sensor_map
-    )
     geometry = replace(
         table,
         circuit_drives=tuple(drives),
         amc_current_channels=list(channels),
-        sensor_map=sensor_map,
     )
     return build_operator(geometry)
 
@@ -1193,6 +1172,18 @@ def _jt60sa_shot_data(
             for record in records
         ]
     )
+    scales = operator.pf_current_scales
+    if scales is None:
+        raise RuntimeError(
+            f"selected shot {shot} operator declares no per-column current scale"
+        )
+    scales = np.asarray(scales, dtype=np.float64)
+    if scales.shape != (currents.shape[1],):
+        raise RuntimeError(
+            f"selected shot {shot} operator scale shape {scales.shape} does not "
+            f"match its {currents.shape[1]} coil-current columns"
+        )
+    currents = currents * scales[None, :]
     predicted = np.vstack([operator.vacuum_prediction(row) for row in currents])
     row_index = {name: index for index, name in enumerate(operator.sensor_channels)}
     measured: dict[str, np.ndarray] = {}
@@ -1263,25 +1254,25 @@ def _jt60sa_verdict(
         return "undecided", f"no finite fit on shots {missing}"
     identity = all(
         abs(fit["slope"] - 1.0) <= JT60SA_SLOPE_TOLERANCE
-        and fit["pearson_r"] > JT60SA_CORRELATION_FLOOR
+        and abs(fit["pearson_r"]) > JT60SA_CORRELATION_FLOOR
         for _, fit in fits
     )
     if identity:
-        return "identity", "|slope-1|<=0.1 and r>0.98 on every shot"
+        return "identity", "|slope-1|<=0.1 and |r|>0.98 on every shot"
     negate = all(
         abs(fit["slope"] + 1.0) <= JT60SA_SLOPE_TOLERANCE
-        and fit["pearson_r"] > JT60SA_CORRELATION_FLOOR
+        and abs(fit["pearson_r"]) > JT60SA_CORRELATION_FLOOR
         for _, fit in fits
     )
     if negate:
-        return "negate", "|slope+1|<=0.1 and r>0.98 on every shot"
+        return "negate", "|slope+1|<=0.1 and |r|>0.98 on every shot"
     detail = "; ".join(
         f"{shot} slope {fit['slope']:+.3f} r {fit['pearson_r']:+.4f}"
         for shot, fit in fits
     )
     return (
         "undecided",
-        "neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at r>0.98 on every shot: "
+        "neither |slope-1|<=0.1 nor |slope+1|<=0.1 holds at |r|>0.98 on every shot: "
         + detail,
     )
 
@@ -1347,8 +1338,13 @@ def _jt60sa_html(payload: dict[str, Any]) -> str:
             (
                 "      <p id=\"jtmm-vacuum-adjudication-negative-control\">Negative "
                 f"control: swapping the measured channels of {payload['swap_control'][0]} "
-                f"and {payload['swap_control'][1]} leaves every verdict unchanged "
-                f"(&lt;{payload['negative_control']['changed_verdicts']} changed).</p>"
+                f"and {payload['swap_control'][1]} changes both their verdicts "
+                f"({payload['negative_control']['control_verdicts'][payload['swap_control'][0]]['before']}"
+                f" &rarr; {payload['negative_control']['control_verdicts'][payload['swap_control'][0]]['after']}"
+                f" and {payload['negative_control']['control_verdicts'][payload['swap_control'][1]]['before']}"
+                f" &rarr; {payload['negative_control']['control_verdicts'][payload['swap_control'][1]]['after']}), "
+                f"so {payload['negative_control']['changed_verdicts']} channel verdicts "
+                "in total respond to the measured channel.</p>"
             ),
             "    </section>",
             "  </main>",
@@ -1372,8 +1368,10 @@ def _run_jt60sa() -> int:
         for shot, data in shot_data.items()
     }
     channel_order = [*JT60SA_LOOP_CHANNELS, *JT60SA_PROBE_CHANNELS]
+    control_pair = list(JT60SA_SWAP_CONTROL)
     channels_payload: dict[str, Any] = {}
     changed_verdicts = 0
+    control_verdicts: dict[str, dict[str, str]] = {}
     for channel in channel_order:
         fits = [(shot, fit_tables[shot][channel]) for shot in JT60SA_SHOTS]
         verdict, reason = _jt60sa_verdict(fits)
@@ -1382,6 +1380,8 @@ def _run_jt60sa() -> int:
         )
         if swapped[0] != verdict:
             changed_verdicts += 1
+        if channel in control_pair:
+            control_verdicts[channel] = {"before": verdict, "after": swapped[0]}
         channels_payload[channel] = {
             "verdict": verdict,
             "reason": reason,
@@ -1389,6 +1389,18 @@ def _run_jt60sa() -> int:
                 str(shot): fit_tables[shot][channel] for shot in JT60SA_SHOTS
             },
         }
+    control_changed = [
+        channel
+        for channel in control_pair
+        if control_verdicts.get(channel, {}).get("before")
+        != control_verdicts.get(channel, {}).get("after")
+    ]
+    if len(control_changed) != len(control_pair):
+        raise RuntimeError(
+            "the swap control must change both channels' verdicts, but "
+            f"{control_pair} changed {control_changed}: "
+            f"{control_verdicts}"
+        )
     counts = {
         name: sum(row["verdict"] == name for row in channels_payload.values())
         for name in ("identity", "negate", "undecided")
@@ -1404,7 +1416,10 @@ def _run_jt60sa() -> int:
         "channels": channels_payload,
         "verdict_counts": counts,
         "swap_control": list(JT60SA_SWAP_CONTROL),
-        "negative_control": {"changed_verdicts": changed_verdicts},
+        "negative_control": {
+            "changed_verdicts": changed_verdicts,
+            "control_verdicts": control_verdicts,
+        },
     }
     JT60SA_EVIDENCE_JSON.parent.mkdir(parents=True, exist_ok=True)
     JT60SA_EVIDENCE_JSON.write_text(json.dumps(payload, indent=2) + "\n")
@@ -1426,13 +1441,29 @@ def _run_jt60sa() -> int:
 
 
 def main() -> int:
+    global NOTE_PATH, FIGURE_ROOT
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--seed", type=int, default=20260816)
     parser.add_argument("--machine", choices=("mast", "jt60sa"), default="mast")
+    parser.add_argument(
+        "--output-root",
+        type=Path,
+        default=None,
+        help=(
+            "Directory to write the MAST note and figures under, mirroring their "
+            "committed relative layout. The default writes them to the repository "
+            "paths; a scratch root redirects them so a receipt comparison does not "
+            "touch the committed artifacts."
+        ),
+    )
     args = parser.parse_args()
 
     if args.machine == "jt60sa":
         return _run_jt60sa()
+    if args.output_root is not None:
+        NOTE_PATH = args.output_root / NOTE_PATH
+        FIGURE_ROOT = args.output_root / FIGURE_ROOT
 
     early_records = _derive_positions(EARLY_REPRESENTATIVE, EARLY_RANGE)
     late_records = _derive_positions(LATE_REPRESENTATIVE, LATE_RANGE)
