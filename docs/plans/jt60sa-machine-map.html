@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5">
 <meta name="plan-impl" content="0.625">
-<meta name="plan-version" content="102">
+<meta name="plan-version" content="103">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -429,6 +429,19 @@
       binding could select a struct-array entry before. The catalogue node is redispatched
       from the base that carries it.
     </p>
+    <p>
+      The catalogue landed on 2026-10-06 (<code>jtmm-catalogue-per-coil</code>, independent review
+      96/100) as <code>imas_ambix/data/machine_maps/jt-60sa.json</code>. Two items remain before
+      this section closes. First, the probe angles: the store carries
+      <code>magnetics/b_field_pol_probe/poloidal_angle</code> for all 17 probes, but the catalogue
+      binds none, so its declared description-carried angles read as NaN. The catalogue binds
+      them, with their sense declared as an identity qualification, unvalidated until §6
+      measures it, rather than left in a test comment. Second, the coil-element identifiers: the
+      converter writes no name on a <code>pf_active</code> coil element, so the catalogue's
+      structure assemblies carry placeholder identifiers. The converter names each element after
+      its coil and position, the store is re-converted, and the catalogue takes the real
+      identifiers. Both edit <code>jt-60sa.json</code>, so they run in that order.
+    </p>
 
     <h2 id="s5">§5 — Pulse bindings and the EDDB census</h2>
     <p>
@@ -545,8 +558,10 @@
       the MAST table only as the default, and <code>format_sign_report</code> writes the sign
       report this section's done-when names, so JT-60SA supplies an observation cohort to it
       rather than a second scorer. The cohort's reader has an owner too:
-      <code>read_level2_observation</code> is the only producer of
-      <code>ShotSignObservation</code>, and it hard-codes MAST's level-2 layout and channel names
+      <code>read_level2_observation</code> is the only reader that produces
+      <code>ShotSignObservation</code> from a store (the other source,
+      <code>MAST_LEVEL2_SIGN_TABLE</code> read by <code>read_level2_sign_table</code>, is a
+      hand-authored receipt table), and it hard-codes MAST's level-2 layout and channel names
       (<code>magnetics/ip</code>, <code>magnetics/flux_loop_flux</code>,
       <code>equilibrium/psi</code> under <code>{root}/{shot}.zarr</code>). §6 generalises it as it
       generalises <code>measure_diiid_convention</code>: the reader takes the shot's catalogue
@@ -702,7 +717,7 @@
       magnetics residual. This is the MAST benchmark pattern with SELENE in EFIT's seat, and
       it is scored by the owner of that pattern: <code>imas_ambix/eval/efit_referee.py</code>
       <code>judge_geometry</code> already scores model geometry against an injected reference
-      equilibrium into a <code>GeometryVerdict</code> (boundary RMS, axis position, q), so §7 adds
+      equilibrium into a <code>GeometryVerdict</code> (axis position, X-point position and boundary RMS), so §7 adds
       a SELENE reference loader and its firewall tier to it instead of a parallel
       comparator. The loader enters through the existing seam,
       <code>read_efit_geometry(shot_id, frame_times, loader=...)</code>, which is the one
