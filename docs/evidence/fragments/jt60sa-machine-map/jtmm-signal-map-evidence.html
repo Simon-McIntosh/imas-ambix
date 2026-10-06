@@ -1,0 +1,45 @@
+<section id="jtmm-signal-map-evidence-landing" class="evidence-fragment" data-reckon="fragment" data-node="jtmm-signal-map-evidence">
+  <header>
+    <h3>The current signal maps state what the cached shots measure behind each blocked chain</h3>
+    <p class="meta">
+      Node <code>jtmm-signal-map-evidence</code> &middot;
+      date 2026-10-06 &middot;
+      plan <code>jt60sa-machine-map</code> &sect;5
+    </p>
+  </header>
+
+  <p>
+    The blocked <code>cur2TFLKAT</code> row in
+    <code>imas_ambix/data/maps/jt-60sa/tf.json</code> no longer calls the second
+    TF chain a duplicate. Its reason now states the two measured readings: on
+    E060033 every sample is exactly 0.0 while <code>cur1TFLKAT</code> reads about
+    25.7 kA, and on E101154 both channels peak near 23.3 kA but correlate only
+    0.646 over the cached window (310,077 samples).
+  </p>
+
+  <p>
+    In <code>imas_ambix/data/maps/jt-60sa/pf_active.json</code> every served rule
+    states that the chain choice rests on E101154 alone, because on E101173 and
+    E060033 the coil currents sit at the noise floor (tens to a hundred A) and
+    the chains do not corroborate it. Each blocked row now describes its channel
+    structurally &mdash; the other measurement chain of the same coil current,
+    not served &mdash; in place of the former duplicate claim, which asserted an
+    agreement the data does not show. EF2 is the one exception and is stated
+    with its numbers: on E101173 its brief excursion reaches LKAT 1496.1 A and
+    HiTe 1449.1 A, about 56 percent of the E101154 2659.7 A reading, and
+    corroborates the choice at correlation 0.9996.
+  </p>
+
+  <p>
+    Measure: <code>pytest -n 4 tests/data/test_jt60sa_signal_maps.py
+    tests/data/test_signal_map.py</code> passes (24 passed, EXIT=0);
+    <code>ruff check imas_ambix tests</code> exits 0. The two TF readings are
+    re-derived read-only from <code>101154.zarr</code> and <code>60033.zarr</code>
+    by <code>test_tf_blocked_row_states_the_two_measured_readings</code>, and
+    <code>test_no_blocked_reason_calls_the_other_chain_a_duplicate</code> requires
+    that no pf_active or tf blocked reason contains the word duplicate, so the
+    text cannot drift from the data. Negative control: restoring the word
+    <em>duplicate</em> as the whole cur2TFLKAT reason reddens both tests
+    (<code>negative-control.log</code>, EXIT=1).
+  </p>
+</section>

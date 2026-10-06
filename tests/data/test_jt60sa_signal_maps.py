@@ -108,7 +108,13 @@ def test_pf_active_binds_one_chain_per_coil_at_the_store_index():
             row for row in source_map.blocked if row.source_array == f"cur{coil}{other}"
         ]
         assert len(blocked) == 1, f"coil {coil} blocks {len(blocked)} chains"
-        assert signal.semantic_id in blocked[0].reason
+        # The blocked row names the unserved chain structurally rather than by
+        # the served semantic id, so it does not imply the two chains agree.
+        assert (
+            "the other measurement chain of the same coil current"
+            in blocked[0].reason
+        )
+        assert blocked[0].reason.startswith("the other measurement chain")
 
 
 @needs_cache
@@ -170,6 +176,60 @@ def test_tf_cur1_is_the_energised_chain():
     assert cur1 is not None and cur2 is not None
     assert np.max(np.abs(cur1)) > 1.0e4
     assert np.max(np.abs(cur2)) == 0.0
+
+
+@needs_cache
+def test_tf_blocked_row_states_the_two_measured_readings():
+    """cur2TFLKAT is not a duplicate of cur1TFLKAT.
+
+    Re-derive both readings the blocked row quotes straight from the cache, then
+    require the row's reason to carry them, so the text cannot drift from the
+    data: on E060033 every cur2TFLKAT sample is exactly 0.0 while cur1TFLKAT
+    carries ~25.7 kA, and on E101154 the two channels peak near 23.3 kA but
+    correlate only 0.646 over the cached window.
+    """
+    reason = load_packaged_signal_map("jt-60sa", "tf").blocked[0].reason
+
+    dead_cur1 = _channel(60033, "MMSYS", "cur1TFLKAT")
+    dead_cur2 = _channel(60033, "MMSYS", "cur2TFLKAT")
+    assert np.all(dead_cur2 == 0.0)
+    assert np.max(np.abs(dead_cur1)) > 2.5e4
+
+    live_cur1 = _channel(101154, "MMSYS", "cur1TFLKAT")
+    live_cur2 = _channel(101154, "MMSYS", "cur2TFLKAT")
+    assert np.max(np.abs(live_cur1)) > 2.0e4
+    assert np.max(np.abs(live_cur2)) > 2.0e4
+    correlation = float(np.corrcoef(live_cur1, live_cur2)[0, 1])
+    assert correlation < 0.9
+
+    assert "duplicate" not in reason.lower()
+    assert str(60033) in reason
+    assert "0.0" in reason
+    assert f"{correlation:.3f}" in reason
+
+
+@needs_store
+def test_pf_chain_choice_names_the_shot_it_rests_on():
+    """Every served rule and blocked row says the choice rests on E101154."""
+    source_map = load_packaged_signal_map("jt-60sa", "pf_active")
+    for signal in source_map.signals:
+        assert "E101154" in signal.evidence
+    for row in source_map.blocked:
+        assert "E101154" in row.reason
+
+
+def test_no_blocked_reason_calls_the_other_chain_a_duplicate():
+    """A blocked chain is a chain, not a second measurement of the same one.
+
+    The two measurement chains of a coil (and of the TF) decorrelate at the
+    noise floor on the shots where the current is too small to compare, so
+    calling the unserved chain a duplicate would assert agreement the data
+    does not show.
+    """
+    for system in ("pf_active", "tf"):
+        source_map = load_packaged_signal_map("jt-60sa", system)
+        for row in source_map.blocked:
+            assert "duplicate" not in row.reason.lower(), (system, row.source_array)
 
 
 def test_magnetics_binds_psrc_ip_in_amperes():
