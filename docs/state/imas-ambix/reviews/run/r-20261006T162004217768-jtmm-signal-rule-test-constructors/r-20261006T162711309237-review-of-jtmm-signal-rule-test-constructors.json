@@ -1,0 +1,67 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "The reviewed run is a test-role node; its manifest records the gate under `tests`/`test_logs` (gate.log, 70 passed EXIT=0) and the base-behaviour reproduction under negative-control.log, and carries no baseline_suite/after_suite keys. Both arms were therefore re-measured independently in scratch extractions of the reviewed tree. baseline_suite at 26c3bb46 (parent of the reviewed head): 5 failed, EXIT=1, the four test_virtual_zarr cases plus test_eddb_cache::test_cached_store_opens_through_engine_and_view_with_no_transport_call, every one the SignalRule TypeError 'missing 1 required positional argument: validation_state'. after_suite at 170b6dba (reviewed head): 70 passed, EXIT=0. added_failure_count = 0, added_failure_ids = []: the change adds no failure and removes exactly the 5 the base reported. The reviewed run's own gate.log agrees with the head arm (70 passed, EXIT=0).",
+  "base_log_revision": "26c3bb460509073c460f3ad4eb1bad3a94c2aa5a",
+  "call_site_count": 3,
+  "call_sites": [
+    "tests/data/test_virtual_zarr.py:14 SignalRule(...) -- repaired, validation_state=\"corpus-validated\"",
+    "tests/data/test_eddb_cache.py:188 SignalRule(...) -- repaired, validation_state=\"source-only\"",
+    "tests/data/test_signal_map.py:40 SignalRule(**values) -- untouched; values already carry validation_state=\"source-only\" at :37"
+  ],
+  "completed_at": "2026-10-06T16:39:10.516Z",
+  "dispatched_at": "2026-10-06T16:27:20Z",
+  "findings": [
+    {
+      "file": "tests/data/test_virtual_zarr.py",
+      "line": "28",
+      "severity": "follow-on",
+      "text": "follow-on: test_virtual_zarr.py:28 declares validation_state=\"corpus-validated\" on a synthetic MAST equilibrium poloidal_flux rule that exists only to exercise VirtualZarrView and has no packaged counterpart (imas_ambix/data/maps/mast/ holds only magnetics.json, whose rule is poloidal_field_probe_directed_angle, not poloidal_flux). The plan assigns corpus-validated by machine convention ('MAST's one rule is corpus-validated'), so the choice is plan-consistent; but the fixture carries no corpus validation of its own and the field is inert in this test -- neither VirtualZarrView nor ZarrTransformEngine reads validation_state -- so the honest state for a synthetic construction is arguably source-only. Not blocking: the field's real guard is the enum check in test_signal_map."
+    },
+    {
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-signal-rule-test-constructors.html",
+      "line": "14",
+      "severity": "follow-on",
+      "text": "follow-on: the fragment (and the commit subject text) say the test_virtual_zarr rule 'mirrors the MAST magnetics map', but the MAST magnetics map's single rule is semantic_id poloidal_field_probe_directed_angle while the fixture's is poloidal_flux; the two share only the machine. The state is defensible by machine convention, but the 'mirrors' wording overstates the correspondence -- read it as 'is a MAST-machine fixture, and MAST rules are corpus-validated'."
+    }
+  ],
+  "head_log_revision": "170b6dbab9fb66b54281d5af212893f3f8eccabb",
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "3 SignalRule construction sites in the tree; 2 repaired here, 1 (a dict-driven helper) already valid.",
+    "diff": "Read 170b6dba: parent 26c3bb46 ('require a validation state on every signal rule'). One added kwarg line in each test construction, plus the 27-line landing fragment. No source, no map, no packaged-data change.",
+    "done_when": "The node's done-when requires every SignalRule construction in the two files to carry an explicit validation_state, the five-file gate to pass with zero failures at head with its log recorded, and ruff on the changed paths to exit 0. At 170b6dba the five-file gate is 70 passed / 0 failed (reproduced in a scratch extraction, EXIT=0), ruff check on the two changed paths exits 0 under the repo config, and gate.log records the run. Met.",
+    "goal": "Declare validation_state on the two out-of-scope SignalRule test constructions the required field broke. Both are repaired: test_virtual_zarr.py:28 corpus-validated, test_eddb_cache.py:202 source-only; the third construction (test_signal_map.py:40) built from a dict that already carried the field, so it was never broken. Goal met.",
+    "manifest": "Read the reviewed manifest (status complete). It records commits 170b6dba, changed_paths the two test files plus the fragment, tests with the exact five-file gate command and result, test_logs gate.log, and negative_control_log negative-control.log with the declared mutation. Its 'ruff 0' claim is stated but no ruff log was kept; the claim was verified independently (exit 0).",
+    "write_paths": "The diff is three paths: tests/data/test_virtual_zarr.py (+1), tests/data/test_eddb_cache.py (+1), and the new fragment docs/evidence/fragments/jt60sa-machine-map/jtmm-signal-rule-test-constructors.html (+27). All three are inside the node's declared write scope; no map, source, figure or test outside scope was touched."
+  },
+  "justifications": {
+    "durability": "The repair is durable in the sense that matters: SignalRule now validates the field on every construction (signal_map.py:141-144 tests membership in the imported _VALIDATION_STATES), so a future construction that omits or misspells the state fails loudly -- demonstrated by the base arm's five TypeErrors. Deductions: the two repaired constructions do not assert the state they declare, so the chosen values are unguarded at the site (the enum guard lives in the sibling test_signal_map), and the node kept no ruff log.",
+    "evidence": "Reproduced both arms in scratch extractions of the reviewed tree: head 170b6dba 70 passed EXIT=0; base 26c3bb46 5 failed EXIT=1, all five the missing-field TypeError, matching the reviewed run's gate.log (70 passed) and negative-control.log (4 failed, same TypeError). ruff on the changed paths exits 0 under the repo pyproject config (a bare two-file extraction without the config reports I001, which the repo config suppresses). The partial gap: the node logged no ruff output and recorded no baseline arm, so its 'ruff 0' and its base behaviour were assertions the reviewer had to re-measure rather than read.",
+    "fit": "One kwarg inside the existing construction is the repo's own idiom, the vocabulary is imported once from machine_map and re-exported through signal_map (_VALIDATION_STATES imported at signal_map.py:39) rather than copied, and the fragment id is prefixed with the node id. No plan, sprint or ticket identifier appears in code; the commit body and fragment state the mechanism.",
+    "goal_fidelity": "Both broken constructions now declare the field, with values the plan fixes: MAST -> corpus-validated, every JT-60SA rule -> source-only (plan s5: 'MAST's one rule is corpus-validated, and every JT-60SA rule is source-only'). test_virtual_zarr's rule is machine mast, test_eddb_cache's is machine jt-60sa, so each choice matches both the plan's convention and the packaged maps (maps/mast/magnetics.json corpus-validated; maps/jt-60sa/*.json source-only). The two residual points are semantic (a synthetic fixture asserting corpus-validated) and documentary ('mirrors' the magnetics map), neither affecting behaviour.",
+    "reuse": "The change adds no definition, loader or conversion; it reuses the required field and the vocabulary the validation-state node already landed. Nothing the repository owns is forked.",
+    "scope_discipline": "Only the two declared test paths and the declared fragment path changed; one line added in each test, no source, no map, no figure, no test outside the two files. The node fixed out-of-scope constructions because the required field broke them, which is the correct scope -- the breakage is in its files, not in the field's owner."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: Declare validation_state on the two out-of-scope SignalRule test constructions the required field broke. Both are repaired -- test_virtual_zarr.py:28 corpus-validated, test_eddb_cache.py:202 source-only; the third construction (test_signal_map.py:40) was never broken because its dict already carried the field. Goal met.\nVERDICT done_when: the node's done-when (every construction carries an explicit validation_state, the five-file gate passes with zero failures at head with its log recorded, ruff on the changed paths exits 0) is met at 170b6dba: gate 70 passed / 0 failed reproduced (EXIT=0), ruff exit 0 under the repo config, gate.log recorded.\nNOTE module under test: imas_ambix/data/signal_map.py from the scratch extraction; module.__file__ recorded in both arm logs.\nVERDICT write_paths: three paths, all in scope -- tests/data/test_virtual_zarr.py (+1), tests/data/test_eddb_cache.py (+1), docs/evidence/fragments/jt60sa-machine-map/jtmm-signal-rule-test-constructors.html (+27). No source, map or figure touched.\nVERDICT manifest: status complete, commit 170b6dba, changed_paths the two tests plus the fragment, tests the five-file gate, test_logs gate.log, negative_control_log negative-control.log. Its 'ruff 0' claim is unlogged but verified true.\nVERDICT diff: 170b6dba on parent 26c3bb46; one added kwarg line per construction plus the fragment; no source or packaged-data change.\nCALL_SITES: tests/data/test_virtual_zarr.py:14, tests/data/test_eddb_cache.py:188, tests/data/test_signal_map.py:40 (already valid)\nSCORE goal_fidelity: 18\nJUSTIFICATION goal_fidelity: both broken constructions now declare the field with values the plan fixes (MAST corpus-validated, JT-60SA source-only, plan s5 line 244-248), matching both the machine convention and the packaged maps; the two residual points (a synthetic fixture asserting corpus-validated; the 'mirrors' wording) are semantic and documentary, neither behavioural.\nSCORE evidence: 17\nJUSTIFICATION evidence: reproduced both arms in scratch extractions -- head 70 passed EXIT=0, base 5 failed EXIT=1 all the missing-field TypeError -- matching the reviewed run's gate.log and negative-control.log; ruff on the changed paths exits 0 under the repo pyproject config. Deduction because the node logged no ruff output and recorded no baseline arm, so both were re-measured rather than read.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: only the two declared test paths and the declared fragment changed, one line each in the tests; the out-of-scope repair is correct because the required field broke the node's own files.\nSCORE durability: 15\nJUSTIFICATION durability: SignalRule validates the field on every construction (signal_map.py:141-144 against the imported _VALIDATION_STATES), so a missing or misspelled state fails loudly, demonstrated by the base arm; but the repaired constructions do not assert their own declared state and no ruff log was kept.\nSCORE fit: 18\nJUSTIFICATION fit: one kwarg in the existing construction, vocabulary imported once from machine_map via signal_map.py:39 rather than copied, fragment id prefixed with the node id, no plan or ticket identifier in code.\nSCORE reuse: 20\nJUSTIFICATION reuse: no new definition, loader or conversion; it reuses the landed required field and vocabulary, forking nothing.\nFINDING tests/data/test_virtual_zarr.py:28 follow-on: validation_state=\"corpus-validated\" on a synthetic MAST equilibrium poloidal_flux fixture with no packaged counterpart (maps/mast/ carries only magnetics.json, rule poloidal_field_probe_directed_angle); plan-consistent by machine convention but the fixture has no corpus validation of its own and the field is inert here, so source-only is arguably the honest state. Not blocking.\nFINDING docs/evidence/fragments/jt60sa-machine-map/jtmm-signal-rule-test-constructors.html:14 follow-on: the fragment and commit text say the test_virtual_zarr rule 'mirrors the MAST magnetics map', but that map's rule is poloidal_field_probe_directed_angle while the fixture's is poloidal_flux; the 'mirrors' wording overstates the correspondence, which is machine-level only.",
+  "resolved_findings": [],
+  "review_run_id": "r-20261006T162711309237-review-of-jtmm-signal-rule-test-constructors",
+  "reviewed_base_sha": "26c3bb460509073c460f3ad4eb1bad3a94c2aa5a",
+  "reviewed_head_sha": "170b6dbab9fb66b54281d5af212893f3f8eccabb",
+  "reviewed_run_id": "r-20261006T162004217768-jtmm-signal-rule-test-constructors",
+  "reviewer_run_id": "r-20261006T162711309237-review-of-jtmm-signal-rule-test-constructors",
+  "scores": {
+    "durability": 15,
+    "evidence": 17,
+    "fit": 18,
+    "goal_fidelity": 18,
+    "reuse": 20,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "timestamp": "2026-10-06T16:37:30.000000+00:00",
+  "total": 107
+}
