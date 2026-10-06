@@ -286,13 +286,23 @@ def test_enkf_operator_uses_declared_target_and_representative(
     assert reads == [21_978, 21_983]
 
 
-def _probe_angle_description(values, target_unit="rad"):
-    array = SimpleNamespace(
-        dd_path="magnetics/b_field_pol_probe/poloidal_angle",
-        target_unit=target_unit,
-        values=np.asarray(values, dtype=np.float64),
-    )
-    return SimpleNamespace(arrays=(array,))
+def _probe_angle_description(values, target_unit="rad", names=("p1", "p2")):
+    arrays = [
+        SimpleNamespace(
+            dd_path="magnetics/b_field_pol_probe/poloidal_angle",
+            target_unit=target_unit,
+            values=np.asarray(values, dtype=np.float64),
+        )
+    ]
+    if names is not None:
+        arrays.append(
+            SimpleNamespace(
+                dd_path="magnetics/b_field_pol_probe/name",
+                target_unit="1",
+                values=np.asarray(names, dtype=object),
+            )
+        )
+    return SimpleNamespace(arrays=tuple(arrays))
 
 
 def _probe_angle_table():
@@ -353,10 +363,51 @@ def test_description_source_leaves_absent_angles_when_nothing_was_emitted():
     assert table.provenance_flags == []
 
 
-def test_description_source_refuses_an_angle_count_that_misses_a_probe():
+def test_description_source_refuses_a_probe_the_angles_do_not_cover():
     from imas_ambix.data.description_reader import _supply_emitted_probe_angles
 
-    description = _probe_angle_description([0.0])
+    description = _probe_angle_description([0.0], names=("p1",))
 
-    with pytest.raises(DescriptionReadError, match="1 angles for 2 mapped probes"):
+    with pytest.raises(DescriptionReadError, match="no angle for mapped probe 'p2'"):
         _supply_emitted_probe_angles(description, _probe_angle_table())
+
+
+def test_description_source_refuses_an_angle_for_an_unmapped_probe():
+    from imas_ambix.data.description_reader import _supply_emitted_probe_angles
+
+    description = _probe_angle_description(
+        [0.0, np.pi / 2.0, np.pi / 4.0], names=("p1", "p2", "p9")
+    )
+
+    with pytest.raises(
+        DescriptionReadError, match="identities are not mapped: p9"
+    ):
+        _supply_emitted_probe_angles(description, _probe_angle_table())
+
+
+def test_description_source_refuses_an_unknown_angle_unit():
+    from imas_ambix.data.description_reader import _supply_emitted_probe_angles
+
+    description = _probe_angle_description([0.0, 90.0], target_unit="arcmin")
+
+    with pytest.raises(
+        DescriptionReadError, match="declares angle unit 'arcmin'"
+    ):
+        _supply_emitted_probe_angles(description, _probe_angle_table())
+
+
+def test_description_source_joins_a_permuted_angle_array_by_probe_identity():
+    from imas_ambix.data.description_reader import _supply_emitted_probe_angles
+
+    # The emitted name array orders the angles p2-then-p1, the reverse of the
+    # sensor map.  A reader that joins by position swaps the two probes; one
+    # that joins by identity gives each probe its own angle.
+    description = _probe_angle_description(
+        [np.deg2rad(80.0), np.deg2rad(10.0)], names=("p2", "p1")
+    )
+    table = _supply_emitted_probe_angles(description, _probe_angle_table())
+
+    angles = {item.amb_channel: item.angle_deg for item in table.sensor_map}
+    assert angles["p1"] == pytest.approx(10.0)
+    assert angles["p2"] == pytest.approx(80.0)
+    assert angles["fl1"] is None

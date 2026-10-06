@@ -83,6 +83,12 @@ def _supply_declared_probe_angles(table: Any) -> Any:
 
 
 _PROBE_ANGLE_DD_PATH = "magnetics/b_field_pol_probe/poloidal_angle"
+_PROBE_NAME_DD_PATH = "magnetics/b_field_pol_probe/name"
+
+_ANGLE_UNIT_CONVERTERS: dict[str, Any] = {
+    "rad": np.rad2deg,
+    "deg": lambda values: values,
+}
 
 
 def _supply_emitted_probe_angles(description: Any, table: Any) -> Any:
@@ -92,8 +98,15 @@ def _supply_emitted_probe_angles(description: Any, table: Any) -> Any:
     emitted ``magnetics/b_field_pol_probe/poloidal_angle`` array rather than in
     an acquisition address.  The array's ``target_unit`` decides the unit the
     table reports: the DD leaf is radians while the geometry kernel's
-    ``angle_deg`` is degrees.  A description that emits no such array leaves
-    every probe's absent-angle flag standing.
+    ``angle_deg`` is degrees, so ``rad`` is converted and ``deg`` is carried
+    through; any other unit spelling is refused rather than read as degrees.
+
+    Each angle is joined to a mapped probe by probe identity: the emitted
+    ``magnetics/b_field_pol_probe/name`` array names each angle's probe, and
+    that name is the mapped probe's ``amb_channel``.  An angle whose name
+    matches no mapped probe, and a mapped probe with no emitted angle, are both
+    refused; array order is never used to place an angle.  A description that
+    emits no probe-angle array leaves every probe's absent-angle flag standing.
     """
 
     angle_arrays = tuple(
@@ -109,21 +122,62 @@ def _supply_emitted_probe_angles(description: Any, table: Any) -> Any:
             f"{_PROBE_ANGLE_DD_PATH} array"
         )
     emitted = angle_arrays[0]
-    values = np.asarray(emitted.values, dtype=np.float64).reshape(-1)
-    probe_indices = [
-        index
-        for index, mapping in enumerate(table.sensor_map)
-        if mapping.kind == "b_probe"
-    ]
-    if values.size != len(probe_indices):
+    converter = _ANGLE_UNIT_CONVERTERS.get(emitted.target_unit)
+    if converter is None:
         raise DescriptionReadError(
-            f"the emitted {_PROBE_ANGLE_DD_PATH} array holds {values.size} "
-            f"angles for {len(probe_indices)} mapped probes"
+            f"the emitted {_PROBE_ANGLE_DD_PATH} array declares angle unit "
+            f"{emitted.target_unit!r}; only 'rad' and 'deg' are accepted"
         )
-    angles = np.rad2deg(values) if emitted.target_unit == "rad" else values
+    values = np.asarray(emitted.values, dtype=np.float64).reshape(-1)
+    angles = np.asarray(converter(values), dtype=np.float64).reshape(-1)
+
+    name_arrays = tuple(
+        array
+        for array in description.arrays
+        if array.dd_path == _PROBE_NAME_DD_PATH
+    )
+    if len(name_arrays) != 1:
+        raise DescriptionReadError(
+            "the emitted description must carry exactly one "
+            f"{_PROBE_NAME_DD_PATH} array to join {_PROBE_ANGLE_DD_PATH} "
+            f"angles to mapped probes; found {len(name_arrays)}"
+        )
+    names = tuple(
+        str(value) for value in np.asarray(name_arrays[0].values).reshape(-1)
+    )
+    if len(names) != angles.size:
+        raise DescriptionReadError(
+            f"the emitted {_PROBE_NAME_DD_PATH} array holds {len(names)} names "
+            f"for {angles.size} {_PROBE_ANGLE_DD_PATH} angles"
+        )
+    angle_for_probe: dict[str, float] = {}
+    for name, angle in zip(names, angles, strict=True):
+        if name in angle_for_probe:
+            raise DescriptionReadError(
+                f"the emitted {_PROBE_NAME_DD_PATH} array names probe {name!r} "
+                "more than once"
+            )
+        angle_for_probe[name] = float(angle)
+
     mappings = list(table.sensor_map)
-    for index, angle in zip(probe_indices, angles, strict=True):
-        mappings[index] = replace(mappings[index], angle_deg=float(angle), flag="")
+    matched: set[str] = set()
+    for index, mapping in enumerate(mappings):
+        if mapping.kind != "b_probe":
+            continue
+        angle = angle_for_probe.get(mapping.amb_channel)
+        if angle is None:
+            raise DescriptionReadError(
+                f"the emitted {_PROBE_ANGLE_DD_PATH} array has no angle for "
+                f"mapped probe {mapping.amb_channel!r}"
+            )
+        matched.add(mapping.amb_channel)
+        mappings[index] = replace(mapping, angle_deg=angle, flag="")
+    unmatched = [name for name in names if name not in matched]
+    if unmatched:
+        raise DescriptionReadError(
+            f"the emitted {_PROBE_ANGLE_DD_PATH} array holds angles for probes "
+            "whose identities are not mapped: " + ", ".join(unmatched)
+        )
     return replace(
         table,
         sensor_map=mappings,
