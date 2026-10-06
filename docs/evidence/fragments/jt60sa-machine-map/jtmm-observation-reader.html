@@ -1,0 +1,45 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtmm-observation-reader">
+  <header>
+    <p class="meta">
+      Node <code>jtmm-observation-reader</code> &middot;
+      date 2026-10-06 &middot;
+      plan <code>jt60sa-machine-map</code> &sect;6
+    </p>
+  </header>
+
+  <section id="jtmm-observation-reader-declaration">
+    <h4>Declaration</h4>
+    <p>
+      <code>imas_ambix/data/cocos_convention.py</code> splits the measurement
+      from the source it reads. A private kernel
+      <code>_observation_from_series</code> takes the plasma-current,
+      flux-loop and toroidal-field time series plus an
+      <code>EfitLabels</code> equilibrium record and returns the existing
+      <code>ShotSignObservation</code>. <code>read_level2_observation</code>
+      keeps its signature and its MAST level-2 reads and now calls the kernel.
+      <code>read_catalogue_observation(shot, catalogue, equilibrium)</code>
+      resolves the shot to a range-scoped map, reads the three quantities
+      through the catalogue's channel bindings and the store engine for its
+      declared format, and passes the given <code>EfitLabels</code> to the same
+      kernel. The engine's <code>StoreArrays.read</code> seam is used so the
+      reader measures the raw bound arrays rather than a COCOS-transformed
+      emission.
+    </p>
+  </section>
+
+  <section id="jtmm-observation-reader-gate">
+    <h4>Gate</h4>
+    <p>
+      <code>uv run --no-sync pytest -p no:cacheprovider
+      tests/data/test_cocos_convention.py</code> &rarr; 13 passed, EXIT=0; the
+      pre-existing eight tests are unchanged. The new
+      <code>test_catalogue_reader_measures_the_bound_raw_arrays</code> reads a
+      <code>ShotSignObservation</code> from a synthetic
+      <code>shot.zarr/PSRC/{Ip,FL,BT}</code> store through a synthetic
+      <code>MachineMapCatalog</code> and a synthetic <code>EfitLabels</code>,
+      and <code>test_catalogue_reader_follows_the_plasma_current_binding</code>
+      reads a synthetic catalogue whose plasma-current binding names a decoy
+      array. <code>ruff check</code> on the two changed paths exits 0.
+    </p>
+  </section>
+</section>
