@@ -220,6 +220,25 @@ def test_unknown_unvalidated_sign_is_recorded_not_silently_signed(catalog, tmp_p
     )
 
 
+def test_exported_signal_comment_carries_the_validation_state(
+    catalog, signal_map, tmp_path
+):
+    directory = tmp_path / "export"
+    result = export_tokamap_directory(catalog, [signal_map], directory=directory)
+
+    rules_by_path = {rule.target_path: rule for rule in signal_map.signals}
+    signal_entries = [entry for entry in result.entries if entry.kind == "signal"]
+    assert signal_entries, "expected at least one exported signal entry"
+    for entry in signal_entries:
+        rule = rules_by_path[entry.dd_path]
+        assert f"validation_state={rule.validation_state};" in entry.comment
+
+    written = json.loads(
+        (directory / entry.group / str(entry.partition) / "mappings.json").read_text()
+    )
+    assert "validation_state=corpus-validated;" in written[entry.key]["comment"]
+
+
 def test_each_group_file_holds_only_that_ids(catalog, signal_map, tmp_path):
     directory = tmp_path / "export"
     result = export_tokamap_directory(catalog, [signal_map], directory=directory)

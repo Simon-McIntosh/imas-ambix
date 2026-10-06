@@ -278,6 +278,7 @@ def _signal_entry(
         f"semantic_id={rule.semantic_id}; "
         f"unit {rule.source_unit}->{rule.target_unit}; "
         f"transformation {rule.transformation} x{cocos_factor!r}; "
+        f"validation_state={rule.validation_state}; "
         f"{rule.evidence}"
     )
     mapping = {

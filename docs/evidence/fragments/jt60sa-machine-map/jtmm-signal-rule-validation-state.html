@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="jtmm-signal-rule-validation-state-landing">
+      <p><code>imas_ambix.data.signal_map.SignalRule</code> now carries a required
+      <code>validation_state</code>, validated against the vocabulary imported from
+      <code>imas_ambix/data/machine_map.py</code> and refused when absent or outside
+      it. Every packaged rule declares it: MAST's one magnetics rule is
+      <code>corpus-validated</code>; all twelve JT-60SA rules across
+      <code>magnetics.json</code>, <code>pf_active.json</code> and
+      <code>tf.json</code> are <code>source-only</code>. The tokamap exporter writes
+      <code>validation_state=&lt;state&gt;</code> into each exported signal rule's
+      comment. Gate: 34 passed, EXIT=0.</p>
+    </section>
+  </main>
+</body>
+</html>

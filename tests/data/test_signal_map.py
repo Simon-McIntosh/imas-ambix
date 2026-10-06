@@ -34,6 +34,7 @@ def _signal(**overrides) -> SignalRule:
         "channel_factor": 1.0,
         "standard_name": None,
         "evidence": "imas-codex receipt sha256:source",
+        "validation_state": "source-only",
     }
     values.update(overrides)
     return SignalRule(**values)
@@ -67,6 +68,20 @@ def test_standard_name_is_optional_while_dd_target_identity_is_required():
     source_map = _map()
     assert source_map.signals[0].standard_name is None
     assert source_map.signals[0].target_key == ("magnetics/ip/data", 0)
+
+
+def test_signal_rule_requires_a_validation_state():
+    row = _signal().as_dict()
+    del row["validation_state"]
+    with pytest.raises(SignalMapError, match="signal rule keys differ"):
+        SignalRule.from_dict(row)
+
+
+def test_signal_rule_refuses_a_validation_state_outside_the_vocabulary():
+    row = _signal().as_dict()
+    row["validation_state"] = "proven"
+    with pytest.raises(SignalMapError, match="validation state must be one of"):
+        SignalRule.from_dict(row)
 
 
 def test_map_has_a_semantic_release_and_an_exact_content_digest():
@@ -168,6 +183,7 @@ def test_packaged_mast_angle_map_serves_ddv4_radians_without_a_standard_name():
     signal = source_map.compile(30420)["poloidal_field_probe_directed_angle"]
 
     assert source_map.set_version == "0.1.0"
+    assert signal.rule.validation_state == "corpus-validated"
     assert signal.rule.standard_name is None
     assert signal.rule.target_key == (
         "magnetics/b_field_pol_probe/poloidal_angle",
