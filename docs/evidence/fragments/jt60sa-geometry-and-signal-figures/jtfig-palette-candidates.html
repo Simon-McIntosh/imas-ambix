@@ -1,0 +1,114 @@
+<section id="jtfig-palette-candidates" data-node="jtfig-palette-candidates">
+  <h2 id="jtfig-palette-candidates-heading">Candidate colour-role palettes on the OP1/OP2 cross-section</h2>
+
+  <p>
+    Three candidate palettes for the JT-60SA geometry and signal figures, each
+    drawn on the real OP1 and OP2 cross-section read from the converted
+    description store (<code>load_packaged_machine_map("jt-60sa")</code> joined
+    with <code>description_store_root_path()</code>, IDS read with
+    <code>imas.DBEntry</code>). The reader and the one cross-section function
+    live in <code>scripts/figures_jt60sa_geometry.py</code>; the module
+    <code>imas_ambix/plot_style.py</code> holds the named colour roles. The two
+    vessel roles are lightness steps of one hue (the OP1 and OP2 vessels are the
+    same structure at the two phase geometries); the remaining four roles take
+    distinct hues. The lead chooses one palette before later figure sections
+    draw with it.
+  </p>
+
+  <p>
+    Every candidate was checked with
+    <code>node /home/ITER/mcintos/.cache/dataviz/validate_palette.js &lt;hex-list&gt; --mode light --pairs all</code>.
+    All three report <strong>ALL CHECKS PASS</strong> (exit 0). The only
+    remaining verdict is a contrast WARN on the green and amber roles
+    (WCAG &lt; 3:1 against the white surface), which the figures relieve with
+    the direct labels carried on every coloured family — the label names the
+    component in its own colour, so identity never rests on colour alone.
+  </p>
+
+  <h3 id="jtfig-palette-candidates-a">Candidate A — red vessel, green wall, magenta probes</h3>
+  <figure id="jtfig-palette-candidates-fig-a">
+    <img src="/imas-ambix/figures/jt60sa-palette/cross_section_A-red-magenta.png"
+         alt="JT-60SA OP1 and OP2 cross-section, candidate A palette">
+    <figcaption>
+      OP1 (left) and OP2 (right). PF coil packs in blue rectangles, the phase's
+      vessel in red (OP1 light, OP2 dark), the wall outline in green, flux loops
+      as open circles and pickup probes as filled squares.
+    </figcaption>
+  </figure>
+  <table id="jtfig-palette-candidates-table-a">
+    <caption>Candidate A role-to-colour</caption>
+    <tr><th>role</th><th>hex</th></tr>
+    <tr><td>pf_coils</td><td>#2a78d6</td></tr>
+    <tr><td>vessel_op1</td><td>#e0483a</td></tr>
+    <tr><td>vessel_op2</td><td>#9c2a20</td></tr>
+    <tr><td>wall</td><td>#1baf7a</td></tr>
+    <tr><td>flux_loops</td><td>#eda100</td></tr>
+    <tr><td>pickup_probes</td><td>#b83d9a</td></tr>
+  </table>
+  <pre id="jtfig-palette-candidates-verdict-a">[PASS] Lightness band  all 6 inside L 0.43-0.77
+[PASS] Chroma floor    all 6 >= 0.1
+[PASS] CVD separation  worst all-pairs #1baf7a&lt;-&gt;#e0483a dE 8.2 (deutan) . tritan 9.6
+[PASS] Normal-vision floor  worst all-pairs #9c2a20&lt;-&gt;#e0483a dE 15.7 (normal)
+[WARN] Contrast vs surface  below 3:1 - relief required (visible labels): #1baf7a, #eda100
+-> ALL CHECKS PASS</pre>
+
+  <h3 id="jtfig-palette-candidates-b">Candidate B — crimson vessel, gold flux loops</h3>
+  <figure id="jtfig-palette-candidates-fig-b">
+    <img src="/imas-ambix/figures/jt60sa-palette/cross_section_B-crimson-gold.png"
+         alt="JT-60SA OP1 and OP2 cross-section, candidate B palette">
+    <figcaption>
+      Same family layout; the vessel takes a crimson pair and the flux loops a
+      deeper gold than candidate A.
+    </figcaption>
+  </figure>
+  <table id="jtfig-palette-candidates-table-b">
+    <caption>Candidate B role-to-colour</caption>
+    <tr><th>role</th><th>hex</th></tr>
+    <tr><td>pf_coils</td><td>#2a78d6</td></tr>
+    <tr><td>vessel_op1</td><td>#d64a37</td></tr>
+    <tr><td>vessel_op2</td><td>#8f2a18</td></tr>
+    <tr><td>wall</td><td>#1baf7a</td></tr>
+    <tr><td>flux_loops</td><td>#e8a51c</td></tr>
+    <tr><td>pickup_probes</td><td>#b83d9a</td></tr>
+  </table>
+  <pre id="jtfig-palette-candidates-verdict-b">[PASS] Lightness band  all 6 inside L 0.43-0.77
+[PASS] Chroma floor    all 6 >= 0.1
+[PASS] CVD separation  worst all-pairs #1baf7a&lt;-&gt;#d64a37 dE 8.8 (deutan) . tritan 8.5
+[PASS] Normal-vision floor  worst all-pairs #b83d9a&lt;-&gt;#d64a37 dE 16.4 (normal)
+[WARN] Contrast vs surface  below 3:1 - relief required (visible labels): #1baf7a, #e8a51c
+-> ALL CHECKS PASS</pre>
+
+  <h3 id="jtfig-palette-candidates-c">Candidate C — magenta wall, green probes</h3>
+  <figure id="jtfig-palette-candidates-fig-c">
+    <img src="/imas-ambix/figures/jt60sa-palette/cross_section_C-magenta-wall.png"
+         alt="JT-60SA OP1 and OP2 cross-section, candidate C palette">
+    <figcaption>
+      The wall takes the magenta and the pickup probes the green, giving the
+      machine boundary a warmer reading than A or B.
+    </figcaption>
+  </figure>
+  <table id="jtfig-palette-candidates-table-c">
+    <caption>Candidate C role-to-colour</caption>
+    <tr><th>role</th><th>hex</th></tr>
+    <tr><td>pf_coils</td><td>#2a78d6</td></tr>
+    <tr><td>vessel_op1</td><td>#e0483a</td></tr>
+    <tr><td>vessel_op2</td><td>#9c2a20</td></tr>
+    <tr><td>wall</td><td>#b83d9a</td></tr>
+    <tr><td>flux_loops</td><td>#eda100</td></tr>
+    <tr><td>pickup_probes</td><td>#1baf7a</td></tr>
+    <tr><td>reference / limit / model</td><td>#52514e / #8a8a8a / #0b0b0b</td></tr>
+  </table>
+  <pre id="jtfig-palette-candidates-verdict-c">[PASS] Lightness band  all 6 inside L 0.43-0.77
+[PASS] Chroma floor    all 6 >= 0.1
+[PASS] CVD separation  worst all-pairs #1baf7a&lt;-&gt;#e0483a dE 8.2 (deutan) . tritan 9.6
+[PASS] Normal-vision floor  worst all-pairs #9c2a20&lt;-&gt;#e0483a dE 15.7 (normal)
+[WARN] Contrast vs surface  below 3:1 - relief required (visible labels): #eda100, #1baf7a
+-> ALL CHECKS PASS</pre>
+
+  <p id="jtfig-palette-candidates-note">
+    Marker cues: flux loops are open circles and pickup probes filled squares, so
+    the two marker families are separated by shape as well as hue. No pair falls
+    below the colour-blind dE floor of 8 in any candidate, so no candidate needs
+    an additional dash cue.
+  </p>
+</section>
