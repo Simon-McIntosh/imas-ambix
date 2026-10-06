@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.9">
-<meta name="plan-version" content="241">
+<meta name="plan-version" content="242">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -460,6 +460,30 @@
       source. If the converter dropped the deck's turns, the repair goes to
       <code>build_pf_active</code> and regenerates both stores, telling the pulse-ids plan's session
       first, since its mint copies the description.
+      It found the turns were not dropped by the converter (merge pending, fragment
+      <code>jtmm-coil-turns-source.html</code>). <code>EQSLE.DATA</code> lines 24 to 291 give 13.725
+      turns per filament for each CS coil (549 in all), 8.875 to 22.0625 for the EF coils (142, 154,
+      247, 353, 152 and 180) and 3.83 for each FPPC coil (23). <code>build_pf_active</code> writes
+      those values into <code>turns_with_sign</code>, so <code>pf_active.nc</code> is right and is not
+      regenerated. The defect is one layer up, in the catalogue. Both
+      <code>drive_topologies</code> in <code>jt-60sa.json</code> give each of their 268 connections
+      <code>turns</code> 1.0 and <code>current_weight</code> 1.0, while declaring <code>turns_path</code>
+      as that very field. So each circuit's declared ampere-turns per ampere come out as its
+      filament count. <code>jtmm-drive-turns</code> (merge 017afed4) then multiplied each operator
+      column, which already sums its filaments, by that count again. The original one-turn
+      prediction missed by the per-filament turn count: loop 7's slope of −14 is that missing
+      factor of 13.725. The first fix double-counted the filaments.
+      <code>jtmm-drive-topology-turns</code> makes the predicted ampere-turns equal the deck's turn
+      totals. The drive topology's connections take their turns from
+      <code>turns_with_sign</code> through <code>turns_path</code>, so the declared ampere-turns per
+      ampere read 549, 142, 154, 247, 353, 152, 180 and 23. <code>assemble_pf_currents</code> scales
+      each column by its declared ampere-turns divided by the column's own summed filament weight,
+      so no filament is counted twice. That replaces the equal-weight test the first fix used to
+      pick a convention, and MAST stays asserted unchanged. The node also makes
+      <code>shapes()</code> and the summary report the scale actually applied. As a check, the
+      turn-corrected vacuum fit of loop 7 on E100595 must come within 20 percent of slope −1. The
+      ten coil currents of these commissioning shots are collinear, so no per-coil turn count can
+      be confirmed from them; the check is on the totals, not each coil.
     </p>
     <p>
       The COCOS of the source is then identified rather than assumed. For the raw side,
@@ -1496,7 +1520,7 @@
     <div class="r-comment-body"><p>jtmm-drive-turns made ForwardOperator.assemble_pf_currents apply a per-channel scale instead of the fixed kA-turn factor: build_operator derives each pf column's scale from the drive's declared ampere_turns_per_ampere, keeping the flat x1000 where the description already folded that weight into the element xmult (MAST amc, kA-turn, turns=1) and using the declared weight as the missing turn count where the elements are normalised (JT-60SA SELENE, 40 A-turn/A CS, 16 EF), so MAST assembled currents are unchanged on a cached shot while a JT-60SA CS drive of 1 A at 40 A-turn/A contributes 40 A-turn; recorded in docs/evidence/fragments/jt60sa-machine-map/jtmm-drive-turns.html.</p></div>
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20261006T203619074299-review-of-jtmm-drive-turns" data-who="reckon-build" data-when="2026-10-06T20:46:26.204Z">
-    <div class="r-comment-body"><p>review-of-jtmm-drive-turns verdict on run r-20261006T200342290841-jtmm-drive-turns (commit e68a87fa on base 28a6ec3d): scores goal_fidelity 19, evidence 18, scope_discipline 20, durability 18, fit 18, reuse 19 (total 112); one follow-on FINDING at imas_ambix/gs/operator.py:690 that shapes()/the summary writer still advertise amc_raw_units &quot;kA*turn&quot; and amc_to_si_factor 1000 although the assembly factor is now per-column.</p></div>
+    <div class="r-comment-body"><p>review-of-jtmm-drive-turns verdict on run r-20261006T200342290841-jtmm-drive-turns (commit e68a87fa on base 28a6ec3d): scores goal_fidelity 19, evidence 18, scope_discipline 20, durability 18, fit 18, reuse 19 (total 112); one follow-on FINDING at imas_ambix/gs/operator.py:690 that shapes()/the summary writer still advertise amc_raw_units "kA*turn" and amc_to_si_factor 1000 although the assembly factor is now per-column.</p></div>
 </div>
 </section>
 </main>
