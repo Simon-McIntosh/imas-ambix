@@ -1,0 +1,67 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtpi-mint-e101154">
+  <header>
+    <h3 id="jtpi-mint-e101154-title">E101154 minted on disk and read back at DD 4.1.1</h3>
+    <p class="meta" id="jtpi-mint-e101154-meta">
+      Node <code>jtpi-mint-e101154</code> &middot;
+      date 2026-10-06 &middot;
+      plan <code>jt60sa-pulse-ids</code> &sect;1 &middot;
+      base <code>f0cf1a96</code>
+    </p>
+  </header>
+
+  <p id="jtpi-mint-e101154-command">
+    Command, run in place on the fleet allocation (job 1277272):
+    <code>imas-ambix data mint --machine jt-60sa --shot 101154 --out
+    /work/projects/imas_gpu/jt60sa/ids</code>, exit 0
+    (<code>mint.log</code>). It reports phase OP1 and writes one DD 4.1.1
+    netCDF file per description IDS under
+    <code>/work/projects/imas_gpu/jt60sa/ids/101154/</code>.
+  </p>
+
+  <table id="jtpi-mint-e101154-files">
+    <caption>Minted files, non-empty leaf count read back through
+    <code>imas.DBEntry</code> at DD 4.1.1, and
+    <code>ids_properties.homogeneous_time</code>.</caption>
+    <thead>
+      <tr><th>IDS file</th><th>bytes</th><th>non-empty leaves</th>
+      <th>homogeneous_time</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>pf_active.nc</td><td>8099487</td><td>1927</td><td>1</td></tr>
+      <tr><td>pf_passive.nc</td><td>47601</td><td>848</td><td>2</td></tr>
+      <tr><tr><td>wall.nc</td><td>45045</td><td>11</td><td>2</td></tr>
+      <tr><td>magnetics.nc</td><td>131464</td><td>155</td><td>1</td></tr>
+      <tr><td>tf.nc</td><td>710279</td><td>28</td><td>1</td></tr>
+    </tbody>
+  </table>
+
+  <ul id="jtpi-mint-e101154-checks">
+    <li id="jtpi-mint-e101154-coils">
+      The 10 served pf_active coils (CS1&ndash;CS4, EF1&ndash;EF6) each carry a
+      non-empty <code>coil/current/data</code>; FPPC_UP and FPPC_DOWN carry no
+      current. <code>magnetics/ip</code> peaks at 0.9986&nbsp;MA.
+    </li>
+    <li id="jtpi-mint-e101154-probe-angle-check">
+      <code>magnetics/b_field_pol_probe/poloidal_angle</code>: all 17 probes of
+      the minted IDS equal the OP1 store
+      (<code>&hellip;/machine_description/OP1/magnetics.nc</code>, converter
+      commit <code>4ad783e6</code>) to &lt;&nbsp;<code>1e-12</code>. MP1 reads
+      <code>1.5659094048893125</code>&nbsp;rad &asymp; 89.72&deg;, matching the
+      intended near-89.7&deg; axis. The mint copies the description's probe
+      angles unchanged.
+    </li>
+    <li id="jtpi-mint-e101154-negative-control">
+      Negative control: the same check against the superseded store
+      <code>&hellip;/machine_description/superseded/OP1/magnetics.nc</code>
+      reads MP1 = <code>0.0048869</code>&nbsp;rad &asymp; 0.28&deg; and reports a
+      mismatch (&asymp; 0.3&deg; as declared), so the check discriminates the
+      corrected axis from the stale one rather than passing on stale data.
+    </li>
+    <li id="jtpi-mint-e101154-outside-repo">
+      The mint writes nothing outside the repository except
+      <code>/work/projects/imas_gpu/jt60sa/ids/101154</code>. Scripts, logs and
+      the read-back JSON live in the run directory
+      (<code>verify_mint.py</code>, <code>verify_mint.log</code>).
+    </li>
+  </ul>
+</section>
