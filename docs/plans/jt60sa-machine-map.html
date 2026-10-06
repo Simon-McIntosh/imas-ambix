@@ -25,9 +25,9 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
-<meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85">
+<meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.7">
-<meta name="plan-version" content="161">
+<meta name="plan-version" content="162">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -1254,6 +1254,9 @@
 </div>
 <div class="r-comment" data-section="s5" data-id="c-run-r-20261006T145754291964-jtmm-sensor-channel-join" data-who="reckon-build" data-when="2026-10-06T15:35:29.652Z">
     <div class="r-comment-body"><p>docs/evidence/fragments/jt60sa-machine-map/jtmm-sensor-channel-join.html — on E101154, PID 1626 S006 channel j is processed PSRC magPbTC j and raw MDAC magPbTC j for j=1..17 (r=0.99999); processed PSRC magPbTC i is raw MDAC magPbTC i only for i=1..17, magPbTC18 is the one index match that is not an identity (anti-correlated near-duplicate, a=-4.197, r=-0.977, ratio 1.151), and 19..23 have no unique raw partner; PID 1626 S007 channels 1..27 do not resolve to distinct flux loops by linear correlation (positive control recovers the known PSRC magFluxLp i to MDAC magFlxLp i identity 27/27, so the negative is a property of the S007 data); each codex geo.in position matches the section 4 description at the same index at 0.0 mm.</p></div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-20261006T1545-s5-sensor-channel-join-landed" data-who="reckon-build" data-when="2026-10-06T15:45:00Z">
+    <div class="r-comment-body"><p>gate grep over the fragment passed (exit 0); jtmm-sensor-channel-join merged as 71ab249b after one repair, review 97/120 with no blocking finding. On E101154 the tangential-probe PID record 1626 S006 channel j is PSRC and raw MDAC magPbTC j for j = 1..17 (r 0.99999); PSRC magPbTC1..17 is raw MDAC magPbTC1..17, 18 is an anti-correlated near-duplicate, 19..23 have no unique raw partner, and no raw normal-probe channel exists. The flux-loop PID record 1626 S007 does not resolve to individual loops by correlation (every channel best-matches magFluxLp7), so the loop bindings rest on the codex index with validation_state source-only until §6's vacuum adjudication checks each position. The geo.in positions equal the §4 description by index at 0.0 mm, a provenance match from one SELENE source rather than independent corroboration. Section 5 stays open: the signal-rule validation state and the second-wave bindings remain.</p></div>
 </div>
 </section>
 </main>
