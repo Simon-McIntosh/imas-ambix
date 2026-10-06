@@ -1,0 +1,82 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 5,
+  "added_failure_ids": [
+    "tests/data/test_virtual_zarr.py::test_metadata_and_binding_do_not_read_a_chunk",
+    "tests/data/test_virtual_zarr.py::test_an_explicit_slice_reads_only_that_slice_and_applies_cocos",
+    "tests/data/test_virtual_zarr.py::test_implicit_materialisation_and_writes_fail_loudly",
+    "tests/data/test_virtual_zarr.py::test_physical_zarr_bytes_remain_unchanged",
+    "tests/data/test_eddb_cache.py::test_cached_store_opens_through_engine_and_view_with_no_transport_call"
+  ],
+  "added_failures_note": "the reviewed manifest carries no baseline_suite/after_suite arms, so this count is not derived from the run's own logs; it was measured by running the same tests at base 520cddc6 (66 passed, EXIT=0) and at head 26c3bb46 (5 failed, EXIT=1) over the node's declared gate plus tests/data/test_virtual_zarr.py and tests/data/test_eddb_cache.py, the two files the run's own follow_ons name. The node's declared three-file gate is green at both arms, so all five added failures lie in tests outside its declared write scope.",
+  "base_log_revision": "520cddc69db9bac6f160d1d2c8a3a58b8a03851a",
+  "call_site_count": 1,
+  "call_sites": [
+    "imas_ambix/gs/geometry.py:842"
+  ],
+  "completed_at": "2026-10-06T16:46:51.436Z",
+  "dispatched_at": "2026-10-06T16:21:09Z",
+  "findings": [
+    {
+      "file": "tests/data/test_virtual_zarr.py",
+      "line": "14",
+      "severity": "follow-on",
+      "text": "follow-on: the new required field reddens four tests outside the node's declared scope (test_metadata_and_binding_do_not_read_a_chunk, test_an_explicit_slice_reads_only_that_slice_and_applies_cocos, test_implicit_materialisation_and_writes_fail_loudly, test_physical_zarr_bytes_remain_unchanged) with a TypeError that SignalRule lacks the required validation_state argument."
+    },
+    {
+      "file": "tests/data/test_eddb_cache.py",
+      "line": "188",
+      "severity": "follow-on",
+      "text": "follow-on: test_cached_store_opens_through_engine_and_view_with_no_transport_call constructs SignalRule without validation_state and raises TypeError at head; the reviewed run discloses both files in its follow_ons and a sibling node (jtmm-signal-rule-validation-state-test-constructors) is dispatched to add the field, so the repository suite is red at head until that node lands."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T155811489286-jtmm-signal-rule-validation-state/manifest.md",
+      "line": "97",
+      "severity": "follow-on",
+      "text": "follow-on: the done-when names a ruff check on the changed paths but the manifest records no ruff command or result; I re-ran ruff over the five changed python paths at head (EXIT=0), so the clause holds but is unrecorded by the node."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T155811489286-jtmm-signal-rule-validation-state/manifest.md",
+      "line": "11",
+      "severity": "follow-on",
+      "text": "follow-on: the reviewed manifest carries no baseline_suite or after_suite arms, so the added-failure count cannot be derived from the run's own gate logs as the review dispatch expects; I derived it instead from base 520cddc6 and head 26c3bb46 arms I ran, which show five added failures."
+    }
+  ],
+  "head_log_revision": "26c3bb460509073c460f3ad4eb1bad3a94c2aa5a",
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 1 production call site(s)",
+    "diff": "read 26c3bb46 against base 520cddc6 commit by commit; it adds the field and its vocabulary check to signal_map.py, the state to all four packaged maps, one comment fragment in tokamap_export.py, four guard tests and a landing fragment.",
+    "done_when": "the done-when names the imported source-only/corpus-validated vocabulary, the MAST corpus-validated rule, the twelve JT-60SA source-only rules, the exporter comment, pytest over three files and a ruff check; the manifest records the pytest gate (34 passed EXIT=0), which I reproduced, but records no ruff result.",
+    "goal": "the node goal is to give SignalRule a required validation_state with the machine map's vocabulary and declare it on every packaged signal-map rule; imas_ambix/data/signal_map.py:100 adds the required field and imas_ambix/data/machine_map.py:38 holds the vocabulary, so the goal is met.",
+    "manifest": "read the reviewed manifest at HEAD 26c3bb46; it records status complete, one commit, the gate command and its 34-passed result, a negative control log, and follow_ons naming the out-of-scope constructor breakage; it carries no baseline_suite or after_suite arms.",
+    "write_paths": "the reviewed manifest declares nine source and test paths plus the fragment and a figure directory; the loader and exporter paths are the production owners of the rule schema."
+  },
+  "justifications": {
+    "durability": "tests/data/test_signal_map.py:73 refuses an absent field, :80 refuses an out-of-vocabulary value, tests/data/test_jt60sa_signal_maps.py:85 requires every JT-60SA rule source-only and tests/data/test_tokamap_export.py:223 pins the exported comment, each of which reddens if its check is removed and one of which (the source-only guard) is shown firing by the negative control.",
+    "evidence": "the refusal at imas_ambix/data/signal_map.py:142 and the four map declarations are asserted by the recorded gate (34 passed EXIT=0, reproduced from the reviewed worktree), but the manifest records no ruff run although the done-when names one and carries no baseline_suite or after_suite arms.",
+    "fit": "imas_ambix/data/signal_map.py:39 imports the vocabulary rather than copying it as the plan asks, cross-module private imports are the established idiom here, and the added names are descriptive with no plan identifier.",
+    "goal_fidelity": "imas_ambix/data/signal_map.py:100 makes validation_state a required dataclass field and :142 refuses a value outside the vocabulary imported from imas_ambix/data/machine_map.py:38, and a loader run over the reviewed tree shows MAST 1 corpus-validated and the twelve JT-60SA rules source-only.",
+    "reuse": "the vocabulary is imported from its single owner imas_ambix/data/machine_map.py:38 rather than re-declared, and no loader or definition the repository owns is forked.",
+    "scope_discipline": "every path in 26c3bb46 is inside the reviewed manifest's declared write paths, with no write outside them."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node goal is to give SignalRule a required validation_state with the machine map's vocabulary and declare it on every packaged signal-map rule; imas_ambix/data/signal_map.py:100 adds the required field and imas_ambix/data/machine_map.py:38 holds the vocabulary, so the goal is met.\nVERDICT done_when: the done-when names the imported source-only/corpus-validated vocabulary, the MAST corpus-validated rule, the twelve JT-60SA source-only rules, the exporter comment, pytest over three files and a ruff check; the manifest records the pytest gate (34 passed EXIT=0), which I reproduced, but records no ruff result.\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: imas_ambix/data/signal_map.py:100 makes validation_state a required dataclass field and :142 refuses a value outside the vocabulary imported from imas_ambix/data/machine_map.py:38, and a loader run over the reviewed tree shows MAST 1 corpus-validated and the twelve JT-60SA rules source-only.\nVERDICT write_paths: the reviewed manifest declares nine source and test paths plus the fragment and a figure directory; the loader and exporter paths are the production owners of the rule schema.\nVERDICT manifest: read the reviewed manifest at HEAD 26c3bb46; it records status complete, one commit, the gate command and its 34-passed result, a negative control log, and follow_ons naming the out-of-scope constructor breakage; it carries no baseline_suite or after_suite arms.\nVERDICT diff: read 26c3bb46 against base 520cddc6 commit by commit; it adds the field and its vocabulary check to signal_map.py, the state to all four packaged maps, one comment fragment in tokamap_export.py, four guard tests and a landing fragment.\nCALL_SITES: imas_ambix/gs/geometry.py:842\nSCORE evidence: 15\nJUSTIFICATION evidence: the refusal at imas_ambix/data/signal_map.py:142 and the four map declarations are asserted by the recorded gate (34 passed EXIT=0, reproduced from the reviewed worktree), but the manifest records no ruff run although the done-when names one and carries no baseline_suite or after_suite arms.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: every path in 26c3bb46 is inside the reviewed manifest's declared write paths, with no write outside them.\nSCORE durability: 18\nJUSTIFICATION durability: tests/data/test_signal_map.py:73 refuses an absent field, :80 refuses an out-of-vocabulary value, tests/data/test_jt60sa_signal_maps.py:85 requires every JT-60SA rule source-only and tests/data/test_tokamap_export.py:223 pins the exported comment, each of which reddens if its check is removed and one of which (the source-only guard) is shown firing by the negative control.\nSCORE fit: 20\nJUSTIFICATION fit: imas_ambix/data/signal_map.py:39 imports the vocabulary rather than copying it as the plan asks, cross-module private imports are the established idiom here, and the added names are descriptive with no plan identifier.\nSCORE reuse: 20\nJUSTIFICATION reuse: the vocabulary is imported from its single owner imas_ambix/data/machine_map.py:38 rather than re-declared, and no loader or definition the repository owns is forked.\nFINDING tests/data/test_virtual_zarr.py:14 follow-on: the new required field reddens four tests outside the node's declared scope (test_metadata_and_binding_do_not_read_a_chunk, test_an_explicit_slice_reads_only_that_slice_and_applies_cocos, test_implicit_materialisation_and_writes_fail_loudly, test_physical_zarr_bytes_remain_unchanged) with a TypeError that SignalRule lacks the required validation_state argument.\nFINDING tests/data/test_eddb_cache.py:188 follow-on: test_cached_store_opens_through_engine_and_view_with_no_transport_call constructs SignalRule without validation_state and raises TypeError at head; the reviewed run discloses both files in its follow_ons and a sibling node (jtmm-signal-rule-validation-state-test-constructors) is dispatched to add the field, so the repository suite is red at head until that node lands.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T155811489286-jtmm-signal-rule-validation-state/manifest.md:97 follow-on: the done-when names a ruff check on the changed paths but the manifest records no ruff command or result; I re-ran ruff over the five changed python paths at head (EXIT=0), so the clause holds but is unrecorded by the node.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T155811489286-jtmm-signal-rule-validation-state/manifest.md:11 follow-on: the reviewed manifest carries no baseline_suite or after_suite arms, so the added-failure count cannot be derived from the run's own gate logs as the review dispatch expects; I derived it instead from base 520cddc6 and head 26c3bb46 arms I ran, which show five added failures.",
+  "review_run_id": "r-20261006T162100616418-review-of-jtmm-signal-rule-validation-state",
+  "reviewed_base_sha": "520cddc69db9bac6f160d1d2c8a3a58b8a03851a",
+  "reviewed_head_sha": "26c3bb460509073c460f3ad4eb1bad3a94c2aa5a",
+  "reviewed_run_id": "r-20261006T155811489286-jtmm-signal-rule-validation-state",
+  "reviewer_run_id": "r-20261006T162100616418-review-of-jtmm-signal-rule-validation-state",
+  "scores": {
+    "durability": 18,
+    "evidence": 15,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "reuse": 20,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "timestamp": "2026-10-06T16:34:57.800183+00:00",
+  "total": 112
+}
