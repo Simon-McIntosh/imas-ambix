@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.92">
-<meta name="plan-version" content="254">
+<meta name="plan-version" content="255">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -501,6 +501,24 @@
       old threshold dropped. One checks that a sample above the dI/dt threshold is excluded. It
       re-runs the three shots, rewrites the verdict tables, and says how many loops stay undecided,
       with their reasons; those loops are the next investigation.
+      Under the rule (merge pending), 16 of the 17 probes are <code>identity</code>, with median slopes
+      0.97 to 1.06 and median |r| 0.96 to 1.00. Probe 17 misses at median r 0.948. Loop 7 is
+      <code>negate</code> at −0.99, and the other 26 loops stay undecided: loops 1 to 12 barely
+      respond, and loops 13 to 27 change sign between E100595 (about −0.8) and E100642 (about +1).
+      Two nodes follow.
+      <code>jtmm-vacuum-verdicts-author</code> writes the measured verdicts into the maps. Each probe
+      rule and loop 7's rule in <code>magnetics.json</code> gets the <code>channel_factor</code> its
+      verdict sets (+1 for <code>identity</code>, −1 for <code>negate</code>) and becomes
+      <code>validation_state: corpus-validated</code>. Each verdict is recorded in
+      <code>jt-60sa.json</code> as a <code>FluxLoopPositionDeclaration</code> over the OP1 range, as
+      MAST's are, with the undecided channels declared <code>undecided</code> and their reasons. It
+      writes no rule it did not measure.
+      <code>jtmm-loop-reference-rca</code> is read-only. It tests whether the raw MDAC flux loops are
+      differences against a reference loop rather than absolute flux. Loop 7 tracks absolutely, and
+      every flux-loop PID channel best-matched loop 7 in the E101154 join. So it compares each loop's
+      measurement with its prediction minus a candidate reference's prediction, for loop 7 and each
+      other loop as reference, on the three vacuum shots. It names the reference the fits support
+      with the slopes and r, and writes one fragment.
     </p>
     <p>
       The COCOS of the source is then identified rather than assumed. For the raw side,
