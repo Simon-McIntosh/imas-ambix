@@ -64,11 +64,13 @@
     </p>
     <p>
       In-place gate (fleet allocation): 41 passed, exit 0. Whole-tree
-      <code>ruff check imas_ambix tests</code> exits 0. Negative control: dropping
-      <code>struct_array_entry</code> from every <code>pf_active</code>
-      coil-element binding (120 bindings) makes the OP1 read fail with the
-      ragged-counts <code>BindingTransformError</code> naming
-      <code>[40, 40, 40, 40, 16, 16, 16, 16, 16, 16, 6, 6]</code>.
+      <code>ruff check imas_ambix tests</code> exits 0. Negative control: with
+      <code>struct_array_entry</code> dropped from every <code>pf_active</code>
+      coil-element binding (120 bindings), the coil-count and per-phase emit
+      tests go red (exit 1) with the ragged-counts
+      <code>BindingTransformError</code> naming
+      <code>[40, 40, 40, 40, 16, 16, 16, 16, 16, 16, 6, 6]</code>, so the
+      per-coil selector is what carries the read.
     </p>
     <p>
       Logs: runs/r-20261006T031641983435-jtmm-catalogue-per-coil/jt60sa-catalogue-gate.log
