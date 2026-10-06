@@ -4,10 +4,14 @@ from __future__ import annotations
 
 from dataclasses import replace
 from math import tau
+from types import MappingProxyType
 
+import numpy as np
 import pytest
+import zarr
 from nova.io.cocos import transform_factor
 
+from imas_ambix.challenge.loader import EfitLabels
 from imas_ambix.data.cocos_convention import (
     COCOS_3_4_MEASUREMENT_DISTINGUISHABLE,
     COCOS_CANDIDATES,
@@ -21,9 +25,15 @@ from imas_ambix.data.cocos_convention import (
     RELATIVE_SIGN_PRODUCTS,
     SOURCE_COCOS_RECOMMENDATION,
     format_sign_report,
+    read_catalogue_observation,
     read_level2_sign_table,
     score_conventions,
     surviving_conventions,
+)
+from imas_ambix.data.machine_map import (
+    ChannelBinding,
+    MachineMap,
+    MachineMapCatalog,
 )
 
 
@@ -242,3 +252,153 @@ def test_live_level_two_cohort_reproduces_committed_signs():
 
     assert live == MAST_LEVEL2_SIGN_TABLE
     assert surviving_conventions(live) == (3, 4)
+
+
+_SYNTHETIC_SHOT = 12345
+_SYNTHETIC_TIME = np.arange(8.0)
+_SYNTHETIC_CURRENT = np.array([0.0, 0.0, 8.0e5, 8.0e5, 8.0e5, 8.0e5, 0.0, 0.0])
+_DECOY_CURRENT = np.array([0.0, 0.0, -3.0e5, -3.0e5, -3.0e5, -3.0e5, 0.0, 0.0])
+
+
+def _binding(name, source_array, dd_path):
+    return ChannelBinding(
+        name=name,
+        source_group="PSRC",
+        source_array=source_array,
+        source_rank=2,
+        source_role="value",
+        source_location="ssh://jt-60sa/EDDB/PSRC",
+        dd_path=dd_path,
+        source_unit="A",
+        target_unit="A",
+        sign_convention="identity",
+        evidence="synthetic store for the catalogue observation reader test",
+        source_cocos_override=None,
+    )
+
+
+def _synthetic_catalogue(plasma_current_array="Ip"):
+    binding_set = (
+        _binding("synthetic-ip", plasma_current_array, "magnetics/ip"),
+        _binding("synthetic-flux", "FL", "magnetics/flux_loop_flux"),
+        _binding("synthetic-bt", "BT", "magnetics/b_field_tor_probe/field"),
+    )
+    machine_map = MachineMap(
+        name="synthetic",
+        machine="jt-60sa",
+        first_shot=0,
+        last_shot=200_000,
+        transition=None,
+        binding_set="synthetic",
+        drive_topology=None,
+        description_supplement=None,
+        validation_state="source-only",
+        source_representation_signature=None,
+    )
+    return MachineMapCatalog(
+        schema_version="1.0.0",
+        dd_version="4.1.1",
+        source="synthetic",
+        source_revision="synthetic",
+        source_cocos=None,
+        description_store_format="zarr",
+        description_store_root="JT60SA_ROOT",
+        description_store_layout="per-shot",
+        probe_angle_source="description",
+        binding_sets=MappingProxyType({"synthetic": binding_set}),
+        maps=(machine_map,),
+        validation_gaps=(),
+        source_qualifications=(),
+        sensor_identity_rules=(),
+        identity_qualifications=(),
+        flux_loop_position_declarations=(),
+        drive_topologies=(),
+        structure_assemblies=(),
+        acquisition_declarations=(),
+        description_supplements=(),
+    )
+
+
+def _write_synthetic_store(root):
+    group = zarr.open_group(root / f"{_SYNTHETIC_SHOT}.zarr", mode="w")
+    category = group.require_group("PSRC")
+    category.create_array("Ip", data=_SYNTHETIC_CURRENT)
+    category.create_array("Ip_time", data=_SYNTHETIC_TIME)
+    category.create_array("IpDecoy", data=_DECOY_CURRENT)
+    category.create_array("IpDecoy_time", data=_SYNTHETIC_TIME)
+    flux = np.vstack((2.0e-3 * _SYNTHETIC_CURRENT, 3.0e-3 * _SYNTHETIC_CURRENT))
+    category.create_array("FL", data=flux)
+    category.create_array("FL_time", data=_SYNTHETIC_TIME)
+    category.create_array("BT", data=np.full(_SYNTHETIC_TIME.size, 2.5))
+    category.create_array("BT_time", data=np.linspace(0.0, 7.0, _SYNTHETIC_TIME.size))
+
+
+def _synthetic_equilibrium():
+    radius = np.linspace(2.0, 4.0, 9)
+    height = np.linspace(-1.5, 1.5, 9)
+    frames = 5
+    psirz = np.empty((frames, height.size, radius.size))
+    for frame in range(frames):
+        psirz[frame] = (
+            (radius[np.newaxis, :] - 3.0) ** 2
+            + height[:, np.newaxis] ** 2
+            + frame
+        )
+    angle = np.linspace(0.0, tau, 16, endpoint=False)
+    lcfs_r = np.tile(3.0 + 0.6 * np.cos(angle), (frames, 1))
+    lcfs_z = np.tile(0.6 * np.sin(angle), (frames, 1))
+    return EfitLabels(
+        time_ms=np.array([1.0, 2.0, 3.0, 4.0, 5.0]),
+        psirz=psirz,
+        grid_r_m=radius,
+        grid_z_m=height,
+        lcfs_r_m=lcfs_r,
+        lcfs_z_m=lcfs_z,
+        scalars={
+            "efit_q95": np.full(frames, 2.0),
+            "efit_r_axis": np.full(frames, 3.0),
+            "efit_z_axis": np.zeros(frames),
+        },
+        cocos=17,
+    )
+
+
+def test_catalogue_reader_measures_the_bound_raw_arrays(tmp_path, monkeypatch):
+    _write_synthetic_store(tmp_path)
+    monkeypatch.setattr(
+        MachineMapCatalog,
+        "description_store_root_path",
+        lambda self, _root=tmp_path: _root,
+    )
+
+    observation = read_catalogue_observation(
+        _SYNTHETIC_SHOT, _synthetic_catalogue(), _synthetic_equilibrium()
+    )
+
+    assert observation.shot == _SYNTHETIC_SHOT
+    assert observation.plasma_current_a == pytest.approx(8.0e5)
+    assert observation.plasma_current_sign == 1
+    assert observation.raw_flux_loop_channels == 2
+    assert observation.raw_flux_loop_response_sign == 1
+    assert observation.toroidal_field_t == pytest.approx(2.5)
+    assert observation.toroidal_field_sign == 1
+    assert observation.safety_factor_sign == 1
+    assert observation.retained_slices == 4
+
+
+def test_catalogue_reader_follows_the_plasma_current_binding(tmp_path, monkeypatch):
+    _write_synthetic_store(tmp_path)
+    monkeypatch.setattr(
+        MachineMapCatalog,
+        "description_store_root_path",
+        lambda self, _root=tmp_path: _root,
+    )
+
+    observation = read_catalogue_observation(
+        _SYNTHETIC_SHOT,
+        _synthetic_catalogue(plasma_current_array="IpDecoy"),
+        _synthetic_equilibrium(),
+    )
+
+    assert observation.plasma_current_a == pytest.approx(-3.0e5)
+    assert observation.plasma_current_sign == -1

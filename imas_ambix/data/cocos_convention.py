@@ -25,10 +25,27 @@ from typing import TYPE_CHECKING, Literal
 import numpy as np
 from nova.io.cocos import CONVENTION_DIGITS
 
+from imas_ambix.data.eddb import TIME_SUFFIX, time_array_name
+from imas_ambix.data.machine_map import (
+    ChannelBinding,
+    MachineMapCatalog,
+    map_for_shot,
+)
+from imas_ambix.data.transform_engine import get_transform_engine
+
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
+    from imas_ambix.challenge.loader import EfitLabels
+
 MAST_LEVEL2_ROOT = Path("/work/projects/imas_gpu/mast/level2/shots")
+
+_RAW_PLASMA_CURRENT_TARGETS = ("magnetics/ip",)
+_RAW_FLUX_LOOP_TARGETS = ("magnetics/flux_loop_flux", "magnetics/flux_loop/flux")
+_RAW_TOROIDAL_FIELD_TARGETS = (
+    "magnetics/b_field_tor_probe/field",
+    "magnetics/b_field_tor",
+)
 
 EvidenceClassification = Literal[
     "measurable-from-data",
@@ -487,6 +504,151 @@ def _raw_flux_loop_response(
     return float(np.median(responses)), len(responses), opposite
 
 
+def _observation_from_series(
+    shot: int,
+    *,
+    plasma_current_time: np.ndarray,
+    plasma_current: np.ndarray,
+    flux_loops: np.ndarray,
+    toroidal_field_time: np.ndarray,
+    toroidal_field: np.ndarray,
+    equilibrium: EfitLabels,
+    minimum_current_a: float,
+    baseline_current_a: float,
+) -> ShotSignObservation:
+    """Build one sign observation from raw series and an equilibrium record.
+
+    This is the read-independent kernel.  Any store supplies the three raw
+    series — plasma current, flux-loop flux and toroidal field — and any
+    loader supplies one :class:`EfitLabels` equilibrium record, so the
+    FAIR-MAST level-2 mirror and a catalogue-bound read share one computation
+    of the signs, the raw flux-loop response and the flux-per-radian versus
+    total-flux discriminator.  ``equilibrium.psirz`` holds one equilibrium
+    frame per leading index, each a ``(height, radius)`` grid over
+    ``grid_z_m`` and ``grid_r_m``.
+    """
+
+    plasma_current = np.asarray(plasma_current, dtype=np.float64)
+    plasma_current_time = np.asarray(plasma_current_time, dtype=np.float64)
+    current_valid = np.isfinite(plasma_current_time) & np.isfinite(plasma_current)
+    if np.count_nonzero(current_valid) < 2:
+        raise ValueError(f"shot {shot} has no usable plasma-current time series")
+    raw_flux_response, raw_flux_channels, raw_flux_opposite = _raw_flux_loop_response(
+        plasma_current,
+        np.asarray(flux_loops, dtype=np.float64),
+        minimum_current_a=minimum_current_a,
+        baseline_current_a=baseline_current_a,
+    )
+
+    equilibrium_time = np.asarray(equilibrium.time_ms, dtype=np.float64)
+    aligned_current = np.interp(
+        equilibrium_time,
+        plasma_current_time[current_valid],
+        plasma_current[current_valid],
+        left=np.nan,
+        right=np.nan,
+    )
+    aligned_toroidal_field = np.interp(
+        equilibrium_time,
+        np.asarray(toroidal_field_time, dtype=np.float64),
+        np.asarray(toroidal_field, dtype=np.float64),
+        left=np.nan,
+        right=np.nan,
+    )
+    safety_factor = np.asarray(equilibrium.scalars["efit_q95"], dtype=np.float64)
+    retained = (
+        np.isfinite(aligned_current)
+        & (np.abs(aligned_current) > minimum_current_a)
+        & np.isfinite(aligned_toroidal_field)
+        & np.isfinite(safety_factor)
+    )
+    retained_indices = np.flatnonzero(retained)
+    if retained_indices.size == 0:
+        raise ValueError(f"shot {shot} has no plasma-on equilibrium slices")
+
+    radial_grid = np.asarray(equilibrium.grid_r_m, dtype=np.float64)
+    vertical_grid = np.asarray(equilibrium.grid_z_m, dtype=np.float64)
+    flux = np.asarray(equilibrium.psirz, dtype=np.float64)
+    axis_r = np.asarray(equilibrium.scalars["efit_r_axis"], dtype=np.float64)
+    axis_z = np.asarray(equilibrium.scalars["efit_z_axis"], dtype=np.float64)
+    boundary_r = np.asarray(equilibrium.lcfs_r_m, dtype=np.float64)
+    boundary_z = np.asarray(equilibrium.lcfs_z_m, dtype=np.float64)
+
+    flux_differences: list[float] = []
+    signed_areas: list[float] = []
+    for index in retained_indices:
+        field = flux[index]
+        radial_index = int(np.argmin(np.abs(radial_grid - axis_r[index])))
+        vertical_index = int(np.argmin(np.abs(vertical_grid - axis_z[index])))
+        axis_flux = field[vertical_index, radial_index]
+
+        r_boundary = boundary_r[index]
+        z_boundary = boundary_z[index]
+        boundary_valid = (
+            np.isfinite(r_boundary) & np.isfinite(z_boundary) & (r_boundary > 0)
+        )
+        if not np.isfinite(axis_flux) or np.count_nonzero(boundary_valid) < 4:
+            continue
+        r_indices = np.abs(
+            radial_grid[:, np.newaxis] - r_boundary[boundary_valid]
+        ).argmin(axis=0)
+        z_indices = np.abs(
+            vertical_grid[:, np.newaxis] - z_boundary[boundary_valid]
+        ).argmin(axis=0)
+        edge_flux = float(np.nanmedian(field[z_indices, r_indices]))
+        flux_differences.append(edge_flux - float(axis_flux))
+        signed_areas.append(_ordered_polygon_area(r_boundary, z_boundary))
+
+    if not flux_differences or not signed_areas:
+        raise ValueError(f"shot {shot} has no usable flux-boundary slices")
+
+    return ShotSignObservation(
+        shot=int(shot),
+        plasma_current_a=float(np.nanmedian(aligned_current[retained])),
+        raw_flux_loop_response_wb_per_a=raw_flux_response,
+        raw_flux_loop_channels=raw_flux_channels,
+        raw_flux_loop_opposite_sign_channels=raw_flux_opposite,
+        toroidal_field_t=float(np.nanmedian(aligned_toroidal_field[retained])),
+        poloidal_flux_edge_minus_axis_wb_per_rad=float(np.nanmedian(flux_differences)),
+        poloidal_angle_signed_area_m2=float(np.nanmedian(signed_areas)),
+        safety_factor=float(np.nanmedian(safety_factor[retained])),
+        flux_exponent=0,
+        retained_slices=int(retained_indices.size),
+    )
+
+
+def _equilibrium_labels_from_level2(equilibrium: object) -> EfitLabels:
+    """Assemble one canonical equilibrium record from a FAIR-MAST level-2 group.
+
+    The stored layout orders flux as ``(radial, vertical, time)``; the record
+    orders it ``(time, height, radius)``, so the transposition happens here
+    once and every reader of the record sees one shape.
+    """
+
+    from imas_ambix.challenge.loader import EfitLabels  # noqa: PLC0415
+
+    return EfitLabels(
+        time_ms=np.asarray(equilibrium["time"], dtype=np.float64),
+        psirz=np.transpose(
+            np.asarray(equilibrium["psi"], dtype=np.float64), (2, 1, 0)
+        ),
+        grid_r_m=np.asarray(equilibrium["major_radius"], dtype=np.float64),
+        grid_z_m=np.asarray(equilibrium["z"], dtype=np.float64),
+        lcfs_r_m=np.transpose(np.asarray(equilibrium["lcfs_r"], dtype=np.float64)),
+        lcfs_z_m=np.transpose(np.asarray(equilibrium["lcfs_z"], dtype=np.float64)),
+        scalars={
+            "efit_q95": np.asarray(equilibrium["q95"], dtype=np.float64),
+            "efit_r_axis": np.asarray(
+                equilibrium["magnetic_axis_r"], dtype=np.float64
+            ),
+            "efit_z_axis": np.asarray(
+                equilibrium["magnetic_axis_z"], dtype=np.float64
+            ),
+        },
+        cocos=MAST_SOURCE_COCOS,
+    )
+
+
 def read_level2_observation(
     shot: int,
     root: Path | str = MAST_LEVEL2_ROOT,
@@ -510,88 +672,135 @@ def read_level2_observation(
             f"units={psi_units!r}"
         )
 
-    magnetics_time = np.asarray(magnetics["time"], dtype=np.float64)
-    plasma_current = np.asarray(magnetics["ip"], dtype=np.float64)
-    flux_loops = np.asarray(magnetics["flux_loop_flux"], dtype=np.float64)
-    current_valid = np.isfinite(magnetics_time) & np.isfinite(plasma_current)
-    if np.count_nonzero(current_valid) < 2:
-        raise ValueError(f"shot {shot} has no usable magnetics/ip time series")
-    raw_flux_response, raw_flux_channels, raw_flux_opposite = _raw_flux_loop_response(
-        plasma_current,
-        flux_loops,
+    return _observation_from_series(
+        shot,
+        plasma_current_time=np.asarray(magnetics["time"], dtype=np.float64),
+        plasma_current=np.asarray(magnetics["ip"], dtype=np.float64),
+        flux_loops=np.asarray(magnetics["flux_loop_flux"], dtype=np.float64),
+        toroidal_field_time=np.asarray(equilibrium["time"], dtype=np.float64),
+        toroidal_field=np.asarray(equilibrium["bvac_rmag"], dtype=np.float64),
+        equilibrium=_equilibrium_labels_from_level2(equilibrium),
         minimum_current_a=minimum_current_a,
         baseline_current_a=baseline_current_a,
     )
 
-    equilibrium_time = np.asarray(equilibrium["time"], dtype=np.float64)
-    aligned_current = np.interp(
-        equilibrium_time,
-        magnetics_time[current_valid],
-        plasma_current[current_valid],
-        left=np.nan,
-        right=np.nan,
+
+def _time_binding(binding: ChannelBinding) -> ChannelBinding:
+    """Return the sibling binding naming a cached channel's EDDB time base."""
+
+    from dataclasses import replace  # noqa: PLC0415
+
+    return replace(
+        binding,
+        name=f"{binding.name}{TIME_SUFFIX}",
+        source_array=time_array_name(binding.source_array),
     )
-    toroidal_field = np.asarray(equilibrium["bvac_rmag"], dtype=np.float64)
-    safety_factor = np.asarray(equilibrium["q95"], dtype=np.float64)
-    retained = (
-        np.isfinite(aligned_current)
-        & (np.abs(aligned_current) > minimum_current_a)
-        & np.isfinite(toroidal_field)
-        & np.isfinite(safety_factor)
+
+
+def _binding_targeting(
+    bindings: Sequence[ChannelBinding],
+    targets: tuple[str, ...],
+    quantity: str,
+) -> ChannelBinding:
+    """Select the binding whose Data Dictionary target serves ``quantity``."""
+
+    for binding in bindings:
+        if any(
+            binding.dd_path == target or binding.dd_path.startswith(f"{target}/")
+            for target in targets
+        ):
+            return binding
+    raise ValueError(
+        f"catalogue declares no binding targeting {quantity} "
+        f"(expected one of {targets})"
     )
-    retained_indices = np.flatnonzero(retained)
-    if retained_indices.size == 0:
-        raise ValueError(f"shot {shot} has no plasma-on equilibrium slices")
 
-    radial_grid = np.asarray(equilibrium["major_radius"], dtype=np.float64)
-    vertical_grid = np.asarray(equilibrium["z"], dtype=np.float64)
-    flux = np.asarray(equilibrium["psi"], dtype=np.float64)
-    axis_r = np.asarray(equilibrium["magnetic_axis_r"], dtype=np.float64)
-    axis_z = np.asarray(equilibrium["magnetic_axis_z"], dtype=np.float64)
-    boundary_r = np.asarray(equilibrium["lcfs_r"], dtype=np.float64)
-    boundary_z = np.asarray(equilibrium["lcfs_z"], dtype=np.float64)
 
-    flux_differences: list[float] = []
-    signed_areas: list[float] = []
-    for index in retained_indices:
-        field = flux[:, :, index]
-        radial_index = int(np.argmin(np.abs(radial_grid - axis_r[index])))
-        vertical_index = int(np.argmin(np.abs(vertical_grid - axis_z[index])))
-        axis_flux = field[radial_index, vertical_index]
+def read_catalogue_observation(
+    shot: int,
+    catalogue: MachineMapCatalog,
+    equilibrium: EfitLabels,
+    *,
+    minimum_current_a: float = 50_000.0,
+    baseline_current_a: float = 10_000.0,
+) -> ShotSignObservation:
+    """Read one observation through a catalogue's bindings and store engine.
 
-        r_boundary = boundary_r[:, index]
-        z_boundary = boundary_z[:, index]
-        boundary_valid = (
-            np.isfinite(r_boundary) & np.isfinite(z_boundary) & (r_boundary > 0)
+    The raw half — plasma current, flux-loop flux and toroidal field — is read
+    from the shot store the catalogue addresses, each source array through the
+    store engine the catalogue's declared format selects, with its EDDB time
+    base read from the sibling array beside it.  The equilibrium half is the
+    :class:`EfitLabels` record the caller's loader supplies.  Raw values are
+    read deliberately: this reader exists to measure the source convention, so
+    no per-binding sign or unit factor may be applied before the kernel sees
+    them.
+    """
+
+    shot_id = int(shot)
+    machine_map = map_for_shot(catalogue, shot_id)
+    bindings = catalogue.bindings_for(machine_map)
+    plasma_current_binding = _binding_targeting(
+        bindings, _RAW_PLASMA_CURRENT_TARGETS, "the plasma current"
+    )
+    flux_loop_binding = _binding_targeting(
+        bindings, _RAW_FLUX_LOOP_TARGETS, "the flux-loop flux"
+    )
+    toroidal_field_binding = _binding_targeting(
+        bindings, _RAW_TOROIDAL_FIELD_TARGETS, "the toroidal field"
+    )
+
+    engine = get_transform_engine(catalogue.description_store_format)
+    with engine.open(
+        catalogue.description_store_root_path(),
+        shot_id,
+        catalogue.dd_version,
+        machine_map,
+        catalogue.description_store_layout,
+    ) as source:
+        plasma_current = np.asarray(
+            source.read(plasma_current_binding), dtype=np.float64
         )
-        if not np.isfinite(axis_flux) or np.count_nonzero(boundary_valid) < 4:
-            continue
-        r_indices = np.abs(
-            radial_grid[:, np.newaxis] - r_boundary[boundary_valid]
-        ).argmin(axis=0)
-        z_indices = np.abs(
-            vertical_grid[:, np.newaxis] - z_boundary[boundary_valid]
-        ).argmin(axis=0)
-        edge_flux = float(np.nanmedian(field[r_indices, z_indices]))
-        flux_differences.append(edge_flux - float(axis_flux))
-        signed_areas.append(_ordered_polygon_area(r_boundary, z_boundary))
+        flux_loops = np.asarray(source.read(flux_loop_binding), dtype=np.float64)
+        toroidal_field = np.asarray(
+            source.read(toroidal_field_binding), dtype=np.float64
+        )
+        plasma_current_time = np.asarray(
+            source.read(_time_binding(plasma_current_binding)), dtype=np.float64
+        )
+        toroidal_field_time = np.asarray(
+            source.read(_time_binding(toroidal_field_binding)), dtype=np.float64
+        )
 
-    if not flux_differences or not signed_areas:
-        raise ValueError(f"shot {shot} has no usable flux-boundary slices")
-
-    return ShotSignObservation(
-        shot=int(shot),
-        plasma_current_a=float(np.nanmedian(aligned_current[retained])),
-        raw_flux_loop_response_wb_per_a=raw_flux_response,
-        raw_flux_loop_channels=raw_flux_channels,
-        raw_flux_loop_opposite_sign_channels=raw_flux_opposite,
-        toroidal_field_t=float(np.nanmedian(toroidal_field[retained])),
-        poloidal_flux_edge_minus_axis_wb_per_rad=float(np.nanmedian(flux_differences)),
-        poloidal_angle_signed_area_m2=float(np.nanmedian(signed_areas)),
-        safety_factor=float(np.nanmedian(safety_factor[retained])),
-        flux_exponent=0,
-        retained_slices=int(retained_indices.size),
+    return _observation_from_series(
+        shot_id,
+        plasma_current_time=plasma_current_time,
+        plasma_current=_single_channel(plasma_current, plasma_current_binding),
+        flux_loops=_channel_series(flux_loops),
+        toroidal_field_time=toroidal_field_time,
+        toroidal_field=_single_channel(toroidal_field, toroidal_field_binding),
+        equilibrium=equilibrium,
+        minimum_current_a=minimum_current_a,
+        baseline_current_a=baseline_current_a,
     )
+
+
+def _single_channel(values: np.ndarray, binding: ChannelBinding) -> np.ndarray:
+    """Collapse a one-channel ``(channel, time)`` array to its time series."""
+
+    if values.ndim == 1:
+        return values
+    if values.shape[0] == 1:
+        return values[0]
+    raise ValueError(
+        f"binding {binding.name!r} reads {values.shape[0]} channels where one "
+        "time series is expected"
+    )
+
+
+def _channel_series(values: np.ndarray) -> np.ndarray:
+    """Present a flux-loop array as ``(channels, samples)``."""
+
+    return values[np.newaxis, :] if values.ndim == 1 else values
 
 
 def read_level2_sign_table(
@@ -716,6 +925,7 @@ __all__ = [
     "RelativeSignProduct",
     "ShotSignObservation",
     "format_sign_report",
+    "read_catalogue_observation",
     "read_level2_observation",
     "read_level2_sign_table",
     "score_convention",
