@@ -1,0 +1,87 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtmm-contour-parse-hardening">
+  <header>
+    <h3>The coil_vv contour parse refuses any deck it would mis-slice</h3>
+    <p class="meta">
+      Node <code>jtmm-contour-parse-hardening</code> &middot;
+      date 2026-10-06 &middot;
+      plan <code>jt60sa-machine-map</code> &sect;4
+    </p>
+  </header>
+
+  <p>
+    <code>imas_ambix/data/selene_deck.py</code> found the coil_vv contour block
+    by shape alone: a bare positive integer whose next numeric row held five or
+    more numbers.  Any other bare count matched too, and the block that followed
+    was sliced by label with no check on the runs, so a deck whose count line
+    preceded an unlabelled row, whose run label was unrecognised, whose run held
+    fewer rows than its <code>=N</code> declared, whose skins were absent, or
+    whose chords did not form one closed polyline parsed to a wrong or open
+    vessel skin without complaint.  The header search and the block parse now
+    refuse each of those decks.
+  </p>
+
+  <section id="jtmm-contour-parse-hardening-refusals">
+    <h4>Refusals</h4>
+    <table>
+      <thead><tr><th>condition</th><th>raise site</th></tr></thead>
+      <tbody>
+        <tr><td>a bare count whose next numeric row carries no recognised run label</td><td><code>_find_contour_header</code> keeps searching, then refuses</td></tr>
+        <tr><td>no such header exists in the deck</td><td><code>_find_contour_header</code></td></tr>
+        <tr><td>a counted row precedes the first run label</td><td><code>_parse_contour_block</code></td></tr>
+        <tr><td>a label is not <code>Inner VV</code>, <code>Outer VV</code> or <code>D-probe</code></td><td><code>_parse_contour_block</code></td></tr>
+        <tr><td>an <code>Inner VV</code> / <code>Outer VV</code> run holds a different number of rows than its <code>=N</code> declares</td><td><code>_parse_contour_block</code></td></tr>
+        <tr><td>either skin is absent</td><td><code>_parse_contour_block</code></td></tr>
+        <tr><td>a skin's chords do not join end-to-start, or its last chord does not end at its first chord's start, within 1e-4 m</td><td><code>_check_skin_closure</code></td></tr>
+      </tbody>
+    </table>
+    <p>
+      Each refusal names the deck line it read.  The skins returned from both
+      real decks are unchanged (50 chords each, inner and outer, per phase), so
+      the store is not re-converted and nothing under
+      <code>/work/projects/imas_gpu/jt60sa/machine_description</code> is written.
+    </p>
+  </section>
+
+  <section id="jtmm-contour-parse-hardening-geometry">
+    <h4>Representation, not geometry</h4>
+    <p>
+      The plan's claim that the coil_vv skins change representation and not
+      geometry is measured.  Every vertex of each coil_vv skin lies on the
+      matching EQSLE.DATA skin (<code>inner</code> &rarr;
+      <code>vessel_skin_inner</code>, <code>outer</code> &rarr;
+      <code>vessel_skin_outer</code>), the distance measured to the nearest
+      segment with EQSLE arcs measured as arcs.  Vertices are the two endpoints
+      of each of the 50 chord rows, so 100 per skin.
+    </p>
+    <table>
+      <thead>
+        <tr><th>phase</th><th>skin</th><th>vertices</th><th>max distance [m]</th><th>median distance [m]</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>OP1</td><td>inner</td><td>100</td><td>5.3581e-04</td><td>2.1261e-04</td></tr>
+        <tr><td>OP1</td><td>outer</td><td>100</td><td>4.7568e-04</td><td>1.8837e-04</td></tr>
+        <tr><td>OP2</td><td>inner</td><td>100</td><td>5.3581e-04</td><td>2.1261e-04</td></tr>
+        <tr><td>OP2</td><td>outer</td><td>100</td><td>4.7568e-04</td><td>1.8837e-04</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Every maximum is below the asserted 1e-3 m floor and below a 1 mm sagitta
+      of the deck chord length, so the chords trace the analytic arcs the plan
+      names.
+    </p>
+  </section>
+
+  <section id="jtmm-contour-parse-hardening-gate">
+    <h4>Gate</h4>
+    <p>
+      <code>tests/data/test_selene_deck.py</code> feeds one synthetic deck per
+      refusal case and asserts the <code>ValueError</code>, and its geometry
+      test reads both real coil_vv decks with EQSLE.DATA through
+      <code>parse_eqsle_deck</code> and asserts every skin vertex lands within
+      1e-3 m.  The node's declared negative control removes the run-count guard
+      from <code>_parse_contour_block</code>; the short-run test then fails with
+      <code>DID NOT RAISE ValueError</code> at <code>EXIT=1</code> while the head
+      arm passes it.
+    </p>
+  </section>
+</section>

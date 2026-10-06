@@ -63,6 +63,14 @@ LINE_ELEMENT_TYPE = 1
 ARC_ELEMENT_TYPE = 2
 # Angular step at which a deck arc is discretised into wall-outline points.
 ARC_ANGULAR_STEP_DEG = 1.0
+# The run labels a coil_vv contour block recognises.  Every counted row of the
+# block belongs to one of these runs; a row that names anything else is a
+# mis-slice, because the parse would drop or mis-attribute its chord.
+CONTOUR_RUN_LABELS = ("INNER VV", "OUTER VV", "D-PROBE")
+# Adjacent chords of a vessel skin share an endpoint to within this tolerance,
+# and the last chord returns to the first chord's start, so the skin is one
+# closed polyline rather than a set of disconnected pieces.
+SKIN_JOIN_TOL_M = 1e-4
 # wall/description_2d/type/index: the descriptor the written wall satisfies.
 # 1 records a limiter alone; 2 records a limiter with the vessel filled.
 WALL_TYPE_MULTIPLE_UNITS_NO_VESSEL = 1
@@ -580,13 +588,63 @@ def _parse_limiter_polygon(
     return segments, header + 1 + count
 
 
+def _contour_run_label(comment: str) -> str | None:
+    """The recognised run label a contour row's comment carries, or None."""
+    upper = comment.upper()
+    for label in CONTOUR_RUN_LABELS:
+        if label in upper:
+            return label
+    return None
+
+
+def _run_declared_count(comment: str) -> int | None:
+    """The row count a run label declares as ``=N``, or None when it is absent."""
+    _, _, tail = comment.partition("=")
+    digits = ""
+    for ch in tail:
+        if ch.isdigit():
+            digits += ch
+        else:
+            break
+    return int(digits) if digits else None
+
+
+def _check_skin_closure(skin: list[Segment], name: str) -> None:
+    """Refuse a skin whose chords do not form one closed polyline.
+
+    Consecutive chords must share an endpoint and the last chord must return to
+    the first chord's start, each within :data:`SKIN_JOIN_TOL_M`; a gap means
+    the block was mis-sliced and the skin drawn from it would be open.
+    """
+    for prev, nxt in zip(skin, skin[1:], strict=False):
+        gap = max(
+            abs(prev.params[2] - nxt.params[0]), abs(prev.params[3] - nxt.params[1])
+        )
+        if gap > SKIN_JOIN_TOL_M:
+            raise ValueError(
+                f"contour row {nxt.provenance.line_start}: {name} chord does not "
+                f"join the previous chord's end (gap {gap:.3g} m)"
+            )
+    first, last = skin[0], skin[-1]
+    gap = max(
+        abs(last.params[2] - first.params[0]), abs(last.params[3] - first.params[1])
+    )
+    if gap > SKIN_JOIN_TOL_M:
+        raise ValueError(
+            f"contour row {last.provenance.line_start}: {name} skin does not close "
+            f"on its first chord's start (gap {gap:.3g} m)"
+        )
+
+
 def _find_contour_header(lines: list[str], start: int) -> tuple[int, int]:
     """Locate the coil_vv contour block: a bare count line followed by rows.
 
     A contour row carries four chord endpoints, a segment index and a type
-    column, so the header is the first line that is a bare positive integer and
-    whose next numeric row holds at least five numbers.  Returns the header
-    index and the declared row count.
+    column, so a candidate is a bare positive integer whose next numeric row
+    both holds at least five numbers and names a recognised run.  A bare count
+    whose next numeric row carries no run label is not the block header and the
+    search continues; when no such header exists the deck is refused rather than
+    mis-sliced.  Returns the header index and the declared row count.
     """
     for i in range(start, len(lines)):
         tokens = lines[i].split()
@@ -596,10 +654,10 @@ def _find_contour_header(lines: list[str], start: int) -> tuple[int, int]:
         if count <= 0:
             continue
         for j in range(i + 1, len(lines)):
-            nums, _ = _numeric_prefix(lines[j].split())
+            nums, comment = _numeric_prefix(lines[j].split())
             if not nums:
                 continue
-            if len(nums) >= 5:
+            if len(nums) >= 5 and _contour_run_label(comment) is not None:
                 return i, count
             break
     raise ValueError("no coil_vv contour block header found")
@@ -614,12 +672,15 @@ def _parse_contour_block(
     on the first row of their run.  The ``Inner VV`` and ``Outer VV`` runs are
     the two vacuum-vessel skins and become the annular vessel unit's outlines.
     The ``D-probe`` runs are diagnostic probes, not vessel structure, and are
-    excluded.  Returns ``(inner, outer)``.
+    excluded.  A deck is refused when a counted row precedes the first label, a
+    label names a run other than the recognised three, an ``Inner VV`` or
+    ``Outer VV`` run holds a different number of rows than its ``=N`` declares,
+    either skin is absent, or a skin's chords do not form one closed polyline.
+    Returns ``(inner, outer)``.
     """
     count = int(lines[header].split()[0])
-    inner: list[Segment] = []
-    outer: list[Segment] = []
-    target: list[Segment] | None = None
+    runs: list[tuple[str, int | None, list[Segment]]] = []
+    current: list[Segment] | None = None
     rows = 0
     for idx in range(header + 1, len(lines)):
         if rows == count:
@@ -627,26 +688,48 @@ def _parse_contour_block(
         nums, comment = _numeric_prefix(lines[idx].split())
         if len(nums) < 5:
             continue
-        label = comment.upper()
-        if "INNER VV" in label:
-            target = inner
-        elif "OUTER VV" in label:
-            target = outer
-        elif "D-PROBE" in label:
-            target = None
-        if target is not None:
-            r1, z1, r2, z2 = nums[:4]
-            target.append(
-                Segment(
-                    kind="line",
-                    params=(float(r1), float(z1), float(r2), float(z2)),
-                    comment=comment,
-                    provenance=Provenance(source, sha, idx + 1, idx + 1),
-                )
+        line_no = idx + 1
+        label = _contour_run_label(comment)
+        if comment and label is None:
+            raise ValueError(
+                f"contour row {line_no}: unrecognised run label {comment!r}"
             )
+        if label is not None:
+            current = []
+            runs.append((label, _run_declared_count(comment), current))
+        if current is None:
+            raise ValueError(
+                f"contour row {line_no}: counted row precedes the first run label"
+            )
+        r1, z1, r2, z2 = nums[:4]
+        current.append(
+            Segment(
+                kind="line",
+                params=(float(r1), float(z1), float(r2), float(z2)),
+                comment=comment,
+                provenance=Provenance(source, sha, line_no, line_no),
+            )
+        )
         rows += 1
     if rows != count:
         raise ValueError(f"contour block declares {count} rows, found {rows}")
+    inner: list[Segment] = []
+    outer: list[Segment] = []
+    for label, declared, segs in runs:
+        if label not in ("INNER VV", "OUTER VV"):
+            continue
+        if declared is not None and len(segs) != declared:
+            raise ValueError(
+                f"contour row {segs[0].provenance.line_start}: {label} run "
+                f"declares {declared} rows, found {len(segs)}"
+            )
+        (inner if label == "INNER VV" else outer).extend(segs)
+    if not inner:
+        raise ValueError("contour block carries no Inner VV skin")
+    if not outer:
+        raise ValueError("contour block carries no Outer VV skin")
+    _check_skin_closure(inner, "Inner VV")
+    _check_skin_closure(outer, "Outer VV")
     return inner, outer
 
 

@@ -95,11 +95,11 @@ COIL_VV_TEXT = """\
     1.7050    1.8750
  1
 12
-     1.6250    0.0000    1.6250    2.3830              1         %%Inner VV=50
+     1.6250    0.0000    1.6250    2.3830              1         %%Inner VV=4
      1.6250    2.3830    4.0000    2.3830              1
      4.0000    2.3830    4.0000    0.0000              1
      4.0000    0.0000    1.6250    0.0000              1
-     1.4310    0.0000    1.4310    2.3830              1         %%Outer VV=50
+     1.4310    0.0000    1.4310    2.3830              1         %%Outer VV=4
      1.4310    2.3830    4.2000    2.3830              1
      4.2000    2.3830    4.2000    0.0000              1
      4.2000    0.0000    1.4310    0.0000              1
@@ -799,7 +799,209 @@ def test_every_pf_active_coil_element_is_named_by_coil_and_position(phase_ids):
         )
     # Names are unique within a coil and the coil prefix keeps them unique
     # across the phase.
-    all_names = [
-        str(element.name) for coil in pf.coil for element in coil.element
-    ]
+    all_names = [str(element.name) for coil in pf.coil for element in coil.element]
     assert len(set(all_names)) == len(all_names)
+
+
+# --------------------------------------------------------------------------
+# coil_vv contour-block hardening: the parse refuses decks it would mis-slice
+# --------------------------------------------------------------------------
+_FACILITY_SOURCE = Path("/work/projects/imas_gpu/jt60sa/machine_description/source")
+_FACILITY_EQSLE = _FACILITY_SOURCE / "EQSLE.DATA"
+_FACILITY_COIL_VV_OP1 = _FACILITY_SOURCE / "coil_vv_OP1.dat"
+_FACILITY_COIL_VV_OP2 = _FACILITY_SOURCE / "coil_vv_OP2.dat"
+
+# The coil_vv deck up to and including the line before the contour count, taken
+# from COIL_VV_TEXT so the refusal fixtures share the parser-valid preamble.
+_COIL_VV_PREFIX = "\n".join(COIL_VV_TEXT.splitlines()[:16]) + "\n"
+
+
+def _chord(r1, z1, r2, z2, label=None) -> str:
+    """One contour chord row ``R1 Z1 R2 Z2 index`` with an optional run label."""
+    row = f"{r1:9.4f} {z1:9.4f} {r2:9.4f} {z2:9.4f}              1"
+    if label is not None:
+        row += f"         %%{label}"
+    return row
+
+
+def _coil_vv_deck_text(rows: list[str]) -> str:
+    """A coil_vv deck whose contour block is ``rows`` behind its own count."""
+    return _COIL_VV_PREFIX + f"{len(rows)}\n" + "\n".join(rows) + "\n"
+
+
+def _write_coil_vv(tmp_path: Path, rows: list[str]) -> Path:
+    path = tmp_path / "coil_vv_OP2.dat"
+    path.write_text(_coil_vv_deck_text(rows), encoding="latin-1")
+    return path
+
+
+def _closed_skin_rows(count: int, label: str) -> list[str]:
+    """``count`` chord rows tracing a closed ``count``-gon, first row labelled."""
+    pts = [
+        (
+            2.0 + 0.5 * math.cos(2 * math.pi * k / count),
+            0.5 * math.sin(2 * math.pi * k / count),
+        )
+        for k in range(count)
+    ]
+    rows = []
+    for k in range(count):
+        r1, z1 = pts[k]
+        r2, z2 = pts[(k + 1) % count]
+        rows.append(_chord(r1, z1, r2, z2, label if k == 0 else None))
+    return rows
+
+
+def test_contour_header_skips_a_count_without_a_labelled_row():
+    """A bare count whose next numeric row carries no run label is not the block."""
+    prefix = _COIL_VV_PREFIX.splitlines()
+    start = len(prefix) - 1  # the first line the header search scans
+    lines = prefix + [
+        "7",
+        _chord(1.0, 2.0, 3.0, 4.0),  # five numbers, no run label
+        "2",
+        _chord(1.0, 0.0, 2.0, 0.0, "Inner VV=2"),
+        _chord(2.0, 0.0, 1.0, 0.0),
+    ]
+    header, count = sd._find_contour_header(lines, start)
+    assert count == 2
+    assert lines[header] == "2"
+
+
+def test_contour_header_absent_is_refused():
+    prefix = _COIL_VV_PREFIX.splitlines()
+    start = len(prefix) - 1
+    lines = prefix + [
+        "3",
+        _chord(1.0, 0.0, 2.0, 0.0),
+        _chord(2.0, 0.0, 1.0, 0.0),
+        _chord(1.0, 0.0, 1.0, 0.0),
+    ]
+    with pytest.raises(ValueError, match="no coil_vv contour block header found"):
+        sd._find_contour_header(lines, start)
+
+
+def test_contour_row_before_the_first_label_is_refused():
+    lines = _coil_vv_deck_text(
+        [
+            _chord(1.0, 0.0, 2.0, 0.0),
+            _chord(2.0, 0.0, 1.0, 0.0, "Inner VV=2"),
+            _chord(3.0, 0.0, 4.0, 0.0, "Outer VV=1"),
+            _chord(4.0, 0.0, 3.0, 0.0),
+        ]
+    ).splitlines()
+    header = len(_COIL_VV_PREFIX.splitlines())
+    with pytest.raises(ValueError, match="counted row precedes the first run label"):
+        sd._parse_contour_block(lines, header, "synthetic", "0" * 64)
+
+
+def test_unknown_contour_run_label_is_refused(tmp_path: Path):
+    rows = [
+        _chord(1.0, 0.0, 2.0, 0.0, "Inner VV=3"),
+        _chord(2.0, 0.0, 1.0, 0.0),
+        _chord(2.0, 0.0, 1.0, 0.0, "SomethingElse"),
+        _chord(3.0, 0.0, 4.0, 0.0, "Outer VV=1"),
+        _chord(4.0, 0.0, 3.0, 0.0),
+    ]
+    with pytest.raises(ValueError, match="unrecognised run label"):
+        sd.parse_coil_vv_deck(_write_coil_vv(tmp_path, rows))
+
+
+def test_contour_run_shorter_than_its_label_is_refused(tmp_path: Path):
+    rows = _closed_skin_rows(49, "Inner VV=50") + _closed_skin_rows(4, "Outer VV=4")
+    with pytest.raises(ValueError, match="INNER VV run declares 50 rows, found 49"):
+        sd.parse_coil_vv_deck(_write_coil_vv(tmp_path, rows))
+
+
+def test_contour_block_missing_a_skin_is_refused(tmp_path: Path):
+    rows = [
+        _chord(1.0, 0.0, 2.0, 0.0, "Inner VV=2"),
+        _chord(2.0, 0.0, 1.0, 0.0),
+    ]
+    with pytest.raises(ValueError, match="no Outer VV skin"):
+        sd.parse_coil_vv_deck(_write_coil_vv(tmp_path, rows))
+
+
+def test_contour_chords_that_do_not_join_are_refused(tmp_path: Path):
+    rows = [
+        _chord(1.0, 0.0, 2.0, 0.0, "Inner VV=2"),
+        _chord(3.0, 0.0, 4.0, 0.0),  # start does not meet the first chord's end
+        _chord(5.0, 0.0, 6.0, 0.0, "Outer VV=2"),
+        _chord(6.0, 0.0, 5.0, 0.0),
+    ]
+    with pytest.raises(ValueError, match="does not join the previous chord's end"):
+        sd.parse_coil_vv_deck(_write_coil_vv(tmp_path, rows))
+
+
+def test_contour_skin_that_does_not_close_is_refused(tmp_path: Path):
+    rows = [
+        _chord(1.0, 0.0, 2.0, 0.0, "Inner VV=2"),
+        _chord(2.0, 0.0, 3.0, 0.0),  # last chord ends away from the first start
+        _chord(5.0, 0.0, 6.0, 0.0, "Outer VV=2"),
+        _chord(6.0, 0.0, 5.0, 0.0),
+    ]
+    with pytest.raises(ValueError, match="does not close"):
+        sd.parse_coil_vv_deck(_write_coil_vv(tmp_path, rows))
+
+
+def _point_segment_distance(px: float, pz: float, seg: sd.Segment) -> float:
+    """Distance from a point to a contour segment, an arc measured as an arc."""
+    if seg.kind == "line":
+        (r1, z1), (r2, z2) = seg.line_points()
+        vr, vz = r2 - r1, z2 - z1
+        length_sq = vr * vr + vz * vz
+        if length_sq == 0.0:
+            return math.hypot(px - r1, pz - z1)
+        t = min(1.0, max(0.0, ((px - r1) * vr + (pz - z1) * vz) / length_sq))
+        return math.hypot(px - (r1 + t * vr), pz - (z1 + t * vz))
+    rc, zc, radius, a_start, a_end = seg.params[:5]
+    lo, hi = min(a_start, a_end), max(a_start, a_end)
+    theta = math.degrees(math.atan2(pz - zc, px - rc))
+    while theta < lo:
+        theta += 360.0
+    while theta > hi + 360.0:
+        theta -= 360.0
+    if lo <= theta <= hi:
+        return abs(math.hypot(px - rc, pz - zc) - radius)
+    ends = [
+        (
+            rc + radius * math.cos(math.radians(a_start)),
+            zc + radius * math.sin(math.radians(a_start)),
+        ),
+        (
+            rc + radius * math.cos(math.radians(a_end)),
+            zc + radius * math.sin(math.radians(a_end)),
+        ),
+    ]
+    return min(math.hypot(px - er, pz - ez) for er, ez in ends)
+
+
+def test_coil_vv_skin_vertices_lie_on_the_eqsle_skins():
+    """Each coil_vv skin vertex sits on its EQSLE arc/line skin to 1e-3 m.
+
+    The two skins describe the same vessel in two representations, so every
+    vertex of a coil_vv polyline must lie on the matching EQSLE.DATA skin
+    (inner to ``vessel_skin_inner``, outer to ``vessel_skin_outer``).  The
+    distance is measured to the nearest segment, with EQSLE arcs measured as
+    arcs rather than as their chord endpoints.
+    """
+    needed = [_FACILITY_EQSLE, _FACILITY_COIL_VV_OP1, _FACILITY_COIL_VV_OP2]
+    if not all(p.exists() for p in needed):
+        pytest.skip("facility source decks absent")
+    eqsle = sd.parse_eqsle_deck(_FACILITY_EQSLE)
+    for deck_path in (_FACILITY_COIL_VV_OP1, _FACILITY_COIL_VV_OP2):
+        deck = sd.parse_coil_vv_deck(deck_path)
+        for skin, eq_skin, name in (
+            (deck.vessel_skin_inner, eqsle.vessel_skin_inner, "inner"),
+            (deck.vessel_skin_outer, eqsle.vessel_skin_outer, "outer"),
+        ):
+            for chord in skin:
+                (r1, z1), (r2, z2) = chord.line_points()
+                for px, pz in ((r1, z1), (r2, z2)):
+                    distance = min(
+                        _point_segment_distance(px, pz, seg) for seg in eq_skin
+                    )
+                    assert distance <= 1e-3, (
+                        f"{deck_path.name} {name} vertex ({px}, {pz}) lies "
+                        f"{distance:.3e} m from the EQSLE skin"
+                    )
