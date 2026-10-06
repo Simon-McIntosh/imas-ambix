@@ -104,8 +104,16 @@
 </tbody></table></section>
     <section id="jtmm-sensor-channel-join-psrc-tc-raw" data-reckon="evidence">
       <h3>Processed PSRC magPbTC<i>i</i> to raw MDAC partner</h3>
-      <p>Processed PSRC <code>magPbTC{i}</code> recovers raw MDAC <code>magPbTC{i}</code> as its unique
-      best match for <strong>18 of 23</strong> (i = 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18).
+      <p>A raw partner counts as an identity only when the best raw match is the same index
+      <em>and</em> the fit is a scaled copy of it (slope near 1, high positive Pearson r). Processed
+      PSRC <code>magPbTC{i}</code> satisfies that for <strong>17 of 23</strong> (i = 1, 2, 3, 4, 5, 6,
+      7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17), at slope 0.995 to 1.008, Pearson r above 0.9998 and
+      runner-up ratio above 7.8.
+      <strong>Channel 18 is the one index match that is not an identity</strong>: the best raw match is
+      <code>magPbTC18</code>, but the fit is <code>a = &minus;4.197</code> at Pearson
+      <code>r = &minus;0.977</code> and runner-up ratio 1.151 &mdash; an anti-correlated, unseparated
+      near-duplicate, not a scaled copy, so it does not evidence that PSRC <code>magPbTC18</code> is
+      raw MDAC <code>magPbTC18</code>.
       Channels 19, 20, 21, 22, 23 have no unique raw partner: their best raw match is
       not the same index and the runner-up ratio is near 1, so the raw channels at and around those
       indices are near-duplicates. The raw MDAC catalogue names searched are the 23 aliases
@@ -133,7 +141,7 @@
 <tr><td>magPbTC15</td><td>magPbTC15</td><td>1.00145</td><td>0.00122</td><td>0.9999</td><td>7.845</td><td>yes</td></tr>
 <tr><td>magPbTC16</td><td>magPbTC16</td><td>1.0019</td><td>0.00149</td><td>0.99996</td><td>12.12</td><td>yes</td></tr>
 <tr><td>magPbTC17</td><td>magPbTC17</td><td>1.00236</td><td>0.00059</td><td>0.99998</td><td>18.778</td><td>yes</td></tr>
-<tr><td>magPbTC18</td><td>magPbTC18</td><td>-4.19704</td><td>0.07611</td><td>-0.97719</td><td>1.151</td><td>yes</td></tr>
+<tr><td>magPbTC18</td><td>magPbTC18</td><td>-4.19704</td><td>0.07611</td><td>-0.97719</td><td>1.151</td><td>no</td></tr>
 <tr><td>magPbTC19</td><td>magPbTC11</td><td>0.12065</td><td>0.00113</td><td>0.98985</td><td>1.633</td><td>no</td></tr>
 <tr><td>magPbTC20</td><td>magPbTC12</td><td>0.13758</td><td>0.00726</td><td>0.97987</td><td>1.104</td><td>no</td></tr>
 <tr><td>magPbTC21</td><td>magPbTC12</td><td>0.10167</td><td>0.00649</td><td>0.9777</td><td>1.081</td><td>no</td></tr>
@@ -211,8 +219,9 @@
 </tbody></table></section>
     <section id="jtmm-sensor-channel-join-conclusion" data-reckon="evidence">
       <h3>What the binding node inherits</h3>
-      <p>The raw MDAC probe channels exist and are named: PSRC <code>magPbTC1..18</code> is raw MDAC
-      <code>magPbTC1..18</code> (identity), while <code>magPbTC19..23</code> have no unique raw partner.
+      <p>The raw MDAC probe channels exist and are named: PSRC <code>magPbTC1..17</code> is raw MDAC
+      <code>magPbTC1..17</code> (identity), while <code>magPbTC18</code> is the one index match that is
+      not an identity (anti-correlated near-duplicate) and <code>magPbTC19..23</code> have no unique raw partner.
       PID <code>1626 S006</code> channel <em>j</em> is processed PSRC and raw MDAC <code>magPbTC{j}</code>
       for j = 1..17. PID <code>1626 S007</code> channels do not resolve to distinct flux loops by
       correlation and must not be bound to <code>magFluxLp{i}</code> on the strength of a linear fit;
