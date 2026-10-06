@@ -26,7 +26,7 @@
   <title>JT-60SA Pulse IDSs and Equilibrium Animation | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="6">
+<meta name="plan-version" content="7">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -80,11 +80,22 @@
       carry geometry and no current. <code>ids_properties.homogeneous_time</code> is 1 only when
       every signal written into that IDS shares one time base, and otherwise 0 with each signal
       carrying its own time vector. That rule, which leaf takes which time base, and the write
-      layout live in <code>pulse_mint.py</code> and nowhere in the CLI. Each IDS is written with
-      <code>imas.DBEntry(path, "w", dd_version=...)</code> and <code>put</code>, the call
-      <code>selene_deck.write_phase_description</code> makes for the description store.
-      <code>imas_ambix/bench/store_arms.py</code> <code>write_imas_netcdf</code> is a benchmark arm
-      with its own receipt type, and the data package does not import from the bench.
+      layout live in <code>pulse_mint.py</code> and nowhere in the CLI. Each IDS is checked with
+      <code>ids.validate()</code> and written with <code>imas.DBEntry(path, "w", dd_version=...)</code>
+      and one <code>put</code>, so a malformed IDS is refused before it reaches disk.
+    </p>
+    <p>
+      No existing writer fits. nova's <code>nova/io/egress.py</code> <code>IdsEgress</code>, over
+      <code>nova/imas/ids_entry.py</code> <code>IdsEntry</code>, is the closest mechanism, and the mint
+      takes its validate-then-<code>put</code> rule from it. It cannot be the owner. It builds a fresh
+      IDS from a standard-name xarray store whose one shared <code>time</code> coordinate it always
+      writes as <code>homogeneous_time</code> = 1. The mint instead starts from the whole description
+      IDS, its signal-map rules carry no standard name, and its signals need not share a time base.
+      The other writers each own one product's IDS:
+      <code>selene_deck.write_phase_description</code> writes the description store,
+      <code>imas_ambix/challenge/thomson_ids.py</code> the challenge's Thomson IDS, and
+      <code>imas_ambix/bench/store_arms.py</code> <code>write_imas_netcdf</code> a benchmark arm with
+      its own receipt type; the data package imports from none of them.
     </p>
     <p>
       The interface account: one public function, <code>mint_pulse</code>, and one command,
@@ -171,7 +182,8 @@
       JT-60SA imas-ink driver, rather than a parallel script. That script already opens a directory
       of <code>{ids}.nc</code> files at the catalogue's DD version and builds the geometry with
       <code>extract_geometry</code>, and a minted pulse directory has the same layout. It gains one
-      option naming the pulse. With it, the script opens only the minted IDSs in
+      option naming the pulse, and retires nothing: the script takes no options today, and a pulse
+      is a new input to it. With it, the script opens only the minted IDSs in
       <code>/work/projects/imas_gpu/jt60sa/ids/101154/</code>, builds the geometry from
       <code>wall</code>, <code>pf_active</code> and <code>magnetics</code>, and calls
       <code>animate_pulse</code> on <code>equilibrium</code> with the probes and flux loops left out.
