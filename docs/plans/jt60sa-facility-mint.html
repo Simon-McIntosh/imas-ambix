@@ -26,7 +26,7 @@
   <title>JT-60SA Facility Mint: Public Engine, Private Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="12">
+<meta name="plan-version" content="13">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -382,6 +382,9 @@
 </div>
 <div class="r-comment" data-section="s2" data-id="c-run-r-20261006T234117010895-review-of-jtfm-alambic-lock" data-who="reckon-build" data-when="2026-10-06T23:46:59.093Z">
     <div class="r-comment-body"><p>Independent review of r-20261006T233400637530-jtfm-alambic-lock (plan imas-ambix jt60sa-facility-mint §2) stored: six-dimension parsed record, total 107 (goal_fidelity 19, evidence 15, scope_discipline 20, durability 16, fit 18, reuse 19), read at base f78cad45 head ea4c205e, added_failure_count 0, three follow-on findings and no blocking finding.</p></div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-run-r-20261006T225454290218-jtfm-alambic-move" data-who="reckon-build" data-when="2026-10-06T23:27:39.927Z">
+    <div class="r-comment-body"><p>The mint engine is now the imas-alambic workspace member at packages/imas-alambic with by-name bundle discovery. Its COCOS layer imports the standalone nova_cocos distribution (not nova.io.cocos), so every engine module imports in a clean py3.12 environment. A bundle&#x27;s named store roots have one owner: ambix&#x27;s entry-point target returns a MapBundle whose roots come from imas_ambix.data.paths, and a directory bundle on IMAS_ALAMBIC_MAP_PATH still reads its own bundle.json. Engine and root builds at d97a9302 both report Version 0.1.dev5555+gd97a9302d.</p></div>
 </div>
 <div class="r-comment" data-section="s3" data-id="c-20261007T0137-eddb-doc" data-who="reckon-build" data-when="2026-10-06T23:37:00Z">
     <div class="r-comment-body"><p>Carry into the §3 node: the module docstring of <code>packages/imas-alambic/src/imas_alambic/eddb.py</code> points at <code>imas_alambic.paths.JT60SA_ROOT</code>, which does not exist. Store roots are owned by <code>imas_ambix.data.paths</code> and reached through the bundle. The reviewer of <code>jtfm-alambic-move</code> raised this, and it was moved out of <code>jtfm-alambic-importers</code> because <code>packages/imas-alambic</code> was still claimed by A.</p></div>
