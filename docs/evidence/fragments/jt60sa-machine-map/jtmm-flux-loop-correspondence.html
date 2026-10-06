@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="jtmm-flux-loop-correspondence-landing">
+      <p>Offline census on the cached EDDB store
+      <code>/work/projects/imas_gpu/jt60sa/101154.zarr</code> (shot E101154), read-only, run
+      in place on the fleet allocation. Each of the 34 processed PSRC flux loops
+      <code>magFluxLp1..34</code> is related to each of the 34 raw MDAC flux loops
+      <code>magFlxLp1..34</code>. Both channel families declare units <code>Wb</code> in
+      their zarr attributes, so the raw channel already carries flux rather than a voltage.
+      Every MDAC channel is interpolated onto its PSRC channel's own time base over the
+      common window (PSRC spans 0.000 to 11.519 s, MDAC 0.00025 to 71.519 s, so the
+      comparison window is the PSRC extent), and two relations are fitted by least squares
+      for every (PSRC, MDAC) pair: <code>PSRC = a*MDAC + b</code> and
+      <code>PSRC = a*cumtrapz(MDAC, t) + b</code>. For each PSRC channel the best pair is
+      reported below with its fitted coefficients, the residual scaled to the PSRC channel's
+      own range, and the ratio of the runner-up residual to the best.
+      <strong>The correspondence is the identity permutation for channels 1 through 27
+      only; channels 28 through 34 have no unique raw partner.</strong> This census does not
+      guess which <code>geo.in</code> loop position each channel is &mdash; that mapping stays
+      with SELENE's <code>getseldata</code> index arrays.</p>
+    </section>
+
+    <section id="jtmm-flux-loop-correspondence-identity">
+      <h3>Identity holds for 1..27, fails for 28..34</h3>
+      <p>For PSRC <code>magFluxLp{I}</code> with I in 1..27 the best raw channel is
+      <code>magFlxLp{I}</code> under the linear relation, with slope <code>a</code> in 0.985
+      to 1.030, offset <code>b</code> in &minus;0.033 to +0.061 Wb, a relative residual below
+      0.7&#8239;%, and a runner-up ratio above 2 (mostly above 5). The two channels' ranges
+      agree to within 0.3&#8239;% at every one of those indices, so the raw and processed loop
+      at index I are the same physical measurement at essentially unit scale. Channels 28
+      through 34 do not fit any raw channel: their best residual exceeds 5&#8239;% of range
+      under every candidate, their runner-up ratio is near 1 (1.01 to 1.42), and PSRC
+      <code>magFluxLp28..34</code> carry a small signal (range about 0.08 to 0.15 Wb) while
+      the same-index MDAC <code>magFlxLp28..34</code> carry a large one (range about 2.7 to
+      2.9 Wb; those seven raw channels are mutually uncorrelated, so they are distinct
+      signals rather than one duplicated). The correspondence is therefore <strong>not</strong>
+      a global identity permutation; it is the identity on the 27 indices that SELENE
+      positions and undefined on the remaining seven.</p>
+    </section>
+
+    <section id="jtmm-flux-loop-correspondence-flags">
+      <h3>Channels that fail a uniqueness or residual test</h3>
+      <p>Best match not unique (runner-up ratio below 2): <code>magFluxLp28</code>, <code>magFluxLp29</code>, <code>magFluxLp30</code>, <code>magFluxLp31</code>, <code>magFluxLp32</code>, <code>magFluxLp33</code>, <code>magFluxLp34</code>.</p>
+      <p>Relative residual above 5&#8239;%: <code>magFluxLp28</code>, <code>magFluxLp29</code>, <code>magFluxLp31</code>, <code>magFluxLp32</code>, <code>magFluxLp33</code>, <code>magFluxLp34</code>.</p>
+      <p>Both tests fail for: <code>magFluxLp28</code>, <code>magFluxLp29</code>, <code>magFluxLp31</code>, <code>magFluxLp32</code>, <code>magFluxLp33</code>, <code>magFluxLp34</code>. Every one of these is in the 28..34 group; no channel
+      in 1..27 fails either test, and no channel in 1..27 has a runner-up ratio below 2 (the
+      smallest is 2.14 at <code>magFluxLp24</code>).</p>
+    </section>
+
+    <section id="jtmm-flux-loop-correspondence-table">
+      <h3>Per-channel table, E101154</h3>
+      <p>Columns: processed PSRC channel; best raw MDAC channel; relation (<code>linear</code>
+      = direct, <code>integral</code> = cumulative time integral of the raw channel); fitted
+      slope <code>a</code>; fitted offset <code>b</code> in Wb; RMS residual divided by the
+      PSRC channel's range; RMS residual of the runner-up pair in Wb; ratio of runner-up
+      residual to best residual. The first six rows of channels 28..34 carry a
+      <code>nonunique</code> or <code>hires</code> class as noted above.</p>
+      <table>
+        <thead><tr><th>PSRC</th><th>best MDAC</th><th>relation</th><th>a</th><th>b [Wb]</th>
+        <th>rel. residual</th><th>runner-up RMS [Wb]</th><th>ratio</th></tr></thead>
+        <tbody>
+          <tr><td><code>magFluxLp1</code></td><td><code>magFlxLp1</code></td><td>linear</td><td>+1.00670</td><td>+0.02325</td><td>3.853e-03</td><td>7.661e-02</td><td>22.48</td></tr>
+          <tr><td><code>magFluxLp2</code></td><td><code>magFlxLp2</code></td><td>linear</td><td>+1.01987</td><td>+0.01390</td><td>4.803e-03</td><td>5.399e-02</td><td>19.87</td></tr>
+          <tr><td><code>magFluxLp3</code></td><td><code>magFlxLp3</code></td><td>linear</td><td>+1.03025</td><td>+0.00351</td><td>5.807e-03</td><td>3.480e-02</td><td>15.19</td></tr>
+          <tr><td><code>magFluxLp4</code></td><td><code>magFlxLp4</code></td><td>linear</td><td>+1.01836</td><td>+0.00322</td><td>5.565e-03</td><td>1.154e-02</td><td>5.38</td></tr>
+          <tr><td><code>magFluxLp5</code></td><td><code>magFlxLp5</code></td><td>linear</td><td>+1.01473</td><td>+0.01194</td><td>4.827e-03</td><td>1.106e-02</td><td>7.15</td></tr>
+          <tr><td><code>magFluxLp6</code></td><td><code>magFlxLp6</code></td><td>linear</td><td>+1.01800</td><td>+0.01237</td><td>4.744e-03</td><td>9.326e-03</td><td>15.20</td></tr>
+          <tr><td><code>magFluxLp7</code></td><td><code>magFlxLp7</code></td><td>linear</td><td>+1.00255</td><td>-0.03276</td><td>3.579e-04</td><td>2.758e-01</td><td>105.10</td></tr>
+          <tr><td><code>magFluxLp8</code></td><td><code>magFlxLp8</code></td><td>linear</td><td>+1.02004</td><td>+0.01245</td><td>1.709e-03</td><td>5.578e-03</td><td>31.46</td></tr>
+          <tr><td><code>magFluxLp9</code></td><td><code>magFlxLp9</code></td><td>linear</td><td>+1.02395</td><td>+0.01575</td><td>4.909e-03</td><td>1.322e-02</td><td>16.27</td></tr>
+          <tr><td><code>magFluxLp10</code></td><td><code>magFlxLp10</code></td><td>linear</td><td>+0.98982</td><td>+0.01603</td><td>6.279e-03</td><td>1.506e-02</td><td>12.33</td></tr>
+          <tr><td><code>magFluxLp11</code></td><td><code>magFlxLp11</code></td><td>linear</td><td>+0.99084</td><td>+0.01646</td><td>1.756e-03</td><td>2.492e-02</td><td>41.12</td></tr>
+          <tr><td><code>magFluxLp12</code></td><td><code>magFlxLp12</code></td><td>linear</td><td>+0.99936</td><td>+0.03504</td><td>1.363e-04</td><td>6.412e-02</td><td>597.19</td></tr>
+          <tr><td><code>magFluxLp13</code></td><td><code>magFlxLp13</code></td><td>linear</td><td>+0.99592</td><td>+0.04187</td><td>1.941e-03</td><td>7.054e-02</td><td>39.26</td></tr>
+          <tr><td><code>magFluxLp14</code></td><td><code>magFlxLp14</code></td><td>linear</td><td>+1.00003</td><td>+0.04401</td><td>3.246e-03</td><td>7.292e-02</td><td>19.63</td></tr>
+          <tr><td><code>magFluxLp15</code></td><td><code>magFlxLp15</code></td><td>linear</td><td>+1.00015</td><td>+0.02949</td><td>1.469e-03</td><td>9.717e-02</td><td>76.61</td></tr>
+          <tr><td><code>magFluxLp16</code></td><td><code>magFlxLp16</code></td><td>linear</td><td>+0.99608</td><td>+0.03250</td><td>8.909e-04</td><td>6.305e-02</td><td>63.19</td></tr>
+          <tr><td><code>magFluxLp17</code></td><td><code>magFlxLp17</code></td><td>linear</td><td>+0.98529</td><td>+0.04946</td><td>3.124e-03</td><td>6.115e-02</td><td>10.60</td></tr>
+          <tr><td><code>magFluxLp18</code></td><td><code>magFlxLp18</code></td><td>linear</td><td>+0.99017</td><td>+0.05602</td><td>4.332e-03</td><td>4.933e-02</td><td>5.65</td></tr>
+          <tr><td><code>magFluxLp19</code></td><td><code>magFlxLp19</code></td><td>linear</td><td>+0.99369</td><td>+0.05646</td><td>5.040e-03</td><td>6.730e-02</td><td>7.35</td></tr>
+          <tr><td><code>magFluxLp20</code></td><td><code>magFlxLp20</code></td><td>linear</td><td>+1.00487</td><td>+0.04525</td><td>5.094e-03</td><td>9.705e-02</td><td>15.31</td></tr>
+          <tr><td><code>magFluxLp21</code></td><td><code>magFlxLp21</code></td><td>linear</td><td>+1.00745</td><td>+0.04380</td><td>1.252e-03</td><td>4.381e-02</td><td>23.67</td></tr>
+          <tr><td><code>magFluxLp22</code></td><td><code>magFlxLp22</code></td><td>linear</td><td>+1.00766</td><td>+0.04615</td><td>9.264e-04</td><td>4.285e-02</td><td>30.78</td></tr>
+          <tr><td><code>magFluxLp23</code></td><td><code>magFlxLp23</code></td><td>linear</td><td>+1.00251</td><td>+0.06117</td><td>5.847e-03</td><td>2.130e-02</td><td>2.29</td></tr>
+          <tr><td><code>magFluxLp24</code></td><td><code>magFlxLp24</code></td><td>linear</td><td>+1.00256</td><td>+0.05473</td><td>4.796e-03</td><td>2.127e-02</td><td>2.14</td></tr>
+          <tr><td><code>magFluxLp25</code></td><td><code>magFlxLp25</code></td><td>linear</td><td>+1.00285</td><td>+0.04765</td><td>3.949e-03</td><td>2.630e-02</td><td>2.96</td></tr>
+          <tr><td><code>magFluxLp26</code></td><td><code>magFlxLp26</code></td><td>linear</td><td>+1.00288</td><td>+0.04038</td><td>3.114e-03</td><td>4.083e-02</td><td>5.72</td></tr>
+          <tr><td><code>magFluxLp27</code></td><td><code>magFlxLp27</code></td><td>linear</td><td>+1.00225</td><td>+0.04173</td><td>2.784e-03</td><td>4.136e-02</td><td>8.60</td></tr>
+          <tr class="nonunique hires"><td><code>magFluxLp28</code></td><td><code>magFlxLp11</code></td><td>integral</td><td>+0.16687</td><td>+0.02823</td><td>6.544e-02</td><td>1.077e-02</td><td>1.42</td></tr>
+          <tr class="nonunique hires"><td><code>magFluxLp29</code></td><td><code>magFlxLp11</code></td><td>integral</td><td>+0.20774</td><td>+0.03313</td><td>6.572e-02</td><td>1.150e-02</td><td>1.24</td></tr>
+          <tr class="nonunique"><td><code>magFluxLp30</code></td><td><code>magFlxLp24</code></td><td>linear</td><td>+0.05925</td><td>-0.01323</td><td>4.960e-02</td><td>6.101e-03</td><td>1.03</td></tr>
+          <tr class="nonunique hires"><td><code>magFluxLp31</code></td><td><code>magFlxLp19</code></td><td>linear</td><td>+0.07145</td><td>-0.01035</td><td>5.343e-02</td><td>8.637e-03</td><td>1.10</td></tr>
+          <tr class="nonunique hires"><td><code>magFluxLp32</code></td><td><code>magFlxLp7</code></td><td>integral</td><td>+0.00341</td><td>-0.02295</td><td>6.759e-02</td><td>7.277e-03</td><td>1.01</td></tr>
+          <tr class="nonunique hires"><td><code>magFluxLp33</code></td><td><code>magFlxLp27</code></td><td>linear</td><td>-0.04703</td><td>+0.00258</td><td>5.911e-02</td><td>6.369e-03</td><td>1.12</td></tr>
+          <tr class="nonunique hires"><td><code>magFluxLp34</code></td><td><code>magFlxLp14</code></td><td>linear</td><td>+0.05935</td><td>+0.03813</td><td>6.632e-02</td><td>6.982e-03</td><td>1.33</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="jtmm-flux-loop-correspondence-instrument">
+      <h3>Instrument check: the fitter sees a relation where one exists</h3>
+      <p>The absence claim for 28..34 rests on the same machinery that recovers
+      the relation for 1..27, so its sensitivity is checked separately
+      (<code>instrument_check.py</code>, <code>instrument_check.log</code>). For
+      PSRC <code>magFluxLp1</code>..<code>magFluxLp5</code> and
+      <code>magFluxLp27</code> the best-correlated raw channel is the same index at
+      Pearson <code>r</code> of 0.9995 to 0.9999 &mdash; three to four nines
+      &mdash; so a present linear partner is recovered unambiguously at those
+      indices. For 28..34 the best correlation is high (0.78 to 0.98) but the
+      partner it names moves off-identity (raw channels 26, 26, 24, 19, 31, 1, 14),
+      and correlation is not the discriminator here: every flux loop around a
+      tokamak tracks the plasma current during the ramp, so any two loops correlate
+      strongly without being the same sensor. The affine residual over a common
+      window is what separates a real partner (below 0.7&#8239;% of range at
+      1..27) from a coincidental one (above 5&#8239;% at 28..34), and that is the
+      measure the table reports.</p>
+    </section>
+
+    <section id="jtmm-flux-loop-correspondence-provenance">
+      <h3>Provenance</h3>
+      <p>Script <code>flux_loop_correspondence.py</code>, log
+      <code>flux_loop_correspondence.log</code>, full table
+      <code>flux_loop_table.json</code>, all under
+      <code>/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/jtmm-flux-loop-correspondence</code>.
+      Read via <code>zarr.open_group(..., mode="r")</code> with zarr 3.2.1 on
+      <code>/home/ITER/mcintos/Code/imas-ambix/.venv/bin/python</code>. No write under the
+      cache root, no network, no contact with the JT-60SA server.</p>
+    </section>
+  </main>
+</body>
+</html>
