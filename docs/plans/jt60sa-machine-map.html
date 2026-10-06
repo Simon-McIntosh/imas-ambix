@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.9">
-<meta name="plan-version" content="239">
+<meta name="plan-version" content="240">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -1491,6 +1491,9 @@
 </div>
 <div class="r-comment" data-section="s6" data-id="c-20261006T2045-s6-drive-turns-landed" data-who="reckon-build" data-when="2026-10-06T20:45:00Z">
     <div class="r-comment-body"><p>gate tests/gs/test_operator.py passed (23 tests, exit 0); jtmm-drive-turns merged as 017afed4, review 112/120, no added failure. assemble_pf_currents applies a per-column scale from each drive's declared ampere-turns per ampere; MAST's assembled currents are unchanged on a cached shot and a JT-60SA CS drive of 1 A at 40 ampere-turns per ampere gives 40. The scale lives in a new ForwardOperator dataclass field, pf_current_scales, not a module-level public name. It chooses the folded kA-turn convention or the declared weight by whether a column's element weight equals the declared weight, so the converter repair jtmm-coil-turns-source may lead to revisits that choice. The review's follow-on, shapes() and the summary still reporting a fixed kA-turn factor of 1000, folds into that repair.</p></div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-run-r-20261006T200342290841-jtmm-drive-turns" data-who="reckon-build" data-when="2026-10-06T20:35:29.477Z">
+    <div class="r-comment-body"><p>jtmm-drive-turns made ForwardOperator.assemble_pf_currents apply a per-channel scale instead of the fixed kA-turn factor: build_operator derives each pf column&#x27;s scale from the drive&#x27;s declared ampere_turns_per_ampere, keeping the flat x1000 where the description already folded that weight into the element xmult (MAST amc, kA-turn, turns=1) and using the declared weight as the missing turn count where the elements are normalised (JT-60SA SELENE, 40 A-turn/A CS, 16 EF), so MAST assembled currents are unchanged on a cached shot while a JT-60SA CS drive of 1 A at 40 A-turn/A contributes 40 A-turn; recorded in docs/evidence/fragments/jt60sa-machine-map/jtmm-drive-turns.html.</p></div>
 </div>
 </section>
 </main>
