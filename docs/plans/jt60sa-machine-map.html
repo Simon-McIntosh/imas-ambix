@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.83">
-<meta name="plan-version" content="194">
+<meta name="plan-version" content="195">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -1243,7 +1243,10 @@
     <div class="r-comment-body"><p>gate tests/data/test_jt60sa_unit_audit.py passed (7 tests, exit 0; the Wb to mWb mutation reddens it); jtmm-unit-audit merged as f4b9b9b5, review 112/120, no added failure. Every unit across the 56 JT-60SA signal rules and the catalogue's 168 bindings resolves through the DD 4.1.1 vocabulary read from imas-python, each target unit equals its leaf's unit, and each of the five unit pairs carries a hand-computed factor. Every pair today is an identity pair, so the factor derivation is unexercised; the FAME scalar binding node adds a prefixed-pair test, and asserts that all three maps declare one DD version, which the audit reads from the magnetics map alone.</p></div>
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20261006T171719539327-jtmm-unit-audit" data-who="reckon-build" data-when="2026-10-06T17:26:38.696Z">
-    <div class="r-comment-body"><p>Added tests/data/test_jt60sa_unit_audit.py, which audits every declared source_unit and target_unit across the three packaged JT-60SA signal maps (56 rules) and the machine-map catalogue (168 bindings) against the Data Dictionary unit vocabulary read from imas-python&#x27;s bundled dictionaries at the catalogue&#x27;s own DD version 4.1.1, requires each target_unit to equal the DD leaf&#x27;s unit (dimensionless name/index leaves written as 1), and asserts the derived factor for each of the five distinct unit pairs against one hand-computed value; the gate is 7 passed EXIT=0 and the declared mutation (one magnetics rule target_unit Wb -&gt; mWb) reddens the audit (5 failed EXIT=1).</p></div>
+    <div class="r-comment-body"><p>Added tests/data/test_jt60sa_unit_audit.py, which audits every declared source_unit and target_unit across the three packaged JT-60SA signal maps (56 rules) and the machine-map catalogue (168 bindings) against the Data Dictionary unit vocabulary read from imas-python's bundled dictionaries at the catalogue's own DD version 4.1.1, requires each target_unit to equal the DD leaf's unit (dimensionless name/index leaves written as 1), and asserts the derived factor for each of the five distinct unit pairs against one hand-computed value; the gate is 7 passed EXIT=0 and the declared mutation (one magnetics rule target_unit Wb -&gt; mWb) reddens the audit (5 failed EXIT=1).</p></div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-run-r-20261006T172653713143-review-of-jtmm-unit-audit" data-who="reckon-build" data-when="2026-10-06T17:41:17.013Z">
+    <div class="r-comment-body"><p>Independent review of r-20261006T171719539327-jtmm-unit-audit stored parsed at the two fenced record paths: six dimensions scored, total 112/120 (goal_fidelity 20, evidence 18, scope_discipline 20, durability 15, fit 19, reuse 20), reviewed_base_sha 70794f75d9669ec8261bd02a4b7c2e2fdc855870 and reviewed_head_sha c3233b8adad1bc8dbe2df553d8e30cd95e14b196, added_failure_count 0 with added_failure_ids empty; two follow-on findings and no blocking finding.</p></div>
 </div>
 </section>
 </main>
