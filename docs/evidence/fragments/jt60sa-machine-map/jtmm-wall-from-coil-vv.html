@@ -1,0 +1,129 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtmm-wall-from-coil-vv">
+  <header>
+    <h3>wall and vessel from the coil_vv contour tables, both phases</h3>
+    <p class="meta">
+      Node <code>jtmm-wall-from-coil-vv</code> &middot;
+      date 2026-10-06 &middot; plan <code>jt60sa-machine-map</code> &sect;4
+    </p>
+  </header>
+
+  <div id="jtmm-wall-from-coil-vv-why">
+    <p>
+      By the lead's decision <code>wall-from-coil-vv-tables</code> both phases
+      now take the wall and vessel from their own <code>coil_vv_OP{1,2}.dat</code>.
+      Each deck carries an <code>nlim=51</code> first-wall polygon (OP1 line 393,
+      OP2 line 371; the two differ) and a 128-row contour block whose
+      <code>Inner VV=50</code> and <code>Outer VV=50</code> runs are the vessel
+      inner and outer skins and whose 28 <code>D-probe#n</code> rows are probes,
+      excluded. <code>imas_ambix/data/selene_deck.py</code> now parses that
+      block, draws the limiter unit from the polygon and the annular vessel
+      unit's <code>outline_inner</code> and <code>outline_outer</code> from the
+      two skins, and takes the deck's first passive resistivity run as the
+      vessel (the cryostat still comes from <code>EQSLE.DATA</code>).
+    </p>
+    <p>
+      The cryostat group is now accepted only when every filament lies outside
+      the vessel's outer-skin polyline (a point-in-polygon test), replacing the
+      R/Z bounding-box test that accepted filaments in the inboard and
+      top/bottom gaps the box covers but the vessel does not.
+    </p>
+  </div>
+
+  <div id="jtmm-wall-from-coil-vv-store">
+    <p>
+      The OP1 deck was added to the store beside the three copies already
+      there: <code>source/coil_vv_OP1.dat</code> sha256
+      <code>55d97f6989368348108aef384b1ff1b737803fa9be6ac0b84aa718bedfda01cb</code>
+      (matches the jtmm-geometry-source inventory), recorded in
+      <code>source/provenance.json</code> with the other three. Both phases were
+      re-converted from the sha256-verified copies; each new file was written
+      under a temporary name and renamed into place, and the empty staging
+      directory left by the previous run was removed.
+    </p>
+    <table>
+      <thead>
+        <tr><th>phase / file</th><th>replaced sha256</th><th>new sha256</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>OP1/wall.nc</td>
+          <td><code>8fca2e98db4102ab4cf61cf9d2a54b7e3895988a595ef86b22d72d368de10720</code></td>
+          <td><code>8e766da9b2d44af1f18099dfe66c55c3fcfeb92c8bc7e2f785fb7c84b51600f1</code></td>
+        </tr>
+        <tr>
+          <td>OP2/wall.nc</td>
+          <td><code>5d26b2ccde604967d102bb207bf1c134b614cd7bbf858869299361f8e8f721f5</code></td>
+          <td><code>5defa715ed25ec85da8bce655caa9ec9f1e5b57cd04151ad540a768c01f2c991</code></td>
+        </tr>
+        <tr>
+          <td>OP1/pf_passive.nc</td>
+          <td><code>fbdce429127e172b605817747c2ec860f565b0b233152ef08fc60ad4f48c7d33</code></td>
+          <td><code>fbdce429127e172b605817747c2ec860f565b0b233152ef08fc60ad4f48c7d33</code> (unchanged)</td>
+        </tr>
+        <tr>
+          <td>OP2/pf_passive.nc</td>
+          <td><code>d138d088da6edb84933fba96618529e94a00f6f1ba54ddb719e8a820fe9852fe</code></td>
+          <td><code>d138d088da6edb84933fba96618529e94a00f6f1ba54ddb719e8a820fe9852fe</code> (unchanged)</td>
+        </tr>
+        <tr>
+          <td>OP1/receipt.json</td>
+          <td><code>43fe9b08aff8da6e2fed3b904e564755e0d2d81eeae80ecf0395d266a60eace0</code></td>
+          <td><code>52e23d631a1adc8853041d7520bb86fd7b96da3aedff0d761f8d9950c13f4522</code></td>
+        </tr>
+        <tr>
+          <td>OP2/receipt.json</td>
+          <td><code>717984c7cf5a29290b917aca7593544acaae2e7c264208e2ecce32c8850d208e</code></td>
+          <td><code>7549885cae49a18650686b93fd4b4d2fecb0019e56e9e04b4793276f68b25677</code></td>
+        </tr>
+      </tbody>
+    </table>
+    <p>
+      <code>OP{1,2}/pf_active.nc</code>, <code>magnetics.nc</code> and
+      <code>tf.nc</code> are byte-unchanged (sha256 <code>aa623601b34a&hellip;</code>,
+      <code>bc8ed1acaa15&hellip;</code>, <code>c5549058c3f8&hellip;</code> in both
+      phases); the vessel-run filament geometry did not change, so the
+      <code>pf_passive.nc</code> bytes are unchanged too. The changes are the
+      wall and the receipts. Every file read back through
+      <code>imas.DBEntry</code> at DD 4.1.1.
+    </p>
+  </div>
+
+  <div id="jtmm-wall-from-coil-vv-contours">
+    <p>Contour point counts per phase, read from the converted store's wall.nc:</p>
+    <table>
+      <thead>
+        <tr><th>phase</th><th>limiter points</th><th>vessel inner points</th><th>vessel outer points</th><th>type.index</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>OP1</td><td>51 (closed)</td><td>51</td><td>51</td><td>2</td></tr>
+        <tr><td>OP2</td><td>51 (closed)</td><td>51</td><td>51</td><td>2</td></tr>
+      </tbody>
+    </table>
+    <p>
+      <code>pf_passive</code>: OP1 <code>VV</code> 63 filaments at 7.76e-7
+      &Omega;&middot;m and <code>CRYOSTAT</code> 57 at 7.20e-7; OP2
+      <code>VV</code> 98 at 7.20e-7 and <code>CRYOSTAT</code> 57 at 7.20e-7.
+      The two limiters differ (the first wall changed for OP2); the vessel
+      contour table is identical in both decks.
+    </p>
+  </div>
+
+  <div id="jtmm-wall-from-coil-vv-gate">
+    <p>
+      Gate: <code>pytest tests/data/test_selene_deck.py
+      tests/data/test_jt60sa_machine_map.py test_description_reader.py
+      test_description_identity.py test_transform_engine.py</code> &mdash;
+      58 passed, exit 0, at <code>fbb7642d</code>. Whole-tree
+      <code>ruff check imas_ambix tests</code> exits 0.
+    </p>
+    <p>
+      Negative control: rebuilding OP1's limiter from <code>EQSLE.DATA</code>'s
+      segment list again makes
+      <code>test_both_phases_take_their_wall_from_their_own_coil_vv_deck</code>
+      fail on <code>assert o["lim_r"].size == 51</code> (<code>assert 150 ==
+      51</code>), exit 1. The declared SATORI policy's tests assert, per phase,
+      a 51-point closed limiter, 51-point inner and outer outlines, no D-probe
+      point in either, and differing OP1/OP2 limiters.
+    </p>
+  </div>
+</section>
