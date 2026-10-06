@@ -26,7 +26,7 @@
   <title>JT-60SA Facility Mint: Public Engine, Private Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="6">
+<meta name="plan-version" content="7">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -189,11 +189,18 @@
     </p>
     <p>
       On the analysis server the EDDB read runs locally instead of over ssh, and the reader stays
-      the one <code>REMOTE_SCRIPT</code> (<code>eddb_remote.py:373</code>). A second
-      implementation of the existing <code>Transport</code> protocol (<code>eddb_remote.py:153</code>),
-      passed through <code>RemoteEddbExtractor(..., transport=...)</code>, runs that script under
-      the server's own Python with no ssh hop. The envelope and <code>decode_batch</code> are
-      therefore shared, and no reader is extracted or duplicated.
+      the one <code>REMOTE_SCRIPT</code> (<code>eddb_remote.py:373</code>). The ssh hop is not
+      part of the <code>Transport</code> seam (<code>eddb_remote.py:153</code>).
+      <code>RemoteEddbExtractor._argv()</code> (<code>eddb_remote.py:322</code>) builds it into the
+      argv, putting <code>ssh_command</code> in front of a module-load shell string. Meanwhile
+      <code>SshTransport.run</code> is a plain subprocess runner over whatever argv it receives.
+      The local transport is therefore that same runner fed a local argv. With an empty
+      <code>ssh_command</code>, <code>_argv()</code> composes
+      <code>nice -n 19 &lt;python&gt; -c REMOTE_SCRIPT</code> as a list: no ssh prefix and no
+      module shell, because the venv's own Python already has numpy. No new <code>Transport</code>
+      class is added. <code>SshTransport</code> is renamed to say it runs a subprocess, and every
+      caller moves with it. The envelope and <code>decode_batch</code> are shared, and no reader is
+      extracted or duplicated.
     </p>
     <p>
       Done-when: with a bundle directory on <code>IMAS_ALAMBIC_MAP_PATH</code>, the generalised
