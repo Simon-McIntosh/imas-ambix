@@ -550,13 +550,17 @@ class ForwardOperator:
     #: recognisable as the same hardware.  Empty when identity was not resolved,
     #: which keeps an operator built without registry access fully usable.
     physical_digest: str = ""
-    #: Per G_pf column, the factor converting that column's raw amc channel value
-    #: to amperes: the drive's declared ampere-turns per ampere times the
-    #: channel's declared unit factor.  A source that declares its coil-current
-    #: channels in amperes (JT-60SA MMSYS) therefore drives its winding's turn
-    #: count, while a channel whose source declares no drive keeps the MAST
-    #: ``kA · turn`` conversion (:data:`_KA_TURN_TO_A`).  ``None`` on an operator
-    #: built without declared drives falls back to that MAST conversion.
+    #: Per G_pf column, the factor converting that column's raw channel value to
+    #: amperes.  For a drive stating a real turn total the elements are
+    #: normalised, so the factor is that total divided by the column's own summed
+    #: filament weight — the column carries the filament sum and the declared
+    #: total spans the whole winding, so one division distributes the winding's
+    #: ampere-turns across the filaments taken and counts none twice.  A drive
+    #: whose declared total equals the column's own weight has that weight
+    #: already folded into the element xmult and its channel is in ``kA · turn``,
+    #: so it keeps the flat conversion (:data:`_KA_TURN_TO_A`), as does a channel
+    #: that declares no drive at all.  ``None`` on an operator built without
+    #: declared drives falls back to that conversion.
     pf_current_scales: np.ndarray | None = None
 
     # ---- forward apply ----
@@ -594,11 +598,12 @@ class ForwardOperator:
         current in the RAW stored units the source declares.  One entry per G_pf
         column = one physical coil; each is converted to amperes by that
         column's :attr:`pf_current_scales` factor — the drive's declared
-        ampere-turns per ampere times the channel's declared unit factor, so a
-        source that measures its coil channels in amperes (JT-60SA MMSYS) drives
-        its winding's turn count while a source whose channels are stored in
-        ``kA · turn`` (MAST amc; ``turns = 1``) keeps the flat ``× 1000``
-        conversion.  The per-filament ``xmult`` split AND the merge of the
+        ampere-turns per ampere divided by the column's own summed filament
+        weight when the drive states a real turn total (a source measuring its
+        coil channels in amperes, JT-60SA MMSYS), or the flat ``× 1000``
+        conversion when the declared total is already folded into the element
+        weights and the channel is in ``kA · turn`` (MAST amc; ``turns = 1``).
+        The per-filament ``xmult`` split AND the merge of the
         coil's redundant fcoil circuits are already folded into :attr:`g_pf` at
         build time, so each coil current is applied exactly once.  Missing
         channels contribute zero (and were already flagged at build).
@@ -618,9 +623,16 @@ class ForwardOperator:
         identity = (
             {"physical_digest": self.physical_digest} if self.physical_digest else {}
         )
+        scales = self.pf_current_scales
         return {
             "signature_key": self.signature_key,
             **identity,
+            # The factor each G_pf column's raw channel value is multiplied by
+            # before it drives the column (see :attr:`pf_current_scales`).
+            "pf_current_scales": (
+                [float(value) for value in scales] if scales is not None else None
+            ),
+            "pf_amc_channels": list(self.pf_amc_channels),
             "n_sensor": len(self.sensor_channels),
             "n_flux_loop": self.sensor_kind.count("flux_loop"),
             "n_b_probe": self.sensor_kind.count("b_probe"),
@@ -911,27 +923,33 @@ def build_operator(
             pf_current_scales.append(_KA_TURN_TO_A)
         else:
             # A declared drive names the channel and the ampere turns one ampere
-            # of it drives.  Two source conventions reach here, distinguished by
-            # whether the weight is already the column's own — the description
-            # states it either by folding it into the element xmult (so the
-            # column already carries it) or by leaving the elements normalised and
-            # the turn count to be applied here.
+            # of it drives.  The column the current multiplies ALREADY sums the
+            # circuit's filaments, so the per-ampere current is the declared
+            # winding total divided by the column's own summed filament weight:
+            # the column carries the filament sum and the declared total spans
+            # the whole winding, so one division distributes the winding's
+            # ampere-turns across the filaments taken and counts none twice.
             ampere_turns = float(drive.ampere_turns_per_ampere)
             column_weight = float(xmult_by_circuit.get(circs[0], 0.0))
+            # A drive whose declared total equals the column's own summed weight
+            # has that weight already folded into the element xmult, so the
+            # WINDING is fully represented by the column and the channel is left
+            # in kA · turn: only the flat unit conversion remains, and dividing
+            # by the weight would drop a factor of 1000 rather than remove a
+            # double count.  A drive stating a real turn total is different — the
+            # elements are normalised (weight 1 each), the channel is in amperes,
+            # and the winding's turns are what the column is missing.
             folded = column_weight > 0.0 and abs(
                 column_weight - abs(ampere_turns)
             ) <= 1e-6 * max(1.0, abs(ampere_turns))
             if folded:
-                # The elements already carry the declared weight, so this is a
-                # raw kA · turn channel (MAST amc) and only the flat unit
-                # conversion is left — the weight would otherwise be counted
-                # twice.
                 pf_current_scales.append(_KA_TURN_TO_A)
+            elif column_weight > 0.0:
+                pf_current_scales.append(ampere_turns / column_weight)
             else:
-                # The elements are normalised, so the channel is measured in
-                # amperes and the declared weight is the turn count the column
-                # is missing.
-                pf_current_scales.append(ampere_turns)
+                # A column of zero filament weight carries no winding to
+                # distribute a total over; keep the flat unit conversion.
+                pf_current_scales.append(_KA_TURN_TO_A)
         pf_circuits.append(circs[0])
         pf_amc.append(chan)
         pf_merged_circuits.append(circs)

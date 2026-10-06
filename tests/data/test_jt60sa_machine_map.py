@@ -43,6 +43,31 @@ COIL_ELEMENT_COUNTS = {
 }
 COIL_GEOMETRY_PREFIX = "pf_active/coil/element/geometry/"
 COIL_NAME_PATH = "pf_active/coil/element/name"
+TURNS_PATH = "pf_active/coil/element/turns_with_sign"
+# The ampere-turns per ampere each drive circuit carries, summed over its
+# connections.  These are the SELENE deck's coil turn totals: 40 filaments of
+# 13.725 turns per CS coil (549), the six EF windings at 142, 154, 247, 353,
+# 152 and 180, and 23 for each FPPC coil.
+DECLARED_AMPERE_TURNS = {
+    "cs1": 549.0, "cs2": 549.0, "cs3": 549.0, "cs4": 549.0,
+    "ef1": 142.0, "ef2": 154.0, "ef3": 247.0,
+    "ef4": 353.0, "ef5": 152.0, "ef6": 180.0,
+    "fppc-up": 23.0, "fppc-down": 23.0,
+}
+
+
+def _circuit_token(identifier: str) -> str:
+    return identifier.split("circuit-", 1)[1]
+
+
+def _declared_ampere_turns(topology) -> dict[str, float]:
+    totals: dict[str, float] = {}
+    for connection in topology.connections:
+        token = _circuit_token(connection.circuit_identifier)
+        totals[token] = totals.get(token, 0.0) + (
+            connection.turns * connection.current_weight * connection.direction
+        )
+    return totals
 
 
 def _bindings(catalog, binding_set):
@@ -104,6 +129,57 @@ def test_catalogue_declares_the_two_phase_store_and_maps():
     for uncovered in (60033, 1000000):
         with pytest.raises(LookupError):
             map_for_shot(catalog, uncovered)
+
+
+def test_drive_topologies_declare_the_deck_ampere_turns_per_ampere():
+    """Both phase drive topologies state each circuit's deck turn total.
+
+    Every connection carries its element's ``turns_with_sign`` from
+    ``pf_active``, so the ampere-turns per ampere summed over a circuit's
+    connections is the SELENE deck's coil turn total — 549 for each CS coil, the
+    six EF windings and 23 for each FPPC coil — rather than the circuit's
+    filament count.
+    """
+    catalog = load_packaged_machine_map("jt-60sa")
+
+    assert [topology.name for topology in catalog.drive_topologies] == [
+        "jt60sa-pf-drive-op1",
+        "jt60sa-pf-drive-op2",
+    ]
+    for topology in catalog.drive_topologies:
+        assert topology.turns_path == TURNS_PATH
+        totals = _declared_ampere_turns(topology)
+        assert totals == pytest.approx(DECLARED_AMPERE_TURNS)
+
+
+@requires_store
+def test_drive_connection_turns_equal_the_stored_turns_with_sign():
+    """Each declared turn value is the store's own ``turns_with_sign``.
+
+    The provenance the topology states (``turns_path``) is checked, not
+    trusted: every connection's ``turns`` matches the ``turns_with_sign`` of the
+    pf_active element its geometry identifier names, in both phase stores.
+    """
+    import imas
+
+    catalog = load_packaged_machine_map("jt-60sa")
+    for phase, topology in zip(("OP1", "OP2"), catalog.drive_topologies, strict=True):
+        with imas.DBEntry(
+            JT60SA_DESCRIPTION_DIR / phase / "pf_active.nc",
+            "r",
+            dd_version=catalog.dd_version,
+        ) as entry:
+            pf_active = entry.get("pf_active", autoconvert=False)
+        stored = {
+            str(element.name): float(element.turns_with_sign)
+            for coil in pf_active.coil
+            for element in coil.element
+        }
+        for connection in topology.connections:
+            element_name = connection.geometry_element_identifier.rsplit("/", 1)[-1]
+            assert connection.turns == pytest.approx(
+                stored[element_name], rel=1e-12
+            )
 
 
 def test_pf_active_coils_declared_one_family_and_assembly_per_coil():

@@ -26,7 +26,7 @@ import pytest
 from scipy.special import ellipk
 
 from imas_ambix.data.description_reader import read_geometry_table
-from imas_ambix.data.paths import MANIFEST_DIR
+from imas_ambix.data.paths import JT60SA_ROOT, MANIFEST_DIR
 from imas_ambix.gs import operator as op
 
 
@@ -334,6 +334,40 @@ def test_assemble_pf_currents_applies_declared_ampere_turns_per_ampere():
     assert operator.pf_current_scales[0] == pytest.approx(40.0)
     i_pf = operator.assemble_pf_currents({"p4u_coil_current": 1.0})
     assert i_pf[0] == pytest.approx(40.0)
+    # the scale applied is reported beside the channel it scales
+    assert operator.shapes()["pf_current_scales"] == [pytest.approx(40.0)]
+    assert operator.shapes()["pf_amc_channels"] == ["p4u_coil_current"]
+
+
+def test_assemble_pf_currents_divides_the_declared_weight_over_the_filaments():
+    """The declared ampere-turns per ampere is divided by the column's own
+    summed filament weight.
+
+    The G_pf column already sums its filaments, so a winding whose declared
+    total is 40 ampere-turns per ampere over a column of summed weight 4 drives
+    each filament at 40/4 = 10, and one ampere of channel contributes 10 — a
+    path that neither repeats the filament sum nor drops the winding's turns.
+    """
+    table = _synthetic_table()
+    # circuit 1 is four filaments of weight 1 → column weight 4, declared total 40
+    table.pf_filaments = [
+        _fixtures.PFFilament(
+            r=1.50, z=1.10, turns=1.0, width=0.01, height=0.01, circuit=1, xmult=1.0
+        )
+        for _ in range(4)
+    ]
+    table.amc_current_channels = ["p4u_coil_current"]
+    table.active_circuits = [1]
+    table.circuit_drives = [
+        _fixtures.CircuitDrive(1, "p4u_coil_current", 40.0, conductor="CS1")
+    ]
+    operator = op.build_operator(table)
+
+    assert operator.pf_current_scales[0] == pytest.approx(10.0)
+    i_pf = operator.assemble_pf_currents({"p4u_coil_current": 3.0})
+    # 3 A of channel × 40 A·turn/A over 4 filaments reproduces the 40 A·turn/A
+    # total when multiplied back by the column's filament weight (4).
+    assert i_pf[0] * 4.0 == pytest.approx(3.0 * 40.0)
 
 
 def test_g_pf_folds_xmult_split():
@@ -696,3 +730,110 @@ def test_pf_columns_use_finite_area_kernel_near_packs():
     np.testing.assert_allclose(col, cyl, rtol=1e-12)
     np.testing.assert_allclose(col[0], point[0], rtol=1e-9)  # far: identical
     assert abs(col[1] - point[1]) / abs(point[1]) > 1e-4  # near: finite-area
+
+
+_JT60SA_VACUUM_SHOT = 100595
+_HAVE_JT60SA_VACUUM = (JT60SA_ROOT / f"{_JT60SA_VACUUM_SHOT}.zarr").is_dir()
+_skip_no_jt60sa_vacuum = pytest.mark.skipif(
+    not _HAVE_JT60SA_VACUUM,
+    reason="the JT-60SA EDDB vacuum cache is not mounted",
+)
+
+
+def _jt60sa_drive_map(catalogue, topology, table):
+    """Materialise the topology's per-circuit drives, tasking each with the
+    ampere-turns per ampere its connections declare and the channel the source
+    names for its circuit."""
+    from imas_ambix.gs.geometry import CircuitDrive
+
+    order = tuple(
+        dict.fromkeys(
+            connection.circuit_identifier for connection in topology.connections
+        )
+    )
+    index = {identifier: position + 1 for position, identifier in enumerate(order)}
+
+    def channel_of(identifier: str) -> str:
+        return identifier.split("circuit-", 1)[1].upper().replace("-", "_")
+
+    channels = {channel_of(identifier) for identifier in order}
+    assert channels == set(table.amc_current_channels)
+
+    drives = []
+    for identifier in order:
+        total = sum(
+            connection.turns * connection.current_weight * connection.direction
+            for connection in topology.connections
+            if connection.circuit_identifier == identifier
+        )
+        drives.append(
+            CircuitDrive(
+                circuit=index[identifier],
+                channel=channel_of(identifier),
+                ampere_turns_per_ampere=total,
+                evidence="test drive map",
+                conductor=channel_of(identifier),
+            )
+        )
+    return drives
+
+
+@_skip_no_jt60sa_vacuum
+def test_turn_corrected_vacuum_fit_of_loop_7_is_within_20_percent_of_minus_one():
+    """Loop 7's vacuum fit tracks slope -1 once the deck's turns reach the drive.
+
+    E100595 drives the superconducting coils with no plasma, so the flux loop 7
+    measures is the forward operator's vacuum prediction.  The drive circuit
+    declares 549 ampere-turns per ampere (its deck turn total), and
+    ``assemble_pf_currents`` divides that over the column's 40 summed filaments,
+    so one ampere of MMSYS channel drives 13.725.  With that scale the measured
+    flux tracks the prediction at a slope within 20 percent of -1; with the
+    hard-coded ``× 1000`` it is over-scaled by ~70 and no longer tracks.
+    """
+    from dataclasses import replace
+
+    import zarr
+
+    from imas_ambix.data.machine_map import load_packaged_machine_map
+    from imas_ambix.data.signal_map import load_packaged_signal_map
+
+    catalogue = load_packaged_machine_map("jt-60sa")
+    table = read_geometry_table(_JT60SA_VACUUM_SHOT, machine="jt-60sa")
+    topology = next(
+        candidate
+        for candidate in catalogue.drive_topologies
+        if "op1" in candidate.name
+    )
+    operator = op.build_operator(
+        replace(table, circuit_drives=_jt60sa_drive_map(catalogue, topology, table))
+    )
+
+    store = zarr.open(str(JT60SA_ROOT / f"{_JT60SA_VACUUM_SHOT}.zarr"), mode="r")
+    coils: dict[str, np.ndarray] = {}
+    for rule in load_packaged_signal_map("jt-60sa", "pf_active").signals:
+        coil = rule.semantic_id.replace("pf_active_coil_", "").replace("_current", "")
+        coils[coil] = np.asarray(store[rule.source_group][rule.source_array][:]).ravel()
+    loop_rule = next(
+        rule
+        for rule in load_packaged_signal_map("jt-60sa", "magnetics").signals
+        if rule.semantic_id == "magnetics_flux_loop_7_flux"
+    )
+    measured = np.asarray(
+        store[loop_rule.source_group][loop_rule.source_array][:]
+    ).ravel()
+
+    length = min([len(measured), *(len(values) for values in coils.values())])
+    current = np.zeros((length, len(operator.pf_amc_channels)))
+    for column, channel in enumerate(operator.pf_amc_channels):
+        if channel in coils:
+            current[:, column] = (
+                coils[channel][:length] * operator.pf_current_scales[column]
+            )
+    row = operator.sensor_channels.index("FL7")
+    predicted = operator.g_pf[row, :] @ current.T
+
+    window = slice(0, length)
+    correlation = float(np.corrcoef(predicted, measured[window])[0, 1])
+    slope = float(np.polyfit(predicted, measured[window], 1)[0])
+    assert correlation < -0.9, correlation
+    assert slope == pytest.approx(-1.0, abs=0.2), slope
