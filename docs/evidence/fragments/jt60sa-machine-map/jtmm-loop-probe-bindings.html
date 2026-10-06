@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+  <meta name="plan-evidence-for" content="jt60sa-machine-map">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="jtmm-loop-probe-bindings-landing" data-reckon="evidence">
+      <h3>Flux-loop and tangential-probe bindings</h3>
+      <p>magnetics.json now binds the 27 raw MDAC flux loops magFlxLp1..27 to
+      magnetics/flux_loop/flux/data indices 0..26 and the 17 raw MDAC tangential
+      probes magPbTC1..17 to magnetics/b_field_pol_probe/field/data indices 0..16,
+      every rule validation_state source-only; each processed PSRC magFluxLp1..27 and
+      magPbTC1..17 is blocked naming its raw partner. The beyond-SELENE raw channels
+      magFlxLp28..34 and magPbTC18..23 are blocked, and jt-60sa-eddb-units.json maps
+      the EDDB spellings the bound channels carry (A, Wb, T) to their DD units. The
+      tests pin each raw loop and probe to its processed PSRC channel at Pearson
+      r &gt; 0.999 on E101154 and refuse a blocked reason that rests a choice on
+      E101154 alone while citing a corroborating shot.</p>
+    </section>
+  </main>
+</body>
+</html>

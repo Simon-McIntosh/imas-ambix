@@ -15,9 +15,13 @@ by the EDDB census, so the plasma-current binding applies no scale factor.
 
 from __future__ import annotations
 
+import json
+import re
+
 import numpy as np
 import pytest
 
+from imas_ambix.data.machine_map import PACKAGED_MACHINE_MAP_ROOT
 from imas_ambix.data.paths import JT60SA_ROOT
 from imas_ambix.data.signal_map import load_packaged_signal_map
 from imas_ambix.data.virtual_zarr import VirtualZarrError, VirtualZarrView
@@ -28,8 +32,16 @@ SYSTEMS = ("pf_active", "tf", "magnetics")
 SOURCE_DATASET = "jt-60sa-eddb-cache"
 PF_CURRENT_PATH = "pf_active/coil/current/data"
 TF_CURRENT_PATH = "tf/coil/current/data"
+FLUX_LOOP_PATH = "magnetics/flux_loop/flux/data"
+PROBE_FIELD_PATH = "magnetics/b_field_pol_probe/field/data"
+PLASMA_CURRENT_PATH = "magnetics/ip/data"
+UNIT_TABLE_PATH = PACKAGED_MACHINE_MAP_ROOT / "jt-60sa-eddb-units.json"
 STORE_ROOT = JT60SA_ROOT / "machine_description" / "OP1"
 DD_VERSION = "4.1.1"
+# A corroboration verb not negated by the immediately preceding "not": the
+# negated form ("do not corroborate") is the legitimate way a reason says the
+# other shots do NOT support the choice.
+_CORROBORATES = re.compile(r"(?<!not )corroborat", re.IGNORECASE)
 
 _cache_missing = not (JT60SA_ROOT / "101154.zarr").is_dir()
 needs_cache = pytest.mark.skipif(
@@ -69,6 +81,27 @@ def _coil_names(ids_name: str) -> list[str]:
     ) as entry:
         ids = entry.get(ids_name, autoconvert=False)
         return [str(coil.name) for coil in ids.coil]
+
+
+def _magnetics():
+    return load_packaged_signal_map("jt-60sa", "magnetics")
+
+
+def _rules_for(target_path: str):
+    return [rule for rule in _magnetics().signals if rule.target_path == target_path]
+
+
+def _blocked_index():
+    return {
+        (row.source_group, row.source_array): row for row in _magnetics().blocked
+    }
+
+
+def _pearson(first: np.ndarray, second: np.ndarray) -> float:
+    # Both channels are sampled on the shared 0.25 ms grid, so the truncated
+    # common window is a common time base.
+    length = min(len(first), len(second))
+    return float(np.corrcoef(first[:length], second[:length])[0, 1])
 
 
 def test_packaged_maps_load_and_name_the_eddb_cache():
@@ -244,8 +277,11 @@ def test_no_blocked_reason_calls_the_other_chain_a_duplicate():
 
 def test_magnetics_binds_psrc_ip_in_amperes():
     source_map = load_packaged_signal_map("jt-60sa", "magnetics")
-    assert len(source_map.signals) == 1
-    signal = source_map.signals[0]
+    matches = [
+        rule for rule in source_map.signals if rule.target_path == PLASMA_CURRENT_PATH
+    ]
+    assert len(matches) == 1
+    signal = matches[0]
     assert signal.source_group == "PSRC"
     assert signal.source_array == "Ip"
     assert signal.source_unit == "A"
@@ -254,6 +290,132 @@ def test_magnetics_binds_psrc_ip_in_amperes():
     assert signal.unit_factor == 1.0
     assert signal.channel_factor == 1.0
     assert "unknown-unvalidated" in signal.evidence
+
+
+def test_magnetics_binds_every_raw_mdac_flux_loop_in_order():
+    loops = _rules_for(FLUX_LOOP_PATH)
+    assert len(loops) == 27
+    assert sorted(rule.target_index for rule in loops) == list(range(27))
+    for rule in loops:
+        index = rule.target_index + 1
+        assert rule.source_group == "MDAC"
+        assert rule.source_array == f"magFlxLp{index}", (
+            rule.target_index,
+            rule.source_array,
+        )
+        assert rule.source_unit == "Wb"
+        assert rule.target_unit == "Wb"
+        assert rule.unit_factor == 1.0
+        assert rule.validation_state == "source-only"
+
+
+def test_magnetics_binds_every_raw_mdac_probe_in_order():
+    probes = _rules_for(PROBE_FIELD_PATH)
+    assert len(probes) == 17
+    assert sorted(rule.target_index for rule in probes) == list(range(17))
+    for rule in probes:
+        index = rule.target_index + 1
+        assert rule.source_group == "MDAC"
+        assert rule.source_array == f"magPbTC{index}", (
+            rule.target_index,
+            rule.source_array,
+        )
+        assert rule.source_unit == "T"
+        assert rule.target_unit == "T"
+        assert rule.unit_factor == 1.0
+        assert rule.validation_state == "source-only"
+
+
+def test_magnetics_blocks_each_processed_psrc_alternate_naming_the_raw():
+    mapping = _blocked_index()
+    for i in range(1, 28):
+        row = mapping[("PSRC", f"magFluxLp{i}")]
+        assert f"raw MDAC magFlxLp{i}" in row.reason, (i, row.reason)
+    for j in range(1, 18):
+        row = mapping[("PSRC", f"magPbTC{j}")]
+        assert f"raw MDAC magPbTC{j}" in row.reason, (j, row.reason)
+
+
+def test_magnetics_blocks_the_loops_and_probes_beyond_selene():
+    mapping = _blocked_index()
+    for i in range(28, 35):
+        row = mapping[("MDAC", f"magFlxLp{i}")]
+        assert "27" in row.reason and "SELENE" in row.reason
+    for i in range(18, 24):
+        row = mapping[("MDAC", f"magPbTC{i}")]
+        assert "17" in row.reason and "SELENE" in row.reason
+
+
+@needs_cache
+def test_eddb_unit_spellings_resolve_to_each_bound_rule():
+    table = json.loads(UNIT_TABLE_PATH.read_text(encoding="utf-8"))["units"]
+    store = _group(101154)
+    checked = 0
+    for system in SYSTEMS:
+        for rule in load_packaged_signal_map("jt-60sa", system).signals:
+            if rule.source_group not in store:
+                continue
+            group = store[rule.source_group]
+            if rule.source_array not in group:
+                continue
+            spelling = group[rule.source_array].attrs.get("units")
+            assert spelling in table, (system, rule.source_array, spelling)
+            assert table[spelling] == rule.source_unit, (
+                system,
+                rule.source_array,
+                spelling,
+                rule.source_unit,
+            )
+            checked += 1
+    assert checked > 0
+
+
+@needs_cache
+def test_magnetics_raw_flux_loops_pin_to_the_processed_channels():
+    for rule in _rules_for(FLUX_LOOP_PATH):
+        index = rule.target_index + 1
+        assert rule.source_array == f"magFlxLp{index}", (
+            rule.target_index,
+            rule.source_array,
+        )
+        raw = _channel(101154, "MDAC", rule.source_array)
+        processed = _channel(101154, "PSRC", f"magFluxLp{index}")
+        assert raw is not None and processed is not None
+        correlation = _pearson(raw, processed)
+        assert correlation > 0.999, (index, correlation)
+
+
+@needs_cache
+def test_magnetics_raw_probes_pin_to_the_processed_channels():
+    for rule in _rules_for(PROBE_FIELD_PATH):
+        index = rule.target_index + 1
+        assert rule.source_array == f"magPbTC{index}", (
+            rule.target_index,
+            rule.source_array,
+        )
+        raw = _channel(101154, "MDAC", rule.source_array)
+        processed = _channel(101154, "PSRC", f"magPbTC{index}")
+        assert raw is not None and processed is not None
+        correlation = _pearson(raw, processed)
+        assert correlation > 0.999, (index, correlation)
+
+
+def test_no_blocked_reason_rests_on_e101154_alone_while_citing_corroboration():
+    """A choice may rest on E101154 alone only when no shot corroborates it.
+
+    The other commissioning shots sit at the noise floor, so a reason that both
+    claims the choice rests on E101154 alone and cites a shot as corroborating it
+    is self-contradictory; the negated form ("do not corroborate") is legitimate.
+    """
+    for system in SYSTEMS:
+        for row in load_packaged_signal_map("jt-60sa", system).blocked:
+            if "E101154 alone" not in row.reason:
+                continue
+            assert not _CORROBORATES.search(row.reason), (
+                system,
+                row.source_array,
+                row.reason,
+            )
 
 
 @needs_cache
