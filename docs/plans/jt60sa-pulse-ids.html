@@ -26,6 +26,8 @@
   <title>JT-60SA Pulse IDSs and Equilibrium Animation | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-version" content="1">
+<meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
   <main class="plan-doc">
@@ -165,49 +167,54 @@
     </p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-      <div class="r-dec" data-key="animation-content" data-choice="flux-surfaces-and-topology" data-by="Simon McIntosh" data-when="2026-10-06" data-sections="s2,s3,s4">
-        <p class="r-dec-q">What does each frame of the pulse animation show?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="flux-surfaces-and-topology">Flux surfaces and topology</button>
-          <button class="r-opt" data-value="coil-currents">Coils shaded by current</button>
-        </p>
-        <p class="r-dec-rat">The lead's ruling: flux surfaces with every topological feature (X-points, O-points, strike points); shading coils by current was rejected as decoration that carries no equilibrium information.</p>
-      </div>
-      <div class="r-dec" data-key="eqdb-access" data-choice="light-load-authorised" data-by="Simon McIntosh" data-when="2026-10-06" data-sections="s2">
-        <p class="r-dec-q">May nodes read SELENE equilibria from EQDB on the JT-60SA server?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="light-load-authorised">Yes, light load</button>
-          <button class="r-opt" data-value="not-yet">Not yet</button>
-        </p>
-        <p class="r-dec-rat">Authorised by the lead for light load, searches included, provided the server is not hit hard: each record is fetched once into the cache and never refetched for timing.</p>
-      </div>
-      <div class="r-dec" data-key="topology-source" data-choice="" data-by="" data-when="" data-sections="s2">
-        <p class="r-dec-q">Where do the X-points and strike points in the minted equilibrium come from?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="eqdb-record">Bound from the EQDB record</button>
-          <button class="r-opt" data-value="nova-topology">Computed by nova from the mapped psi</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-      <div class="r-dec" data-key="animation-sensors" data-choice="" data-by="" data-when="" data-sections="s3,s4">
-        <p class="r-dec-q">Do the 17 probes and 27 flux loops appear in the animation frames?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="omit">Omit them (needs an imas-ink pass-through)</button>
-          <button class="r-opt" data-value="show">Show them, as animate_pulse does today</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-    </section>
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="animation-content" data-choice="flux-surfaces-and-topology" data-by="Simon McIntosh" data-when="2026-10-06" data-sections="s2,s3,s4">
+    <p class="r-dec-q">What does each frame of the pulse animation show?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="flux-surfaces-and-topology">Flux surfaces and topology</button>
+      <button class="r-opt" data-value="coil-currents">Coils shaded by current</button>
+      </p>
+    <p class="r-dec-rat">The lead&#x27;s ruling: flux surfaces with every topological feature (X-points, O-points, strike points); shading coils by current was rejected as decoration that carries no equilibrium information.</p>
+    </div>
+<div class="r-dec" data-key="eqdb-access" data-choice="light-load-authorised" data-by="Simon McIntosh" data-when="2026-10-06" data-sections="s2">
+    <p class="r-dec-q">May nodes read SELENE equilibria from EQDB on the JT-60SA server?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="light-load-authorised">Yes, light load</button>
+      <button class="r-opt" data-value="not-yet">Not yet</button>
+      </p>
+    <p class="r-dec-rat">Authorised by the lead for light load, searches included, provided the server is not hit hard: each record is fetched once into the cache and never refetched for timing.</p>
+    </div>
+<div class="r-dec" data-key="topology-source" data-choice="" data-by="" data-when="" data-sections="s2">
+    <p class="r-dec-q">Where do the X-points and strike points in the minted equilibrium come from?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="eqdb-record">Bound from the EQDB record</button>
+      <button class="r-opt" data-value="nova-topology">Computed by nova from the mapped psi</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+<div class="r-dec" data-key="animation-sensors" data-choice="" data-by="" data-when="" data-sections="s3,s4">
+    <p class="r-dec-q">Do the 17 probes and 27 flux loops appear in the animation frames?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="omit">Omit them (needs an imas-ink pass-through)</button>
+      <button class="r-opt" data-value="show">Show them, as animate_pulse does today</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups</h2>
-      <article class="r-fu" data-id="f-jtpi-001" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-create" data-written-at="2026-10-06" data-recommends-skill="/reckon-build jt60sa-pulse-ids §1" data-resolved-at="" data-resolved-by="">
-        <h4 class="r-fu-title">Mint E101154 as IDSs through the machine map</h4>
-        <div class="r-fu-body"><p>§1 needs nothing new from the machine map: the catalogue and the signal maps it joins have landed, and E101154 is cached. §2 waits on the machine map's §7, and §4 on imas-ink's vessel drawing.</p></div>
-        <pre class="r-fu-prompt">/reckon-build jt60sa-pulse-ids §1</pre>
-      </article>
-    </section>
-  </main>
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-jtpi-001" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-create" data-written-at="2026-10-06" data-recommends-skill="/reckon-build jt60sa-pulse-ids §1" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Mint E101154 as IDSs through the machine map</h4>
+    <div class="r-fu-body"><p>§1 needs nothing new from the machine map: the catalogue and the signal maps it joins have landed, and E101154 is cached. §2 waits on the machine map's §7, and §4 on imas-ink's vessel drawing.</p></div>
+    <pre class="r-fu-prompt">/reckon-build jt60sa-pulse-ids §1</pre>
+    </article>
+</section>
+  <section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="s1" data-id="c-20261006-jtpi-s1-ready" data-who="reckon-create" data-when="2026-10-06T11:40:00Z">
+    <div class="r-comment-body"><p>§1 is dispatchable now: the catalogue, the three signal maps and the E101154 cache it joins have all landed, and it waits on nothing. jt60sa-facility-mint §2 and §3 package this section's writer.</p></div>
+</div>
+</section>
+</main>
 </body>
 </html>
