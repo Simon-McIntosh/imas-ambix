@@ -33,6 +33,11 @@ REAL_COIL_VV = Path(
     "jtmm-geometry-source/copies/jt-60sa/.local/share/machine_description/"
     "coil_geometry/coil_vv_OP2.dat"
 )
+REAL_COIL_VV_OP1 = Path(
+    "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/"
+    "jtmm-geometry-source/copies/jt-60sa/.local/share/machine_description/"
+    "coil_geometry/coil_vv_OP1.dat"
+)
 
 EQSLE_TEXT = """\
  &DSK DEVICE='JT-60SA',IWRITE=65, /$
@@ -49,8 +54,8 @@ EQSLE_TEXT = """\
   1.00000   4.80000   0.60000   0.04000   0.25000  7.76e-07
   1.00000   4.70000   0.90000   0.04000   0.25000  7.20e-07
  2
-  1.400  0.0  3.500 -60.0  60.0  2   VV OUTER SKIN
-  1.400  0.0  3.500  60.0 300.0  2
+  1.400  0.0  3.000 -60.0  60.0  2   VV OUTER SKIN
+  1.400  0.0  3.000  60.0 300.0  2
   3.316  1.897  3.612  1.516   0.0  1  -Outer First Wall
   1.705 -1.757  1.705  1.827   0.0  1  Inner First Wall
   1.550  0.0  3.750   0.0   53.52  2  TFC INSIDE
@@ -89,7 +94,19 @@ COIL_VV_TEXT = """\
     1.7750    2.5000
     1.7050    1.8750
  1
+12
      1.6250    0.0000    1.6250    2.3830              1         %%Inner VV=50
+     1.6250    2.3830    4.0000    2.3830              1
+     4.0000    2.3830    4.0000    0.0000              1
+     4.0000    0.0000    1.6250    0.0000              1
+     1.4310    0.0000    1.4310    2.3830              1         %%Outer VV=50
+     1.4310    2.3830    4.2000    2.3830              1
+     4.2000    2.3830    4.2000    0.0000              1
+     4.2000    0.0000    1.4310    0.0000              1
+     9.0000    9.0000    9.1000    9.0000              1         %%D-probe#1
+     9.1000    9.0000    9.1000    9.1000              1
+     9.1000    9.1000    9.0000    9.1000              1
+     9.0000    9.1000    9.0000    9.0000              1
 """
 
 
@@ -213,6 +230,20 @@ def test_coil_vv_vessel_block_parses(decks):
         coil_vv.read_bytes()
     ).hexdigest()
 
+    # The contour block's Inner/Outer VV runs are the two vessel skins; its
+    # D-probe run is a diagnostic probe and is excluded from both.
+    inner_r, inner_z = sd._wall_outline(parsed.vessel_skin_inner)
+    outer_r, outer_z = sd._wall_outline(parsed.vessel_skin_outer)
+    assert len(parsed.vessel_skin_inner) == 4
+    assert len(parsed.vessel_skin_outer) == 4
+    assert (inner_r[0], inner_z[0]) == (inner_r[-1], inner_z[-1])
+    assert (outer_r[0], outer_z[0]) == (outer_r[-1], outer_z[-1])
+    assert max(outer_r) > max(inner_r)
+    assert not np.isclose(inner_r, 9.0).any()
+    assert not np.isclose(inner_z, 9.0).any()
+    assert not np.isclose(outer_r, 9.0).any()
+    assert not np.isclose(outer_z, 9.0).any()
+
 
 def test_writer_reads_back_at_dd_4_1_1(decks, tmp_path: Path):
     eqsle, geo, coil_vv = decks
@@ -262,15 +293,20 @@ def test_writer_reads_back_at_dd_4_1_1(decks, tmp_path: Path):
     assert float(mag.flux_loop[0].position[0].r) == pytest.approx(1.8798)
 
     wall = read("wall")
-    # The wall describes limiter units only, so the DD descriptor is the one
-    # that says no vessel structure is filled.
-    assert int(wall.description_2d[0].type.index) == 1
+    # A coil_vv deck carries a limiter and both vessel skins, so the wall is
+    # that deck's limiter plus one annular vessel unit.
+    assert int(wall.description_2d[0].type.index) == 2
     outline_r = np.asarray(wall.description_2d[0].limiter.unit[0].outline.r)
-    # A coil_vv deck was supplied, so the wall is that deck's limiter block;
-    # its three segments trace four outline points.
+    # The deck's limiter block traces a closed contour of four outline points.
     assert outline_r.size == 4
     assert outline_r[0] == pytest.approx(1.7050)
     assert outline_r[-1] == pytest.approx(1.7050)
+    annular = wall.description_2d[0].vessel.unit[0].annular
+    inner_r = np.asarray(annular.outline_inner.r)
+    outer_r = np.asarray(annular.outline_outer.r)
+    assert inner_r.size == 5
+    assert outer_r.size == 5
+    assert float(outer_r.max()) > float(inner_r.max())
 
     tf = read("tf")
     # The deck carries no TF turn or coil count, so both are left unset and
@@ -366,18 +402,52 @@ def _fil(r: float, z: float, resistivity: float) -> sd.VesselFilament:
     )
 
 
-def test_cryostat_group_inside_the_vessel_envelope_is_refused():
-    factory = imas.IDSFactory("4.1.1")
-    vessel = [_fil(1.0, 0.0, 7.76e-7), _fil(2.0, 1.0, 7.76e-7)]
-    # A filament inside the vessel's R and Z envelope is vessel material, not a
-    # cryostat, so labelling the group CRYOSTAT must be refused.
-    inside = [_fil(1.5, 0.5, 7.20e-7)]
-    with pytest.raises(sd.CryostatEnvelopeError):
-        sd.build_pf_passive(factory, vessel, inside)
+def _line(r1: float, z1: float, r2: float, z2: float) -> sd.Segment:
+    return sd.Segment(
+        kind="line",
+        params=(r1, z1, r2, z2),
+        comment="",
+        provenance=sd.Provenance(
+            source="synthetic", sha256="0" * 64, line_start=1, line_end=1
+        ),
+    )
 
-    # A group entirely outside the envelope is accepted and becomes the loop.
-    outside = [_fil(3.0, 0.0, 7.20e-7)]
-    passive = sd.build_pf_passive(factory, vessel, outside)
+
+# A square vessel outer skin in the poloidal plane spanning R 1..3, Z -1..1.
+_SQUARE_SKIN = [
+    _line(1.0, -1.0, 3.0, -1.0),
+    _line(3.0, -1.0, 3.0, 1.0),
+    _line(3.0, 1.0, 1.0, 1.0),
+    _line(1.0, 1.0, 1.0, -1.0),
+]
+
+
+def test_cryostat_inside_the_vessel_outer_skin_is_refused():
+    factory = imas.IDSFactory("4.1.1")
+    vessel = [_fil(1.0, -0.5, 7.76e-7), _fil(3.0, 0.5, 7.76e-7)]
+
+    # A filament inside the vessel's outer-skin polyline is vessel material,
+    # not a cryostat, so labelling the group CRYOSTAT must be refused.
+    inside = [_fil(2.0, 0.0, 7.20e-7)]
+    with pytest.raises(sd.CryostatEnvelopeError):
+        sd.build_pf_passive(
+            factory, vessel, inside, vessel_outer_skin=_SQUARE_SKIN
+        )
+
+    # A filament inside the outer skin but outside the vessel filaments'
+    # rectangular R-Z envelope is still refused: the containment test bounds
+    # the vessel shape, not a box around its centres.
+    corner = [_fil(2.5, -0.75, 7.20e-7)]
+    with pytest.raises(sd.CryostatEnvelopeError):
+        sd.build_pf_passive(
+            factory, vessel, corner, vessel_outer_skin=_SQUARE_SKIN
+        )
+
+    # A group outside the outer-skin polyline is accepted and becomes a loop.
+    outside = [_fil(5.0, 0.0, 7.20e-7)]
+    passive = sd.build_pf_passive(
+        factory, vessel, outside, vessel_outer_skin=_SQUARE_SKIN
+    )
     assert [str(loop.name) for loop in passive.loop] == ["VV", "CRYOSTAT"]
 
 
@@ -444,7 +514,10 @@ def test_extent_columns_are_full_extents_of_a_real_element():
     assert (max(zs) - min(zs)) + first.dz == pytest.approx(1.574, abs=1e-3)
 
     factory = imas.IDSFactory("4.1.1")
-    passive = sd.build_pf_passive(factory, deck.vessel, deck.cryostat)
+    passive = sd.build_pf_passive(
+        factory, deck.vessel, deck.cryostat,
+        vessel_outer_skin=deck.vessel_skin_outer,
+    )
     assert [str(loop.name) for loop in passive.loop] == ["VV", "CRYOSTAT"]
     assert [len(loop.element) for loop in passive.loop] == [63, 57]
     assert [float(loop.resistivity) for loop in passive.loop] == pytest.approx(
@@ -525,61 +598,105 @@ def test_real_tfc_sections_and_wall_arcs_round_trip(tmp_path: Path):
     )
 
 
-def test_op2_wall_comes_from_the_coil_vv_limiter(tmp_path: Path):
-    """The OP2 wall is the coil_vv deck's own limiter, not the EQSLE wall."""
-    if not (REAL_EQSLE.exists() and REAL_GEO.exists() and REAL_COIL_VV.exists()):
+def _d_probe_vertices(deck_path: Path) -> set[tuple[float, float]]:
+    """Every ``R Z`` vertex of the deck's D-probe rows, from the raw file."""
+    lines = deck_path.read_text(encoding="latin-1").splitlines()
+    vertices: set[tuple[float, float]] = set()
+    for line in lines:
+        if "D-probe" not in line:
+            continue
+        parts = line.split()
+        nums = []
+        for tok in parts:
+            try:
+                nums.append(float(tok))
+            except ValueError:
+                break
+        if len(nums) >= 4:
+            vertices.add((nums[0], nums[1]))
+            vertices.add((nums[2], nums[3]))
+    return vertices
+
+
+def test_both_phases_take_their_wall_from_their_own_coil_vv_deck(tmp_path: Path):
+    """OP1 and OP2 both draw limiter and vessel from their coil_vv tables."""
+    if not (
+        REAL_EQSLE.exists()
+        and REAL_GEO.exists()
+        and REAL_COIL_VV.exists()
+        and REAL_COIL_VV_OP1.exists()
+    ):
         pytest.skip("real deck copies absent")
     eqsle = sd.parse_eqsle_deck(REAL_EQSLE)
     geo = sd.parse_geo_in(REAL_GEO)
-    coil_vv = sd.parse_coil_vv_deck(REAL_COIL_VV)
+    decks = {
+        "OP1": sd.parse_coil_vv_deck(REAL_COIL_VV_OP1),
+        "OP2": sd.parse_coil_vv_deck(REAL_COIL_VV),
+    }
 
-    # The deck's limiter header declares 51 vertices, closing on the first.
-    assert len(coil_vv.limiter_and_first_wall) == 50
-    assert all(seg.kind == "line" for seg in coil_vv.limiter_and_first_wall)
-    vv_sha = hashlib.sha256(REAL_COIL_VV.read_bytes()).hexdigest()
-    eqsle_sha = hashlib.sha256(REAL_EQSLE.read_bytes()).hexdigest()
-    assert coil_vv.sha256 == vv_sha != eqsle_sha
-    for seg in coil_vv.limiter_and_first_wall:
-        assert seg.provenance.source == str(REAL_COIL_VV)
-        assert seg.provenance.sha256 == vv_sha
-    for seg in eqsle.first_wall:
-        assert seg.provenance.source == str(REAL_EQSLE)
-        assert seg.provenance.sha256 == eqsle_sha
+    # Each deck's nlim polygon is 51 points closing on the first, and its
+    # inner/outer skins are 50-segment polylines with the D-probe rows excluded.
+    for phase, deck in decks.items():
+        assert len(deck.limiter_and_first_wall) == 50, phase
+        assert all(seg.kind == "line" for seg in deck.limiter_and_first_wall)
+        assert len(deck.vessel_skin_inner) == 50, phase
+        assert len(deck.vessel_skin_outer) == 50, phase
+        for skin in (deck.vessel_skin_inner, deck.vessel_skin_outer):
+            assert not any("D-PROBE" in s.comment.upper() for s in skin)
+        assert deck.sha256 == hashlib.sha256(Path(deck.path).read_bytes()).hexdigest()
 
-    def outline(path, **kwargs):
-        out = tmp_path / path
+    def outlines(phase: str, coil_vv: sd.CoilVesselDeck) -> dict:
+        out = tmp_path / phase
         sd.write_phase_description(
-            phase=path, out_dir=tmp_path, eqsle=eqsle, geo=geo, **kwargs
+            phase=phase,
+            out_dir=tmp_path,
+            eqsle=eqsle,
+            geo=geo,
+            coil_vv=coil_vv,
         )
         with imas.DBEntry(out / "wall.nc", "r", dd_version="4.1.1") as e:
-            wall_entry = e.get("wall")
-        return (
-            np.asarray(wall_entry.description_2d[0].limiter.unit[0].outline.r),
-            np.asarray(wall_entry.description_2d[0].limiter.unit[0].outline.z),
-            int(wall_entry.description_2d[0].type.index),
-        )
+            wall = e.get("wall")
+        d = wall.description_2d[0]
+        annular = d.vessel.unit[0].annular
 
-    op1_r, op1_z, op1_type = outline("OP1")
-    op2_r, op2_z, op2_type = outline("OP2", coil_vv=coil_vv)
+        def pair(node):
+            return np.asarray(node.r), np.asarray(node.z)
 
-    # The OP1 wall carries the EQSLE vessel unit; the OP2 source carries no
-    # skins, so its wall is the limiter alone.
-    assert op1_type == 2
-    assert op2_type == 1
-    # The OP2 contour is the coarser closed polygon of the coil_vv block, so it
-    # differs from the OP1 outline in both its size and the points it covers.
-    assert op2_r.size == 51
-    assert op1_r.size > 100
-    assert np.any(np.isclose(op1_r, 3.316, atol=1e-9))
-    assert not np.any(np.isclose(op2_r, 3.316, atol=1e-9))
-    # The OP2 outline reproduces the deck polygon's own extreme vertices.
-    assert op2_r.min() == pytest.approx(1.7048)
-    assert op2_r.max() == pytest.approx(4.2064)
-    assert op2_z.min() == pytest.approx(-2.8285)
-    assert op2_z.max() == pytest.approx(3.0009)
-    # The OP1 outline is the EQSLE limiter and first wall, a different contour.
-    assert op1_r.max() == pytest.approx(4.216)
-    assert not np.isclose(op1_z.min(), op2_z.min())
+        lim_r, lim_z = pair(d.limiter.unit[0].outline)
+        in_r, in_z = pair(annular.outline_inner)
+        out_r, out_z = pair(annular.outline_outer)
+        return {
+            "type": int(d.type.index),
+            "lim_r": lim_r, "lim_z": lim_z,
+            "in_r": in_r, "in_z": in_z,
+            "out_r": out_r, "out_z": out_z,
+        }
+
+    op1 = outlines("OP1", decks["OP1"])
+    op2 = outlines("OP2", decks["OP2"])
+
+    for phase, o in (("OP1", op1), ("OP2", op2)):
+        assert o["type"] == 2, phase
+        # A limiter of 51 points that is a closed contour.
+        assert o["lim_r"].size == 51, phase
+        assert o["lim_r"][0] == pytest.approx(o["lim_r"][-1]), phase
+        assert o["lim_z"][0] == pytest.approx(o["lim_z"][-1]), phase
+        # Inner and outer outlines of 51 points each.
+        assert o["in_r"].size == 51, phase
+        assert o["out_r"].size == 51, phase
+        # No D-probe point appears in either outline.
+        probes = _d_probe_vertices(Path(decks[phase].path))
+        assert probes, phase
+        skin_points = set(
+            zip(o["in_r"].tolist(), o["in_z"].tolist(), strict=True)
+        ) | set(zip(o["out_r"].tolist(), o["out_z"].tolist(), strict=True))
+        assert skin_points.isdisjoint(probes), phase
+
+    # The first wall changed for OP2, so the two limiters differ.
+    assert op1["lim_r"].size == op2["lim_r"].size == 51
+    assert not np.array_equal(op1["lim_r"], op2["lim_r"]) or not np.array_equal(
+        op1["lim_z"], op2["lim_z"]
+    )
 
 
 # The five IDSs the converter writes.  Each carries one or more first-level
@@ -646,7 +763,10 @@ def test_expected_names_are_assigned_in_deck_order(decks, phase_ids):
     # named for what each group is: the vessel and the cryostat.
     eqsle, _, _ = decks
     deck = sd.parse_eqsle_deck(eqsle)
-    passive = sd.build_pf_passive(imas.IDSFactory("4.1.1"), deck.vessel, deck.cryostat)
+    passive = sd.build_pf_passive(
+        imas.IDSFactory("4.1.1"), deck.vessel, deck.cryostat,
+        vessel_outer_skin=deck.vessel_skin_outer,
+    )
     assert [str(loop.name) for loop in passive.loop] == ["VV", "CRYOSTAT"]
     assert [str(p.name) for p in phase_ids["magnetics"].b_field_pol_probe] == [
         "MP1",
