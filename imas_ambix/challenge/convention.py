@@ -1,4 +1,4 @@
-"""Measured coordinate convention for the labelled DIII-D challenge corpus.
+"""Measured coordinate convention for a labelled equilibrium corpus.
 
 The source convention is identified from one standard-field frame in each of
 twenty distinct train shots.  The audit discriminates flux per radian from
@@ -7,19 +7,24 @@ against recorded plasma current, reads toroidal-field polarity from the bcoil
 channel for the q95 handedness test, and checks the Delta-star current
 orientation.  No response coefficient is fitted.
 
-All challenge readers use :data:`DIIID_CONVENTION`; the factors themselves are
-derived by the shared COCOS algebra in :mod:`imas_ambix.cocos`.
+The audit reads the loader's :class:`~imas_ambix.challenge.loader.EfitLabels`
+record, so it is corpus-agnostic: the DIII-D challenge corpus supplies the
+first loader and each further machine supplies an eligibility declaration
+beside its loader.  :func:`measure_diiid_convention` is the DIII-D entry.
+
+The records the kernel reads are in the canonical convention (COCOS 17), which
+the loader applies before the audit sees them.  All challenge readers use
+:data:`DIIID_CONVENTION`; the factors themselves are derived by the shared
+COCOS algebra in :mod:`imas_ambix.cocos`.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from math import tau
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-import pyarrow.parquet as pq
 from nova.io.cocos import convention
 from scipy.constants import mu_0
 from scipy.interpolate import RegularGridInterpolator
@@ -28,31 +33,45 @@ from imas_ambix.cocos import CANONICAL_COCOS, canonical_factor
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
+    from pathlib import Path
+
+    from .loader import EfitLabels
 
 DIIID_SOURCE_COCOS = 5
 """Empirically identified convention of labelled DIII-D train maps."""
 
 MINIMUM_AUDIT_SHOTS = 20
-MINIMUM_PLASMA_CURRENT_KA = 500.0
-STANDARD_FIELD_BCOIL_MAXIMUM = 0.0
+"""Minimum number of audit shots the DIII-D corpus declaration requires."""
 
 _TOTAL_FLUX_CANDIDATE_COCOS = DIIID_SOURCE_COCOS + 10
-_AUDIT_COLUMNS = (
-    "efit_times",
-    "efit_psirz",
-    "efit_grid_R",
-    "efit_grid_Z",
-    "efit_r_axis",
-    "efit_z_axis",
-    "efit_lcfs_n",
-    "efit_lcfs_r",
-    "efit_lcfs_z",
-    "efit_q95",
-    "magnetics_plasma_current_times",
-    "magnetics_plasma_current",
-    "magnetics_time",
-    "magnetics_bcoil",
+
+_PLASMA_CURRENT_KEY = "magnetics_plasma_current"
+_BCOIL_KEY = "magnetics_bcoil"
+_Q95_KEY = "efit_q95"
+_R_AXIS_KEY = "efit_r_axis"
+_Z_AXIS_KEY = "efit_z_axis"
+_LCFS_N_KEY = "efit_lcfs_n"
+
+
+@dataclass(frozen=True)
+class ConventionEligibility:
+    """Per-corpus thresholds declaring which equilibrium frames are auditable.
+
+    A loader publishes one of these beside its :class:`EfitLabels` records so
+    the shared kernel holds no corpus-specific constants.
+    """
+
+    minimum_plasma_current_ka: float
+    standard_field_bcoil_maximum: float
+    minimum_audit_shots: int
+
+
+DIIID_ELIGIBILITY = ConventionEligibility(
+    minimum_plasma_current_ka=500.0,
+    standard_field_bcoil_maximum=0.0,
+    minimum_audit_shots=MINIMUM_AUDIT_SHOTS,
 )
+"""The DIII-D challenge corpus's own eligibility declaration."""
 
 
 @dataclass(frozen=True)
@@ -176,8 +195,16 @@ class ConventionReceipt:
         return sum(frame.psi_ip_sign == 1 for frame in self.frames)
 
     @property
+    def psi_ip_negative(self) -> int:
+        return sum(frame.psi_ip_sign == -1 for frame in self.frames)
+
+    @property
     def q_ip_bcoil_negative(self) -> int:
         return sum(frame.q_ip_bcoil_sign == -1 for frame in self.frames)
+
+    @property
+    def q_ip_bcoil_positive(self) -> int:
+        return sum(frame.q_ip_bcoil_sign == 1 for frame in self.frames)
 
     @property
     def delta_star_ip_positive(self) -> int:
@@ -194,28 +221,16 @@ class ConventionReceipt:
         return float(np.median(ratios))
 
 
-def _read(path: Path) -> dict[str, Any]:
-    table = pq.read_table(path, columns=list(_AUDIT_COLUMNS))
-    return {name: table[name][0].as_py() for name in table.column_names}
-
-
-def _candidate_frame(row: dict[str, Any]) -> int | None:
-    times = np.asarray(row["efit_times"], dtype=float)
-    plasma_current = np.interp(
-        times,
-        np.asarray(row["magnetics_plasma_current_times"], dtype=float),
-        np.asarray(row["magnetics_plasma_current"], dtype=float),
-    )
-    bcoil = np.interp(
-        times,
-        np.asarray(row["magnetics_time"], dtype=float),
-        np.asarray(row["magnetics_bcoil"], dtype=float),
-    )
-    q95 = np.asarray(row["efit_q95"], dtype=float)
+def _candidate_frame(
+    labels: EfitLabels, eligibility: ConventionEligibility
+) -> int | None:
+    plasma_current = np.asarray(labels.scalars[_PLASMA_CURRENT_KEY], dtype=float)
+    bcoil = np.asarray(labels.scalars[_BCOIL_KEY], dtype=float)
+    q95 = np.asarray(labels.scalars[_Q95_KEY], dtype=float)
     eligible = np.flatnonzero(
         np.isfinite(plasma_current + bcoil + q95)
-        & (plasma_current >= MINIMUM_PLASMA_CURRENT_KA)
-        & (bcoil < STANDARD_FIELD_BCOIL_MAXIMUM)
+        & (plasma_current >= eligibility.minimum_plasma_current_ka)
+        & (bcoil < eligibility.standard_field_bcoil_maximum)
         & (q95 != 0.0)
     )
     if eligible.size == 0:
@@ -223,29 +238,31 @@ def _candidate_frame(row: dict[str, Any]) -> int | None:
     return int(eligible[np.argmax(plasma_current[eligible])])
 
 
-def _axis_and_boundary(row: dict[str, Any], frame: int) -> tuple[float, float]:
-    radius = np.asarray(row["efit_grid_R"], dtype=float)
-    height = np.asarray(row["efit_grid_Z"], dtype=float)
-    flux = np.asarray(row["efit_psirz"][frame], dtype=float)
+def _axis_and_boundary(labels: EfitLabels, frame: int) -> tuple[float, float]:
+    radius = np.asarray(labels.grid_r_m, dtype=float)
+    height = np.asarray(labels.grid_z_m, dtype=float)
+    flux = np.asarray(labels.psirz[frame], dtype=float)
     sampler = RegularGridInterpolator(
         (height, radius), flux, bounds_error=False, fill_value=np.nan
     )
-    axis = float(sampler([[row["efit_z_axis"][frame], row["efit_r_axis"][frame]]])[0])
-    count = int(row["efit_lcfs_n"][frame])
+    r_axis = float(labels.scalars[_R_AXIS_KEY][frame])
+    z_axis = float(labels.scalars[_Z_AXIS_KEY][frame])
+    axis = float(sampler([[z_axis, r_axis]])[0])
+    count = int(labels.scalars[_LCFS_N_KEY][frame])
     boundary_points = np.column_stack(
         (
-            np.asarray(row["efit_lcfs_z"][frame][:count], dtype=float),
-            np.asarray(row["efit_lcfs_r"][frame][:count], dtype=float),
+            np.asarray(labels.lcfs_z_m[frame][:count], dtype=float),
+            np.asarray(labels.lcfs_r_m[frame][:count], dtype=float),
         )
     )
     boundary = float(np.nanmedian(sampler(boundary_points)))
     return axis, boundary
 
 
-def _integrated_current(row: dict[str, Any], frame: int, flux_factor: float) -> float:
-    radius = np.asarray(row["efit_grid_R"], dtype=float)
-    height = np.asarray(row["efit_grid_Z"], dtype=float)
-    source_flux = np.asarray(row["efit_psirz"][frame], dtype=float)
+def _integrated_current(labels: EfitLabels, frame: int, flux_factor: float) -> float:
+    radius = np.asarray(labels.grid_r_m, dtype=float)
+    height = np.asarray(labels.grid_z_m, dtype=float)
+    source_flux = np.asarray(labels.psirz[frame], dtype=float)
     total_flux = flux_factor * source_flux
     derivative_z, derivative_r = np.gradient(total_flux, height, radius, edge_order=2)
     second_z = np.gradient(derivative_z, height, axis=0, edge_order=2)
@@ -253,7 +270,7 @@ def _integrated_current(row: dict[str, Any], frame: int, flux_factor: float) -> 
     delta_star = second_r - derivative_r / radius[np.newaxis, :] + second_z
     density = -delta_star / (tau * mu_0 * radius[np.newaxis, :])
 
-    axis, boundary = _axis_and_boundary(row, frame)
+    axis, boundary = _axis_and_boundary(labels, frame)
     normalised = (source_flux - axis) / (boundary - axis)
     selected = np.isfinite(density) & np.isfinite(normalised) & (normalised <= 1.0)
     interior = np.zeros_like(selected)
@@ -263,46 +280,42 @@ def _integrated_current(row: dict[str, Any], frame: int, flux_factor: float) -> 
     return float(np.sum(density[selected]) * cell_area)
 
 
-def measure_diiid_convention(
-    paths: Iterable[str | Path], *, shots: int = MINIMUM_AUDIT_SHOTS
+def measure_convention(
+    records: Iterable[EfitLabels],
+    eligibility: ConventionEligibility,
+    *,
+    shots: int,
 ) -> ConventionReceipt:
-    """Compute convention receipts over distinct eligible DIII-D train shots."""
+    """Compute convention receipts over distinct eligible loader records.
 
-    if shots < MINIMUM_AUDIT_SHOTS:
+    Each record is a canonical-convention
+    :class:`~imas_ambix.challenge.loader.EfitLabels`; ``eligibility`` is the
+    loader's declared corpus thresholds.  Records whose standard-field frame is
+    absent are skipped.
+    """
+
+    if shots < eligibility.minimum_audit_shots:
         raise ValueError(
-            f"convention evidence requires at least {MINIMUM_AUDIT_SHOTS} shots"
+            "convention evidence requires at least "
+            f"{eligibility.minimum_audit_shots} shots"
         )
     selected: list[ConventionFrameReceipt] = []
-    total_candidate_factor = canonical_factor(
-        "psi_like", source_cocos=_TOTAL_FLUX_CANDIDATE_COCOS
-    )
-    for item in paths:
-        path = Path(item)
-        row = _read(path)
-        frame = _candidate_frame(row)
+    for labels in records:
+        frame = _candidate_frame(labels, eligibility)
         if frame is None:
             continue
-        time_ms = float(row["efit_times"][frame])
-        plasma_current_ka = float(
-            np.interp(
-                time_ms,
-                row["magnetics_plasma_current_times"],
-                row["magnetics_plasma_current"],
-            )
-        )
-        bcoil = float(np.interp(time_ms, row["magnetics_time"], row["magnetics_bcoil"]))
-        axis, boundary = _axis_and_boundary(row, frame)
+        plasma_current_ka = float(labels.scalars[_PLASMA_CURRENT_KEY][frame])
+        bcoil = float(labels.scalars[_BCOIL_KEY][frame])
+        axis, boundary = _axis_and_boundary(labels, frame)
         recorded_current_a = 1000.0 * plasma_current_ka
-        per_radian_current = _integrated_current(
-            row, frame, DIIID_CONVENTION.psi_to_canonical
-        )
-        total_flux_current = _integrated_current(row, frame, total_candidate_factor)
+        per_radian_current = _integrated_current(labels, frame, 1.0)
+        total_flux_current = _integrated_current(labels, frame, 1.0 / tau)
         selected.append(
             ConventionFrameReceipt(
-                shot=path.name,
+                shot=getattr(labels, "shot", f"record-{len(selected)}"),
                 plasma_current_ka=plasma_current_ka,
                 bcoil=bcoil,
-                q95=float(row["efit_q95"][frame]),
+                q95=float(labels.scalars[_Q95_KEY][frame]),
                 axis_to_boundary_flux=boundary - axis,
                 per_radian_current_ratio=per_radian_current / recorded_current_a,
                 total_flux_current_ratio=total_flux_current / recorded_current_a,
@@ -317,12 +330,26 @@ def measure_diiid_convention(
     return ConventionReceipt(frames=tuple(selected))
 
 
+def measure_diiid_convention(
+    paths: Iterable[str | Path], *, shots: int = MINIMUM_AUDIT_SHOTS
+) -> ConventionReceipt:
+    """Compute convention receipts over distinct eligible DIII-D train shots."""
+
+    from .loader import load_labels
+
+    records = (load_labels(path) for path in paths)
+    return measure_convention(records, DIIID_ELIGIBILITY, shots=shots)
+
+
 __all__ = [
     "DIIID_CONVENTION",
+    "DIIID_ELIGIBILITY",
     "DIIID_SOURCE_COCOS",
     "MINIMUM_AUDIT_SHOTS",
+    "ConventionEligibility",
     "ConventionFrameReceipt",
     "ConventionReceipt",
     "CorpusConvention",
+    "measure_convention",
     "measure_diiid_convention",
 ]

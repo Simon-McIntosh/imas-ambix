@@ -56,6 +56,8 @@ class EfitLabels:
     psirz: np.ndarray
     grid_r_m: np.ndarray
     grid_z_m: np.ndarray
+    lcfs_r_m: np.ndarray
+    lcfs_z_m: np.ndarray
     scalars: dict[str, np.ndarray]
     cocos: int
 
@@ -77,6 +79,83 @@ def _array(table: Any, name: str, *, string: bool = False) -> np.ndarray:
 
 def _series(table: Any, name: str, time_name: str) -> SignalSeries:
     return SignalSeries(time_ms=_array(table, time_name), values=_array(table, name))
+
+
+_LABEL_COLUMNS = (
+    "source",
+    "efit_times",
+    "efit_psirz",
+    "efit_grid_R",
+    "efit_grid_Z",
+    "efit_lcfs_r",
+    "efit_lcfs_z",
+    *_EFIT_SCALARS,
+    "magnetics_plasma_current",
+    "magnetics_plasma_current_times",
+    "magnetics_bcoil",
+    "magnetics_time",
+)
+
+
+def _build_labels(table: Any) -> EfitLabels:
+    """Assemble the canonical EfitLabels record from a shot's columns.
+
+    The magnetics channels the convention audit reads are resampled onto the
+    EFIT time base, so the audit sees one record per equilibrium rather than
+    two native-rate series.
+    """
+
+    source = str(table["source"][0].as_py())
+    efit_times = _array(table, "efit_times")
+    source_scalars = {name: _array(table, name) for name in _EFIT_SCALARS}
+    plasma_current = _series(
+        table, "magnetics_plasma_current", "magnetics_plasma_current_times"
+    )
+    bcoil = _series(table, "magnetics_bcoil", "magnetics_time")
+    if source == "DIII-D":
+        psirz = DIIID_CONVENTION.canonical_flux(_array(table, "efit_psirz"))
+        source_scalars["efit_q95"] = DIIID_CONVENTION.canonical_q(
+            source_scalars["efit_q95"]
+        )
+        plasma_current = SignalSeries(
+            time_ms=plasma_current.time_ms,
+            values=DIIID_CONVENTION.canonical_plasma_current(plasma_current.values),
+        )
+        bcoil = SignalSeries(
+            time_ms=bcoil.time_ms,
+            values=DIIID_CONVENTION.canonical_toroidal_field(bcoil.values),
+        )
+    else:
+        psirz = _array(table, "efit_psirz")
+    source_scalars["magnetics_plasma_current"] = np.interp(
+        efit_times, plasma_current.time_ms, plasma_current.values
+    )
+    source_scalars["magnetics_bcoil"] = np.interp(
+        efit_times, bcoil.time_ms, bcoil.values
+    )
+    return EfitLabels(
+        time_ms=efit_times,
+        psirz=psirz,
+        grid_r_m=_array(table, "efit_grid_R"),
+        grid_z_m=_array(table, "efit_grid_Z"),
+        lcfs_r_m=_array(table, "efit_lcfs_r"),
+        lcfs_z_m=_array(table, "efit_lcfs_z"),
+        scalars=source_scalars,
+        cocos=CANONICAL_COCOS,
+    )
+
+
+def load_labels(path: str | Path) -> EfitLabels:
+    """Read only the equilibrium label columns into one canonical record.
+
+    The convention audit reads :class:`EfitLabels` alone, so this avoids
+    materialising the full :class:`ChallengeShot` for every audited shot.
+    """
+
+    table = pq.read_table(path, columns=list(_LABEL_COLUMNS))
+    if table.num_rows != 1:
+        raise ValueError(f"expected one row per shot, found {table.num_rows} in {path}")
+    return _build_labels(table)
 
 
 def load_shot(path: str | Path, *, validate: bool = True) -> ChallengeShot:
@@ -117,13 +196,7 @@ def load_shot(path: str | Path, *, validate: bool = True) -> ChallengeShot:
         ),
     }
     source = str(table["source"][0].as_py())
-    source_psirz = _array(table, "efit_psirz")
-    source_scalars = {name: _array(table, name) for name in _EFIT_SCALARS}
     if source == "DIII-D":
-        psirz = DIIID_CONVENTION.canonical_flux(source_psirz)
-        source_scalars["efit_q95"] = DIIID_CONVENTION.canonical_q(
-            source_scalars["efit_q95"]
-        )
         for name, series in tuple(actuators.items()):
             if name == "magnetics_plasma_current":
                 values = DIIID_CONVENTION.canonical_plasma_current(series.values)
@@ -132,16 +205,7 @@ def load_shot(path: str | Path, *, validate: bool = True) -> ChallengeShot:
             else:
                 continue
             actuators[name] = SignalSeries(time_ms=series.time_ms, values=values)
-    else:
-        psirz = source_psirz
-    labels = EfitLabels(
-        time_ms=_array(table, "efit_times"),
-        psirz=psirz,
-        grid_r_m=_array(table, "efit_grid_R"),
-        grid_z_m=_array(table, "efit_grid_Z"),
-        scalars=source_scalars,
-        cocos=CANONICAL_COCOS,
-    )
+    labels = _build_labels(table)
     shot = ChallengeShot(
         source=source,
         actuators=actuators,
@@ -177,6 +241,11 @@ def validate_loaded_shot(shot: ChallengeShot) -> None:
         raise ValueError(f"labels must be canonical COCOS {CANONICAL_COCOS}")
     if shot.labels.grid_r_m.shape != (65,) or shot.labels.grid_z_m.shape != (65,):
         raise ValueError("EFIT grids must each contain 65 coordinates")
+    if (
+        shot.labels.lcfs_r_m.shape != shot.labels.lcfs_z_m.shape
+        or shot.labels.lcfs_r_m.shape[0] != frame_count
+    ):
+        raise ValueError("last-closed-surface point arrays do not match efit_times")
     for name, values in shot.labels.scalars.items():
         if values.shape != (frame_count,):
             raise ValueError(f"{name} shape {values.shape} does not match efit_times")
