@@ -24,9 +24,9 @@
   <title>JT-60SA Geometry and Signal Figures | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="45">
+<meta name="plan-version" content="46">
 <meta name="plan-modified" content="2026-10-06">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s1b&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s2b&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;deferred&quot;}">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s1b&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s2b&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;deferred&quot;}">
 <meta name="plan-commits" content="369a705d,b36a5d93,bd84e83d,438c4d16,c35e1783,6f251699">
 </head>
 <body>
@@ -145,21 +145,12 @@
       The done-when and its test live in that plan.
     </p>
 
+    <section class="section-landed">
+  <header><span class="badge badge-shipped">&#10003; landed 2026-10-06</span>
     <h2 id="s2b">§2b — A test for the geometry count guard</h2>
-<section data-reckon="section" data-id="s2b" data-effort-hours="0.25" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
-<p>
-      The geometry script's <code>_report</code> (<code>scripts/figures_jt60sa_geometry.py</code>) compares the
-      counts passed to imas-ink with the store's and stops on a mismatch, but it runs only against the real
-      JT-60SA description store, so nothing in the test suite would notice if the comparison were weakened.
-      This section adds <code>tests/scripts/test_figures_jt60sa_geometry.py</code>, which imports the
-      script's <code>_report</code> and asserts it passes equal counts and raises <code>SystemExit</code> naming
-      the field when one drawn count differs. It changes no script behaviour and adds no public name.
-    </p>
-    <p>
-      Done-when: the test passes under <code>uv run --no-sync pytest -p no:cacheprovider
-      tests/scripts/test_figures_jt60sa_geometry.py</code> and fails when <code>_report</code> stops comparing
-      the probe count; <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0.
-    </p>
+<section data-reckon="section" data-id="s2b" data-effort-hours="0.25" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="done" data-links=""></section></header>
+  <p class="landed-summary">Landed <code>tests/scripts/test_figures_jt60sa_geometry.py</code>: the geometry script's count reconciliation now has a test for both outcomes. Equal store and drawn counts pass, and a drawn probe count of 11 against the store's 12 raises a <code>SystemExit</code> naming <code>probes</code>. Review scored 112/120 with no findings, and a mutation that drops <code>probes</code> from the compared keys turns the refusal test red. <a href="s2b">full record</a></p>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
@@ -169,9 +160,15 @@
     <pre class="r-fu-prompt">/reckon-build jt60sa-geometry-and-signal-figures §1</pre>
     <p class="r-fu-outcome">§1 landed and was withdrawn; the lead routed the figures through imas-ink (decisions figure-owner and vessel-source), superseding the palette flow.</p>
     </article>
-<article class="r-fu" data-id="f-jtfig-002" data-status="open" data-written-by="reckon-build" data-written-at="2026-10-06" data-recommends-skill="/reckon-build jt60sa-geometry-and-signal-figures §4" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-jtfig-002" data-status="resolved" data-written-by="reckon-build" data-written-at="2026-10-06" data-recommends-skill="/reckon-build jt60sa-geometry-and-signal-figures §4" data-resolved-at="2026-10-06T13:11:09+00:00" data-resolved-by="reckon-build">
     <h4 class="r-fu-title">Teach imas-ink vessel units, retire ambix&#x27;s figure code, then render through imas-ink</h4>
     <div class="r-fu-body"><p>§4, §1b and §3 can run now; §2 waits on the machine map's wall rewrite and §4.</p></div>
+    <pre class="r-fu-prompt">/reckon-build jt60sa-geometry-and-signal-figures §3</pre>
+    <p class="r-fu-outcome">superseded by f-jtfig-003: §1b, §2 and §2b landed; §4 moved to imas-ink, whose geometry-figure-vessel-units plan shipped; only §3 remains</p>
+    </article>
+<article class="r-fu" data-id="f-jtfig-003" data-status="open" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-written-by="reckon-build" data-written-at="2026-10-06" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Re-render the JT-60SA signal figures once imas-ink draws traces at display resolution</h4>
+    <div class="r-fu-body"><p>§3 resumes after the imas-ink plan trace-figure-display-resolution ships. It then drops the legends, names each channel and unit on the y-axis, makes <code>read_channel</code> refuse a half-written channel, and writes one SVG per figure.</p></div>
     <pre class="r-fu-prompt">/reckon-build jt60sa-geometry-and-signal-figures §3</pre>
     </article>
 </section>
