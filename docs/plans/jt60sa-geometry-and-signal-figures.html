@@ -24,7 +24,7 @@
   <title>JT-60SA Geometry and Signal Figures | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="33">
+<meta name="plan-version" content="34">
 <meta name="plan-modified" content="2026-10-06">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s1b&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;deferred&quot;}">
 <meta name="plan-commits" content="369a705d,b36a5d93">
@@ -71,8 +71,9 @@
       side on one shared viewport. The second overlays the two phases' first wall and vessel contours
       on one panel, the components that change at the OP1 to OP2 boundary, telling the phases apart by
       line style alone. The caption carries everything a reader needs to identify what is drawn: which
-      panel is which phase, which contours are the first wall and which the vessel skins, that the coil
-      rectangles are the 268 current filaments discretising the 12 PF coils, that the cryostat-scale
+      panel is which phase, which contours are the first wall and which the vessel skins, that each coil
+      rectangle is the outline of one of the 12 PF coils, the envelope imas-ink draws around the coil's
+      current filaments (268 in all), that the cryostat-scale
       passive loop and the sensors EDDB acquires without a facility position are not drawn, and the
       counts. The script draws no element itself and holds no colour, label or style constant.
     </p>
@@ -85,7 +86,8 @@
       Done-when: both figures are written as one SVG each, with no PNG twin, under
       <code>docs/figures/jt60sa-geometry/</code> and embedded with a project-absolute <code>src</code> and
       a caption in the node's evidence fragment; the script prints, per phase, the counts it passed to
-      imas-ink (coil filaments, first-wall and vessel contour points, flux loops, probes) and they match
+      imas-ink and those it drew (PF coils drawn and the filaments they enclose, first-wall and vessel
+      contour points, flux loops, probes) and they match
       the store.
     </p>
 
