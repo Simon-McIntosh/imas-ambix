@@ -8,7 +8,7 @@ from math import tau
 import numpy as np
 import pytest
 import zarr
-from nova.io.cocos import transform_factor
+from nova_cocos import transform_factor
 
 from imas_ambix.challenge.loader import EfitLabels
 from imas_ambix.data.cocos_convention import (
@@ -29,7 +29,7 @@ from imas_ambix.data.cocos_convention import (
     score_conventions,
     surviving_conventions,
 )
-from imas_ambix.data.signal_map import (
+from imas_alambic.signal_map import (
     MAP_SCHEMA_VERSION,
     SignalMap,
     SignalRule,

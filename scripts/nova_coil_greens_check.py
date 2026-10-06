@@ -36,7 +36,7 @@ from pathlib import Path
 
 import numpy as np
 
-from imas_ambix.cocos import project_poloidal_field
+from imas_alambic.cocos import project_poloidal_field
 
 REPO = Path(__file__).resolve().parents[1]
 NOVA = Path.home() / "Code" / "nova"

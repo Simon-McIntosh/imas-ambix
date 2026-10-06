@@ -17,14 +17,14 @@ from imas_ambix.data.geometry_transitions import (
     build_geometry_transitions,
     load_geometry_table_payload,
 )
-from imas_ambix.data.machine_map import (
+from imas_alambic.machine_map import (
     MachineMap,
     assert_transition_alignment,
     load_packaged_machine_map,
 )
 from imas_ambix.data.manifest import load_index
 from imas_ambix.data.paths import LEVEL2_DIR, MANIFEST_DIR
-from imas_ambix.data.transform_engine import transform_machine_description
+from imas_alambic.transform_engine import transform_machine_description
 
 CORPUS_MANIFEST = MANIFEST_DIR / "level2-all.json"
 GEOMETRY_TABLE = MANIFEST_DIR / "gs_geometry_tables.json"

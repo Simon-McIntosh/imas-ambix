@@ -94,7 +94,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from imas_ambix.cocos import CANONICAL_COCOS, require_canonical_contract
+from imas_alambic.cocos import CANONICAL_COCOS, require_canonical_contract
 from imas_ambix.gs.geometry import (
     BProbe,
     CircuitDrive,

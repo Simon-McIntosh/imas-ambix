@@ -794,8 +794,8 @@ def test_turn_corrected_vacuum_fit_of_loop_7_is_within_20_percent_of_minus_one()
 
     import zarr
 
-    from imas_ambix.data.machine_map import load_packaged_machine_map
-    from imas_ambix.data.signal_map import load_packaged_signal_map
+    from imas_alambic.machine_map import load_packaged_machine_map
+    from imas_alambic.signal_map import load_packaged_signal_map
 
     catalogue = load_packaged_machine_map("jt-60sa")
     table = read_geometry_table(_JT60SA_VACUUM_SHOT, machine="jt-60sa")

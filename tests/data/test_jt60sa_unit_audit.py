@@ -22,8 +22,8 @@ from typing import Any
 import pytest
 from imas.dd_zip import dd_etree
 
-from imas_ambix.data.machine_map import load_packaged_machine_map
-from imas_ambix.data.signal_map import load_packaged_signal_map
+from imas_alambic.machine_map import load_packaged_machine_map
+from imas_alambic.signal_map import load_packaged_signal_map
 
 MACHINE = "jt-60sa"
 SYSTEMS = ("magnetics", "pf_active", "tf")

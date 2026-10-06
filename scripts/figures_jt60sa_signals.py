@@ -40,10 +40,10 @@ from imas_ink.components import TimeSeries
 from imas_ink.figures import DEFAULT_STYLE, time_trace_figure_mpl
 from imas_ink.io import render_to_bytes
 
-from imas_ambix.data.eddb import normalised_shot, read_channel
+from imas_alambic.eddb import normalised_shot, read_channel
 from imas_ambix.data.paths import JT60SA_ROOT
-from imas_ambix.data.signal_map import SignalRule, load_packaged_signal_map
-from imas_ambix.data.virtual_zarr import VirtualZarrView
+from imas_alambic.signal_map import SignalRule, load_packaged_signal_map
+from imas_alambic.virtual_zarr import VirtualZarrView
 
 FIGURES = Path(__file__).resolve().parents[1] / "docs" / "figures" / "jt60sa-signals"
 

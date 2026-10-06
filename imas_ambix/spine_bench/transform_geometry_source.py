@@ -28,8 +28,7 @@ from typing import Any
 import numpy as np
 
 from imas_ambix.data.description_reader import read_geometry_table
-from imas_ambix.data.machine_map import PACKAGED_MACHINE_MAP_ROOT
-from imas_ambix.data.paths import LEVEL2_DIR, local_shot_path
+from imas_ambix.data.paths import LEVEL2_DIR, PACKAGED_MACHINE_MAP_ROOT, local_shot_path
 from imas_ambix.spine_bench.runner import (
     CampaignGeometrySource,
     GeometrySource,

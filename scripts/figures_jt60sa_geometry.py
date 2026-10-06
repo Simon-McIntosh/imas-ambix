@@ -29,11 +29,11 @@ from imas_ink.extract import extract_geometry
 from imas_ink.figures import geometry_figure_mpl
 from imas_ink.io import render_to_bytes
 
-from imas_ambix.data.machine_map import (
+from imas_alambic.machine_map import (
     MachineMapCatalog,
     load_packaged_machine_map,
 )
-from imas_ambix.data.transform_engine import NetCDFTransformEngine
+from imas_alambic.transform_engine import NetCDFTransformEngine
 
 matplotlib.use("Agg")
 

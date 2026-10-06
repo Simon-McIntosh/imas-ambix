@@ -54,7 +54,7 @@ from pathlib import Path
 
 import numpy as np
 
-from imas_ambix.cocos import project_poloidal_field
+from imas_alambic.cocos import project_poloidal_field
 
 MU0 = 4.0e-7 * np.pi
 """Vacuum permeability [T*m/A]."""

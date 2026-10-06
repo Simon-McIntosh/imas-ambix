@@ -36,7 +36,7 @@ from imas_ambix.gs.operator import classify_circuits
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
 
-    from imas_ambix.data.machine_map import (
+    from imas_alambic.machine_map import (
         AcquisitionDeclaration,
         CircuitConnection,
         DescriptionSupplement,
@@ -44,7 +44,7 @@ if TYPE_CHECKING:
         FluxLoopPositionDeclaration,
         MachineMapCatalog,
     )
-    from imas_ambix.data.transform_engine import EmittedArray, MachineDescription
+    from imas_alambic.transform_engine import EmittedArray, MachineDescription
 
 
 class GeometryAdapterError(ValueError):

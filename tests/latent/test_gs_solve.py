@@ -27,7 +27,7 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from imas_ambix.cocos import project_poloidal_field
+from imas_alambic.cocos import project_poloidal_field
 from imas_ambix.gs.machine_geometry import GeometryIdentity, OperatorGeometry
 from imas_ambix.latent.gs_solve import (
     EquilibriumGrid,

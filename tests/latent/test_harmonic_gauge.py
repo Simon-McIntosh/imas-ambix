@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from imas_ambix.cocos import project_poloidal_field
+from imas_alambic.cocos import project_poloidal_field
 from imas_ambix.gs.operator import MU0, greens_psi
 from imas_ambix.latent.boundary_harmonic import (
     HarmonicFitConfig,

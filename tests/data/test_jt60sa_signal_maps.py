@@ -3,8 +3,8 @@
 The three packaged maps bind the commissioning-shot channels whose names are
 already known: the MMSYS coil currents (two chains), the MMSYS TF currents and
 the PSRC plasma current.  The maps are read by
-:func:`imas_ambix.data.signal_map.load_packaged_signal_map` and applied by
-:class:`imas_ambix.data.virtual_zarr.VirtualZarrView` directly over the
+:func:`imas_alambic.signal_map.load_packaged_signal_map` and applied by
+:class:`imas_alambic.virtual_zarr.VirtualZarrView` directly over the
 ``{shot}.zarr/{category}/{dname}`` cache.
 
 The two measurement chains of every coil are recorded as a ranked pair: one is
@@ -21,10 +21,9 @@ import re
 import numpy as np
 import pytest
 
-from imas_ambix.data.machine_map import PACKAGED_MACHINE_MAP_ROOT
-from imas_ambix.data.paths import JT60SA_ROOT
-from imas_ambix.data.signal_map import load_packaged_signal_map
-from imas_ambix.data.virtual_zarr import VirtualZarrError, VirtualZarrView
+from imas_ambix.data.paths import JT60SA_ROOT, PACKAGED_MACHINE_MAP_ROOT
+from imas_alambic.signal_map import load_packaged_signal_map
+from imas_alambic.virtual_zarr import VirtualZarrError, VirtualZarrView
 
 SHOTS = (101154, 101173, 60033)
 COILS = ("CS1", "CS2", "CS3", "CS4", "EF1", "EF2", "EF3", "EF4", "EF5", "EF6")

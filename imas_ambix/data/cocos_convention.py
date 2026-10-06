@@ -23,11 +23,11 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, Literal
 
 import numpy as np
-from nova.io.cocos import CONVENTION_DIGITS
+from nova_cocos import CONVENTION_DIGITS
 
-from imas_ambix.data.eddb import normalised_shot
-from imas_ambix.data.signal_map import SignalRule, load_packaged_signal_map
-from imas_ambix.data.virtual_zarr import VirtualZarrView
+from imas_alambic.eddb import normalised_shot
+from imas_alambic.signal_map import SignalRule, load_packaged_signal_map
+from imas_alambic.virtual_zarr import VirtualZarrView
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -814,7 +814,7 @@ def read_signal_map_observation(
 
     The raw half — plasma current and every flux-loop channel — is read through
     the view's untransformed accessor,
-    :meth:`~imas_ambix.data.virtual_zarr.VirtualZarrView.raw_series`, which
+    :meth:`~imas_alambic.virtual_zarr.VirtualZarrView.raw_series`, which
     resolves each rule to its source array and that channel's own time base
     without applying the compiled transform.  The transform is not used because
     for a ``source-only`` rule it carries the assumed sign this reader exists

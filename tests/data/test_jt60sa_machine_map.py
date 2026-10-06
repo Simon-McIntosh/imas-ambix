@@ -18,13 +18,13 @@ import pytest
 from imas_ambix.data.description_identity import machine_description_bytes
 from imas_ambix.data.description_reader import read_geometry_table
 from imas_ambix.data.geometry_adapter import geometry_table_from_description
-from imas_ambix.data.machine_map import (
+from imas_alambic.machine_map import (
     load_machine_map,
     load_packaged_machine_map,
     map_for_shot,
 )
 from imas_ambix.data.paths import JT60SA_DESCRIPTION_DIR
-from imas_ambix.data.transform_engine import (
+from imas_alambic.transform_engine import (
     BindingTransformError,
     transform_machine_description,
 )
