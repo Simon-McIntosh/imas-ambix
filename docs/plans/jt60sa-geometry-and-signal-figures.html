@@ -23,7 +23,7 @@
   <title>JT-60SA Geometry and Signal Figures | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="10">
+<meta name="plan-version" content="11">
 <meta name="plan-modified" content="2026-10-06">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s1b&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;}">
 </head>
@@ -55,8 +55,10 @@
       <code>imas.DBEntry</code>. Measured 2026-10-06: both phases carry twelve PF coils
       (CS1–CS4, EF1–EF6 and the two FPPC coils) discretised into 268 current filaments, each
       <code>pf_active</code> coil element being one of the SELENE deck's rectangular filaments carrying
-      part of its coil's turns: 40 per CS module, 16 per EF coil and 6 per FPPC coil; OP1's vessel is two resistivity blocks, loops VV1 (63 filaments) and VV2 (57), and
-      OP2's is one loop VV1 (98); <code>magnetics</code> holds 17 pickup probes (MP1–MP17, with their
+      part of its coil's turns: 40 per CS module, 16 per EF coil and 6 per FPPC coil; OP1's <code>pf_passive</code> is two deck blocks, loop VV1 (63 vessel filaments) and loop VV2
+      (57 slabs reaching R 6.7&nbsp;m and |Z| 7.5&nbsp;m, a cryostat-scale second deck block that the
+      converter names as vessel and the machine map is correcting), and OP2's is one loop VV1 (98 vessel
+      filaments); <code>magnetics</code> holds 17 pickup probes (MP1–MP17, with their
       poloidal angle) and 27 flux loops (FL1–FL27). The signals are the EDDB cache under
       <code>JT60SA_ROOT</code>, whose pulse layout, time-base sibling and unit attribute
       <code>imas_ambix/data/eddb.py</code> owns: <code>101154.zarr</code> (MDAC 38, MMSYS 22 and PSRC 59 channels),
@@ -129,16 +131,17 @@
       overlays the two phases' vessel and wall on one axis, the only components that change at the
       OP1 to OP2 boundary, so the change reads without comparing panels. Sensors EDDB acquires but no
       facility file positions (7 flux loops and 6 probes) are listed in the caption, not drawn. The
-      window holds every element the store carries, so OP1's vessel rectangles that the converter
-      placed metres outside the machine (loop VV1, reported to the machine map on 2026-10-06) are
-      drawn as stored and named in the caption with their element indices; direct labels sit in empty
-      space and no leader line crosses a drawn element.
+      window holds every element the store carries. OP1's second deck block (loop VV2, 57
+      cryostat-scale slabs) is drawn in a reference neutral and labelled "second deck block
+      (cryostat-scale)" rather than vessel until the machine map corrects its naming, and the overlay
+      compares OP1's 63 vessel filaments with OP2's 98. Direct labels sit in empty space and no leader
+      line crosses a drawn element.
     </p>
     <p>
       Done-when: both figures are written as PNG and SVG under <code>docs/figures/jt60sa-geometry/</code>
       and embedded with a project-absolute <code>src</code> and a caption in the node's evidence
-      fragment, which the landing carries into this plan; a check in the script asserts the counts drawn equal the counts read from the store (12 PF coils discretised into 268 current filaments, 120 and
-      98 vessel filaments, 27 flux loops, 17 probes) and prints them.
+      fragment, which the landing carries into this plan; a check in the script asserts the counts drawn equal the counts read from the store (12 PF coils discretised into 268 current filaments; OP1's 63 vessel
+      filaments and 57-slab second deck block; OP2's 98 vessel filaments; 27 flux loops; 17 probes) and prints them.
     </p>
 
     <h2 id="s3">§3 — Signals: the cached pulses</h2>
@@ -176,10 +179,9 @@
       as the script's own validator run records, and the OP1 and OP2 vessel as lightness steps of one
       hue. At least one of the five spends colour on a single subject, the vessel, and draws the other
       families in neutrals. Every candidate is drawn on one R, Z window shared by the OP1 and OP2
-      panels and sized to the machine, coils and wall with a margin, so the palettes are judged at a
-      readable scale; vessel rectangles the store places outside that window are counted in the
-      caption by phase and element index rather than drawn, and the rectangles are labelled as current
-      filaments of their coil. Direct labels sit in empty space and no leader line crosses a drawn
+      panels that holds every stored element, OP1's second deck block included (R to 6.7&nbsp;m,
+      |Z| to 7.5&nbsp;m); that block is drawn in a reference neutral and labelled "second deck block
+      (cryostat-scale)", and the coil rectangles are labelled as current filaments of their coil. Direct labels sit in empty space and no leader line crosses a drawn
       element.
     </p>
     <p>
