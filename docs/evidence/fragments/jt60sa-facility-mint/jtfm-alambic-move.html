@@ -1,0 +1,25 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtfm-alambic-move-landing">
+  <header>
+    <h3>the mint engine is a workspace member with by-name bundle discovery</h3>
+    <p class="meta">
+      Node <code>jtfm-alambic-move</code> &middot;
+      date 2026-10-07 &middot;
+      plan <code>jt60sa-facility-mint</code> &sect;2 &middot;
+      commit <code>3ae87c26</code>
+    </p>
+  </header>
+
+  <p>
+    The mint engine moved into <code>packages/imas-alambic</code> (import
+    <code>imas_alambic</code>) by <code>git mv</code>: machine_map, signal_map,
+    transform_engine, virtual_zarr, eddb, eddb_remote, pulse_mint and the COCOS
+    layer, with the map schema. It declares <code>requires-python&nbsp;&ge;&nbsp;3.12</code>,
+    its own hatch-vcs version, and depends only on numpy, imas-python, zarr,
+    pyyaml and nova-cocos. The engine's packaged roots and its lookup against
+    ambix's <code>paths</code> module are replaced by bundle discovery over the
+    <code>imas_alambic.bundles</code> entry-point group and
+    <code>IMAS_ALAMBIC_MAP_PATH</code>; ambix registers its
+    <code>imas_ambix/data</code> directory as its bundle. The mint retires from
+    <code>imas-ambix data</code> and becomes <code>imas-alambic mint</code>.
+  </p>
+</section>
