@@ -1,0 +1,180 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtmm-passive-cryostat-and-wall">
+  <header>
+    <h3>passive cryostat and wall: the vessel, cryostat and first wall separated in the store</h3>
+    <p class="meta">
+      Node <code>jtmm-passive-cryostat-and-wall</code> &middot;
+      date 2026-10-06 &middot; plan <code>jt60sa-machine-map</code> &sect;4
+    </p>
+  </header>
+
+  <div id="jtmm-passive-cryostat-and-wall-why">
+    <p>
+      The SELENE passive block carries two contiguous resistivity runs. The
+      first is the vacuum vessel (EQSLE.DATA lines 293&ndash;355, 63 filaments
+      at 7.76e-7 &Omega;&middot;m); the second is the cryostat (lines
+      356&ndash;412, 57 slabs at 7.20e-7 &Omega;&middot;m). The converter had
+      named the second run <code>VV2</code> — a second vessel, which it is not.
+      The deck's trailing contour table interleaves the two vessel skins with
+      the first wall, and had been written as one limiter polygon.
+    </p>
+    <p>
+      <code>imas_ambix/data/selene_deck.py</code> now parses the two runs into
+      <code>vessel</code> and <code>cryostat</code> and writes two named
+      <code>pf_passive</code> loops, <code>VV</code> and <code>CRYOSTAT</code>,
+      and splits the contour table by its labels so the first wall becomes the
+      limiter outline and the two vessel skins become the annular vessel
+      unit's <code>outline_inner</code> and <code>outline_outer</code>.
+    </p>
+    <figure>
+      <img
+        src="/imas-ambix/figures/jt60sa-machine-map/jtmm-passive-cryostat-and-wall/passive-groups.png"
+        alt="OP1 passive filaments in the R-Z plane: 63 vessel filaments inside the dotted vessel envelope, 57 cryostat filaments far outside it, with the wall limiter and vessel skins"
+      />
+      <figcaption>
+        OP1, read from the converted store. Blue: the 63 <code>VV</code>
+        filaments with their R/Z envelope dotted. Orange: the 57
+        <code>CRYOSTAT</code> slabs, each outside the envelope. Black: the wall
+        limiter; grey: the vessel unit's inner and outer skins. The cryostat's
+        base at Z &asymp; &minus;7.5 m and lid at Z &asymp; 7 m sit well
+        outside the vessel's R 1.45&ndash;4.94 m, |Z| &le; 3.3 m envelope,
+        which is why the envelope refusal accepts the group.
+      </figcaption>
+    </figure>
+  </div>
+
+  <div id="jtmm-passive-cryostat-and-wall-guard">
+    <p>
+      The converter refuses to label a group <code>CRYOSTAT</code> unless every
+      one of its filaments lies outside the vessel group's R and Z envelope
+      (<code>CryostatEnvelopeError</code>), so a second vessel material can
+      never be written as the cryostat. Both phases read the cryostat from the
+      same EQSLE.DATA run, so the two phases' <code>CRYOSTAT</code> loops are
+      identical; OP2 takes its own 98-filament vessel and limiter from
+      <code>coil_vv_OP2.dat</code>, which carries no skins, so its wall is the
+      limiter alone.
+    </p>
+  </div>
+
+  <div id="jtmm-passive-cryostat-and-wall-store">
+    <p>
+      The store under
+      <code>/work/projects/imas_gpu/jt60sa/machine_description/</code> was
+      re-converted from the three sha256-verified source copies (refusing on
+      any mismatch against <code>source/provenance.json</code>). Every existing
+      file's sha256 was recorded first; each new file was staged in a sibling
+      temp directory and <code>os.replace</code>d into place. Every IDS reads
+      back through <code>imas.DBEntry</code> at DD 4.1.1 in both phases.
+    </p>
+    <table>
+      <thead>
+        <tr><th>phase</th><th>file</th><th>sha256 before</th><th>sha256 after</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>OP1</td><td><code>pf_passive.nc</code></td>
+          <td><code>102322ae&hellip;c7b6956d</code></td>
+          <td><code>fbdce429&hellip;f48c7d33</code></td>
+        </tr>
+        <tr>
+          <td>OP1</td><td><code>wall.nc</code></td>
+          <td><code>31404ff7&hellip;97a7bd583f</code></td>
+          <td><code>8fca2e98&hellip;68de10720</code></td>
+        </tr>
+        <tr>
+          <td>OP1</td><td><code>receipt.json</code></td>
+          <td><code>38f1edc1ade60c8a&hellip;</code> (prefix captured pre-change)</td>
+          <td><code>43fe9b08&hellip;66a60eace0</code></td>
+        </tr>
+        <tr>
+          <td>OP2</td><td><code>pf_passive.nc</code></td>
+          <td><code>db24219e&hellip;3ed3bd2c9d</code></td>
+          <td><code>d138d088&hellip;20fe9852fe</code></td>
+        </tr>
+        <tr>
+          <td>OP2</td><td><code>receipt.json</code></td>
+          <td><code>bcecf0e57f88dbb9&hellip;</code> (prefix captured pre-change)</td>
+          <td><code>717984c7&hellip;c8850d208e</code></td>
+        </tr>
+        <tr>
+          <td colspan="4">
+            Unchanged in both phases (byte-identical before and after):
+            <code>pf_active.nc</code> <code>aa623601&hellip;1ab08777</code>,
+            <code>magnetics.nc</code> <code>bc8ed1ac&hellip;3fdcfa</code>,
+            <code>tf.nc</code> <code>c5549058&hellip;7ec0d2</code>.
+            OP2's <code>wall.nc</code> is unchanged too
+            (<code>5d26b2cc&hellip;8f721f5</code>): OP2 has no vessel skins.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <p>
+      The before-hashes of the <code>.nc</code> products were reproduced
+      byte-for-byte by re-running the parent converter revision
+      <code>17eeb037</code> on the same verified decks, and match the prefixes
+      recorded in the store before the change.
+    </p>
+  </div>
+
+  <div id="jtmm-passive-cryostat-and-wall-measure">
+    <table>
+      <thead>
+        <tr><th>measure</th><th>OP1</th><th>OP2</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>pf_passive loops (filaments @ resistivity)</td>
+          <td>VV 63 @ 7.76e-7, CRYOSTAT 57 @ 7.20e-7</td>
+          <td>VV 98 @ 7.20e-7, CRYOSTAT 57 @ 7.20e-7</td>
+        </tr>
+        <tr>
+          <td>wall limiter outline points</td>
+          <td>150</td>
+          <td>51</td>
+        </tr>
+        <tr>
+          <td>wall description_2d type index</td>
+          <td>2 (limiter + vessel unit)</td>
+          <td>1 (limiter only)</td>
+        </tr>
+        <tr>
+          <td>vessel unit skins</td>
+          <td><code>outline_inner</code> and <code>outline_outer</code>, 5 arcs each</td>
+          <td>none (source carries no skins)</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>
+      The catalogue <code>imas_ambix/data/machine_maps/jt-60sa.json</code>
+      declares the passive families <code>VV</code> and <code>CRYOSTAT</code>
+      in both phase binding sets, adds OP2's <code>CRYOSTAT</code> binding group
+      and structure assembly, and binds the OP1 wall's annular vessel unit
+      beside its limiter. The phase-boundary test compares bindings by a
+      phase-neutral name: the vessel bindings and the wall change across
+      101173/101174 while the <code>CRYOSTAT</code> loop, <code>pf_active</code>
+      and <code>magnetics</code> are byte-equal.
+    </p>
+    <p>
+      Measure: <code>pytest -n 8</code> over
+      <code>tests/data/test_selene_deck.py</code>,
+      <code>tests/data/test_jt60sa_machine_map.py</code>,
+      <code>tests/data/test_description_reader.py</code>,
+      <code>tests/data/test_description_identity.py</code> and
+      <code>tests/data/test_transform_engine.py</code> &mdash;
+      <strong>58 passed</strong>, <code>EXIT=0</code>;
+      <code>ruff check imas_ambix tests</code> clean.
+    </p>
+  </div>
+
+  <div id="jtmm-passive-cryostat-and-wall-negative-control">
+    <p>
+      Negative control (declared): make the converter label the second
+      resistivity group <code>VV2</code> again. The converter was edited so
+      <code>build_pf_passive</code> appends the cryostat group as
+      <code>VV2</code>; the test asserting a <code>CRYOSTAT</code> loop of 57
+      filaments in both phases then fails
+      (<code>test_cryostat_loop_carries_57_filaments_in_both_phases</code>,
+      <code>EXIT=1</code>). The mutation was reverted immediately afterwards.
+      Log: <code>negative_control.log</code> in the run directory.
+    </p>
+  </div>
+</section>
