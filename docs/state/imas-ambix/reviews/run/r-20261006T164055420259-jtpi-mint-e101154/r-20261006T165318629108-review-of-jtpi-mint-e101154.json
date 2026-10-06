@@ -1,0 +1,59 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": null,
+  "added_failure_ids": [],
+  "added_failures_note": "unmeasured: the reviewed manifest names no baseline_suite or after_suite gate logs, so the added-failure count was not taken",
+  "base_log_revision": null,
+  "call_site_count": 1,
+  "call_sites": [
+    "imas_ambix/data/cli.py:mint_cmd"
+  ],
+  "completed_at": "2026-10-06T17:00:23.914Z",
+  "dispatched_at": "2026-10-06T16:53:27Z",
+  "findings": [
+    {
+      "file": "docs/evidence/fragments/jt60sa-pulse-ids/jtpi-mint-e101154.html",
+      "line": "32",
+      "severity": "follow-on",
+      "text": "follow-on: the wall.nc table row opens with a duplicated <tr> tag (`<tr><tr>`), leaving the row unclosed and the files table invalid markup that the reckon page renders as a stray empty row."
+    }
+  ],
+  "head_log_revision": null,
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 1 production call site(s)",
+    "diff": "read against base f0cf1a96; the single commit 3992a22f adds only the 67-line evidence fragment, inside the declared scope.",
+    "done_when": "the gate is the mint command exit 0 plus read-back, probe-angle equality against the OP1 store, and 10 non-empty served coil currents; I reproduced each independently (17/17 probe angles equal to OP1 at 1e-12, served coils 10/10 non-empty, ip peak 0.9986 MA).",
+    "goal": "imas-ambix data mint wrote E101154 into /work/projects/imas_gpu/jt60sa/ids/101154; the five netCDFs are present and read back through imas.DBEntry at DD 4.1.1, so the goal is met.",
+    "manifest": "read; it records status complete, the mint and read-back commands with EXIT=0, the log paths, commit 3992a22f and a clean tree.",
+    "write_paths": "the manifest declares docs/evidence/fragments/jt60sa-pulse-ids/jtpi-mint-e101154.html and its figures dir; the raw diff touches only that fragment."
+  },
+  "justifications": {
+    "durability": "the negative control at negative_control.py:38 in the run directory reddens on the superseded store (MP1 0.28 deg vs minted 89.72 deg, EXIT=1), so the probe-angle check discriminates stale from corrected data.",
+    "evidence": "every done-when claim reproduced independently, but the delivered fragment's files table carries a malformed row at docs/evidence/fragments/jt60sa-pulse-ids/jtpi-mint-e101154.html:32.",
+    "fit": "docs/evidence/fragments/jt60sa-pulse-ids/jtpi-mint-e101154.html:1 follows the evidence-fragment idiom and every element id is prefixed with the node id.",
+    "goal_fidelity": "the five files under /work/projects/imas_gpu/jt60sa/ids/101154 read back through imas.DBEntry at DD 4.1.1, matching the goal to mint E101154 from the landed command.",
+    "reuse": "the node reuses the landed imas_ambix/data/pulse_mint.py mint command rather than re-implementing the description/signal-map join.",
+    "scope_discipline": "git diff f0cf1a96..3992a22f reports 1 file changed, 67 insertions, only the declared fragment and nothing outside it."
+  },
+  "node": "review-of-jtpi-mint-e101154",
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: imas-ambix data mint wrote E101154 into /work/projects/imas_gpu/jt60sa/ids/101154; the five netCDFs are present and read back through imas.DBEntry at DD 4.1.1, so the goal is met. The command logs are mint.log and verify_mint.log in the run directory.\nVERDICT done_when: the gate is the mint command exit 0 plus read-back, probe-angle equality against the OP1 store, and 10 non-empty served coil currents; I reproduced each independently (all five files read, 17/17 probe angles equal to OP1 at 1e-12, served coils 10/10 non-empty, ip peak 0.9986 MA).\nVERDICT write_paths: the manifest declares docs/evidence/fragments/jt60sa-pulse-ids/jtpi-mint-e101154.html and its figures dir; the diff touches only that fragment and nothing outside.\nVERDICT manifest: read; it records status complete, the mint and read-back commands with EXIT=0, the log paths, commit 3992a22f and a clean tree.\nVERDICT diff: read against base f0cf1a96; the single commit 3992a22f adds only the 67-line evidence fragment, inside the declared scope.\nCALL_SITES: imas_ambix/data/cli.py:mint_cmd\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: the five files under /work/projects/imas_gpu/jt60sa/ids/101154 read back through imas.DBEntry at DD 4.1.1, matching the goal to mint E101154 from the landed command.\nSCORE evidence: 18\nJUSTIFICATION evidence: every done-when claim reproduced independently, but the delivered fragment's files table carries a malformed row at docs/evidence/fragments/jt60sa-pulse-ids/jtpi-mint-e101154.html:32.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff f0cf1a96..3992a22f reports 1 file changed, 67 insertions, only the declared fragment and nothing outside it.\nSCORE durability: 19\nJUSTIFICATION durability: the negative control at negative_control.py:38 in the run directory reddens on the superseded store (MP1 0.28 deg vs minted 89.72 deg, EXIT=1), so the probe-angle check discriminates stale from corrected data.\nSCORE fit: 19\nJUSTIFICATION fit: docs/evidence/fragments/jt60sa-pulse-ids/jtpi-mint-e101154.html:1 follows the evidence-fragment idiom and every element id is prefixed with the node id.\nSCORE reuse: 20\nJUSTIFICATION reuse: the node reuses the landed imas_ambix/data/pulse_mint.py mint command rather than re-implementing the description/signal-map join.\nFINDING docs/evidence/fragments/jt60sa-pulse-ids/jtpi-mint-e101154.html:32 follow-on: the wall.nc table row opens with a duplicated <tr> tag (`<tr><tr>`), leaving the row unclosed and the files table invalid markup that the reckon page renders as a stray empty row.\nreviewed_base_sha: f0cf1a96659f3f26d4f596257cc3b7568472ea96\nreviewed_head_sha: 3992a22f80a9ef7b3c869b7c1220b5b7bbc60cdb",
+  "review_run_id": "r-20261006T165318629108-review-of-jtpi-mint-e101154",
+  "reviewed_base_sha": "f0cf1a96659f3f26d4f596257cc3b7568472ea96",
+  "reviewed_head_sha": "3992a22f80a9ef7b3c869b7c1220b5b7bbc60cdb",
+  "reviewed_run_id": "r-20261006T164055420259-jtpi-mint-e101154",
+  "reviewer": "independent-review",
+  "scores": {
+    "durability": 19,
+    "evidence": 18,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "timestamp": "2026-10-06T17:01:35.020890+00:00",
+  "total": 115
+}
