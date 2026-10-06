@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5">
 <meta name="plan-impl" content="0.625">
-<meta name="plan-version" content="84">
+<meta name="plan-version" content="85">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -430,6 +430,16 @@
       produces the normalisation table that maps each to a DD unit, checked with the
       imas-cx server's path and unit tools, and a string that cannot be normalised blocks
       its binding rather than defaulting.
+      The table is a spelling map, not a second conversion mechanism. It is a packaged data
+      file beside <code>jt-60sa.json</code> that turns each EDDB spelling into the unit string
+      a binding declares as its <code>source_unit</code>. Conversion keeps its existing
+      owners: the per-channel <code>unit_factor</code> the packaged signal map
+      (<code>imas_ambix/data/signal_map.py</code>) declares, and
+      <code>imas_ambix/data/tokamap_export.py</code> <code>_unit_factor</code>, which converts
+      only between declared binding units. An EDDB spelling with no entry is refused when the
+      catalogue loads, under the existing <code>MachineMapError</code>, so the section adds one
+      data file and no public definition or refusal family. It retires nothing, because no
+      EDDB unit spelling is recorded anywhere today.
     </p>
     <p>
       Done-when: every first-pass DD leaf for pf_active currents, tf current, magnetics ip,
