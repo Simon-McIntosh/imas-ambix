@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+  <meta name="reckon-type" content="doc">
+  <title>Angle factor retirement — landed</title>
+</head>
+<body>
+<main class="plan-doc">
+  <h2 id="jtmm-angle-factor-retire">Angle factor retirement from the source-to-COCOS table</h2>
+  <ul>
+    <li id="jtmm-angle-factor-retire-retired">Retired <code>tor_angle_like</code> and <code>pol_angle_like</code> from <code>MAST_TO_COCOS_17_FACTORS</code>; the table keeps six entries, each a class nova's <code>TRANSFORMATIONS</code> owns.</li>
+    <li id="jtmm-angle-factor-retire-agreement">The agreement test in <code>tests/data/test_cocos_convention.py</code> now iterates every committed entry and cross-checks it against nova's derived factor with no exclusion list.</li>
+    <li id="jtmm-angle-factor-retire-gate">Gate <code>tests/data/test_cocos_convention.py tests/data/test_transform_engine.py</code>: 34 passed, EXIT=0; ruff on the changed paths exits 0.</li>
+    <li id="jtmm-angle-factor-retire-negative-control">Negative control: restoring <code>pol_angle_like: -1.0</code> fails the agreement test (1 failed, 14 passed, EXIT=1).</li>
+  </ul>
+</main>
+</body>
+</html>
