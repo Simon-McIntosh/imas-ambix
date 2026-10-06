@@ -15,6 +15,7 @@ from pathlib import Path
 import imas
 import numpy as np
 import pytest
+from imas.ids_metadata import IDSDataType
 
 from imas_ambix.data import selene_deck as sd
 
@@ -465,3 +466,81 @@ def test_op2_wall_comes_from_the_coil_vv_limiter(tmp_path: Path):
     # The OP1 outline is the EQSLE limiter and first wall, a different contour.
     assert op1_r.max() == pytest.approx(4.216)
     assert not np.isclose(op1_z.min(), op2_z.min())
+
+
+# The five IDSs the converter writes.  Each carries one or more first-level
+# struct arrays whose DD element has a ``name`` leaf, so every populated entry
+# must be given a unique non-empty name.
+STRUCT_ARRAY_IDS = ("pf_active", "pf_passive", "magnetics", "wall", "tf")
+
+
+def _element_has_name(meta) -> bool:
+    """True when a struct-array element type carries a DD ``name`` leaf."""
+    try:
+        meta["name"]
+    except KeyError:
+        return False
+    return True
+
+
+@pytest.fixture()
+def phase_ids(decks, tmp_path: Path):
+    """Every written IDS for one converted phase, read back at DD 4.1.1."""
+    eqsle, geo, coil_vv = decks
+    sd.write_phase_description(
+        phase="OP1",
+        out_dir=tmp_path,
+        eqsle=sd.parse_eqsle_deck(eqsle),
+        geo=sd.parse_geo_in(geo),
+        coil_vv=sd.parse_coil_vv_deck(coil_vv),
+    )
+    out = {}
+    for name in STRUCT_ARRAY_IDS:
+        with imas.DBEntry(
+            tmp_path / "OP1" / f"{name}.nc", "r", dd_version="4.1.1"
+        ) as entry:
+            out[name] = entry.get(name)
+    return out
+
+
+@pytest.mark.parametrize("ids_name", STRUCT_ARRAY_IDS)
+def test_every_written_struct_array_entry_is_named(phase_ids, ids_name):
+    """No populated first-level struct array the converter writes is unnamed.
+
+    The sweep reads the DD metadata rather than a fixed list, so a struct array
+    added to the writer later is covered without being enumerated here.  An
+    array whose element type carries no ``name`` leaf (the wall's
+    ``description_2d``) has no name to assign and is skipped.
+    """
+    ids = phase_ids[ids_name]
+    for meta in ids.metadata:
+        if meta.data_type is not IDSDataType.STRUCT_ARRAY:
+            continue
+        if not _element_has_name(meta):
+            continue
+        array = getattr(ids, meta.name)
+        names = [str(element.name) for element in array]
+        for i, name in enumerate(names):
+            assert name, f"{ids_name}/{meta.name}[{i}] carries an empty name"
+        assert len(set(names)) == len(names), (
+            f"duplicate names in {ids_name}/{meta.name}: {names}"
+        )
+
+
+def test_expected_names_are_assigned_in_deck_order(decks, phase_ids):
+    # The EQSLE vessel holds two resistivity blocks, so its two loops are named
+    # VV1, VV2 in deck order.
+    eqsle, _, _ = decks
+    vessel = sd.parse_eqsle_deck(eqsle).vessel
+    passive = sd.build_pf_passive(imas.IDSFactory("4.1.1"), vessel)
+    assert [str(loop.name) for loop in passive.loop] == ["VV1", "VV2"]
+    assert [str(p.name) for p in phase_ids["magnetics"].b_field_pol_probe] == [
+        "MP1",
+        "MP2",
+    ]
+    assert [str(f.name) for f in phase_ids["magnetics"].flux_loop] == ["FL1", "FL2"]
+    assert str(phase_ids["tf"].coil[0].name) == "TF1"
+    # Each pf_active circuit is named after the coil it drives, and the coil
+    # names come from the deck's own labels.
+    assert [str(c.name) for c in phase_ids["pf_active"].coil] == ["CS1", "CS2"]
+    assert [str(c.name) for c in phase_ids["pf_active"].circuit] == ["CS1", "CS2"]

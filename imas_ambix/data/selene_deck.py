@@ -544,6 +544,7 @@ def build_pf_active(factory, deck: EqSleDeck):
             out.geometry.rectangle.width = float(el.width)
             out.geometry.rectangle.height = float(el.height)
         # Winding direction lives in the circuit, never in signed turns.
+        ids.circuit[i].name = coil.name
         ids.circuit[i].connections = np.array([[i + 1]], dtype=np.int32)
     return ids
 
@@ -571,6 +572,7 @@ def build_pf_passive(factory, vessel: Sequence[VesselFilament]):
     ids.loop.resize(len(blocks))
     for i, block in enumerate(blocks):
         loop = ids.loop[i]
+        loop.name = f"VV{i + 1}"
         loop.element.resize(len(block))
         for j, fil in enumerate(block):
             out = loop.element[j]
@@ -726,6 +728,7 @@ def build_tf(
     if coils_n is not None:
         ids.coils_n = int(coils_n)
     ids.coil.resize(1)
+    ids.coil[0].name = "TF1"
     if turns is not None:
         ids.coil[0].turns = int(turns)
     ids.coil[0].conductor.resize(2)
