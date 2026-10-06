@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5">
 <meta name="plan-impl" content="0.625">
-<meta name="plan-version" content="80">
+<meta name="plan-version" content="82">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -544,7 +544,14 @@
       the pin table and the acquisition read, rather than JT-60SA growing a selector of its own.
       No file maps a shot to a catalogue today, and a JT-60SA pulse integer (E101173 is
       <code>101173</code>) cannot be told from another machine's shot number by value, so the machine
-      is never inferred: the frozen shot set declares it. That set has one owner,
+      is never inferred: the frozen shot set declares it. The machine-map registry cannot
+      own that route, because a catalogue's ranges are scoped to its own machine and overlap
+      across machines (DIII-D's one map spans 0–2147483647, covering every MAST and JT-60SA
+      integer), so <code>map_for_shot</code> can only run after a catalogue is chosen, and every
+      non-benchmark read already names its machine by calling
+      <code>load_packaged_machine_map(machine)</code> before
+      <code>transform_machine_description</code>. The benchmark shot set is where a bare shot
+      first enters, so it declares the machine there. That set has one owner,
       <code>imas_ambix/spine_bench/shots.py</code>, whose <code>BenchShot</code> carries
       <code>shot_id</code> and <code>role</code> and whose <code>resolve_shotset_version</code>
       labels a stamp by comparing <code>(shot_id, role)</code> against MAST's
@@ -585,7 +592,11 @@
       <code>judge_geometry</code> already scores model geometry against an injected reference
       equilibrium into a <code>GeometryVerdict</code> (boundary RMS, axis position, q), so §7 adds
       a SELENE reference loader and its firewall tier to it instead of a parallel
-      comparator. <code>GeometryVerdict</code> scores axis, X-point and boundary RMS only. The
+      comparator. The loader enters through the existing seam,
+      <code>read_efit_geometry(shot_id, frame_times, loader=...)</code>, which is the one
+      read path gated by <code>evaluator_context</code>; SELENE's psi, boundary and axis
+      reduce to the <code>EquilibriumGeometry</code> that seam already returns, so no second,
+      ungated read of a reference equilibrium is added. <code>GeometryVerdict</code> scores axis, X-point and boundary RMS only. The
       whitened magnetics residual already has its owner in the spine benchmark
       (<code>imas_ambix/spine_bench/runner.py</code> <code>_magnetics_residual</code>, written into
       the stamped record), so it is read from the stamp; q95 and Ip have no owner that
@@ -958,6 +969,9 @@
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20261006T012429250474-review-of-jtmm-op2-boundary" data-who="reckon-build" data-when="2026-10-06T01:31:14.533Z">
     <div class="r-comment-body"><p>independent review of run r-20261006T010720533615-jtmm-op2-boundary (plan imas-ambix:jt60sa-machine-map §4), reviewed_base_sha 4d39e7117cde7b80c5dd70e4b538f18449291472 / reviewed_head_sha 1980384209b20b1b4b3d811b7af16e29c945210c, stored as a parsed record scoring all six dimensions in 0..20 (goal_fidelity 19, evidence 17, scope_discipline 20, durability 15, fit 19, reuse 20; total 110/120).</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-20261006T0140-op1-ruling" data-who="reckon-build" data-when="2026-10-06T01:40:00Z">
+    <div class="r-comment-body"><p>Correction to the landing line above: it carries the node's labels as delivered. The lead ruled on 2026-10-06 that the 2023 campaign is OP1 and the 2021 block is the commissioning before it, on the same geometry (decision <code>operating-phase-of-existing-pulses</code>). So E100356 is not the first OP2 pulse. Map OP1 covers 100001–101173 and map OP2 covers 101174–999999, and EDDB holds no OP2 pulse yet. The merged record <code>docs/evidence/fragments/jt60sa-machine-map/jtmm-op2-boundary.html</code> was relabelled at merge (0058f0c0), and the coordinator gate re-derived the 880-day gap from the worker's shot list. Review 110/120, 0 added failures.</p></div>
 </div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20261005T131209269722-review-of-jtmm-shotset-machine" data-who="reckon-build" data-when="2026-10-05T13:20:34.081Z">
     <div class="r-comment-body"><p>Independent review stored for run r-20261005T125917372067-jtmm-shotset-machine (base adb67e5f, head cbef27a7, plan §7): parsed record scoring all six dimensions in 0..20 -- goal_fidelity 19, evidence 18, scope_discipline 19, durability 19, fit 19, reuse 20, total 114 -- with added_failure_count 0 and added_failure_ids [].</p></div>
