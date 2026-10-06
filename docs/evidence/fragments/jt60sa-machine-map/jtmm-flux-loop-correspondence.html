@@ -34,17 +34,21 @@
       <p>For PSRC <code>magFluxLp{I}</code> with I in 1..27 the best raw channel is
       <code>magFlxLp{I}</code> under the linear relation, with slope <code>a</code> in 0.985
       to 1.030, offset <code>b</code> in &minus;0.033 to +0.061 Wb, a relative residual below
-      0.7&#8239;%, and a runner-up ratio above 2 (mostly above 5). The two channels' ranges
-      agree to within 0.3&#8239;% at every one of those indices, so the raw and processed loop
-      at index I are the same physical measurement at essentially unit scale. Channels 28
-      through 34 do not fit any raw channel: their best residual exceeds 5&#8239;% of range
-      under every candidate, their runner-up ratio is near 1 (1.01 to 1.42), and PSRC
-      <code>magFluxLp28..34</code> carry a small signal (range about 0.08 to 0.15 Wb) while
-      the same-index MDAC <code>magFlxLp28..34</code> carry a large one (range about 2.7 to
-      2.9 Wb; those seven raw channels are mutually uncorrelated, so they are distinct
-      signals rather than one duplicated). The correspondence is therefore <strong>not</strong>
-      a global identity permutation; it is the identity on the 27 indices that SELENE
-      positions and undefined on the remaining seven.</p>
+      0.7&#8239;%, and a runner-up ratio above 2 (mostly above 5). Over the common window the
+      raw and processed ranges differ by up to 2.5&#8239;% (magFluxLp3), and by up to
+      0.7&#8239;% once the raw range is scaled by the fitted slope, so the raw and processed
+      loop at index I are the same physical measurement at a scale within 3&#8239;% of one.
+      Channels 28 through 34 do not fit any raw channel: their best residual is 5.0 to
+      6.8&#8239;% of range (4.96&#8239;% for magFluxLp30, just under the 5&#8239;% flag), their
+      runner-up ratio is near 1 (1.01 to 1.42), and PSRC <code>magFluxLp28..34</code> carry a
+      small signal (range about 0.08 to 0.15 Wb) that is mutually uncorrelated across the seven
+      (smallest |r| 0.04), while the same-index MDAC <code>magFlxLp28..34</code> carry a large
+      one (range about 2.7 to 2.9 Wb) that is near-identical across all seven (smallest |r|
+      0.9999 over the window), so the seven raw channels behave as one common signal. The
+      correspondence is therefore <strong>not</strong> a global identity permutation: it is the
+      identity on indices 1 to 27, a count that matches the 27 flux loops <code>geo.in</code>
+      positions, and undefined on the remaining seven. Whether raw loop I is <code>geo.in</code>
+      loop I is not shown here; that stays with SELENE's getseldata index.</p>
     </section>
 
     <section id="jtmm-flux-loop-correspondence-flags">
@@ -134,6 +138,23 @@
       Read via <code>zarr.open_group(..., mode="r")</code> with zarr 3.2.1 on
       <code>/home/ITER/mcintos/Code/imas-ambix/.venv/bin/python</code>. No write under the
       cache root, no network, no contact with the JT-60SA server.</p>
+    </section>
+
+    <section id="jtmm-flux-loop-correspondence-review-corrections">
+      <h3>Corrections at merge, 2026-10-06</h3>
+      <p>The independent review (103/120, no added failures) re-measured three statements in
+      the paragraph above, and they were rewritten to its measurements. As delivered, the
+      record said:</p>
+      <ul>
+        <li>the raw and processed ranges agree within 0.3&#8239;% (measured: up to 2.5&#8239;%,
+        0.7&#8239;% after slope scaling);</li>
+        <li>channels 28 to 34 all exceed 5&#8239;% residual (magFluxLp30 is 4.96&#8239;%);</li>
+        <li>the seven raw MDAC channels 28 to 34 are mutually uncorrelated (they correlate at
+        |r| &ge; 0.9999; the uncorrelated seven are the processed PSRC channels).</li>
+      </ul>
+      <p>The coordinator also narrowed "the 27 indices that SELENE positions" to a count match, since
+      the ordering against <code>geo.in</code> is not measured here. The table, the identity on 1
+      to 27 and the absence of a raw partner for 28 to 34 are unchanged.</p>
     </section>
   </main>
 </body>
