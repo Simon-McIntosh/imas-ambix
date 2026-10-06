@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5">
 <meta name="plan-impl" content="0.625">
-<meta name="plan-version" content="88">
+<meta name="plan-version" content="89">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -413,7 +413,17 @@
       selection is an optional binding slot, declared in <code>schema.yaml</code> and loaded
       by <code>imas_ambix/data/machine_map.py</code>. A binding without it reads exactly as
       today, and a name that matches no entry is refused at read time under the existing
-      <code>TransformEngineError</code> family. Re-converting the store to equal element
+      <code>TransformEngineError</code> family. The selector composes with the existing
+      traversal rather than replacing it. It consumes the first struct-array level: the named
+      entry is read and that level contributes no axis. <code>source_rank</code> then counts
+      the leaf and the struct levels below it, and <code>_struct_array_positions</code> and
+      the preserved-position rule apply to those levels as today. Rank and position decide
+      the shape of what is read, never which named entry, so they cannot express the
+      selection. The selector is not a second identity for the entry either: it is the
+      binding's source address, the job MAST's per-coil <code>source_array</code> (for example
+      <code>p2_inner_lower_r</code>) already does. <code>StructureAssembly</code> keeps naming
+      the emitted elements, read after the transform by
+      <code>geometry_adapter._assembly_identifiers</code>. Re-converting the store to equal element
       counts was rejected, because padding coils with empty elements writes conductors that
       do not exist. The slot widens one binding contract and retires nothing, because no
       binding could select a struct-array entry before. The catalogue node is redispatched
