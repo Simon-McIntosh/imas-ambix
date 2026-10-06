@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5">
 <meta name="plan-impl" content="0.625">
-<meta name="plan-version" content="87">
+<meta name="plan-version" content="88">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -475,8 +475,17 @@
       be identified from data and proved for both current signs rather than asserted. JT-60SA
       offers a cleaner instrument than MAST had: the C-series commissioning shots drive the
       superconducting coils with no plasma, so every loop flux and probe field is a
-      deterministic function of the measured coil currents and the declared geometry. Nova's
-      Biot–Savart operators predict both from the §4 description; comparison against the
+      deterministic function of the measured coil currents and the declared geometry. The
+      prediction comes from ambix's own forward model, the one the §7 reconstruction's vacuum
+      term and MAST's vacuum-stratum validation already use, so the §6 verdicts and the §7
+      residual share one operator. <code>imas_ambix/gs/operator.py</code>
+      <code>build_operator</code> assembles the geometry-only Green's matrices from the §4
+      description's geometry, and <code>ForwardOperator.vacuum_prediction</code> gives the
+      PF-only loop flux and probe field for a vector of coil currents. The only JT-60SA
+      addition is the step that places the measured MMSYS coil currents on the operator's
+      <code>G_pf</code> columns, because <code>assemble_pf_currents</code> reads MAST's raw
+      <code>amc</code> channels. Nova's Biot–Savart operators are not a second forward model
+      here. Comparison against the
       measured channel fixes, per channel, the loop sign, the probe sensitive axis, the unit
       factor and whether the declared position is consistent — exactly the adjudication
       that settled MAST's nineteen disputed loop positions. Each JT-60SA verdict is recorded
