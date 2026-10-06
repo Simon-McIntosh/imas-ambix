@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="jtmm-vacuum-mismatch-rca-landing">
+      <h3>Root cause of the JT-60SA vacuum prediction mismatch</h3>
+      <p>The vacuum prediction the adjudication scored is under-scaled by the
+      driven coil's <b>ampere-turns per ampere</b>. Every tracking channel is off
+      by exactly that factor: the operator is built with <code>turns = 1</code>
+      (its own docstring: &ldquo;turns=1 so amp-turns = amps&rdquo;), while the
+      catalogue's drive topology declares 40 A&middot;turn/A for each CS coil and
+      16 for each EF coil, and nothing on the JT-60SA path applies it. Feeding the
+      raw MMSYS winding current straight to
+      <code>ForwardOperator.vacuum_prediction</code> therefore predicts the flux
+      and field of a one-turn coil. Multiplying each coil current by its declared
+      A&middot;turn/A before the prediction moves every channel that tracks from
+      |slope|&nbsp;=&nbsp;6&ndash;19 to |slope|&nbsp;=&nbsp;0.4&ndash;1.0 &mdash; a
+      reduction of 16 (EF-dominated) to ~40 (CS-dominated), the declared turn
+      counts.</p>
+      <p>The signals themselves are sound: a free per-coil least-squares fit of
+      every measured loop and probe against the ten coil currents reaches
+      r&nbsp;&asymp;&nbsp;0.99 for <em>all</em> 44 channels, so each raw channel is
+      a clean linear function of the drive. The mismatch is in the operator's
+      per-coil response pattern and scale, not in the acquisition. Loop
+      <code>FL7</code> is the one loop that tracks on all three vacuum shots
+      (r&nbsp;=&nbsp;&minus;1.00/&minus;0.97/&minus;1.00) at slope
+      &asymp;&nbsp;&minus;14 because its operator response is dominated by the
+      high-turn CS coils, so its under-scale is the largest of any loop.</p>
+    </section>
+
+    <section id="jtmm-vacuum-mismatch-rca-method">
+      <h3>Method and provenance</h3>
+      <ul>
+        <li>Read-only node. No source changed. Cache
+        <code>/work/projects/imas_gpu/jt60sa</code>, description
+        <code>machine_description/</code>, operator
+        <code>imas_ambix/gs/operator.py</code>; the survey script copied in a
+        scratch tree, never written to the repository.</li>
+        <li>Adjudication code read at commit <code>892715c4</code>
+        (<code>scripts/vacuum_loop_adjudication.py</code>): the JT-60SA branch
+        builds the OP1 operator with <code>build_operator</code>, feeds it the
+        catalogue <code>CircuitDrive</code>s (including
+        <code>ampere_turns_per_ampere</code>) and the emitted probe angles, reads
+        MMSYS coil currents and MDAC loops/probes raw with
+        <code>read_channel</code>, and fits each channel to
+        <code>vacuum_prediction</code>. The recorded slopes were reproduced
+        exactly before any correction (e.g. <code>FL7</code> &minus;14.281,
+        <code>MP1</code> 9.331, <code>MP13</code> 72.502 on E100595).</li>
+        <li>Heavy reads ran on the fleet compute node
+        (<code>98dci4-clu-2018</code>, SLURM job 1277272), not the login node.</li>
+        <li>Full numeric log:
+        <code>rca_checks.log</code> in the run directory.</li>
+      </ul>
+    </section>
+
+    <section id="jtmm-vacuum-mismatch-rca-check1">
+      <h3>Check 1 &mdash; MMSYS and MDAC time bases (E100595)</h3>
+      <p>Both time bases are 4&nbsp;kHz and uniform; the only differences are a
+      0.2&nbsp;ms origin and the record length. MDAC fully covers the MMSYS
+      window, so <code>np.interp</code> of a raw channel onto the MMSYS base is a
+      0.2&nbsp;ms resample with no extrapolation. <b>This check is not
+      discriminating for the mismatch</b> &mdash; it gives the same (clean) result
+      under either hypothesis, which is why it rules the time base out rather than
+      in.</p>
+      <table>
+        <thead><tr><th>category</th><th>t<sub>0</sub> [s]</th><th>dt [s]</th>
+        <th>n samples</th><th>t<sub>end</sub> [s]</th><th>unit</th></tr></thead>
+        <tbody>
+          <tr><td>MMSYS coil currents</td><td>0.0000</td><td>0.00025</td>
+          <td>166154</td><td>41.538</td><td>A</td></tr>
+          <tr><td>MDAC loops / probes</td><td>0.0002</td><td>0.00025</td>
+          <td>244840</td><td>61.210</td><td>Wb / T</td></tr>
+        </tbody>
+      </table>
+      <p>Units are the zarr attributes written by the extractor: the MMSYS coil
+      channels carry <code>units='A'</code> (values ~3&times;10<sup>3</sup> on
+      E100595, i.e. a few kA), the loops <code>'Wb'</code> and the probes
+      <code>'T'</code>.</p>
+    </section>
+
+    <section id="jtmm-vacuum-mismatch-rca-check2">
+      <h3>Check 2 &mdash; loop pre-drive baseline and drift (E100595)</h3>
+      <p>The records are already mid-discharge at t=0: CS1 holds ~2978&nbsp;A at
+      the first sample, decays to ~100&nbsp;A by t&asymp;3.8&nbsp;s and to the
+      noise floor by t&asymp;10&nbsp;s, so there is no flat pre-pulse window inside
+      the cached record. The meaningful zero is the tail (coils off), where every
+      loop returns to ~0. Baselines below are the median of the first 0.5&nbsp;s;
+      drift is the full span of the record. No integrator drift stands out as a
+      cause: every loop's span is dominated by the initial flux and settles to ~0,
+      and <code>FL7</code>'s large negative baseline is carried by its large
+      signal, not by a ramp.</p>
+      <table>
+        <thead><tr><th>channel</th><th>baseline [Wb]</th><th>span [Wb]</th>
+        <th>end [Wb]</th></tr></thead>
+        <tbody>
+          <tr><td>FL1</td><td>0.057</td><td>0.206</td><td>0.0004</td></tr>
+          <tr><td>FL6</td><td>&minus;0.008</td><td>0.009</td><td>0.0002</td></tr>
+          <tr><td>FL7</td><td>&minus;2.343</td><td>2.831</td><td>&minus;0.001</td></tr>
+          <tr><td>FL15</td><td>&minus;0.150</td><td>0.703</td><td>0.0000</td></tr>
+          <tr><td>FL20</td><td>0.097</td><td>2.068</td><td>&minus;0.001</td></tr>
+          <tr><td>FL26</td><td>0.090</td><td>1.669</td><td>0.0003</td></tr>
+          <tr><td>FL27</td><td>&minus;0.197</td><td>0.913</td><td>&minus;0.0002</td></tr>
+        </tbody>
+      </table>
+      <p>Probes behave the same way (e.g. MP1 baseline &minus;0.002&nbsp;T, span
+      0.030&nbsp;T, end &minus;0.0004&nbsp;T). The baseline and drift checks do not
+      account for the mismatch.</p>
+    </section>
+
+    <section id="jtmm-vacuum-mismatch-rca-check3">
+      <h3>Check 3 &mdash; drive topology A&middot;turn/A against the MMSYS units</h3>
+      <p><code>imas_ambix/data/machine_maps/jt-60sa.json</code> declares, per
+      circuit, <code>&Sigma;(turns&nbsp;&times;&nbsp;current_weight&nbsp;&times;&nbsp;direction)</code>
+      over its series elements: <b>40 A&middot;turn/A</b> for each of CS1&ndash;CS4
+      and <b>16 A&middot;turn/A</b> for each of EF1&ndash;EF6. The MMSYS channel
+      that feeds that circuit is in <b>amperes</b> (unit <code>'A'</code>), not
+      ampere-turns, so the physical drive of each CS coil is 40&nbsp;&times; the
+      channel value and each EF coil 16&nbsp;&times; it.</p>
+      <p>The adjudication passed these weights into <code>CircuitDrive</code>, but
+      <code>build_operator</code> never uses <code>ampere_turns_per_ampere</code>:
+      in <code>classify_circuits</code>/<code>_declared_classes</code> the field
+      appears only in a flag message, and <code>G_pf</code> is built from the
+      filaments' <code>xmult</code> with the module's <code>turns = 1</code>
+      assumption. For a machine whose geometry normalises <code>&Sigma;xmult = 1</code>
+      independently of the winding's turn count (as the JT-60SA SELENE deck does),
+      the turn count is the missing factor. The operator's alternative assembly
+      path, <code>assemble_pf_currents</code>, applies only a kA&rarr;A factor of
+      1000 (assuming <code>kA&middot;turn</code> raw units); it is not on the
+      adjudication's path, and applying 1000 would over-scale by ~60&times;, so it
+      is not the correction either.</p>
+    </section>
+
+    <section id="jtmm-vacuum-mismatch-rca-check4">
+      <h3>Check 4 &mdash; why loop 7 alone tracks, and at what factor</h3>
+      <p>On all three vacuum shots <code>FL7</code> is the only loop whose measured
+      flux tracks the prediction (r &minus;1.000 / &minus;0.967 / &minus;0.999) and
+      its slope is &minus;13.86 / &minus;14.28 / &minus;13.55. The magnitude is the
+      under-scale seen through the drive: FL7's operator response is dominated by
+      the high-turn CS coils, so dividing its raw slope by the imposed correction
+      (~36&ndash;40, effectively the 40-turn CS factor diluted by its EF terms)
+      brings it to &asymp;&nbsp;&minus;0.4, while EF-dominated probes sit at
+      &asymp;&nbsp;1 after their 16-fold correction. Loops 20&ndash;26 track only on
+      E100595 (r&nbsp;&asymp;&nbsp;&minus;0.98) and not on E100579/E100642,
+      consistent with a second, position/axis-dependent residual rather than a
+      common scale. FL7's identity is also the loop most consistently matched by
+      the flux-loop PID channels in the E101154 join, so its declared geometry is
+      the one the measurement agrees with.</p>
+    </section>
+
+    <section id="jtmm-vacuum-mismatch-rca-corrected">
+      <h3>Corrected prediction-vs-measurement slope and r</h3>
+      <p>Applying the declared A&middot;turn/A to each coil current before
+      <code>vacuum_prediction</code>. Pearson r is unchanged by a per-coil scale
+      only when the pattern is already right; here it moves with the reweighting.
+      E100595, the shot the measure names:</p>
+      <table>
+        <thead><tr><th>channel</th><th>raw slope / r</th>
+        <th>corrected slope / r</th><th>ratio (raw&divide;corrected)</th></tr></thead>
+        <tbody>
+          <tr><td>FL7</td><td>&minus;14.281 / &minus;0.967</td>
+          <td>&minus;0.395 / &minus;0.989</td><td>36.2</td></tr>
+          <tr><td>FL15</td><td>&minus;4.096 / &minus;0.844</td>
+          <td>&minus;0.134 / &minus;0.617</td><td>30.6</td></tr>
+          <tr><td>FL20</td><td>&minus;8.318 / &minus;0.981</td>
+          <td>&minus;0.484 / &minus;0.926</td><td>17.2</td></tr>
+          <tr><td>FL23</td><td>&minus;8.155 / &minus;0.985</td>
+          <td>&minus;0.482 / &minus;0.942</td><td>16.9</td></tr>
+          <tr><td>FL26</td><td>&minus;7.441 / &minus;0.984</td>
+          <td>&minus;0.436 / &minus;0.937</td><td>17.1</td></tr>
+          <tr><td>FL27</td><td>&minus;4.778 / &minus;0.973</td>
+          <td>&minus;0.249 / &minus;0.892</td><td>19.2</td></tr>
+          <tr><td>MP1</td><td>9.331 / 0.979</td>
+          <td>0.559 / 0.966</td><td>16.7</td></tr>
+          <tr><td>MP5</td><td>18.820 / 0.959</td>
+          <td>&minus;1.032 / &minus;0.962</td><td>18.2</td></tr>
+          <tr><td>MP13</td><td>72.502 / 0.673</td>
+          <td>&minus;0.900 / &minus;0.537</td><td>80.6</td></tr>
+          <tr><td>MP17</td><td>9.309 / 0.969</td>
+          <td>0.548 / 0.949</td><td>17.0</td></tr>
+        </tbody>
+      </table>
+      <p>Across all three shots (corrected slope / r), showing the two channels
+      that stay consistent and r&nbsp;near &plusmn;1:</p>
+      <table>
+        <thead><tr><th>channel</th><th>E100579</th><th>E100595</th>
+        <th>E100642</th></tr></thead>
+        <tbody>
+          <tr><td>FL7</td><td>&minus;0.36 / &minus;1.00</td>
+          <td>&minus;0.40 / &minus;0.99</td>
+          <td>&minus;0.34 / &minus;1.00</td></tr>
+          <tr><td>MP1</td><td>0.23 / 0.72</td><td>0.56 / 0.97</td>
+          <td>0.32 / 0.95</td></tr>
+          <tr><td>MP5</td><td>&minus;1.08 / &minus;1.00</td>
+          <td>&minus;1.03 / &minus;0.96</td><td>0.35 / 1.00</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="jtmm-vacuum-mismatch-rca-conclusion">
+      <h3>Cause, and what stays inconclusive</h3>
+      <p><b>Cause the checks support:</b> the vacuum forward prediction omits the
+      declared ampere-turns-per-ampere, so it under-predicts each channel by the
+      driven coil's turn count (40 CS, 16 EF). This is the single factor that
+      accounts for the whole shortfall in slope.</p>
+      <p><b>Inconclusive:</b> after the A&middot;turn/A correction the slopes sit at
+      |0.4&ndash;1.0|, not cleanly at 1, and loops 1&ndash;14 (and FL20&ndash;26 off
+      E100595) still fail to track. A residual ~2&times; scale and a per-channel
+      position/axis inconsistency remain, and this node does not separate a
+      declared-position error from a probe-axis/angle-convention error. The probe
+      angles read from the emitted store are the corrected tangent angles
+      (&asymp;90&deg; down at the outboard probe, &asymp;5&deg; over the top), so an
+      unrotated wall-normal angle is ruled out as the sole cause.</p>
+      <p><b>Negative control:</b> the time-base check (Check&nbsp;1) was expected to
+      be discriminating and is not &mdash; both bases are 4&nbsp;kHz and align to
+      0.2&nbsp;ms, so it returns the same clean result under the unit hypothesis and
+      under a time-base hypothesis. The discriminating checks are the per-coil
+      least-squares fit (r&nbsp;&asymp;&nbsp;0.99 for all 44 channels) and the
+      A&middot;turn/A reweighting, whose per-channel reduction tracks the coil mix
+      (16 for EF-dominated, ~40 for CS-dominated) rather than being constant.</p>
+    </section>
+  </main>
+</body>
+</html>
