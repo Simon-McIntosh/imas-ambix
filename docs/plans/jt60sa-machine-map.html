@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.93">
-<meta name="plan-version" content="263">
+<meta name="plan-version" content="264">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -591,7 +591,17 @@
       must not copy. The TF map's coil current, read raw the same way, enters only as a polarity
       cross-check reported beside the observation, by sign alone. The reader passes the
       <code>EfitLabels</code> it is given to the same kernel. <code>read_catalogue_observation</code>
-      retires with its tests, so the interface account is one definition retired and one added. For the
+      retires with its tests, so the interface account is one definition retired and one added.
+      The two observation readers, <code>read_level2_observation</code> and
+      <code>read_signal_map_observation</code>, each declare the same plasma-on and baseline current
+      floors (50 kA and 10 kA) as parameter defaults. Those floors pick the kernel's plasma-on and
+      pre-plasma samples. They are not the frame eligibility that <code>ConventionEligibility</code>
+      declares (its <code>minimum_plasma_current_ka</code> gates which equilibrium frames are
+      auditable), so they do not move there. The sign-cohort node, which next edits
+      <code>cocos_convention.py</code>, makes them one pair of private module constants that both
+      readers default to, adding no public definition. It passes JT-60SA's floors explicitly and
+      states each cohort shot's peak |Ip| and pre-plasma baseline in its fragment, so JT-60SA's floors
+      are checked against its own shots rather than inherited. For the
       equilibrium side, the SELENE and FAME outputs are scored on the convention scorer's
       tests (edge-minus-axis flux sense, flux-per-radian versus total flux by integrating
       the Grad–Shafranov current, q sign). The shipped entry point,
@@ -792,9 +802,16 @@
       one, so a JT-60SA selection would be tagged <code>SetupSignature(machine="mast")</code>. Unlike
       the description reader's default, which refuses an unmapped shot, this tag would collide
       with MAST's <code>SetupSignature.key</code>, whose MAST spelling carries no machine prefix.
-      So the reader's <code>machine</code> becomes required, the selector passes the declared
-      machine, and <code>SetupSignature.key</code> keeps its MAST spelling unchanged, because
-      stored MAST keys depend on it, while every other machine's key carries its prefix.
+      So the reader's <code>machine</code> becomes required and the selector passes the declared
+      machine. That is the one signature change on this route. Its interface account is one default
+      retired and nothing added: the selector (<code>imas_ambix/gs/machine_selection.py</code>) is
+      the only production constructor, and the seven test constructions in
+      <code>tests/gs/test_artifact_geometry.py</code> and
+      <code>tests/spine_bench/test_machine_artifact_arm.py</code> name their machine.
+      <code>SetupSignature.key</code>'s format does not change. It already keeps MAST's spelling
+      unprefixed, because stored MAST keys depend on it, and already prefixes every other machine
+      (<code>imas_ambix/gs/geometry.py</code>), so a correctly tagged JT-60SA selection cannot
+      collide with a MAST key.
       No file maps a shot to a catalogue today, and a JT-60SA pulse integer (E101173 is
       <code>101173</code>) cannot be told from another machine's shot number by value, so the machine
       is never inferred: the frozen shot set declares it. The machine-map registry cannot
