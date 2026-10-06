@@ -532,6 +532,54 @@ def test_netcdf_binding_reads_one_named_entry_of_a_ragged_struct_array(tmp_path)
     print(f"STRUCT_ENTRY lengths={lengths} ragged_counts=[3, 2, 1]")
 
 
+def test_selecting_binding_counts_only_levels_below_the_consumed_struct_array(
+    tmp_path,
+):
+    dd_version = "4.1.1"
+    store_directory = tmp_path / "OP1"
+    store_directory.mkdir()
+    _write_ragged_coil_store(
+        store_directory / "pf_active.nc",
+        dd_version,
+        (("A", [0.0, 1.0, 2.0]), ("B", [10.0, 11.0]), ("C", [20.0])),
+    )
+
+    engine = get_transform_engine("netcdf")
+    machine_map = SimpleNamespace(name="OP1")
+    with engine.open(
+        str(tmp_path), 100_001, dd_version, machine_map, "static-over-map"
+    ) as source:
+        selected = _coil_element_binding("C")
+        assert source.read(selected).shape == (1,)
+        assert source.read(replace(selected, source_rank=0)).shape == ()
+        with pytest.raises(BindingTransformError) as refused:
+            source.read(replace(selected, source_rank=2))
+        message = str(refused.value)
+        assert "jt60sa-coil-element-r" in message
+        assert "2" in message
+    print("SELECTOR_RANK consumed=coil rank0=() rank1=(1,) rank2=refused")
+
+
+def test_selecting_binding_over_an_empty_struct_array_is_refused(tmp_path):
+    dd_version = "4.1.1"
+    store_directory = tmp_path / "OP1"
+    store_directory.mkdir()
+    _write_ragged_coil_store(store_directory / "pf_active.nc", dd_version, ())
+
+    engine = get_transform_engine("netcdf")
+    machine_map = SimpleNamespace(name="OP1")
+    with (
+        engine.open(
+            str(tmp_path), 100_001, dd_version, machine_map, "static-over-map"
+        ) as source,
+        pytest.raises(BindingTransformError) as refused,
+    ):
+        source.read(_coil_element_binding("A"))
+    message = str(refused.value)
+    assert "jt60sa-coil-element-r" in message
+    print("SELECTOR_EMPTY refused=binding-transform-error not=keyerror")
+
+
 def test_zarr_engine_refuses_a_binding_selecting_a_struct_array_entry(tmp_path):
     dd_version = "4.1.1"
     group = zarr.open_group(tmp_path / "5.zarr", mode="w")
