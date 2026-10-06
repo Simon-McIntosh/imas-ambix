@@ -23,7 +23,7 @@
   <title>JT-60SA Geometry and Signal Figures | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="14">
+<meta name="plan-version" content="15">
 <meta name="plan-modified" content="2026-10-06">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s1b&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;}">
 </head>
@@ -232,6 +232,9 @@
 </div>
 <div class="r-comment" data-section="s1" data-id="c-run-r-20261006T054229483050-review-of-jtfig-palette-candidates" data-who="reckon-build" data-when="2026-10-06T05:53:57.541Z">
     <div class="r-comment-body"><p>Independent review of run r-20261006T050045657647-jtfig-palette-candidates over the delta it gained since its prior review (base eb7b8f63 -&gt; head 01eb5bd3): scores goal_fidelity 19, evidence 16, scope_discipline 19, durability 6, fit 18, reuse 18 (total 96) with two follow-on findings and no blocking finding; the palette dE verdicts were independently reproduced from the landed CANDIDATES; a further commit 369a705d landed after the pinned head and needs its own review.</p></div>
+</div>
+<div class="r-comment" data-section="s1" data-id="c-run-r-20261006T050045657647-jtfig-palette-candidates" data-who="reckon-build" data-when="2026-10-06T05:45:47.765Z">
+    <div class="r-comment-body"><p>Open decision `palette`: this section adds imas_ambix/plot_style.py (data-ink sheet, named colour roles, direct-label helper) and scripts/figures_jt60sa_geometry.py (one catalogue-addressed reader of pf_active/pf_passive/wall/magnetics via imas.DBEntry, one cross-section function, --palette-candidates); three candidate colour-role palettes rendered on the real OP1+OP2 cross-section under docs/figures/jt60sa-palette/ (A blue vessel pair/green wall/teal probes, B green vessel pair/violet wall/teal probes, C gold vessel pair/green wall/violet probes), each a distinct hue family per role set with every role non-red; --palette-candidates now validates inside the script — it builds each candidate&#x27;s hex list from its CANDIDATES entry, runs validate_palette.js --mode light --pairs all through a subprocess, records the output to docs/figures/jt60sa-palette/validate_&lt;candidate&gt;.txt, and exits non-zero if any output lacks ALL CHECKS PASS or contains [FAIL]; all three ALL CHECKS PASS with no contrast WARN — every one of the six roles holds &gt;= 3:1 against the white surface (worst colour-blind dE A 12.2 / B 9.4 / C 8.2 deutan, worst normal-vision dE A 15.9 / B 16.2 / C 15.9); the lead chooses one candidate before §2/§3 draw with it; the recorded verdict files and the node&#x27;s evidence fragment carry the full role-to-colour tables and verdict lines.</p></div>
 </div>
 </section>
 <section data-reckon="decisions" id="decisions" class="r-decisions">
