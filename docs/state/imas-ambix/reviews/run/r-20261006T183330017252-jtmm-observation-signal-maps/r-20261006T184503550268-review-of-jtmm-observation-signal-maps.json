@@ -1,0 +1,73 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "the reviewed manifest declares no baseline_suite or after_suite arm, so there is no base log to difference against; the head arm (gate-head.log) records 14 passed EXIT=0 with no failing id, and this reviewer reproduced 14 passed EXIT=0 at the reviewed head 59023973, so the reviewed run added no failing test (added_failure_count 0, added_failure_ids empty).",
+  "base_log_revision": null,
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-06T18:56:28.464Z",
+  "dispatched_at": "2026-10-06T18:45:15Z",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T183330017252-jtmm-observation-signal-maps/gate-head.log",
+      "line": "1",
+      "severity": "follow-on",
+      "text": "follow-on: the head gate log's first line names rev 09cefc2056a50375fd1119b9ddb2afdb0cb90aa4, the pre-commit base, while the change landed at 59023973; the gate ran on the uncommitted working tree, so the recorded revision is the parent rather than the content measured, and a reader comparing log revision to reviewed_head_sha sees a false mismatch."
+    },
+    {
+      "file": "imas_ambix/data/cocos_convention.py",
+      "line": "796",
+      "severity": "follow-on",
+      "text": "follow-on: the reader reads only the plasma-current record's time (:802) and stacks each flux-loop rule's values positionally through _raw_series (:805-812), discarding every flux loop's own EDDB time sibling; _raw_flux_loop_response (:487) then only requires each column to match the plasma-current sample count, so a cached flux loop of equal length but different sample times is aligned by index with no refusal, though the plan describes reading each rule with its time sibling."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T183330017252-jtmm-observation-signal-maps/gate-negative-control.log",
+      "line": "1",
+      "severity": "follow-on",
+      "text": "follow-on: the log's header line reads 'reading the plasma current through VirtualZarrView with a channel_factor -1 rule leaves the raw-read test green' while the log below records 3 failed EXIT=1, so the header asserts the opposite of what it demonstrates and a reader trusting the header misreads the control as toothless."
+    }
+  ],
+  "head_log_revision": "09cefc2056a50375fd1119b9ddb2afdb0cb90aa4",
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "no production call sites found",
+    "diff": "read commit 59023973 whole; it retires read_catalogue_observation and its four tests, adds _rules_targeting/_one_rule/_raw_series and read_signal_map_observation, adds the tf_coil_current_sign field, and rewrites the tests to read a synthetic EDDB cache through synthetic magnetics/tf maps; no production code references the retired symbol after the change.",
+    "done_when": "the done-when is the gate tests/data/test_cocos_convention.py; the reviewed manifest records 14 passed EXIT=0 and I reproduced 14 passed EXIT=0 at 59023973 in a scratch extraction (gate-head-review.log).",
+    "goal": "section 6 names read_signal_map_observation(shot, machine, equilibrium, *, root) replacing read_catalogue_observation, reading the raw half through the packaged signal maps' rules and eddb.read_channel with no factor applied and taking the toroidal field from the EfitLabels record; imas_ambix/data/cocos_convention.py:759 implements exactly that signature and body.",
+    "manifest": "read; status complete, one commit (59023973), changed_paths the three diff paths, tests naming the gate at 14 passed EXIT=0, test_logs naming gate-head.log, negative_control_log naming gate-negative-control.log, and both baseline_suite and after_suite absent.",
+    "write_paths": "git diff --name-status 09cefc20..59023973 lists exactly imas_ambix/data/cocos_convention.py, tests/data/test_cocos_convention.py and docs/evidence/fragments/jt60sa-machine-map/jtmm-observation-signal-maps.html -- the three declared changed_paths; the declared orientation figure path docs/figures/jt60sa-machine-map/jtmm-observation-signal-maps is untouched and no plan file is edited."
+  },
+  "justifications": {
+    "durability": "applying the plasma-current rule's channel_factor -1 reddens test_signal_map_reader_measures_the_raw_cached_channels, test_signal_map_reader_ignores_a_rules_channel_factor and test_signal_map_reader_stacks_every_flux_loop_rule_in_target_order (3 failed, reproduced), so the no-factor guard has teeth; the flux-loop time-base assumption is unguarded.",
+    "evidence": "the gate at tests/data/test_cocos_convention.py reproduces 14 passed EXIT=0 at 59023973, but the node's own gate-head.log header names rev 09cefc20 (the pre-commit base), so the log's recorded revision does not name the content it measured.",
+    "fit": "the module keeps its idiom, docstrings at imas_ambix/data/cocos_convention.py:771-786 state the raw-read mechanism, ruff check on both changed paths exits 0, and the commit subject and body carry no plan label.",
+    "goal_fidelity": "imas_ambix/data/cocos_convention.py:759 read_signal_map_observation matches section 6's named signature and reads the raw half through the signal-map rules, retiring read_catalogue_observation from __all__ at :960.",
+    "reuse": "the reader hands the three series to the existing _observation_from_series kernel at imas_ambix/data/cocos_convention.py:512 and reuses eddb.read_channel and the packaged signal maps rather than forking a read or a computation.",
+    "scope_discipline": "git diff --name-status 09cefc20..59023973 lists only the three declared changed_paths and the declared figure orientation path is untouched."
+  },
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20261006T183330017252-jtmm-observation-signal-maps (plan imas-ambix:jt60sa-machine-map section 6), read at its head 59023973d09d44fefb69c0f693e59a7ca8b7feb2 on base 09cefc2056a50375fd1119b9ddb2afdb0cb90aa4.\n\nThe node replaces read_catalogue_observation with read_signal_map_observation(shot, machine, equilibrium, *, root) in imas_ambix/data/cocos_convention.py: it loads the machine's packaged `magnetics` and `tf` signal maps, takes the plasma-current and flux-loop rules, and reads each rule's source_group/source_array raw through imas_ambix/data/eddb.py read_channel with no sign, unit or COCOS factor; the vacuum toroidal field is taken from the EfitLabels scalars (magnetics_bcoil, the key imas_ambix/challenge/convention.py:49 reads as the toroidal field) and the tf map's coil-current sign is reported beside the observation via a new defaulted ShotSignObservation.tf_coil_current_sign field. I extracted the committed head to a node-local scratch (git archive 59023973), ran the node's own gate there with the shared project environment (PYTHONPATH pinned to the scratch tree so the module under test resolved there, not through the shared editable install), reproduced the gate at 14 passed EXIT=0, and reproduced the guard's teeth by a mutation of my own.\n\nVERDICT goal: section 6 names read_signal_map_observation(shot, machine, equilibrium, *, root) replacing read_catalogue_observation, reading the raw half through the packaged signal maps' rules and eddb.read_channel with no factor applied and taking the toroidal field from the EfitLabels record; imas_ambix/data/cocos_convention.py:759 implements exactly that signature and body.\nVERDICT done_when: the done-when is the gate tests/data/test_cocos_convention.py; the reviewed manifest records 14 passed EXIT=0 and I reproduced 14 passed EXIT=0 at 59023973 in a scratch extraction (gate-head-review.log).\nVERDICT write_paths: git diff --name-status 09cefc20..59023973 lists exactly imas_ambix/data/cocos_convention.py, tests/data/test_cocos_convention.py and docs/evidence/fragments/jt60sa-machine-map/jtmm-observation-signal-maps.html -- the three declared changed_paths; the declared orientation figure path docs/figures/jt60sa-machine-map/jtmm-observation-signal-maps is untouched and no plan file is edited.\nVERDICT manifest: read; status complete, one commit (59023973), changed_paths the three diff paths, tests naming the gate at 14 passed EXIT=0, test_logs naming gate-head.log, negative_control_log naming gate-negative-control.log, and both baseline_suite and after_suite absent.\nVERDICT diff: read commit 59023973 whole; it retires read_catalogue_observation and its four tests, adds _rules_targeting/_one_rule/_raw_series and read_signal_map_observation, adds the tf_coil_current_sign field, and rewrites the tests to read a synthetic EDDB cache through synthetic magnetics/tf maps; no production code references the retired symbol after the change.\nCALL_SITES: none\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: imas_ambix/data/cocos_convention.py:759 read_signal_map_observation matches section 6's named signature and reads the raw half through the signal-map rules, retiring read_catalogue_observation from __all__ at :960.\nSCORE evidence: 17\nJUSTIFICATION evidence: the gate at tests/data/test_cocos_convention.py reproduces 14 passed EXIT=0 at 59023973, but the node's own gate-head.log header names rev 09cefc20 (the pre-commit base), so the log's recorded revision does not name the content it measured.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff --name-status 09cefc20..59023973 lists only the three declared changed_paths and the declared figure orientation path is untouched.\nSCORE durability: 19\nJUSTIFICATION durability: applying the plasma-current rule's channel_factor -1 reddens test_signal_map_reader_measures_the_raw_cached_channels, test_signal_map_reader_ignores_a_rules_channel_factor and test_signal_map_reader_stacks_every_flux_loop_rule_in_target_order (3 failed, reproduced), so the no-factor guard has teeth; the flux-loop time-base assumption is unguarded.\nSCORE fit: 20\nJUSTIFICATION fit: the module keeps its idiom, docstrings at imas_ambix/data/cocos_convention.py:771-786 state the raw-read mechanism, ruff check on both changed paths exits 0, and the commit subject and body carry no plan label.\nSCORE reuse: 20\nJUSTIFICATION reuse: the reader hands the three series to the existing _observation_from_series kernel at imas_ambix/data/cocos_convention.py:512 and reuses eddb.read_channel and the packaged signal maps rather than forking a read or a computation.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T183330017252-jtmm-observation-signal-maps/gate-head.log:1 follow-on: the head gate log's first line names rev 09cefc2056a50375fd1119b9ddb2afdb0cb90aa4, the pre-commit base, while the change landed at 59023973; the gate ran on the uncommitted working tree, so the recorded revision is the parent rather than the content measured, and a reader comparing log revision to reviewed_head_sha sees a false mismatch.\nFINDING imas_ambix/data/cocos_convention.py:796 follow-on: the reader reads only the plasma-current record's time (:802) and stacks each flux-loop rule's values positionally through _raw_series (:805-812), discarding every flux loop's own EDDB time sibling; _raw_flux_loop_response (:487) then only requires each column to match the plasma-current sample count, so a cached flux loop of equal length but different sample times is aligned by index with no refusal, though the plan describes reading each rule with its time sibling.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T183330017252-jtmm-observation-signal-maps/gate-negative-control.log:1 follow-on: the log's header line reads 'reading the plasma current through VirtualZarrView with a channel_factor -1 rule leaves the raw-read test green' while the log below records 3 failed EXIT=1, so the header asserts the opposite of what it demonstrates and a reader trusting the header misreads the control as toothless.\n",
+  "review_run_id": "r-20261006T184503550268-review-of-jtmm-observation-signal-maps",
+  "reviewed_base_sha": "09cefc2056a50375fd1119b9ddb2afdb0cb90aa4",
+  "reviewed_head_sha": "59023973d09d44fefb69c0f693e59a7ca8b7feb2",
+  "reviewed_run_id": "r-20261006T183330017252-jtmm-observation-signal-maps",
+  "reviewer": {
+    "backend": "clive",
+    "effort": "high",
+    "model": "deepseek-v4.1-flash"
+  },
+  "rubric": "code",
+  "scores": {
+    "durability": 19,
+    "evidence": 17,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "timestamp": "2026-10-06T18:55:33.067667+00:00",
+  "total": 116
+}
