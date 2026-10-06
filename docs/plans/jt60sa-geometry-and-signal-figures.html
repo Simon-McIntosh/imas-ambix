@@ -20,11 +20,11 @@
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-tags" content="jt-60sa,figures">
   <meta name="plan-informs" content="jt60sa-machine-map">
-  <meta name="plan-section-depends-on" content="{&quot;s2&quot;: [&quot;imas-ink:geometry-figure-vessel-units&quot;]}">
+  <meta name="plan-section-depends-on" content="{&quot;s2&quot;: [&quot;imas-ink:geometry-figure-vessel-units&quot;], &quot;s3&quot;: [&quot;imas-ink:geometry-figure-vessel-units&quot;]}">
   <title>JT-60SA Geometry and Signal Figures | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="31">
+<meta name="plan-version" content="33">
 <meta name="plan-modified" content="2026-10-06">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s1b&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;deferred&quot;}">
 <meta name="plan-commits" content="369a705d,b36a5d93">
@@ -92,25 +92,32 @@
     <h2 id="s3">§3 — Signals: the cached pulses</h2>
 <section data-reckon="section" data-id="s3" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
     <p>
-      Three figures, rendered by imas-ink's <code>time_trace_figure_mpl</code>, one
-      <code>imas_ink.components.TimeSeries</code> per panel, in imas-ink's default style with nothing
+      Three figures, rendered by imas-ink's <code>time_trace_figure_mpl</code> from
+      <code>imas_ink.components.TimeSeries</code> panels, in imas-ink's default style with nothing
       added to what it draws, from a short script, <code>scripts/figures_jt60sa_signals.py</code>, that
       draws nothing itself and holds no style constant. Each channel is
       read through a <code>read_channel</code> this section adds to <code>imas_ambix/data/eddb.py</code>
       beside <code>write_channel</code>, returning the same <code>ChannelRecord</code> (data, time base and
       the <code>UNIT_ATTR</code> unit) from <code>channel_path</code> and <code>channel_time_path</code>, so
-      the cache keeps one owner for its read as for its write; the unit is named on the axis.
-      <code>ZarrTransformEngine</code> is not that reader: its <code>read</code> takes a
-      <code>ChannelBinding</code> from a packaged signal map, none of which exists for JT-60SA yet, and
-      returns a bare array with neither the time base nor the unit the figure must name, so the
-      section also corrects <code>eddb.py</code>'s module docstring, which says the cache needs no
-      cache-specific reader, to name <code>read_channel</code> as the raw read beside the engine path.
+      the cache keeps one owner for its read as for its write; the unit is named on the axis. Which
+      channel to draw, and at what factor, comes from the packaged JT-60SA signal maps where they bind
+      it: <code>load_packaged_signal_map("jt-60sa", "pf_active")</code> serves the MMSYS coil-current
+      chain chosen for each PF coil and <code>load_packaged_signal_map("jt-60sa", "magnetics")</code>
+      the PSRC plasma current, so the figure draws the served chain and applies its
+      <code>channel_factor</code> rather than choosing again. The engine path those maps feed
+      (<code>ZarrTransformEngine</code>, <code>VirtualZarrView</code>) returns values with no time base and
+      no unit, and the maps bind no flux loop, so <code>read_channel</code> supplies every channel's
+      time base and unit and the unbound flux-loop channels whole; the section corrects
+      <code>eddb.py</code>'s module docstring, which says the cache needs no cache-specific reader, to name
+      <code>read_channel</code> as the raw read beside the engine path.
       <code>read_channel</code> is the one public name the section adds to <code>eddb</code>, the read
       counterpart nothing there provides, and it retires nothing; a round-trip test in
       <code>tests/data/test_eddb_cache.py</code> writes a channel and reads it back. For E101154, the PF coil
       currents from MMSYS against time, and the plasma current from PSRC. Also for E101154, the
-      flux loops as small multiples: each processed PSRC <code>magFluxLp</code> channel beside the
-      raw MDAC <code>magFlxLp</code> channel of the same index, which is the raw-to-processed
+      flux loops, one panel per index holding the processed PSRC <code>magFluxLp</code> channel and the
+      raw MDAC <code>magFlxLp</code> channel of the same index, the raw one in imas-ink's reference line
+      style, through the multi-series panel imas-ink's <code>geometry-figure-vessel-units</code> plan
+      adds (its §3), which is the raw-to-processed
       correspondence the map's census must settle, drawn rather than assumed. For C060033, the coil
       currents of the no-plasma commissioning record, the input the map's convention work uses.
       Where a channel's time base or unit differs from its neighbours, the figure says so rather than
