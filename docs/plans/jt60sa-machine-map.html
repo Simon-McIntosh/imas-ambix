@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.82">
-<meta name="plan-version" content="189">
+<meta name="plan-version" content="190">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -1218,6 +1218,9 @@
 </div>
 <div class="r-comment" data-section="s6" data-id="c-20261006T1730-s6-observation-reader-landed" data-who="reckon-build" data-when="2026-10-06T17:30:00Z">
     <div class="r-comment-body"><p>gate tests/data/test_cocos_convention.py passed (13 tests, exit 0); jtmm-observation-reader merged as 07add818, review 114/120, no added failure. A private kernel computes the observation from the three series plus an EfitLabels record; read_level2_observation keeps its MAST reads; read_catalogue_observation reads the raw half through a catalogue's bindings. The review found that the reader keeps only the first binding matching a DD path, so a catalogue binding each flux loop as its own rule (JT-60SA's 27) reads one loop, and that its time-base read assumes a per-shot zarr layout. The follow-on node jtmm-observation-multichannel repairs both before any JT-60SA cohort reads through it.</p></div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-run-r-20261006T165834127927-jtmm-observation-reader" data-who="reckon-build" data-when="2026-10-06T17:15:54.544Z">
+    <div class="r-comment-body"><p>imas_ambix/data/cocos_convention.py now measures a ShotSignObservation through a private _observation_from_series kernel over plasma-current, flux-loop and toroidal-field series plus an EfitLabels record, with read_level2_observation keeping its signature and MAST reads and a new read_catalogue_observation(shot, catalogue, equilibrium) reading the three quantities through a catalogue&#x27;s channel bindings and its declared store engine for any machine; gate 13 passed EXIT=0 and negative control 1 failed EXIT=1.</p></div>
 </div>
 </section>
 </main>
