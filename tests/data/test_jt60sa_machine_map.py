@@ -280,8 +280,8 @@ def test_phase_boundary_changes_only_the_vessel_and_wall():
     shared = set(before_payload) & set(after_payload)
     changed = {key for key in shared if before_payload[key] != after_payload[key]}
 
-    # The vacuum vessel moves at the boundary: OP1's 63 EQSLE filaments give
-    # way to OP2's 98 coil_vv filaments.
+    # The vacuum vessel moves at the boundary: each phase's deck carries its own
+    # vessel run, OP1's 63 filaments giving way to OP2's 98.
     vessel_keys = [key for key in shared if key.startswith("jt60sa-pf-passive-vv")]
     assert vessel_keys
     assert all(key in changed for key in vessel_keys)
@@ -296,16 +296,20 @@ def test_phase_boundary_changes_only_the_vessel_and_wall():
         before_payload[key] == after_payload[key] for key in cryostat_keys
     )
 
-    # The wall moves: OP1 carries a vessel unit the OP2 source has no skins for.
-    wall_keys = {
-        key
-        for key in set(before_payload) | set(after_payload)
-        if key.startswith("jt60sa-wall-")
-    }
-    assert wall_keys
-    assert any(
-        key not in shared or key in changed for key in wall_keys
-    )
+    # The wall moves: each phase's limiter and vessel unit come from its own
+    # coil_vv deck, and the first wall changed for OP2, so the shared limiter
+    # bindings differ across the boundary.
+    limiter_keys = [key for key in shared if key.startswith("jt60sa-wall-limiter-")]
+    assert limiter_keys
+    assert all(key in changed for key in limiter_keys)
+    # Both phases now carry the vessel unit (annular inner and outer outlines).
+    # The vessel's contour table is the same in both decks, so those bindings
+    # are byte-equal across the boundary.
+    wall_vessel_keys = [
+        key for key in shared if key.startswith("jt60sa-wall-vessel-")
+    ]
+    assert wall_vessel_keys
+    assert all(before_payload[key] == after_payload[key] for key in wall_vessel_keys)
 
     # pf_active and magnetics are phase-independent, so the boundary is a
     # description change and not a re-addressing.
