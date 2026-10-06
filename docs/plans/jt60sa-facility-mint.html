@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="jt60sa-facility-mint">
+  <meta name="plan-title" content="JT-60SA Facility Mint: Public Engine, Private Maps">
+  <meta name="plan-summary" content="Let a slim public engine load a private JT-60SA map bundle on the facility's analysis server and mint IDSs from EDDB there, without ambix's training stack">
+  <meta name="plan-status" content="draft">
+  <meta name="plan-roi" content="mid">
+  <meta name="plan-effort-hours" content="8.0">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="orchestrator">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-capability-risk" content="elevated">
+  <meta name="plan-milestone" content="M4">
+  <meta name="plan-sprint" content="S20">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-tags" content="jt-60sa,machine-map">
+  <meta name="plan-informs" content="jt60sa-machine-map">
+  <meta name="plan-section-depends-on" content="{&quot;s2&quot;: [&quot;jt60sa-pulse-ids#s1&quot;], &quot;s3&quot;: [&quot;jt60sa-pulse-ids#s1&quot;]}">
+  <title>JT-60SA Facility Mint: Public Engine, Private Maps | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <header>
+      <p class="eyebrow">Run the map where the data lives</p>
+      <h1>JT-60SA Facility Mint: Public Engine, Private Maps</h1>
+      <p class="lead">
+        The machine map (<a href="jt60sa-machine-map">jt60sa-machine-map</a>) turns JT-60SA data into
+        IDS paths, and <a href="jt60sa-pulse-ids">jt60sa-pulse-ids</a> §1 adds the writer that mints a
+        pulse. Both run here, reading EDDB over ssh into a cache. The lead asked whether a public
+        wheel could load a private map file so that, run at JT-60SA, it mints IDSs by itself. This
+        plan answers yes, conditionally, and lays out the route: a slim public engine, a private
+        map bundle it finds by machine name, and an in-process EDDB read on the facility's
+        analysis server. Nothing here starts until the lead has decided where the JT-60SA maps
+        may live and whether to install at the facility.
+      </p>
+    </header>
+
+    <h2 id="s1">§1 — Where the maps and the data-load code live today</h2>
+<section data-reckon="section" data-id="s1" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="elevated" data-status="deferred" data-links=""></section>
+    <p>
+      The data-load code is in <code>imas_ambix/data/</code>. <code>eddb_remote.py</code> sends a batch
+      of EDDB channel requests down one ssh session to the analysis server, whose remote half runs
+      on the server's Python 3.12 with only the standard library, numpy and
+      <code>eddb_pwrapper</code>. <code>eddb.py</code> owns the cache under
+      <code>/work/projects/imas_gpu/jt60sa/{shot}.zarr</code>. <code>signal_map.py</code> and
+      <code>virtual_zarr.py</code> apply the pulse maps over that cache, and
+      <code>transform_engine.py</code> with <code>machine_map.py</code> serves the machine description
+      through the catalogue. The maps are package data beside that code:
+      <code>imas_ambix/data/machine_maps/jt-60sa.json</code> and
+      <code>imas_ambix/data/maps/jt-60sa/{pf_active,tf,magnetics}.json</code>, found through
+      <code>PACKAGED_MACHINE_MAP_ROOT</code> and <code>PACKAGED_MAP_ROOT</code>. Both GitHub remotes of
+      this repository, the <code>origin</code> fork and <code>upstream</code>, are public, and the
+      JT-60SA maps and their evidence fragments are pushed to <code>origin</code>. The description
+      store and the SELENE deck copies it is built from live only under
+      <code>/work/projects/imas_gpu/jt60sa/</code>, never in git.
+    </p>
+    <p>
+      This section settles the decision <code>map-privacy</code>. If the maps are to be private,
+      it moves them and their evidence fragments into a private bundle repository, leaves the
+      engine's tests running on synthetic maps, and records what remains in the public history,
+      which a move does not erase. Rewriting that history needs the lead's explicit approval and is
+      not assumed. Done-when: the decision is locked, and the repository matches it.
+    </p>
+
+    <h2 id="s2">§2 — A slim public engine</h2>
+<section data-reckon="section" data-id="s2" data-effort-hours="3.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-status="deferred" data-links=""></section>
+    <p>
+      ambix declares 33 runtime dependencies, including torch, lightning, transformers, jax and
+      torax, and none of them is needed to mint. The mint needs imas-python, numpy, the netCDF and
+      Zarr readers, and the COCOS factors, which ambix takes from nova
+      (<code>imas_ambix/cocos.py</code> <code>canonical_factor</code> delegates to
+      <code>nova.io.cocos</code>). This section makes the engine installable on its own: the map
+      schemas, the transform engine, the signal-map compiler, the mint writer and its command, as a
+      distribution whose dependencies are those few. The COCOS factors come from nova as today, so
+      either nova's COCOS module installs without the rest of nova, or the dependency is
+      named and justified; a second factor table in the engine is not an option. Done-when: the
+      slim distribution installs into a clean Python 3.12 environment with numpy and imas-python
+      alone, and the jt60sa-pulse-ids §1 mint test passes against it.
+    </p>
+
+    <h2 id="s3">§3 — Private maps by name, and an in-process EDDB read</h2>
+<section data-reckon="section" data-id="s3" data-effort-hours="2.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-status="deferred" data-links=""></section>
+    <p>
+      <code>load_machine_map(path)</code> and <code>load_signal_map(path)</code> already accept any
+      file, so a private bundle needs no new format, only a way to be found. The mint resolves a
+      machine's catalogue, signal maps and description store from a declared search path or an
+      entry-point group that a private bundle package registers, with the packaged maps as the
+      fallback. A machine found in two places is refused rather than one silently shadowing the other.
+      On the analysis server the EDDB read runs in process through <code>eddb_pwrapper</code>
+      instead of over ssh. That is a second transport beside the ssh one, and the code the remote
+      script already runs, not a second reader. Done-when: with a bundle on the search path and
+      the in-process transport given a recorded EDDB response, the mint writes the same IDSs as the
+      ssh route for E101154, byte for byte.
+    </p>
+
+    <h2 id="s4">§4 — Install at the facility, or export tokamap maps instead</h2>
+<section data-reckon="section" data-id="s4" data-effort-hours="2.0" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="elevated" data-status="deferred" data-links=""></section>
+    <p>
+      Two routes reach the facility. The first installs the slim engine and the private bundle in
+      the analysis server's Python 3.12 environment, and mints there. The second installs nothing:
+      <code>imas_ambix/data/tokamap_export.py</code> already writes a catalogue as a tokamap
+      mapping directory, exact in value but lossy in provenance, which libtokamap and UDA
+      consumers read. That route serves the facility only if JT-60SA exposes its data through UDA.
+      The decision <code>facility-install</code> chooses between them. Installing on a facility
+      server is an outward-facing action, taken only with the lead's explicit go-ahead and under
+      the standing rule of light load on that server. Done-when: the chosen route mints or serves
+      E101154 at the facility, and its IDSs match the ones minted here.
+    </p>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+      <div class="r-dec" data-key="map-privacy" data-choice="" data-by="" data-when="" data-sections="s1,s3">
+        <p class="r-dec-q">Do the JT-60SA maps and their evidence stay in the public imas-ambix repository?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="public">Stay public</button>
+          <button class="r-opt" data-value="private-bundle">Move to a private map bundle</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+      <div class="r-dec" data-key="facility-install" data-choice="" data-by="" data-when="" data-sections="s4">
+        <p class="r-dec-q">How does the map reach the facility?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="install">Install the slim mint on the analysis server</button>
+          <button class="r-opt" data-value="tokamap-only">Export tokamap maps only</button>
+          <button class="r-opt" data-value="not-now">Not now</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+      <article class="r-fu" data-id="f-jtfm-001" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-create" data-written-at="2026-10-06" data-recommends-skill="/reckon-build jt60sa-facility-mint §1" data-resolved-at="" data-resolved-by="">
+        <h4 class="r-fu-title">Lock map-privacy and facility-install, then settle where the JT-60SA maps live</h4>
+        <div class="r-fu-body"><p>Both decisions are the lead's. §2 and §3 also wait on jt60sa-pulse-ids §1, the mint writer they package.</p></div>
+        <pre class="r-fu-prompt">/reckon-build jt60sa-facility-mint §1</pre>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

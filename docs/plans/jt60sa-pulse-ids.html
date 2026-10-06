@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="jt60sa-pulse-ids">
+  <meta name="plan-title" content="JT-60SA Pulse IDSs and Equilibrium Animation">
+  <meta name="plan-summary" content="Mint a JT-60SA pulse as IDSs through the machine map, then animate it from those IDSs alone: flux surfaces, O-point, X-points, strike points, via imas-ink">
+  <meta name="plan-status" content="draft">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort-hours" content="8.5">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="orchestrator">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-capability-risk" content="moderate">
+  <meta name="plan-milestone" content="M4">
+  <meta name="plan-sprint" content="S20">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-tags" content="jt-60sa,machine-map,equilibrium,figures">
+  <meta name="plan-informs" content="jt60sa-machine-map">
+  <meta name="plan-section-depends-on" content="{&quot;s2&quot;: [&quot;jt60sa-machine-map#s7&quot;], &quot;s3&quot;: [&quot;imas-ink:geometry-figure-vessel-units&quot;], &quot;s4&quot;: [&quot;imas-ink:geometry-figure-vessel-units&quot;]}">
+  <title>JT-60SA Pulse IDSs and Equilibrium Animation | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <header>
+      <p class="eyebrow">From data load to IDS write, and a pulse you can watch</p>
+      <h1>JT-60SA Pulse IDSs and Equilibrium Animation</h1>
+      <p class="lead">
+        The JT-60SA machine map (<a href="jt60sa-machine-map">jt60sa-machine-map</a>) holds the
+        transformation from facility data to IDS paths: a catalogue that serves the machine
+        description of each operating phase, and signal maps that carry EDDB channels to coil
+        currents, the TF current and the plasma current. Nothing yet writes a pulse. This plan
+        mints one, E101154 (OP1, plasma current near 1&nbsp;MA), as IDSs on disk, then animates it
+        from those IDSs alone. Each frame shows the flux surfaces, the separatrix, the O-point,
+        the X-points and the strike points over the wall, the vessel and the coil outlines,
+        drawn by imas-ink. Running the same mint at the facility is planned separately, in
+        <a href="jt60sa-facility-mint">jt60sa-facility-mint</a>.
+      </p>
+    </header>
+
+    <h2 id="s1">§1 — Mint a pulse: one writer from data load to IDS write</h2>
+<section data-reckon="section" data-id="s1" data-effort-hours="3.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links=""></section>
+    <p>
+      Two halves of the transformation exist and nothing joins them. The static half is the
+      catalogue <code>imas_ambix/data/machine_maps/jt-60sa.json</code>, served through
+      <code>imas_ambix/data/transform_engine.py</code> <code>StoreEngine</code>: it emits the five
+      description IDSs (<code>pf_active</code>, <code>pf_passive</code>, <code>wall</code>,
+      <code>magnetics</code>, <code>tf</code>) of the phase a shot falls in, from the store under
+      <code>/work/projects/imas_gpu/jt60sa/machine_description/{OP1,OP2}</code>. The dynamic half is
+      the signal maps <code>imas_ambix/data/maps/jt-60sa/{pf_active,tf,magnetics}.json</code>, which
+      <code>imas_ambix/data/virtual_zarr.py</code> <code>VirtualZarrView</code> applies over the EDDB
+      cache <code>/work/projects/imas_gpu/jt60sa/{shot}.zarr</code>, producing arrays for the
+      reconstruction spine. The mint takes the description IDSs for the shot's phase, writes into
+      them the time-dependent quantities the signal maps serve (each PF coil's
+      <code>current</code>, the TF coil current, <code>magnetics/ip</code>), and writes one DD 4.1.1
+      netCDF file per IDS under <code>/work/projects/imas_gpu/jt60sa/ids/{shot}/</code>, the layout the
+      description store already uses.
+    </p>
+    <p>
+      The writer extends the two owners rather than adding a third path: the description comes
+      from <code>StoreEngine</code> and the samples from the compiled signal map, so a unit, sign or
+      COCOS factor is applied in exactly the place it is applied today. A signal the maps block
+      (the second TF chain, the PF chains the cached shots do not corroborate) is not written.
+      <code>ids_properties.homogeneous_time</code> is 1 only when every signal written into that IDS
+      shares one time base, and otherwise 0 with each signal carrying its own time vector. The
+      entry point is a <code>mint</code> command beside the existing ones in
+      <code>imas_ambix/data/cli.py</code>, taking the machine and the shot.
+    </p>
+    <p>
+      Done-when: <code>imas-ambix data mint --machine jt-60sa --shot 101154</code> writes
+      <code>pf_active</code>, <code>pf_passive</code>, <code>wall</code>, <code>magnetics</code> and
+      <code>tf</code> for E101154, and a test reads each back through <code>imas.DBEntry</code> at
+      DD 4.1.1. In that test the 12 coils' currents equal the compiled signal map applied to the
+      cached channels sample for sample, <code>magnetics/ip</code> peaks near 1&nbsp;MA, and the static
+      geometry equals the OP1 description byte for byte. Minting a shot with no cache refuses and
+      names the missing cache. The mint reads only the cache and the store and never contacts the
+      JT-60SA server.
+    </p>
+
+    <h2 id="s2">§2 — The equilibrium IDS, with its topology</h2>
+<section data-reckon="section" data-id="s2" data-effort-hours="3.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links=""></section>
+    <p>
+      The animation draws equilibria, and the machine map's §7 owns mapping them: its second rung
+      reads SELENE's equilibria from the facility's equilibrium database (EQDB) and maps psi on its
+      grid, the boundary and the profiles into <code>equilibrium</code>, after §6 has fixed the
+      source COCOS from data. This section does not read EQDB itself. It waits on that rung and
+      mints E101154's equilibria through the same writer as §1, so the equilibrium joins the other
+      five IDSs in <code>/work/projects/imas_gpu/jt60sa/ids/101154/</code>.
+    </p>
+    <p>
+      imas-ink renders topology and never computes it, so the minted IDS must carry it in the
+      fields imas-ink reads (<code>imas_ink/extract.py</code> <code>extract_slice</code>): psi on
+      <code>profiles_2d[0]</code> with its <code>grid.dim1</code> and <code>grid.dim2</code>;
+      <code>global_quantities.psi_axis</code>, <code>psi_boundary</code>, <code>ip</code> and
+      <code>magnetic_axis</code>, which is the O-point; <code>boundary.outline</code>; each X-point in
+      <code>constraints.x_point[].position_reconstructed</code>; and each strike point in
+      <code>constraints.strike_point[].position_reconstructed</code>. Where the EQDB record already
+      carries the X-points and strike points, the map binds them. Where it does not, they are
+      computed from the mapped psi and the coil_vv first wall by nova's equilibrium topology
+      (<code>nova/equilibrium</code>), which owns separatrix and X-point finding, rather than by a
+      new finder in ambix. The decision <code>topology-source</code> settles which, once the
+      machine map's open question <code>eqdb-reader</code> fixes the record's fields.
+    </p>
+    <p>
+      Done-when: E101154's minted <code>equilibrium</code> reads back through
+      <code>imas.DBEntry</code> at DD 4.1.1 with one time slice per SELENE record. For every diverted
+      slice, a test asserts at least one X-point inside the vessel, two strike points within 1&nbsp;cm
+      of the first wall, and an O-point inside the last closed surface. For every slice, the psi at
+      the reported O-point and X-point matches <code>psi_axis</code> and <code>psi_boundary</code>
+      within 1&nbsp;% of their difference. <code>imas_ink.extract.extract_slice</code> reads every
+      slice without falling back to an empty field.
+    </p>
+
+    <h2 id="s3">§3 — What imas-ink provides, and what it must add</h2>
+<section data-reckon="section" data-id="s3" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+    <p>
+      imas-ink already draws most of what the animation needs, and by the lead's figure-owner
+      ruling every JT-60SA figure renders through it, in its own style and without labels.
+      <code>imas_ink.animate.animate_pulse(eq_ids, geom)</code> iterates an equilibrium IDS's time
+      slices, renders each with <code>imas_ink.figures.equilibrium_figure_mpl</code> and encodes a
+      GIF. That figure layers flux contours, the separatrix, the O-point, X-point markers, divertor
+      legs and strike points over <code>geometry_figure_mpl</code>: the wall outline, coil outlines,
+      probes and flux loops. <code>imas_ink.extract.extract_geometry(wall, pf_active, magnetics)</code>
+      builds that geometry from IDSs. Coils are drawn as outlines; the animation carries no
+      coil-current shading, by the lead's decision <code>animation-content</code>.
+    </p>
+    <p>
+      Two things are missing for JT-60SA, and both belong to imas-ink, not ambix. First, the vessel:
+      the minted <code>wall</code> carries the vacuum vessel as an annular unit
+      (<code>description_2d/vessel/unit/annular/outline_inner</code> and <code>outline_outer</code>),
+      which imas-ink does not draw yet. imas-ink's own plan
+      <code>imas-ink:geometry-figure-vessel-units</code> owns that, and §4 waits on it. Second,
+      <code>animate_pulse</code> does not pass <code>equilibrium_figure_mpl</code>'s
+      <code>show_probes</code> and <code>show_flux_loops</code> through, so the animation cannot leave
+      the 17 probes and 27 flux loops out of an equilibrium frame. If the lead keeps sensors out of
+      the animation, that pass-through is a node in imas-ink's repository, recorded on its plan,
+      never a wrapper in ambix. This section is complete when both needs are recorded on imas-ink's
+      plan and the decision <code>animation-sensors</code> is locked.
+    </p>
+
+    <h2 id="s4">§4 — The E101154 animation, from IDSs alone</h2>
+<section data-reckon="section" data-id="s4" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+    <p>
+      A short script, <code>scripts/jt60sa_pulse_animation.py</code>, opens only the minted IDSs
+      in <code>/work/projects/imas_gpu/jt60sa/ids/101154/</code>, builds the geometry with
+      <code>extract_geometry</code> from <code>wall</code>, <code>pf_active</code> and
+      <code>magnetics</code>, and calls <code>animate_pulse</code> on <code>equilibrium</code>. It
+      draws nothing itself and holds no style constant, so a rendering change is an imas-ink change.
+      The GIF is written to <code>docs/figures/jt60sa-pulse/E101154.gif</code>; it is raster by
+      nature, so no SVG twin is written.
+    </p>
+    <p>
+      Done-when: the GIF exists with one frame per equilibrium time slice. The script refuses if
+      any input is not a minted IDS, so no frame reads the cache, the store or EQDB directly. The
+      evidence fragment <code>docs/evidence/fragments/jt60sa-pulse-ids/</code> embeds the GIF and
+      records its frame count, its time range and, per frame, the number of X-points and strike
+      points drawn. The lead has looked at it.
+    </p>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+      <div class="r-dec" data-key="animation-content" data-choice="flux-surfaces-and-topology" data-by="Simon McIntosh" data-when="2026-10-06" data-sections="s2,s3,s4">
+        <p class="r-dec-q">What does each frame of the pulse animation show?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="flux-surfaces-and-topology">Flux surfaces and topology</button>
+          <button class="r-opt" data-value="coil-currents">Coils shaded by current</button>
+        </p>
+        <p class="r-dec-rat">The lead's ruling: flux surfaces with every topological feature (X-points, O-points, strike points); shading coils by current was rejected as decoration that carries no equilibrium information.</p>
+      </div>
+      <div class="r-dec" data-key="eqdb-access" data-choice="light-load-authorised" data-by="Simon McIntosh" data-when="2026-10-06" data-sections="s2">
+        <p class="r-dec-q">May nodes read SELENE equilibria from EQDB on the JT-60SA server?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="light-load-authorised">Yes, light load</button>
+          <button class="r-opt" data-value="not-yet">Not yet</button>
+        </p>
+        <p class="r-dec-rat">Authorised by the lead for light load, searches included, provided the server is not hit hard: each record is fetched once into the cache and never refetched for timing.</p>
+      </div>
+      <div class="r-dec" data-key="topology-source" data-choice="" data-by="" data-when="" data-sections="s2">
+        <p class="r-dec-q">Where do the X-points and strike points in the minted equilibrium come from?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="eqdb-record">Bound from the EQDB record</button>
+          <button class="r-opt" data-value="nova-topology">Computed by nova from the mapped psi</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+      <div class="r-dec" data-key="animation-sensors" data-choice="" data-by="" data-when="" data-sections="s3,s4">
+        <p class="r-dec-q">Do the 17 probes and 27 flux loops appear in the animation frames?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="omit">Omit them (needs an imas-ink pass-through)</button>
+          <button class="r-opt" data-value="show">Show them, as animate_pulse does today</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+      <article class="r-fu" data-id="f-jtpi-001" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-create" data-written-at="2026-10-06" data-recommends-skill="/reckon-build jt60sa-pulse-ids §1" data-resolved-at="" data-resolved-by="">
+        <h4 class="r-fu-title">Mint E101154 as IDSs through the machine map</h4>
+        <div class="r-fu-body"><p>§1 needs nothing new from the machine map: the catalogue and the signal maps it joins have landed, and E101154 is cached. §2 waits on the machine map's §7, and §4 on imas-ink's vessel drawing.</p></div>
+        <pre class="r-fu-prompt">/reckon-build jt60sa-pulse-ids §1</pre>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
