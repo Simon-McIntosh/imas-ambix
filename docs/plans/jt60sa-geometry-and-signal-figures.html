@@ -23,7 +23,7 @@
   <title>JT-60SA Geometry and Signal Figures | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="12">
+<meta name="plan-version" content="13">
 <meta name="plan-modified" content="2026-10-06">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s1b&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;}">
 </head>
@@ -90,6 +90,13 @@
       draw the adapted table, so a JT-60SA figure through that facade is a companion to these rather
       than a substitute for them. The figure scripts consume the
       store and nothing reads geometry back from them, so they open no second acquisition route.
+      Element geometry itself is not re-derived: the struct-level readers in
+      <code>imas_ambix/gs/artifact_geometry.py</code> (<code>read_artifact_pf_active</code>,
+      <code>read_artifact_pf_passive</code>, <code>read_artifact_magnetics</code>,
+      <code>read_artifact_limiter</code>) are pure functions of the raw IDS structs with no adapter
+      transform, returning each element's true vertices as a <code>PolygonSection</code>, the probes
+      and flux loops, and the limiter contour, so the figure script calls them on the IDS objects its
+      <code>DBEntry</code> read returns and draws what they return.
     </p>
     <p>
       Figures follow the workstation plot style: the installed <code>data-ink</code> sheet, a
@@ -107,9 +114,10 @@
       assignment, the lead chooses it: the section renders two to four candidate palettes on the real
       OP1 and OP2 cross-section, each pair of colours that meet in a figure checked to a colour-blind
       &Delta;E of at least 8, and records the choice as a decision before §2 and §3 draw with it. The
-      candidates are drawn by <code>scripts/figures_jt60sa_geometry.py</code>, whose one reader turns a
-      phase's store into drawable families (coil elements, vessel filaments, wall outline, flux loops,
-      probes) and whose one cross-section function draws them; §2 extends that script and calls the same
+      candidates are drawn by <code>scripts/figures_jt60sa_geometry.py</code>, whose one reader opens a
+      phase's store and passes its IDS to those struct-level readers for the drawable families (coil
+      filaments, vessel filaments, wall outline, flux loops, probes), and whose one cross-section
+      function draws them; §2 extends that script and calls the same
       reader rather than reading the store a second time.
     </p>
     <p>
@@ -183,6 +191,13 @@
       |Z| to 7.5&nbsp;m); that block is drawn in a reference neutral and labelled "second deck block
       (cryostat-scale)", and the coil rectangles are labelled as current filaments of their coil. Direct labels sit in empty space and no leader line crosses a drawn
       element.
+    </p>
+    <p>
+      The §1 reader landed with its own element-shape dispatch; this section moves it onto the
+      <code>artifact_geometry</code> struct-level readers named in §1 and retires that dispatch, whose
+      axis-window extent counted element centres only. The section widens the candidate table behind
+      the script's one existing option, <code>--palette-candidates</code>, and adds no option, module
+      or public name.
     </p>
     <p>
       Done-when: <code>--palette-candidates</code> writes the eight candidates as PNG and SVG under
