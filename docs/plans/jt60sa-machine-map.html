@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5">
 <meta name="plan-impl" content="0.625">
-<meta name="plan-version" content="118">
+<meta name="plan-version" content="119">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -442,11 +442,16 @@
       <code>imas_ambix/data/geometry_adapter.py</code> <code>_b_probes</code> sets every probe
       angle to NaN rather than reading one. So this section records the angles as a source
       qualification in <code>jt-60sa.json</code>, naming the stored array and those three gaps.
-      §6, which measures the angle's sense, binds them together with the three changes. Second, the coil-element identifiers: the
-      converter writes no name on a <code>pf_active</code> coil element, so the catalogue's
-      structure assemblies carry placeholder identifiers. The converter names each element after
-      its coil and position, the store is re-converted, and the catalogue takes the real
-      identifiers. Both edit <code>jt-60sa.json</code>, so they run in that order.
+      §6, which measures the angle's sense, binds them together with the three changes. Second, the coil-filament identifiers. The
+      store holds 12 PF coils, and each <code>pf_active/coil/element</code> entry is one of the
+      SELENE deck's rectangular current filaments of a coil, carrying part of its turns: 40 per
+      CS module (549 turns each), 16 per EF coil and 6 per FPPC coil, 268 filaments in all.
+      The vessel is separate (120 filaments in OP1, 98 in OP2). The converter writes no name on
+      a filament, so the catalogue's structure assemblies carry placeholder identifiers. The
+      converter names each filament after its coil and position, the store is re-converted, and
+      the catalogue takes the real identifiers; the same node narrows the converter's public
+      surface to its one entry point, <code>write_phase_description</code>, with an
+      <code>__all__</code>. Both edit <code>jt-60sa.json</code>, so they run in that order.
     </p>
 
     <h2 id="s5">§5 — Pulse bindings and the EDDB census</h2>
@@ -636,9 +641,12 @@
       than the parquet read <code>convention.py</code> does today, and the SELENE and FAME
       loaders each return an <code>EfitLabels</code>. The kernel is reused rather than rewritten,
       and one equilibrium has one shape. That SELENE loader is the only reader of a SELENE
-      equilibrium in the plan: §7's reference loader adapts the <code>EfitLabels</code> it returns
+      equilibrium in the plan, and its source is the EQDB record: §7's EQDB reader is the
+      transport that fetches and caches the record, and this loader turns the cached record into
+      an <code>EfitLabels</code>. §7's reference loader adapts that <code>EfitLabels</code>
       into an <code>EquilibriumGeometry</code> rather than reading SELENE a second time, so the
-      sign scorer and the geometry referee cannot drift in COCOS or axis handling. The
+      chain is one fetch, one reader and two adapters, and the sign scorer and the geometry
+      referee cannot drift in COCOS or axis handling. The
       entry point also hard-codes DIII-D eligibility, <code>MINIMUM_PLASMA_CURRENT_KA</code>,
       <code>STANDARD_FIELD_BCOIL_MAXIMUM</code> and the <code>MINIMUM_AUDIT_SHOTS</code> guard, so
       those move into each loader's declaration as its corpus's eligibility, and the kernel keeps
