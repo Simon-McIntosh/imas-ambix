@@ -24,10 +24,10 @@
   <title>JT-60SA Machine Map for Equilibrium Reconstruction | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
-<meta name="plan-impl" content="0.79">
-<meta name="plan-version" content="185">
+<meta name="plan-impl" content="0.81">
+<meta name="plan-version" content="186">
 <meta name="plan-modified" content="2026-10-06">
 </head>
 <body>
@@ -207,130 +207,11 @@
   <p class="landed-summary">Landed 2026-10-05/06: <code>selene_deck.py</code> converts the SELENE decks into a DD 4.1.1 description per phase (12 PF coils as 268 filaments, VV and CRYOSTAT, coil_vv wall and vessel skins within 0.54&nbsp;mm of EQSLE's arcs, 17 probes, 27 flux loops, TF), and <code>machine_maps/jt-60sa.json</code> serves both phases through <code>StoreEngine</code>. Probe angles bind in §6. <a href="s4">full record</a></p>
 </section>
 
-    <h2 id="s5">§5 — Pulse bindings and the EDDB census</h2>
-    <p>
-      The pulse signal maps bind EDDB channels to DD leaves with a compiled affine
-      transform. They are read by the loader that reads MAST's,
-      <code>imas_ambix/data/signal_map.py</code> <code>load_packaged_signal_map(machine, system)</code>,
-      which resolves <code>PACKAGED_MAP_ROOT/&lt;machine&gt;/&lt;system&gt;.json</code> and refuses a
-      file whose declared machine and system differ from the path; <code>jt-60sa</code> already
-      matches its component pattern, so the JT-60SA maps add files and no loader. Known from the commissioning-shot tables: <code>MMSYS/cur{CS1..CS4,EF1..EF6}{HiTe,LKAT}</code>
-      in A are the pf_active circuit currents, with the two chains recorded as ranked
-      sources rather than silently preferring one; <code>MMSYS/cur1TFLKAT</code> and
-      <code>cur2TFLKAT</code> are the TF current; <code>PSRC/Ip</code> is the plasma
-      current for <code>magnetics/ip/data</code>, in A (measured 2026-10-06 on E101154: unit
-      attribute <code>A</code>, peak 9.99e5 A, so the unit factor is 1; the commissioning tables'
-      kA reading was wrong). What is
-      not yet known is where the raw flux loops and pickup coils live for a plasma shot and
-      how many there are — the candidates are <code>MDAC</code> (264 channels, the magnetic
-      data-acquisition controller), <code>PSRC</code> (312 channels) and <code>MAG</code> on an
-      E-shot — and whether EDDB exposes them as separate <code>dname</code>s or as
-      multi-channel arrays.
-    </p>
-    <p>
-      The first node of this section is therefore a census, not a map: enumerate every
-      category table for the latest E-shot (<code>E101173</code>, the last OP1 pulse), record name, class, unit, description,
-      channel count and shot validity, record the PID of every one-point datum, and run the
-      codex EDAS scanner from the workstation so the same catalogue lands in the graph as
-      FacilitySignal nodes beside the handbook pages it already holds; publish the join as
-      evidence. Only then are the
-      magnetics bindings written, with <code>validation_state: source-only</code> on every
-      signal rule whose sign or scale is not yet measured, until §6 replaces it. A pulse
-      signal map has no <code>sign_convention</code>: its sign is the numeric
-      <code>channel_factor</code> (<code>imas_ambix/data/signal_map.py</code> <code>SignalRule</code>),
-      so the landed JT-60SA maps hold an assumed +1 whose caveat lives only in prose. The
-      lead's choice of 2026-10-06 (decision <code>signal-rule-validation-state</code>) gives
-      <code>SignalRule</code> one required field, <code>validation_state</code>, with the machine
-      map's own vocabulary (<code>source-only</code>, <code>corpus-validated</code>, held once in
-      <code>imas_ambix/data/machine_map.py</code> and imported rather than copied).
-      <code>channel_factor</code> still carries the value. Every packaged signal map declares it per
-      rule: MAST's one rule is <code>corpus-validated</code>, and every JT-60SA rule is
-      <code>source-only</code> until §6 measures its sign and scale and flips it. A reader that
-      needs a proven convention can refuse a <code>source-only</code> rule, and the tokamap
-      exporter carries the state into the rule's comment. The node
-      <code>jtmm-signal-rule-validation-state</code> lands the field, its validation, the four map
-      files and their tests, before the second-wave binding node edits
-      <code>magnetics.json</code>. It adds one schema field and retires nothing, because no
-      signal-rule validation state exists. Unit strings in EDDB are free text
-      (<code>KA</code>, <code>DEG</code>, <code>T.m</code>, <code>deg. C</code>); the census
-      produces the normalisation table that maps each to a DD unit, checked with the
-      imas-cx server's path and unit tools, and a string that cannot be normalised blocks
-      its binding rather than defaulting.
-      The table is a spelling map, not a second conversion mechanism, and it is resolved when a
-      binding is authored, not consulted at run time. A binding's <code>source_unit</code> holds
-      the DD unit (<code>imas_ambix/data/signal_map.py</code>); the raw EDDB spelling is not
-      stored on the binding. The table is a packaged data file beside
-      <code>jt-60sa.json</code> listing each EDDB spelling the census met and the DD unit it
-      resolves to. A test reads every JT-60SA binding's source channel spelling from the EDDB
-      cache's unit attribute and requires the table to map it to that binding's
-      <code>source_unit</code>. Conversion keeps its existing
-      owners: the per-channel <code>unit_factor</code> the packaged signal map
-      (<code>imas_ambix/data/signal_map.py</code>) declares, and
-      <code>imas_ambix/data/tokamap_export.py</code> <code>_unit_factor</code>, which converts
-      only between declared binding units. A spelling with no entry fails that test rather than
-      defaulting, so the section adds one data file and no public definition or refusal
-      family. It retires nothing, because no
-      EDDB unit spelling is recorded anywhere today.
-    </p>
-    <p>
-      Done-when: every first-pass DD leaf for pf_active currents, tf current, magnetics ip,
-      flux loops and poloidal probes has either an executable binding or a source
-      qualification naming why not, and the signal map compiles to one affine operation per
-      channel with no string lookup in the chunk loop.
-    </p>
-    <p>
-      The first pass runs in two waves (2026-10-06). The census's graph half is in place: codex's
-      receipt for the section's gate counts 6,298 FacilitySignal nodes on E101173, MMSYS, MDAC,
-      PSRC and MAG among them. The pulse maps are signal maps under
-      <code>imas_ambix/data/maps/jt-60sa/</code>, read by <code>load_packaged_signal_map</code>
-      and applied by <code>imas_ambix/data/virtual_zarr.py</code> <code>VirtualZarrView</code>
-      directly over the EDDB cache, which is already a <code>{shot}.zarr/{category}/{dname}</code>
-      zarr store. The first wave binds what has a known name: the twenty MMSYS coil currents
-      (<code>cur{CS1..CS4,EF1..EF6}</code> in two chains, <code>HiTe</code> and <code>LKAT</code>),
-      the two TF currents (<code>cur1TFLKAT</code>, <code>cur2TFLKAT</code>) and PSRC
-      <code>Ip</code> (in A, unit factor 1). One chain per coil is the rule and the other is
-      declared as a blocked signal naming it, the choice resting on how the two agree on the
-      cached shots. The two FPPC coils have no known EDDB current channel and enter as source
-      qualifications.
-    </p>
-    <p>
-      The flux loops and pickup probes now wait on one measurement. Codex's sensor-order receipt
-      (imas-codex <code>docs/evidence/receipts/jt60sa-selene-sensor-order.json</code> at
-      <code>c9a7caec5</code>, read on nakasvr26 2026-10-06) settles the index. SELENE's loader
-      <code>getseldata_v4.2</code> reads flux loop <em>i</em> (1 to 27) as channel <em>i</em> of the
-      PID record <code>1626 S007</code> and takes its position from <code>geo.in</code> row
-      502+<em>i</em>; it reads tangential probe <em>j</em> (1 to 17) as channel <em>j</em> of
-      <code>1626 S006</code>, whose <code>geo.in</code> row 484+<em>j</em> also carries the probe
-      angle. The 17 normal probes have no EDDB channel in <code>getseldata</code> and enter as
-      source qualifications. The raw-to-processed correspondence for the loops is measured
-      (<code>jtmm-flux-loop-correspondence</code>): PSRC <code>magFluxLp</code><em>i</em> is raw MDAC
-      <code>magFlxLp</code><em>i</em> for <em>i</em> = 1 to 27, and 28 to 34 have no unique raw partner.
-    </p>
-    <p>
-      Two facts remain, and the node <code>jtmm-sensor-channel-join</code> measures both on E101154,
-      where the PID route returns a full record. The first is which named channel each PID channel
-      is: correlate every channel of <code>1626 S007</code> and <code>1626 S006</code> against the
-      PSRC <code>magFluxLp</code>, <code>magPbTC</code> and raw MDAC channels, as the loop
-      correspondence did. The second is the raw MDAC probe channels, which no census has listed:
-      read the MDAC catalogue for E101154 and match each raw probe to its processed
-      <code>magPbTC</code> channel. The node also compares each <code>geo.in</code> position in the
-      receipt with the §4 description's loop and probe (R, Z), so the binding node inherits a
-      checked join. It writes one evidence fragment and no source. It may add channels to
-      <code>101154.zarr</code> through <code>fetch_channels</code>, and writes no other shot.
-    </p>
-    <p>
-      The binding node <code>jtmm-loop-probe-bindings</code> then writes the second wave into
-      <code>magnetics.json</code>. It binds the raw acquisition where it exists, because §6's vacuum
-      shots carry no PSRC, and declares the processed channel as the blocked alternate naming it,
-      as the first wave does for the two coil-current chains. A probe with no raw channel binds its
-      processed PSRC channel and says so in its evidence. Every new rule is
-      <code>validation_state: source-only</code> until §6 replaces it. The loops and probes
-      beyond SELENE's 27 and 17 enter as source qualifications stating that SELENE does not read
-      them and the description carries no position for them. The same node writes the
-      unit-spelling table this section describes, with its test, and adds the guard carried over
-      from the signal-map evidence review: a blocked reason that says a choice rests on E101154
-      alone while citing a corroborating shot fails the test.
-    </p>
+    <section class="section-landed">
+  <header><span class="badge badge-shipped">&#10003; landed 2026-10-06</span>
+    <h2 id="s5">§5 — Pulse bindings and the EDDB census</h2></header>
+  <p class="landed-summary">Landed 2026-10-06. The JT-60SA pulse maps bind the ten coil currents, the TF current, Ip, 27 raw flux loops and 17 raw tangential probes as <code>source-only</code> rules, with each processed alternate blocked and every unread channel blocked with its reason, beside a packaged EDDB unit-spelling table. Loop and probe indices come from codex's SELENE sensor-order receipt and the E101154 channel join; §6 measures each rule's sign and scale. <a href="s5">full record</a></p>
+</section>
 
     <h2 id="s6">§6 — Prove the conventions: vacuum shots, COCOS scoring, DD unit checks</h2>
     <p>
@@ -1010,10 +891,11 @@
     <div class="r-fu-body"><p>§6 is next: it needs no codex input, and §7's equilibrium work is gated on it. §5's flux-loop and probe bindings wait on codex's SELENE sensor-position arrays.</p></div>
     <pre class="r-fu-prompt">/reckon-build jt60sa-machine-map §6</pre>
     </article>
-<article class="r-fu" data-id="f-jtmm-004" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-build" data-written-at="2026-10-06" data-recommends-skill="/reckon-build jt60sa-machine-map §5" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-jtmm-004" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-build" data-written-at="2026-10-06" data-recommends-skill="/reckon-build jt60sa-machine-map §5" data-resolved-at="2026-10-06T17:15:55+00:00" data-resolved-by="reckon-build">
     <h4 class="r-fu-title">Bind the flux loops and tangential probes (§5 second wave) from codex&#x27;s sensor-order receipt</h4>
     <div class="r-fu-body"><p>Codex's sensor-order receipt landed 2026-10-06 (imas-codex c9a7caec5), so §5's second wave is ready: measure the PID-to-named-channel join and the raw MDAC probe channels on E101154, then bind the 27 loops and 17 tangential probes, with the unit-spelling table and the carried-over blocked-reason guard.</p></div>
     <pre class="r-fu-prompt">/reckon-build jt60sa-machine-map §5</pre>
+    <p class="r-fu-outcome">§5 closed: the flux-loop and tangential-probe bindings merged as 19e395d1 (review 117/120) after the sensor join (71ab249b) and the signal-rule validation state (80391ed0); the remaining convention work is tracked by f-jtmm-003.</p>
     </article>
 </section>
 
