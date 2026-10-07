@@ -26,7 +26,7 @@
   <title>JT-60SA Facility Mint: Public Engine, Private Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="24">
+<meta name="plan-version" content="25">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -356,6 +356,9 @@
 </div>
 <div class="r-comment" data-section="s3" data-id="c-20261007T0137-eddb-doc" data-who="reckon-build" data-when="2026-10-06T23:37:00Z">
     <div class="r-comment-body"><p>Carry into the §3 node: the module docstring of <code>packages/imas-alambic/src/imas_alambic/eddb.py</code> points at <code>imas_alambic.paths.JT60SA_ROOT</code>, which does not exist. Store roots are owned by <code>imas_ambix.data.paths</code> and reached through the bundle. The reviewer of <code>jtfm-alambic-move</code> raised this, and it was moved out of <code>jtfm-alambic-importers</code> because <code>packages/imas-alambic</code> was still claimed by A.</p></div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-run-r-20261007T003528879021-jtfm-local-eddb" data-who="reckon-build" data-when="2026-10-07T00:49:22.198Z">
+    <div class="r-comment-body"><p>Empty ssh_command now makes RemoteEddbExtractor._argv() compose nice -n 19 &lt;remote_python&gt; -c REMOTE_SCRIPT as one argv list with no ssh prefix and no module-load shell (ssh route unchanged), SshTransport renamed SubprocessTransport with both callers moved and no new Transport class, and a stand-in eddb_pwrapper drives the local route end to end so decoded ChannelRecord data and time arrays equal the stand-in bit for bit; head gate 35 passed (3 new local-route tests + 32 cache tests) EXIT=0, clean uv venv --python 3.12 (imas-alambic wheel + nova-cocos + pytest) 3 passed EXIT=0, ruff exit 0, negative control 3 failed EXIT=1.</p></div>
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20261007T003017390790-jtfm-facility-editable" data-who="reckon-build" data-when="2026-10-07T00:43:32.729Z">
     <div class="r-comment-body"><p>§4 landed: on intr26-2 (d240044) a Python 3.12.9 venv at ~/imas-alambic/.venv holds editable imas-alambic (importlib.metadata.version = 0.1.dev5620+g33cad025b, naming clone HEAD 33cad025b which was origin/main and contains 3d54ae6f) and nova-cocos from blob-less sparse https clones; with IMAS_ALAMBIC_MAP_PATH=~/imas-alambic/bundles/jt-60sa the by-name loaders report machine-map IDS [magnetics,pf_active,pf_passive,tf,wall]/25 paths/170 bindings/2 maps and magnetics 45-57-3, pf_active 10-10-1, tf 1-1-1 — equal to the dev checkout — and the engine tests pass 16/16 under 3.12.9.</p></div>
