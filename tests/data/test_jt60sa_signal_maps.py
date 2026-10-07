@@ -22,19 +22,12 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from imas_alambic.machine_map import MachineMapError, bundle_for_machine
 from imas_alambic.signal_map import load_packaged_signal_map
 from imas_alambic.virtual_zarr import VirtualZarrError, VirtualZarrView
 from imas_ambix.data.paths import JT60SA_ROOT
+from tests.jt60sa_bundle import BUNDLE, SKIP_REASON
 
-try:
-    BUNDLE = bundle_for_machine("jt-60sa")
-except MachineMapError:
-    BUNDLE = None
-pytestmark = pytest.mark.skipif(
-    BUNDLE is None,
-    reason="JT-60SA map bundle is unavailable; set IMAS_ALAMBIC_MAP_PATH",
-)
+pytestmark = pytest.mark.skipif(BUNDLE is None, reason=SKIP_REASON)
 
 SHOTS = (101154, 101173, 60033)
 COILS = ("CS1", "CS2", "CS3", "CS4", "EF1", "EF2", "EF3", "EF4", "EF5", "EF6")

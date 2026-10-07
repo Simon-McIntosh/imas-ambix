@@ -15,8 +15,6 @@ import numpy as np
 import pytest
 
 from imas_alambic.machine_map import (
-    MachineMapError,
-    bundle_for_machine,
     load_machine_map,
     load_packaged_machine_map,
     map_for_shot,
@@ -28,15 +26,9 @@ from imas_alambic.transform_engine import (
 from imas_ambix.data.description_identity import machine_description_bytes
 from imas_ambix.data.description_reader import read_geometry_table
 from imas_ambix.data.geometry_adapter import geometry_table_from_description
+from tests.jt60sa_bundle import BUNDLE, SKIP_REASON
 
-try:
-    BUNDLE = bundle_for_machine("jt-60sa")
-except MachineMapError:
-    BUNDLE = None
-pytestmark = pytest.mark.skipif(
-    BUNDLE is None,
-    reason="JT-60SA map bundle is unavailable; set IMAS_ALAMBIC_MAP_PATH",
-)
+pytestmark = pytest.mark.skipif(BUNDLE is None, reason=SKIP_REASON)
 DESCRIPTION_ROOT = BUNDLE.store_roots["description"] if BUNDLE else Path()
 STORE_AVAILABLE = BUNDLE is not None and DESCRIPTION_ROOT.is_dir()
 requires_store = pytest.mark.skipif(

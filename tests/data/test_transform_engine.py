@@ -16,7 +16,6 @@ from imas.ids_struct_array import IDSStructArray
 from imas_alambic.machine_map import (
     ChannelBinding,
     MachineMapError,
-    discover_bundles,
     load_packaged_machine_map,
     map_for_shot,
 )
@@ -34,20 +33,16 @@ from imas_ambix.data.cocos_convention import (
     MAST_TO_COCOS_17_FACTORS,
 )
 from imas_ambix.data.paths import JT60SA_DESCRIPTION_DIR
+from tests.jt60sa_bundle import reachable_bundles
 
 LEVEL2_ROOT = Path("/work/projects/imas_gpu/mast/level2/shots")
 TRANSITION_SHOTS = (11_766, 12_417, 12_533)
 JT60SA_OP1_DESCRIPTION_ROOT = JT60SA_DESCRIPTION_DIR
 JT60SA_OP1_PF_ACTIVE = JT60SA_OP1_DESCRIPTION_ROOT / "OP1" / "pf_active.nc"
 _COIL_ELEMENT_DD_PATH = "pf_active/coil/element/geometry/rectangle/r"
-try:
-    discover_bundles()
-    _BUNDLE_DISCOVERY_AVAILABLE = True
-except MachineMapError:
-    _BUNDLE_DISCOVERY_AVAILABLE = False
 needs_bundle_discovery = pytest.mark.skipif(
-    not _BUNDLE_DISCOVERY_AVAILABLE,
-    reason="IMAS_ALAMBIC_MAP_PATH must name a readable bundle",
+    not reachable_bundles(),
+    reason="no reachable map bundle; set IMAS_ALAMBIC_MAP_PATH",
 )
 
 

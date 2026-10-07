@@ -17,7 +17,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from imas_alambic.machine_map import MachineMapError, bundle_for_machine
+from tests.jt60sa_bundle import BUNDLE, SKIP_REASON
 
 _MODULE_PATH = (
     Path(__file__).resolve().parents[2] / "scripts" / "vacuum_loop_adjudication.py"
@@ -58,10 +58,8 @@ def _every_shot_identity(
 def test_probe_angles_supplied_for_all_seventeen() -> None:
     from imas_ambix.data.description_reader import read_geometry_table
 
-    try:
-        bundle_for_machine("jt-60sa")
-    except MachineMapError:
-        pytest.skip("JT-60SA map bundle is unavailable; set IMAS_ALAMBIC_MAP_PATH")
+    if BUNDLE is None:
+        pytest.skip(SKIP_REASON)
 
     table = read_geometry_table(100595, machine="jt-60sa")
     angles = {

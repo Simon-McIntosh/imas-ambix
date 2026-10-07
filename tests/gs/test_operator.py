@@ -25,14 +25,10 @@ import numpy as np
 import pytest
 from scipy.special import ellipk
 
-from imas_alambic.machine_map import (
-    MachineMapError,
-    bundle_for_machine,
-    discover_bundles,
-)
 from imas_ambix.data.description_reader import read_geometry_table
 from imas_ambix.data.paths import JT60SA_ROOT, MANIFEST_DIR
 from imas_ambix.gs import operator as op
+from tests.jt60sa_bundle import BUNDLE, reachable_bundles
 
 
 class _Filament(SimpleNamespace):
@@ -529,11 +525,7 @@ def test_plasma_term_adds_when_nonzero():
 # --- integration: real campaign tables (skipped in CI) ----------------
 
 _HAVE_TABLES = (MANIFEST_DIR / "gs_geometry_tables.json").exists()
-try:
-    discover_bundles()
-    _BUNDLE_DISCOVERY_AVAILABLE = True
-except MachineMapError:
-    _BUNDLE_DISCOVERY_AVAILABLE = False
+_BUNDLE_DISCOVERY_AVAILABLE = bool(reachable_bundles())
 _skip_no_tables = pytest.mark.skipif(
     not _HAVE_TABLES or not _BUNDLE_DISCOVERY_AVAILABLE,
     reason=(
@@ -749,11 +741,7 @@ def test_pf_columns_use_finite_area_kernel_near_packs():
 
 _JT60SA_VACUUM_SHOT = 100595
 _HAVE_JT60SA_VACUUM = (JT60SA_ROOT / f"{_JT60SA_VACUUM_SHOT}.zarr").is_dir()
-try:
-    bundle_for_machine("jt-60sa")
-    _HAVE_JT60SA_BUNDLE = True
-except MachineMapError:
-    _HAVE_JT60SA_BUNDLE = False
+_HAVE_JT60SA_BUNDLE = BUNDLE is not None
 _skip_no_jt60sa_vacuum = pytest.mark.skipif(
     not _HAVE_JT60SA_VACUUM or not _HAVE_JT60SA_BUNDLE,
     reason="JT-60SA vacuum cache or map bundle is unavailable; "
