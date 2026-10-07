@@ -391,7 +391,7 @@ class RemoteEddbExtractor:
 # envelope in :func:`encode_batch`: the same magic, the same uint32 header
 # length, the same little-endian float64 segments, so the client decodes both
 # identically.
-REMOTE_SCRIPT = r'''
+REMOTE_SCRIPT = r"""
 import json, struct, sys
 import numpy as np
 
@@ -511,7 +511,7 @@ def main():
 
 if __name__ == "__main__":
     main()
-'''
+"""
 
 
 __all__ = [

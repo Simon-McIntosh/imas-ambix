@@ -368,9 +368,7 @@ class NetCDFTransformEngine:
             return _NetCDFStoreArrays(
                 Path(root) / machine_map.name, dd_version, store_layout
             )
-        return _NetCDFStoreArrays(
-            Path(root) / str(int(shot)), dd_version, store_layout
-        )
+        return _NetCDFStoreArrays(Path(root) / str(int(shot)), dd_version, store_layout)
 
 
 _TRANSFORM_ENGINES: Mapping[str, StoreEngine] = MappingProxyType(
