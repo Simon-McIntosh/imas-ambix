@@ -26,7 +26,7 @@
   <title>JT-60SA Pulse IDSs and Equilibrium Animation | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="25">
+<meta name="plan-version" content="26">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -244,7 +244,10 @@
     <div class="r-comment-body"><p><strong>Correction to c-20261007T0400-jtfm-run-file:</strong> the run file's path is flat, <code>ids/&lt;pulse&gt;_&lt;run&gt;.nc</code> (for example <code>ids/101154_0.nc</code>), not <code>ids/&lt;pulse&gt;/&lt;run&gt;.nc</code>. The lead settled the flat spelling after that comment was written, so each file names itself. The owner of the layout is jt60sa-facility-mint's decision <code>output-layout</code> and its §8. Everything else in that comment stands: one <code>imas.DBEntry</code> per pulse and run holds every IDS of the shot's phase machine description. This plan's §2 adds its equilibrium to that file, and §4 reads it with one <code>DBEntry</code> and a <code>get()</code> per IDS.</p></div>
 </div>
 <div class="r-comment" data-section="s5" data-id="c-run-r-20261007T031700924363-jtpi-writer-test-time" data-who="reckon-build" data-when="2026-10-07T03:36:34.555Z">
-    <div class="r-comment-body"><p>docs/evidence/fragments/jt60sa-pulse-ids/jtpi-writer-test-time.html — test_write_covers_every_description_ids now derives each IDS&#x27;s expected homogeneous_time from the writer&#x27;s receipt (1 IDS-level time path, 0 per-leaf time vectors, 2 no time-dependent leaf) and, for a heterogeneous IDS, checks every written leaf&#x27;s sibling time vector has as many samples as its data; base arm red only on that test (1 failed, 27 passed), after arm 28 passed EXIT=0; commit 45ca46c9.</p></div>
+    <div class="r-comment-body"><p>docs/evidence/fragments/jt60sa-pulse-ids/jtpi-writer-test-time.html — test_write_covers_every_description_ids now derives each IDS's expected homogeneous_time from the writer's receipt (1 IDS-level time path, 0 per-leaf time vectors, 2 no time-dependent leaf) and, for a heterogeneous IDS, checks every written leaf's sibling time vector has as many samples as its data; base arm red only on that test (1 failed, 27 passed), after arm 28 passed EXIT=0; commit 45ca46c9.</p></div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-run-r-20261007T033725434065-review-of-jtpi-writer-test-time" data-who="reckon-build" data-when="2026-10-07T03:49:56.363Z">
+    <div class="r-comment-body"><p>review-of-jtpi-writer-test-time — reviewed run r-20261007T031700924363-jtpi-writer-test-time (base aeb336a7, head 45ca46c9) independent review stored; all six dimensions scored in 0..20 (goal_fidelity 19, evidence 19, scope_discipline 20, durability 18, fit 19, reuse 19; total 114); added_failure_count 0, added_failure_ids []. §5 is met: the writer test derives homogeneous_time from the receipt and the after arm passes 28/28.</p></div>
 </div>
 </section>
 </main>

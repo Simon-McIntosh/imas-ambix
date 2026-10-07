@@ -1,0 +1,53 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "derived from the reviewed run's own gate logs: base arm at aeb336a7 failed exactly ['tests/data/test_pulse_writer.py::test_write_covers_every_description_ids'] (1 failed, 27 passed, EXIT=1); after arm at 45ca46c9 failed nothing (28 passed, EXIT=0); so added = 0. I reproduced the after arm in the reviewed worktree at 45ca46c9 (28 passed, EXIT=0).",
+  "base_log_revision": "aeb336a74e171497601896e8ec636f5eedfe97da",
+  "call_site_count": 1,
+  "call_sites": [
+    "tests/data/test_pulse_writer.py:test_write_covers_every_description_ids"
+  ],
+  "completed_at": "2026-10-07T03:49:56.363Z",
+  "dispatched_at": "2026-10-07T03:37:58Z",
+  "findings": [],
+  "head_log_revision": "45ca46c9c7f3f49791d24652163479642f5c07bc",
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 1 call site: the repaired assertion lives in tests/data/test_pulse_writer.py::test_write_covers_every_description_ids; helpers _expected_homogeneous_time, _leaves_of and _nodes_at are module-private and called only from it.",
+    "diff": "read against base aeb336a7; the single commit 45ca46c9 (parent aeb336a7) changes 2 files, +133/-8: tests/data/test_pulse_writer.py (+55/-8) and the new evidence fragment docs/evidence/fragments/jt60sa-pulse-ids/jtpi-writer-test-time.html (+78). Nothing else; no imas_alambic source changed.",
+    "done_when": "\u00a75's gate is `uv run --no-sync pytest -p no:cacheprovider tests/data/test_pulse_writer.py packages/imas-alambic/tests` with packages/imas-alambic/src on PYTHONPATH, plus a negative control. I reran the gate in the reviewed worktree at 45ca46c9: 28 passed, EXIT=0. Base arm red on the single target test (int(0)==1 for magnetics); the negative control reddens the suite (EXIT=1, CoordinateError).",
+    "goal": "\u00a75: the writer's test reads homogeneous_time from the receipt instead of hard-coding three IDSs. The repaired test computes expected 1/0/2 from receipt.leaves and, for a heterogeneous IDS, checks each written leaf's sibling time vector against its sample count. met.",
+    "manifest": "read; status complete, commit 45ca46c9, base aeb336a7, base/after/negative-control log paths, both arms' counts; tree clean at 45ca46c9.",
+    "write_paths": "declared tests/data/test_pulse_writer.py, docs/evidence/fragments/jt60sa-pulse-ids/jtpi-writer-test-time.html and a figures dir; the diff touches the first two only, and creates no figure (declared but unused)."
+  },
+  "justifications": {
+    "durability": "the negative control patches the writer to force homogeneous_time = 1 for magnetics; the repaired test reddens (EXIT=1) with CoordinateError from flux_loop[0]/flux/data shape vs a size-0 time coordinate. The mutation manifests as the write refusing rather than a read-back mismatch, so it reddens the suite via setup error rather than isolating the one assertion; the run documents this honestly in its manifest.",
+    "evidence": "base arm red only on the target test, after arm 28 passed EXIT=0; I reproduced the after arm independently in the reviewed worktree (28 passed, EXIT=0). The base arm log is a full run to its summary line. The evidence fragment table (receipt-derived expected vs read-back 1/2/2/0/1) reconciles with the receipt-derived expectation.",
+    "fit": "the new fragment follows the evidence-fragment idiom (section.evidence-fragment, data-reckon=evidence, node-prefixed element ids) and the test helpers are documented by mechanism. The fragment file has no trailing newline, a cosmetic nit only.",
+    "goal_fidelity": "\u00a75 is met: the test now derives homogeneous_time from receipt.leaves (1 all IDS-level time path, 0 per-leaf vectors, 2 no time-dependent leaf) and adds the sibling sample-count check for the heterogeneous IDS; no imas_alambic source changed, matching the plan's 'no source file changes'.",
+    "reuse": "reuses the existing receipt fields (leaves, time_path, samples, target_path), the module's _relative helper and _read/IDS_NAMES rather than re-deriving file layout; branches on receipt data rather than a hard-coded IDS set.",
+    "scope_discipline": "git diff aeb336a7..45ca46c9 reports 2 files changed, +133/-8, both inside the declared write paths; no source, plan or unrelated file touched."
+  },
+  "node": "review-of-jtpi-writer-test-time",
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: \u00a75 wants the writer's test to read homogeneous_time from the writer's receipt rather than a hard-coded IDS set. tests/data/test_pulse_writer.py::test_write_covers_every_description_ids now computes expected 1/0/2 from receipt.leaves and, for a heterogeneous IDS, checks each written leaf's sibling time vector sample count. met.\nVERDICT done_when: the gate is `uv run --no-sync pytest -p no:cacheprovider tests/data/test_pulse_writer.py packages/imas-alambic/tests` with packages/imas-alambic/src on PYTHONPATH. I reran it in the reviewed worktree at 45ca46c9: 28 passed, EXIT=0. Base arm at aeb336a7: 1 failed (test_write_covers_every_description_ids, int(0)==1 for magnetics), 27 passed, EXIT=1.\nVERDICT write_paths: declared tests/data/test_pulse_writer.py, docs/evidence/fragments/jt60sa-pulse-ids/jtpi-writer-test-time.html and a figures dir; the diff touches the first two only and creates no figure.\nVERDICT manifest: read; status complete, commit 45ca46c9, base aeb336a7, base/after/negative-control logs, clean tree.\nVERDICT diff: read against base aeb336a7; the single commit 45ca46c9 changes 2 files (+133/-8), nothing outside the declared paths, no imas_alambic source.\nCALL_SITES: tests/data/test_pulse_writer.py:test_write_covers_every_description_ids\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: the test derives homogeneous_time from receipt.leaves (1 all IDS-level time path, 0 per-leaf vectors, 2 no time-dependent leaf) and adds the sibling sample-count check; no source changed, matching \u00a75.\nSCORE evidence: 19\nJUSTIFICATION evidence: base arm red only on the target test, after arm 28 passed EXIT=0, reproduced independently; fragment table reconciles with the receipt-derived expectation.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff aeb336a7..45ca46c9 reports 2 files changed, +133/-8, both inside the declared write paths.\nSCORE durability: 18\nJUSTIFICATION durability: the negative control forcing homogeneous_time=1 for magnetics reddens the suite (EXIT=1, CoordinateError), though via the write refusing rather than the single assertion; the run documents this.\nSCORE fit: 19\nJUSTIFICATION fit: the fragment follows the evidence-fragment idiom with node-prefixed ids and documented helpers; only nit is no trailing newline.\nSCORE reuse: 19\nJUSTIFICATION reuse: reuses receipt fields, _relative, _read and IDS_NAMES rather than re-deriving layout or a hard-coded set.\nreviewed_base_sha: aeb336a74e171497601896e8ec636f5eedfe97da\nreviewed_head_sha: 45ca46c9c7f3f49791d24652163479642f5c07bc",
+  "review_run_id": "r-20261007T033725434065-review-of-jtpi-writer-test-time",
+  "reviewed_base_sha": "aeb336a74e171497601896e8ec636f5eedfe97da",
+  "reviewed_head_sha": "45ca46c9c7f3f49791d24652163479642f5c07bc",
+  "reviewed_run_id": "r-20261007T031700924363-jtpi-writer-test-time",
+  "reviewer": "independent-review",
+  "scores": {
+    "durability": 18,
+    "evidence": 19,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "reuse": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T03:50:32.542811+00:00",
+  "total": 114
+}
