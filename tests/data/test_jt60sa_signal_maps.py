@@ -74,6 +74,52 @@ _RESTS_ON_E101154 = re.compile(
 # channel present on E101154, so the list is empty.
 _CHANNELS_ABSENT_FROM_E101154: frozenset[tuple[str, str, str]] = frozenset()
 
+# The equilibrium sign cohort's four FAME scalars and the catalogue-declared
+# reference major radius.  B0 is the toroidal field on that radius, so BTV,
+# which carries F = R . BT, converts by dividing by the radius.
+EQ_SYSTEM = "equilibrium"
+EQ_FRAGMENT = (
+    "docs/evidence/fragments/jt60sa-machine-map/"
+    "jtmm-equilibrium-source-leads.html"
+)
+REFERENCE_RADIUS_M = 3.0
+# semantic_id -> (source_group, source_array, source_unit, target_path,
+#                 target_unit, channel_factor)
+_EQ_RULES = {
+    "equilibrium_q_axis": (
+        "FAME",
+        "QAXIS",
+        "1",
+        "equilibrium/time_slice/global_quantities/q_axis",
+        "1",
+        1.0,
+    ),
+    "equilibrium_q_95": (
+        "FAME",
+        "Q95",
+        "1",
+        "equilibrium/time_slice/global_quantities/q_95",
+        "1",
+        1.0,
+    ),
+    "equilibrium_plasma_current": (
+        "FAME",
+        "TTCU",
+        "A",
+        "equilibrium/time_slice/global_quantities/ip",
+        "A",
+        1.0,
+    ),
+    "equilibrium_toroidal_field_b0": (
+        "FAME",
+        "BTV",
+        "T·m",
+        "equilibrium/vacuum_toroidal_field/b0",
+        "T",
+        1.0 / REFERENCE_RADIUS_M,
+    ),
+}
+
 _cache_missing = not (JT60SA_ROOT / "101154.zarr").is_dir()
 needs_cache = pytest.mark.skipif(
     _cache_missing, reason="JT-60SA EDDB cache is not mounted"
@@ -576,3 +622,102 @@ def test_psrc_ip_peak_on_the_plasma_shot_exceeds_a_megaampere_scale():
     assert np.max(np.abs(served)) > 1.0e4
     # The cache already carries Amperes, so the served value equals the source.
     assert np.max(np.abs(served)) == pytest.approx(float(np.max(np.abs(raw))))
+
+
+def _equilibrium():
+    return load_packaged_signal_map("jt-60sa", EQ_SYSTEM)
+
+
+def _equilibrium_index():
+    return {rule.semantic_id: rule for rule in _equilibrium().signals}
+
+
+# Plausible FAME scalars for one shot; the equilibrium rules bind these source
+# arrays and the transform must not touch the raw values.
+_FAME_SERIES = {
+    "QAXIS": (0.98, 1.00, 1.02, 1.01, 0.99, 1.03, 1.00, 0.97),
+    "Q95": (30.0, 29.5, 31.0, 32.4, 28.7, 29.9, 30.5, 33.1),
+    "TTCU": (4.0e5, 5.0e5, 6.5e5, 7.2e5, 6.1e5, 5.3e5, 4.4e5, 3.8e5),
+    "BTV": (6.02, 6.01, 6.00, 5.99, 5.985, 5.995, 6.005, 6.023),
+}
+
+
+def _fame_store(tmp_path):
+    """Build a FAME zarr store under ``tmp_path`` and return its path."""
+
+    import zarr
+
+    path = tmp_path / "101154.zarr"
+    root = zarr.open_group(path, mode="w")
+    fame = root.create_group("FAME")
+    length = len(next(iter(_FAME_SERIES.values())))
+    time = np.linspace(0.0, 7.0, length)
+    for name, values in _FAME_SERIES.items():
+        fame.create_array(name, data=np.asarray(values, dtype=np.float64))
+        fame.create_array(f"{name}_time", data=time)
+    return path
+
+
+def test_equilibrium_map_binds_the_four_fame_scalars():
+    """Each FAME scalar binds its DD leaf, source-only, citing the survey."""
+    source_map = _equilibrium()
+    assert source_map.machine == "jt-60sa"
+    assert source_map.system == EQ_SYSTEM
+    assert source_map.source_dataset == SOURCE_DATASET
+    assert source_map.set_version == "0.1.0"
+    assert source_map.target_cocos == 17
+    assert source_map.target_dd_version == "4.1.1"
+
+    index = _equilibrium_index()
+    assert set(index) == set(_EQ_RULES)
+    for semantic_id, (
+        group,
+        array,
+        source_unit,
+        target_path,
+        target_unit,
+        channel_factor,
+    ) in _EQ_RULES.items():
+        rule = index[semantic_id]
+        assert rule.source_group == group
+        assert rule.source_array == array
+        assert rule.source_unit == source_unit
+        assert rule.target_path == target_path
+        assert rule.target_unit == target_unit
+        assert rule.target_index is None
+        assert rule.transformation == "one_like"
+        assert rule.source_cocos is None
+        assert rule.unit_factor == 1.0
+        assert rule.channel_factor == pytest.approx(channel_factor)
+        assert rule.validation_state == "source-only"
+        assert EQ_FRAGMENT in rule.evidence
+
+
+def test_equilibrium_map_compiles_and_reads_each_raw_series(tmp_path):
+    """Compile the map, then read every rule's raw series over the FAME store."""
+    source_map = _equilibrium()
+    compiled = source_map.compile(101154)
+    assert sorted(signal.rule.semantic_id for signal in compiled) == sorted(_EQ_RULES)
+
+    path = _fame_store(tmp_path)
+    view = VirtualZarrView.open(str(path), source_map, shot=101154)
+    time = np.linspace(0.0, 7.0, len(_FAME_SERIES["QAXIS"]))
+    for semantic_id in _EQ_RULES:
+        values, times = view.raw_series(semantic_id)
+        array = _EQ_RULES[semantic_id][1]
+        assert values == pytest.approx(np.asarray(_FAME_SERIES[array], dtype=float))
+        assert times == pytest.approx(time)
+
+
+def test_equilibrium_b0_divides_btimes_r_by_the_reference_radius(tmp_path):
+    """The served b0 is BTV over the catalogue's 3.0 m radius, not BTV itself."""
+    path = _fame_store(tmp_path)
+    view = VirtualZarrView.open(str(path), _equilibrium(), shot=101154)
+
+    raw_btv, _ = view.raw_series("equilibrium_toroidal_field_b0")
+    served = np.asarray(view["equilibrium_toroidal_field_b0"][:]).ravel()
+
+    assert served == pytest.approx(raw_btv / REFERENCE_RADIUS_M)
+    # The rule must actually divide by the radius, so the served value differs
+    # from the raw F = R . BT it was read from.
+    assert not np.allclose(served, raw_btv)
