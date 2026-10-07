@@ -25,7 +25,7 @@
   <title>JT-60SA Signal Figures From IDS | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="11">
+<meta name="plan-version" content="12">
 <meta name="plan-modified" content="2026-10-07">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;deferred&quot;,&quot;s3&quot;:&quot;deferred&quot;}">
 </head>
@@ -111,19 +111,14 @@
       opens the phase description store, whose one-file-per-IDS layout the catalogue's
       <code>static-over-map</code> store owns. After §8, a written pulse is a single run file reached through
       <code>pulse_path</code>. The two read different products with different owners, and they stay distinct.
-      The figures leave the public tree. On 2026-10-07 the lead turned GitHub Pages off and moved JT-60SA evidence
-      out of <code>docs/</code> (jt60sa-facility-mint §10, decision <code>evidence-privacy</code> =
-      <code>move-private</code>). So the function writes its SVGs under
-      <code>/work/projects/imas_gpu/jt60sa/evidence/figures/jt60sa-signals/</code>, the private mirror of the
-      script's current <code>docs/figures/jt60sa-signals/</code>, and writes nothing into <code>docs/figures</code>.
-      The section's evidence fragment in <code>docs/</code> names the private paths and the checks passed, with no
-      channel name, signal value or figure in it.
-      Done-when: an SVG of E101031's ten coil currents and ip exists beside E101154's under
-      <code>/work/projects/imas_gpu/jt60sa/evidence/figures/jt60sa-signals/</code>. Both are drawn by one function in
+      The figures stay in <code>docs/figures/jt60sa-signals/</code>, where the lead reviews them. On 2026-10-07 the
+      lead ruled that the figures can still go in the docs folders: the plans want the feedback the figures give.
+      The function writes both SVGs there, and the evidence fragment embeds them as any other plan's does.
+      Done-when: an SVG of E101031's ten coil currents and ip exists beside E101154's in
+      <code>docs/figures/jt60sa-signals/</code>. Both are drawn by one function in
       <code>scripts/figures_jt60sa_signals.py</code> that takes the pulse, from the written IDS alone, with no array
       built and no label or unit passed by the script. E101154's SVG, redrawn through the same function, matches
-      its predecessor in traces, labels and units. <code>git diff --stat</code> lists no path under
-      <code>docs/figures</code>, and the evidence fragment carries no facility content.
+      its committed predecessor in traces, labels and units.
     </p>
 
     <section data-reckon="followups" id="followups" class="r-followups">
