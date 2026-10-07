@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.93">
-<meta name="plan-version" content="267">
+<meta name="plan-version" content="269">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -532,6 +532,34 @@
       measurement with its prediction minus a candidate reference's prediction, for loop 7 and each
       other loop as reference, on the three vacuum shots. It names the reference the fits support
       with the slopes and r, and writes one fragment.
+      It landed 2026-10-07 (merge 3ec290a0, review 109/120) and names loop 7 as the reference. With
+      loop 7's prediction subtracted, all 26 other loops track at slope &minus;0.91 to &minus;1.02 with
+      |r| 0.97 to 0.999 on E100642, and loop 7 alone tracks its own absolute prediction. Over the three
+      shots the median rule makes loops 12&ndash;27 <code>negate</code> against loop 7. Loops 1&ndash;6
+      and 8&ndash;11 track only on E100642 and stay undecided. So the raw loops other than loop 7 are
+      differences, &psi;<sub>L</sub> &minus; &psi;<sub>7</sub> up to the global sign, and decision
+      <code>jt60sa-differential-flux-loops</code> writes them as the DD's differential loops. DD 4.1.1
+      gives <code>flux_loop</code> a type 6 (differential) whose <code>indices_differential</code>
+      names the two loops it subtracts, loop(second) &minus; loop(first), and leaves
+      <code>position</code> and <code>area</code> empty. Each of the 27 physical loops keeps its type-1
+      entry with its name, position and area, and only loop 7's carries flux: its measured absolute
+      flux. Each of the 26 measured differences becomes a type-6 entry naming loop 7 then loop L and
+      carrying &minus;raw<sub>L</sub>. No derived absolute flux is stored. Three nodes follow, in
+      order.
+      <code>jtmm-differential-loop-store</code> makes the converter's <code>build_magnetics</code>
+      (<code>imas_ambix/data/selene_deck.py</code>) append the 26 type-6 entries after the 27 type-1
+      entries. It follows the DD's index convention for <code>indices_differential</code> and cites
+      where that convention is stated. The OP1 and OP2 stores are regenerated with their superseded
+      copies kept, as the probe-angle repair did.
+      <code>jtmm-differential-loop-rules</code> follows <code>jtmm-vacuum-verdicts-author</code> in
+      <code>magnetics.json</code> and retargets the 26 loop rules from the type-1 entries to their
+      type-6 entries. Loops 12&ndash;27 take <code>channel_factor</code> &minus;1 and
+      <code>corpus-validated</code>, with evidence citing the loop-reference fits. Loops 1&ndash;6 and
+      8&ndash;11 stay <code>source-only</code>, with the reason that they track only on E100642.
+      <code>jtmm-operator-differential-loops</code> makes the geometry table and the forward operator
+      carry a type-6 entry as the prediction of its second loop minus that of its first, read from
+      <code>indices_differential</code>, so the vacuum adjudication and every fit score the
+      differential entries directly. MAST's loops are all type 1, so MAST is unchanged.
     </p>
     <p>
       The COCOS of the source is then identified rather than assumed. For the raw side,
@@ -1193,6 +1221,17 @@
       </p>
     <p class="r-dec-rat">Lead&#x27;s choice 2026-10-07: the median rule, with a dI/dt filter, because the probes sit close to the wall and their signals are noisy. During fast coil transients the vessel&#x27;s induced currents perturb near-wall probes, and the vacuum model carries no passive currents, so the fit uses only samples where every driven coil&#x27;s |dI/dt| is below a stated threshold. Per-shot outliers are recorded beside each verdict rather than hidden. Rejected: the strict every-shot rule, which leaves well-tracking probes unmeasured on one noisy shot, and best-two-of-three, which is less transparent about the shot set aside.</p>
     </div>
+<div class="r-dec" data-key="jt60sa-differential-flux-loops" data-choice="dd-differential-geometry-only" data-by="Simon McIntosh" data-when="2026-10-07T00:40:00+00:00" data-sections="s6">
+    <p class="r-dec-q">How are the JT-60SA raw flux loops that measure flux relative to loop 7 written into the DD?</p>
+    <p class="r-dec-ctx">Measured 2026-10-07 by jtmm-loop-reference-rca (merge 3ec290a0, review 109/120): with loop 7&#x27;s vacuum prediction subtracted, all 26 other raw MDAC loops track at slope -0.91 to -1.02 with |r| 0.97 to 0.999 on E100642, and loop 7 alone tracks its own absolute prediction (median slope -0.99). DD 4.1.1 flux_loop type 6 (differential) carries indices_differential, loop(second index) - loop(first index), and leaves position and area empty; flux is documented as the measured flux through the loop.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="dd-differential-geometry-only">type-6 differential entries carry the measurements; type-1 entries carry geometry, and only loop 7&#x27;s carries flux</button>
+      <button class="r-opt" data-value="dd-differential-with-reconstructed-absolute">type-6 entries plus a reconstructed absolute flux on every type-1 entry</button>
+      <button class="r-opt" data-value="reconstruct-absolute-only">flux_loop[L].flux = -(raw_L + raw_7) on the type-1 entries, no differential entries</button>
+      <button class="r-opt" data-value="source-only-for-now">author probes and loop 7 only, leave the other loops source-only</button>
+      </p>
+    <p class="r-dec-rat">Lead&#x27;s choice 2026-10-07: follow the DD&#x27;s differential loops, and store on each type-1 entry for loops 1-6 and 8-27 only its geometry (name, position, area) with no flux, because their absolute flux was never measured and the DD documents flux as measured. Loop 7&#x27;s type-1 entry carries its measured absolute flux. Each measured difference is a type-6 entry naming loop 7 and loop L. A consumer that needs absolute flux adds loop 7 itself; no derived sum is stored as a measurement.</p>
+    </div>
 </section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
@@ -1687,7 +1726,7 @@
     <div class="r-comment-body"><p>Read-only test of whether the raw MDAC flux loops measure flux relative to a reference: with loop 7's vacuum prediction subtracted, 26/26 other loops track on E100642 (slope -0.913 to -1.017, |r| 0.971 to 0.999), 13/26 on E100579 and 10/26 on E100595, and loop 7 is the only loop that also fits its own absolute prediction, so the fits support magFlxLp7 as the reference; the median rule makes loops 12-27 negate and loops 1-6 and 8-11 undecided; no other candidate matches it.</p></div>
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20261006T234817147274-review-of-jtmm-loop-reference-rca" data-who="reckon-build" data-when="2026-10-06T23:54:47.182Z">
-    <div class="r-comment-body"><p>Independent review of r-20261006T233828273714-jtmm-loop-reference-rca at head 4d34146e669b75df59078c350508d686b8513505 (base e4344e7877d288685a65f79264860f1b472fb89f): stored a parsed 6-dimension record scoring 19/18/20/16/17/19 = 109/120; reproduced the fragment&#x27;s reference-7 pass sets (13/26 E100579, 10/26 E100595, 26/26 E100642), the median-rule split (loops 12-27 negate, loops 1-6 and 8-11 undecided) and the runner-up (magFlxLp8 13/10/9) against the run&#x27;s own loop_reference_results.json, and verified the no-reference control exactly (45/45 loop x shot absolute fits for loops 13-27 match the committed jtmm-vacuum-adjudication.json, max abs diff 0.00e+00); the supported reference magFlxLp7 stands, with two minor landing-paragraph numeric slips recorded as findings.</p></div>
+    <div class="r-comment-body"><p>Independent review of r-20261006T233828273714-jtmm-loop-reference-rca at head 4d34146e669b75df59078c350508d686b8513505 (base e4344e7877d288685a65f79264860f1b472fb89f): stored a parsed 6-dimension record scoring 19/18/20/16/17/19 = 109/120; reproduced the fragment's reference-7 pass sets (13/26 E100579, 10/26 E100595, 26/26 E100642), the median-rule split (loops 12-27 negate, loops 1-6 and 8-11 undecided) and the runner-up (magFlxLp8 13/10/9) against the run's own loop_reference_results.json, and verified the no-reference control exactly (45/45 loop x shot absolute fits for loops 13-27 match the committed jtmm-vacuum-adjudication.json, max abs diff 0.00e+00); the supported reference magFlxLp7 stands, with two minor landing-paragraph numeric slips recorded as findings.</p></div>
 </div>
 <div class="r-comment" data-section="_top" data-id="c-20261007T0000-jtfm-move" data-who="reckon-build (jt60sa-facility-mint)" data-when="2026-10-06T23:00:00Z">
     <div class="r-comment-body"><p><strong>Coordination, lead-approved 2026-10-06:</strong> <a href="jt60sa-facility-mint">jt60sa-facility-mint</a> §2 is now moving the mint engine into the workspace member <code>packages/imas-alambic/</code>. Moving: <code>imas_ambix/data/{machine_map,signal_map,transform_engine,virtual_zarr,eddb,eddb_remote,pulse_mint}.py</code>, <code>imas_ambix/cocos.py</code> and <code>machine_maps/schema.yaml</code>. Imports become <code>imas_alambic.&lt;module&gt;</code>, and <code>nova.io.cocos</code> becomes <code>nova_cocos</code>. <strong>Map JSON is not moving</strong>: <code>machine_maps/*.json</code> and <code>maps/&lt;machine&gt;/*.json</code> stay where they are, and the by-name loaders keep their names, so map-authoring nodes are unaffected. Please avoid dispatching nodes that edit the moving Python modules until the move merges. A node already in flight that touches them will need its imports rebased after the merge, and the facility-mint coordinator will do that rebase.</p></div>
