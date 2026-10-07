@@ -1,0 +1,56 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "the reviewed run declares no arm pair: its manifest carries no baseline_suite or after_suite key (it is a docs/record import node that runs no pytest arm), so no suite-derived added failure exists and the count is a measured zero over the absent arm pair.",
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-07T16:23:53.663Z",
+  "dispatched_at": "2026-10-07T16:10:24Z",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/plan-review/jt60sa-facility-mint/r-20261007T155556937449-plan-review-of-jt60sa-facility-mint/report.md",
+      "line": "1",
+      "severity": "follow-on",
+      "text": "follow-on: a newer staging-only plan review (r-20261007T155556937449, report.md delivered 2026-10-07T16:04:56Z) plus two run reviews (r-20261007T114357275075, r-20261007T142659555368) now await import; these landed after this node's second dry run, so the node's zero was correct when measured and the tree is not stale, but a later import pass is needed."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "none",
+    "diff": "read against base e2ac3ddcc12c210208b2112ef4c4654a82a6f98e; one commit 054278071b06166ee05a1ddd6ce98500e5d4561e, +246/-0 across three files, each a plan review record keyed by its review run id and carrying plan_version 101, 103 and 104.",
+    "done_when": "the done-when is a manifest recording the census outputs, the commit and the files, and a second dry run reporting zero records to import and zero delivered reports without a record. manifest.md records the census (489 recognised records: 165 plan reviews, 324 run reviews, 4 derived; 239 duplicates) and the write (imported 3, already present 486, refused 0, quarantined 0); census-todo-2.log records to_import: 0 and census-dryrun-2.log (mtime 2026-10-07T17:57 local) ends 'delivered reports without a record: 0, refused: 0'. Reproduced here: import_host_reviews.py --project imas-ambix --root <reviewed worktree> EXIT=0, refused 0, 0 plan reviews to import.",
+    "goal": "The reviewed node's goal is to commit imas-ambix's staging-only plan reviews into its committed review tree under docs/state/imas-ambix/reviews. met: commit 054278071b06166ee05a1ddd6ce98500e5d4561e adds the three jt60sa-facility-mint plan reviews (v101, v103, v104) that the host staging store held with no committed record, and a re-run of the import dry run finds no plan review still to import.",
+    "manifest": "read; it brings the counts (489 recognised, 3 imported, 0 refused, 0 quarantined), one commit, three changed paths and the second dry run. It is consistent with the committed tree; the only field that no longer reproduces is the 'delivered reports without a record: 0' snapshot, which a later delivery (after this node completed) moved to 1.",
+    "write_paths": "the declared write path is docs/state/imas-ambix/reviews. git show --name-only 054278071b06166ee05a1ddd6ce98500e5d4561e lists exactly three files, all under docs/state/imas-ambix/reviews/plan/jt60sa-facility-mint/, and the log write names docs/state/imas-ambix/reviews as the import destination."
+  },
+  "justifications": {
+    "durability": "the change is data-only; nothing committed fails if a record under docs/state/imas-ambix/reviews/plan/jt60sa-facility-mint/ is later dropped, and the only detector is re-running /home/ITER/mcintos/Code/reckon/scripts/import_host_reviews.py by hand.",
+    "evidence": "the gate is the import dry run recorded in census-dryrun-2.log and census-todo-2.log, and it reproduces here (import_host_reviews.py --project imas-ambix --root <worktree> EXIT=0, 0 plan reviews to import, refused 0); docked because the 'delivered reports without a record: 0' clause is a snapshot that a later delivery has since moved to 1.",
+    "fit": "the commit subject is conventional with a body, and the added files are import-keyed review records under docs/state/imas-ambix/reviews/plan/jt60sa-facility-mint/, matching the existing committed review tree.",
+    "goal_fidelity": "commit 054278071b06166ee05a1ddd6ce98500e5d4561e lands the three staging-only plan reviews under docs/state/imas-ambix/reviews/plan/jt60sa-facility-mint/, which is the goal's deliverable verbatim.",
+    "reuse": "the import reuses /home/ITER/mcintos/Code/reckon/scripts/import_host_reviews.py rather than adding a second copy path; no mechanism is forked.",
+    "scope_discipline": "git show --name-only 054278071b06166ee05a1ddd6ce98500e5d4561e lists exactly the three paths under the declared write path docs/state/imas-ambix/reviews, and nothing else."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: The reviewed node's goal is to commit imas-ambix's staging-only plan reviews into its committed review tree under docs/state/imas-ambix/reviews. met: commit 054278071b06166ee05a1ddd6ce98500e5d4561e adds the three jt60sa-facility-mint plan reviews (v101, v103, v104) that the host staging store held with no committed record, and a re-run of the import dry run finds no plan review still to import.\nVERDICT done_when: the done-when is a manifest recording the census outputs, the commit and the files, and a second dry run reporting zero records to import and zero delivered reports without a record. manifest.md records the census (489 recognised records: 165 plan reviews, 324 run reviews, 4 derived; 239 duplicates) and the write (imported 3, already present 486, refused 0, quarantined 0); census-todo-2.log records to_import: 0 and census-dryrun-2.log (mtime 2026-10-07T17:57 local) ends 'delivered reports without a record: 0, refused: 0'. Reproduced here: import_host_reviews.py --project imas-ambix --root <reviewed worktree> EXIT=0, refused 0, 0 plan reviews to import.\nVERDICT write_paths: the declared write path is docs/state/imas-ambix/reviews. git show --name-only 054278071b06166ee05a1ddd6ce98500e5d4561e lists exactly three files, all under docs/state/imas-ambix/reviews/plan/jt60sa-facility-mint/, and the log write names docs/state/imas-ambix/reviews as the import destination.\nVERDICT manifest: read; it brings the counts (489 recognised, 3 imported, 0 refused, 0 quarantined), one commit, three changed paths and the second dry run. It is consistent with the committed tree; the only field that no longer reproduces is the 'delivered reports without a record: 0' snapshot, which a later delivery (after this node completed) moved to 1.\nVERDICT diff: read against base e2ac3ddcc12c210208b2112ef4c4654a82a6f98e; one commit 054278071b06166ee05a1ddd6ce98500e5d4561e, +246/-0 across three files, each a plan review record keyed by its review run id and carrying plan_version 101, 103 and 104.\nCALL_SITES: none\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: commit 054278071b06166ee05a1ddd6ce98500e5d4561e lands the three staging-only plan reviews under docs/state/imas-ambix/reviews/plan/jt60sa-facility-mint/, which is the goal's deliverable verbatim.\nSCORE evidence: 17\nJUSTIFICATION evidence: the gate is the import dry run recorded in census-dryrun-2.log and census-todo-2.log, and it reproduces here (import_host_reviews.py --project imas-ambix --root <worktree> EXIT=0, 0 plan reviews to import, refused 0); docked because the 'delivered reports without a record: 0' clause is a snapshot that a later delivery has since moved to 1.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git show --name-only 054278071b06166ee05a1ddd6ce98500e5d4561e lists exactly the three paths under the declared write path docs/state/imas-ambix/reviews, and nothing else.\nSCORE durability: 13\nJUSTIFICATION durability: the change is data-only; nothing committed fails if a record under docs/state/imas-ambix/reviews/plan/jt60sa-facility-mint/ is later dropped, and the only detector is re-running /home/ITER/mcintos/Code/reckon/scripts/import_host_reviews.py by hand.\nSCORE fit: 18\nJUSTIFICATION fit: the commit subject is conventional with a body, and the added files are import-keyed review records under docs/state/imas-ambix/reviews/plan/jt60sa-facility-mint/, matching the existing committed review tree.\nSCORE reuse: 19\nJUSTIFICATION reuse: the import reuses /home/ITER/mcintos/Code/reckon/scripts/import_host_reviews.py rather than adding a second copy path; no mechanism is forked.\nFINDING /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/plan-review/jt60sa-facility-mint/r-20261007T155556937449-plan-review-of-jt60sa-facility-mint/report.md:1 follow-on: a newer staging-only plan review (r-20261007T155556937449, report.md delivered 2026-10-07T16:04:56Z) plus two run reviews (r-20261007T114357275075, r-20261007T142659555368) now await import; these landed after this node's second dry run, so the node's zero was correct when measured and the tree is not stale, but a later import pass is needed.",
+  "review_run_id": "r-20261007T161014102880-review-of-imas-ambix-staging-only-reviews-committed",
+  "reviewed_base_sha": "e2ac3ddcc12c210208b2112ef4c4654a82a6f98e",
+  "reviewed_head_sha": "054278071b06166ee05a1ddd6ce98500e5d4561e",
+  "reviewed_run_id": "r-20261007T155057712113-imas-ambix-staging-only-reviews-committed",
+  "reviewer": "review-of-imas-ambix-staging-only-reviews-committed",
+  "scores": {
+    "durability": 13,
+    "evidence": 17,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "reuse": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T16:21:42.649429+00:00",
+  "total": 106
+}
