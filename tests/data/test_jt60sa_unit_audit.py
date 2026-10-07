@@ -22,8 +22,21 @@ from typing import Any
 import pytest
 from imas.dd_zip import dd_etree
 
-from imas_alambic.machine_map import load_packaged_machine_map
+from imas_alambic.machine_map import (
+    MachineMapError,
+    bundle_for_machine,
+    load_packaged_machine_map,
+)
 from imas_alambic.signal_map import load_packaged_signal_map
+
+try:
+    BUNDLE = bundle_for_machine("jt-60sa")
+except MachineMapError:
+    BUNDLE = None
+pytestmark = pytest.mark.skipif(
+    BUNDLE is None,
+    reason="JT-60SA map bundle is unavailable; set IMAS_ALAMBIC_MAP_PATH",
+)
 
 MACHINE = "jt-60sa"
 SYSTEMS = ("magnetics", "pf_active", "tf")
@@ -42,12 +55,13 @@ HAND_FACTORS: dict[tuple[str, str], float] = {
     ("Wb", "Wb"): 1.0,
     ("1", "1"): 1.0,
     ("m", "m"): 1.0,
+    ("rad", "rad"): 1.0,
 }
 
 # The numeric value of one unit in SI base units of its own dimension.  Only the
 # units the catalogues name appear here; the prefix parser below covers a
 # prefixed spelling such as mWb without widening the base table.
-_SI_BASE = {"1": 1.0, "m": 1.0, "A": 1.0, "T": 1.0, "Wb": 1.0}
+_SI_BASE = {"1": 1.0, "m": 1.0, "A": 1.0, "T": 1.0, "Wb": 1.0, "rad": 1.0}
 _SI_PREFIX = {
     "Y": 1.0e24,
     "Z": 1.0e21,
@@ -212,5 +226,5 @@ def test_audit_reports_the_declared_unit_pair_inventory():
         pairs[(source_unit, target_unit)] += 1
     for _, source_unit, target_unit, _, _ in _signal_rules():
         pairs[(source_unit, target_unit)] += 1
-    assert sum(pairs.values()) == 224
+    assert sum(pairs.values()) == 226
     assert set(pairs) == set(HAND_FACTORS)

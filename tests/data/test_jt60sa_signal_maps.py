@@ -22,9 +22,19 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from imas_alambic.machine_map import MachineMapError, bundle_for_machine
 from imas_alambic.signal_map import load_packaged_signal_map
 from imas_alambic.virtual_zarr import VirtualZarrError, VirtualZarrView
-from imas_ambix.data.paths import JT60SA_ROOT, PACKAGED_MACHINE_MAP_ROOT
+from imas_ambix.data.paths import JT60SA_ROOT
+
+try:
+    BUNDLE = bundle_for_machine("jt-60sa")
+except MachineMapError:
+    BUNDLE = None
+pytestmark = pytest.mark.skipif(
+    BUNDLE is None,
+    reason="JT-60SA map bundle is unavailable; set IMAS_ALAMBIC_MAP_PATH",
+)
 
 SHOTS = (101154, 101173, 60033)
 COILS = ("CS1", "CS2", "CS3", "CS4", "EF1", "EF2", "EF3", "EF4", "EF5", "EF6")
@@ -35,15 +45,18 @@ TF_CURRENT_PATH = "tf/coil/current/data"
 FLUX_LOOP_PATH = "magnetics/flux_loop/flux/data"
 PROBE_FIELD_PATH = "magnetics/b_field_pol_probe/field/data"
 PLASMA_CURRENT_PATH = "magnetics/ip/data"
-UNIT_TABLE_PATH = PACKAGED_MACHINE_MAP_ROOT / "jt-60sa-eddb-units.json"
-STORE_ROOT = JT60SA_ROOT / "machine_description" / "OP1"
+UNIT_TABLE_PATH = BUNDLE.root / "eddb_units.json" if BUNDLE else Path()
+STORE_ROOT = BUNDLE.store_roots["description"] / "OP1" if BUNDLE else Path()
 DD_VERSION = "4.1.1"
 # The vacuum shots the magnetics sign verdicts rest on, and the adjudication
 # receipt those verdicts are copied from.
 VACUUM_SHOTS = (100579, 100595, 100642)
 ADJUDICATION_PATH = (
     Path(__file__).resolve().parents[2]
-    / "docs" / "evidence" / "fragments" / "jt60sa-machine-map"
+    / "docs"
+    / "evidence"
+    / "fragments"
+    / "jt60sa-machine-map"
     / "jtmm-vacuum-adjudication.json"
 )
 _IDENTITY_PROBES = tuple(f"magPbTC{i}" for i in range(1, 17))
@@ -125,9 +138,7 @@ def _adjudication():
 
 
 def _blocked_index():
-    return {
-        (row.source_group, row.source_array): row for row in _magnetics().blocked
-    }
+    return {(row.source_group, row.source_array): row for row in _magnetics().blocked}
 
 
 def _pearson(first: np.ndarray, second: np.ndarray) -> float:
@@ -191,8 +202,7 @@ def test_pf_active_binds_one_chain_per_coil_at_the_store_index():
         # The blocked row names the unserved chain structurally rather than by
         # the served semantic id, so it does not imply the two chains agree.
         assert (
-            "the other measurement chain of the same coil current"
-            in blocked[0].reason
+            "the other measurement chain of the same coil current" in blocked[0].reason
         )
         assert blocked[0].reason.startswith("the other measurement chain")
 

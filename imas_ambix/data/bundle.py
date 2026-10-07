@@ -18,8 +18,6 @@ from imas_ambix.data import paths as _paths
 
 _STORE_ROOTS = {
     "LEVEL2_DIR": _paths.LEVEL2_DIR,
-    "JT60SA_ROOT": _paths.JT60SA_ROOT,
-    "JT60SA_DESCRIPTION_DIR": _paths.JT60SA_DESCRIPTION_DIR,
     "eddb_cache": _paths.JT60SA_ROOT,
 }
 

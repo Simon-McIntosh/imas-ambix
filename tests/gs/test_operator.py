@@ -25,6 +25,11 @@ import numpy as np
 import pytest
 from scipy.special import ellipk
 
+from imas_alambic.machine_map import (
+    MachineMapError,
+    bundle_for_machine,
+    discover_bundles,
+)
 from imas_ambix.data.description_reader import read_geometry_table
 from imas_ambix.data.paths import JT60SA_ROOT, MANIFEST_DIR
 from imas_ambix.gs import operator as op
@@ -524,8 +529,18 @@ def test_plasma_term_adds_when_nonzero():
 # --- integration: real campaign tables (skipped in CI) ----------------
 
 _HAVE_TABLES = (MANIFEST_DIR / "gs_geometry_tables.json").exists()
+try:
+    discover_bundles()
+    _BUNDLE_DISCOVERY_AVAILABLE = True
+except MachineMapError:
+    _BUNDLE_DISCOVERY_AVAILABLE = False
 _skip_no_tables = pytest.mark.skipif(
-    not _HAVE_TABLES, reason="geometry tables artifact not available (CI)"
+    not _HAVE_TABLES or not _BUNDLE_DISCOVERY_AVAILABLE,
+    reason=(
+        "geometry tables artifact not available (CI)"
+        if not _HAVE_TABLES
+        else "IMAS_ALAMBIC_MAP_PATH must name a readable bundle"
+    ),
 )
 
 _FROZEN_CAMPAIGN_SHOTS = {
@@ -734,9 +749,15 @@ def test_pf_columns_use_finite_area_kernel_near_packs():
 
 _JT60SA_VACUUM_SHOT = 100595
 _HAVE_JT60SA_VACUUM = (JT60SA_ROOT / f"{_JT60SA_VACUUM_SHOT}.zarr").is_dir()
+try:
+    bundle_for_machine("jt-60sa")
+    _HAVE_JT60SA_BUNDLE = True
+except MachineMapError:
+    _HAVE_JT60SA_BUNDLE = False
 _skip_no_jt60sa_vacuum = pytest.mark.skipif(
-    not _HAVE_JT60SA_VACUUM,
-    reason="the JT-60SA EDDB vacuum cache is not mounted",
+    not _HAVE_JT60SA_VACUUM or not _HAVE_JT60SA_BUNDLE,
+    reason="JT-60SA vacuum cache or map bundle is unavailable; "
+    "set IMAS_ALAMBIC_MAP_PATH",
 )
 
 
@@ -800,9 +821,7 @@ def test_turn_corrected_vacuum_fit_of_loop_7_is_within_20_percent_of_minus_one()
     catalogue = load_packaged_machine_map("jt-60sa")
     table = read_geometry_table(_JT60SA_VACUUM_SHOT, machine="jt-60sa")
     topology = next(
-        candidate
-        for candidate in catalogue.drive_topologies
-        if "op1" in candidate.name
+        candidate for candidate in catalogue.drive_topologies if "op1" in candidate.name
     )
     operator = op.build_operator(
         replace(table, circuit_drives=_jt60sa_drive_map(catalogue, topology, table))

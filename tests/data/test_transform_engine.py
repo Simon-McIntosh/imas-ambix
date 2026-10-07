@@ -16,6 +16,7 @@ from imas.ids_struct_array import IDSStructArray
 from imas_alambic.machine_map import (
     ChannelBinding,
     MachineMapError,
+    discover_bundles,
     load_packaged_machine_map,
     map_for_shot,
 )
@@ -32,14 +33,22 @@ from imas_ambix.data.cocos_convention import (
     MAST_SOURCE_COCOS,
     MAST_TO_COCOS_17_FACTORS,
 )
+from imas_ambix.data.paths import JT60SA_DESCRIPTION_DIR
 
 LEVEL2_ROOT = Path("/work/projects/imas_gpu/mast/level2/shots")
 TRANSITION_SHOTS = (11_766, 12_417, 12_533)
-JT60SA_OP1_DESCRIPTION_ROOT = Path(
-    "/work/projects/imas_gpu/jt60sa/machine_description"
-)
+JT60SA_OP1_DESCRIPTION_ROOT = JT60SA_DESCRIPTION_DIR
 JT60SA_OP1_PF_ACTIVE = JT60SA_OP1_DESCRIPTION_ROOT / "OP1" / "pf_active.nc"
 _COIL_ELEMENT_DD_PATH = "pf_active/coil/element/geometry/rectangle/r"
+try:
+    discover_bundles()
+    _BUNDLE_DISCOVERY_AVAILABLE = True
+except MachineMapError:
+    _BUNDLE_DISCOVERY_AVAILABLE = False
+needs_bundle_discovery = pytest.mark.skipif(
+    not _BUNDLE_DISCOVERY_AVAILABLE,
+    reason="IMAS_ALAMBIC_MAP_PATH must name a readable bundle",
+)
 
 
 def _coil_element_binding(struct_array_entry=None):
@@ -284,6 +293,7 @@ def _write_netcdf_fixture(
     not all((LEVEL2_ROOT / f"{shot}.zarr").is_dir() for shot in TRANSITION_SHOTS),
     reason="FAIR-MAST level-2 transition stores are not mounted",
 )
+@needs_bundle_discovery
 def test_two_format_engines_emit_three_range_scoped_descriptions(tmp_path):
     catalog = load_packaged_machine_map("mast")
     factory = imas.IDSFactory(catalog.dd_version)
@@ -412,6 +422,7 @@ def test_two_format_engines_emit_three_range_scoped_descriptions(tmp_path):
 
 
 @pytest.mark.parametrize("store_format", TRANSFORM_ENGINE_FORMATS)
+@needs_bundle_discovery
 def test_source_only_catalog_uses_the_same_no_corpus_entry_point(
     tmp_path, store_format
 ):
@@ -427,6 +438,7 @@ def test_source_only_catalog_uses_the_same_no_corpus_entry_point(
     assert "pulse store is absent" in result.detail
 
 
+@needs_bundle_discovery
 def test_netcdf_static_store_reads_one_directory_for_every_shot_in_the_map(tmp_path):
     catalog = _catalog_with_only_plasma_current()
     machine_map = replace(
@@ -465,10 +477,7 @@ def test_netcdf_static_store_reads_one_directory_for_every_shot_in_the_map(tmp_p
     assert not (tmp_path / "101").exists()
     assert not (tmp_path / "199").exists()
     assert {entry.name for entry in tmp_path.iterdir()} == {machine_map.name}
-    print(
-        f"STATIC_STORE map={machine_map.name} shot_dirs=0 "
-        f"reads=2 emitted=1"
-    )
+    print(f"STATIC_STORE map={machine_map.name} shot_dirs=0 reads=2 emitted=1")
 
 
 def test_zarr_engine_refuses_a_static_over_map_layout(tmp_path):
@@ -477,6 +486,7 @@ def test_zarr_engine_refuses_a_static_over_map_layout(tmp_path):
         engine.open(tmp_path, 101, "4.1.1", store_layout="static-over-map")
 
 
+@needs_bundle_discovery
 def test_zarr_catalog_declaring_static_over_map_is_refused_not_read_per_shot(
     tmp_path,
 ):
@@ -649,6 +659,7 @@ def test_engine_registry_is_format_scoped_and_has_no_machine_conditionals():
     assert "catalog.source" not in source
 
 
+@needs_bundle_discovery
 def test_every_bound_cocos_target_receives_its_target_path_factor():
     import imas_alambic.transform_engine as engine_module
 
@@ -690,6 +701,7 @@ def test_every_bound_cocos_target_receives_its_target_path_factor():
     )
 
 
+@needs_bundle_discovery
 def test_cocos_dependent_binding_rejects_an_undeclared_source_convention(tmp_path):
     catalog = _catalog_with_only_plasma_current()
     row = MAST_LEVEL2_SIGN_TABLE[0]
@@ -706,6 +718,7 @@ def test_cocos_dependent_binding_rejects_an_undeclared_source_convention(tmp_pat
         )
 
 
+@needs_bundle_discovery
 def test_both_polarities_round_trip_exactly_through_engine_cocos_transform(tmp_path):
     catalog = _catalog_with_only_plasma_current()
     current_signs: list[int] = []

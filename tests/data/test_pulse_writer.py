@@ -27,6 +27,7 @@ from imas.ids_struct_array import IDSStructArray
 from imas.util import idsdiffgen
 
 from imas_alambic.eddb import read_channel
+from imas_alambic.machine_map import MachineMapError, bundle_for_machine
 from imas_alambic.pulse_writer import (
     IDS_NAMES,
     PulseWriteError,
@@ -44,12 +45,19 @@ MACHINE = "jt-60sa"
 PF_COILS = ("CS1", "CS2", "CS3", "CS4", "EF1", "EF2", "EF3", "EF4", "EF5", "EF6")
 FPPC_COIL_INDICES = (10, 11)
 
-DESCRIPTION_ROOT = JT60SA_ROOT / "machine_description" / "OP1"
+try:
+    BUNDLE = bundle_for_machine(MACHINE)
+except MachineMapError:
+    BUNDLE = None
+DESCRIPTION_ROOT = BUNDLE.store_roots["description"] / "OP1" if BUNDLE else None
 _cache_missing = not (JT60SA_ROOT / f"{SHOT_INT}.zarr").is_dir()
-_store_missing = not (DESCRIPTION_ROOT / "pf_active.nc").is_file()
+_store_missing = (
+    DESCRIPTION_ROOT is None or not (DESCRIPTION_ROOT / "pf_active.nc").is_file()
+)
 pytestmark = pytest.mark.skipif(
-    _cache_missing or _store_missing,
-    reason="the JT-60SA EDDB cache or machine-description store is not mounted",
+    BUNDLE is None or _cache_missing or _store_missing,
+    reason="JT-60SA bundle, EDDB cache, or description store is unavailable; "
+    "set IMAS_ALAMBIC_MAP_PATH",
 )
 
 
