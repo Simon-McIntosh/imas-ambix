@@ -256,7 +256,7 @@ def resolve_description_store_root(name: str) -> Path:
         if name in bundle.store_roots
     ]
     if not matches:
-        raise MachineMapError(f"no bundle declares store root {name!r}")
+        raise MachineMapError(f"no bundle declares description store root {name!r}")
     distinct = {path.resolve() for path in matches}
     if len(distinct) > 1:
         raise MachineMapError(
