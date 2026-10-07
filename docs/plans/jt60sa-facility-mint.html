@@ -26,7 +26,7 @@
   <title>JT-60SA Facility Mint: Public Engine, Private Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="65">
+<meta name="plan-version" content="67">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -121,22 +121,28 @@
       the maps by a path relative to its own file:
       <code>scripts/vacuum_loop_adjudication.py:1088</code> builds
       <code>imas_ambix/data/maps/jt-60sa/pf_active.json</code> from <code>__file__</code>. It moves to
-      the bundle resolver, <code>load_packaged_signal_map</code>. Two small edits ride with the move. <code>cli.py</code>'s <code>--machine</code> help drops its <code>jt-60sa</code> example. Two machine-named roles leave <code>imas_ambix/data/bundle.py</code>. <code>JT60SA_ROOT</code> goes because §8's <code>eddb_cache</code> role now names that path and nothing looks the old one up. <code>JT60SA_DESCRIPTION_DIR</code> goes because the JT-60SA catalogue, the only one that names it, leaves the tree. Ambix's bundle then serves two machines through <code>LEVEL2_DIR</code>. <code>paths.py</code> keeps both constants as the owner of the <code>/work</code> layout. <code>eddb_cache</code> stays, valued from <code>paths.JT60SA_ROOT</code>, because it is how the writer finds this checkout's development cache. Each census hit must end in one
-      of three states.
+      the bundle resolver, <code>load_packaged_signal_map</code>. Two small edits ride with the move. <code>cli.py</code>'s <code>--machine</code> help drops its <code>jt-60sa</code> example. Two machine-named roles leave <code>imas_ambix/data/bundle.py</code>. <code>JT60SA_ROOT</code> goes because §8's <code>eddb_cache</code> role now names that path and nothing looks the old one up. <code>JT60SA_DESCRIPTION_DIR</code> goes because the JT-60SA catalogue, the only one that names it, leaves the tree. Ambix's bundle then serves two machines through <code>LEVEL2_DIR</code>. <code>paths.py</code> keeps both constants as the owner of the <code>/work</code> layout. <code>eddb_cache</code> stays, valued from <code>paths.JT60SA_ROOT</code>, because it is how the writer finds this checkout's development cache. Each reader in a census hit must end in one of the five states below, and one file can hold readers
+      in different states. A test guards an absence by skipping with a stated reason. A script
+      guards it by stopping with a message that names the variable or path that would supply it.
     </p>
     <ul>
       <li>It is <code>paths.py</code> or that file's self-check at
         <code>tests/data/test_eddb_cache.py:721</code>. Or it reads the <code>/work</code> data
         store, naming it only through <code>paths.py</code>'s constants and guarding its absence.
-        Such readers read EDDB data or run files, not maps:
+        Such readers read EDDB data, not maps, as
         <code>scripts/vacuum_loop_adjudication.py:1186</code> and <code>:1217</code>
-        (<code>read_channel(JT60SA_ROOT, …)</code>), and
-        <code>scripts/figures_jt60sa_signals.py:35</code>
-        (<code>pulse_path(JT60SA_ROOT / "ids", …)</code>). <code>figures_jt60sa_signals.py</code>
-        belongs to <a href="jt60sa-signal-figures-from-ids">jt60sa-signal-figures-from-ids</a>,
-        which moves it onto <code>resolve_settings</code>, and §1 does not edit it.</li>
-      <li>It resolves the maps through the bundle, and skips with a stated reason when the bundle
-        is absent. Hard-coded <code>/work</code> literals, such as
+        (<code>read_channel(JT60SA_ROOT, …)</code>) do.</li>
+      <li>It resolves the maps through the bundle and guards the bundle's absence. The same
+        script, <code>vacuum_loop_adjudication.py</code>, holds a map reader at <code>:1088</code>,
+        which moves to <code>load_packaged_signal_map</code>. When no bundle serves jt-60sa, it
+        stops with that resolver's refusal, which names the machine.</li>
+      <li>It is owned elsewhere. <code>scripts/figures_jt60sa_signals.py:35</code> opens
+        <code>pulse_path(JT60SA_ROOT / "ids", …)</code> without a guard.
+        <a href="jt60sa-signal-figures-from-ids">jt60sa-signal-figures-from-ids</a> §3 owns that
+        script and moves it onto <code>resolve_settings</code> and <code>pulse_path</code>, so
+        §1 does not edit it. It is the only hit in this state.</li>
+      <li>It is a test that resolves the maps through the bundle and skips with a stated reason
+        when the bundle is absent. Hard-coded <code>/work</code> literals, such as
         <code>test_transform_engine.py:39</code>, <code>test_selene_deck.py:908</code>
         (<code>_FACILITY_SOURCE</code>) and <code>test_eddb_local_transport.py:37</code>, are
         replaced by <code>paths.py</code> names. The E101154 local-transport test moves to the
@@ -155,7 +161,7 @@
       <code>oras manifest fetch ghcr.io/simon-mcintosh/imas-alambic-jt60sa:&lt;version&gt;</code>
       succeeds with the gh token and is refused without one. With the bundle on the search path,
       the census tests add no failures against the stated base; without it, they skip with the
-      stated reason. Re-running the census, every hit is in one of the three states above, and
+      stated reason. Re-running the census, every reader is in one of the five states above, and
       <code>git grep -n /work/projects/imas_gpu/jt60sa -- packages imas_ambix tests scripts</code>
       finds the literal only in <code>imas_ambix/data/paths.py</code> and in
       <code>tests/data/test_eddb_cache.py</code>'s check of it. <code>git grep -n -E
