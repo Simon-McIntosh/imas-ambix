@@ -1,21 +1,29 @@
-"""Batch reader for JT-60SA EDDB channels over ssh.
+"""Batch reader for JT-60SA EDDB channels over one subprocess.
 
 The authorised JT-60SA data path is the EDDB C library through its Python
 wrapper on the Naka analysis server (``/analysis/src/eddb/eddb_pwrapper.py``
 and ``/analysis/lib/libeddb.so``), reached as ``ssh jt-60sa``.  This module
 owns the remote half of the on-demand cache: one batch of ``(shot, category,
-data name)`` requests is sent down a single ssh session, the remote script
-reads every channel in that session, and the arrays come back in one compact
-binary envelope.  Ambix owns this extractor rather than importing imas-codex's
+data name)`` requests is sent down a single session, the reader script reads
+every channel in that session, and the arrays come back in one compact binary
+envelope.  Ambix owns this extractor rather than importing imas-codex's
 remote layer, so that reading a map does not drag the codex graph, LLM and
 tool-installation dependencies into every ambix process.  Codex stays the
 reference for the EDDB call shapes; it is not a dependency.
 
-The remote script runs under the server's python with only the standard
-library, numpy and ``eddb_pwrapper`` available.  It reads its request JSON on
-stdin and writes the envelope to stdout, so nothing but the script itself has
-to be staged on the far side.  The client encodes and decodes the same
-envelope in :func:`encode_batch` / :func:`decode_batch`.
+The same reader runs in two places.  Over ssh it is one ``ssh`` process
+carrying a module-load shell string, because the analysis server's system
+``python3`` is too old and lacks numpy.  On a host whose own python already
+has numpy, the extractor is given an empty ``ssh_command`` and
+:meth:`RemoteEddbExtractor._argv` composes a local argv instead, so the read
+runs in place with no ssh hop and no module shell.  Either way it is the one
+reader script (:data:`REMOTE_SCRIPT`); nothing is extracted or duplicated.
+
+The reader script runs with only the standard library, numpy and
+``eddb_pwrapper`` available.  It reads its request JSON on stdin and writes the
+envelope to stdout, so nothing but the script itself has to be staged on the
+far side.  The client encodes and decodes the same envelope in
+:func:`encode_batch` / :func:`decode_batch`.
 """
 
 from __future__ import annotations
@@ -151,14 +159,19 @@ def normalise_unit(unit: object) -> str:
 
 
 class Transport(Protocol):
-    """The seam a batch runs through: one call is one remote process."""
+    """The seam a batch runs through: one call is one subprocess."""
 
     def run(self, argv: Sequence[str], payload: bytes) -> bytes:
         """Run the remote command with ``payload`` on stdin and return stdout."""
 
 
-class SshTransport:
-    """The default transport: one ``ssh`` process per batch."""
+class SubprocessTransport:
+    """The default transport: one subprocess per batch, over whatever argv it gets.
+
+    The argv decides where that subprocess runs.  The ssh route hands it an
+    ``ssh`` invocation, while an empty ``ssh_command`` on the extractor hands it
+    a local argv, so the same runner serves both without a second class.
+    """
 
     def __init__(self, *, timeout: float = 600.0) -> None:
         self.timeout = timeout
@@ -281,7 +294,7 @@ def decode_batch(payload: bytes) -> BatchResult:
 
 
 class RemoteEddbExtractor:
-    """Read a batch of EDDB channels over one remote process per batch."""
+    """Read a batch of EDDB channels over one subprocess per batch."""
 
     def __init__(
         self,
@@ -299,7 +312,7 @@ class RemoteEddbExtractor:
         self.lib_path = lib_path
         self.nice = nice
         self.transport: Transport = (
-            transport if transport is not None else SshTransport()
+            transport if transport is not None else SubprocessTransport()
         )
 
     def _remote_shell_command(self) -> str:
@@ -320,6 +333,14 @@ class RemoteEddbExtractor:
         )
 
     def _argv(self) -> list[str]:
+        if not self.ssh_command:
+            # No ssh prefix: the reader runs locally as one argv list, with no
+            # module-load shell, because the venv's own python already has
+            # numpy.  ``remote_python`` names that local interpreter.
+            argv: list[str] = []
+            if self.nice:
+                argv += ["nice", "-n", str(NICE_LEVEL)]
+            return [*argv, self.remote_python, "-c", REMOTE_SCRIPT]
         # ssh -F does not expand ~ itself, so the config path is expanded here,
         # at call time, to an absolute path.
         prefix = [os.path.expanduser(part) for part in self.ssh_command]
@@ -502,7 +523,7 @@ __all__ = [
     "ChannelRequest",
     "EddbRemoteError",
     "RemoteEddbExtractor",
-    "SshTransport",
+    "SubprocessTransport",
     "Transport",
     "decode_batch",
     "encode_batch",

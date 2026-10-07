@@ -49,7 +49,7 @@ from imas_alambic.eddb_remote import (
     ChannelRequest,
     EddbRemoteError,
     RemoteEddbExtractor,
-    SshTransport,
+    SubprocessTransport,
     decode_batch,
     encode_batch,
     normalise_unit,
@@ -713,8 +713,8 @@ def test_envelope_round_trips_through_encode_and_decode():
     assert decoded.records[0].unit == "A"
 
 
-def test_default_ssh_transport_is_the_only_network_seam():
-    assert isinstance(RemoteEddbExtractor().transport, SshTransport)
+def test_default_transport_is_the_only_subprocess_seam():
+    assert isinstance(RemoteEddbExtractor().transport, SubprocessTransport)
 
 
 def test_jt60sa_cache_root_is_declared_once():
