@@ -1,0 +1,68 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T16:06:11.126Z",
+  "dispatched_at": "2026-10-07T15:56:10Z",
+  "findings": [
+    {
+      "anchor": "packages/imas-alambic/src/imas_alambic/eddb.py:77",
+      "id": "duplicate_owner-1",
+      "reason": "the refusal and its message belong at the grammar owner (`_split_token`/`eddb_token`), so the plan should extend that mechanism rather than fork a token rule into the writer.",
+      "text": "the EDDB token grammar has one owner, `_TOKEN_RE`/`_split_token`/`eddb_token` (eddb.py:70, :77, :101), whose docstring and comments state a valid token is \"a series letter and digits, or a bare integer\" and whose `normalised_shot` (eddb.py:90) relies on that bare form; \u00a716 adds a second, contradicting rule in the write path (\"write refuses a pulse token with no series letter\") instead of extending the owner, so two places now define what a pulse token is and they disagree (the owner accepts a bare integer, \u00a716 refuses it)",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "packages/imas-alambic/src/imas_alambic/machine_map.py:1404",
+      "id": "reuse_search-1",
+      "reason": "the plan should cite the existing threading owner and enumerate both `resolve_store_root` call sites, or the second one silently blocks the done-when.",
+      "text": "\u00a716 says \"the `--maps` value reaches every bundle lookup `write` makes, including the description and cache store roots\" but `--maps` already reaches the cache root through `settings._store_root_from_bundle` (packages/imas-alambic/src/imas_alambic/settings.py:179-200, which passes `search_path=maps.value` at :196), while `resolve_store_root` omits the search path at two sites the plan must fix and names only generically: `MachineMapCatalog.description_store_root_path` (machine_map.py:1230) and, load-time, `load_machine_map` (machine_map.py:1404), reached from `load_packaged_machine_map` (machine_map.py:1852); with `IMAS_ALAMBIC_MAP_PATH` unset the latter raises during catalog load, so \u00a716's done-when (\"`write E900001 --maps <bundle>` with `IMAS_ALAMBIC_MAP_PATH` unset\") cannot pass with only the write-time site fixed",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-facility-mint.html#s16",
+      "id": "interface_budget-1",
+      "reason": "the section must account for the added refusal surface in its own text, per the interface-budget rule.",
+      "text": "the section adds a refusal (a bare-number pulse token is rejected before any fetch, with a message naming the full-token form), moving `refusal_families` off its current 0, and names nothing it retires or merges and gives no reason nothing can be",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "ecaacbc2ba6c9d790b6afaf58c06e27b9eaa94968fb81898fc61e6f880ba5b7c",
+  "plan_slug": "jt60sa-facility-mint",
+  "plan_version": 112,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261007T155556937449-plan-review-of-jt60sa-facility-mint",
+  "reviewed_blob_sha": "b600ada87029424dab80a7572ee871fa54a2f50c",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 \u00a716 is a two-part correction (a token gate and a search-path thread), not a new module, and neither part spreads complexity across wrappers; the fixes extend existing owners.",
+    "duplicate_owner": "a finding \u2014 \u00a716 adds a pulse-token validity rule in the write path beside the grammar owner `eddb._split_token`/`eddb_token`, which already decides what a valid EDDB token is and explicitly accepts a bare integer.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a716 adds a new refusal (a pulse token with no series letter is refused before any fetch) and names nothing it retires or merges, nor why nothing can be.",
+    "reuse_search": "a finding \u2014 \u00a716 fixes `--maps` reaching the description store root but names only one of the two call sites that omit the search path, and does not cite the threading mechanism that already exists at `settings._store_root_from_bundle`.",
+    "thin_wrapper": "pass \u2014 \u00a716 adds no new layer over existing machinery; the token gate it adds is not a wrapper but a second rule, reported under duplicate_owner."
+  },
+  "section_digests": {
+    "_document": "9851ca14e0fe0be448c77b3b1af37d7201f1f2319efe43535113bf4c7f98c0c5",
+    "s1": "9c7f16d6433487c622ba43b590d60de6ac6689995d01dfbcf8d4ab1d1d24f6c3",
+    "s10": "408c414f57af0e5446ef1546e2c5707726ff5a42feae45d420765dc4001b8264",
+    "s11": "40878323aab9328585648d85591fd96dc6fcd4f5beedd01abbe2f0b3b1e8e508",
+    "s12": "7dd2ae47a38480f8a23a4bd518d5e1b9f6772d559fde8fe9885a2c7095f8ea50",
+    "s13": "2741a581fa4af709b92ea8db4a8330d65807a7a8665bbbfd9b84a09145be00ba",
+    "s14": "00628004df0e643b97e5a73b8e6ec838a6a572c206b20aff261081968fae4bb6",
+    "s15": "2d28daaa30674a0926633cf0bde89e0177a31a0f037724f0631b6efb13df02ba",
+    "s16": "ef3a273e25cf3e8b8b3cbdecf1aa67d43f62ac84d6e82a8e996a52d59d95e6f5",
+    "s2": "343a77d68d9c095dafa24357e59151b829141c57203ee4fe35d36cbabbc6e1c2",
+    "s3": "9f414f5b3fd7e3230af8b01f8a4292bbe56c0b3a809be36aef08a4c5ad56319c",
+    "s4": "ae4d4e4bf4e145c39afb71e12055ea344fb8c16fa86bf4864b976cc5df2c6738",
+    "s5": "b1fac0701ea703406fed882189756b422b8bb52294039078259ccc18acf7cef0",
+    "s6": "58e56f6e1799d78f4390f25578589246006ca1b43d4e0314c808f153794ea779",
+    "s7": "37a4ca2297c368659d2e1c2509b75eb79284d61980a994ff8e1dc045b8566ef1",
+    "s8": "0d934ec479471ff9f711bc6e58ec9f2d0f07d4722593ff98c53426b2b509ecda",
+    "s9": "89370bd391a02051f63106d920e7bdce1fb6035bda747035aa86ef61fa52c846"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T22:34:24.009254+00:00"
+}
