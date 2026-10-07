@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.79">
-<meta name="plan-version" content="325">
+<meta name="plan-version" content="327">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -233,19 +233,19 @@
     <section class="section-landed">
   <header><span class="badge badge-shipped">&#10003; landed 2026-10-06</span>
     <h2 id="s3">§3 — Access path: EDDB over ssh, an on-demand cache, a lazy view</h2></header>
-  <p class="landed-summary">Landed 2026-10-05/06. The remote EDDB extractor (<code>packages/imas-alambic/src/imas_alambic/eddb_remote.py</code>, one ssh process per batch, remote side under <code>nice -n 19</code>) and its zarr cache writer (<code>packages/imas-alambic/src/imas_alambic/eddb.py</code>, under <code>JT60SA_ROOT</code>) are merged, and one session returns the channels it served with each refused channel's EDDB return code read from <code>data['irc']</code> (bdcce624). PSRC holds the plasma-shape reconstruction's processed channels only for shots it ran on (E101154 yes, E101173 irc 1015), and MDAC holds the raw <code>magFlxLp*</code> flux loops on both. The first cold fetch (E101173, C060033) served the 22 MMSYS coil and TF currents and 4 MDAC Rogowski coils; the second (63df11f5) served all 119 first-pass channels on E101154, including PSRC <code>magFluxLp1..34</code> and <code>magPbTC1..23</code>, and the 34 raw MDAC <code>magFlxLp*</code> on E101154 and E101173, with no refusal; cold wall time about 105 to 111 s per shot, warm reads make no transport call. Which raw loop is which processed loop is a §5 census question. The access path adds two public modules, <code>eddb_remote.py</code> (<code>RemoteEddbExtractor</code>, <code>SshTransport</code>, <code>Transport</code>, <code>ChannelRequest</code>, <code>ChannelRecord</code>, <code>ChannelRefusal</code>, <code>BatchResult</code>) and <code>eddb.py</code> (<code>fetch_channels</code>, <code>write_channel</code>, <code>is_cached</code>, <code>channel_path</code>), and two refusal families, <code>EddbRemoteError</code> and <code>EddbCacheError</code>. They retire nothing, because ambix had no remote reader, and merge into nothing, because the FAIR-MAST mirror (<code>imas_ambix/data/manifest.py</code>, <code>imas_ambix/data/cli.py</code>) downloads from an object store rather than running a process on a facility host. <a href="s3">full record</a></p>
+  <p class="landed-summary">Landed 2026-10-05/06. The remote EDDB extractor (<code>packages/imas-alambic/src/imas_alambic/eddb_remote.py</code>, one ssh process per batch, remote side under <code>nice -n 19</code>) and its zarr cache writer (<code>packages/imas-alambic/src/imas_alambic/eddb.py</code>, under <code>JT60SA_ROOT</code>) are merged, and one session returns the channels it served with each refused channel's EDDB return code read from <code>data['irc']</code> (bdcce624). PSRC holds the plasma-shape reconstruction's processed channels only for shots it ran on (E101154 yes, E101173 irc 1015), and MDAC holds the raw <code>magFlxLp*</code> flux loops on both. The first cold fetch (E101173, C060033) served the 22 MMSYS coil and TF currents and 4 MDAC Rogowski coils; the second (63df11f5) served all 119 first-pass channels on E101154, including PSRC <code>magFluxLp1..34</code> and <code>magPbTC1..23</code>, and the 34 raw MDAC <code>magFlxLp*</code> on E101154 and E101173, with no refusal; cold wall time about 105 to 111 s per shot, warm reads make no transport call. Which raw loop is which processed loop is a §5 census question. The access path adds two public modules, <code>eddb_remote.py</code> (<code>RemoteEddbExtractor</code>, <code>SshTransport</code>, <code>Transport</code>, <code>ChannelRequest</code>, <code>ChannelRecord</code>, <code>ChannelRefusal</code>, <code>BatchResult</code>) and <code>eddb.py</code> (<code>fetch_channels</code>, <code>write_channel</code>, <code>is_cached</code>, <code>channel_path</code>), and two refusal families, <code>EddbRemoteError</code> and <code>EddbCacheError</code>. They retire nothing, because ambix had no remote reader, and merge into nothing, because the FAIR-MAST mirror (<code>imas_ambix/data/manifest.py</code>, <code>imas_ambix/data/cli.py</code>) downloads from an object store rather than running a process on a facility host. <a href="/imas-ambix/evidence/archive/jt60sa-machine-map-landed#s3">full record</a></p>
 </section>
 
     <section class="section-landed">
   <header><span class="badge badge-shipped">&#10003; landed 2026-10-06</span>
     <h2 id="s4">§4 — Machine description: the SELENE deck is the source</h2></header>
-  <p class="landed-summary">Landed 2026-10-05/06: <code>selene_deck.py</code> converts the SELENE decks into a DD 4.1.1 description per phase (12 PF coils as 268 filaments, VV and CRYOSTAT, coil_vv wall and vessel skins within 0.54&nbsp;mm of EQSLE's arcs, 17 probes, 27 flux loops, TF), and <code>machine_maps/jt-60sa.json</code> serves both phases through <code>StoreEngine</code>. Probe angles bind in §6. <a href="s4">full record</a></p>
+  <p class="landed-summary">Landed 2026-10-05/06: <code>selene_deck.py</code> converts the SELENE decks into a DD 4.1.1 description per phase (12 PF coils as 268 filaments, VV and CRYOSTAT, coil_vv wall and vessel skins within 0.54&nbsp;mm of EQSLE's arcs, 17 probes, 27 flux loops, TF), and the JT-60SA machine map, then <code>machine_maps/jt-60sa.json</code> and now <code>machine_map.json</code> in the <code>/work</code> bundle, serves both phases through <code>StoreEngine</code>. Probe angles bind in §6. <a href="/imas-ambix/evidence/archive/jt60sa-machine-map-landed#s4">full record</a></p>
 </section>
 
     <section class="section-landed">
   <header><span class="badge badge-shipped">&#10003; landed 2026-10-06</span>
     <h2 id="s5">§5 — Pulse bindings and the EDDB census</h2></header>
-  <p class="landed-summary">Landed 2026-10-06. The JT-60SA pulse maps bind the ten coil currents, the TF current, Ip, 27 raw flux loops and 17 raw tangential probes as <code>source-only</code> rules, with each processed alternate blocked and every unread channel blocked with its reason, beside a packaged EDDB unit-spelling table. Loop and probe indices come from codex's SELENE sensor-order receipt and the E101154 channel join; §6 measures each rule's sign and scale. <a href="s5">full record</a></p>
+  <p class="landed-summary">Landed 2026-10-06. The JT-60SA pulse maps bind the ten coil currents, the TF current, Ip, 27 raw flux loops and 17 raw tangential probes as <code>source-only</code> rules, with each processed alternate blocked and every unread channel blocked with its reason, beside a packaged EDDB unit-spelling table. Loop and probe indices come from codex's SELENE sensor-order receipt and the E101154 channel join; §6 measures each rule's sign and scale. The maps have since moved to the <code>/work</code> bundle (jt60sa-facility-mint §1). <a href="/imas-ambix/evidence/archive/jt60sa-machine-map-landed#s5">full record</a></p>
 </section>
 
     <h2 id="s6">§6 — Prove the conventions: vacuum shots, COCOS scoring, DD unit checks</h2>
@@ -418,7 +418,7 @@
       flux loop onto the plasma-current time base and refuses a loop whose time span does not cover
       it. The node adds one accessor to the view and retires nothing. It moves this plan's reader
       onto the view, but not every reader that resolves a rule itself. The pulse mint,
-      <code>packages/imas-alambic/src/imas_alambic/pulse_mint.py</code> <code>_served_entries</code>, does the same through
+      <code>packages/imas-alambic/src/imas_alambic/pulse_writer.py</code> <code>_served_entries</code>, does the same through
       <code>read_channel</code>, and it belongs to the plan <code>jt60sa-pulse-ids</code>. That plan
       owns its migration onto the accessor once the accessor lands, and this plan hands it over as a
       foreign-owner followup rather than editing another plan's module. The two readers need different
@@ -804,8 +804,8 @@
       with its shape, unit and time base. It states which arrays are seeds rather than results:
       imas-efit found <code>data_psrc_calbetap</code> and <code>data_psrc_calli</code> constant at 0.1
       and 0.8. It compares one slice with imas-efit's curated reference and writes one fragment. The
-      SELENE loader follows it, then the JT-60SA cohort and the sign report, whose equilibrium half
-      waits on a source of psi and q.
+      SELENE loader follows it, then the FAME scalar fetch, the FAME equilibrium map and the JT-60SA
+      sign cohort described below.
       FAME is JT-60SA's offline equilibrium reconstruction, which imas-efit's shot sweep calls the
       operational SELENE-equivalent reference. It reaches us by two routes. Its scalar summaries, such
       as the plasma volume <code>FAME/VOLUM</code>, sit in an EDDB <code>FAME</code> category that the
@@ -893,6 +893,37 @@
       <code>jtmm-op1-shot-fetch</code> then caches every listed shot through
       <code>fetch_channels</code>, one ssh connection per shot, including PSRC where it exists, and
       refetches nothing already cached.
+    </p>
+    <p>
+      Under decision <code>jt60sa-psi-q-source</code> the cohort's equilibrium half is FAME's
+      signed scalars, which carry no flux grid, so the sign kernel's flux half becomes optional
+      rather than required. <code>ShotSignObservation</code>'s
+      <code>poloidal_flux_edge_minus_axis_wb_per_rad</code> and
+      <code>poloidal_angle_signed_area_m2</code> take <code>None</code> when the equilibrium source
+      carries no psi. <code>score_convention</code> leaves the reconstructed-poloidal-flux relation
+      unscored for such a row rather than failing it, and <code>format_sign_report</code> names each
+      unscored relation with its reason. σ<sub>Bp</sub> is then fixed by the raw flux-loop response,
+      which the MAST reader already scores, and σ<sub>ρθφ</sub> by the q relation over the signs of
+      FAME's q, the plasma current and F. E101011's G-EQDSK (§7) is the one row that scores the
+      poloidal-flux relation. The raw response reads only absolute flux: the other 26 loops measure
+      their difference to loop 7, so loop 7 alone enters it, and the kernel's opposite-sign consensus
+      is read over that one channel.
+    </p>
+    <p>
+      The equilibrium half is read through the bundle, as the raw half is.
+      <code>jtmm-fame-scalar-fetch</code> caches the FAME category's <code>QAXIS</code>,
+      <code>Q95</code>, <code>TTCU</code> and <code>BTV</code> for E101154 and the fifteen surveyed
+      shots that have a FAME index, through <code>fetch_channels</code>, one ssh connection per shot,
+      refetching nothing cached. <code>jtmm-fame-equilibrium-map</code> adds
+      <code>maps/equilibrium.json</code> to a staged bundle copy, binding those four channels to
+      <code>equilibrium/time_slice/global_quantities</code> <code>q_axis</code>, <code>q_95</code>
+      and <code>ip</code>, and to <code>equilibrium/vacuum_toroidal_field/b0</code> as F over the
+      catalogue's declared reference radius (3.0 m), every rule <code>source-only</code>.
+      <code>jtmm-sign-cohort</code> then makes <code>read_signal_map_observation</code>'s
+      <code>equilibrium</code> argument optional: given <code>None</code>, it reads q and F through
+      the equilibrium map's raw series. So the interface change is one argument and two observation
+      fields made optional, with no new public definition. It passes JT-60SA's current floors
+      explicitly, as above, and writes the sign report this section's done-when names.
     </p>
     <p>
       Done-when: a sign report over at least three vacuum shots and three plasma shots,
@@ -1112,8 +1143,12 @@
       reported per shot, its geometry provenance naming
       <code>MachineArtifactGeometrySource</code> and the JT-60SA physical digest the selector
       resolved, and the comparison run on a SLURM compute node with the
-      machine/env block recorded. The first stamp is a baseline, not a pass mark: the
-      number it reports is what later map corrections are judged against.
+      machine/env block recorded. Two checks make the stamp falsifiable. Every shot's boundary RMS
+      distance against SELENE's PSRC boundary is under 0.10 m, a coarse floor that a wrong map or a
+      wrong frame exceeds. And a must-fail control, the same run with loop 7's
+      <code>channel_factor</code> flipped to +1, stamps a larger whitened magnetics residual than the
+      true map on every shot. Beyond those two checks the first stamp is the baseline that later map
+      corrections are judged against.
     </p>
 
     <h2 id="s8">§8 — Execution order</h2>
@@ -1253,7 +1288,7 @@
 <h2><span class="sec">§</span> Decisions</h2>
 <div class="r-dec" data-key="map-persistence-location" data-choice="ambix-packaged-maps" data-by="Simon McIntosh" data-when="2026-10-05T05:13:52+00:00">
     <p class="r-dec-q">Where are JT-60SA → IMAS maps persisted?</p>
-    <p class="r-dec-ctx">Codex has traditionally generated the facility and DD knowledge graph; ambix holds the executable machine-map substrate that MAST already runs through.</p>
+    <p class="r-dec-ctx">Codex has traditionally generated the facility and DD knowledge graph; ambix holds the executable machine-map substrate that MAST already runs through. Since jt60sa-facility-mint&#x27;s decision map-privacy (2026-10-06) the JT-60SA maps are no longer packaged in the ambix repository: they live only in the private bundle at /work/projects/imas_gpu/jt60sa/maps (machine_map.json and maps/), released as GHCR artifacts and changed through staged copies under reckon&#x27;s reports directory (section 6). The choice recorded here, maps owned by ambix&#x27;s machine-map substrate rather than by the codex graph or a third repository, stands.</p>
     <p class="r-dec-opts">
       <button class="r-opt chosen" data-value="ambix-packaged-maps">Packaged maps in ambix, codex supplies evidence</button>
       <button class="r-opt" data-value="codex-graph-mappings">IMASMapping nodes in the codex graph, ambix reads the graph</button>
@@ -1346,7 +1381,7 @@
     </div>
 <div class="r-dec" data-key="signal-rule-validation-state" data-choice="per-rule-validation-state" data-by="Simon McIntosh" data-when="2026-10-06T15:20:00+00:00" data-sections="s5,s6">
     <p class="r-dec-q">Where does an unvalidated sign live on a pulse signal-map rule?</p>
-    <p class="r-dec-ctx">Measured 2026-10-06 by the plan&#x27;s design re-review: SignalRule (imas_ambix/data/signal_map.py) has no sign_convention and requires a finite nonzero channel_factor, so the landed JT-60SA magnetics, pf_active and tf maps hold an assumed +1 whose caveat lives only in the evidence string.</p>
+    <p class="r-dec-ctx">Measured 2026-10-06 by the plan&#x27;s design re-review: SignalRule (packages/imas-alambic/src/imas_alambic/signal_map.py) has no sign_convention and requires a finite nonzero channel_factor, so the landed JT-60SA magnetics, pf_active and tf maps hold an assumed +1 whose caveat lives only in the evidence string.</p>
     <p class="r-dec-opts">
       <button class="r-opt chosen" data-value="per-rule-validation-state">SignalRule gains a required validation_state with the machine map&#x27;s vocabulary; channel_factor keeps the value</button>
       <button class="r-opt" data-value="signal-rule-sign-convention">SignalRule gains a sign_convention enum and channel_factor keeps only magnitude</button>
@@ -1419,7 +1454,7 @@
     </article>
 <article class="r-fu" data-id="f-jtmm-005" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-build" data-written-at="2026-10-06" data-recommends-skill="/reckon-build jt60sa-pulse-ids" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Move the pulse mint&#x27;s raw rule reads onto VirtualZarrView&#x27;s untransformed accessor (foreign owner: jt60sa-pulse-ids)</h4>
-    <div class="r-fu-body"><p>Exemption claimed: foreign-owner. Once jtmm-observation-time-alignment lands VirtualZarrView's untransformed accessor, imas_ambix/data/pulse_mint.py _served_entries should read each rule through it instead of resolving source_group and source_array through read_channel itself. The module belongs to the plan jt60sa-pulse-ids, so that plan owns the change.</p></div>
+    <div class="r-fu-body"><p>Exemption claimed: foreign-owner. Once jtmm-observation-time-alignment lands VirtualZarrView's untransformed accessor, packages/imas-alambic/src/imas_alambic/pulse_writer.py _served_entries should read each rule through it instead of resolving source_group and source_array through read_channel itself. The module belongs to the plan jt60sa-pulse-ids, so that plan owns the change.</p></div>
     <pre class="r-fu-prompt">/reckon-build jt60sa-pulse-ids</pre>
     </article>
 <article class="r-fu" data-id="f-jtmm-006" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-build" data-written-at="2026-10-07" data-recommends-skill="/reckon-build jt60sa-machine-map §6" data-resolved-at="2026-10-07T04:46:58+00:00" data-resolved-by="reckon-build">
