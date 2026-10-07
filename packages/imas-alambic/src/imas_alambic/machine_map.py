@@ -291,7 +291,12 @@ def bundle_for_machine(machine: str, search_path: object = None) -> MapBundle:
         bundle for bundle in discover_bundles(search_path) if machine in bundle.machines
     ]
     if not matches:
-        raise MachineMapError(f"no bundle carries machine {machine!r}")
+        from imas_alambic.settings import ENV_MAP_PATH
+
+        raise MachineMapError(
+            f"no bundle carries machine {machine!r}; name its bundle directory "
+            f"in {ENV_MAP_PATH}"
+        )
     if len(matches) > 1:
         named = ", ".join(f"{b.name!r} ({b.root})" for b in matches)
         raise MachineMapError(

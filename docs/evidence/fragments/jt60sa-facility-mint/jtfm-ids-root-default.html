@@ -1,0 +1,85 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtfm-ids-root-default-landing">
+  <header>
+    <h3>A development IDS root through the bundle <code>ids_root</code> role</h3>
+    <p class="meta">
+      Node <code>jtfm-ids-root-default</code> &middot;
+      date 2026-10-07 &middot;
+      plan <code>jt60sa-facility-mint</code> &sect;12 &middot;
+      base <code>f3b13ba1</code>
+    </p>
+  </header>
+
+  <p id="jtfm-ids-root-default-change">
+    <strong>Change.</strong>  <code>resolve_settings</code> now also falls back,
+    past the <code>IMAS_ALAMBIC_HOME</code> default, to a store role a reachable
+    bundle declares.  The IDS root resolves in the order
+    <code>--out</code>, <code>IMAS_ALAMBIC_IDS_ROOT</code>,
+    <code>IMAS_ALAMBIC_HOME/ids</code>, the bundle's <code>ids_root</code> role,
+    otherwise unset &mdash; <code>HOME</code> stays above the bundle so the
+    facility launcher always wins.  The bundle lookup is the helper the cache
+    already used, renamed <code>_store_root_from_bundle(role, kind, maps)</code>,
+    so the source reads <code>bundle ids_root role</code> in the same grammar as
+    <code>bundle eddb_cache role</code>.  <code>imas_ambix/data/bundle.py</code>
+    declares the role from <code>paths.JT60SA_IDS_DIR</code> (its one owner), and
+    <code>scripts/figures_jt60sa_signals.py</code> drops its interim
+    <code>settings.ids_root.value or paths.JT60SA_IDS_DIR</code> fallback, asking
+    <code>resolve_settings</code> through <code>require_setting</code> alone.
+    <code>bundle_for_machine</code>'s unknown-machine refusal now names the
+    map-path variable alongside the machine, read from
+    <code>settings.ENV_MAP_PATH</code> through the function-local import
+    <code>machine_map.py</code> already carried, so the name keeps one owner.
+  </p>
+
+  <p id="jtfm-ids-root-default-gates">
+    <strong>Gates.</strong>  With no <code>IMAS_ALAMBIC_*</code> variable set,
+    <code>uv run imas-alambic config</code> at the base (<code>git archive</code>
+    of <code>f3b13ba1</code>, the main checkout's module) reports
+    <code>ids_root: (unset)</code>; the same command at the head, with this
+    worktree's <code>packages/imas-alambic/src</code> and the repository root on
+    <code>PYTHONPATH</code>, reports
+    <code>ids_root: /work/projects/imas_gpu/jt60sa/ids [bundle ids_root role]</code>
+    &mdash; the value the done-when names.  <code>packages/imas-alambic/tests</code>
+    is 40 passed / 0 failed at the head against 33 passed / 0 failed for the same
+    command against the base tree, so the change adds no failures (the seven-test
+    difference is the new IDS-root-order and refusal pins).
+    <code>uv run --no-sync ruff check imas_ambix tests packages</code> exits 0.
+    <code>test_settings.py</code> pins each step with synthetic bundles: a flag
+    beats the variable, the variable beats <code>HOME</code>, <code>HOME</code>
+    beats the bundle role, the bundle role beats unset, and no declared role
+    leaves it unset.  <code>test_bundle_discovery.py</code> pins the refusal
+    through <code>load_packaged_machine_map("jt-60sa")</code> against a
+    valid map-path bundle that does not carry the machine, asserting both
+    <code>jt-60sa</code> and <code>IMAS_ALAMBIC_MAP_PATH</code> appear.
+  </p>
+
+  <p id="jtfm-ids-root-default-negative">
+    <strong>Negative control.</strong>  A <code>resolve_settings</code> that skips
+    the bundle <code>ids_root</code> role (the <code>_store_root_from_bundle</code>
+    branch removed from <code>_ids_root</code>) fails
+    <code>test_ids_root_comes_from_the_bundle_role_when_nothing_else_names_it</code>
+    with <code>EXIT=1</code>, an id the head arm does not fail
+    (<code>negative_control.log</code>).
+  </p>
+
+  <p id="jtfm-ids-root-default-figures">
+    <strong>Figures.</strong>  <code>scripts/figures_jt60sa_signals.py</code>
+    carries no <code>JT60SA_IDS_DIR</code> fallback and, driven with its
+    <code>FIGURES</code> output redirected to scratch, renders both
+    <code>jt60sa-E101031-pf-coil-currents.svg</code> and
+    <code>jt60sa-E101154-pf-coil-currents.svg</code> from the IDS root the
+    resolver now supplies, exit 0.
+  </p>
+
+  <p id="jtfm-ids-root-default-deviation">
+    <strong>Deviation from the plan bullet.</strong>  &sect;12's done-when says
+    that <code>IMAS_ALAMBIC_MAP_PATH</code> naming an <em>empty directory</em>
+    makes <code>load_packaged_machine_map("jt-60sa")</code> raise the refusal.
+    An empty directory is refused earlier: <code>discover_bundles</code> loads
+    every directory named on the map path as a bundle through
+    <code>load_bundle_descriptor</code>, which requires a <code>bundle.json</code>
+    and otherwise raises <code>cannot read bundle descriptor &hellip;</code>.  The
+    test therefore names a valid bundle that simply does not carry the machine,
+    which is what actually reaches <code>bundle_for_machine</code>'s refusal; both
+    the machine and the variable are asserted present.
+  </p>
+</section>

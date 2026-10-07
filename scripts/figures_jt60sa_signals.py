@@ -24,8 +24,12 @@ from imas_ink.figures import time_trace_figure_mpl
 from imas_ink.io import render_to_bytes
 
 from imas_alambic.pulse_writer import pulse_path
-from imas_alambic.settings import SettingsFlags, resolve_settings
-from imas_ambix.data import paths
+from imas_alambic.settings import (
+    ENV_IDS_ROOT,
+    SettingsFlags,
+    require_setting,
+    resolve_settings,
+)
 
 FIGURES = Path(__file__).resolve().parents[1] / "docs" / "figures" / "jt60sa-signals"
 SERIES_PAIRS = (("pf_active", "coil/current"), ("magnetics", "ip"))
@@ -60,8 +64,7 @@ def _pulse_figure(
 
 def _main() -> None:
     settings = resolve_settings(SettingsFlags(machine="jt-60sa"))
-    # Interim until the bundle declares its IDS root as a settings default.
-    root = Path(settings.ids_root.value or paths.JT60SA_IDS_DIR)
+    root = Path(require_setting("ids_root", settings.ids_root, ENV_IDS_ROOT))
     for pulse in ("101154", "101031"):
         figure = _pulse_figure(root, pulse, 0, SERIES_PAIRS)
         output = FIGURES / f"jt60sa-E{pulse}-pf-coil-currents.svg"

@@ -14,8 +14,10 @@ from imas_alambic.machine_map import (
     bundle_for_machine,
     discover_bundles,
     load_bundle_descriptor,
+    load_packaged_machine_map,
     resolve_store_root,
 )
+from imas_alambic.settings import ENV_MAP_PATH
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -74,6 +76,37 @@ def test_an_unknown_machine_is_refused(tmp_path, monkeypatch):
 
     with pytest.raises(MachineMapError, match="no bundle carries"):
         bundle_for_machine("absent")
+
+
+def test_the_unknown_machine_refusal_names_the_map_path_variable(tmp_path, monkeypatch):
+    _bundle(tmp_path / "synth", name="synth", machines=["synth-machine"])
+    monkeypatch.setenv(ENV_MAP_PATH, str(tmp_path / "synth"))
+
+    with pytest.raises(MachineMapError) as raised:
+        bundle_for_machine("absent")
+
+    message = str(raised.value)
+    assert "absent" in message
+    assert ENV_MAP_PATH in message
+
+
+def test_a_map_path_that_does_not_carry_jt60sa_is_refused_naming_both(
+    tmp_path, monkeypatch
+):
+    # A named directory must hold a bundle.json, so the path names a valid
+    # bundle that simply does not carry the machine; that is what reaches
+    # bundle_for_machine's refusal.
+    _bundle(tmp_path / "synth", name="synth", machines=["synth-machine"])
+    monkeypatch.setenv(ENV_MAP_PATH, str(tmp_path / "synth"))
+    monkeypatch.delenv("IMAS_ALAMBIC_HOME", raising=False)
+    monkeypatch.setattr("imas_alambic.machine_map.entry_points", lambda group: [])
+
+    with pytest.raises(MachineMapError) as raised:
+        load_packaged_machine_map("jt-60sa")
+
+    message = str(raised.value)
+    assert "jt-60sa" in message
+    assert ENV_MAP_PATH in message
 
 
 def test_relative_store_roots_resolve_under_the_bundle(tmp_path, monkeypatch):
