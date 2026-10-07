@@ -26,7 +26,7 @@
   <title>JT-60SA Facility Mint: Public Engine, Private Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="25">
+<meta name="plan-version" content="26">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -359,6 +359,9 @@
 </div>
 <div class="r-comment" data-section="s3" data-id="c-run-r-20261007T003528879021-jtfm-local-eddb" data-who="reckon-build" data-when="2026-10-07T00:49:22.198Z">
     <div class="r-comment-body"><p>Empty ssh_command now makes RemoteEddbExtractor._argv() compose nice -n 19 &lt;remote_python&gt; -c REMOTE_SCRIPT as one argv list with no ssh prefix and no module-load shell (ssh route unchanged), SshTransport renamed SubprocessTransport with both callers moved and no new Transport class, and a stand-in eddb_pwrapper drives the local route end to end so decoded ChannelRecord data and time arrays equal the stand-in bit for bit; head gate 35 passed (3 new local-route tests + 32 cache tests) EXIT=0, clean uv venv --python 3.12 (imas-alambic wheel + nova-cocos + pytest) 3 passed EXIT=0, ruff exit 0, negative control 3 failed EXIT=1.</p></div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-run-r-20261007T004951586580-review-of-jtfm-local-eddb" data-who="reckon-build" data-when="2026-10-07T00:55:59.069Z">
+    <div class="r-comment-body"><p>review-of-jtfm-local-eddb scored r-20261007T003528879021-jtfm-local-eddb (jtfm-local-eddb, base 0a77985f head d2f678e4) 116/120: goal_fidelity 20, evidence 18, scope_discipline 20, durability 19, fit 19, reuse 20, with 2 follow-ons and added_failure_count 0.</p></div>
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20261007T003017390790-jtfm-facility-editable" data-who="reckon-build" data-when="2026-10-07T00:43:32.729Z">
     <div class="r-comment-body"><p>§4 landed: on intr26-2 (d240044) a Python 3.12.9 venv at ~/imas-alambic/.venv holds editable imas-alambic (importlib.metadata.version = 0.1.dev5620+g33cad025b, naming clone HEAD 33cad025b which was origin/main and contains 3d54ae6f) and nova-cocos from blob-less sparse https clones; with IMAS_ALAMBIC_MAP_PATH=~/imas-alambic/bundles/jt-60sa the by-name loaders report machine-map IDS [magnetics,pf_active,pf_passive,tf,wall]/25 paths/170 bindings/2 maps and magnetics 45-57-3, pf_active 10-10-1, tf 1-1-1 — equal to the dev checkout — and the engine tests pass 16/16 under 3.12.9.</p></div>

@@ -1,0 +1,65 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "base_log_revision": "0a77985fa9f9e253e6c18215bc1f69c9bfeb2f66",
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-07T00:55:59.069Z",
+  "dispatched_at": "2026-10-07T00:49:59Z",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261007T003528879021-jtfm-local-eddb/cleanvenv-gate.log",
+      "line": 1,
+      "severity": "follow-on",
+      "text": "follow-on: the clean-venv gate header names revision 0a77985f, but the wheel it installed into /tmp/eddb-local-venv matches head d2f678e4 byte for byte (diff clean against git show d2f678e4:packages/imas-alambic/src/imas_alambic/eddb_remote.py); the header should name the revision whose code the wheel actually carries."
+    },
+    {
+      "file": "docs/plans/jt60sa-machine-map.html",
+      "line": 231,
+      "severity": "follow-on",
+      "text": "follow-on: the machine-map landed record still names SshTransport as a public symbol at lines 231 and 696; after this rename the public class is SubprocessTransport. The file is outside this node's write scope, so it is recorded rather than edited."
+    }
+  ],
+  "head_log_revision": "d2f678e4356e4a766ce43b6a6314e95221b3765d",
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "diff": "empty ssh_command makes _argv() return a local nice -n 19 python -c REMOTE_SCRIPT list and leaves the ssh branch unchanged; SshTransport is renamed SubprocessTransport with both callers and __all__ moved, no new Transport class; a 206-line test drives the local route end to end through a stand-in wrapper.",
+    "done_when": "a stand-in eddb_pwrapper on the script's path returns E101154 pf_active arrays; the local transport returns records whose data and time arrays equal the stand-in bit for bit, decoded by the shared decode_batch. Gate 35 passed EXIT=0 independently reproduced in an extracted tree at d2f678e4.",
+    "goal": "the node goal is to let the EDDB reader run locally with no ssh hop on the analysis server; with an empty ssh_command _argv() composes nice -n 19 <remote_python> -c REMOTE_SCRIPT as one argv list and the ssh route keeps its module-load string, exactly as the plan paragraph names.",
+    "manifest": "records commit d2f678e4, both arms, the negative control and the clean-venv gate with log paths, and no blockers; its baseline_suite/after_suite JSON agree with the cited logs.",
+    "verification": "the head gate, the base arm and a mutation of the guard were all re-run independently from a git-archive extraction of d2f678e4 under $TMPDIR, not from the worker's logs alone.",
+    "write_paths": "git show --name-only d2f678e4 lists the fragment, eddb_remote.py, test_eddb_local_transport.py and tests/data/test_eddb_cache.py, all inside the fence; eddb.py and the figures dir are declared but untouched."
+  },
+  "justifications": {
+    "durability": "three local-route tests are added and the negative control proves they fire when the local branch is disabled; the cached pf_active test is not skipped (the store exists and 35 passed carry no skip marker), so the bit-for-bit claim is exercised rather than short-circuited.",
+    "evidence": "local-tests.log records 35 passed EXIT=0 at d2f678e4 and I reproduced it in an extracted tree; base-arm.log records 32 passed EXIT=0 at 0a77985f; negative-control.log shows 3 failed EXIT=1 and my own mutation of `if not self.ssh_command:` to `if False:` reproduced the same 3 failures; ruff exit 0. Blemish: the clean-venv gate header names revision 0a77985f though its installed wheel matches head.",
+    "fit": "the rename keeps the Transport protocol and the runner's shape, docstrings and the module header are updated to the two-route reality, the commit carries a conventional subject and a mechanism body, and the fragment element id begins with the node id.",
+    "goal_fidelity": "plan jt60sa-facility-mint \u00a73 names exactly this: an empty ssh_command composes nice -n 19 <python> -c REMOTE_SCRIPT with no ssh prefix and no module shell, the module-load string stays only on the ssh route, SshTransport is renamed and every caller moves, no new Transport class, and one shared reader and decode_batch. The diff matches clause for clause.",
+    "reuse": "no abstraction is added; the local route reuses the same REMOTE_SCRIPT, encode_batch/decode_batch and SubprocessTransport that the ssh route uses, and the test's stand-in is a local fixture rather than a product change.",
+    "scope_discipline": "only the four declared paths are touched; eddb.py, the figures dir, the plan and all index/sprint state are untouched; changed_paths match the diff."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: \u00a73 asks that with an empty ssh_command the extractor compose nice -n 19 <python> -c REMOTE_SCRIPT as one argv list with no ssh prefix and no module shell, the module-load string stays only on the ssh route, SshTransport is renamed to say it runs a subprocess with every caller moved, no new Transport class added, and the reader and decode_batch shared. _argv() at eddb_remote.py:333 returns [nice, -n, 19, remote_python, -c, REMOTE_SCRIPT] when ssh_command is empty and the ssh branch below is unchanged; SubprocessTransport replaces SshTransport and __all__ plus both callers move with it.\nVERDICT done_when: the local route is driven end to end through a stand-in eddb_pwrapper placed on the script's own path; the records decoded by the shared decode_batch equal the stand-in bit for bit on synthetic arrays and on E101154's cached pf_active arrays. The named gate is 35 passed EXIT=0, which I reproduced independently from a git-archive extraction of d2f678e4 (35 passed, EXIT=0).\nVERDICT write_paths: git show --name-only d2f678e4 lists docs/evidence/fragments/jt60sa-facility-mint/jtfm-local-eddb.html, packages/imas-alambic/src/imas_alambic/eddb_remote.py, packages/imas-alambic/tests/test_eddb_local_transport.py and tests/data/test_eddb_cache.py, all inside the declared fence; eddb.py and the figures directory are declared but untouched.\nVERDICT manifest: records commit d2f678e4, the base arm (32 passed at 0a77985f), the head arm (35 passed), the clean-venv gate (3 passed), ruff (0) and the negative control (3 failed EXIT=1), with log paths and no blockers; its baseline_suite and after_suite JSON agree with the logs they cite (exit_status 0, 0 failures each).\nVERDICT diff: empty ssh_command makes _argv() return the local argv list and leaves the ssh prefix and module-load shell only on the ssh branch; SshTransport becomes SubprocessTransport with no new class; a 206-line test file drives the local route through a stand-in wrapper; tests/data/test_eddb_cache.py updates the import and the seam assertion.\nVERDICT verification: the head gate, the 32-test base arm and a mutation disabling the local branch were each re-run from an extraction of d2f678e4 under $TMPDIR with the shared venv; results match the worker's logs (35 passed EXIT=0; 3 failed EXIT=1 under the mutation).\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: the plan paragraph names exactly this change and the diff matches clause for clause.\nSCORE evidence: 18\nJUSTIFICATION evidence: head and base arms bracket the change at named revisions and I reproduced both; the negative control's refusal reproduces under my own mutation. Blemish: the clean-venv gate header names revision 0a77985f though its installed wheel matches head d2f678e4 byte for byte.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: only the four declared paths are touched; no plan, index, figure or eddb.py edit.\nSCORE durability: 19\nJUSTIFICATION durability: three local-route tests are added and the negative control proves they fire; the cached bit-for-bit test runs rather than skipping.\nSCORE fit: 19\nJUSTIFICATION fit: the rename keeps the protocol seam, docstrings and header follow the two-route reality, and the commit carries a conventional subject and a mechanism body.\nSCORE reuse: 20\nJUSTIFICATION reuse: no new abstraction; the same reader, decode_batch and transport serve both routes.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261007T003528879021-jtfm-local-eddb/cleanvenv-gate.log:1 follow-on: the clean-venv gate header names revision 0a77985f, but the wheel it installed into /tmp/eddb-local-venv matches head d2f678e4 byte for byte.\nFINDING docs/plans/jt60sa-machine-map.html:231 follow-on: the machine-map landed record still names SshTransport as a public symbol at lines 231 and 696; after this rename the public class is SubprocessTransport.\n",
+  "review_run_id": "r-20261007T004951586580-review-of-jtfm-local-eddb",
+  "reviewed_base_sha": "0a77985fa9f9e253e6c18215bc1f69c9bfeb2f66",
+  "reviewed_head_sha": "d2f678e4356e4a766ce43b6a6314e95221b3765d",
+  "reviewed_run_id": "r-20261007T003528879021-jtfm-local-eddb",
+  "reviewer": {
+    "backend": "clive",
+    "model": "deepseek-v4.1-flash"
+  },
+  "reviewer_run_id": "r-20261007T004951586580-review-of-jtfm-local-eddb",
+  "scores": {
+    "durability": 19,
+    "evidence": 18,
+    "fit": 19,
+    "goal_fidelity": 20,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "timestamp": "2026-10-07T00:56:30.634980+00:00",
+  "total": 116
+}
