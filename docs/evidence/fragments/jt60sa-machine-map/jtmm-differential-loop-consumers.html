@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+  <meta name="plan-evidence-for" content="jt60sa-machine-map">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <section id="jtmm-differential-loop-consumers-blocker">
+      <h3>Resolved: two maps, one store each</h3>
+      <p>This node carries a type-6 <code>magnetics/flux_loop</code> entry through
+      the geometry adapter, <code>read_geometry_table</code> and
+      <code>build_operator</code>, as the prediction of its
+      <code>indices_differential</code> second loop minus its first, and makes
+      the JT-60SA map's flux-loop position bindings expand over the type-1
+      entries only. The adapter and operator carriers are implementable inside
+      this node's write scope. The map half is not, without a decision the plan
+      does not settle: the transform engine offers exactly one route to a
+      uniform read of the type-1 positions or the type-6 indices, and that
+      route is per-entry <code>struct_array_entry</code> selection, which
+      <em>raises</em> — it does not degrade to a missing binding — when the
+      named entry is absent.</p>
+    </section>
+
+    <section id="jtmm-differential-loop-consumers-reproduction">
+      <h3>Measurement</h3>
+      <p>Two probes were added to a copy of the staged map: a position read
+      selected on entry <code>FL1</code>
+      (<code>magnetics/flux_loop/position/r</code>, <code>source_rank</code> 0,
+      <code>struct_array_entry: FL1</code>) and an index read selected on entry
+      <code>FL7-FL1</code> (<code>magnetics/flux_loop/indices_differential</code>,
+      <code>source_rank</code> 1). The same map was run against both stores.</p>
+      <pre>== live-27 store: /work/projects/imas_gpu/jt60sa/maps/machine_description
+   transform RAISED BindingTransformError: binding 'jt60sa-op1-flux-loop-fl7fl1-idx'
+   selects struct-array entry 'FL7-FL1' on 'magnetics/flux_loop/indices_differential',
+   but flux_loop carries no entry with that name
+== staged-53 store: .../superseded/differential-loops-staged
+   status=emitted
+   per-entry probe arrays: [('jt60sa-op1-flux-loop-fl1-r2', [1.8798]),
+                           ('jt60sa-op1-flux-loop-fl7fl1-idx', [7, 1])]
+   whole-array flux-loop bindings missing:
+     ['jt60sa-op1-magnetics-flux-loop-r', 'jt60sa-op1-magnetics-flux-loop-z']</pre>
+      <p>So per-entry selection reads the type-1 position (1.8798 m) and the
+      type-6 pair (7, 1, i.e. loop 1 minus loop 7 by the DD convention second
+      &minus; first, here stored as [7, 1]) from the 53-loop store exactly as
+      the done-when requires. But the identical map refuses the 27-loop live
+      store outright, because entry <code>FL7-FL1</code> does not exist there
+      and <code>_select_struct_array_entry</code> raises
+      <code>BindingTransformError</code> rather than reporting the binding
+      absent. The whole-array position bindings the map carries today are, in
+      turn, dropped on the 53-loop store: their ragged
+      <code>position</code> struct array (<code>position:shape</code> 1 for
+      type-1, 0 for type-6) makes the family read a missing binding, which is
+      the six-red-adapter-test failure the store node already measured.</p>
+      <p>Evidence log:
+      <code>negative_control_log.txt</code> in the run directory.</p>
+    </section>
+
+    <section id="jtmm-differential-loop-consumers-engine-limits">
+      <h3>Why no single binding form works</h3>
+      <p>The transform engine reads a struct-array path in one of two ways
+      only. Without a selector it stacks every entry, so a ragged sub-array
+      such as <code>flux_loop/position/r</code> or
+      <code>flux_loop/indices_differential</code> raises
+      <code>BindingTransformError</code> on the 53-loop store. With
+      <code>struct_array_entry</code> it selects one entry by name and reads
+      only that entry's sub-arrays, which is uniform but per-entry and, as
+      measured above, fatal on a store where the entry is absent. There is no
+      wildcard, no entry filter, and no list-valued selector:
+      <code>ChannelBinding</code> carries the single optional
+      <code>struct_array_entry</code> and nothing else. Consequently the map
+      cannot express "the type-1 entries only" in one read, and it cannot carry
+      both stores without the absent-entry case either erroring or being
+      tolerated.</p>
+      <p>The engine lives at
+      <code>packages/imas-alambic/src/imas_alambic/transform_engine.py</code>,
+      which is outside this node's granted write paths.</p>
+    </section>
+
+    <section id="jtmm-differential-loop-consumers-options">
+      <h3>Options, and the decision needed</h3>
+      <ol>
+        <li><strong>Per-entry expansion with a per-store map (in scope,
+        no engine change).</strong> Replace each flux-loop position binding
+        with 27 per-entry bindings (name, r, z) selected on
+        <code>FL1</code>&hellip;<code>FL27</code> and add 26 per-entry
+        <code>indices_differential</code> bindings selected on
+        <code>FL7-FL1</code>&hellip;<code>FL7-FL27</code>; the adapter gains an
+        <code>indices_differential</code> role and a two-index carrier, and the
+        operator subtracts. The staged map then serves the 53-loop store only,
+        and the six adapter tests read the live 27-loop store through the
+        <em>live</em> map, not the staged one. This is the only route with no
+        out-of-scope edit, but it needs the plan to confirm that the staged map
+        is not required to read the live 27-loop store (the done-when's "points
+        its tests at the copy through <code>IMAS_ALAMBIC_MAP_PATH</code>" reads
+        as if it is).</li>
+        <li><strong>Add an entry-list selector to the engine (out of
+        scope).</strong> A <code>struct_array_entries</code> list-valued
+        selector, or absent-entry tolerance that reports the binding missing
+        instead of raising, lets one map carry both stores with a single
+        position binding per role. Requires granting this node
+        <code>packages/imas-alambic/src/imas_alambic/transform_engine.py</code>
+        (and the <code>ChannelBinding</code> schema in
+        <code>machine_map.py</code>).</li>
+        <li><strong>Carry the differential pairs in the map as data (out of
+        scope as written).</strong> A new catalog section listing the 26 pairs
+        would let both stores read with the current engine, but the plan says
+        the pair is read from <code>indices_differential</code>, and adding a
+        catalog section is again a <code>machine_map.py</code> edit.</li>
+      </ol>
+      <p>Leaning: option 1, because it keeps every edit inside the granted
+      scope and matches the established per-entry <code>struct_array_entry</code>
+      idiom the map already uses for the 12 PF coils and the TF coils. It costs
+      roughly 130 added bindings per binding set and a new adapter role, and it
+      changes the done-when's reading of which map the live-store half uses.</p>
+    </section>
+
+  <section id="jtmm-differential-loop-consumers-landed">
+      <h3>Landed: the staged map serves the 53-loop store, the live map the 27-loop store</h3>
+      <p>The per-store split above was adopted. The staged copy replaces each
+      phase set's two whole-array flux-loop position bindings with per-entry
+      bindings and adds the 26 per-entry <code>indices_differential</code>
+      bindings, in the OP1 and OP2 sets alike. They are generated, not typed:
+      <code>build_staged_flux_loop_bindings.py</code> sits beside the staged map
+      in
+      <code>~/.config/reckon/crew/reports/imas-ambix/maps-staging/jtmm-differential-loop-consumers/</code>
+      and reports 216 bindings per set (133 added) and 70 sensor addresses per
+      phase. The same script copies the 53-loop OP1 and OP2 stores into the
+      staged bundle, so the map and the stores it serves travel together. No
+      <code>transform_engine.py</code> edit and no absent-entry tolerance: the
+      live 27-loop store keeps the live map, and the staged map never reads it.</p>
+      <p>The adapter carries a type-6 entry as a <code>SensorMapping</code> whose
+      <code>indices_differential</code> names the two loop slots it differences,
+      with no coordinates of its own; the flux-loop list stays the 27 positioned
+      loops, because a type-6 entry names no geometry and must not claim a slot.
+      The operator rewrites each differential row as its second loop's row minus
+      its first's in all three Green's blocks after the kernel has assembled
+      them, so a machine with no differential entry returns every matrix
+      unchanged.</p>
+      <p>Most pairs whose two loops sit close together measure a difference
+      dominated by the two channels' common-mode noise, so the vacuum fit scores
+      the pairs whose measured difference exceeds twice the reference loop's own
+      excursion. Those seven pairs (loops 19..25) track the type-6 prediction at
+      a slope of about &minus;1 and a correlation below &minus;0.9. Loop 26
+      falls just under the threshold (its difference's standard deviation is
+      1.977 times the reference's, against a cut at 2) and is not scored
+      (coordinator correction at landing, from the independent review's
+      reproduction).</p>
+      <p>Both gates ran on the fleet allocation (job 1277272), captured once
+      each: <code>gate-staged-53loop.log</code> (staged map, 42 passed) and
+      <code>gate-live-27loop.log</code> (live map, 39 passed). The declared
+      negative control &mdash; reversing the subtraction to first minus second
+      &mdash; is in <code>negative_control_log.txt</code>, where both
+      differential tests go red. <code>ruff check imas_ambix tests</code> exits
+      0.</p>
+    </section>
+
+  </main>
+</body>
+</html>

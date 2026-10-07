@@ -1,0 +1,56 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run declares no arm pair in its own fields: its manifest carries no baseline_suite or after_suite key and classification.json records manifest.data.baseline_suite null and manifest.data.after_suite null. The only suite artifact is the post-change head arm gate-head.log over tests/data/test_jt60sa_signal_maps.py and tests/data/test_jt60sa_unit_audit.py, which records 36 passed, EXIT=0, so its failing-id set is empty. With no recorded base arm the read-path set difference is empty by construction, so added_failure_count is 0 and added_failure_ids is []. This is a from-single-arm reading, not a measured base/after pair.",
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-07T16:10:41.846Z",
+  "dispatched_at": "2026-10-07T15:55:38Z",
+  "findings": [
+    {
+      "file": "tests/data/test_jt60sa_unit_audit.py",
+      "line": "54",
+      "severity": "follow-on",
+      "text": "follow-on: the HAND_FACTORS entry (\"T.m\",\"T\"):1.0 is asserted against _unit_factor, which divides two _si_value results that are both 1.0 for any base unit in its own dimension, so the assertion cannot fail for this pair and a wrong dimensional factor for the T.m-to-T conversion would not be caught here; the real conversion is guarded only by the channel_factor assertion in test_equilibrium_b0_channel_factor_is_the_hand_computed_radius_reciprocal."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "no production call sites found",
+    "diff": "read commit by commit against base 33620fcb; b26c8e32 changes tests/data/test_jt60sa_unit_audit.py and tests/data/test_jt60sa_signal_maps.py and adds the evidence fragment, all inside the declared write paths.",
+    "done_when": "the done_when names the pytest command over tests/data/test_jt60sa_signal_maps.py and tests/data/test_jt60sa_unit_audit.py and ruff check imas_ambix tests; the manifest records 36 passed EXIT=0 in gate-head.log and a clean ruff run in ruff-head.log.",
+    "goal": "the node goal is to bring the staged FAME equilibrium map and its tests to the DD unit vocabulary and the catalogue's declared radius; the staged maps/equilibrium.json b0 rule now spells source_unit \"T.m\" and tests/data/test_jt60sa_unit_audit.py plus tests/data/test_jt60sa_signal_maps.py carry the audit and the catalogue-read radius, read at commit b26c8e32.",
+    "manifest": "read; it states the tests passed, names gate-head.log, ruff-head.log and negative-control.log, and records the revision pair and the changed paths.",
+    "write_paths": "read the manifest's declared paths; every in-repo path in the diff (the two test files and the evidence fragment) is inside them, and the staged maps-staging/jtmm-fame-equilibrium-map directory is the declared out-of-repo path its maps/equilibrium.json edit lives in."
+  },
+  "justifications": {
+    "durability": "test_signal_unit_vocabulary_resolves reddens on the reinstated middle-dot T\u00b7m as negative-control.log shows, but the added HAND_FACTORS[(\"T.m\",\"T\")]=1.0 pair at tests/data/test_jt60sa_unit_audit.py:54 is checked by a derivation that returns 1.0 for any base-unit pair.",
+    "evidence": "gate-head.log records 36 passed EXIT=0 for the named command and negative-control.log records 5 failed EXIT=1, though gate-head.log:1 names base 33620fcb as the working-tree revision rather than the committed head b26c8e32.",
+    "fit": "the change follows the SYSTEMS tuple and HAND_FACTORS table at tests/data/test_jt60sa_unit_audit.py:34, but the comment at tests/data/test_jt60sa_unit_audit.py:41 now calls every pair scale-preserving while T.m and T differ in dimension.",
+    "goal_fidelity": "maps/equilibrium.json spells the b0 source_unit \"T.m\" and is audited by tests/data/test_jt60sa_unit_audit.py:172, so the staged map and its tests reach the DD vocabulary the goal names.",
+    "reuse": "_si_value at tests/data/test_jt60sa_unit_audit.py:91 is extended with the compound branch rather than cloned, and _reference_radius_m at tests/data/test_jt60sa_signal_maps.py:636 reads the owner machine_map.json description_supplements reference_radius.",
+    "scope_discipline": "the diff touches only tests/data/test_jt60sa_unit_audit.py, tests/data/test_jt60sa_signal_maps.py and docs/evidence/fragments/jt60sa-machine-map/jtmm-fame-equilibrium-map-repair.html, all inside the declared write paths."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node goal is to bring the staged FAME equilibrium map and its tests to the DD unit vocabulary and the catalogue's declared radius; the staged maps/equilibrium.json b0 rule now spells source_unit \"T.m\" and tests/data/test_jt60sa_unit_audit.py plus tests/data/test_jt60sa_signal_maps.py carry the audit and the catalogue-read radius, read at commit b26c8e32.\nVERDICT done_when: the done_when names the pytest command over tests/data/test_jt60sa_signal_maps.py and tests/data/test_jt60sa_unit_audit.py and ruff check imas_ambix tests; the manifest records 36 passed EXIT=0 in gate-head.log and a clean ruff run in ruff-head.log.\nVERDICT write_paths: read the manifest's declared paths; every in-repo path in the diff (the two test files and the evidence fragment) is inside them, and the staged maps-staging/jtmm-fame-equilibrium-map directory is the declared out-of-repo path its maps/equilibrium.json edit lives in.\nVERDICT manifest: read; it states the tests passed, names gate-head.log, ruff-head.log and negative-control.log, and records the revision pair and the changed paths.\nVERDICT diff: read commit by commit against base 33620fcb; b26c8e32 changes tests/data/test_jt60sa_unit_audit.py and tests/data/test_jt60sa_signal_maps.py and adds the evidence fragment, all inside the declared write paths.\nCALL_SITES: none\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: maps/equilibrium.json spells the b0 source_unit \"T.m\" and is audited by tests/data/test_jt60sa_unit_audit.py:172, so the staged map and its tests reach the DD vocabulary the goal names.\nSCORE goal_fidelity: 19\nSCORE evidence: 18\nJUSTIFICATION evidence: gate-head.log records 36 passed EXIT=0 for the named command and negative-control.log records 5 failed EXIT=1, though gate-head.log:1 names base 33620fcb as the working-tree revision rather than the committed head b26c8e32.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: the diff touches only tests/data/test_jt60sa_unit_audit.py, tests/data/test_jt60sa_signal_maps.py and docs/evidence/fragments/jt60sa-machine-map/jtmm-fame-equilibrium-map-repair.html, all inside the declared write paths.\nSCORE durability: 17\nJUSTIFICATION durability: test_signal_unit_vocabulary_resolves reddens on the reinstated middle-dot T\u00b7m as negative-control.log shows, but the added HAND_FACTORS[(\"T.m\",\"T\")]=1.0 pair at tests/data/test_jt60sa_unit_audit.py:54 is checked by a derivation that returns 1.0 for any base-unit pair.\nSCORE fit: 17\nJUSTIFICATION fit: the change follows the SYSTEMS tuple and HAND_FACTORS table at tests/data/test_jt60sa_unit_audit.py:34, but the comment at tests/data/test_jt60sa_unit_audit.py:41 now calls every pair scale-preserving while T.m and T differ in dimension.\nSCORE reuse: 19\nJUSTIFICATION reuse: _si_value at tests/data/test_jt60sa_unit_audit.py:91 is extended with the compound branch rather than cloned, and _reference_radius_m at tests/data/test_jt60sa_signal_maps.py:636 reads the owner machine_map.json description_supplements reference_radius.\nFINDING tests/data/test_jt60sa_unit_audit.py:54 follow-on: the HAND_FACTORS entry (\"T.m\",\"T\"):1.0 is asserted against _unit_factor, which divides two _si_value results that are both 1.0 for any base unit in its own dimension, so the assertion cannot fail for this pair and a wrong dimensional factor for the T.m-to-T conversion would not be caught here; the real conversion is guarded only by the channel_factor assertion in test_equilibrium_b0_channel_factor_is_the_hand_computed_radius_reciprocal.\nreviewed_base_sha: 33620fcbfaaaaea02c99bb78ea7736a57c5ee71d\nreviewed_head_sha: b26c8e32b614a5c4dff24ee2d4aa643c34264aa8",
+  "review_run_id": "r-20261007T155525492518-review-of-jtmm-fame-equilibrium-map-repair",
+  "reviewed_base_sha": "33620fcbfaaaaea02c99bb78ea7736a57c5ee71d",
+  "reviewed_head_sha": "b26c8e32b614a5c4dff24ee2d4aa643c34264aa8",
+  "reviewed_run_id": "r-20261007T114357275075-jtmm-fame-equilibrium-map-repair",
+  "reviewer": "review-of-jtmm-fame-equilibrium-map-repair",
+  "scores": {
+    "durability": 17,
+    "evidence": 18,
+    "fit": 17,
+    "goal_fidelity": 19,
+    "reuse": 19,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T16:09:24.546588+00:00",
+  "total": 109
+}
