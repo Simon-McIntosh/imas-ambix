@@ -1,0 +1,34 @@
+<section id="jtfig-ids-redraw" data-node="jtfig-ids-redraw">
+  <h2 id="jtfig-ids-redraw-heading">E101154's coil currents and plasma current, drawn from its IDS</h2>
+
+  <p>
+    <code>scripts/figures_jt60sa_signals.py</code> is now a thin imas-ink
+    caller. Its one opener, <code>_read_pulse_ids(pulse_dir, ids_name)</code>,
+    reads one netCDF IDS from <code>pulse_dir / f"{ids_name}.nc"</code> with
+    <code>imas.DBEntry(path, "r")</code> and <code>get(ids_name,
+    autoconvert=False)</code>, where <code>pulse_dir</code> is
+    <code>JT60SA_ROOT / "ids" / "101154"</code>. It passes
+    <code>extract_signal_traces(pf_active, "coil/current")</code> and
+    <code>extract_signal_traces(magnetics, "ip")</code> to
+    <code>time_trace_figure_mpl</code>, one panel per series, and writes the
+    figure through <code>render_to_bytes(format="svg")</code>. The script
+    constructs no <code>TimeSeries</code> and passes no label or unit string;
+    every name and unit comes from the IDS. The two figures with no IDS behind
+    them are withdrawn: <code>jt60sa-E101154-flux-loops.svg</code> and
+    <code>jt60sa-C060033-pf-coil-currents.svg</code> are deleted, so
+    <code>docs/figures/jt60sa-signals/</code> holds exactly this one SVG.
+  </p>
+
+  <figure id="jtfig-ids-redraw-pf-coil-currents">
+    <img src="/imas-ambix/figures/jt60sa-signals/jt60sa-E101154-pf-coil-currents.svg"
+         alt="E101154 PF coil currents and plasma current, one panel per series, drawn from the pulse IDS">
+    <figcaption>
+      Shot E101154, drawn from the pulse IDS at
+      <code>ids/101154/{pf_active,magnetics}.nc</code>. Eleven panels, one per
+      series: the ten <code>pf_active/coil/current</code> traces CS1–CS4 and
+      EF1–EF6, and <code>magnetics/ip</code>. Every label and unit is read from
+      the IDS by imas-ink; all eleven are in A. No legend is drawn and the
+      shared time axis is labelled once at the bottom.
+    </figcaption>
+  </figure>
+</section>
