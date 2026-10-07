@@ -1,0 +1,27 @@
+<section class="evidence-fragment" data-reckon="evidence" data-node="jtmm-op1-shot-fetch" id="jtmm-op1-shot-fetch-landing">
+<h2 id="jtmm-op1-shot-fetch-h">The 16 identified OP1 shots are cached: 1678 channels served, 2 refused</h2>
+<p id="jtmm-op1-shot-fetch-method">Cached 2026-10-07 from the compute allocation into the shared on-demand cache <code>/work/projects/imas_gpu/jt60sa/&lt;shot&gt;.zarr</code>. The channel list is the <strong>served</strong> source arrays of the packaged JT-60SA <code>magnetics</code> (44 MDAC flux loops and probes + PSRC <code>Ip</code>), <code>pf_active</code> (10 MMSYS coil currents) and <code>tf</code> (MMSYS <code>cur1TFLKAT</code>) signal maps, plus the 48 single-channel PSRC equilibrium arrays named in the equilibrium-quantities table of <code>jtmm-psrc-selene-inventory.html</code>, plus the <code>FAME/VOLUM</code> and <code>FAME/BETA</code> scalars &mdash; 105 channels per shot. Each shot was fetched by one <code>fetch_channels</code> call, which is one <code>RemoteEddbExtractor</code> batch and one <code>ssh jt-60sa</code> session: <strong>16 shots, 16 ssh sessions, one each</strong> (a counting transport recorded exactly one session per shot). <code>fetch_channels</code> short-circuits any channel already cached, so nothing already in the store was refetched (every shot reported <code>cached_before=0</code>).</p>
+<table id="jtmm-op1-shot-fetch-table">
+<thead><tr><th>shot</th><th>served</th><th>refused</th><th>EDDB return code</th><th>wall [s]</th></tr></thead>
+<tbody>
+<tr><td>E100599</td><td>103</td><td>2</td><td>1013,1013</td><td>108.1</td></tr>
+<tr><td>E100999</td><td>105</td><td>0</td><td>&mdash;</td><td>121.9</td></tr>
+<tr><td>E101017</td><td>105</td><td>0</td><td>&mdash;</td><td>123.3</td></tr>
+<tr><td>E101025</td><td>105</td><td>0</td><td>&mdash;</td><td>103.8</td></tr>
+<tr><td>E101026</td><td>105</td><td>0</td><td>&mdash;</td><td>119.2</td></tr>
+<tr><td>E101029</td><td>105</td><td>0</td><td>&mdash;</td><td>147.4</td></tr>
+<tr><td>E101031</td><td>105</td><td>0</td><td>&mdash;</td><td>129.9</td></tr>
+<tr><td>E101033</td><td>105</td><td>0</td><td>&mdash;</td><td>132.7</td></tr>
+<tr><td>E101039</td><td>105</td><td>0</td><td>&mdash;</td><td>158.6</td></tr>
+<tr><td>E101044</td><td>105</td><td>0</td><td>&mdash;</td><td>152.1</td></tr>
+<tr><td>E101045</td><td>105</td><td>0</td><td>&mdash;</td><td>133.3</td></tr>
+<tr><td>E101046</td><td>105</td><td>0</td><td>&mdash;</td><td>141.7</td></tr>
+<tr><td>E101153</td><td>105</td><td>0</td><td>&mdash;</td><td>124.6</td></tr>
+<tr><td>E101156</td><td>105</td><td>0</td><td>&mdash;</td><td>146.2</td></tr>
+<tr><td>E101162</td><td>105</td><td>0</td><td>&mdash;</td><td>145.3</td></tr>
+<tr><td>E101163</td><td>105</td><td>0</td><td>&mdash;</td><td>123.2</td></tr>
+</tbody></table>
+<p id="jtmm-op1-shot-fetch-totals">Totals: <strong>1678 served, 2 refused</strong> across 16 shots (2,245.8&nbsp;MB written). The only refusals are <code>FAME/BETA</code> and <code>FAME/VOLUM</code> on E100599, both <strong>EDDB return code 1013</strong>. That shot is the first JT-60SA plasma, which carries a PSRC reconstruction but no FAME slice &mdash; the survey records <code>fame_present: false</code> for E100599 and <code>true</code> for the other 15. The FAME channel names are not the fault: on the other 15 shots both scalars were served, so the reader and the names are sound and the 1013 is a genuine absence of the FAME slice, exactly as the survey states.</p>
+<p id="jtmm-op1-shot-fetch-controls"><strong>Second read makes no transport call.</strong> After each shot's fetch, the served subset was re-read through <code>fetch_channels</code> with the same counting transport; every one returned 0 records, 0 refusals and <strong>0 ssh sessions</strong>, so a warm read is served wholly from disk. <strong>Negative control (declared):</strong> E100595 is not in the 16-shot list and gained no cached channel from this run &mdash; its store <code>100595.zarr</code> held MMSYS 22 and MDAC 122 arrays both before and after, unchanged.</p>
+<p id="jtmm-op1-shot-fetch-gate">Measure: <code>python fetch_op1.py</code> over the 16 survey shots; per-shot progress in <code>fetch_op1_progress.json</code> and the run log in <code>fetch_op1.log</code>. Whole-run transport total: 16 ssh sessions.</p>
+</section>
