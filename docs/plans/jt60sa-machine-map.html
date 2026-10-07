@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.73">
-<meta name="plan-version" content="278">
+<meta name="plan-version" content="279">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -220,7 +220,12 @@
       <code>_unit_factor</code> remains the one unit conversion on the export path. The round-trip
       test asserts each exported <code>scale</code> as the product of the engine resolver's COCOS
       factor, the binding's sign and the exporter's unit factor, so neither half can drift unseen.
-      That adds one public definition, the resolver, and retires the exporter's private copy. Then the node
+      That adds one public definition, the resolver, and retires the exporter's private copy. No public
+      name can be retired or merged in its place. The engine's public entry points,
+      <code>get_transform_engine</code> and <code>transform_machine_description</code>, compile arrays
+      from a store, and the exporter works from bindings with no store. And
+      <code>canonical_factor</code> in <code>cocos.py</code> takes a transformation class rather than
+      a DD path, so it cannot answer which class a path carries. Then the node
       exports the JT-60SA catalogue and signal maps for the five first-pass groups once §7's
       equilibrium bindings exist.
     </p>
@@ -950,9 +955,10 @@
       that signature's machine. A JT-60SA table can then never be resolved against MAST's registry,
       including in <code>machine_geometry.py</code>'s identity projection, which needs no edit.
       <code>identity_for_shot</code> receives a bare shot, and a shot integer cannot name its
-      machine, so it gains a required <code>machine</code> keyword. Its two production callers pass
-      it: the selector, and the geometry reader's <code>_shot_evidence</code>, from its own now
-      required <code>machine</code>. The interface account for the registry is two silent MAST
+      machine, so it gains a required <code>machine</code> keyword. Its three production callers pass
+      it: the selector; the geometry reader's <code>_shot_evidence</code>, from its own now required
+      <code>machine</code>; and <code>identity_for_table</code> in the same module, which already holds
+      the table's signature and passes <code>signature.machine</code>. The interface account for the registry is two silent MAST
       defaults retired (the resolvers' fallback and <code>identity_for_shot</code>'s implicit machine)
       and nothing added beyond the key. The three machine-keyed tables are not merged into one
       record. The pin table is a frozen expectation that must not be derived from the registry it
