@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.77">
-<meta name="plan-version" content="291">
+<meta name="plan-version" content="292">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -813,7 +813,20 @@
       <code>dbsvr17p</code> and hold psi on a 129&times;129 grid, the boundary, the axis, p&prime;,
       FF&prime;, and the q, volume, pressure and F profiles. Those full records are what the deferred
       transport would serve. They are needed only if PSRC carries no q profile or flux grid, which
-      <code>jtmm-psrc-selene-inventory</code> settles.
+      <code>jtmm-psrc-selene-inventory</code> settles. It settled it on 2026-10-07 (review 113/120): none
+      of PSRC's 86 arrays is a q profile or a flux grid, so the q-sign test and any flux-grid comparison
+      need an equilibrium that carries them.
+      <code>jtmm-equilibrium-route-search</code> is read-only on nakasvr26 and looks for a reachable
+      source of one OP1 equilibrium's psi grid and q profile. It searches beyond the unreachable
+      <code>dbsvr17p</code> route, starting in <code>/home/d240034</code> at the lead's direction:
+      scripts or notebooks that read FAME, exported FAME or SELENE equilibrium files, and the hosts,
+      mounts or socket endpoints such code names. It also asks whether a SELENE run writes psi and q
+      per shot (the run directory's <code>EFIT95.DATA</code> is a candidate). It reads what the site's
+      own documentation says FAME stands for and computes. For each route found, it tries one E101154
+      slice read from intr26-2 and quotes the call and its result. The node reads only. It copies no
+      file out of another user's home except equilibrium outputs it lists, and it never reads or
+      copies keys, credentials or shell history. It uses one ssh connection at a time and writes one
+      fragment.
       The cohort and the maps need more than three plasma shots. An OP1 sweep already exists:
       imas-efit's <code>docs/jt60sa-shot-candidates.html</code> read all 1167 E-series shots through
       the EDDB library, found 228 with a <code>PSRC/calIp</code> peak of at least 50 kA, and ranked them
@@ -1827,7 +1840,7 @@
     <div class="r-comment-body"><p>OP1 shot survey landed (review repair): reading E100001-E101173 on nakasvr26 reproduced the source table's 228 plasma shots (calIp peak &gt;= 50 kA) and added peak beta from FAME/BETA; the fragment names the catalogue tools beside eddbreadCatTable, identifies the first plasma (E100599, 2023-10-20, 76.1 kA), and ranks the OP1 plasma shots by peak sustained plasma current (E100999, 1.131 MA plateau over 1.77 s), peak beta restricted to flat-top windows &gt;= 1.0 s (E101163, flat-top median 0.0579 over 1.44 s) and plasma volume (E101017, 177.25 m3), each with date, peak value, unit, source, disruption flag and PSRC/FAME presence; the machine-readable list now holds exactly the 16 shots named in the three rankings plus the first plasma, one entry per shot with a reason, and the beta rule's five excluded shots are listed with their window lengths and both medians.</p></div>
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20261007T020048985589-review-of-jtmm-op1-shot-survey" data-who="reckon-build" data-when="2026-10-07T02:11:55.305Z">
-    <div class="r-comment-body"><p>review of the JT-60SA OP1 shot survey (reviewed_base_sha bb99ef9f, reviewed_head_sha 0bfaffd5): the three defects the first review (at 5550a072) found are repaired and verified independently — the machine-readable list is now exactly the union of the fragment&#x27;s three top-five rankings plus the first plasma (16 entries; E101153/E101031 restored, E101030 gone), the peak-beta ranking is gated on a plasma flat-top window &gt;= 1.0 s with the five excluded shots listed beside both medians, and the fragment root carries class=&quot;evidence-fragment&quot; data-reckon=&quot;evidence&quot;. All ranking values reproduce from the run&#x27;s own logs and imas-efit&#x27;s source table. One residual follow-on: the manifest follow_ons still names &quot;22 listed shots&quot; while the delivered list holds 16. Scores 19/19/20/16/18/19, total 111.</p></div>
+    <div class="r-comment-body"><p>review of the JT-60SA OP1 shot survey (reviewed_base_sha bb99ef9f, reviewed_head_sha 0bfaffd5): the three defects the first review (at 5550a072) found are repaired and verified independently — the machine-readable list is now exactly the union of the fragment's three top-five rankings plus the first plasma (16 entries; E101153/E101031 restored, E101030 gone), the peak-beta ranking is gated on a plasma flat-top window &gt;= 1.0 s with the five excluded shots listed beside both medians, and the fragment root carries class="evidence-fragment" data-reckon="evidence". All ranking values reproduce from the run's own logs and imas-efit's source table. One residual follow-on: the manifest follow_ons still names "22 listed shots" while the delivered list holds 16. Scores 19/19/20/16/18/19, total 111.</p></div>
 </div>
 <div class="r-comment" data-section="_top" data-id="c-20261007T0000-jtfm-move" data-who="reckon-build (jt60sa-facility-mint)" data-when="2026-10-06T23:00:00Z">
     <div class="r-comment-body"><p><strong>Coordination, lead-approved 2026-10-06:</strong> <a href="jt60sa-facility-mint">jt60sa-facility-mint</a> §2 is now moving the mint engine into the workspace member <code>packages/imas-alambic/</code>. Moving: <code>imas_ambix/data/{machine_map,signal_map,transform_engine,virtual_zarr,eddb,eddb_remote,pulse_mint}.py</code>, <code>imas_ambix/cocos.py</code> and <code>machine_maps/schema.yaml</code>. Imports become <code>imas_alambic.&lt;module&gt;</code>, and <code>nova.io.cocos</code> becomes <code>nova_cocos</code>. <strong>Map JSON is not moving</strong>: <code>machine_maps/*.json</code> and <code>maps/&lt;machine&gt;/*.json</code> stay where they are, and the by-name loaders keep their names, so map-authoring nodes are unaffected. Please avoid dispatching nodes that edit the moving Python modules until the move merges. A node already in flight that touches them will need its imports rebased after the merge, and the facility-mint coordinator will do that rebase.</p></div>
