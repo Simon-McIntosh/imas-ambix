@@ -1,0 +1,212 @@
+<section id="jtmm-jt60sa-host-survey" data-reckon="fragment">
+<h2 id="jtmm-jt60sa-host-survey-h">JT-60SA hosts named in passive sources, and where FAME's records sit</h2>
+
+<p id="jtmm-jt60sa-host-survey-scope">
+Read-only survey of the JT-60SA servers <code>nakasvr26</code> (ssh alias
+<code>jt-60sa</code>, hostname <code>intr26-2</code>, user <code>d240044</code>)
+and <code>nakasvr23</code> (ssh alias <code>jt-60sa-23</code>), from ITER compute
+over <code>ssh -F ~/.ssh/config</code> through the laptop reverse tunnel.
+Discovery is from passive sources only. No port scan or ping sweep was run, no
+login was written outside <code>/tmp</code>, no repository source was changed,
+and no home other than <code>/home/d240034</code> was read. <code>.ssh</code>,
+shell history and credentials were never read. One ssh connection was used at a
+time. This answers the §6 node <code>jtmm-jt60sa-host-survey</code>.
+</p>
+
+<h3 id="jtmm-jt60sa-host-survey-reach-h">Reachability of the two servers</h3>
+<p id="jtmm-jt60sa-host-survey-reach-p">
+<code>ssh -F ~/.ssh/config jt-60sa</code> answered <code>intr26-2</code>
+(Linux 5.14.0-570.12.1.el9_6, user <code>d240044</code>) at 06:01 and through
+seven collection batches, 06:03–06:44 UTC on 2026-10-07.
+<code>ssh -F ~/.ssh/config jt-60sa-23</code> failed on three attempts with
+<code>kex_exchange_identification: Connection closed by remote host</code> — the
+path through the laptop reaches an endpoint that closes at the SSH key exchange,
+so <code>nakasvr23</code> was not surveyed. Between roughly 06:10 and 06:30 UTC
+the <em>laptop jump hop itself</em> was unresponsive (the login node's reverse
+forward on port 2222 still accepted TCP but the laptop's sshd stopped answering
+the SSH banner, <code>Connection timed out during banner exchange</code>); it
+recovered and the survey completed. That outage is an external condition on the
+workstation's reverse tunnel, not a property of either server.
+</p>
+
+<h3 id="jtmm-jt60sa-host-survey-hosts-h">Hosts named in passive sources on nakasvr26</h3>
+<p id="jtmm-jt60sa-host-survey-hosts-p">
+The principal host registry is
+<code>/analysis/lib/JT60SAEQDB/eqdbms.20230523/endian_info</code> — a
+<code>host &lt;TAB&gt; endianness</code> table the EQDB client reads to decide
+byte order per server. It names 85 hosts. Additional hosts come from
+<code>/etc/fstab</code>, <code>/proc/mounts</code>, <code>/etc/resolv.conf</code>
+and the EQDB <code>*.eqdbms</code> endpoint config. Each was looked up from
+<code>intr26-2</code> (<code>getent hosts</code>).
+</p>
+<table id="jtmm-jt60sa-host-survey-hosts-table">
+<thead><tr><th>Host(s)</th><th>Passive source</th><th>Serves (per source)</th><th>Resolves from intr26-2</th></tr></thead>
+<tbody>
+<tr>
+  <td><code>anastr01.iferc-naka.qst.go.jp</code></td>
+  <td><code>/etc/fstab</code>, <code>/proc/mounts</code></td>
+  <td>NFSv4.1 server exporting <code>/home</code>, <code>/analysis</code>,
+      <code>/analysis_DB</code>, <code>/admin</code>, <code>/work</code>.
+      Client addresses 192.168.10.171–177.</td>
+  <td><strong>yes</strong> — 192.168.10.171–177 (round-robin)</td>
+</tr>
+<tr>
+  <td><code>192.168.10.1</code> / <code>nakasvr26</code></td>
+  <td><code>/etc/resolv.conf</code>; DNS</td>
+  <td>DNS resolver (<code>nameserver</code>); search domain
+      <code>iferc-naka.qst.go.jp</code>. <code>nakasvr26</code> resolves here.</td>
+  <td><strong>yes</strong> — <code>nakasvr26</code> → 192.168.10.1</td>
+</tr>
+<tr>
+  <td><code>dbsvr17p</code></td>
+  <td><code>*.eqdbms</code> (<code>SERVER_NAME</code>), <code>echoFameHost</code></td>
+  <td>The EQDB server for every index (eqdb2, eqdbccs, efitrv, eqdb2m,
+      reverse, autorv); holds <code>/JT60SA_EQ/FAME3</code>. Lead reports it
+      decommissioned.</td>
+  <td><strong>no</strong> — no DNS</td>
+</tr>
+<tr>
+  <td>85 names in <code>endian_info</code> (below)</td>
+  <td><code>endian_info</code> (EQDB client registry)</td>
+  <td>Historical site hosts the EQDB client knew, each with an endianness flag:
+      compute (<code>axis, ceres, helios, vppsys01, sys397, cnet0028</code>),
+      FAME nodes (<code>fame, fameimp, famedisk, famefi1, famemon, famemon2,
+      fame2, fame3</code>), acquisition/analysis
+      (<code>fame, diag7b, mse, wave, fourier, pac1, pac15, naka-spf, sr8fp1/2,
+      daemon1-3, expert1, mars, bind, anchor, comet, venus, hepta, paragn/s/f,
+      jaeriv1/jaerif/jaeripca/jaeripcb, chameleon, aquarius</code>), servers
+      (<code>nakasvr, nakasvr2/3/4, nakasvr09/13/17, naka-svr, apsvr03,
+      nanasvr, nanasvr2/3/4, dbsvr17p, accs.naka.qst.go.jp,
+      dec01-08.naka.qst.go.jp, imaging, imaging01-18</code>), and two bare IPs
+      (<code>157.111.148.20</code>, <code>202.241.62.19</code>).</td>
+  <td><strong>none</strong> — all 85 return no DNS record</td>
+</tr>
+<tr>
+  <td><code>fame3</code>, <code>nakasvr17</code></td>
+  <td><code>echoFameHost</code></td>
+  <td>Commented alternatives to <code>dbsvr17p</code> as the FAME host
+      (<code>#echo fame3</code>, <code>#echo nakasvr17</code>); the live line
+      echoes <code>dbsvr17p</code>.</td>
+  <td><strong>no</strong> (both in the 85 above)</td>
+</tr>
+</tbody>
+</table>
+<p id="jtmm-jt60sa-host-survey-hosts-list">
+The 85 <code>endian_info</code> names, verbatim:
+<code>157.111.148.20, 202.241.62.19, accs.naka.qst.go.jp, anchor, apsvr03,
+aquarius, axis, bind, ceres, chameleon, cnet0028, comet, daemon1, daemon2,
+daemon3, dbsvr17p, dec01.naka.qst.go.jp, dec02.naka.qst.go.jp,
+dec03.naka.qst.go.jp, dec04.naka.qst.go.jp, dec05.naka.qst.go.jp,
+dec06.naka.qst.go.jp, dec07.naka.qst.go.jp, dec08.naka.qst.go.jp, diag7b,
+expert1, fame, fame3, famedisk, famefi1, fameimp, famemon, famemon2, fourier,
+helios, hepta, imaging, imaging01, imaging02, imaging03, imaging04, imaging05,
+imaging06, imaging07, imaging08, imaging09, imaging10, imaging11, imaging12,
+imaging13, imaging14, imaging15, imaging16, imaging17, imaging18, jaerif,
+jaeripca, jaeripcb, jaeriv1, mars, mse, naka-spf, naka-svr, nakasvr, nakasvr2,
+nakasvr3, nakasvr4, nakasvr09, nakasvr13, nakasvr17, nanasvr, nanasvr2,
+nanasvr3, nanasvr4, pac1, pac15, paragf, paragn, parags, sr8fp1, sr8fp2,
+sys397, venus, vppsys01, wave</code>.
+</p>
+
+<h3 id="jtmm-jt60sa-host-survey-port-h">Ports named in site configuration</h3>
+<p id="jtmm-jt60sa-host-survey-port-p">
+No TCP port is named anywhere in the EQDB or EDDB configuration read. The EQDB
+transport is a socket client — <code>eqdbsockclient_connect</code> and its
+siblings (<code>_ftp</code>, <code>_joinlist</code>, <code>_joineqio</code>,
+<code>_joinimage</code>, <code>_close</code>) in
+<code>/analysis/lib/JT60SAEQDB/libEQDBMSPIC.so</code>, over
+<code>SOCKET_EQDBIO</code> / <code>SOCKET_FAMEIMAGE</code> — and the
+<code>*.eqdbms</code> files carry paths, owner and admin lists but no port
+number. The SSH port (22) is the only transport named anywhere, and the survey
+policy forbids a port scan. So the "port named in site configuration accepts a
+TCP connection" measure has no subject: <strong>no port is named in the sources
+read</strong>. The companion resolution measure is done and reported above. The
+site's own scripts that would drive the socket (<code>eqdball</code>,
+<code>length_put</code>, … under
+<code>/analysis/lib/JT60SAEQDB/eqdbms.20230523/</code>) are mode-restricted and
+return <code>Permission denied</code> to <code>d240044</code>, so the socket
+could not be exercised even were a port named. A further port probe is deferred
+rather than guessed.
+</p>
+
+<h3 id="jtmm-jt60sa-host-survey-fame-h">Where FAME's FAME3 records sit</h3>
+<p id="jtmm-jt60sa-host-survey-fame-p">
+Every FAME store path the configuration names was tested from
+<code>intr26-2</code> and none exists:
+</p>
+<ul id="jtmm-jt60sa-host-survey-fame-list">
+<li><code>/JT60SA_EQ/FAME3</code> — <em>not present</em>
+    (<code>No such file or directory</code>).</li>
+<li><code>/analysis_DB/FAME3</code> — <em>not present</em>. Its parent
+    <code>/analysis_DB</code> <em>is</em> mounted (from <code>anastr01</code>)
+    and holds only <code>EDASDB/</code> and <code>MBDB/</code>, each a tree of
+    per-account directories, no FAME/EQDB content.</li>
+<li><code>/dbhome/h060028/FAME3</code> — <em>not present</em>; <code>/dbhome</code>
+    is not mounted at all.</li>
+</ul>
+<p id="jtmm-jt60sa-host-survey-fame-p2">
+So on the one server this survey reached, FAME3's records were not found:
+<strong>no migrated store, archived dump or copy</strong> is present on
+<code>nakasvr26</code>'s mounted filesystems. The configurations that once named
+the alternatives (<code>echoFameDir</code>'s commented
+<code>/analysis_DB/FAME3</code> and <code>/dbhome/h060028/FAME3</code>;
+<code>echoFameHost</code>'s commented <code>#echo fame3</code> /
+<code>#echo nakasvr17</code>) point at hosts and mounts that are gone — every one
+of <code>fame3</code>, <code>nakasvr17</code>, <code>dbsvr17p</code> is
+unresolvable. <code>nakasvr23</code> could not be reached (above), so no claim is
+made about it. <strong>Result: none found</strong> on the reachable server.
+</p>
+
+<h3 id="jtmm-jt60sa-host-survey-archives-h">Other equilibrium archives carrying psi and q</h3>
+<p id="jtmm-jt60sa-host-survey-archives-p">
+Across the mounted filesystems on <code>intr26-2</code> (<code>/analysis</code>,
+<code>/analysis_DB</code>, <code>/work</code>, <code>/home</code>) and the two
+EDDB/EQDB readers, the only equilibrium archive carrying both a psi grid and a q
+profile that this survey found reachable is the FBEQU/SELENE output tree in the
+lead-named home. No new archive was found on <code>/analysis_DB</code> or the
+EDDB categories. One OP1 slice read was attempted for it, with the exact call and
+result:
+</p>
+<blockquote id="jtmm-jt60sa-host-survey-archives-call">
+<code>python -c "import sys; sys.path.insert(0,'/home/d240034/prova'); import
+eqdsk; w=eqdsk.eqdsk_read('/home/d240034/fbequ/EFIT95.DATA');
+print(w['psi'].shape, w['q'].shape)"</code><br>
+→ <code>psi (129, 129)   q (129,)</code> — header line
+<code>SA 25-12-03 101011 4000ms09/02/17 0 129 129</code>, i.e. OP1 shot
+<strong>E101011</strong> at 4.0&nbsp;s. Reader: <code>/home/d240034/prova/eqdsk.py</code>
+<code>eqdsk_read</code> (class <code>Eqdsk</code>; keys <code>psi</code>,
+<code>q</code>, <code>pprime</code>, <code>ffprime</code>, <code>pressure</code>,
+<code>psiaxis</code>, <code>psiedge</code>).
+</blockquote>
+<p id="jtmm-jt60sa-host-survey-archives-p2">
+The FAME EQDB record (the only E101154-keyed source of psi on 129&times;129 plus
+<code>QQV</code>) remains unreadable: <code>dbsvr17p</code> does not resolve from
+<code>intr26-2</code>, reproducing the declared negative control
+(<a href="#jtmm-jt60sa-host-survey-nc">below</a>). The EDDB <code>PSRC</code> bank
+has neither a flux grid nor a q profile. So for the §7 gate: one OP1 equilibrium
+with psi and q is reachable (<strong>E101011</strong>); the identified shot list's
+shots are not.
+</p>
+
+<h3 id="jtmm-jt60sa-host-survey-nc">Declared negative control, reproduced</h3>
+<p id="jtmm-jt60sa-host-survey-nc-p">
+The node declared: <em>"the decommissioned dbsvr17p is reported as not resolving
+or not accepting a connection from either server."</em> Reproduced on
+<code>intr26-2</code>:
+<code>getent hosts dbsvr17p</code> → no record (<code>NO-RESOLVE</code>); it is
+also absent from <code>/etc/hosts</code> and no mount references it. The
+<em>same</em> lookup on <code>nakasvr23</code> was not taken because that server
+is unreachable this session.
+</p>
+
+<h3 id="jtmm-jt60sa-host-survey-limits">Limits</h3>
+<p id="jtmm-jt60sa-host-survey-limits-p">
+<code>nakasvr23</code> closed SSH at the key exchange on every attempt, so the
+whole survey is one-server: no host inventory, resolution, store check or slice
+read is claimed for <code>nakasvr23</code>. No port is named in the site
+configuration read, so that named measure has no subject (see above) rather than
+a negative result. Collection logs (batches A–G) and their scripts are on disk
+under the run directory at
+<code>logs/batch_*.log</code> and <code>logs/collect_*.sh</code>.
+</p>
+</section>
