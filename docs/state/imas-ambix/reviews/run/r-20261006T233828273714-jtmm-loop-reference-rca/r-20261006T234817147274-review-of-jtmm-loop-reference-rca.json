@@ -1,0 +1,87 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "The reviewed run is a read-only analysis node whose declared write paths reach no test path. Its manifest records baseline_suite and after_suite as null (classification.json confirms both are JSON null), so there are no gate suite logs to difference and the reviewed run declares no red log. The derived delta is therefore zero: no head arm exists that could add a failing id over a base arm, so added_failure_count is 0 and added_failure_ids is []. This is not a claim that a suite passed -- it is that the armed-suite measure does not apply to a read-only evidence node, and the reviewed run's own control (the no-reference arm reproducing the recorded adjudication exactly) is a reproduction check rather than a suite. I independently reproduced the node's control, not a suite: see the negative_control block.",
+  "after_suite": null,
+  "baseline_suite": null,
+  "call_site_count": 8,
+  "call_sites": [
+    "scripts/vacuum_loop_adjudication.py load_packaged_machine_map (analysis builds the jt-60sa catalogue the same way)",
+    "scripts/vacuum_loop_adjudication.py _jt60sa_coil_channels (the ten MMSYS coil channels)",
+    "scripts/vacuum_loop_adjudication.py _jt60sa_shot_data (operator, quasi-static mask and measured/predicted matrices)",
+    "scripts/vacuum_loop_adjudication.py _jt60sa_sensor_name / row_index (loop coalescing to operator columns)",
+    "scripts/vacuum_loop_adjudication.py _jt60sa_fit (slope and Pearson r of the two mean-centred series)",
+    "scripts/vacuum_loop_adjudication.py JT60SA_SHOTS, JT60SA_LOOP_CHANNELS (shot and loop cohorts)",
+    "scripts/vacuum_loop_adjudication.py JT60SA_SLEW_FRACTION, JT60SA_SLOPE_TOLERANCE, JT60SA_CORRELATION_FLOOR (rule constants)"
+  ],
+  "completed_at": "2026-10-06T23:54:47.182Z",
+  "dispatched_at": "2026-10-06T23:48:28Z",
+  "findings": [
+    {
+      "category": "evidence",
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-loop-reference-rca.html",
+      "line": "17",
+      "severity": "follow-on",
+      "text": "follow-on: The landing sentence states loop 7's own absolute fit is 'slope -0.99 on each shot', but the run's own results (loop_reference_results.json absolute.magFlxLp7) give -0.9923 on E100579, -1.0753 on E100595 and -0.9925 on E100642. -0.99 is the median, not the per-shot value, and E100595 is -1.075 -- a reader checking 'each shot' against the table finds one shot that disagrees. The conclusion is unaffected (all three remain within the 0.1 slope tolerance and the |r| range 0.993-0.9999 is correct), and the same clause appears in the manifest's evidence_inputs."
+    },
+    {
+      "category": "evidence",
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-loop-reference-rca.html",
+      "line": "66",
+      "severity": "follow-on",
+      "text": "follow-on: under reference 8 the fragment states loop 7's fit is 'slope -2.99 to -17.43, r -0.18 to 0.11'. The per-shot slopes in the run's results are -2.99 (E100579), -17.43 (E100595) and +0.6 (E100642), so the stated interval omits the positive E100642 shot rather than spanning the observed range. The qualitative claim holds (the fit is unphysical and r is near zero on every shot), but a reader taking '-2.99 to -17.43' as the full range is misled about one shot."
+    },
+    {
+      "category": "fit",
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-loop-reference-rca.html",
+      "line": "1",
+      "severity": "follow-on",
+      "text": "follow-on: the first commit ee21390d's body says 'all 26 other loops track at slope -1 (|r|>0.99) on E100642' -- the |r|>0.99 overstatement the follow-up commit 4d34146e explicitly corrects in the fragment (the true range is |r| 0.971-0.999, loops 20-22 at 0.971). The commit message is immutable, but the correction commit's body names the exact fix, so the log is self-correcting at head; no action needed, recorded for completeness."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "diff": "read ee21390d (the fragment, 807 lines) and 4d34146e (the 3-line pass-set correction) against base e4344e78; both touch only the fragment.",
+    "done_when": "the fragment reports per-shot slope and Pearson r for all 27 candidate references against the other 26 loops under the adjudication's quasi-static filter, names magFlxLp7 with the runner-up, and states the median-rule outcome; all reproduced against loop_reference_results.json.",
+    "goal": "plan section 6's brief for jtmm-loop-reference-rca -- compare each loop's measurement against its vacuum prediction minus every candidate reference's prediction, on the three vacuum shots, name the supported reference with slopes and r -- is met and reproduced from the run's own raw matrix.",
+    "manifest": "read; it names the gate command, the gate log, the reuse of vacuum_loop_adjudication.py, the run-dir raw matrix, the supported reference and the runner-up. Its baseline_suite/after_suite are null (read-only node) and its negative_control_log is 'none' with a reason -- consistent with classification.json.",
+    "write_paths": "one of two declared paths touched (the fragment); the declared figure directory unused, consistent with a no-artifact done-when."
+  },
+  "justifications": {
+    "durability": "This is a read-only evidence node: its write paths reach no test path, so it can add no automated test and its manifest and run both record negative_control_log as none with that reason, and baseline_suite/after_suite as null. Durability therefore rests on the analysis being re-runnable and the numbers being checkable, and both hold partially. The analysis script (loop_reference_analysis.py) and its renderer (make_fragment.py) are retained in the run directory, and the full per-cell raw matrix (436 KB) is retained there too, so the fragment's numbers are restatable without re-deriving the method from prose and I could recompute every claim from the raw matrix. The limitation is that the script lives only in the run directory, not in the repository, so a reader of the repo alone cannot re-run it, and nothing fails if the conclusion regresses. The exact 45/45 control shows the reuse is faithful but is a reproduction check, not a guard that can fail. Deduction for the absent in-repo instrument.",
+    "evidence": "Every principal claim reproduces against the run's own artifact. I loaded loop_reference_results.json (436 KB, in the run dir per the >300 KB rule) and recomputed the pass sets, the E100642 slope/|r| ranges, the runner-up counts, the median-rule verdict split and loop 7's absolute fit from the raw per-cell slope/r: all agree with the fragment. The negative control is exact: the 45 absolute (no-reference) loop x shot fits for loops 13-27 match the committed jtmm-vacuum-adjudication.json to 0.00e+00. Two small landing-paragraph imprecisions remain (findings 1 and 2): loop 7's per-shot absolute slope is presented as -0.99 'on each shot' when E100595 is -1.075, and the reference-8 fit range omits the +0.6 shot. Neither changes the named reference. I did not re-run the operator over the three shots (that needs the EDAS/IMAS cache and compute the node already ran); I verified against the run's recorded raw matrix and the committed adjudication, which is the artifact the node's conclusion rests on.",
+    "fit": "The fragment is a clean evidence document: standard head meta, five node-prefixed section ids, tables for the matrix, the summary and the per-loop detail. Commit subjects are conventional with bodies (docs(evidence): ...), stating what changed and why, with no plan/sprint/ticket identifiers, no version or stage labels, and no AI attribution; the correction commit's body explains the fix precisely. Naming is by mechanism (magFlxLp7, quasi-static, negate/undecided). Deductions: the landing paragraph carries the two numeric imprecisions (findings 1 and 2), and the first commit body retains an |r|>0.99 statement the follow-up corrects in the fragment (finding 3).",
+    "goal_fidelity": "Plan section 6's brief for jtmm-loop-reference-rca (docs/plans/jt60sa-machine-map.html, s6, 'jtmm-loop-reference-rca is read-only ... it compares each loop's measurement with its prediction minus a candidate reference's prediction, for loop 7 and each other loop as reference, on the three vacuum shots. It names the reference the fits support with the slopes and r') is met and reproduced. The fragment reports, for all 27 candidate references R and all 26 other loops L, the per-shot slope and Pearson r of measured_L against prediction_L - prediction_R on E100579, E100595 and E100642 under the adjudication's quasi-static dI/dt filter (section 'Full matrix'), plus a per-reference summary and a per-loop detail table for the supported reference. It names magFlxLp7 and states the runner-up. Reproducing the run's own results JSON: under reference 7, 13/26 loops pass on E100579 (exactly loops 12, 13, 14, 18-27), 10/26 on E100595 (17-26) and 26/26 on E100642 (slope -1.017 to -0.913, |r| 0.971 to 0.999); the median rule makes loops 12-27 negate (16) and loops 1-6 and 8-11 undecided (10); runner-up magFlxLp8 reaches 13/10/9. Every one of these numbers matches the fragment. The one deduction is the loop-7 absolute-slope per-shot slip (finding 1).",
+    "reuse": "The analysis extends the existing adjudication rather than adding a parallel instrument: it loads scripts/vacuum_loop_adjudication.py as a module and calls its private helpers unchanged -- load_packaged_machine_map, _jt60sa_coil_channels, _jt60sa_shot_data (operator + quasi-static mask + measured and predicted matrices), _jt60sa_sensor_name, _jt60sa_fit, the JT60SA_SHOTS / JT60SA_LOOP_CHANNELS cohorts and the JT60SA_SLEW_FRACTION / JT60SA_SLOPE_TOLERANCE / JT60SA_CORRELATION_FLOOR rule constants (all present in the committed script at head). The exact 45/45 control against the committed adjudication is what proves the reuse is faithful rather than assumed. It adds no second operator, mask or fit and writes no source, consistent with a read-only node.",
+    "scope_discipline": "git diff e4344e78..4d34146e touches exactly one file: docs/evidence/fragments/jt60sa-machine-map/jtmm-loop-reference-rca.html (ee21390d +807 lines, 4d34146e 3 insertions / 3 deletions). That is the first of the two declared write paths; the declared figure directory docs/figures/jt60sa-machine-map/jtmm-loop-reference-rca is unused, consistent with the brief ('your done-when names no artifact, so this node writes no figure'). No path outside the grant is touched -- no source under imas_ambix/, no scripts/, no tests/, no plan edit. The base commit's parent chain starts at e4344e78, matching the manifest's orientation_base_sha. All five fragment element ids carry the node prefix (jtmm-loop-reference-rca-landing/-summary/-loops/-matrix/-control). The >300 KB raw matrix lives in the run dir, not the repo."
+  },
+  "model": "deepseek-v4.1-flash",
+  "negative_control": {
+    "exit_status": null,
+    "failing_ids": [],
+    "log_path": null,
+    "mutation": "the absolute fit with no reference subtracted reproduces the undecided slopes that docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-adjudication.json records for loops 13 to 27",
+    "note": "The reviewed run's write paths reach no test path, so no red log was produced and none is required (its manifest records negative_control_log as 'none: ...'). I verified the declared control independently: I loaded the run's own loop_reference_results.json and the committed jtmm-vacuum-adjudication.json and compared the absolute (no-reference) per-shot slope and Pearson r for all 45 loop x shot cells of loops 13-27; the maximum absolute difference across the 45 slope pairs and 45 r pairs is 0.00e+00 (0 mismatches at a 1e-9 threshold). So the operator, quasi-static mask and measured-channel coalescing in the analysis match the committed adjudication exactly -- the control is exact and non-vacuous, though it proves faithful reuse rather than falsifying a guard.",
+    "verified": true
+  },
+  "project": "imas-ambix",
+  "raw_text": "Independent review of node jtmm-loop-reference-rca (plan imas-ambix:jt60sa-machine-map section 6), read at head 4d34146e669b75df59078c350508d686b8513505 on base e4344e7877d288685a65f79264860f1b472fb89f.\nRead: the two commits against base (ee21390d the fragment, 4d34146e the pass-set correction), the run's manifest, classification.json, loop_reference_analysis.py, make_fragment.py, the gate log, the committed adjudication jtmm-vacuum-adjudication.json, and the committed fragment at head.\nReproduced independently: recomputed from the run's loop_reference_results.json the reference-7 pass sets (13/26 on E100579 = loops 12,13,14,18-27; 10/26 on E100595 = 17-26; 26/26 on E100642, slope -1.017 to -0.913, |r| 0.971 to 0.999), the runner-up reference 8 (13/10/9), the median-rule split under reference 7 (loops 12-27 negate = 16; loops 1-6 and 8-11 undecided = 10), and loop 7's absolute fit; all match the fragment. Verified the no-reference control: 45/45 absolute loop x shot fits for loops 13-27 match the committed jtmm-vacuum-adjudication.json with maximum absolute difference 0.00e+00. Scope: both commits touch only the fragment; no base/head suite arms exist (read-only node).\nTwo minor numeric slips in the landing paragraph: loop 7's per-shot absolute slope is stated as -0.99 'on each shot' (E100595 is -1.075), and the reference-8 range omits the +0.6 E100642 shot. Neither changes the supported reference (magFlxLp7).\n\nVERDICT goal: met and reproduced; the full reference x loop matrix, the summary and the per-loop detail are present and match the run's raw matrix.\nVERDICT done_when: met; the fragment names magFlxLp7 with slopes and r and states the runner-up and the median-rule outcome.\nVERDICT write_paths: one of two declared paths touched, the figure directory unused.\nVERDICT manifest: read and reconciled; its null suite arms and 'none' negative-control log are consistent with a read-only node.\nVERDICT diff: read both commits against base; only the fragment is touched.\nSCORE goal_fidelity: 19\nSCORE evidence: 18\nSCORE scope_discipline: 20\nSCORE durability: 16\nSCORE fit: 17\nSCORE reuse: 19\nTotal 109/120.",
+  "review_run_id": "r-20261006T234817147274-review-of-jtmm-loop-reference-rca",
+  "reviewed_base_sha": "e4344e7877d288685a65f79264860f1b472fb89f",
+  "reviewed_head_sha": "4d34146e669b75df59078c350508d686b8513505",
+  "reviewed_run_id": "r-20261006T233828273714-jtmm-loop-reference-rca",
+  "reviewer": "review-of-jtmm-loop-reference-rca",
+  "scores": {
+    "durability": 16,
+    "evidence": 18,
+    "fit": 17,
+    "goal_fidelity": 19,
+    "reuse": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "timestamp": "2026-10-06T23:54:00+00:00",
+  "total": 109
+}
