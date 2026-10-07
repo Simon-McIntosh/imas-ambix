@@ -1,0 +1,60 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtfm-alambic-integration-landing">
+  <header>
+    <h3>the merged engine move runs the suites it touches with three added failures, all attributed</h3>
+    <p class="meta">
+      Node <code>jtfm-alambic-integration</code> &middot;
+      date 2026-10-07 &middot;
+      plan <code>jt60sa-facility-mint</code> &sect;2 &middot;
+      node <code>98dci4-clu-2018</code> job <code>1277272</code>
+    </p>
+  </header>
+  <p>
+    No source or test file is edited. The whole-tree gate ran twice with
+    <code>IMAS_ALAMBIC_MAP_PATH</code> unset against the shared environment at
+    <code>/home/ITER/mcintos/Code/imas-ambix/.venv</code> (synced at
+    <code>d82ed19b</code>), pinning <code>imas_ambix</code> and
+    <code>imas_alambic</code> to the tree under test via <code>PYTHONPATH</code>
+    (the environment's editable pointers otherwise follow the main checkout,
+    whose HEAD has advanced past <code>d82ed19b</code>).
+  </p>
+  <ul>
+    <li>
+      Head <code>d82ed19b</code>: <code>8 failed, 1185 passed, 3 skipped</code>,
+      <code>EXIT=1</code> (371.86&nbsp;s). Log
+      <code>~/.config/reckon/crew/runs/r-20261006T235536466136-jtfm-alambic-integration/head-d82ed19b.log</code>.
+    </li>
+    <li>
+      Base <code>f1f0a5b</code> (pre-move, detached copy): <code>5 failed,
+      1165 passed, 3 skipped</code>, <code>EXIT=1</code> (281.63&nbsp;s). Log
+      <code>&hellip;/base-f1f0a5b.log</code>.
+    </li>
+    <li>
+      The base carries no <code>packages/</code> directory, so the head-only
+      path <code>packages/imas-alambic/tests</code> is absent there and a
+      missing path argument makes pytest abort before running anything
+      (<code>no tests ran</code>, <code>EXIT=5</code>; log
+      <code>&hellip;/base-f1f0a5b-literal.log</code>). The base arm therefore
+      runs the same command minus that head-only directory; every suite present
+      at both revisions runs in both arms.
+    </li>
+  </ul>
+  <p>
+    The five base failures all recur at the head. The head adds exactly three
+    failure ids, each attributed:
+    <code>tests/data/test_machine_map.py::test_machine_map_refuses_an_incomplete_or_unknown_store_declaration</code>
+    &mdash; a real move-induced mismatch: the refusal now reads
+    <code>no bundle declares store root 'NO_SUCH_STORE_ROOT'</code> where the
+    test still matches <code>description store root</code> (base emitted
+    <code>description store root {name!r} is not a path defined in&nbsp;&hellip;</code>);
+    <code>packages/imas-alambic/tests/test_bundle_discovery.py::test_the_same_directory_reached_twice_is_one_bundle</code>
+    &mdash; an environment artefact: <code>discover_bundles()</code> always adds
+    the <code>imas_alambic.bundles</code> entry-point bundle, and ambix
+    registers exactly one (<code>ambix</code>), so the synthetic-map test sees
+    2 bundles where it expects 1; the de-duplication of the doubled
+    <code>IMAS_ALAMBIC_MAP_PATH</code> entry itself works;
+    <code>tests/data/test_machine_map.py::test_every_mast_map_range_is_one_geometry_transition</code>
+    &mdash; a <code>-n&nbsp;8</code> timeout under GPFS contention on a
+    description-inventory read that passes standalone at the head in 108&nbsp;s
+    (log <code>&hellip;/head-mast-rerun.log</code>).
+  </p>
+</section>
