@@ -85,13 +85,37 @@
     exits 0.
   </p>
 
-  <p id="jtfm-settings-run-file-not-run">
-    <strong>Not run here.</strong>  The clean <code>uv venv --python 3.12</code>
-    with only the <code>imas-alambic</code> and <code>nova-cocos</code> wheels
-    against a synthetic <code>IMAS_ALAMBIC_HOME</code> is left to the separately
-    dispatched test node; this node verified the substance of it (derived
-    settings, sources and the inferred machine) through
-    <code>imas-alambic config</code> and the
-    <code>test_settings.py</code>/<code>test_cli.py</code> synthetic-home tests.
+  <p id="jtfm-settings-run-file-cleanvenv">
+    <strong>Clean-venv gate.</strong>  In a fresh
+    <code>uv venv --python 3.12</code> holding only the
+    <code>imas-alambic</code> wheel built here, the <code>nova-cocos</code>
+    wheel and <code>pytest</code>, with <code>PYTHONPATH</code> unset,
+    <code>packages/imas-alambic/tests</code> is 32 passed / 0 failed.  With
+    <code>IMAS_ALAMBIC_HOME</code> set to a synthetic folder holding one
+    synthetic flat bundle and no other <code>IMAS_ALAMBIC_*</code> variable,
+    <code>imas-alambic config</code> reports the maps as
+    <code>HOME/maps/current</code>, the IDS root as <code>HOME/ids</code>, the
+    cache as the bundle's <code>eddb_cache</code> role, and the machine as
+    <code>synth</code> inferred from the single reachable bundle, each with its
+    source; <code>imas-alambic write 900001</code> writes
+    <code>ids/900001_0.nc</code> whose IDS set equals its phase description's
+    (<code>pf_active</code>, <code>pf_passive</code>, <code>wall</code>,
+    <code>magnetics</code>, <code>tf</code>).
+  </p>
+
+  <p id="jtfm-settings-run-file-findings">
+    <strong>Two defects the gate exposed.</strong>  First, this node's earlier
+    <code>ruff format</code>, at the repository's <code>py314</code> target,
+    rewrote two <code>except (KeyError, ValueError, OSError):</code> clauses in
+    <code>eddb.py</code> into PEP 758 form, a SyntaxError on the Python 3.12 the
+    engine declares (the wheel then failed to import <code>virtual_zarr</code>,
+    <code>eddb</code> and <code>pulse_writer</code> in the clean venv while a
+    3.14 run hides it); the parentheses are restored and the whole engine
+    parses under 3.12.  The repository guards this class of defect for
+    <code>imas_ambix/agent/*.py</code> but not for the engine.  Second,
+    <code>imas-alambic</code> declares <code>imas-python</code> without a
+    netCDF backend, so a clean install cannot write netCDF; the demonstration
+    therefore additionally installed <code>netCDF4</code>, and the packaging
+    gap is recorded as a follow-on.
   </p>
 </section>
