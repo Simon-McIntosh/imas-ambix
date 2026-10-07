@@ -1,0 +1,60 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": null,
+  "added_failure_ids": [],
+  "added_failures_note": "unmeasured: the reviewed run's manifest carries baseline_suite null and after_suite null (feature node measured by figure generation and a ruff gate, not a test suite), so no baseline/after gate logs exist to derive an added-failure count from",
+  "base_log_revision": null,
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-07T02:46:53.756Z",
+  "dispatched_at": "2026-10-07T02:39:42Z",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261007T023139516859-jtfig-ids-redraw/manifest.md",
+      "line": "15",
+      "severity": "follow-on",
+      "text": "follow-on: the manifest's artifacts line states 'figures-run.log shows EXIT=0', but figures-run.log carries no EXIT= line \u2014 it holds the DD-parse INFO and the eleven ylab/unit prints only. The exit status is corroborated by the written artifact and the absent error, not by a sentinel in the log; a reader following the manifest to the log finds no explicit exit code."
+    }
+  ],
+  "head_log_revision": null,
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "none: scripts/figures_jt60sa_signals.py is a __main__ script with no importer; grep for its name in imas_ambix/ and tests/ finds no call site.",
+    "diff": "read 38a239db against base 142fdbd8: the script rewritten (227 lines changed across the pair), docs/figures/jt60sa-signals/jt60sa-E101154-pf-coil-currents.svg regenerated, two SVGs deleted (jt60sa-E101154-flux-loops.svg, jt60sa-C060033-pf-coil-currents.svg), one new evidence fragment; 407 insertions, 37626 deletions.",
+    "done_when": "I re-ran every clause independently: grep -cE 'VirtualZarrView|read_channel|signal_map|TimeSeries\\(' scripts/figures_jt60sa_signals.py returns 0 and no virtual_zarr/signal_map/eddb/zarr import remains; docs/figures/jt60sa-signals/ holds exactly one file (the SVG, 402315 bytes) with no PNG twin; figures-run.log prints CS1 CS2 CS3 CS4 EF1 EF2 EF3 EF4 EF5 EF6 ip each '[A]'; the SVG carries 11 axes groups, exactly one 'Time [s]' label and zero 'legend' occurrences; the fragment embeds the SVG with project-absolute src /imas-ambix/figures/jt60sa-signals/jt60sa-E101154-pf-coil-currents.svg and a caption naming shot, IDS paths and units; ruff check exits 0 (All checks passed).",
+    "goal": "the node goal is to redraw E101154's ten PF coil currents (CS1-EF6) and Ip from the pulse IDS through imas-ink and withdraw the two figures with no IDS behind them; the delivered script and fragment do exactly that.",
+    "manifest": "read; status complete, one commit 38a239db, changed_paths five files all inside the declared write paths, baseline_suite null and after_suite null, negative_control_log named.",
+    "write_paths": "the declared scope is scripts/figures_jt60sa_signals.py, docs/figures/jt60sa-signals, the plan evidence fragment and a figures directory; git diff --name-only 142fdbd8..38a239db lists only files inside that scope (two declared dirs unused, which a declaration permits)."
+  },
+  "justifications": {
+    "durability": "12 of 20: the script, the regenerated figure and the fragment carry no test or assertion that would fail if the IDS-only sourcing regressed \u2014 the negative control ran against a scratch copy under /tmp and was not committed as a guard, so a later edit could reintroduce a TimeSeries constructed from raw arrays, or drop the IDS read, without any gate firing.",
+    "evidence": "18 of 20: strong and independently reproducible \u2014 ruff EXIT 0, the run log prints all eleven series each in A, the done-when grep returns 0, the figures directory holds exactly one file, and the negative control shows a genuine imas-ink ValueError naming the indexed path 'coil[0]/current'; the deduction is the manifest overstating figures-run.log as 'shows EXIT=0' when that log carries no EXIT= sentinel.",
+    "fit": "18 of 20: the script follows the repo's thin-caller shape (module docstring, _read_pulse_ids opener as the one place the on-disk layout is known, ruff-clean) and the fragment matches its own plan-family bare-section idiom (section id=jtfig-ids-redraw data-node=..., h2, figure/figcaption) exactly as docs/evidence/fragments/jt60sa-geometry-and-signal-figures/jtfig-signal-figures.html does.",
+    "goal_fidelity": "20 of 20: the goal's three parts are all landed and verified \u2014 the script reads pf_active/coil/current and magnetics/ip from ids/101154/*.nc through imas.DBEntry.autoconvert=False and draws them through imas-ink, the two non-IDS figures are deleted, and one IDS-backed SVG remains with its evidence fragment.",
+    "reuse": "20 of 20: the script adds no parallelism \u2014 it calls imas-ink's extract_signal_traces and time_trace_figure_mpl and render_to_bytes, so the IDS-to-trace and unit/label logic lives once, in imas-ink.",
+    "scope_discipline": "20 of 20: git diff --name-only 142fdbd8..38a239db is confined to the declared script, figures directory and evidence fragment; the node left the shipped jt60sa-geometry-and-signal-figures fragment and plan untouched and flagged their repair to the coordinator in evidence_inputs, as the plan requires of a worker that may not edit another plan."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node goal is to redraw E101154's ten PF coil currents (CS1-EF6) and Ip from the pulse IDS through imas-ink and withdraw the two figures with no IDS behind them; the delivered script and fragment do exactly that.\nVERDICT done_when: I re-ran every clause independently: grep -cE 'VirtualZarrView|read_channel|signal_map|TimeSeries\\(' scripts/figures_jt60sa_signals.py returns 0 and no virtual_zarr/signal_map/eddb/zarr import remains; docs/figures/jt60sa-signals/ holds exactly one file (the SVG, 402315 bytes) with no PNG twin; figures-run.log prints CS1 CS2 CS3 CS4 EF1 EF2 EF3 EF4 EF5 EF6 ip each '[A] 1'; the SVG carries 11 axes groups, exactly one 'Time [s]' label and zero 'legend' occurrences; the fragment embeds the SVG with project-absolute src /imas-ambix/figures/jt60sa-signals/jt60sa-E101154-pf-coil-currents.svg and a caption naming shot, IDS paths and units; ruff check exits 0 (All checks passed).\nVERDICT write_paths: the declared scope is scripts/figures_jt60sa_signals.py, docs/figures/jt60sa-signals, the plan evidence fragment and a figures directory; git diff --name-only 142fdbd8..38a239db lists only files inside that scope.\nVERDICT manifest: read; status complete, one commit 38a239db, changed_paths five files all inside the declared write paths, baseline_suite null and after_suite null, negative_control_log named.\nVERDICT diff: read 38a239db against base 142fdbd8: the script rewritten, the E101154 SVG regenerated, two SVGs deleted (flux-loops, C060033), one new evidence fragment; 407 insertions, 37626 deletions.\nCALL_SITES: none\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: the script reads pf_active/coil/current and magnetics/ip from ids/101154/*.nc through imas.DBEntry.autoconvert=False and draws them through imas-ink, the two non-IDS figures are deleted, and one IDS-backed SVG remains with its evidence fragment.\nSCORE evidence: 18\nJUSTIFICATION evidence: ruff EXIT 0, the run log prints all eleven series each in A, the done-when grep returns 0, the directory holds exactly one file, and the negative control shows a genuine imas-ink ValueError naming 'coil[0]/current'; the manifest overstates figures-run.log as 'figures-run.log shows EXIT=0' when that log carries no EXIT= sentinel.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff --name-only 142fdbd8..38a239db is confined to the declared paths; the node left the geometry plan's fragment and plan untouched and flagged their repair to the coordinator.\nSCORE durability: 12\nJUSTIFICATION durability: the script, figure and fragment carry no test or assertion that fails if IDS-only sourcing regresses, and the negative control ran on a scratch copy that was not committed as a guard.\nSCORE fit: 18\nJUSTIFICATION fit: the script follows the repo's thin-caller shape and the fragment matches its plan-family bare-section idiom (section id=jtfig-ids-redraw data-node=...) as docs/evidence/fragments/jt60sa-geometry-and-signal-figures/jtfig-signal-figures.html does.\nSCORE reuse: 20\nJUSTIFICATION reuse: the script calls imas-ink's extract_signal_traces, time_trace_figure_mpl and render_to_bytes, adding no duplicate IDS-to-trace or unit logic.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261007T023139516859-jtfig-ids-redraw/manifest.md:15 follow-on: the manifest's artifacts line states 'figures-run.log shows EXIT=0', but figures-run.log carries no EXIT= line \u2014 it holds the DD-parse INFO and the eleven ylab/unit prints only; the exit status is corroborated by the written artifact and the absent error, not by a sentinel.\n",
+  "review_run_id": "r-20261007T023927303618-review-of-jtfig-ids-redraw",
+  "reviewed_base_sha": "142fdbd848f7970c909857ccd1850fc0bcf1cfec",
+  "reviewed_head_sha": "38a239dbe0c30c80ae223f467ee370d18f031a98",
+  "reviewed_run_id": "r-20261007T023139516859-jtfig-ids-redraw",
+  "reviewer": {
+    "backend": "clive",
+    "model": "deepseek-v4.1-flash"
+  },
+  "rubric": "code",
+  "scores": {
+    "durability": 12,
+    "evidence": 18,
+    "fit": 18,
+    "goal_fidelity": 20,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "timestamp": "2026-10-07T02:45:00+00:00",
+  "total": 108
+}
